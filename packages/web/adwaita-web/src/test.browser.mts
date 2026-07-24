@@ -7,9 +7,10 @@ import { run } from '@gjsify/unit';
 // Registers the custom elements (side-effect) + injects the compiled CSS.
 import '@gjsify/adwaita-web';
 
+import { AdwButtonRowTest } from './adw-button-row.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwDropDownTest } from './adw-drop-down.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
 
-run({ AdwDataGridTest, AdwDialogTest, AdwDropDownTest, AdwTabViewTest });
+run({ AdwButtonRowTest, AdwDataGridTest, AdwDialogTest, AdwDropDownTest, AdwTabViewTest });

@@ -23,13 +23,6 @@ export class AdwButtonRow extends HTMLElement {
 
     connectedCallback() {
         if (this._initialized) return;
-        this._initialized = true;
-
-        // Adw.ButtonRow is activatable by default; only an explicit
-        // activatable="false" turns it off.
-        if (!this.hasAttribute('activatable')) {
-            this.setAttribute('activatable', '');
-        }
 
         this._contentsEl = document.createElement('div');
         this._contentsEl.className = 'adw-button-row-contents';
@@ -42,6 +35,19 @@ export class AdwButtonRow extends HTMLElement {
 
         this._contentsEl.append(this._startIconEl, this._titleEl);
         this.replaceChildren(this._contentsEl);
+
+        // Adw.ButtonRow is activatable by default; only an explicit
+        // activatable="false" turns it off. Set this while still uninitialized
+        // so the re-entrant attributeChangedCallback is a no-op — the explicit
+        // _render() below does the first render, once the elements above exist.
+        // (Setting _initialized before the elements were built made this
+        // setAttribute re-enter _render() and crash on a declaratively-parsed
+        // row, where connectedCallback runs with attributes already present.)
+        if (!this.hasAttribute('activatable')) {
+            this.setAttribute('activatable', '');
+        }
+
+        this._initialized = true;
         this._render();
 
         this.addEventListener('click', () => {
