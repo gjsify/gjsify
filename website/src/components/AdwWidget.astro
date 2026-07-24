@@ -1,0 +1,263 @@
+---
+// AdwWidget — the documentation block for a single Adwaita component.
+//
+// Renders, top to bottom:
+//   1. A LIVE PREVIEW panel — the real widget rendered with
+//      @gjsify/adwaita-web custom elements on an Adwaita "view" surface. No
+//      screenshots: the browser paints the actual component, exactly like the
+//      official Libadwaita widget gallery shows one, and it follows the site's
+//      light/dark theme toggle.
+//   2. A WINDOW with IMPLEMENTATION TABS — one Adw.TabBar tab per port
+//      (GJS · Web · NativeScript), each holding that port's code snippet.
+//      Native GJS is the primary implementation and always comes first; Web
+//      and NativeScript are additional and optional.
+//
+// The tab window mirrors CommandTabs (the runtime tabs used elsewhere): an
+// Adwaita headerbar with a centered title + copy button, an <adw-tab-view>
+// below it, and the active tab's Expressive Code block beneath. The copy
+// button forwards to the active block's hidden EC copy button, so EC's
+// clipboard handling + the Adwaita toast keep working. The chosen
+// implementation is remembered (localStorage) and synced across every
+// AdwWidget on the site: pick "Web" once and all widget snippets follow.
+//
+// Feed the three snippets as named MDX slots (one fenced code block each):
+//
+//   <AdwWidget title="Adw.SwitchRow">
+//     <Fragment slot="preview">
+//       <adw-preferences-group>
+//         <adw-switch-row title="Automatic updates" active></adw-switch-row>
+//       </adw-preferences-group>
+//     </Fragment>
+//     <Fragment slot="gjs">```ts …```</Fragment>
+//     <Fragment slot="web">```ts …```</Fragment>
+//     <Fragment slot="nativescript">```ts …```</Fragment>
+//   </AdwWidget>
+
+interface Props {
+    /** Title shown centered in the tab-window headerbar, e.g. "Adw.SwitchRow". */
+    title?: string;
+    /**
+     * Padding around the preview widget. Use "flush" for widgets that own their
+     * full surface (navigation views, status pages, toolbar views) so they sit
+     * edge-to-edge; the default "comfortable" pads small widgets (rows, buttons).
+     */
+    padding?: 'comfortable' | 'flush';
+    /** When set, the preview panel scrolls horizontally instead of clipping wide widgets. */
+    scroll?: boolean;
+}
+
+const { title = 'Code', padding = 'comfortable', scroll = false } = Astro.props;
+
+// GJS is the primary implementation and always present; Web + NativeScript are
+// additional. Render only the slots that were actually provided.
+const IMPLS = [
+    { slot: 'gjs', label: 'GJS' },
+    { slot: 'web', label: 'Web' },
+    { slot: 'nativescript', label: 'NativeScript' },
+];
+
+const present: { slot: string; label: string; html: string }[] = [];
+for (const impl of IMPLS) {
+    if (Astro.slots.has(impl.slot)) {
+        present.push({ ...impl, html: await Astro.slots.render(impl.slot) });
+    }
+}
+const implsAttr = present.map((r) => r.slot).join(',');
+const hasPreview = Astro.slots.has('preview');
+---
+
+<div class="adw-widget">
+    {
+        hasPreview && (
+            <div
+                class:list={[
+                    'adw-widget-preview',
+                    `is-${padding}`,
+                    { 'is-scroll': scroll },
+                ]}
+            >
+                {/* The preview is cloned into the stage at runtime (see <script>),
+                    not server-rendered directly, for two reasons:
+                    1. adwaita-web custom elements upgrade as the page is parsed;
+                       a nested composite (a split view holding toolbar views) can
+                       lose its slotted children to an upgrade-order race. Cloning
+                       AFTER the elements are defined uses the reliable
+                       build-then-attach path instead.
+                    2. Astro's MDX compiler strips `slot="…"` attributes (it reads
+                       `slot` as its own slot-assignment directive), so the preview
+                       markup carries `data-adw-slot="…"`; the script maps it back
+                       to a real `slot` before attaching. */}
+                <template class="adw-widget-preview-tpl">
+                    <slot name="preview" />
+                </template>
+                <div class="adw-widget-preview-stage"></div>
+            </div>
+        )
+    }
+
+    <div class="command-tabs not-content" data-impl-tabs data-impls={implsAttr}>
+        <div class="command-tabs-headerbar">
+            <span class="command-tabs-headerbar-start"></span>
+            <span class="command-tabs-headerbar-title">{title}</span>
+            <span class="command-tabs-headerbar-end">
+                <button class="command-tabs-copy" aria-label="Copy active tab" type="button">
+                    <span class="command-tabs-copy-icon" aria-hidden="true"></span>
+                </button>
+            </span>
+        </div>
+        <adw-tab-view no-close expand-tabs>
+            {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
+        </adw-tab-view>
+    </div>
+</div>
+
+<script>
+    // Registers every <adw-*> custom element — both the tab bar of this
+    // component AND the live-preview widgets slotted into it. This static import
+    // runs before the code below, so every element is defined by the time the
+    // previews mount.
+    import '@gjsify/adwaita-web';
+
+    // Mount each preview: clone its inert <template> into the stage now that the
+    // custom elements are defined, mapping data-adw-slot back to the real slot
+    // attribute. Building the subtree and attaching it in one go (rather than
+    // letting the parser upgrade it in place) avoids the nested-composite
+    // upgrade-order race, and data-adw-slot survives Astro's slot stripping.
+    for (const tpl of document.querySelectorAll<HTMLTemplateElement>('.adw-widget-preview-tpl')) {
+        const stage = tpl.parentElement?.querySelector<HTMLElement>('.adw-widget-preview-stage');
+        if (!stage || stage.dataset.mounted) continue;
+        stage.dataset.mounted = '1';
+        const frag = tpl.content.cloneNode(true) as DocumentFragment;
+        for (const el of frag.querySelectorAll<HTMLElement>('[data-adw-slot]')) {
+            el.setAttribute('slot', el.getAttribute('data-adw-slot') ?? '');
+            el.removeAttribute('data-adw-slot');
+        }
+        stage.append(frag);
+    }
+
+    const KEY = 'gjsify-preferred-impl';
+
+    const applyPreference = (impl: string | null, skip?: Element) => {
+        if (!impl) return;
+        for (const el of document.querySelectorAll<HTMLElement>('[data-impl-tabs]')) {
+            const view = el.querySelector('adw-tab-view');
+            if (!view || view === skip) continue;
+            const impls = (el.dataset.impls ?? '').split(',');
+            const index = impls.indexOf(impl);
+            if (index >= 0) view.setAttribute('selected', String(index));
+        }
+    };
+
+    // Follow user selection: persist + mirror to every other widget on the page.
+    document.addEventListener('notify::selected-page', (event) => {
+        const view = event.target as HTMLElement;
+        const host = view?.closest?.('[data-impl-tabs]') as HTMLElement | null;
+        if (!host) return;
+        const impls = (host.dataset.impls ?? '').split(',');
+        const impl = impls[(event as CustomEvent).detail?.selected ?? 0];
+        if (!impl) return;
+        try {
+            localStorage.setItem(KEY, impl);
+        } catch {
+            // Private mode — selection just won't persist.
+        }
+        applyPreference(impl, view);
+    });
+
+    // Headerbar copy button → forward to the ACTIVE page's hidden Expressive
+    // Code copy button (EC handles the clipboard; the Adwaita toast listens on
+    // that button's click).
+    document.addEventListener('click', (event) => {
+        const btn = (event.target as HTMLElement).closest?.('.command-tabs-copy') as HTMLElement | null;
+        if (!btn) return;
+        const host = btn.closest('[data-impl-tabs]');
+        const active = host?.querySelector('.adw-tab-page:not([hidden])');
+        const ecButton = active?.querySelector<HTMLButtonElement>('.copy button, .adw-code-headerbar-end button');
+        if (!ecButton) return;
+        ecButton.click();
+        btn.classList.add('copied');
+        setTimeout(() => btn.classList.remove('copied'), 1500);
+    });
+
+    // Initial: restore the remembered implementation once the element is defined.
+    customElements.whenDefined('adw-tab-view').then(() => {
+        try {
+            applyPreference(localStorage.getItem(KEY));
+        } catch {
+            // ignore
+        }
+    });
+</script>
+
+<style is:global>
+    .adw-widget {
+        margin-top: 1.5rem;
+    }
+
+    /* ── Live preview panel ─────────────────────────────────────────────
+       An Adwaita "view" surface the real widget is painted onto, framed like
+       the code window below it so the pair reads as one card. */
+    .adw-widget-preview {
+        border-radius: 12px 12px 0 0;
+        background: var(--adw-view-bg);
+        border: 1px solid var(--adw-card-border);
+        border-bottom: none;
+        overflow: hidden;
+        /* Subtle GNOME-wallpaper-ish tint so a white row/card stays visible on
+           the white view surface, mirroring the widget gallery's backdrop. */
+        background-image:
+            radial-gradient(circle at 0% 0%, rgba(53, 132, 228, 0.06), transparent 45%),
+            radial-gradient(circle at 100% 100%, rgba(146, 110, 228, 0.05), transparent 45%);
+    }
+
+    :root[data-theme='dark'] .adw-widget-preview {
+        background-color: var(--adw-window-bg);
+        background-image:
+            radial-gradient(circle at 0% 0%, rgba(120, 174, 237, 0.08), transparent 45%),
+            radial-gradient(circle at 100% 100%, rgba(146, 110, 228, 0.08), transparent 45%);
+    }
+
+    /* A modal dialog paints a position:fixed scrim covering its containing
+       block. A transform on the preview panel makes the panel that containing
+       block, so an opened dialog stays inside the preview instead of covering
+       the whole page. Scoped to previews that actually hold a dialog. */
+    .adw-widget-preview:has(adw-alert-dialog, adw-about-dialog, adw-preferences-dialog, adw-dialog) {
+        transform: translateZ(0);
+    }
+
+    .adw-widget-preview-stage {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 132px;
+    }
+
+    .adw-widget-preview.is-comfortable .adw-widget-preview-stage {
+        padding: 28px 24px;
+    }
+
+    .adw-widget-preview.is-flush .adw-widget-preview-stage {
+        padding: 0;
+        align-items: stretch;
+    }
+
+    .adw-widget-preview.is-scroll .adw-widget-preview-stage {
+        justify-content: flex-start;
+        overflow-x: auto;
+    }
+
+    /* When a preview panel sits above the tab window, square off the window's
+       top corners so the two blocks fuse into one card. */
+    .adw-widget-preview + .command-tabs {
+        margin-top: 0;
+        border-radius: 0 0 12px 12px;
+    }
+
+    /* The preview widgets are light-DOM custom elements styled by the global
+       adwaita-web stylesheet; keep them from stretching full width so small
+       widgets stay centered and legible. */
+    .adw-widget-preview-stage > :where(adw-preferences-group, adw-clamp, adw-banner) {
+        width: 100%;
+        max-width: 420px;
+    }
+</style>

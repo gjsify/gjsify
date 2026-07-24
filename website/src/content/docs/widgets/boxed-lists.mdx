@@ -1,0 +1,474 @@
+---
+title: Boxed Lists
+description: Adwaita boxed-list rows — preferences group, action, switch, entry, combo, spin, expander and button rows — described neutrally with a live preview and GJS, Web and NativeScript code.
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+
+A **boxed list** is Adwaita's core pattern for settings and detail screens: a set
+of related **rows** gathered into a single rounded card. The card is a
+**preferences group**; each row is a small, self-contained control — a toggle, a
+text field, a drop-down, a button.
+
+Every widget below is described independently of any one toolkit, then shown
+three ways. **Native GJS** (real Libadwaita through
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
+implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
+and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
+ports mirror it. The preview is the real Web component — no screenshot — so it
+follows the light/dark toggle just like a native window would.
+
+:::note
+The previews use the browser port, so behaviour that Libadwaita drives natively
+(an entry's apply button, a spin button's repeat, row-press feedback) may be
+simplified. Where a port diverges, its tab says so.
+:::
+
+## Preferences Group
+
+The container for a boxed list. It renders its rows as one rounded card and can
+carry a **title**, a **description**, and a **header-suffix** widget (a button or
+switch pinned to the trailing edge of the header). Groups stack vertically to
+build a full preferences page.
+
+<AdwWidget title="Adw.PreferencesGroup">
+  <Fragment slot="preview">
+    <adw-preferences-group title="Account" description="Manage how this device signs in and syncs.">
+      <button data-adw-slot="header-suffix" class="adw-button flat">Sign out</button>
+      <adw-entry-row title="Display name" text="Grace Hopper"></adw-entry-row>
+      <adw-switch-row title="Sync over Wi-Fi only" subtitle="Avoid using mobile data for backups" active></adw-switch-row>
+      <adw-combo-row title="Region" items='["Europe","Americas","Asia","Oceania"]' selected="0"></adw-combo-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const signOut = new Gtk.Button({ label: 'Sign out', valign: Gtk.Align.CENTER });
+    signOut.add_css_class('flat');
+
+    const group = new Adw.PreferencesGroup({
+        title: 'Account',
+        description: 'Manage how this device signs in and syncs.',
+        headerSuffix: signOut,
+    });
+
+    group.add(new Adw.EntryRow({ title: 'Display name', text: 'Grace Hopper' }));
+    group.add(new Adw.SwitchRow({ title: 'Sync over Wi-Fi only', active: true }));
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <!-- import '@gjsify/adwaita-web' once to register the elements -->
+    <adw-preferences-group
+        title="Account"
+        description="Manage how this device signs in and syncs."
+    >
+        <button slot="header-suffix" class="adw-button flat">Sign out</button>
+        <adw-entry-row title="Display name" text="Grace Hopper"></adw-entry-row>
+        <adw-switch-row title="Sync over Wi-Fi only" active></adw-switch-row>
+    </adw-preferences-group>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwPreferencesGroup, AdwEntryRow, AdwSwitchRow } from '@gjsify/adwaita-nativescript';
+
+    const group = new AdwPreferencesGroup();
+    group.title = 'Account';
+    group.description = 'Manage how this device signs in and syncs.';
+
+    const name = new AdwEntryRow();
+    name.title = 'Display name';
+    name.text = 'Grace Hopper';
+    group.addRow(name);
+
+    const sync = new AdwSwitchRow();
+    sync.title = 'Sync over Wi-Fi only';
+    sync.active = true;
+    group.addRow(sync);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Action Row
+
+The most general row: a **title** with an optional **subtitle**, plus **prefix**
+and **suffix** slots for extra widgets (an icon on the leading edge, a button or
+chevron on the trailing edge). Marking it **activatable** makes the whole row
+respond to a click — typically to open a detail page.
+
+<AdwWidget title="Adw.ActionRow">
+  <Fragment slot="preview">
+    <adw-preferences-group>
+      <adw-action-row title="Wi-Fi" subtitle="Connected to Highgarden 5GHz" activatable>
+        <span data-adw-slot="prefix" class="adw-icon adw-icon--network-wireless"></span>
+        <adw-button data-adw-slot="suffix" icon="go-next" flat></adw-button>
+      </adw-action-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const row = new Adw.ActionRow({
+        title: 'Wi-Fi',
+        subtitle: 'Connected to Highgarden 5GHz',
+    });
+
+    row.add_prefix(new Gtk.Image({ iconName: 'network-wireless-symbolic' }));
+
+    const next = new Gtk.Button({ iconName: 'go-next-symbolic', valign: Gtk.Align.CENTER });
+    next.add_css_class('flat');
+    row.add_suffix(next);
+
+    row.activatableWidget = next;
+    row.activatable = true;
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-action-row title="Wi-Fi" subtitle="Connected to Highgarden 5GHz" activatable>
+        <span slot="prefix" class="adw-icon adw-icon--network-wireless"></span>
+        <adw-button slot="suffix" icon="go-next" flat></adw-button>
+    </adw-action-row>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwActionRow, AdwIcon } from '@gjsify/adwaita-nativescript';
+
+    const row = new AdwActionRow();
+    row.title = 'Wi-Fi';
+    row.subtitle = 'Connected to Highgarden 5GHz';
+
+    const icon = new AdwIcon();
+    icon.icon = networkWirelessSymbolic; // an Adwaita symbolic icon (SVG string)
+    row.setPrefix(icon);
+
+    const chevron = new AdwIcon();
+    chevron.icon = goNextSymbolic;
+    row.setSuffix(chevron);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Switch Row
+
+An action row with a trailing **switch** that toggles a single boolean setting —
+the boxed-list equivalent of a labelled on/off control.
+
+<AdwWidget title="Adw.SwitchRow">
+  <Fragment slot="preview">
+    <adw-preferences-group>
+      <adw-switch-row title="Automatic updates" subtitle="Download and install updates without asking" active></adw-switch-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    const row = new Adw.SwitchRow({
+        title: 'Automatic updates',
+        subtitle: 'Download and install updates without asking',
+        active: true,
+    });
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-switch-row
+        title="Automatic updates"
+        subtitle="Download and install updates without asking"
+        active
+    ></adw-switch-row>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwSwitchRow } from '@gjsify/adwaita-nativescript';
+
+    const row = new AdwSwitchRow();
+    row.title = 'Automatic updates';
+    row.subtitle = 'Download and install updates without asking';
+    row.active = true;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Entry Row
+
+A row whose **title** doubles as the label and placeholder for an inline text
+field. Ideal for short, editable values — a name, a hostname, a nickname. It can
+show an **apply button** that commits the change.
+
+<AdwWidget title="Adw.EntryRow">
+  <Fragment slot="preview">
+    <adw-preferences-group>
+      <adw-entry-row title="Display name" text="Ada Lovelace"></adw-entry-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    const row = new Adw.EntryRow({
+        title: 'Display name',
+        text: 'Ada Lovelace',
+        showApplyButton: true,
+    });
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-entry-row title="Display name" text="Ada Lovelace"></adw-entry-row>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwEntryRow } from '@gjsify/adwaita-nativescript';
+
+    const row = new AdwEntryRow();
+    row.title = 'Display name';
+    row.text = 'Ada Lovelace';
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Password Entry Row
+
+An entry row that **masks** its contents and offers a **peek** toggle to reveal
+them. Use it wherever a secret is edited inline in a boxed list.
+
+<AdwWidget title="Adw.PasswordEntryRow">
+  <Fragment slot="preview">
+    <adw-preferences-group>
+      <adw-password-entry-row title="Password" text="correct-horse-battery"></adw-password-entry-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    const row = new Adw.PasswordEntryRow({
+        title: 'Password',
+        text: 'correct-horse-battery',
+    });
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-password-entry-row title="Password" text="correct-horse-battery"></adw-password-entry-row>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwPasswordEntryRow } from '@gjsify/adwaita-nativescript';
+
+    const row = new AdwPasswordEntryRow();
+    row.title = 'Password';
+    row.text = 'correct-horse-battery';
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Combo Row
+
+A row with an inline **drop-down** for choosing one option from a fixed list. The
+selection is stored as an index into the model.
+
+<AdwWidget title="Adw.ComboRow">
+  <Fragment slot="preview">
+    <adw-preferences-group>
+      <adw-combo-row
+        title="Accent colour"
+        subtitle="Used to highlight selected items"
+        items='["Blue","Teal","Green","Orange","Purple"]'
+        selected="1"
+      ></adw-combo-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const row = new Adw.ComboRow({
+        title: 'Accent colour',
+        subtitle: 'Used to highlight selected items',
+        model: new Gtk.StringList({ strings: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'] }),
+        selected: 1,
+    });
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-combo-row
+        title="Accent colour"
+        subtitle="Used to highlight selected items"
+        items='["Blue","Teal","Green","Orange","Purple"]'
+        selected="1"
+    ></adw-combo-row>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwComboRow } from '@gjsify/adwaita-nativescript';
+
+    const row = new AdwComboRow();
+    row.title = 'Accent colour';
+    row.subtitle = 'Used to highlight selected items';
+    row.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((s) => ({ label: s, value: s }));
+    row.selectedIndex = 1;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Spin Row
+
+A row with an inline **spin button** over a numeric range — a value with ± steppers
+and optional decimal digits, for settings like a font size or a count.
+
+<AdwWidget title="Adw.SpinRow">
+  <Fragment slot="preview">
+    <adw-preferences-group>
+      <adw-spin-row title="Font size" min="0" max="100" value="16" step="1"></adw-spin-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const row = new Adw.SpinRow({
+        title: 'Font size',
+        adjustment: new Gtk.Adjustment({ lower: 0, upper: 100, value: 16, stepIncrement: 1 }),
+        digits: 0,
+    });
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-spin-row title="Font size" min="0" max="100" value="16" step="1"></adw-spin-row>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwSpinRow } from '@gjsify/adwaita-nativescript';
+
+    const row = new AdwSpinRow();
+    row.title = 'Font size';
+    row.min = 0;
+    row.max = 100;
+    row.value = 16;
+    row.step = 1;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Expander Row
+
+A row that **discloses** nested rows when expanded — a lightweight way to tuck
+away advanced or grouped settings. It can carry an **enable switch** that gates
+the whole section.
+
+<AdwWidget title="Adw.ExpanderRow">
+  <Fragment slot="preview">
+    <adw-preferences-group>
+      <adw-expander-row title="Proxy settings" subtitle="Route traffic through a custom proxy" expanded>
+        <adw-entry-row title="Host" text="proxy.example.com"></adw-entry-row>
+        <adw-switch-row title="Use authentication"></adw-switch-row>
+      </adw-expander-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    const row = new Adw.ExpanderRow({
+        title: 'Proxy settings',
+        subtitle: 'Route traffic through a custom proxy',
+        expanded: true,
+    });
+
+    row.add_row(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
+    row.add_row(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-expander-row title="Proxy settings" subtitle="Route traffic through a custom proxy" expanded>
+        <adw-entry-row title="Host" text="proxy.example.com"></adw-entry-row>
+        <adw-switch-row title="Use authentication"></adw-switch-row>
+    </adw-expander-row>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwExpanderRow, AdwEntryRow, AdwSwitchRow } from '@gjsify/adwaita-nativescript';
+
+    const row = new AdwExpanderRow();
+    row.title = 'Proxy settings';
+    row.subtitle = 'Route traffic through a custom proxy';
+    row.expanded = true;
+
+    const host = new AdwEntryRow();
+    host.title = 'Host';
+    host.text = 'proxy.example.com';
+    row.addRow(host);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Button Row
+
+A full-width row that behaves like a **button** — for a boxed-list action such as
+_Add account_ or _Remove_. It takes an optional **start icon** and an Adwaita
+style class (`.suggested-action`, `.destructive-action`).
+
+<AdwWidget title="Adw.ButtonRow">
+  <Fragment slot="preview">
+    <adw-preferences-group>
+      <adw-button-row title="Add account" start-icon-name="list-add" class="suggested-action"></adw-button-row>
+    </adw-preferences-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    const row = new Adw.ButtonRow({
+        title: 'Add account',
+        startIconName: 'list-add-symbolic',
+    });
+    row.add_css_class('suggested-action');
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-button-row
+        title="Add account"
+        start-icon-name="list-add"
+        class="suggested-action"
+    ></adw-button-row>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwButtonRow } from '@gjsify/adwaita-nativescript';
+
+    const row = new AdwButtonRow();
+    row.title = 'Add account';
+    row.startIcon = listAddSymbolic; // an Adwaita symbolic icon (SVG string)
+    row.className = 'adw-button-row suggested-action';
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Buttons](../buttons/) — standalone buttons and the style classes reused here.
+- [Layout](../layout/) — the `Clamp` that keeps a boxed list at a readable width.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
+  live, interactive component browser.

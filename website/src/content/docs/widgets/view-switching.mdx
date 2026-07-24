@@ -1,0 +1,409 @@
+---
+title: View Switching
+description: Adwaita view-switching widgets — view switcher, tab view, inline view switcher and carousel — described neutrally with a live preview and GJS, Web and NativeScript code.
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+
+**View switching** is how an Adwaita window shows one of several pages at a time.
+A **switcher** — a segmented bar, a strip of tabs, a compact toolbar control, or a
+swipeable pager — lets the user pick which page is visible, while the pages
+themselves live in a stack that shows exactly one child. The pattern adapts to
+window size: a wide desktop shows a full switcher, a narrow phone collapses it.
+
+Every widget below is described independently of any one toolkit, then shown
+three ways. **Native GJS** (real Libadwaita through
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
+implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
+and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
+ports mirror it. The preview is the real Web component — no screenshot — so it
+follows the light/dark toggle just like a native window would.
+
+:::note
+The previews use the browser port, so gestures Libadwaita drives natively
+(swipe-to-page, drag-to-reorder tabs, the tab bar's auto-hide, cross-fade page
+transitions) may be simplified — click a switcher button, a tab, or a carousel
+dot to move between pages. Where a port diverges, its tab says so.
+:::
+
+## View Switcher
+
+A **view switcher** presents a set of pages as one segmented control, each button
+carrying a page's icon and label. It drives a paired **view stack** that shows a
+single page at a time. Its **policy** controls the button layout: `wide` places
+the icon and label side by side; `narrow` stacks the icon above the label so the
+bar fits a slim window — an adaptive layout usually swaps between the two on a
+breakpoint.
+
+<AdwWidget title="Adw.ViewSwitcher" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 300px; width: 100%; display: flex; flex-direction: column;">
+      <adw-view-switcher policy="wide" style="flex: 1; width: 100%;">
+        <adw-view-switcher-page name="inbox" title="Inbox" icon-name="mail-unread">
+          <adw-status-page icon="mail-unread" title="Inbox" description="You have three unread conversations."></adw-status-page>
+        </adw-view-switcher-page>
+        <adw-view-switcher-page name="starred" title="Starred" icon-name="starred">
+          <adw-status-page icon="starred" title="Starred" description="Messages you have marked as important."></adw-status-page>
+        </adw-view-switcher-page>
+        <adw-view-switcher-page name="archive" title="Archive" icon-name="folder">
+          <adw-status-page icon="folder" title="Archive" description="Older conversations kept for reference."></adw-status-page>
+        </adw-view-switcher-page>
+      </adw-view-switcher>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    // The view stack holds the pages; each is added with a name, title and icon.
+    const stack = new Adw.ViewStack({ vexpand: true });
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'mail-unread-symbolic', title: 'Inbox', description: 'You have three unread conversations.' }),
+        'inbox', 'Inbox', 'mail-unread-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'starred-symbolic', title: 'Starred', description: 'Messages you have marked as important.' }),
+        'starred', 'Starred', 'starred-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'folder-symbolic', title: 'Archive', description: 'Older conversations kept for reference.' }),
+        'archive', 'Archive', 'folder-symbolic',
+    );
+
+    // The switcher drives the stack; policy is Adw.ViewSwitcherPolicy.WIDE | NARROW.
+    const switcher = new Adw.ViewSwitcher({
+        stack,
+        policy: Adw.ViewSwitcherPolicy.WIDE,
+        halign: Gtk.Align.CENTER,
+    });
+
+    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
+    box.append(switcher);
+    box.append(stack);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <!-- import '@gjsify/adwaita-web' once to register the elements -->
+    <adw-view-switcher policy="wide">
+        <adw-view-switcher-page name="inbox" title="Inbox" icon-name="mail-unread">
+            <adw-status-page icon="mail-unread" title="Inbox" description="You have three unread conversations."></adw-status-page>
+        </adw-view-switcher-page>
+        <adw-view-switcher-page name="starred" title="Starred" icon-name="starred">
+            <adw-status-page icon="starred" title="Starred" description="Messages you have marked as important."></adw-status-page>
+        </adw-view-switcher-page>
+        <adw-view-switcher-page name="archive" title="Archive" icon-name="folder">
+            <adw-status-page icon="folder" title="Archive" description="Older conversations kept for reference."></adw-status-page>
+        </adw-view-switcher-page>
+    </adw-view-switcher>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import { folderSymbolic } from '@gjsify/adwaita-icons/places';
+    import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
+
+    const page = (icon: string, title: string, description: string): AdwStatusPage => {
+        const status = new AdwStatusPage();
+        status.icon = icon; // a real Adwaita symbolic icon (SVG string)
+        status.title = title;
+        status.description = description;
+        return status;
+    };
+
+    const switcher = new AdwViewSwitcher();
+    // Each view carries a title + icon (shown on the switcher button) and its content.
+    switcher.setViews([
+        { title: 'Inbox', icon: mailUnreadSymbolic, content: page(mailUnreadSymbolic, 'Inbox', 'You have three unread conversations.') },
+        { title: 'Starred', icon: starredSymbolic, content: page(starredSymbolic, 'Starred', 'Messages you have marked as important.') },
+        { title: 'Archive', icon: folderSymbolic, content: page(folderSymbolic, 'Archive', 'Older conversations kept for reference.') },
+    ] satisfies AdwViewPage[]);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Tab View
+
+A **tab view** is a dynamic tabbed container: a **tab bar** renders one chip per
+page — with a title and a close affordance — over a header-colored strip, and the
+selected chip is raised onto the view background. Unlike a view switcher, tabs are
+meant to be added, closed and reordered at runtime. The tab bar can **auto-hide**
+when only a single page remains, so a one-tab document looks chrome-free.
+
+<AdwWidget title="Adw.TabView" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 260px; width: 100%; display: flex;">
+      <adw-tab-view style="flex: 1; width: 100%;">
+        <adw-tab-page title="Overview">
+          <adw-status-page icon="view-grid" title="Overview" description="A summary of everything at a glance."></adw-status-page>
+        </adw-tab-page>
+        <adw-tab-page title="Details">
+          <adw-status-page icon="view-grid" title="Details" description="The specifics, broken down line by line."></adw-status-page>
+        </adw-tab-page>
+        <adw-tab-page title="History">
+          <adw-status-page icon="view-grid" title="History" description="A log of every change made so far."></adw-status-page>
+        </adw-tab-page>
+      </adw-tab-view>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const tabView = new Adw.TabView({ vexpand: true });
+    for (const [title, body] of [
+        ['Overview', 'A summary of everything at a glance.'],
+        ['Details', 'The specifics, broken down line by line.'],
+        ['History', 'A log of every change made so far.'],
+    ] as const) {
+        const page = tabView.append(new Adw.StatusPage({ iconName: 'view-paged-symbolic', title, description: body }));
+        page.title = title;
+    }
+
+    // The tab bar renders the chips; autohide collapses it down to a single tab.
+    const tabBar = new Adw.TabBar({ view: tabView, autohide: false });
+
+    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+    box.append(tabBar);
+    box.append(tabView);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-tab-view>
+        <adw-tab-page title="Overview">
+            <adw-status-page icon="view-grid" title="Overview" description="A summary of everything at a glance."></adw-status-page>
+        </adw-tab-page>
+        <adw-tab-page title="Details">
+            <adw-status-page icon="view-grid" title="Details" description="The specifics, broken down line by line."></adw-status-page>
+        </adw-tab-page>
+        <adw-tab-page title="History">
+            <adw-status-page icon="view-grid" title="History" description="A log of every change made so far."></adw-status-page>
+        </adw-tab-page>
+    </adw-tab-view>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwTabView, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import { viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
+
+    const page = (title: string, body: string): AdwStatusPage => {
+        const status = new AdwStatusPage();
+        status.icon = viewGridSymbolic; // a real Adwaita symbolic icon (SVG string)
+        status.title = title;
+        status.description = body;
+        return status;
+    };
+
+    const tabView = new AdwTabView();
+    tabView.setViews([
+        { title: 'Overview', content: page('Overview', 'A summary of everything at a glance.') },
+        { title: 'Details', content: page('Details', 'The specifics, broken down line by line.') },
+        { title: 'History', content: page('History', 'A log of every change made so far.') },
+    ] satisfies AdwViewPage[]);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Inline View Switcher
+
+An **inline view switcher** is a compact, toolbar-friendly variant of the view
+switcher, built from a linked toggle group. It drives the same kind of view stack,
+but its **display mode** lets each toggle show **labels**, **icons**, or **both** —
+so it fits into a header bar or a tight toolbar where a full switcher would be too
+wide.
+
+<AdwWidget title="Adw.InlineViewSwitcher" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 300px; width: 100%; display: flex; flex-direction: column;">
+      <adw-inline-view-switcher display-mode="both" style="flex: 1; width: 100%;">
+        <adw-view-stack-page title="Overview" icon-name="view-grid">
+          <adw-status-page id="overview" icon="view-grid" title="Overview" description="A quick summary of your project."></adw-status-page>
+        </adw-view-stack-page>
+        <adw-view-stack-page title="Activity" icon-name="document-edit">
+          <adw-status-page id="activity" icon="document-edit" title="Activity" description="Recent edits and changes."></adw-status-page>
+        </adw-view-stack-page>
+        <adw-view-stack-page title="Settings" icon-name="emblem-system">
+          <adw-status-page id="settings" icon="emblem-system" title="Settings" description="Configure how things behave."></adw-status-page>
+        </adw-view-stack-page>
+      </adw-inline-view-switcher>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const stack = new Adw.ViewStack({ vexpand: true });
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'view-grid-symbolic', title: 'Overview', description: 'A quick summary of your project.' }),
+        'overview', 'Overview', 'view-grid-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'document-edit-symbolic', title: 'Activity', description: 'Recent edits and changes.' }),
+        'activity', 'Activity', 'document-edit-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'emblem-system-symbolic', title: 'Settings', description: 'Configure how things behave.' }),
+        'settings', 'Settings', 'emblem-system-symbolic',
+    );
+
+    // displayMode is LABELS | ICONS | BOTH.
+    const switcher = new Adw.InlineViewSwitcher({
+        stack,
+        displayMode: Adw.InlineViewSwitcherDisplayMode.BOTH,
+        halign: Gtk.Align.CENTER,
+    });
+
+    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
+    box.append(switcher);
+    box.append(stack);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-inline-view-switcher display-mode="both">
+        <adw-view-stack-page title="Overview" icon-name="view-grid">
+            <adw-status-page id="overview" icon="view-grid" title="Overview" description="A quick summary of your project."></adw-status-page>
+        </adw-view-stack-page>
+        <adw-view-stack-page title="Activity" icon-name="document-edit">
+            <adw-status-page id="activity" icon="document-edit" title="Activity" description="Recent edits and changes."></adw-status-page>
+        </adw-view-stack-page>
+        <adw-view-stack-page title="Settings" icon-name="emblem-system">
+            <adw-status-page id="settings" icon="emblem-system" title="Settings" description="Configure how things behave."></adw-status-page>
+        </adw-view-stack-page>
+    </adw-inline-view-switcher>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwInlineViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import { documentEditSymbolic, viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
+    import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
+
+    const page = (icon: string, title: string, body: string): AdwStatusPage => {
+        const status = new AdwStatusPage();
+        status.icon = icon; // a real Adwaita symbolic icon (SVG string)
+        status.title = title;
+        status.description = body;
+        return status;
+    };
+
+    const switcher = new AdwInlineViewSwitcher();
+    // display mode "both": pass '' as the title for icons-only, omit icon for labels-only.
+    switcher.setViews([
+        { title: 'Overview', icon: viewGridSymbolic, content: page(viewGridSymbolic, 'Overview', 'A quick summary of your project.') },
+        { title: 'Activity', icon: documentEditSymbolic, content: page(documentEditSymbolic, 'Activity', 'Recent edits and changes.') },
+        { title: 'Settings', icon: preferencesSystemSymbolic, content: page(preferencesSystemSymbolic, 'Settings', 'Configure how things behave.') },
+    ] satisfies AdwViewPage[]);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Carousel
+
+A **carousel** is a horizontally swipeable pager: pages sit side by side and the
+user flicks, scrolls or clicks a **page indicator** to move between them — a
+common onboarding or gallery pattern. Adwaita ships two indicator widgets that
+bind to a carousel: **dots** (shown here) and **lines**; both track the fractional
+scroll position and grow/brighten the marker nearest the current page. The
+carousel can allow the **scroll wheel** to page and **long swipes** to skip
+several pages in one flick.
+
+<AdwWidget title="Adw.Carousel" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 220px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+      <adw-carousel id="view-switching-carousel" allow-scroll-wheel style="width: 100%; max-width: 480px; height: 160px;">
+        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, var(--accent-bg-color) 14%, var(--window-bg-color));color:#ffffff;box-sizing:border-box;">
+          <span style="font-size:24pt;font-weight:800;">Welcome</span>
+        </adw-card>
+        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #2ec27e 14%, var(--window-bg-color));color:#ffffff;box-sizing:border-box;">
+          <span style="font-size:24pt;font-weight:800;">Discover</span>
+        </adw-card>
+        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #e5a50a 14%, var(--window-bg-color));color:#ffffff;box-sizing:border-box;">
+          <span style="font-size:24pt;font-weight:800;">Get started</span>
+        </adw-card>
+      </adw-carousel>
+      <adw-carousel-indicator-dots for="view-switching-carousel"></adw-carousel-indicator-dots>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const carousel = new Adw.Carousel({ allowScrollWheel: true, allowLongSwipes: false, vexpand: true });
+    for (const [title, style] of [
+        ['Welcome', 'accent'],
+        ['Discover', 'success'],
+        ['Get started', 'warning'],
+    ] as const) {
+        const card = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, halign: Gtk.Align.CENTER, valign: Gtk.Align.CENTER });
+        card.add_css_class('card');
+        card.add_css_class(style);
+        const label = new Gtk.Label({ label: title });
+        label.add_css_class('title-1');
+        card.append(label);
+        carousel.append(card);
+    }
+
+    // Dot indicators bind to the carousel; Adw.CarouselIndicatorLines is the drop-in alternative.
+    const dots = new Adw.CarouselIndicatorDots({ carousel });
+
+    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
+    box.append(carousel);
+    box.append(dots);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-carousel id="onboarding" allow-scroll-wheel>
+        <adw-card>Welcome</adw-card>
+        <adw-card>Discover</adw-card>
+        <adw-card>Get started</adw-card>
+    </adw-carousel>
+    <!-- Bind an indicator via `for`; swap in adw-carousel-indicator-lines for lines. -->
+    <adw-carousel-indicator-dots for="onboarding"></adw-carousel-indicator-dots>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwCarousel } from '@gjsify/adwaita-nativescript';
+    import { Label, StackLayout, type View } from '@nativescript/core';
+
+    const page = (title: string, accent: string): View => {
+        const card = new StackLayout();
+        card.orientation = 'vertical';
+        card.height = 260;
+        card.verticalAlignment = 'middle';
+        card.className = `adw-card ${accent}`;
+        const label = new Label();
+        label.text = title;
+        label.className = 'title-1';
+        label.horizontalAlignment = 'center';
+        label.verticalAlignment = 'middle';
+        card.addChild(label);
+        return card;
+    };
+
+    const carousel = new AdwCarousel();
+    carousel.pageWidth = 440;
+    carousel.addPage(page('Welcome', 'accent'));
+    carousel.addPage(page('Discover', 'success'));
+    carousel.addPage(page('Get started', 'warning'));
+    // AdwCarousel renders its own dot row; the line-indicator variant maps to the same dots on NativeScript.
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Navigation](../navigation/) — pages, split views and the navigation stack the
+  switchers sit above.
+- [Layout](../layout/) — the `Clamp` and boxes that size a switched view.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
+  live, interactive component browser.

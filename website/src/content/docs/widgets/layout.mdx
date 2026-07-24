@@ -1,0 +1,370 @@
+---
+title: Layout
+description: Adwaita layout containers — Clamp, HeaderBar, ToolbarView and WrapBox — described neutrally with a live preview and GJS, Web and NativeScript code.
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+
+**Layout** widgets are the containers that shape an Adwaita window: they constrain
+content to a readable width, frame it with top and bottom chrome, and let a run of
+children flow and wrap. They carry no data of their own — they position whatever you
+put inside them and adapt as the available space changes.
+
+Every widget below is described independently of any one toolkit, then shown three
+ways. **Native GJS** (real Libadwaita through
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
+implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
+and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
+ports mirror it. The preview is the real Web component — no screenshot — so it
+follows the light/dark toggle just like a native window would.
+
+:::note
+The previews use the browser port, so behaviour that Libadwaita drives natively
+(a toolbar view's independent bar reveal, a clamp's tightening threshold) may be
+simplified. Where a port diverges, its tab says so.
+:::
+
+## Clamp
+
+Constrains its child to a **maximum width** and centres it within any wider space.
+As the container shrinks the clamp tightens the child past a **tightening
+threshold**, keeping long-form content at a comfortable measure on large displays
+without wasting space on small ones.
+
+<AdwWidget title="Adw.Clamp">
+  <Fragment slot="preview">
+    <adw-clamp maximum-size="400">
+      <adw-card style="width: 100%; box-sizing: border-box; padding: 18px;">
+        This content is clamped — it stops growing past the maximum size and stays centred.
+      </adw-card>
+    </adw-clamp>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const inner = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, widthRequest: 520 });
+    inner.add_css_class('card');
+
+    const label = new Gtk.Label({
+        label: 'This content is clamped — it stops growing past the maximum size and stays centred.',
+        wrap: true,
+        xalign: 0,
+        hexpand: true,
+        marginTop: 18,
+        marginBottom: 18,
+        marginStart: 18,
+        marginEnd: 18,
+    });
+    inner.append(label);
+
+    const clamp = new Adw.Clamp({
+        maximumSize: 400,
+        tighteningThreshold: 300,
+        child: inner,
+    });
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <!-- import '@gjsify/adwaita-web' once to register the elements -->
+    <adw-clamp maximum-size="400">
+        <adw-card style="width: 100%; box-sizing: border-box; padding: 18px;">
+            This content is clamped — it stops growing past the maximum size and stays centred.
+        </adw-card>
+    </adw-clamp>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwButtonContent, AdwClamp } from '@gjsify/adwaita-nativescript';
+
+    const inner = new AdwButtonContent();
+    inner.label = 'This content is clamped — it stops growing past the maximum size and stays centred.';
+
+    const clamp = new AdwClamp();
+    clamp.setChild(inner);
+    clamp.maximumSize = 400;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Header Bar
+
+The standard top chrome of an Adwaita window: a bar that hosts a **custom title
+widget** in the centre with controls **packed** to the start and end edges. The
+title area typically carries a window title and subtitle; the packed slots hold
+navigation, menu and action buttons.
+
+<AdwWidget title="Adw.HeaderBar">
+  <Fragment slot="preview">
+    <adw-header-bar style="width: 100%;">
+      <adw-button data-adw-slot="start" icon="go-previous" flat></adw-button>
+      <adw-window-title data-adw-slot="center" title="Text Editor" subtitle="notes.md"></adw-window-title>
+      <adw-button data-adw-slot="end" icon="open-menu" flat></adw-button>
+    </adw-header-bar>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+    import Gio from '@girs/gio-2.0';
+
+    const title = new Adw.WindowTitle({ title: 'Text Editor', subtitle: 'notes.md' });
+
+    const headerBar = new Adw.HeaderBar({ titleWidget: title, showTitle: true });
+
+    const backButton = new Gtk.Button({ iconName: 'go-previous-symbolic' });
+    backButton.add_css_class('flat');
+    headerBar.pack_start(backButton);
+
+    const menu = new Gio.Menu();
+    menu.append('New Window', 'app.new-window');
+    menu.append('Preferences', 'app.preferences');
+    menu.append('About', 'app.about');
+
+    const menuButton = new Gtk.MenuButton({ iconName: 'open-menu-symbolic', menuModel: menu });
+    menuButton.add_css_class('flat');
+    headerBar.pack_end(menuButton);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-header-bar style="width: 100%;">
+        <adw-button slot="start" icon="go-previous" flat></adw-button>
+        <adw-window-title slot="center" title="Text Editor" subtitle="notes.md"></adw-window-title>
+        <adw-button slot="end" icon="open-menu" flat></adw-button>
+    </adw-header-bar>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
+
+    const title = new AdwWindowTitle();
+    title.title = 'Text Editor';
+    title.subtitle = 'notes.md';
+
+    const headerBar = new AdwHeaderBar();
+    headerBar.setTitleWidget(title);
+
+    const backButton = new AdwButton();
+    backButton.text = '‹';
+    backButton.variant = 'flat';
+    headerBar.packStart(backButton);
+
+    const menuButton = new AdwButton();
+    menuButton.text = '≡';
+    menuButton.variant = 'flat';
+    headerBar.packEnd(menuButton);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Toolbar View
+
+Frames its content between a **top bar** and a **bottom bar** — usually a header
+bar above and an action bar below. Each set of bars can be revealed or hidden
+independently, and the content scrolls beneath them so the chrome stays fixed in
+place.
+
+<AdwWidget title="Adw.ToolbarView" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 300px; display: flex;">
+      <adw-toolbar-view style="flex: 1;">
+        <adw-header-bar data-adw-slot="top">
+          <adw-window-title data-adw-slot="center" title="Documents" subtitle="12 items"></adw-window-title>
+        </adw-header-bar>
+        <adw-status-page icon="folder" title="Your library" description="Content sits between the toolbars and scrolls independently of them."></adw-status-page>
+        <div data-adw-slot="bottom" class="adw-action-bar" style="display: flex; align-items: center; gap: 6px; padding: 6px; border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
+          <adw-button icon="list-add" flat tooltip="Add"></adw-button>
+          <adw-button icon="list-remove" flat tooltip="Remove"></adw-button>
+          <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>
+          <adw-button icon="send-to" flat tooltip="Share"></adw-button>
+        </div>
+      </adw-toolbar-view>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const view = new Adw.ToolbarView();
+
+    const header = new Adw.HeaderBar({
+        titleWidget: new Adw.WindowTitle({ title: 'Documents', subtitle: '12 items' }),
+    });
+    view.add_top_bar(header);
+
+    const content = new Adw.StatusPage({
+        iconName: 'folder-documents-symbolic',
+        title: 'Your library',
+        description: 'Content sits between the toolbars and scrolls independently of them.',
+    });
+    view.content = content;
+
+    const bottomBar = new Gtk.ActionBar();
+
+    const addButton = new Gtk.Button({ iconName: 'list-add-symbolic' });
+    addButton.add_css_class('flat');
+    bottomBar.pack_start(addButton);
+
+    const removeButton = new Gtk.Button({ iconName: 'list-remove-symbolic' });
+    removeButton.add_css_class('flat');
+    bottomBar.pack_start(removeButton);
+
+    bottomBar.set_center_widget(new Gtk.Label({ label: 'Selection: none' }));
+
+    const shareButton = new Gtk.Button({ iconName: 'send-to-symbolic' });
+    shareButton.add_css_class('flat');
+    bottomBar.pack_end(shareButton);
+
+    view.add_bottom_bar(bottomBar);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-toolbar-view style="flex: 1;">
+        <adw-header-bar slot="top">
+            <adw-window-title slot="center" title="Documents" subtitle="12 items"></adw-window-title>
+        </adw-header-bar>
+        <adw-status-page
+            icon="folder"
+            title="Your library"
+            description="Content sits between the toolbars and scrolls independently of them."
+        ></adw-status-page>
+        <div slot="bottom" class="adw-action-bar" style="display: flex; align-items: center; gap: 6px; padding: 6px;">
+            <adw-button icon="list-add" flat tooltip="Add"></adw-button>
+            <adw-button icon="list-remove" flat tooltip="Remove"></adw-button>
+            <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>
+            <adw-button icon="send-to" flat tooltip="Share"></adw-button>
+        </div>
+    </adw-toolbar-view>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import {
+        AdwHeaderBar,
+        AdwImageButton,
+        AdwStatusPage,
+        AdwToolbarView,
+        AdwWindowTitle,
+    } from '@gjsify/adwaita-nativescript';
+    import { listAddSymbolic, listRemoveSymbolic, sendToSymbolic } from '@gjsify/adwaita-icons/actions';
+    import { folderSymbolic } from '@gjsify/adwaita-icons/places';
+
+    const view = new AdwToolbarView();
+
+    const header = new AdwHeaderBar();
+    const title = new AdwWindowTitle();
+    title.title = 'Documents';
+    title.subtitle = '12 items';
+    header.setTitleWidget(title);
+    view.addTopBar(header);
+
+    const content = new AdwStatusPage();
+    content.icon = folderSymbolic;
+    content.title = 'Your library';
+    content.description = 'Content sits between the toolbars and scrolls independently of them.';
+    view.setContent(content);
+
+    const bottomBar = new AdwHeaderBar();
+
+    const addButton = new AdwImageButton();
+    addButton.icon = listAddSymbolic;
+    bottomBar.packStart(addButton);
+
+    const removeButton = new AdwImageButton();
+    removeButton.icon = listRemoveSymbolic;
+    bottomBar.packStart(removeButton);
+
+    const selectionLabel = new AdwWindowTitle();
+    selectionLabel.title = 'Selection: none';
+    bottomBar.setTitleWidget(selectionLabel);
+
+    const shareButton = new AdwImageButton();
+    shareButton.icon = sendToSymbolic;
+    bottomBar.packEnd(shareButton);
+
+    view.addBottomBar(bottomBar);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Wrap Box
+
+Lays its children out in a horizontal line and **wraps** them onto new lines when
+they run out of room — ideal for a variable-length run of tags, chips or filter
+pills. **Child spacing** sets the gap between items on a line; **line spacing**
+sets the gap between the lines.
+
+<AdwWidget title="Adw.WrapBox">
+  <Fragment slot="preview">
+    <adw-wrap-box child-spacing="8" line-spacing="8">
+      <adw-button label="Design" pill></adw-button>
+      <adw-button label="Adwaita" pill></adw-button>
+      <adw-button label="GNOME" pill></adw-button>
+      <adw-button label="GTK" pill></adw-button>
+      <adw-button label="Typescript" pill></adw-button>
+      <adw-button label="Storybook" pill></adw-button>
+      <adw-button label="Wrapping" pill></adw-button>
+      <adw-button label="Layout" pill></adw-button>
+    </adw-wrap-box>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const wrap = new Adw.WrapBox({ childSpacing: 8, lineSpacing: 8 });
+
+    const tags = ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'];
+    for (const tag of tags) {
+        const chip = new Gtk.Button({ label: tag });
+        chip.add_css_class('pill');
+        wrap.append(chip);
+    }
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-wrap-box child-spacing="8" line-spacing="8">
+        <adw-button label="Design" pill></adw-button>
+        <adw-button label="Adwaita" pill></adw-button>
+        <adw-button label="GNOME" pill></adw-button>
+        <adw-button label="GTK" pill></adw-button>
+        <adw-button label="Typescript" pill></adw-button>
+        <adw-button label="Storybook" pill></adw-button>
+        <adw-button label="Wrapping" pill></adw-button>
+        <adw-button label="Layout" pill></adw-button>
+    </adw-wrap-box>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+
+    const wrap = new AdwWrapBox();
+    wrap.childSpacing = 8;
+    wrap.lineSpacing = 8;
+
+    const tags = ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'];
+    for (const tag of tags) {
+        const chip = new AdwButton();
+        chip.text = tag;
+        chip.variant = 'pill';
+        wrap.add(chip);
+    }
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Boxed Lists](../boxed-lists/) — the rows a `Clamp` keeps at a readable width.
+- [Navigation](../navigation/) — split views and pages that pair with a `HeaderBar`.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
+  live, interactive component browser.

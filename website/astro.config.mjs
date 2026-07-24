@@ -98,6 +98,19 @@ export default defineConfig({
                     ],
                 },
                 {
+                    label: 'Widgets',
+                    items: [
+                        { slug: 'widgets', label: 'Gallery' },
+                        { slug: 'widgets/boxed-lists' },
+                        { slug: 'widgets/buttons' },
+                        { slug: 'widgets/layout' },
+                        { slug: 'widgets/navigation' },
+                        { slug: 'widgets/view-switching' },
+                        { slug: 'widgets/presentation' },
+                        { slug: 'widgets/feedback' },
+                    ],
+                },
+                {
                     label: 'Distribute',
                     items: [
                         { slug: 'guides/distributing-gjs-apps', label: 'One-Line Installer' },

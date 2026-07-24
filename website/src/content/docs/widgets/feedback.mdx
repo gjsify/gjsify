@@ -1,0 +1,370 @@
+---
+title: Feedback
+description: Adwaita feedback widgets — toast, alert dialog, about dialog and preferences dialog — described neutrally with a live preview and GJS, Web and NativeScript code.
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+
+**Feedback** widgets interrupt or annotate the current view to tell the user
+something: a **toast** slides a transient message over the content, while a
+**dialog** puts a modal surface in front of it and waits for a response. Adwaita
+draws them as real windows or floating sheets — a toast overlay layered above the
+page, an alert with a row of responses, the standard About window, a preferences
+sheet built from boxed lists.
+
+Every widget below is described independently of any one toolkit, then shown
+three ways. **Native GJS** (real Libadwaita through
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
+implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
+and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
+ports mirror it.
+
+:::note
+The previews use the browser port, so each dialog is rendered in its **open**
+state and each toast in its **visible** state — natively these are real modal
+windows and transient overlays a user triggers, not steady content. Each preview
+is wrapped in a fixed-height stage so the overlay stays contained; a native
+window sizes and centres itself. Where a port diverges, its tab says so.
+:::
+
+## Toast
+
+A **toast** is a transient notification — a short line of text, optionally with a
+single action button, that floats over the content for a few seconds and then
+dismisses itself. It is shown through a **toast overlay** that wraps the page and
+layers toasts above the bottom edge, so it never displaces the content beneath.
+
+<AdwWidget title="Adw.Toast" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+      <adw-toast-overlay style="width: 360px; height: 220px; position: relative;">
+        <adw-status-page title="Documents" description="Drag files here to organise them."></adw-status-page>
+        <div class="adw-toast-overlay-toasts">
+          <div class="adw-toast visible">
+            <div class="adw-toast-content-wrapper">
+              <span class="adw-toast-title">File moved to Trash</span>
+            </div>
+            <button type="button" class="adw-toast-action-button">Undo</button>
+            <button type="button" class="adw-toast-close-button" aria-label="Close"></button>
+          </div>
+        </div>
+      </adw-toast-overlay>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    // The overlay wraps the page content and floats toasts above it.
+    const overlay = new Adw.ToastOverlay({ child: content });
+
+    const toast = new Adw.Toast({
+        title: 'File moved to Trash',
+        timeout: 3,
+        buttonLabel: 'Undo',
+    });
+    overlay.add_toast(toast);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <!-- import '@gjsify/adwaita-web' once to register the elements -->
+    <adw-toast-overlay id="overlay" style="width: 360px; height: 220px;">
+        <adw-status-page title="Documents" description="Drag files here to organise them."></adw-status-page>
+    </adw-toast-overlay>
+
+    <script type="module">
+        // Toasts are shown imperatively — the overlay floats them over its content.
+        const overlay = document.getElementById('overlay');
+        overlay.addToast('File moved to Trash', { timeout: 3, buttonLabel: 'Undo' });
+    </script>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwToastOverlay } from '@gjsify/adwaita-nativescript';
+
+    const overlay = new AdwToastOverlay();
+    overlay.setContent(content);
+
+    // The NativeScript overlay timer is in milliseconds.
+    overlay.showToast('File moved to Trash', {
+        timeout: 3000,
+        buttonLabel: 'Undo',
+    });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Alert Dialog
+
+An **alert dialog** is a modal message: a bold **heading**, some **body** text,
+and a row of **responses** the user must choose between. Each response is a
+button with a string ID; one may carry a **destructive** or **suggested**
+appearance, and a **default** and **close** response govern the Enter / Escape
+keys.
+
+<AdwWidget title="Adw.AlertDialog" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+      <adw-alert-dialog
+        open
+        heading="Delete Project?"
+        body="This will permanently remove the project and all of its files. This action cannot be undone."
+      >
+        <adw-alert-response id="cancel">Cancel</adw-alert-response>
+        <adw-alert-response id="delete" appearance="destructive">Delete</adw-alert-response>
+      </adw-alert-dialog>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    const dialog = new Adw.AlertDialog({
+        heading: 'Delete Project?',
+        body: 'This will permanently remove the project and all of its files. This action cannot be undone.',
+    });
+
+    dialog.add_response('cancel', 'Cancel');
+    dialog.add_response('delete', 'Delete');
+    dialog.set_response_appearance('delete', Adw.ResponseAppearance.DESTRUCTIVE);
+    dialog.set_default_response('cancel');
+    dialog.set_close_response('cancel');
+
+    dialog.present(parent);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-alert-dialog
+        open
+        heading="Delete Project?"
+        body="This will permanently remove the project and all of its files. This action cannot be undone."
+    >
+        <adw-alert-response id="cancel">Cancel</adw-alert-response>
+        <adw-alert-response id="delete" appearance="destructive">Delete</adw-alert-response>
+    </adw-alert-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwAlertDialog } from '@gjsify/adwaita-nativescript';
+
+    const dialog = new AdwAlertDialog(
+        'Delete Project?',
+        'This will permanently remove the project and all of its files. This action cannot be undone.',
+    );
+
+    dialog.addResponse('cancel', 'Cancel');
+    dialog.addResponse('delete', 'Delete');
+    dialog.defaultResponse = 'cancel';
+    dialog.closeResponse = 'cancel';
+
+    // NS substitutes the platform's native confirm() chrome; present() resolves
+    // to the chosen response ID.
+    const response = await dialog.present();
+    ```
+  </Fragment>
+</AdwWidget>
+
+## About Dialog
+
+An **about dialog** is the standard application "About" window: a large app
+**icon**, the application **name**, a **developer** line and a **version** pill,
+with navigation into Details, Credits and Legal sub-pages built from the app
+metadata. It is the conventional destination of a primary-menu _About_ entry.
+
+<AdwWidget title="Adw.AboutDialog" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+      <adw-about-dialog
+        open
+        application-name="Adwaita Storybook"
+        developer-name="A GJSify Project"
+        version="0.11.0"
+        comments="A live catalogue of native GTK and Adwaita widgets, rendered under GJS."
+        website="https://github.com/gjsify/gjsify"
+        issue-url="https://github.com/gjsify/gjsify/issues"
+        license="The MIT License (MIT)"
+        copyright="© 2026 The GJSify Project"
+      ></adw-about-dialog>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const dialog = new Adw.AboutDialog({
+        applicationName: 'Adwaita Storybook',
+        applicationIcon: 'application-x-executable-symbolic',
+        developerName: 'A GJSify Project',
+        version: '0.11.0',
+        comments: 'A live catalogue of native GTK and Adwaita widgets, rendered under GJS.',
+        website: 'https://github.com/gjsify/gjsify',
+        issueUrl: 'https://github.com/gjsify/gjsify/issues',
+        licenseType: Gtk.License.MIT_X11,
+        developers: ['Ada Lovelace', 'Grace Hopper'],
+        designers: ['Margaret Hamilton'],
+        copyright: '© 2026 The GJSify Project',
+    });
+
+    dialog.present(parent);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <!-- developers / designers are string arrays set as properties, e.g.
+         el.developers = ['Ada Lovelace', 'Grace Hopper']; -->
+    <adw-about-dialog
+        open
+        application-name="Adwaita Storybook"
+        developer-name="A GJSify Project"
+        version="0.11.0"
+        comments="A live catalogue of native GTK and Adwaita widgets, rendered under GJS."
+        website="https://github.com/gjsify/gjsify"
+        issue-url="https://github.com/gjsify/gjsify/issues"
+        license="The MIT License (MIT)"
+        copyright="© 2026 The GJSify Project"
+    ></adw-about-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwAboutDialog } from '@gjsify/adwaita-nativescript';
+
+    const dialog = new AdwAboutDialog();
+    dialog.applicationName = 'Adwaita Storybook';
+    dialog.applicationIcon = '🗔';
+    dialog.version = '0.11.0';
+    // NS exposes only scalar fields — credits fold into the developer line.
+    dialog.developerName = 'A GJSify Project — Ada Lovelace, Grace Hopper';
+    dialog.comments = 'A live catalogue of native GTK and Adwaita widgets, rendered under GJS.';
+    dialog.website = 'https://github.com/gjsify/gjsify';
+    dialog.copyright = '© 2026 The GJSify Project';
+
+    dialog.present();
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Preferences Dialog
+
+A **preferences dialog** is a settings window organized into **pages**, each
+holding **groups** of boxed-list rows — switches, drop-downs, spin buttons. It is
+the multi-page container behind an application's _Preferences_ command; the
+common single-page case is shown here.
+
+<AdwWidget title="Adw.PreferencesDialog" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+      <adw-preferences-dialog open title="Preferences">
+        <adw-preferences-page title="General" icon-name="preferences-system-symbolic">
+          <adw-preferences-group title="Appearance" description="Control how the application looks and behaves.">
+            <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
+            <adw-combo-row title="Accent colour" items='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
+            <adw-spin-row title="Font size" min="8" max="24" value="12" step="1"></adw-spin-row>
+          </adw-preferences-group>
+        </adw-preferences-page>
+      </adw-preferences-dialog>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const dialog = new Adw.PreferencesDialog();
+
+    const page = new Adw.PreferencesPage({
+        title: 'General',
+        iconName: 'preferences-system-symbolic',
+    });
+
+    const group = new Adw.PreferencesGroup({
+        title: 'Appearance',
+        description: 'Control how the application looks and behaves.',
+    });
+
+    group.add(new Adw.SwitchRow({ title: 'Dark style', subtitle: 'Use a dark colour scheme', active: true }));
+    group.add(new Adw.ComboRow({
+        title: 'Accent colour',
+        model: new Gtk.StringList({ strings: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'] }),
+        selected: 0,
+    }));
+    group.add(new Adw.SpinRow({
+        title: 'Font size',
+        adjustment: new Gtk.Adjustment({ lower: 8, upper: 24, value: 12, stepIncrement: 1 }),
+    }));
+
+    page.add(group);
+    dialog.add(page);
+    dialog.present(parent);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-preferences-dialog open title="Preferences">
+        <adw-preferences-page title="General" icon-name="preferences-system-symbolic">
+            <adw-preferences-group title="Appearance" description="Control how the application looks and behaves.">
+                <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
+                <adw-combo-row title="Accent colour" items='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
+                <adw-spin-row title="Font size" min="8" max="24" value="12" step="1"></adw-spin-row>
+            </adw-preferences-group>
+        </adw-preferences-page>
+    </adw-preferences-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import {
+        AdwPreferencesDialog,
+        AdwPreferencesPage,
+        AdwPreferencesGroup,
+        AdwSwitchRow,
+        AdwComboRow,
+        AdwSpinRow,
+    } from '@gjsify/adwaita-nativescript';
+
+    const dialog = new AdwPreferencesDialog();
+    dialog.title = 'Preferences';
+
+    const page = new AdwPreferencesPage();
+    const group = new AdwPreferencesGroup();
+    group.title = 'Appearance';
+
+    const darkStyle = new AdwSwitchRow();
+    darkStyle.title = 'Dark style';
+    darkStyle.subtitle = 'Use a dark colour scheme';
+    darkStyle.active = true;
+    group.addRow(darkStyle);
+
+    const accent = new AdwComboRow();
+    accent.title = 'Accent colour';
+    accent.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((label) => ({ label, value: label }));
+    accent.selectedIndex = 0;
+    group.addRow(accent);
+
+    const fontSize = new AdwSpinRow();
+    fontSize.title = 'Font size';
+    fontSize.min = 8;
+    fontSize.max = 24;
+    fontSize.value = 12;
+    group.addRow(fontSize);
+
+    page.addGroup(group);
+    dialog.add(page);
+    dialog.present();
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Boxed Lists](../boxed-lists/) — the preference rows a preferences dialog is
+  built from.
+- [Presentation](../presentation/) — the windows, header bars and views these
+  overlays sit above.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
+  live, interactive component browser.

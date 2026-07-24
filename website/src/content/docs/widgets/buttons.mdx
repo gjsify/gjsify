@@ -1,0 +1,283 @@
+---
+title: Buttons
+description: Adwaita button widgets — button content, style classes, split button and toggle group — each described neutrally with a live preview and GJS, Web and NativeScript code.
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+
+A **button** is Adwaita's most direct control: a widget you press to make
+something happen. This page collects the button family — a button's
+**icon-plus-label content**, the **style classes** that give a button its shape
+and intent, the **split button** that couples an action with a menu, and the
+**toggle group** that turns a linked row of buttons into a single-choice
+selector.
+
+Every widget below is described independently of any one toolkit, then shown
+three ways. **Native GJS** (real Libadwaita through
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
+implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
+and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
+ports mirror it. The preview is the real Web component — no screenshot — so it
+follows the light/dark toggle just like a native window would.
+
+:::note
+The previews use the browser port, so behaviour that Libadwaita drives natively
+(a split button's popover, a toggle group's keyboard navigation) may be
+simplified. Where a port diverges, its tab says so.
+:::
+
+## Button Content
+
+**Adw.ButtonContent** pairs a symbolic icon with a label as the child of a
+button, so an action reads both at a glance and in words. It is the standard way
+to give a button an icon _and_ text, and can optionally ellipsize its label
+(`can-shrink`) when horizontal space is tight.
+
+<AdwWidget title="Adw.ButtonContent">
+  <Fragment slot="preview">
+    <button class="adw-button suggested-action pill">
+      <adw-button-content label="Download" icon-name="folder-download"></adw-button-content>
+    </button>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const content = new Adw.ButtonContent({
+        label: 'Download',
+        iconName: 'folder-download-symbolic',
+        canShrink: false,
+    });
+
+    const button = new Gtk.Button({ child: content });
+    button.add_css_class('suggested-action');
+    button.add_css_class('pill');
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <!-- import '@gjsify/adwaita-web' once to register the elements -->
+    <button class="adw-button suggested-action pill">
+        <adw-button-content label="Download" icon-name="folder-download"></adw-button-content>
+    </button>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwButtonContent } from '@gjsify/adwaita-nativescript';
+    import { StackLayout } from '@nativescript/core';
+
+    const content = new AdwButtonContent();
+    content.iconColor = '#ffffff';
+    content.label = 'Download';
+    content.icon = folderDownloadSymbolic; // an Adwaita symbolic icon (SVG string)
+
+    // AdwButton is text-only, so a styled layout wraps the content.
+    const button = new StackLayout();
+    button.orientation = 'horizontal';
+    button.className = 'adw-button suggested-action pill';
+    button.addChild(content);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Button Styles
+
+Adwaita ships a small set of **style classes** that restyle an ordinary button:
+`.pill` for a rounded, prominent shape, `.circular` for an icon-only round
+button, `.suggested-action` and `.destructive-action` to colour an affirmative
+or dangerous action, and `.flat` to drop the visible background. They compose
+with any button and carry the same meaning across the toolkit.
+
+<AdwWidget title="Gtk.Button">
+  <Fragment slot="preview">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <adw-button label="Pill" pill></adw-button>
+      <adw-button icon="list-add" circular></adw-button>
+      <adw-button label="Suggested" suggested></adw-button>
+      <adw-button label="Delete" destructive></adw-button>
+      <adw-button label="Flat" flat></adw-button>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12, halign: Gtk.Align.CENTER });
+
+    const pill = new Gtk.Button({ label: 'Pill' });
+    pill.add_css_class('pill');
+    box.append(pill);
+
+    const circular = new Gtk.Button({ iconName: 'list-add-symbolic' });
+    circular.add_css_class('circular');
+    box.append(circular);
+
+    const suggested = new Gtk.Button({ label: 'Suggested' });
+    suggested.add_css_class('suggested-action');
+    box.append(suggested);
+
+    const destructive = new Gtk.Button({ label: 'Delete' });
+    destructive.add_css_class('destructive-action');
+    box.append(destructive);
+
+    const flat = new Gtk.Button({ label: 'Flat' });
+    flat.add_css_class('flat');
+    box.append(flat);
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+        <adw-button label="Pill" pill></adw-button>
+        <adw-button icon="list-add" circular></adw-button>
+        <adw-button label="Suggested" suggested></adw-button>
+        <adw-button label="Delete" destructive></adw-button>
+        <adw-button label="Flat" flat></adw-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+
+    const box = new AdwWrapBox();
+    box.childSpacing = 12;
+    box.lineSpacing = 12;
+
+    const pill = new AdwButton();
+    pill.text = 'Pill';
+    pill.variant = 'pill';
+    box.add(pill);
+
+    const suggested = new AdwButton();
+    suggested.text = 'Suggested';
+    suggested.variant = 'suggested-action';
+    box.add(suggested);
+
+    const destructive = new AdwButton();
+    destructive.text = 'Delete';
+    destructive.variant = 'destructive-action';
+    box.add(destructive);
+
+    const flat = new AdwButton();
+    flat.text = 'Flat';
+    flat.variant = 'flat';
+    box.add(flat);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Split Button
+
+**Adw.SplitButton** joins a primary action to a dropdown of related actions in
+one linked control — click the main half to run the default action, or open the
+attached menu for the alternatives. Adding the `.flat` style class gives the
+variant that fits header bars and toolbars, where a raised button would read as
+too heavy.
+
+<AdwWidget title="Adw.SplitButton">
+  <Fragment slot="preview">
+    <adw-split-button
+      label="Save"
+      icon-name="document-save"
+      menu='[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]'
+    ></adw-split-button>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gio from '@girs/gio-2.0';
+
+    const menu = new Gio.Menu();
+    menu.append('Save as…', 'app.save-as');
+    menu.append('Export', 'app.export');
+    menu.append('Print', 'app.print');
+
+    const button = new Adw.SplitButton({ label: 'Save', menuModel: menu });
+    button.iconName = 'document-save-symbolic';
+    // button.add_css_class('flat'); // the header-bar / toolbar variant
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-split-button
+        label="Save"
+        icon-name="document-save"
+        menu='[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]'
+    ></adw-split-button>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwSplitButton } from '@gjsify/adwaita-nativescript';
+
+    const button = new AdwSplitButton();
+    button.menu = ['Save as…', 'Export', 'Print'];
+    button.actionIcon = documentSaveSymbolic; // an Adwaita symbolic icon (SVG string)
+    // With no icon set, the label drives the action half: button.label = 'Save';
+    // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Toggle Group
+
+**Adw.ToggleGroup** is a linked row of toggle buttons where exactly one is
+active at a time — a compact, mutually-exclusive selector for a small set of
+options, such as a view mode. Each toggle carries an icon and/or a label, and the
+style classes `.flat` and `.round` adjust the group for toolbars or a
+pill-shaped appearance.
+
+<AdwWidget title="Adw.ToggleGroup">
+  <Fragment slot="preview">
+    <adw-toggle-group active="0">
+      <adw-toggle label="List" icon-name="view-list"></adw-toggle>
+      <adw-toggle label="Grid" icon-name="view-grid"></adw-toggle>
+      <adw-toggle label="Columns" icon-name="view-columns"></adw-toggle>
+    </adw-toggle-group>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    const group = new Adw.ToggleGroup();
+    group.add(new Adw.Toggle({ label: 'List', iconName: 'view-list-symbolic' }));
+    group.add(new Adw.Toggle({ label: 'Grid', iconName: 'view-grid-symbolic' }));
+    group.add(new Adw.Toggle({ label: 'Columns', iconName: 'view-columns-symbolic' }));
+    group.active = 0;
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-toggle-group active="0">
+        <adw-toggle label="List" icon-name="view-list"></adw-toggle>
+        <adw-toggle label="Grid" icon-name="view-grid"></adw-toggle>
+        <adw-toggle label="Columns" icon-name="view-columns"></adw-toggle>
+    </adw-toggle-group>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwToggleGroup } from '@gjsify/adwaita-nativescript';
+
+    const group = new AdwToggleGroup();
+    group.setToggles([
+        { label: 'List', icon: viewListSymbolic },     // Adwaita symbolic icons (SVG strings)
+        { label: 'Grid', icon: viewGridSymbolic },
+        { label: 'Columns', icon: viewPagedSymbolic },
+    ]);
+    group.selected = 0;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Boxed Lists](../boxed-lists/) — rows that embed these buttons and reuse the
+  same style classes.
+- [Layout](../layout/) — the containers that arrange buttons within a window.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
+  live, interactive component browser.
