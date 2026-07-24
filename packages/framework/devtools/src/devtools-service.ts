@@ -19,6 +19,7 @@ import { captureWidgetPng } from './screenshot.js';
 import { dumpCss, swapCss } from './css.js';
 import { dumpGSettings } from './gsettings.js';
 import {
+    activateWidget,
     dumpTree,
     getWidgetProperty,
     listToplevels,
@@ -216,6 +217,16 @@ export class DevtoolsService {
         const focus = win ? win.get_focus() : null;
         if (!focus) return JSON.stringify(null);
         return JSON.stringify({ path: pathOfWidget(focus), name: focus.get_name() || null, type: widgetType(focus) });
+    }
+
+    /** `ActivateWidget(path) -> b` — activate the widget at `path` (Button→clicked,
+     * ActionRow→activated, …), the click-drive counterpart of DumpTree/GetProperty.
+     * Throws if the path resolves to no live widget; returns whether it was activatable. */
+    ActivateWidget(path: string): boolean {
+        this._guard('ActivateWidget');
+        const resolved = this._resolveRootWidget(path);
+        if (!resolved) throw new Error(formatDbusErrorMessage('not-found', `no widget at '${path}'`));
+        return activateWidget(resolved.widget);
     }
 
     /** `DumpGSettings(schema_id) -> s` — JSON of a schema's keys + values. */

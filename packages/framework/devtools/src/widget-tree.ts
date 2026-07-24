@@ -54,6 +54,23 @@ export function widgetType(widget: Gtk.Widget): string {
     return w.constructor?.$gtype?.name ?? 'GtkWidget';
 }
 
+/**
+ * Activate a widget — the "default activation" GTK runs when the user presses
+ * Enter on it (a `Gtk.Button` emits `clicked`, an `Adw.ActionRow` emits
+ * `activated`, an entry emits `activate`, …). This is how external tooling
+ * click-drives a running GUI: resolve a widget by path, then activate it.
+ *
+ * Returns GTK's own `gtk_widget_activate()` result — `true` if the widget was
+ * activatable, `false` if it is not (e.g. a plain container). Duck-typed on the
+ * `activate()` accessor for the same cross-runtime reason as {@link widgetType}
+ * (GJS vs node-gi both expose it, so the spec can feed a plain mock shape).
+ */
+export function activateWidget(widget: Gtk.Widget): boolean {
+    const w = widget as unknown as { activate?: () => boolean };
+    if (typeof w.activate !== 'function') return false;
+    return w.activate() === true;
+}
+
 function nthChild(widget: Gtk.Widget, index: number): Gtk.Widget | null {
     let child = widget.get_first_child();
     let i = 0;

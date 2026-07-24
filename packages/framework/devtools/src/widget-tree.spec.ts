@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import type Gtk from '@girs/gtk-4.0';
-import { buildWidgetPath, parseWidgetPath, widgetType } from './widget-tree.js';
+import { activateWidget, buildWidgetPath, parseWidgetPath, widgetType } from './widget-tree.js';
 
 // widgetType() is duck-typed on purpose (it reads runtime-provided accessors that
 // differ per runtime), so the specs feed it plain shapes cast to Gtk.Widget.
@@ -67,6 +67,34 @@ export default async () => {
             const noType = Object.create(null) as { $typeName?: string };
             noType.$typeName = '';
             expect(widgetType(asWidget(noType))).toBe('GtkWidget');
+        });
+    });
+
+    await describe('activateWidget', async () => {
+        await it('calls activate() and returns true for an activatable widget', async () => {
+            let called = 0;
+            const btn = asWidget({
+                activate() {
+                    called++;
+                    return true;
+                },
+            });
+            expect(activateWidget(btn)).toBe(true);
+            expect(called).toBe(1);
+        });
+
+        await it('returns false when the widget is not activatable', async () => {
+            // gtk_widget_activate() returns false for a plain container.
+            expect(activateWidget(asWidget({ activate: () => false }))).toBe(false);
+        });
+
+        await it('returns false when the shape has no activate() accessor', async () => {
+            expect(activateWidget(asWidget(Object.create(null)))).toBe(false);
+        });
+
+        await it('coerces a non-boolean activate() result to false', async () => {
+            // Only a strict true counts as activated.
+            expect(activateWidget(asWidget({ activate: () => undefined as unknown as boolean }))).toBe(false);
         });
     });
 };
