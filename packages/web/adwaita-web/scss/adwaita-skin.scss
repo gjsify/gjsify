@@ -10,6 +10,9 @@
 @use 'variables';
 @use 'theme';
 @use 'root';
+// Style-isolation boundary — emitted before the components so their own rules
+// override this typographic/box-model floor (see _reset.scss).
+@use 'reset';
 @use 'window';
 @use 'headerbar';
 @use 'window_title';

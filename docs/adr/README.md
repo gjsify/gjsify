@@ -30,6 +30,7 @@ the TODO records the *what's left*.
 | [0007](0007-web-pillar-common-ui.md) | Web targets implement the shared controller/view layer (experiment) | Accepted |
 | [0008](0008-release-versioning-policy.md) | Release-train versioning policy for `@gjsify/*` | Accepted |
 | [0009](0009-native-adwaita-app-shell.md) | Native Adwaita app shell — extract the GTK application shell | Accepted |
+| [0010](0010-adwaita-web-style-isolation.md) | adwaita-web style isolation — light-DOM boundary reset + token contract | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

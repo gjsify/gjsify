@@ -942,6 +942,15 @@ gjsify trust @gjsify/adwaita-core             # configure Trusted Publisher
 
 Then strike this entry (precedent: the resolved `@gjsify/oxfmt-native` / `@gjsify/nativescript-vite` / `@gjsify/vite-plugin-gjsify` blockers below).
 
+### Follow-up — adwaita-web style isolation (ADR 0010)
+
+The style-isolation boundary reset (`scss/_reset.scss`, PR #789) landed the fix — a host page's inherited typography no longer leaks into embedded light-DOM widgets. Remaining:
+
+- Document the `--adw-*` / `--*` token set as the public theming contract on the website (it is now the sanctioned external-override API — the counterpart to the isolation).
+- If a second light-DOM Adwaita renderer ever appears, lift the boundary reset into `@gjsify/adwaita-core` (headless) so both share it, instead of duplicating.
+- Keep `$adw-components` in `_reset.scss` in sync with `src/elements/*` (`customElements.define('adw-…')`); guarded by `style-isolation.spec.ts`.
+- Shadow DOM stays a documented FUTURE option (ADR 0010), not adopted — revisit only if embedding into hostile third-party pages becomes a hard requirement (open roots + `adoptedStyleSheets` + `::part` + Declarative Shadow DOM).
+
 ### Follow-up — adopt `@gjsify/adwaita-app` in the shell consumers (ADR 0009)
 
 The package ships the native Adwaita app shell (runAsync lifecycle + devtools/CSS bootstrap, `createNavShell`, `loadIntoStack`/`LoadToken`, dialog/toast/file helpers, `readAppDevHooks`). Adoption is opportunistic, not a rewrite — wire each consumer onto it on its next shell touch, after the package is released:

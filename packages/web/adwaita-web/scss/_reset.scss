@@ -1,0 +1,69 @@
+// _reset.scss — style-isolation boundary for embedding in arbitrary host pages.
+//
+// adwaita-web renders as LIGHT-DOM custom elements (by design: the widgets
+// compose with the page and stay overridable via the `--adw-*` / `--*` design
+// tokens). The trade-off of light DOM is that a host page's *inherited*
+// typography — `font-family`, `color`, `line-height`, `letter-spacing`, … — and
+// generic element resets can leak into the widgets.
+//
+// This partial establishes an Adwaita typographic + box-model context at EVERY
+// component boundary, so inheritance from the host stops at the widget. It sets
+// only a FLOOR: it is `@use`d before the component partials, so each component's
+// own rules override it, and consumers keep full control through the tokens and
+// ordinary higher-specificity rules (isolation without giving up overriding).
+//
+// The box battles (borders, backgrounds) are already won by the components'
+// class-scoped rules against realistic element-level host CSS; the real leak is
+// inherited typography + a host `* {}` box-sizing reset, which is what this
+// neutralises.
+
+// Every custom element adwaita-web defines. Keep in sync with
+// `src/elements/*` (the `customElements.define('adw-…')` calls).
+$adw-components:
+  adw-about-dialog, adw-action-row, adw-alert-dialog, adw-alert-response,
+  adw-avatar, adw-banner, adw-bottom-sheet, adw-bottom-sheet-content,
+  adw-bottom-sheet-sheet, adw-button, adw-button-content, adw-button-row,
+  adw-card, adw-carousel, adw-carousel-indicator-dots,
+  adw-carousel-indicator-lines, adw-clamp, adw-combo-row, adw-data-grid,
+  adw-dialog, adw-drop-down, adw-entry, adw-entry-row, adw-expander-row,
+  adw-header-bar, adw-inline-view-switcher, adw-menu-button, adw-navigation-page,
+  adw-navigation-split-view, adw-navigation-view, adw-overlay-split-view,
+  adw-password-entry-row, adw-preferences-dialog, adw-preferences-group,
+  adw-preferences-page, adw-sidebar, adw-sidebar-item, adw-sidebar-section,
+  adw-spinner, adw-spin-row, adw-split-button, adw-status-page, adw-switch-row,
+  adw-tab-page, adw-tab-view, adw-toast-overlay, adw-toggle, adw-toggle-group,
+  adw-toolbar-view, adw-view-stack, adw-view-stack-page, adw-view-switcher,
+  adw-view-switcher-bar, adw-view-switcher-page, adw-window, adw-window-title,
+  adw-wrap-box;
+
+// Roots: re-root the inherited typographic properties (and the box model) so a
+// host page's font / colour / spacing cannot flow into the widget. Every value
+// is the Adwaita default; a component that wants something else overrides it on
+// its own element (this rule is emitted first).
+#{$adw-components} {
+  box-sizing: border-box;
+  color: var(--window-fg-color);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  font-style: normal;
+  font-variant: normal;
+  line-height: normal;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-align: start;
+  text-indent: 0;
+  text-transform: none;
+  text-shadow: none;
+}
+
+// Descendants: `box-sizing` does not inherit, so a host `*, *::before {
+// box-sizing: content-box }` reset would still reach internal elements. Pin it
+// to `border-box` (adwaita's model throughout) inside every component.
+@each $c in $adw-components {
+  #{$c} *,
+  #{$c} *::before,
+  #{$c} *::after {
+    box-sizing: border-box;
+  }
+}
