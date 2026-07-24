@@ -10,7 +10,7 @@
 // undefined symbols always bind at dlopen (RTLD_NOW) — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
-// never with a crash. 53 stubs.
+// never with a crash. 28 stubs.
 
 #include "common.h"
 
@@ -50,19 +50,6 @@ napi_status NAPI_CDECL node_api_symbol_for(napi_env env, const char* utf8descrip
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_is_arraybuffer(napi_env env, napi_value value, bool* result) {
-    (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_arraybuffer(napi_env env, size_t byte_length, void** data, napi_value* result) {
-    (void)byte_length;
-    (void)data;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL napi_create_external_arraybuffer(napi_env env, void* external_data, size_t byte_length, node_api_basic_finalize finalize_cb, void* finalize_hint, napi_value* result) {
     (void)external_data;
     (void)byte_length;
@@ -72,112 +59,9 @@ napi_status NAPI_CDECL napi_create_external_arraybuffer(napi_env env, void* exte
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_get_arraybuffer_info(napi_env env, napi_value arraybuffer, void** data, size_t* byte_length) {
-    (void)arraybuffer;
-    (void)data;
-    (void)byte_length;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_is_typedarray(napi_env env, napi_value value, bool* result) {
-    (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_typedarray(napi_env env, napi_typedarray_type type, size_t length, napi_value arraybuffer, size_t byte_offset, napi_value* result) {
-    (void)type;
-    (void)length;
-    (void)arraybuffer;
-    (void)byte_offset;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_typedarray_info(napi_env env, napi_value typedarray, napi_typedarray_type* type, size_t* length, void** data, napi_value* arraybuffer, size_t* byte_offset) {
-    (void)typedarray;
-    (void)type;
-    (void)length;
-    (void)data;
-    (void)arraybuffer;
-    (void)byte_offset;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_dataview(napi_env env, size_t length, napi_value arraybuffer, size_t byte_offset, napi_value* result) {
-    (void)length;
-    (void)arraybuffer;
-    (void)byte_offset;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_is_dataview(napi_env env, napi_value value, bool* result) {
-    (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_dataview_info(napi_env env, napi_value dataview, size_t* bytelength, void** data, napi_value* arraybuffer, size_t* byte_offset) {
-    (void)dataview;
-    (void)bytelength;
-    (void)data;
-    (void)arraybuffer;
-    (void)byte_offset;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_promise(napi_env env, napi_deferred* deferred, napi_value* promise) {
-    (void)deferred;
-    (void)promise;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_resolve_deferred(napi_env env, napi_deferred deferred, napi_value resolution) {
-    (void)deferred;
-    (void)resolution;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_reject_deferred(napi_env env, napi_deferred deferred, napi_value rejection) {
-    (void)deferred;
-    (void)rejection;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_is_promise(napi_env env, napi_value value, bool* is_promise) {
-    (void)value;
-    (void)is_promise;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL napi_adjust_external_memory(node_api_basic_env env, int64_t change_in_bytes, int64_t* adjusted_value) {
     (void)change_in_bytes;
     (void)adjusted_value;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_date(napi_env env, double time, napi_value* result) {
-    (void)time;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_is_date(napi_env env, napi_value value, bool* is_date) {
-    (void)value;
-    (void)is_date;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_date_value(napi_env env, napi_value value, double* result) {
-    (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_bigint_uint64(napi_env env, uint64_t value, napi_value* result) {
-    (void)value;
-    (void)result;
     GJSIFY_NAPI_STUB(env);
 }
 
@@ -189,29 +73,11 @@ napi_status NAPI_CDECL napi_create_bigint_words(napi_env env, int sign_bit, size
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_get_value_bigint_uint64(napi_env env, napi_value value, uint64_t* result, bool* lossless) {
-    (void)value;
-    (void)result;
-    (void)lossless;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL napi_get_value_bigint_words(napi_env env, napi_value value, int* sign_bit, size_t* word_count, uint64_t* words) {
     (void)value;
     (void)sign_bit;
     (void)word_count;
     (void)words;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_detach_arraybuffer(napi_env env, napi_value arraybuffer) {
-    (void)arraybuffer;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_is_detached_arraybuffer(napi_env env, napi_value value, bool* result) {
-    (void)value;
-    (void)result;
     GJSIFY_NAPI_STUB(env);
 }
 
@@ -237,48 +103,11 @@ napi_status NAPI_CDECL napi_make_callback(napi_env env, napi_async_context async
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_create_buffer(napi_env env, size_t length, void** data, napi_value* result) {
-    (void)length;
-    (void)data;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_external_buffer(napi_env env, size_t length, void* data, node_api_basic_finalize finalize_cb, void* finalize_hint, napi_value* result) {
-    (void)length;
-    (void)data;
-    (void)finalize_cb;
-    (void)finalize_hint;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL node_api_create_buffer_from_arraybuffer(napi_env env, napi_value arraybuffer, size_t byte_offset, size_t byte_length, napi_value* result) {
     (void)arraybuffer;
     (void)byte_offset;
     (void)byte_length;
     (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_buffer_copy(napi_env env, size_t length, const void* data, void** result_data, napi_value* result) {
-    (void)length;
-    (void)data;
-    (void)result_data;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_is_buffer(napi_env env, napi_value value, bool* result) {
-    (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_buffer_info(napi_env env, napi_value value, void** data, size_t* length) {
-    (void)value;
-    (void)data;
-    (void)length;
     GJSIFY_NAPI_STUB(env);
 }
 

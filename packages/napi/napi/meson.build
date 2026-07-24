@@ -31,6 +31,7 @@ vala_sources = files(
 # node-gi TU-split idiom: one common.h owning cross-TU decls, functional
 # .cc slices. The vendored Node-API headers live in src/napi-headers/.
 cc_sources = files(
+    'src/cc/arraybuffer.cc',
     'src/cc/env.cc',
     'src/cc/error.cc',
     'src/cc/function.cc',
