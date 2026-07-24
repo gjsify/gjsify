@@ -109,6 +109,7 @@ const SEED_PATTERNS = [
 // missing. (Gdk/Gsk/Gtk are all in gtk-4-*.dll, already a base seed.)
 const WINDOWING_SEED_PATTERNS = [
     /^(lib)?adwaita-1.*\.dll$/i, // gvsbuild leaf: adwaita-1-0.dll (backs the Adw-1 typelib)
+    /^(lib)?gtksourceview-5.*\.dll$/i, // gvsbuild leaf: gtksourceview-5-0.dll (backs the GtkSource-5 typelib — the Learn6502 editor)
     /^libEGL.*\.dll$/i,
     /^libGLESv2.*\.dll$/i,
     /^epoxy.*\.dll$/i,
@@ -294,7 +295,7 @@ console.log(`build-gtk-runtime: copied ${typelibCount} typelibs`);
 // partial gvsbuild layout still produces the DLL+typelib bundle. The DATA marker
 // node-gi keys on is gschemas.compiled; if that step fails the loader treats the
 // bundle as display-free (no windowing env wired).
-const windowing = { pixbufLoaders: 0, schemas: false, iconThemes: [], fontconfig: false };
+const windowing = { pixbufLoaders: 0, schemas: false, iconThemes: [], fontconfig: false, gtksource: false };
 if (WINDOWING) {
     // 4a. gdk-pixbuf loaders + a bundle-relative loaders.cache. The cache maps each
     // decoder DLL to its mime/extensions; gdk-pixbuf resolves the DLL paths in it
@@ -402,6 +403,31 @@ if (WINDOWING) {
         console.log('build-gtk-runtime: fontconfig config bundled');
     } else {
         console.log('build-gtk-runtime: no etc/fonts (pango uses the win32/DirectWrite backend) — skipping fontconfig');
+    }
+
+    // 4e. GtkSource-5 runtime DATA: the syntax-highlighting language definitions
+    // (share/gtksourceview-5/language-specs/*.lang) + style schemes
+    // (share/gtksourceview-5/styles/*.xml). GtkSource's LanguageManager /
+    // StyleSchemeManager load these from XDG_DATA_DIRS/gtksourceview-5 (node-gi
+    // prepends <bundle>/share), so without them the Learn6502 editor's GtkSource.View
+    // constructs but has no built-in languages/styles. Defensive: WARN + continue if
+    // gvsbuild's layout lacks the tree (the DLL + typelib still ship, so GtkSource
+    // itself works — only the bundled highlight data is absent).
+    const gtksourceSrc = join(PREFIX, 'share', 'gtksourceview-5');
+    if (existsSync(gtksourceSrc)) {
+        const gtksourceOut = join(OUT, 'share', 'gtksourceview-5');
+        let copied = 0;
+        for (const sub of ['language-specs', 'styles']) {
+            const subSrc = join(gtksourceSrc, sub);
+            if (existsSync(subSrc)) {
+                cpSync(subSrc, join(gtksourceOut, sub), { recursive: true });
+                copied += readdirSync(subSrc).length;
+            }
+        }
+        windowing.gtksource = copied > 0;
+        console.log(`build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied} language-specs/styles files)` : 'directory present but empty'}`);
+    } else {
+        console.warn(`build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 language-specs/styles NOT bundled (the editor's built-in highlighting will be unavailable)`);
     }
 }
 

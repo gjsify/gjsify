@@ -75,16 +75,21 @@ const SEED_PATTERNS = [
 ];
 
 // WINDOWING superset (opt-in via --windowing): also bundle libadwaita, whose dylib
-// backs the Adw-1 typelib. The display-free conformance closure never touches
-// Adwaita, so it is NOT a base seed — but the batteries-included bundle ships the
-// Adw-1 TYPELIB, so without libadwaita's dylib a real `new Adw.Application()` fails
-// with "Failed to load shared library 'libadwaita-1.0.dylib'" (→ Adw.Application is
-// not a constructible GObject type). This is exactly what the macOS GTK-GUI proof
-// (macos-gtk-windowing) needs; the recursive otool walk pulls libadwaita's
-// transitive deps + relocates them like any other seed. Mirrors the win32
-// --windowing superset (WINDOWING_SEED_PATTERNS there).
+// backs the Adw-1 typelib, AND libgtksourceview-5, whose dylib backs the GtkSource-5
+// typelib. The display-free conformance closure never touches Adwaita OR GtkSource,
+// so they are NOT base seeds — but the batteries-included bundle ships their TYPELIBS,
+// so without the dylibs a real `new Adw.Application()` / `new GtkSource.View()` fails
+// with "Failed to load shared library '…'" (→ the type is not a constructible
+// GObject). libgtksourceview backs the Learn6502 editor (a GtkSource.View subclass) —
+// the app-gnome node-gi port. This is exactly what the macOS GTK-GUI proof
+// (macos-gtk-windowing) needs; the recursive otool walk pulls each seed's transitive
+// deps + relocates them like any other seed. Mirrors the win32 --windowing superset
+// (WINDOWING_SEED_PATTERNS there). NB: GtkSource's runtime DATA (language-specs /
+// styles under share/gtksourceview-5) is a separate concern; the darwin bundle has no
+// share/ DATA step yet, so GtkSource CONSTRUCTS here but syntax-highlighting language
+// files are not bundled (tracked follow-up; the win32 bundle DOES ship them).
 const WINDOWING = process.argv.includes('--windowing');
-const WINDOWING_SEED_PATTERNS = [/^libadwaita-1\..*\.dylib$/];
+const WINDOWING_SEED_PATTERNS = [/^libadwaita-1\..*\.dylib$/, /^libgtksourceview-5\..*\.dylib$/];
 
 function isSystemPath(p) {
     return p.startsWith('/usr/lib/') || p.startsWith('/System/');
@@ -124,7 +129,7 @@ function resolveInBrew(leaf) {
 }
 
 // --- 1. discover the closure ----------------------------------------------
-console.log(`build-gtk-runtime: brew prefix ${brewPrefix}${WINDOWING ? ' (windowing superset — + libadwaita)' : ' (display-free)'}`);
+console.log(`build-gtk-runtime: brew prefix ${brewPrefix}${WINDOWING ? ' (windowing superset — + libadwaita + libgtksourceview)' : ' (display-free)'}`);
 const seedPatterns = WINDOWING ? [...SEED_PATTERNS, ...WINDOWING_SEED_PATTERNS] : SEED_PATTERNS;
 const seeds = readdirSync(brewLib).filter((f) => seedPatterns.some((re) => re.test(f)));
 if (seeds.length === 0) {
