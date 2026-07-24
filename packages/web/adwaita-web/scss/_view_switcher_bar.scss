@@ -11,6 +11,16 @@
 
 adw-view-switcher-bar {
     display: block;
+
+    // `revealed` drives visibility by toggling the `hidden` attribute
+    // (_applyRevealed → this.hidden). Re-assert display:none for [hidden] as an
+    // AUTHOR rule: the UA `[hidden] { display: none }` loses to this block's own
+    // author `display: block` (cascade ORIGIN beats specificity), so without this
+    // an unrevealed bar would stay visible. Author + higher specificity → wins.
+    &[hidden] {
+        display: none;
+    }
+
     box-sizing: border-box;
     // The bottom bar over a headerbar-toned surface with a top hairline (the
     // libadwaita `actionbar` inset top border), NOT a bottom border.
