@@ -1475,21 +1475,18 @@ jobs:
           }
           Write-Host "--- icon themes ---"
           Get-ChildItem "$B/share/icons" -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
-          # GtkSource-5 (the Learn6502 editor's GtkSource.View backer). REPORTED, not
-          # asserted: it ships only if the gvsbuild GTK4 release ZIP includes
-          # gtksourceview5 — this surfaces whether it does. When present, the DLL is
-          # seeded (WINDOWING_SEED_PATTERNS), the typelib copied, and the
-          # language-specs/styles bundled (build step 4e). If absent here, a follow-up
-          # must build gtksourceview5 into the gvsbuild closure.
-          Write-Host "--- GtkSource-5 in the bundle? ---"
+          # GtkSource-5 (the Learn6502 editor's GtkSource.View backer). The gvsbuild
+          # GTK4 release ZIP ships gtksourceview5, so ASSERT the full closure landed:
+          # the DLL is seeded (WINDOWING_SEED_PATTERNS), the typelib copied, and the
+          # language-specs/styles bundled (build step 4e). A future gvsbuild that drops
+          # gtksourceview5 fails here loudly rather than silently shipping a bundle the
+          # editor can't load.
+          Write-Host "--- assert GtkSource-5 in the bundle ---"
           $srcDll = Get-ChildItem "$B/bin" -Filter '*gtksourceview-5*.dll' -ErrorAction SilentlyContinue
-          $srcTl  = Test-Path "$B/girepository-1.0/GtkSource-5.typelib"
-          $srcData = Test-Path "$B/share/gtksourceview-5/language-specs"
-          Write-Host ("  DLL: {0} | typelib: {1} | language-specs: {2}" -f `
-            (if ($srcDll) { $srcDll.Name } else { 'MISSING' }), $srcTl, $srcData)
-          if (-not $srcDll -or -not $srcTl) {
-            Write-Host "  NOTE: GtkSource-5 is NOT in the gvsbuild GTK4 release ZIP — the Learn6502 editor needs a follow-up to build gtksourceview5 into the Windows closure."
-          }
+          if (-not $srcDll) { Write-Host "libgtksourceview-5 DLL MISSING from the windowing bundle"; exit 1 }
+          if (-not (Test-Path "$B/girepository-1.0/GtkSource-5.typelib")) { Write-Host "GtkSource-5.typelib MISSING from the windowing bundle"; exit 1 }
+          if (-not (Test-Path "$B/share/gtksourceview-5/language-specs")) { Write-Host "GtkSource-5 language-specs MISSING from the windowing bundle"; exit 1 }
+          Write-Host ("GtkSource-5 OK: {0} + GtkSource-5.typelib + language-specs" -f $srcDll.Name)
 
       - name: Upload FULL-windowing GTK runtime bundle
         uses: actions/upload-artifact@v4
