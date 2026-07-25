@@ -35,6 +35,28 @@ JSObject* new_bundle_function(napi_env env, const char* utf8name,
     }
     JSObject* fn_obj = JS_GetFunctionObject(fn);
     js::SetFunctionNativeReserved(fn_obj, 0, JS::PrivateValue(bundle));
+
+    // A plain napi function (napi_create_function or a napi_define_properties
+    // method) is constructible and, like every V8 function Node hands back,
+    // owns a `.prototype` object — SpiderMonkey natives get none, so `new fn()`
+    // and `class X extends fn` (test_new_target) would fault on a missing/
+    // undefined prototype. Give it the standard function-prototype shape
+    // (writable, non-enumerable, non-configurable) plus the `.constructor`
+    // back-reference. napi_define_class (construct_as_class) is skipped: it
+    // wires its own ctor.prototype ↔ proto.constructor pair afterwards.
+    if ((flags & JSFUN_CONSTRUCTOR) && !construct_as_class) {
+        JS::RootedObject fn_rooted(env->cx, fn_obj);
+        JS::RootedObject proto(env->cx, JS_NewPlainObject(env->cx));
+        if (proto == nullptr ||
+            !JS_DefineProperty(env->cx, fn_rooted, "prototype", proto,
+                               JSPROP_PERMANENT) ||
+            !JS_DefineProperty(env->cx, proto, "constructor", fn_rooted, 0)) {
+            delete bundle;
+            return nullptr;
+        }
+        env->bundles.push_back(bundle);
+        return fn_rooted;
+    }
     env->bundles.push_back(bundle);
     return fn_obj;
 }

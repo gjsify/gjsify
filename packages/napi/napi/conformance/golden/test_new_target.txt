@@ -1,0 +1,4 @@
+"instanceof" true
+"method-ran" true
+"ordinary" true
+"ctor-new.target" true

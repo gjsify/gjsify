@@ -109,9 +109,15 @@ napi_status apply_property_descriptor(napi_env env, JS::HandleObject target,
         return napi_ok;
     }
     if (p.method != nullptr) {
+        // A method created via napi_define_properties is a plain napi function
+        // and therefore constructible, exactly like napi_create_function (V8
+        // FunctionTemplate default): test_new_target uses such method
+        // properties as `extends` targets and with `new`. JSFUN_CONSTRUCTOR is
+        // what makes `new fn()` legal in SM; getters/setters stay flags=0.
         JS::RootedObject method(
             env->cx, new_bundle_function(env, p.utf8name, NAPI_AUTO_LENGTH,
-                                         p.method, p.data, 0, false));
+                                         p.method, p.data, JSFUN_CONSTRUCTOR,
+                                         false));
         if (!method) {
             return set_last_error(env, napi_generic_failure);
         }
