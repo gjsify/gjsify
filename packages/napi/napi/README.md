@@ -74,9 +74,31 @@ explicit `loadAddon` escape hatch for those (tracked in `STATUS.md`).
 
 - A C++ toolchain (`g++`/`clang`), `meson`, `vala`, `g-ir-compiler`
 - Development headers for `glib-2.0`, `gobject-2.0`, `gio-2.0`, **`gjs-1.0`** and
-  **`mozjs-140`** (Fedora: `gjs-devel mozjs140-devel glib2-devel
-  gobject-introspection-devel vala meson gcc-c++`)
+  **`mozjs-140`**
+  - Fedora: `gjs-devel mozjs140-devel glib2-devel gobject-introspection-devel
+    vala meson gcc-c++`
+  - macOS (Homebrew): `brew install gjs gobject-introspection vala meson ninja
+    pkgconf` — `gjs` pulls `spidermonkey` (mozjs-140) transitively, the SAME
+    pairing Fedora pins (gjs 1.88.x ↔ mozjs-140)
 - Node.js + `node-gyp` to build the test/consumer addons (`.node` files)
+
+## Platforms
+
+Ships as a prebuilt `.dylib`/`.so` + `.gir` + `.typelib` per platform:
+
+| Platform | Prebuild dir | Status |
+| --- | --- | --- |
+| Linux x86_64 | `prebuilds/linux-x86_64/` | Supported (full gate + conformance + consumer CI) |
+| macOS arm64 | `prebuilds/darwin-arm64/` | Sync/value-model supported (build + load + P0.x gates); **tsfn/async teardown segfaults at process exit — deferred**; conformance/consumer/valgrind widening deferred |
+| Windows x64 | — | **Non-goal** (blocked) |
+
+**Windows is a tracked non-goal:** the shim links GJS's SpiderMonkey
+(mozjs-140), and no prebuilt MSVC-ABI mozjs-140 exists (no vcpkg port, no MSYS2
+package, gvsbuild ships only the GTK stack). Building it from Firefox-ESR source
+with clang-cl + Rust plus building gjs against it is the fragile multi-hour build
+we deliberately avoid. See `STATUS.md` → *N-API host in GJS* → cross-platform
+prebuilds. This is the key difference from [`@gjsify/node-gi`](../../node-gi/node-gi),
+which links the portable girepository stack and so runs on all three OSes.
 
 ## Build
 

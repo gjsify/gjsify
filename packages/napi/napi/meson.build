@@ -46,8 +46,27 @@ cc_sources = files(
 )
 
 # §3b export hygiene: only napi_*/node_api_* (the ABI) + gjsify_napi_* (the
-# GI/Vala surface) are visible; everything else is local.
-version_script = meson.current_source_dir() / 'src/cc/napi.export.map'
+# GI/Vala surface) are visible; everything else is local. The mechanism is
+# linker-specific, so branch on the host toolchain:
+#   - GNU ld / lld (Linux): --version-script (glob patterns, ABI-only export)
+#   - ld64 (macOS):         -exported_symbols_list (leading-underscore globs)
+# MSVC link.exe (Windows) would need a .def EXPORTS file, but the shim has no
+# viable Windows toolchain (no prebuilt MSVC mozjs-140 + gjs — see STATUS.md
+# "N-API host in GJS" cross-platform prebuilds), so only linux/darwin branch.
+host_system = host_machine.system()
+if host_system == 'darwin'
+    export_symbols = meson.current_source_dir() / 'src/cc/napi.exported-symbols.txt'
+    export_link_args = ['-Wl,-exported_symbols_list,' + export_symbols]
+    export_link_depends = files('src/cc/napi.exported-symbols.txt')
+    # meson names the shared library libgjsifynapi.dylib on macOS; the typelib
+    # must record that exact leaf so gjs' g_module_open resolves it at load.
+    shared_lib_name = 'libgjsifynapi.dylib'
+else
+    version_script = meson.current_source_dir() / 'src/cc/napi.export.map'
+    export_link_args = ['-Wl,--version-script,' + version_script]
+    export_link_depends = files('src/cc/napi.export.map')
+    shared_lib_name = 'libgjsifynapi.so'
+endif
 
 libGjsifyNapi = library('gjsifynapi', vala_sources + cc_sources,
     dependencies: dependencies,
@@ -61,10 +80,8 @@ libGjsifyNapi = library('gjsifynapi', vala_sources + cc_sources,
     vala_args: [
         '--vapidir=' + meson.current_source_dir() / 'src/vala',
     ],
-    link_args: [
-        '-Wl,--version-script,' + version_script,
-    ],
-    link_depends: files('src/cc/napi.export.map'),
+    link_args: export_link_args,
+    link_depends: export_link_depends,
     vala_gir: meson.project_name() + '-1.0.gir',
     install: true,
     install_dir: [true, true, true, true],
@@ -75,7 +92,7 @@ g_ir_compiler = find_program('g-ir-compiler')
 custom_target(meson.project_name() + '-1.0.typelib',
     command: [
         g_ir_compiler,
-        '--shared-library', 'libgjsifynapi.so',
+        '--shared-library', shared_lib_name,
         '--output', '@OUTPUT@',
         meson.current_build_dir() / meson.project_name() + '-1.0.gir',
     ],

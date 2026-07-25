@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# @gjsify/napi — export hygiene, macOS (ld64) counterpart of napi.export.map.
+#
+# ld64's -exported_symbols_list keeps ONLY the listed symbols visible; the C
+# ABI (napi_*/node_api_*) + the GObject/GI surface (gjsify_napi_*, incl. the
+# Vala-generated type + namespace symbols GI resolves via dlsym) stay exported,
+# everything else is hidden. Mach-O C symbols carry a leading underscore, and
+# ld64 honours `*` wildcards here — so these three globs mirror the `global:`
+# block of the GNU version-script exactly. This is what lets the shim
+# self-promote its napi_* into the flat namespace (module.cc
+# ensure_napi_symbols_global) so an addon built with `-undefined
+# dynamic_lookup` binds its undefined napi_* to ours.
+_napi_*
+_node_api_*
+_gjsify_napi_*

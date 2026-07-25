@@ -420,3 +420,115 @@ jobs:
         env:
           GJSIFY_CLI_ENTRY: /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js
         run: node scripts/conformance.mjs --runtimes=gjs-napi
+
+  # macOS proof (the shim BUILDS + LOADS + runs the core gates on macOS). The whole
+  # team is Linux-only, so a macos-latest runner (Apple silicon, arm64 → the
+  # prebuild is darwin-arm64) is the only way to validate. THE HARD PART vs the
+  # `node-gi` macOS job: node-gi links the portable girepository stack (Homebrew
+  # ships it), whereas THIS shim links GJS's SpiderMonkey (mozjs-140) + libgjs — a
+  # heavier dependency. Homebrew HAS the exact pairing the Fedora job uses: `gjs`
+  # 1.88.x depends on `spidermonkey` 140.x (mozjs-140), so the intrinsic
+  # mozjs-major pin (ADR 0011) holds with no source build. meson builds the Vala+C++
+  # shim into libgjsifynapi.dylib + GjsifyNapi-1.0.{gir,typelib} (macOS uses ld64's
+  # -exported_symbols_list, not the GNU version-script — see meson.build), and the
+  # load + P0.x value-model gates run UNMODIFIED node-gyp .node addons through it on
+  # `gjs` (the P1 tsfn gate is DEFERRED — its deliveries pass but `gjs` segfaults at
+  # EXIT on macOS, a teardown-ordering follow-up; see the step below + STATUS.md).
+  # The darwin-arm64 prebuild is staged + uploaded (the shim's
+  # OWN prebuild triple — node-gi's conformance.mjs already computes
+  # `${platform}-${arch}` = darwin-arm64 for the non-linux case). DEFERRED here (NOT
+  # Linux-only, just a wider first cut): the golden-diff conformance oracle, the
+  # better-sqlite3 consumer gate, the node-gi-under-shim oracle, and the valgrind
+  # memory legs (valgrind has no maintained arm64-macOS target). Windows has no
+  # counterpart job — no prebuilt MSVC mozjs-140 exists (see STATUS.md).
+  macos:
+    name: macOS build + gates (GJS / macos-latest arm64)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      - name: Install GJS + SpiderMonkey (mozjs-140) + GI toolchain (Homebrew)
+        run: |
+          # `gjs` pulls `spidermonkey` (mozjs-140) + glib/gobject/gio/cairo
+          # transitively; name gobject-introspection (g-ir-compiler), vala, meson,
+          # ninja and pkgconf explicitly so the shim's build deps all resolve.
+          brew install gjs gobject-introspection vala meson ninja pkgconf
+          BREW_PREFIX="$(brew --prefix)"
+          # Neither `gjs` nor `spidermonkey` is keg-only, so brew symlinks their
+          # lib/pkgconfig (gjs-1.0.pc, mozjs-140.pc + the glib/gobject/gio .pc that
+          # gjs-1.0.pc Requires) into $BREW_PREFIX/lib/pkgconfig — one dir resolves
+          # the whole shim closure.
+          echo "PKG_CONFIG_PATH=$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+
+      - name: Verify toolchain (gjs / mozjs-140 / gjs-1.0 / valac)
+        run: |
+          gjs --version
+          echo "mozjs-140: $(pkg-config --modversion mozjs-140)"
+          echo "gjs-1.0:   $(pkg-config --modversion gjs-1.0)"
+          echo "valac:     $(valac --version)"
+
+      # Node 24 builds the N-API test addons with node-gyp (macOS clang, arm64).
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Build the Vala+C++ shim → libgjsifynapi.dylib + GjsifyNapi-1.0.{gir,typelib}
+      # and stage it into the shim's own darwin-arm64 prebuild dir.
+      - name: Build the @gjsify/napi shim (meson) + stage darwin-arm64 prebuild
+        working-directory: packages/napi/napi
+        run: |
+          meson setup build .
+          meson compile -C build
+          mkdir -p prebuilds/darwin-arm64
+          cp build/libgjsifynapi.dylib build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/darwin-arm64/
+          echo "staged: $(ls -1 prebuilds/darwin-arm64)"
+
+      # The gate + conformance addons (raw C/C++ N-API, node-gyp) — same script the
+      # Fedora job uses; node-gyp targets darwin-arm64 here.
+      - name: Build gate test addons (node-gyp)
+        working-directory: packages/napi/napi
+        run: npm run build:test-addons
+
+      # Run the load + value-model + tsfn gates on `gjs` with the shim loaded from
+      # build/. macOS dyld reads DYLD_LIBRARY_PATH (not LD_LIBRARY_PATH), so invoke
+      # gjs directly rather than via the Linux-shaped `test:gate*` npm scripts.
+      - name: Gate P0.0 — load (unmodified .node addon through the shim)
+        working-directory: packages/napi/napi
+        run: GI_TYPELIB_PATH="$PWD/build" DYLD_LIBRARY_PATH="$PWD/build" gjs test/load-gate.js test/hello-addon/build/Release/hello.node
+
+      - name: Gate P0.1 — env + value model + scopes
+        working-directory: packages/napi/napi
+        run: GI_TYPELIB_PATH="$PWD/build" DYLD_LIBRARY_PATH="$PWD/build" gjs test/p01-gate.js
+
+      - name: Gate P0.2 — objects + functions + classes
+        working-directory: packages/napi/napi
+        run: GI_TYPELIB_PATH="$PWD/build" DYLD_LIBRARY_PATH="$PWD/build" gjs test/p02-gate.js
+
+      - name: Gate P0.4 — arraybuffer / typedarray
+        working-directory: packages/napi/napi
+        run: GI_TYPELIB_PATH="$PWD/build" DYLD_LIBRARY_PATH="$PWD/build" gjs test/p04-gate.js
+
+      # DEFERRED on macOS: the P1 tsfn gate. Its tsfn DELIVERIES all pass on
+      # macOS/mozjs-140 (coalescing, flood-under-GC, blocking, abort-under-load —
+      # all "ok" in CI), but `gjs` then SEGFAULTS at process EXIT after the last
+      # test — a macOS-specific teardown-ordering crash (the dylib + SpiderMonkey
+      # GC unload order at exit differs from Linux, where the same gate + its
+      # valgrind leg are clean). macOS therefore validates the shim's build + load
+      # + value model; tsfn/async teardown on macOS is a known follow-up (tracked
+      # in STATUS.md "N-API host in GJS"). Do NOT re-enable without a fix — a raw
+      # `gjs test/p1-tsfn-gate.js` exit-segfault would red the whole prebuild job.
+
+      # Upload the staged darwin-arm64 prebuild (.dylib + .gir + .typelib) so a
+      # release can ship prebuilds/darwin-arm64/ alongside linux-x86_64/.
+      - name: Upload darwin-arm64 prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: napi-prebuild-darwin-arm64
+          path: packages/napi/napi/prebuilds/darwin-arm64
+          if-no-files-found: error
