@@ -1,0 +1,219 @@
+name: napi
+
+# Dedicated CI for @gjsify/napi — the Node-API (N-API) host that implements the
+# napi C ABI over GJS's SpiderMonkey (mozjs-140) so GJS can load UNMODIFIED
+# compiled .node addons (the forward mirror of @gjsify/node-gi). Like
+# packages/napi/** is NOT a gjsify workspace member (the GJS-first
+# install/foreach tooling can't build a Vala+C++/meson shim or node-gyp
+# addons), so the main GJS workflow neither builds nor tests it; this workflow
+# is its source of truth. Builds the Vala+C++ shim (.so+.gir+.typelib), builds
+# the Node N-API test addons with node-gyp, and runs every gate + the
+# golden-diff conformance oracle on Fedora 44 (GJS 1.88 / mozjs-140).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/napi/**'
+      - '.github/workflows/napi.yml'
+  pull_request:
+    paths:
+      - 'packages/napi/**'
+      - '.github/workflows/napi.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: napi-${{ github.ref }}
+  cancel-in-progress: true
+
+# The pinned refs/node revision the conformance addon sources + committed
+# goldens are generated from. MUST match the refs/node submodule gitlink so the
+# UNMODIFIED addons + their Node-reference output stay byte-identical in CI.
+env:
+  NODE_TEST_REV: ed63b195cd61367db7b611cb601352197569ee0e
+
+jobs:
+  build-test:
+    name: Build & gates & conformance (GJS / Fedora 44)
+    runs-on: ubuntu-latest
+    # Backstop: a shim regression could hang a gate or the valgrind leg; cap the
+    # job rather than wait the default 6h.
+    timeout-minutes: 30
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + mozjs-140 + GJS + GI dev headers + valgrind
+        run: |
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
+            mozjs140-devel gjs gjs-devel \
+            gobject-introspection gobject-introspection-devel glib2-devel \
+            vala meson ninja-build valgrind
+          gjs --version
+          echo "mozjs-140: $(pkg-config --modversion mozjs-140)"
+          echo "gjs-1.0:   $(pkg-config --modversion gjs-1.0)"
+          echo "valac:     $(valac --version)"
+
+      # Official nodejs.org build, NOT Fedora's `dnf nodejs` (which segfaults
+      # rolldown's prebuilt napi binding — used by the consumer gate's bundler).
+      # node-gyp builds the N-API test addons against this Node's headers.
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # refs/node is an SSH-url submodule (nodejs/node) the checkout can't init;
+      # sparse partial-clone ONLY test/js-native-api at the pinned rev so the
+      # conformance addons + goldens stay byte-identical. Lightweight (blob
+      # filter + one path + depth 1).
+      - name: Fetch Node N-API test addons (sparse, pinned rev)
+        run: |
+          rm -rf refs/node && mkdir -p refs/node && cd refs/node
+          git init -q
+          git remote add origin https://github.com/nodejs/node.git
+          git config extensions.partialClone origin
+          git sparse-checkout init --cone
+          git sparse-checkout set test/js-native-api
+          git fetch -q --depth 1 --filter=blob:none origin "$NODE_TEST_REV"
+          git checkout -q FETCH_HEAD
+          echo "addons: $(ls test/js-native-api | wc -l) dirs"
+
+      # Build the Vala+C++ shim → libgjsifynapi.so + GjsifyNapi-1.0.{gir,typelib}
+      # and stage it into the committed prebuild dir (imports.gi loads the staged
+      # .so, and the conformance orchestrator pins GI_TYPELIB_PATH there).
+      - name: Build the @gjsify/napi shim (meson) + stage prebuild
+        working-directory: packages/napi/napi
+        run: |
+          meson setup build .
+          meson compile -C build
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/
+          echo "staged: $(ls -1 prebuilds/linux-x86_64)"
+
+      # Assert the checked-in stubs.cc is in sync with the sources (a function
+      # implemented but still stubbed would fail the meson link; a regeneration
+      # drift is caught here before the gates run).
+      - name: Verify stubs.cc is regenerated in sync
+        working-directory: packages/napi/napi
+        run: |
+          python3 scripts/gen-stubs.py
+          git diff --exit-code src/cc/stubs.cc
+
+      # The gate + conformance addons (raw C/C++ N-API, node-gyp).
+      - name: Build gate test addons (node-gyp)
+        working-directory: packages/napi/napi
+        run: npm run build:test-addons
+
+      - name: Gate P0.0 — load
+        working-directory: packages/napi/napi
+        run: npm run test:gate
+
+      - name: Gate P0.1 — env + value model + scopes
+        working-directory: packages/napi/napi
+        run: npm run test:gate:p01
+
+      - name: Gate P0.2 — objects + functions + classes
+        working-directory: packages/napi/napi
+        run: npm run test:gate:p02
+
+      - name: Gate P0.3 — lifetime (+ teardown)
+        working-directory: packages/napi/napi
+        run: npm run test:gate:p03
+
+      - name: Gate P0.4 — arraybuffer / typedarray
+        working-directory: packages/napi/napi
+        run: GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/p04-gate.js
+
+      # Golden-diff conformance oracle: each UNMODIFIED Node N-API test addon
+      # (node-gyp) runs on Node (golden REFERENCE) and on GJS-under-shim; stdout
+      # must be byte-identical. Strict ledger — an unlisted GJS failure fails the
+      # harness; a ledgered program that starts passing also fails.
+      - name: Conformance oracle (golden-diff, Node vs GJS-under-shim)
+        working-directory: packages/napi/napi
+        run: npm run test:conformance
+
+      # Valgrind memcheck over a GC-stressed conformance load→run→exit loop —
+      # 0 memory errors (the invalid-read/write/UAF crash class).
+      - name: Conformance memory leg (valgrind memcheck, 0 errors)
+        working-directory: packages/napi/napi
+        run: npm run test:conformance:mem
+
+  consumer:
+    name: better-sqlite3 consumer gate (GJS / Fedora 44)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + mozjs-140 + GJS + GI dev headers
+        run: |
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
+            mozjs140-devel gjs gjs-devel \
+            gobject-introspection gobject-introspection-devel glib2-devel \
+            vala meson ninja-build
+          gjs --version
+
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build the @gjsify/napi shim (meson) + stage prebuild
+        working-directory: packages/napi/napi
+        run: |
+          meson setup build .
+          meson compile -C build
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/
+
+      # Build better-sqlite3 from source (the real npm native addon the gate
+      # proves runs unmodified on GJS). --force_build so it never uses a shipped
+      # prebuild; the gate additionally disables prebuilds so Node + GJS load the
+      # SAME source-built .node.
+      - name: Build better-sqlite3 from source (node-gyp)
+        working-directory: packages/napi/napi
+        run: |
+          npm install --prefix test/consumer better-sqlite3 --no-audit --no-fund --foreground-scripts
+          ( cd test/consumer/node_modules/better-sqlite3 && npm exec -- node-gyp rebuild --force_build=1 )
+
+      # Node-free workspace install via the committed CLI bundle (the supported
+      # `gjsify install --immutable` path) so @gjsify/napi's L1 + the CLI can be
+      # built under Node.
+      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
+        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+
+      # Repoint the workspace `.bin/gjsify` at a Node-runnable published @gjsify/cli
+      # (npm rolldown), NOT the committed GJS bundle (which needs the absent
+      # @gjsify/rolldown-native). Same rationale as node-gi.yml's consumer job.
+      - name: Use a published @gjsify/cli as the Node bundler (npm rolldown)
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+          ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+          echo "Node bundler: $(node_modules/.bin/gjsify --version)"
+
+      # The consumer gate invokes packages/infra/cli/lib/index.js directly, so
+      # build the in-repo CLI lib (+ its workspace deps) and @gjsify/napi's L1
+      # under Node via the repointed bundler.
+      - name: Build the in-repo CLI + @gjsify/napi L1 (under Node)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/cli build:gjsify --with-dependencies
+          gjsify workspace @gjsify/napi build:gjsify --with-dependencies
+
+      # Build the workout --app gjs (better-sqlite3's node: builtins → @gjsify/*
+      # polyfills; its addon → the @gjsify/napi shim via loadAddon), run the SAME
+      # workout on Node (golden) + GJS-under-shim, byte-diff. Prints CONSUMER
+      # GATE: PASS on an exact match.
+      - name: better-sqlite3 consumer gate (Node vs GJS byte-identical)
+        working-directory: packages/napi/napi
+        run: node test/consumer-gate.mjs
