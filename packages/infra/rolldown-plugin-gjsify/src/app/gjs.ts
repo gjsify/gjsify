@@ -16,6 +16,7 @@ import type * as NodeModule from 'node:module';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import { aliasPlugin } from '../plugins/alias.js';
 import { externalsPlugin } from '../plugins/externals.js';
+import { napiNodeAddonPlugin } from '../plugins/napi-node-addon.js';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
@@ -239,6 +240,17 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
                 ...flattenAliases(aliasMap),
             },
         }),
+        // Transparent N-API `.node`-addon loader — the forward mirror of
+        // `gjsGiNodePlugin`. Its `order:'pre'` resolveId claims a native-addon
+        // acquisition (`bindings`/`node-gyp-build`/a direct `.node`/a napi-rs
+        // platform sibling) and rewrites it to a virtual module returning
+        // `loadAddon('<abs .node>')` from `@gjsify/napi`. Placed AFTER aliasPlugin
+        // (so a user alias that pins an addon's native entry applies first) and
+        // BEFORE externalsPlugin (so the addon acquisition is claimed before the
+        // externals policy sees it). `@gjsify/napi` is BUNDLED, not external.
+        // Inert unless such a specifier is in the graph — every other id passes
+        // through. Always-on for `--app gjs`; never registered for node/browser/ns.
+        napiNodeAddonPlugin(),
         // Enforce the full `--app gjs` externals policy (gi:// prefix,
         // exact names, register-subpath force-inline) via resolveId —
         // the only form BOTH engines honour (the native engine drops
