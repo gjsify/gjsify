@@ -142,6 +142,7 @@ export default defineConfig({
                     items: [
                         { slug: 'projects/ts-for-gir' },
                         { slug: 'projects/node-gi' },
+                        { slug: 'projects/napi' },
                     ],
                 },
                 {

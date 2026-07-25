@@ -80,6 +80,7 @@ Requires a C++ toolchain (or the shipped prebuild) plus the GLib ≥ 2.80 / `gir
 
 ## See also
 
+- [napi](/gjsify/projects/napi/) — the forward bridge (native Node.js `.node` addons in GJS)
 - [Runtimes](/gjsify/runtimes/) — how the reverse bridge fits GJSify's overall target picture
 - [Versioning](/gjsify/versioning/#package-tiers) — the release train and stability model
 - [Storybook](/gjsify/guides/storybook/) — `gjsify storybook --runtime node`, the canonical consumer

@@ -56,7 +56,8 @@ verified in CI:
   breaking change may ship with a minor version and a changelog note. The
   Adwaita design-identity packages, storybook, devtools, the native app shell,
   the published showcases and [node-gi](/gjsify/projects/node-gi/).
-- **Tier 3 — experimental.** No promise; new axes start here.
+- **Tier 3 — experimental.** No promise; new axes start here — currently
+  [`@gjsify/napi`](/gjsify/projects/napi/) (native `.node` addons in GJS).
 
 Dependencies may only point at the same or a lower tier, so an experimental
 package can never destabilize a core one. The tier model is defined in

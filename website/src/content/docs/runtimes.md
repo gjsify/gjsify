@@ -126,5 +126,6 @@ tested and released with the regular GJSify releases.
 
 - [How It Works](/gjsify/how-it-works/) — auto-aliasing, `--globals auto`, prebuilds
 - [node-gi](/gjsify/projects/node-gi/) — the reverse bridge in depth
+- [napi](/gjsify/projects/napi/) — the forward bridge: native Node.js `.node` addons in GJS
 - [Coverage](/gjsify/coverage/) — live dashboards of the implemented surface
 - [Versioning](/gjsify/versioning/) — release train and package tiers
