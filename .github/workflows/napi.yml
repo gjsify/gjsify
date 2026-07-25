@@ -202,6 +202,39 @@ jobs:
       # Node-free workspace install via the committed CLI bundle (the supported
       # `gjsify install --immutable` path) so @gjsify/napi's L1 + the CLI can be
       # built under Node.
+      # Restore the workspace node_modules keyed on the lockfile — SHARED with the
+      # main CI's `node-modules-v1` cache, so a napi PR whose lockfile matches main
+      # (the common case) rides main's warm tree and the multi-minute
+      # `gjsify install --immutable` extract below becomes a near-instant no-op.
+      # Restore-ONLY (no save): the `.bin/gjsify` repoint + per-gate installs below
+      # mutate node_modules in a napi-specific way that must never be written back
+      # into the cache main CI shares.
+      - name: Restore node_modules (shared with main CI)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache/gjsify/build
+            packages/*/*/node_modules
+          key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
+          restore-keys: |
+            node-modules-v1-
+
+      # Cache the transpiled polyfill libs (packages/*/*/lib) under a napi-scoped
+      # key (exact-only: lockfile + polyfill sources). An exact hit means the
+      # sources are unchanged, so the `build:gjsify` step below is SKIPPED (guarded
+      # on this step's cache-hit). NOT shared with main's build-vN cache, whose
+      # entries also carry the lib/types (.d.ts) this transpile-only build omits.
+      - name: Cache workspace polyfill libs (lib/esm)
+        id: napi-libs-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/*/*/lib
+            !packages/infra/tsc/lib
+            !packages/infra/resolve-npm/lib
+          key: napi-libs-v1-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+
       - name: Install the gjsify workspace (committed CLI bundle, Node-free)
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
@@ -223,6 +256,10 @@ jobs:
       # symlinks the workspace packages; it does not build them. Transpile every
       # package's lib/esm (build:gjsify — no tsc, so no @gjsify/unit type gate).
       - name: Build workspace polyfill libs (lib/esm) for the bundler
+        # Skip when the napi-libs cache restored an exact-key hit (sources
+        # unchanged) — the restored packages/*/*/lib is already what this step
+        # would produce. A miss (or restore-key fallback) rebuilds + repopulates.
+        if: steps.napi-libs-cache.outputs.cache-hit != 'true'
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
           gjsify foreach build:gjsify
@@ -302,6 +339,39 @@ jobs:
       # Node-free workspace install via the committed CLI bundle (the supported
       # `gjsify install --immutable` path) so the @gjsify/* polyfills the gates'
       # --app gjs bundles inline are symlinked into node_modules.
+      # Restore the workspace node_modules keyed on the lockfile — SHARED with the
+      # main CI's `node-modules-v1` cache, so a napi PR whose lockfile matches main
+      # (the common case) rides main's warm tree and the multi-minute
+      # `gjsify install --immutable` extract below becomes a near-instant no-op.
+      # Restore-ONLY (no save): the `.bin/gjsify` repoint + per-gate installs below
+      # mutate node_modules in a napi-specific way that must never be written back
+      # into the cache main CI shares.
+      - name: Restore node_modules (shared with main CI)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache/gjsify/build
+            packages/*/*/node_modules
+          key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
+          restore-keys: |
+            node-modules-v1-
+
+      # Cache the transpiled polyfill libs (packages/*/*/lib) under a napi-scoped
+      # key (exact-only: lockfile + polyfill sources). An exact hit means the
+      # sources are unchanged, so the `build:gjsify` step below is SKIPPED (guarded
+      # on this step's cache-hit). NOT shared with main's build-vN cache, whose
+      # entries also carry the lib/types (.d.ts) this transpile-only build omits.
+      - name: Cache workspace polyfill libs (lib/esm)
+        id: napi-libs-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/*/*/lib
+            !packages/infra/tsc/lib
+            !packages/infra/resolve-npm/lib
+          key: napi-libs-v1-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+
       - name: Install the gjsify workspace (committed CLI bundle, Node-free)
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
@@ -322,6 +392,10 @@ jobs:
       # symlinks the packages, it does not build them. Transpile every package's
       # lib/esm (build:gjsify — no tsc, so no type gate).
       - name: Build workspace polyfill libs (lib/esm) for the bundler
+        # Skip when the napi-libs cache restored an exact-key hit (sources
+        # unchanged) — the restored packages/*/*/lib is already what this step
+        # would produce. A miss (or restore-key fallback) rebuilds + repopulates.
+        if: steps.napi-libs-cache.outputs.cache-hit != 'true'
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
           gjsify foreach build:gjsify
