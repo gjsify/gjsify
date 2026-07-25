@@ -53,7 +53,7 @@ jobs:
         run: |
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            mozjs140-devel gjs gjs-devel libsoup3 \
+            mozjs140-devel gjs gjs-devel libsoup3 libuv \
             gobject-introspection gobject-introspection-devel glib2-devel \
             vala meson ninja-build valgrind
           gjs --version
@@ -73,9 +73,9 @@ jobs:
         uses: actions/checkout@v4
 
       # refs/node is an SSH-url submodule (nodejs/node) the checkout can't init;
-      # sparse partial-clone ONLY test/js-native-api at the pinned rev so the
+      # sparse partial-clone the two N-API test suites at the pinned rev so the
       # conformance addons + goldens stay byte-identical. Lightweight (blob
-      # filter + one path + depth 1).
+      # filter + two paths + depth 1).
       - name: Fetch Node N-API test addons (sparse, pinned rev)
         run: |
           rm -rf refs/node && mkdir -p refs/node && cd refs/node
@@ -83,10 +83,10 @@ jobs:
           git remote add origin https://github.com/nodejs/node.git
           git config extensions.partialClone origin
           git sparse-checkout init --cone
-          git sparse-checkout set test/js-native-api
+          git sparse-checkout set test/js-native-api test/node-api
           git fetch -q --depth 1 --filter=blob:none origin "$NODE_TEST_REV"
           git checkout -q FETCH_HEAD
-          echo "addons: $(ls test/js-native-api | wc -l) dirs"
+          echo "addons: js-native-api=$(ls test/js-native-api | wc -l) node-api=$(ls test/node-api | wc -l) dirs"
 
       # Build the Vala+C++ shim → libgjsifynapi.so + GjsifyNapi-1.0.{gir,typelib}
       # and stage it into the committed prebuild dir (imports.gi loads the staged

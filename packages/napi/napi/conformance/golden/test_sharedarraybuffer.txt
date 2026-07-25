@@ -1,0 +1,6 @@
+"is-sab" true false false false false false
+"create" true 16
+"info" 32
+"data" true true
+"zero" true 0
+"invalid" "Error: Invalid argument"

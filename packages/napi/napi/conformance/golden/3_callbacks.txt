@@ -1,0 +1,8 @@
+"RunCallback.msg" "hello world"
+"recv" "undefined" "args" 0 "this===recv" true
+"recv" "null" "args" 0 "this===recv" true
+"recv" "5" "args" 0 "this===recv" true
+"recv" "true" "args" 0 "this===recv" true
+"recv" "\"Hello\"" "args" 0 "this===recv" true
+"recv" "[]" "args" 0 "this===recv" true
+"recv" "[object Object]" "args" 0 "this===recv" true

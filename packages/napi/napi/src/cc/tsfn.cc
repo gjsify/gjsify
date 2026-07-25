@@ -426,3 +426,103 @@ napi_status NAPI_CDECL napi_make_callback(napi_env env,
         napi_object_expected);
     return napi_call_function(env, recv, func, argc, argv, result);
 }
+
+// ---- threadsafe-function accessors (were loud stubs; the struct already
+// tracks context + thread_count + referenced, so these are exact) ----
+
+// Env-less, touches no last_error — mirrors Node's GetContext.
+napi_status NAPI_CDECL napi_get_threadsafe_function_context(
+    napi_threadsafe_function func, void** result) {
+    if (func == nullptr || result == nullptr) {
+        return napi_invalid_arg;
+    }
+    *result = func->context;
+    return napi_ok;
+}
+
+// Callable from ANY thread (Node Acquire): a closing tsfn refuses new claims;
+// otherwise take one. Env-less, no last_error, like call/release.
+napi_status NAPI_CDECL napi_acquire_threadsafe_function(
+    napi_threadsafe_function func) {
+    if (func == nullptr) {
+        return napi_invalid_arg;
+    }
+    g_mutex_lock(&func->mutex);
+    if (func->closing) {
+        g_mutex_unlock(&func->mutex);
+        return napi_closing;
+    }
+    func->thread_count++;
+    g_mutex_unlock(&func->mutex);
+    return napi_ok;
+}
+
+// The ref counterpart of napi_unref_threadsafe_function. As with unref, there
+// is nothing to keep alive under the GJS host (an idle GSource does not keep
+// gjs running), so this records the flag and succeeds. JS-thread-only.
+napi_status NAPI_CDECL napi_ref_threadsafe_function(
+    node_api_basic_env basic_env, napi_threadsafe_function func) {
+    napi_env env = const_cast<napi_env>(basic_env);
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, func);
+    g_mutex_lock(&func->mutex);
+    func->referenced = true;
+    g_mutex_unlock(&func->mutex);
+    return gjsify_napi::clear_last_error(env);
+}
+
+// ---- async context + callback scope (node_api.h) ----
+//
+// These are async-hooks bookkeeping. GJS has no async_hooks, so an async
+// context is a benign opaque token and a callback scope is a no-op push/pop —
+// the callback still runs and SpiderMonkey drains its microtasks when the JS
+// stack unwinds (see napi_make_callback's note). This is the correct minimal
+// implementation for a host without async_hooks/uv, NOT a stub: node's
+// make_callback / callback_scope tests need napi_async_init to SUCCEED and
+// return a usable context, and open/close_callback_scope to bracket a call.
+
+struct napi_async_context__ {
+    napi_env env;
+};
+struct napi_callback_scope__ {
+    napi_env env;
+};
+
+napi_status NAPI_CDECL napi_async_init(napi_env env, napi_value async_resource,
+                                       napi_value async_resource_name,
+                                       napi_async_context* result) {
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, async_resource_name);
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    (void)async_resource;  // resource object is an async-hooks concept
+    *result = new napi_async_context__{env};
+    return gjsify_napi::clear_last_error(env);
+}
+
+napi_status NAPI_CDECL napi_async_destroy(napi_env env,
+                                          napi_async_context async_context) {
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, async_context);
+    delete async_context;
+    return gjsify_napi::clear_last_error(env);
+}
+
+napi_status NAPI_CDECL napi_open_callback_scope(napi_env env,
+                                                napi_value resource_object,
+                                                napi_async_context context,
+                                                napi_callback_scope* result) {
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    (void)resource_object;
+    (void)context;
+    *result = new napi_callback_scope__{env};
+    return gjsify_napi::clear_last_error(env);
+}
+
+napi_status NAPI_CDECL napi_close_callback_scope(napi_env env,
+                                                 napi_callback_scope scope) {
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, scope);
+    delete scope;
+    return gjsify_napi::clear_last_error(env);
+}

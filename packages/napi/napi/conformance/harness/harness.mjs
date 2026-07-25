@@ -133,5 +133,14 @@ export function makeHarness({ loadAddon, write, gc, tick }) {
         }
     }
 
-    return { loadAddon, emit, gc: gcFn, gcUntil, assert, caught, caughtName, caughtFull, fmt: fmtArg };
+    /**
+     * Yield ONE macrotask / main-loop turn (Node setImmediate / GJS main-
+     * context iteration). The turn a loop-scheduled tsfn dispatch or deferred
+     * finalizer needs to run. `await h.drain(n)` yields `n` turns.
+     */
+    async function drain(turns = 1) {
+        for (let i = 0; i < turns; i++) await tickFn();
+    }
+
+    return { loadAddon, emit, gc: gcFn, gcUntil, tick: tickFn, drain, assert, caught, caughtName, caughtFull, fmt: fmtArg };
 }

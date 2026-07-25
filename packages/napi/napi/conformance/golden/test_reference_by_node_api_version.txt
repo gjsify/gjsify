@@ -1,0 +1,100 @@
+"v8.local" "undefined" "createRef!" "Error: Invalid argument"
+"v8.local" "null" "createRef!" "Error: Invalid argument"
+"v8.local" "boolean" "createRef!" "Error: Invalid argument"
+"v8.local" "number" "createRef!" "Error: Invalid argument"
+"v8.local" "string" "createRef!" "Error: Invalid argument"
+"v8.local" "symbol" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"v8.local" "object" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"v8.local" "function" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"v8.local" "external" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"v8.local" "bigint" "createRef!" "Error: Invalid argument"
+"v8.local" "symbol" "at-zero" true
+"v8.local" "object" "at-zero" true
+"v8.local" "function" "at-zero" true
+"v8.local" "external" "at-zero" true
+"v8.local" "finalizeCount.start" 0
+"v8.local" "symbol" "post-gc" true
+"v8.local" "object" "post-gc" true
+"v8.local" "function" "post-gc" true
+"v8.local" "external" "post-gc" true
+"v8.global" "undefined" "createRef!" "Error: Invalid argument"
+"v8.global" "null" "createRef!" "Error: Invalid argument"
+"v8.global" "boolean" "createRef!" "Error: Invalid argument"
+"v8.global" "number" "createRef!" "Error: Invalid argument"
+"v8.global" "string" "createRef!" "Error: Invalid argument"
+"v8.global" "symbol" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"v8.global" "object" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"v8.global" "function" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"v8.global" "external" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"v8.global" "bigint" "createRef!" "Error: Invalid argument"
+"v8.global" "symbol" "at-zero" true
+"v8.global" "object" "at-zero" true
+"v8.global" "function" "at-zero" true
+"v8.global" "external" "at-zero" true
+"v8.global" "finalizeCount.start" 0
+"v8.global" "symbol" "post-gc" true
+"v8.global" "object" "post-gc" true
+"v8.global" "function" "post-gc" true
+"v8.global" "external" "post-gc" true
+"new.local" "undefined" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "null" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "boolean" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "number" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "string" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "symbol" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "object" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "function" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "external" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "bigint" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.local" "undefined" "at-zero" true
+"new.local" "null" "at-zero" true
+"new.local" "boolean" "at-zero" true
+"new.local" "number" "at-zero" true
+"new.local" "string" "at-zero" true
+"new.local" "symbol" "at-zero" true
+"new.local" "object" "at-zero" true
+"new.local" "function" "at-zero" true
+"new.local" "external" "at-zero" true
+"new.local" "bigint" "at-zero" true
+"new.local" "finalizeCount.start" 0
+"new.local" "undefined" "post-gc" true
+"new.local" "null" "post-gc" true
+"new.local" "boolean" "post-gc" true
+"new.local" "number" "post-gc" true
+"new.local" "string" "post-gc" true
+"new.local" "symbol" "post-gc" true
+"new.local" "object" "post-gc" true
+"new.local" "function" "post-gc" true
+"new.local" "external" "post-gc" true
+"new.local" "bigint" "post-gc" true
+"new.global" "undefined" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "null" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "boolean" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "number" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "string" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "symbol" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "object" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "function" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "external" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "bigint" "value-eq" true "ref" 2 "unref" 1 "unref" 0
+"new.global" "undefined" "at-zero" true
+"new.global" "null" "at-zero" true
+"new.global" "boolean" "at-zero" true
+"new.global" "number" "at-zero" true
+"new.global" "string" "at-zero" true
+"new.global" "symbol" "at-zero" true
+"new.global" "object" "at-zero" true
+"new.global" "function" "at-zero" true
+"new.global" "external" "at-zero" true
+"new.global" "bigint" "at-zero" true
+"new.global" "finalizeCount.start" 0
+"new.global" "undefined" "post-gc" true
+"new.global" "null" "post-gc" true
+"new.global" "boolean" "post-gc" true
+"new.global" "number" "post-gc" true
+"new.global" "string" "post-gc" true
+"new.global" "symbol" "post-gc" true
+"new.global" "object" "post-gc" true
+"new.global" "function" "post-gc" true
+"new.global" "external" "post-gc" true
+"new.global" "bigint" "post-gc" true
