@@ -203,19 +203,14 @@ jobs:
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           echo "Node bundler: $(node_modules/.bin/gjsify --version)"
 
-      # The consumer gate invokes packages/infra/cli/lib/index.js directly, so
-      # build the in-repo CLI lib (+ its workspace deps) and @gjsify/napi's L1
-      # under Node via the repointed bundler.
-      - name: Build the in-repo CLI + @gjsify/napi L1 (under Node)
-        run: |
-          export PATH="$PWD/node_modules/.bin:$PATH"
-          gjsify workspace @gjsify/cli build --with-dependencies
-          gjsify workspace @gjsify/napi build:gjsify --with-dependencies
-
-      # Build the workout --app gjs (better-sqlite3's node: builtins → @gjsify/*
-      # polyfills; its addon → the @gjsify/napi shim via loadAddon), run the SAME
-      # workout on Node (golden) + GJS-under-shim, byte-diff. Prints CONSUMER
-      # GATE: PASS on an exact match.
+      # The consumer gate builds @gjsify/napi's L1 itself and drives the workout
+      # build through a Node CLI entry — point it at the published @gjsify/cli
+      # (npm rolldown), so no fragile in-repo workspace build is needed. The gate
+      # then runs the SAME workout on Node (golden) + GJS-under-shim and byte-diffs
+      # (better-sqlite3's node: builtins → @gjsify/* polyfills; its addon → the
+      # shim via loadAddon). Prints CONSUMER GATE: PASS on an exact match.
       - name: better-sqlite3 consumer gate (Node vs GJS byte-identical)
         working-directory: packages/napi/napi
+        env:
+          GJSIFY_CLI_ENTRY: /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js
         run: node test/consumer-gate.mjs

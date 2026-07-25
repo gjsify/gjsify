@@ -28,7 +28,7 @@ const ROOT = resolve(PKG, '..', '..', '..'); // gjsify repo root
 // Use the Node CLI entry directly (NOT node_modules/.bin/gjsify — that shim
 // prefers the committed GJS bundle when gjs is on PATH, which would run
 // cosmiconfig + the resolver plugin UNDER GJS and change import.meta path math).
-const CLI = join(ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
+const CLI = process.env.GJSIFY_CLI_ENTRY || join(ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
 const runGjsify = (args, opts) => execFileSync(process.execPath, [CLI, ...args], opts);
 const CONSUMER = join(HERE, 'consumer');
 const BSQ = join(CONSUMER, 'node_modules', 'better-sqlite3');
