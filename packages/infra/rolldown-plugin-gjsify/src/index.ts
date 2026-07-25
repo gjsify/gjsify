@@ -25,6 +25,18 @@ export { gjsImportsEmptyPlugin } from './plugins/gjs-imports-empty.js';
 export { externalsPlugin } from './plugins/externals.js';
 export type { ExternalsPredicate, ExternalsPluginOptions } from './plugins/externals.js';
 export {
+    napiNodeAddonPlugin,
+    resolveAddonPath,
+    nearestPackageRoot,
+    classifySpecifier,
+    directNodeShim,
+    nodeGypBuildShim,
+    bindingsShim,
+    napiRsShim,
+    AddonNotBuiltError,
+} from './plugins/napi-node-addon.js';
+export type { NapiNodeAddonPluginOptions } from './plugins/napi-node-addon.js';
+export {
     platformResolvePlugin,
     detectNativescriptPlatform,
     nativescriptPlatformDefines,
