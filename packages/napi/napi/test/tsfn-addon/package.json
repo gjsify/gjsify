@@ -1,0 +1,7 @@
+{
+    "name": "@gjsify/napi-test-tsfn-addon",
+    "private": true,
+    "version": "0.0.0",
+    "description": "P1 gate addon: threadsafe-function stress from real pthreads (flood, blocking, coalescing, abort race).",
+    "gypfile": true
+}
