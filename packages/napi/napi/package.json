@@ -64,6 +64,8 @@
         "test:mem": "sh test/p03-mem.sh",
         "test:consumer": "node test/consumer-gate.mjs",
         "test:consumer:mem": "sh test/consumer-mem.sh",
+        "test:addons:setup": "sh test/addons/setup.sh",
+        "test:addons": "sh test/run-addon-matrix.sh",
         "test:conformance": "node scripts/conformance.mjs",
         "test:conformance:update": "node scripts/conformance.mjs --update-golden",
         "test:conformance:mem": "sh scripts/conformance-mem.sh"
