@@ -985,7 +985,10 @@ let pumpRefCount = 0;
  * @returns {() => void}
  */
 export function startMainContextPump() {
-  if (native.isNodeRuntime) return () => {};
+  // Node: the libuv↔GLib bridge already co-pumps. GJS: the host loop IS
+  // GLib's default main context — a JS-timer pump would only iterate the
+  // context recursively from within its own dispatch.
+  if (native.isNodeRuntime || native.RUNTIME === 'gjs') return () => {};
   pumpRefCount++;
   if (pumpTimer === null) {
     // ~4 ms cadence: low latency without busy-spinning. Each tick drains every
@@ -1011,7 +1014,7 @@ export function startMainContextPump() {
 
 /** Decrement the main-context pump reference count; clears the timer at zero. */
 export function stopMainContextPump() {
-  if (native.isNodeRuntime || pumpRefCount === 0) return;
+  if (native.isNodeRuntime || native.RUNTIME === 'gjs' || pumpRefCount === 0) return;
   pumpRefCount--;
   if (pumpRefCount === 0 && pumpTimer !== null) {
     clearInterval(pumpTimer);

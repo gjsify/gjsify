@@ -7,10 +7,10 @@
 //
 // Every declared `napi_*`/`node_api_*` symbol of the vendored headers
 // (NAPI_VERSION=10, non-experimental) is DEFINED and exported, so an addon's
-// undefined symbols always bind at dlopen (RTLD_NOW) — reaching past the
+// napi_*/node_api_* references always resolve — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
-// never with a crash. 26 stubs.
+// never with a crash. 21 stubs.
 
 #include "common.h"
 
@@ -86,16 +86,6 @@ napi_status NAPI_CDECL napi_async_destroy(napi_env env, napi_async_context async
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_make_callback(napi_env env, napi_async_context async_context, napi_value recv, napi_value func, size_t argc, const napi_value* argv, napi_value* result) {
-    (void)async_context;
-    (void)recv;
-    (void)func;
-    (void)argc;
-    (void)argv;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL node_api_create_buffer_from_arraybuffer(napi_env env, napi_value arraybuffer, size_t byte_offset, size_t byte_length, napi_value* result) {
     (void)arraybuffer;
     (void)byte_offset;
@@ -146,47 +136,15 @@ napi_status NAPI_CDECL napi_close_callback_scope(napi_env env, napi_callback_sco
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_create_threadsafe_function(napi_env env, napi_value func, napi_value async_resource, napi_value async_resource_name, size_t max_queue_size, size_t initial_thread_count, void* thread_finalize_data, napi_finalize thread_finalize_cb, void* context, napi_threadsafe_function_call_js call_js_cb, napi_threadsafe_function* result) {
-    (void)func;
-    (void)async_resource;
-    (void)async_resource_name;
-    (void)max_queue_size;
-    (void)initial_thread_count;
-    (void)thread_finalize_data;
-    (void)thread_finalize_cb;
-    (void)context;
-    (void)call_js_cb;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL napi_get_threadsafe_function_context(napi_threadsafe_function func, void** result) {
     (void)func;
     (void)result;
     return napi_generic_failure;
 }
 
-napi_status NAPI_CDECL napi_call_threadsafe_function(napi_threadsafe_function func, void* data, napi_threadsafe_function_call_mode is_blocking) {
-    (void)func;
-    (void)data;
-    (void)is_blocking;
-    return napi_generic_failure;
-}
-
 napi_status NAPI_CDECL napi_acquire_threadsafe_function(napi_threadsafe_function func) {
     (void)func;
     return napi_generic_failure;
-}
-
-napi_status NAPI_CDECL napi_release_threadsafe_function(napi_threadsafe_function func, napi_threadsafe_function_release_mode mode) {
-    (void)func;
-    (void)mode;
-    return napi_generic_failure;
-}
-
-napi_status NAPI_CDECL napi_unref_threadsafe_function(node_api_basic_env env, napi_threadsafe_function func) {
-    (void)func;
-    GJSIFY_NAPI_STUB(env);
 }
 
 napi_status NAPI_CDECL napi_ref_threadsafe_function(node_api_basic_env env, napi_threadsafe_function func) {

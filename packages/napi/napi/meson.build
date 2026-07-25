@@ -39,6 +39,7 @@ cc_sources = files(
     'src/cc/object.cc',
     'src/cc/ref.cc',
     'src/cc/stubs.cc',
+    'src/cc/tsfn.cc',
     'src/cc/value.cc',
     'src/cc/wrap.cc',
 )

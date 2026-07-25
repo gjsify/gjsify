@@ -117,7 +117,7 @@ def main() -> None:
 //
 // Every declared `napi_*`/`node_api_*` symbol of the vendored headers
 // (NAPI_VERSION=10, non-experimental) is DEFINED and exported, so an addon's
-// undefined symbols always bind at dlopen (RTLD_NOW) — reaching past the
+// napi_*/node_api_* references always resolve — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
 // never with a crash. {len(stubs)} stubs.

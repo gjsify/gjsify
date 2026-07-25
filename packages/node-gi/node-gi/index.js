@@ -49,19 +49,25 @@ const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url)); // package root
 
 /**
- * Which JS runtime we are on. The Node-API addon loads on all three, but the
+ * Which JS runtime we are on. The Node-API addon loads on all four: Node, Bun
+ * and Deno implement Node-API natively; under GJS the `@gjsify/napi` shim is
+ * the N-API host and the addon is loaded through it (`loadNative` below). The
  * libuv-backed main-loop bridge (startMainLoop) is Node-only — Deno exports no
  * libuv symbols and Bun panics on uv_backend_fd — so Bun/Deno use the portable
- * GLib-iteration pump instead (see gi.js). Detection order matters: Bun and Deno
- * both expose a `process` shim, so probe their own globals first.
- * @type {'bun' | 'deno' | 'node'}
+ * GLib-iteration pump instead (see gi.js), and GJS needs NEITHER: the host
+ * loop already IS GLib's default main context. Detection order matters: GJS is
+ * probed first via its own globals (`imports` + `print` — no other runtime
+ * defines both), then Bun/Deno (both expose a `process` shim), then Node.
+ * @type {'bun' | 'deno' | 'gjs' | 'node'}
  */
 export const RUNTIME =
-  typeof globalThis.Bun !== 'undefined'
-    ? 'bun'
-    : typeof globalThis.Deno !== 'undefined'
-      ? 'deno'
-      : 'node';
+  typeof globalThis.imports !== 'undefined' && typeof globalThis.print === 'function'
+    ? 'gjs'
+    : typeof globalThis.Bun !== 'undefined'
+      ? 'bun'
+      : typeof globalThis.Deno !== 'undefined'
+        ? 'deno'
+        : 'node';
 
 /** Whether we are on Node.js (the only runtime with the libuv main-loop bridge). */
 export const isNodeRuntime = RUNTIME === 'node';
@@ -84,9 +90,37 @@ function nativeCandidates() {
   return [prebuild, release, debug];
 }
 
+// GJS host mode: the addon is loaded through the @gjsify/napi shim, not
+// `require()`. The loader native is `globalThis.__gjsifyNapiLoadAddon`,
+// installed by `GjsifyNapi.init()`; if another consumer (the @gjsify/napi L1)
+// already captured + deleted it, init() re-defines it (idempotent). The
+// GjsifyNapi typelib must be resolvable (GI_TYPELIB_PATH/LD_LIBRARY_PATH →
+// the shim prebuild).
+function gjsLoadAddon(path) {
+  let load = globalThis.__gjsifyNapiLoadAddon;
+  if (typeof load !== 'function') {
+    const GjsifyNapi = globalThis.imports?.gi?.GjsifyNapi;
+    if (!GjsifyNapi || !GjsifyNapi.init()) {
+      throw new Error(
+        '@gjsify/node-gi: GJS host mode needs the @gjsify/napi shim — the GjsifyNapi ' +
+          'typelib is not loadable (point GI_TYPELIB_PATH and LD_LIBRARY_PATH at its prebuild).',
+      );
+    }
+    load = globalThis.__gjsifyNapiLoadAddon;
+    if (typeof load !== 'function') {
+      throw new Error('@gjsify/node-gi: GjsifyNapi.init() did not install the addon loader.');
+    }
+    // Capture-then-delete, the same no-side-channel discipline as the L1.
+    delete globalThis.__gjsifyNapiLoadAddon;
+  }
+  return load(path);
+}
+
 function loadNative() {
   for (const candidate of nativeCandidates()) {
-    if (existsSync(candidate)) return require(candidate);
+    if (existsSync(candidate)) {
+      return RUNTIME === 'gjs' ? gjsLoadAddon(candidate) : require(candidate);
+    }
   }
   throw new Error(
     `@gjsify/node-gi: native addon not found for ${RUNTIME} on ${process.platform}-${process.arch}. ` +
@@ -94,7 +128,8 @@ function loadNative() {
       'Run `node-gyp rebuild` in ' +
       here +
       ' (requires a C++ toolchain and the girepository-2.0 / glib-2.0 development headers), ' +
-      'or install a package build that ships a prebuild for your platform.',
+      'or install a package build that ships a prebuild for your platform. ' +
+      'Under a bundled GJS app (import.meta anchors at the bundle), set NODE_GI_NATIVE to the addon path.',
   );
 }
 
@@ -133,7 +168,10 @@ try {
 // matching Node's checkpoint and GJS (SpiderMonkey drains the promise-job queue
 // when the last JS frame exits). Node never registers — its checkpoint already
 // runs natively, so the Node path is byte-identical to before.
-if (!isNodeRuntime) {
+// GJS never registers: SpiderMonkey/GJS drains the promise-job queue from its
+// own main-loop source whenever the last JS frame exits — the exact semantic
+// this checkpoint recreates for Bun/Deno.
+if (!isNodeRuntime && RUNTIME !== 'gjs') {
   try {
     let drain = null;
     if (RUNTIME === 'bun') {

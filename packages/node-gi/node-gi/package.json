@@ -79,6 +79,7 @@
     "test:dbus": "dbus-run-session -- env NODE_GI_NATIVE=build node --test --expose-gc test/dbus.test.mjs test/dbus-async.test.mjs",
     "test:bun": "node scripts/cross-runtime.mjs bun",
     "test:conformance": "node scripts/conformance.mjs",
+    "test:conformance:gjs-napi": "node scripts/conformance.mjs --runtimes=gjs-napi",
     "test:gimarshalling": "node scripts/gimarshalling.mjs",
     "test:deno": "node scripts/cross-runtime.mjs deno",
     "test:cairo": "NODE_GI_NATIVE=build node --test test/cairo.test.mjs",

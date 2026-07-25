@@ -276,6 +276,18 @@ std::vector<napi_env>& env_registry();
 // Ask module.cc to arm the one idle drain source (no-op if armed).
 void schedule_finalizer_drain();
 
+// Log + clear a pending exception on env->cx (shared by the finalizer
+// pipeline and the tsfn/make_callback boundary — the "no JS frame below us"
+// posture). No-op when nothing is pending. ref.cc.
+void log_and_clear_pending_exception(napi_env env, const char* where);
+
+// ---- §7 threadsafe functions (tsfn.cc) ----
+
+// Env teardown step 1b: synchronously finalize every tsfn still registered on
+// the env (their deferred JS-thread finalize dispatch can no longer run once
+// GjsContext dispose has begun). Runs with JS fully callable.
+void finalize_env_tsfns(napi_env env);
+
 // ---- §5d instance state: fast tier + WeakMap tier ----
 //
 // Instances of napi_define_class classes and napi_create_external externals
@@ -410,6 +422,10 @@ struct napi_env__ {
     std::vector<gjsify_napi::RefTracker*> pending_finalizers;
     // §5d instance data (TrackedFinalizer; overwrite deletes un-finalized).
     gjsify_napi::TrackedFinalizer* instance_data = nullptr;
+    // §7 live threadsafe functions (JS-thread-only access: registered at
+    // create, unregistered by the JS-thread finalize; teardown force-
+    // finalizes leftovers — tsfn.cc).
+    std::vector<napi_threadsafe_function> tsfns;
     // Env cleanup hooks, run LIFO as teardown step 1.
     struct CleanupHook {
         void(NAPI_CDECL* fn)(void* arg);
