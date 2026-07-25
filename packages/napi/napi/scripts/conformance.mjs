@@ -42,8 +42,22 @@ const DIST_DIR = join(CONF, 'dist');
 const BUILD_TREE = join(DIST_DIR, 'build-tree');
 const HARNESS = join(CONF, 'harness', 'harness.mjs');
 const LEDGER_PATH = join(CONF, 'ledger.json');
-const REFS_SUITE = join(ROOT, 'refs', 'node', 'test', 'js-native-api');
+// Canonical Node suites mirrored into the oracle. `js-native-api` = the
+// js_native_api.h surface; `node-api` = the node_api.h surface (tsfn +
+// make_callback + callback scope). node-api addons #include the sibling
+// js-native-api/common.h, so BOTH are copied under a shared build root.
+const REFS_SUITES = {
+    'js-native-api': join(ROOT, 'refs', 'node', 'test', 'js-native-api'),
+    'node-api': join(ROOT, 'refs', 'node', 'test', 'node-api'),
+};
 const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x86_64');
+
+// A node-api addon that #includes <uv.h> links against libuv threading
+// symbols (uv_thread_create / uv_hrtime), which Node provides from its own
+// binary. Under GJS we preload the system libuv so those references resolve at
+// dlopen — the host's job, exactly as Node embeds libuv; it is NOT a napi
+// weakening. Resolved once; programs opt in via meta.libuv.
+const LIBUV_PATH = ['/lib64/libuv.so.1', '/usr/lib64/libuv.so.1', '/usr/lib/x86_64-linux-gnu/libuv.so.1', '/lib/x86_64-linux-gnu/libuv.so.1'].find((p) => existsSync(p)) ?? '';
 
 const usage = 'usage: node scripts/conformance.mjs [--filter=<substr>] [--update-golden] [--rebuild] [--list]';
 
@@ -84,7 +98,12 @@ for (const name of programFiles) {
         console.error(`conformance: ${name}.mjs must export meta = { dir, targets:[...] }`);
         process.exit(2);
     }
-    programs.push({ name, meta: mod.meta });
+    const suite = mod.meta.suite ?? 'js-native-api';
+    if (!REFS_SUITES[suite]) {
+        console.error(`conformance: ${name}.mjs has unknown meta.suite '${suite}' (want ${Object.keys(REFS_SUITES).join('/')})`);
+        process.exit(2);
+    }
+    programs.push({ name, meta: { ...mod.meta, suite } });
 }
 
 if (listOnly) {
@@ -114,23 +133,29 @@ for (const e of ledger.entries) {
 const ledgered = (name) => ledger.entries.find((e) => e.addon === name);
 
 // ---- addon build tree -------------------------------------------------------
-// Copy the canonical suite once (UNMODIFIED sources + each addon's OWN
-// binding.gyp) so node-gyp builds in-place — refs/ stays read-only.
+// Copy each canonical suite once (UNMODIFIED sources + each addon's OWN
+// binding.gyp) so node-gyp builds in-place — refs/ stays read-only. Both
+// suites sit side by side under BUILD_TREE so a node-api addon's
+// "../../js-native-api/common.h" include resolves.
 function ensureBuildTree() {
     mkdirSync(DIST_DIR, { recursive: true });
-    if (!existsSync(join(BUILD_TREE, 'common.h'))) {
-        mkdirSync(BUILD_TREE, { recursive: true });
-        cpSync(REFS_SUITE, BUILD_TREE, { recursive: true });
+    for (const [suite, src] of Object.entries(REFS_SUITES)) {
+        const dest = join(BUILD_TREE, suite);
+        if (!existsSync(join(dest, 'common.h'))) {
+            mkdirSync(dest, { recursive: true });
+            cpSync(src, dest, { recursive: true });
+        }
     }
 }
 
 const builtDirs = new Set();
-function buildAddonDir(dir) {
-    if (builtDirs.has(dir)) return true;
-    const addonDir = join(BUILD_TREE, dir);
+function buildAddonDir(suite, dir) {
+    const key = `${suite}/${dir}`;
+    if (builtDirs.has(key)) return true;
+    const addonDir = join(BUILD_TREE, suite, dir);
     const relDir = join(addonDir, 'build', 'Release');
     if (!rebuild && existsSync(relDir) && readdirSync(relDir).some((f) => f.endsWith('.node'))) {
-        builtDirs.add(dir);
+        builtDirs.add(key);
         return true;
     }
     const r = spawnSync('npm', ['exec', '--', 'node-gyp', 'rebuild'], {
@@ -138,14 +163,14 @@ function buildAddonDir(dir) {
         encoding: 'utf8',
     });
     const ok = r.status === 0;
-    if (ok) builtDirs.add(dir);
-    else process.stderr.write(`conformance: node-gyp failed for '${dir}':\n${(r.stderr || r.stdout || '').slice(-800)}\n`);
+    if (ok) builtDirs.add(key);
+    else process.stderr.write(`conformance: node-gyp failed for '${key}':\n${(r.stderr || r.stdout || '').slice(-800)}\n`);
     return ok;
 }
 
 /** target name → absolute built .node path (only existing ones). */
-function targetMap(dir, targets) {
-    const rel = join(BUILD_TREE, dir, 'build', 'Release');
+function targetMap(suite, dir, targets) {
+    const rel = join(BUILD_TREE, suite, dir, 'build', 'Release');
     const map = {};
     for (const t of targets) {
         const p = join(rel, `${t}.node`);
@@ -210,12 +235,14 @@ function runNode(twin) {
     const r = spawnSync(process.execPath, ['--expose-gc', twin], { encoding: 'utf8', timeout: 60_000 });
     return { ok: r.status === 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
 }
-function runGjs(twin) {
-    const r = spawnSync('gjs', ['-m', twin], {
-        encoding: 'utf8',
-        timeout: 60_000,
-        env: { ...process.env, GI_TYPELIB_PATH: PREBUILD_DIR, LD_LIBRARY_PATH: PREBUILD_DIR },
-    });
+function runGjs(twin, { libuv = false } = {}) {
+    const env = { ...process.env, GI_TYPELIB_PATH: PREBUILD_DIR, LD_LIBRARY_PATH: PREBUILD_DIR };
+    if (libuv && LIBUV_PATH) {
+        // Provide the host libuv (uv_thread_create / uv_hrtime) an addon that
+        // #includes <uv.h> references — Node supplies it from its binary.
+        env.LD_PRELOAD = process.env.LD_PRELOAD ? `${LIBUV_PATH}:${process.env.LD_PRELOAD}` : LIBUV_PATH;
+    }
+    const r = spawnSync('gjs', ['-m', twin], { encoding: 'utf8', timeout: 60_000, env });
     return { ok: r.status === 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
 }
 
@@ -224,7 +251,7 @@ function runGjs(twin) {
 if (buildOnly) {
     ensureBuildTree();
     let ok = true;
-    for (const { meta } of programs) if (!buildAddonDir(meta.dir)) ok = false;
+    for (const { meta } of programs) if (!buildAddonDir(meta.suite, meta.dir)) ok = false;
     console.log(`conformance: build-only — ${builtDirs.size} addon dir(s) built`);
     process.exit(ok ? 0 : 1);
 }
@@ -238,7 +265,7 @@ const failures = [];
 
 for (const { name, meta } of programs) {
     const goldenPath = join(GOLDEN_DIR, `${name}.txt`);
-    const built = buildAddonDir(meta.dir);
+    const built = buildAddonDir(meta.suite, meta.dir);
     const excuse = ledgered(name);
 
     if (!built) {
@@ -252,7 +279,7 @@ for (const { name, meta } of programs) {
         continue;
     }
 
-    const map = targetMap(meta.dir, meta.targets);
+    const map = targetMap(meta.suite, meta.dir, meta.targets);
     const nodeTwin = writeNodeTwin(name, map);
     const gjsTwin = writeGjsTwin(name, map);
 
@@ -285,7 +312,7 @@ for (const { name, meta } of programs) {
         continue;
     }
 
-    const gjsRun = runGjs(gjsTwin);
+    const gjsRun = runGjs(gjsTwin, { libuv: !!meta.libuv });
     const gjsPass = gjsRun.ok && gjsRun.stdout === golden;
 
     if (gjsPass && !excuse) {
