@@ -48,11 +48,17 @@ db.exec('CREATE TABLE t (n INT)');
 
 The `napiNodeAddonPlugin` in `@gjsify/rolldown-plugin-gjsify` (the forward mirror
 of the `gjsGiNodePlugin` `gi://`→`requireGi` rewrite) intercepts the addon's own
-acquisition helper — `bindings`, `node-gyp-build`, or a direct `.node` import —
-and rewrites it to `loadAddon('<abs .node>')`. It locates the compiled `.node`
-using node-gyp-build's own probe order (`build/Release` → `build/Debug` →
+acquisition helper — `bindings`, `node-gyp-build`, a direct `.node` import, a
+napi-rs `@scope/pkg-<triple>` platform sibling, or a napi-rs **generated loader
+entry** (`@node-rs/*`) — and rewrites it to `loadAddon('<abs .node>')`. For the
+node-gyp-build/bindings case it locates the compiled `.node` using
+node-gyp-build's own probe order (`build/Release` → `build/Debug` →
 `prebuilds/<platform>-<arch>`), so the GJS build routes the SAME binary Node
-loads. Always-on for `--app gjs`, inert when no native addon is in the graph.
+loads; for a napi-rs package it detects the generated loader (package.json
+`napi`/optionalDependencies signal + native-`main` match) and replaces the whole
+module with `module.exports = loadAddon(<current-platform sibling .node>)`, so the
+generated `createRequire` loader body never reaches the bundle. Always-on for
+`--app gjs`, inert when no native addon is in the graph.
 
 **Escape hatch — explicit `loadAddon`.** When you want to load a `.node` by an
 arbitrary runtime path (not a static import), call it directly:
@@ -65,10 +71,10 @@ if (hasNapi()) {
 }
 ```
 
-**Not (yet) transparent:** a napi-rs *generated* loader (`@node-rs/*`) — the
-plugin locates its `.node` but the generated `require('node:module')` +
-`createRequire` loader body does not survive `--app gjs` bundling; use the
-explicit `loadAddon` escape hatch for those (tracked in `STATUS.md`).
+All four addon conventions — node-gyp-build, bindings, a direct `.node`, and
+napi-rs generated loaders (`@node-rs/*`) — are transparent; the explicit
+`loadAddon` escape hatch remains for loading a `.node` by an arbitrary runtime
+path.
 
 ## Requirements
 
@@ -136,9 +142,9 @@ gjsify run test:addons:transparent  # transparent: napiNodeAddonPlugin auto-reso
 `test:addons:transparent` is the end-to-end proof of the transparent path: it
 builds each real addon `--app gjs` through `napiNodeAddonPlugin`'s
 auto-resolution (no hand-pinned addonPath) and requires byte-identical output vs
-Node. bufferutil + utf-8-validate (node-gyp-build) and sqlite3 (bindings) pass;
-`@node-rs/argon2` (napi-rs generated loader) is a documented FINDING (see the
-transparent-usage note above).
+Node. All four pass byte-identical: bufferutil + utf-8-validate (node-gyp-build),
+sqlite3 (bindings), and `@node-rs/argon2` (napi-rs generated-loader
+entry-replacement).
 
 `gjsify run test:conformance:update` regenerates the golden files;
 `conformance/ledger.json` records each Phase-0-deferred program with a precise

@@ -240,14 +240,6 @@ try {
             break;
         }
     }
-    if (cfg.transparentDefer) {
-        // Known, documented deferral (napi-rs generated-loader body — see the
-        // matrix entry + napi-node-addon.ts TODO). The interception fired (the
-        // bundle references loadAddon, checked above), but the loader body did
-        // not survive `--app gjs`. Record a FINDING, not a hard failure.
-        console.log(`TRANSPARENT GATE ${name}: FINDING (napi-rs generated loader deferred — see stderr)`);
-        process.exit(2);
-    }
     die('Node vs GJS stdout mismatch (transparent auto-resolution regression)');
 } catch (err) {
     die(err && err.stack ? err.stack : String(err));

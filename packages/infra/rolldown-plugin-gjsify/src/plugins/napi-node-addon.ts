@@ -25,17 +25,27 @@
 //   - napi-rs sibling    — `@scope/pkg-<triple>` platform package (or local
 //                          `pkg.<triple>.node` fallback), whose exports ARE the
 //                          addon API.
+//   - napi-rs ENTRY      — the napi-rs GENERATED loader index
+//                          (`@node-rs/argon2/index.js`), detected by a
+//                          package.json signal and replaced WHOLESALE.
 //
-// TODO(napi-rs): the sibling/direct interception below correctly LOCATES a
-// napi-rs addon's `.node` and routes it through `loadAddon`, and it fully
-// supports importing a platform sibling DIRECTLY (`@scope/pkg-<triple>`). But a
-// napi-rs GENERATED index (`@node-rs/argon2/index.js`) wraps that acquisition in
-// a `require('node:module')` + `createRequire` + runtime `existsSync`/`process`
-// branch chain whose CJS body does NOT survive `--app gjs` bundling (`ReferenceError:
-// require`). Full transparency for the generated loader therefore needs the loader
-// ENTRY replaced wholesale (the pinned resolver's `entryReplace` shape) once the
-// entry can be robustly auto-detected — deferred. The C/C++ path (node-gyp-build +
-// bindings) is the must-have and is proven byte-identical in the transparent gate.
+// napi-rs GENERATED-LOADER ENTRY replacement: a napi-rs generated index
+// (`@node-rs/argon2/index.js`) wraps its acquisition in a
+// `require('node:module')` + `createRequire(__filename)` + runtime
+// `existsSync`/`process` branch chain whose CJS body does NOT survive `--app gjs`
+// bundling (the top-level `require = createRequire(...)` reassignment throws
+// `ReferenceError: require`). The sibling/direct interceptions above correctly
+// LOCATE the `.node` but cannot rescue that body. So when the entry of a napi-rs
+// package resolves, we replace the WHOLE module with
+// `module.exports = loadAddon('<abs platform .node>')` (the `napi-rs-entry`
+// kind) — the platform `.node` is the current-triple sibling package
+// (`@scope/pkg-<triple>`, only the host's optionalDependency is installed) or a
+// local `pkg.<triple>.node`. Detection is CONSERVATIVE (package.json signal +
+// the file must be the package's own native `main` entry + a real host `.node`
+// must resolve) so it never rewrites an unrelated package's entry; when no
+// current-platform `.node` resolves we fall through to normal resolution rather
+// than emit a shim over a missing file. The C/C++ path (node-gyp-build +
+// bindings) and napi-rs are all proven byte-identical in the transparent gate.
 //
 // The addon's compiled `.node` is located by `resolveAddonPath()`, which
 // replicates node-gyp-build's OWN selection algorithm (build/Release →
@@ -55,14 +65,14 @@
 // fast-path; the internal guard in the handler is the load-bearing check so the
 // plugin is correct even when the filter does not pre-filter.
 
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { Plugin } from 'rolldown';
 
 const NAPI_ADDON_VIRTUAL_PREFIX = '\0gjsify-napi-addon:';
 
 /** The kinds of interception, encoded into the virtual-module id. */
-type AddonShimKind = 'direct' | 'node-gyp-build' | 'bindings' | 'napi-rs';
+type AddonShimKind = 'direct' | 'node-gyp-build' | 'bindings' | 'napi-rs' | 'napi-rs-entry';
 
 /** Bare specifier the shims import — resolved + bundled from the consumer graph. */
 const NAPI_BARE_SPECIFIER = '@gjsify/napi';
@@ -85,6 +95,11 @@ const ADDON_FILTER_RE = new RegExp(
         /^node-gyp-build(?:\/index\.js)?$/.source, // node-gyp-build helper
         /^bindings(?:\/bindings\.js)?$/.source, // bindings helper
         NAPI_RS_TRIPLE_RE.source, // napi-rs platform sibling
+        // napi-rs generated-loader ENTRY: the conventional package-root
+        // `index.{js,cjs,mjs}` a napi-rs build emits. Narrow on purpose (only
+        // `index.*`, not every `.js`) — the handler's `detectNapiRsEntry` gate
+        // (package.json signal + native-main match) is the load-bearing check.
+        /[/\\]index\.[cm]?js$/.source,
     ].join('|'),
 );
 
@@ -355,6 +370,10 @@ function shimFor(kind: AddonShimKind, addonPath: string): string {
         case 'bindings':
             return bindingsShim(addonPath);
         case 'napi-rs':
+        case 'napi-rs-entry':
+            // Both hand back the raw native exports as the module value. The
+            // `napi-rs-entry` kind replaces the whole GENERATED loader; `napi-rs`
+            // replaces a directly-imported platform sibling. Same body.
             return napiRsShim(addonPath);
     }
 }
@@ -389,6 +408,181 @@ export function classifySpecifier(
     // handler confirms by resolving it to a real `.node`.
     const last = source.split('/').pop() ?? source;
     if (!source.startsWith('.') && NAPI_RS_TRIPLE_RE.test(last)) return { kind: 'napi-rs-candidate' };
+    return null;
+}
+
+// ---------------------------------------------------------------------------
+// napi-rs GENERATED-LOADER ENTRY detection + platform `.node` resolution.
+//
+// A napi-rs package ships a generated `index.js` loader whose CJS body
+// (`require = createRequire(__filename)` + a per-platform require chain) does
+// not survive `--app gjs` bundling. We detect that the RESOLVED entry is such a
+// package's native `main` and replace the whole module. Detection is by
+// package.json SIGNAL (preferred over source-shape sniffing) and is deliberately
+// conservative so we never hijack an unrelated package's entry.
+// ---------------------------------------------------------------------------
+
+/** Minimal package.json shape read for napi-rs detection. */
+export interface AddonPackageJson {
+    name?: string;
+    main?: string;
+    browser?: string;
+    napi?: unknown;
+    optionalDependencies?: Record<string, string>;
+}
+
+/**
+ * A package.json describes a napi-rs generated-loader package when EITHER
+ * signal holds — both are package.json-level (not source sniffing):
+ *
+ *   (a) a top-level `napi` config OBJECT (`{ binaryName, targets, … }`) — the
+ *       napi-rs CLI's own build block. An ordinary npm package never declares a
+ *       `napi` object at the manifest root.
+ *   (b) at least one `optionalDependencies` entry named `<self>-<triple>` — the
+ *       napi-rs prebuilt-binary convention (`@node-rs/argon2` ships
+ *       `@node-rs/argon2-linux-x64-gnu`, …). The key MUST start with the
+ *       package's own name plus `-` AND end in a platform triple, so a normal
+ *       optional dep (`fsevents`) can't match.
+ *
+ * Neither fires on a normal package, so pairing this with the "resolved file IS
+ * the package's own native main entry" check (see {@link detectNapiRsEntry})
+ * makes entry-replacement safe. Exported for the unit tests.
+ */
+export function isNapiRsPackageJson(pkg: AddonPackageJson): boolean {
+    if (pkg && typeof pkg.napi === 'object' && pkg.napi !== null) return true;
+    const self = pkg?.name;
+    const opt = pkg?.optionalDependencies;
+    if (self && opt) {
+        for (const dep of Object.keys(opt)) {
+            if (dep.startsWith(`${self}-`) && NAPI_RS_TRIPLE_RE.test(dep)) return true;
+        }
+    }
+    return false;
+}
+
+function readPackageJsonSafe(pkgRoot: string): AddonPackageJson | null {
+    try {
+        return JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')) as AddonPackageJson;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Decide whether an absolute file path is the NATIVE generated-loader entry of a
+ * napi-rs package. Returns the package root + parsed manifest when it is, else
+ * null. "Native entry" = the package's `main` (default `index.js`) — NOT its
+ * `browser`/wasm fallback and NOT a deep file — so we only ever replace the one
+ * generated loader, never an unrelated module. Filesystem-based (reads the
+ * nearest package.json); the plugin memoizes calls. Exported for the unit tests.
+ */
+export function detectNapiRsEntry(entryFile: string): { pkgRoot: string; pkg: AddonPackageJson } | null {
+    if (!isAbsolute(entryFile) || !/\.[cm]?js$/.test(entryFile)) return null;
+    const pkgRoot = nearestPackageRoot(entryFile);
+    if (pkgRoot === null) return null;
+    const pkg = readPackageJsonSafe(pkgRoot);
+    if (pkg === null || !isNapiRsPackageJson(pkg)) return null;
+    // The resolved file must be the package's OWN native main entry — reject a
+    // `browser`/wasm fallback or any deep module inside the package.
+    const mainEntry = resolve(pkgRoot, pkg.main ?? 'index.js');
+    if (resolve(entryFile) !== mainEntry) return null;
+    return { pkgRoot, pkg };
+}
+
+/** napi-rs binaryName (from `napi.binaryName`/`napi.name`, else the unscoped pkg name). */
+function napiBinaryName(pkg: AddonPackageJson): string | null {
+    const napi = pkg.napi;
+    if (napi && typeof napi === 'object') {
+        const cfg = napi as { binaryName?: unknown; name?: unknown };
+        const bn = typeof cfg.binaryName === 'string' ? cfg.binaryName : cfg.name;
+        if (typeof bn === 'string' && bn) return bn;
+    }
+    if (typeof pkg.name === 'string' && pkg.name) return pkg.name.replace(/^@[^/]+\//, '');
+    return null;
+}
+
+/**
+ * The napi-rs short platform triple for the CURRENT host (`linux-x64-gnu`,
+ * `darwin-arm64`, `win32-x64-msvc`, …) — the tail napi-rs stamps into a sibling
+ * package name (`@node-rs/argon2-linux-x64-gnu`) and a local binary
+ * (`argon2.linux-x64-gnu.node`). Used ONLY for the deterministic local-file
+ * fallback; the sibling path never needs it (npm installs only the matching
+ * optionalDependency). Returns null for a host napi-rs doesn't name.
+ */
+function hostNapiRsTriple(): string | null {
+    const platform = process.platform;
+    const arch = process.arch;
+    const archTok: Record<string, string> = {
+        x64: 'x64',
+        arm64: 'arm64',
+        arm: 'arm',
+        ia32: 'ia32',
+        ppc64: 'ppc64',
+        s390x: 's390x',
+        riscv64: 'riscv64',
+    };
+    const a = archTok[arch];
+    if (!a) return null;
+    switch (platform) {
+        case 'linux': {
+            if (arch === 'arm') return 'linux-arm-gnueabihf';
+            const libc = process.env.LIBC === 'musl' || isMusl('linux') ? 'musl' : 'gnu';
+            return `linux-${a}-${libc}`;
+        }
+        case 'darwin':
+            return `darwin-${a}`;
+        case 'win32':
+            return `win32-${a}-msvc`;
+        case 'freebsd':
+            return `freebsd-${a}`;
+        case 'android':
+            return arch === 'arm' ? 'android-arm-eabi' : `android-${a}`;
+        default:
+            return null;
+    }
+}
+
+/** Decode a napi virtual id back to its raw `.node` path (safety net for a resolve hit). */
+function rawAddonPath(id: string): string {
+    const decoded = decodeVirtual(id);
+    return decoded ? decoded.addonPath : id;
+}
+
+/**
+ * Resolve the current-platform compiled `.node` for a napi-rs generated-loader
+ * package: the current-triple sibling package (`@scope/pkg-<triple>`, whose own
+ * `main` IS the `.node` — npm installs ONLY the host's optionalDependency, so
+ * the one that resolves is the host's), then a local `pkg.<triple>.node`. Reuses
+ * the plugin's `ctx.resolve` sibling-resolution path (`skipSelf` so this
+ * plugin's own napi-rs-candidate interception is bypassed → a raw `.node` id).
+ * Returns null when no current-platform binary is present — the caller then
+ * DOES NOT rewrite, so we never shim over a missing file.
+ */
+async function resolveNapiRsEntryAddon(
+    ctx: AddonResolveContext,
+    pkgRoot: string,
+    pkg: AddonPackageJson,
+    importer: string,
+): Promise<string | null> {
+    const self = pkg.name;
+    const opt = pkg.optionalDependencies ?? {};
+    if (self) {
+        for (const dep of Object.keys(opt)) {
+            if (!dep.startsWith(`${self}-`) || !NAPI_RS_TRIPLE_RE.test(dep)) continue;
+            const resolved = await ctx.resolve(dep, importer, { skipSelf: true });
+            if (!resolved) continue;
+            const abs = rawAddonPath(resolved.id);
+            if (abs.endsWith('.node') && existsSync(abs)) return abs;
+        }
+    }
+    // Local in-package binary (`<binaryName>.<host-triple>.node`) — deterministic
+    // host-triple match so a wrong-platform local file is never picked.
+    const binaryName = napiBinaryName(pkg);
+    const triple = hostNapiRsTriple();
+    if (binaryName && triple) {
+        const local = join(pkgRoot, `${binaryName}.${triple}.node`);
+        if (existsSync(local)) return local;
+    }
     return null;
 }
 
@@ -442,6 +636,18 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
     const warnOnMissingNapi = options.warnOnMissingNapi !== false;
     let missingNapiChecked = false;
 
+    // Memoize napi-rs entry detection per resolved file — the `index.*` filter
+    // fires the handler for every package's index entry across every build pass;
+    // this bounds the package.json reads to one per unique entry file.
+    const napiEntryCache = new Map<string, { pkgRoot: string; pkg: AddonPackageJson } | null>();
+    function detectNapiRsEntryCached(entryFile: string): { pkgRoot: string; pkg: AddonPackageJson } | null {
+        const cached = napiEntryCache.get(entryFile);
+        if (cached !== undefined) return cached;
+        const info = detectNapiRsEntry(entryFile);
+        napiEntryCache.set(entryFile, info);
+        return info;
+    }
+
     async function warnIfNapiMissing(ctx: AddonResolveContext, importer: string | undefined): Promise<void> {
         if (!warnOnMissingNapi || missingNapiChecked) return;
         missingNapiChecked = true; // check once per build — interception is rare
@@ -465,33 +671,49 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
             order: 'pre' as const,
             filter: { id: ADDON_FILTER_RE },
             async handler(source, importer) {
-                const cls = classifySpecifier(source);
-                if (cls === null) return null;
                 const ctx = this as unknown as AddonResolveContext;
+                const cls = classifySpecifier(source);
 
-                // Direct `.node` — resolve the file path itself.
-                if (cls.kind === 'direct-node') {
-                    const abs = await resolveNodeFile(ctx, source, importer);
-                    if (abs === null) return null; // unresolvable — let the default chain error
+                if (cls !== null) {
+                    // Direct `.node` — resolve the file path itself.
+                    if (cls.kind === 'direct-node') {
+                        const abs = await resolveNodeFile(ctx, source, importer);
+                        if (abs === null) return null; // unresolvable — let the default chain error
+                        await warnIfNapiMissing(ctx, importer);
+                        return { id: encodeVirtual('direct', abs) };
+                    }
+
+                    // napi-rs platform sibling — confirm it resolves to a `.node`.
+                    if (cls.kind === 'napi-rs-candidate') {
+                        const resolved = await ctx.resolve(source, importer, { skipSelf: true });
+                        if (!resolved || !resolved.id.endsWith('.node')) return null; // not a native sibling
+                        await warnIfNapiMissing(ctx, importer);
+                        return { id: encodeVirtual('napi-rs', resolved.id) };
+                    }
+
+                    // node-gyp-build / bindings — probe the importer's package root.
+                    if (importer === undefined) return null;
+                    const pkgRoot = nearestPackageRoot(importer);
+                    if (pkgRoot === null) return null;
+                    const addonPath = resolveAddonPath(pkgRoot, { warn: (m) => warnSafe(ctx, m) }); // throws → build error
                     await warnIfNapiMissing(ctx, importer);
-                    return { id: encodeVirtual('direct', abs) };
+                    return { id: encodeVirtual(cls.kind, addonPath) };
                 }
 
-                // napi-rs platform sibling — confirm it resolves to a `.node`.
-                if (cls.kind === 'napi-rs-candidate') {
-                    const resolved = await ctx.resolve(source, importer, { skipSelf: true });
-                    if (!resolved || !resolved.id.endsWith('.node')) return null; // not a native sibling
-                    await warnIfNapiMissing(ctx, importer);
-                    return { id: encodeVirtual('napi-rs', resolved.id) };
+                // napi-rs GENERATED-LOADER ENTRY (`index.*` filter). Replace the
+                // whole module only when the resolved file IS the native `main`
+                // of a napi-rs package (package.json signal) AND a current-platform
+                // `.node` resolves. Otherwise fall through (never a shim over a
+                // missing file, never an unrelated package's entry rewritten).
+                const entry = detectNapiRsEntryCached(source);
+                if (entry !== null) {
+                    const addonPath = await resolveNapiRsEntryAddon(ctx, entry.pkgRoot, entry.pkg, source);
+                    if (addonPath !== null) {
+                        await warnIfNapiMissing(ctx, importer);
+                        return { id: encodeVirtual('napi-rs-entry', addonPath) };
+                    }
                 }
-
-                // node-gyp-build / bindings — probe the importer's package root.
-                if (importer === undefined) return null;
-                const pkgRoot = nearestPackageRoot(importer);
-                if (pkgRoot === null) return null;
-                const addonPath = resolveAddonPath(pkgRoot, { warn: (m) => warnSafe(ctx, m) }); // throws → build error
-                await warnIfNapiMissing(ctx, importer);
-                return { id: encodeVirtual(cls.kind, addonPath) };
+                return null;
             },
         },
         load(id) {
