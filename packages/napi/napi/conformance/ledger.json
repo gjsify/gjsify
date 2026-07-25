@@ -32,6 +32,22 @@
     {
       "addon": "test_dataview",
       "reason": "binding.gyp defines NAPI_EXPERIMENTAL and the addon references node_api_is_sharedarraybuffer — outside the Phase-0 NAPI_VERSION=10 non-experimental ABI surface, so the shim cannot resolve the symbol at dlopen (RTLD_NOW)."
+    },
+    {
+      "addon": "test_sharedarraybuffer",
+      "reason": "Two independent blockers. (1) The addon opts into NAPI_EXPERIMENTAL and references node_api_is_sharedarraybuffer / node_api_create_sharedarraybuffer — outside the Phase-0 NAPI_VERSION=10 non-experimental ABI, so it cannot dlopen under the shim (RTLD_NOW). (2) GJS disables shared memory + Atomics at the realm level (getSharedMemoryAndAtomicsEnabled() == false), so `SharedArrayBuffer` is not even defined in the JS global — the test's own `new SharedArrayBuffer(...)` throws ReferenceError under gjs. Unportable regardless of (1)."
+    },
+    {
+      "addon": "test_reference_by_node_api_version",
+      "reason": "Exercises the WEAK-reference regime: after a reference's count drops to 0, object-like values must survive as weak pointers until GC while primitives/strings/bigints are released immediately, and a global (registered) symbol stays strong forever. This in-GC weak-reference regime (toggle-ref-driven weak/strong tracking) is deferred in Phase 0 — the same reason test_reference is ledgered. First divergence: a refcount-0 reference does not preserve value identity under the shim (getRefValue returns undefined where Node still returns the weakly-held value)."
+    },
+    {
+      "addon": "na_test_instance_data",
+      "reason": "The node_api.h instance-data test reaches the instance data from (a) an async_work completion callback — napi_create_async_work is a Phase-0 loud stub — and (b) a node::Buffer external-buffer finalizer (napi_create_external_buffer). Both are deferred capabilities, so asyncWorkCallback fails loud under the shim. (The js-native-api instance-data surface — napi_set/get_instance_data + finalizer — passes as program test_instance_data.)"
+    },
+    {
+      "addon": "test_cannot_run_js",
+      "reason": "createRef registers a strong-referenced JS function whose finalizer, run at environment shutdown, calls napi_get_named_property(global, 'setTimeout') and asserts napi_cannot_run_js||napi_ok (NAPI_VERSION 10) or napi_pending_exception||napi_ok (NAPI_VERSION 9). The shim runs env-teardown finalizers with JS still callable (the node-gi §5e SIGSEGV-avoidance discipline — teardown finalizers may create values) rather than implementing Node's can_call_into_js gate that short-circuits JS-entering napi calls to those statuses; a finalizer that enters JSAPI while the GjsContext is being disposed is outside the Phase-0 teardown model. Deferred."
     }
   ]
 }
