@@ -62,7 +62,7 @@ jobs:
       - name: Use official Node.js (Fedora's dnf node crashes the bundler)
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -163,7 +163,7 @@ jobs:
       - name: Use official Node.js (Fedora's dnf node crashes the bundler)
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -209,7 +209,7 @@ jobs:
       - name: Build the in-repo CLI + @gjsify/napi L1 (under Node)
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
-          gjsify workspace @gjsify/cli build:gjsify --with-dependencies
+          gjsify workspace @gjsify/cli build --with-dependencies
           gjsify workspace @gjsify/napi build:gjsify --with-dependencies
 
       # Build the workout --app gjs (better-sqlite3's node: builtins → @gjsify/*
