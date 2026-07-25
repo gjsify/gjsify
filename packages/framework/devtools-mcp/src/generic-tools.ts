@@ -281,8 +281,9 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
             {
                 description:
                     'Activate the widget at a widget path (from dump_tree) — the click-drive counterpart of ' +
-                    'get_property: a Button emits clicked, an ActionRow emits activated, an entry emits activate. ' +
-                    'Returns whether the widget was activatable.',
+                    'get_property: a Button emits clicked, an Entry activates, a Toggle toggles; a list/nav/' +
+                    'preference row (GtkListBoxRow/AdwActionRow) is clicked on its GtkListBox (selected + ' +
+                    'row-activated). Returns whether the widget activated.',
                 inputSchema: z.object({ path: z.string(), ...instanceArg }),
             },
             async ({ path, instance }) => {

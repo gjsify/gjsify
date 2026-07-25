@@ -55,20 +55,52 @@ export function widgetType(widget: Gtk.Widget): string {
 }
 
 /**
- * Activate a widget — the "default activation" GTK runs when the user presses
- * Enter on it (a `Gtk.Button` emits `clicked`, an `Adw.ActionRow` emits
- * `activated`, an entry emits `activate`, …). This is how external tooling
- * click-drives a running GUI: resolve a widget by path, then activate it.
+ * Activate a widget — how external tooling click-drives a running GUI: resolve a
+ * widget by path, then activate it. Two paths, tried in order:
  *
- * Returns GTK's own `gtk_widget_activate()` result — `true` if the widget was
- * activatable, `false` if it is not (e.g. a plain container). Duck-typed on the
- * `activate()` accessor for the same cross-runtime reason as {@link widgetType}
- * (GJS vs node-gi both expose it, so the spec can feed a plain mock shape).
+ *  1. **`gtk_widget_activate()`** — the widget's own default-activation signal
+ *     (a `Gtk.Button` emits `clicked`, a `Gtk.Entry` emits `activate`, a
+ *     `Gtk.ToggleButton` toggles). Returns true when it fires.
+ *  2. **Row fallback** — a `GtkListBoxRow` / `AdwActionRow` is NOT activatable
+ *     via `gtk_widget_activate()` (returns false): a row's interaction routes
+ *     through the owning `GtkListBox`, not the row's own signal. So driving a
+ *     sidebar nav row or a preference row over path #1 alone silently no-ops.
+ *     When the widget's parent is a `GtkListBox`, reproduce what a real click on
+ *     a row does — it both SELECTS the row (`select_row` → the `row-selected`
+ *     signal selection-driven nav shells listen to) AND ACTIVATES it
+ *     (`row-activated`, for activatable rows). Doing both drives either wiring
+ *     (a GtkListBox only ever parents rows, so the parent-type check is enough
+ *     to know the widget is the row to pass). `select_row` is a no-op under
+ *     selection-mode `none`, so it is always safe to call.
+ *
+ * Returns true if either path activated the widget, false if neither applies
+ * (e.g. a plain container). Duck-typed on the accessors it reads for the same
+ * cross-runtime reason as {@link widgetType} (GJS vs node-gi both expose them,
+ * so the spec can feed plain mock shapes).
  */
 export function activateWidget(widget: Gtk.Widget): boolean {
-    const w = widget as unknown as { activate?: () => boolean };
-    if (typeof w.activate !== 'function') return false;
-    return w.activate() === true;
+    const w = widget as unknown as { activate?: () => boolean; get_parent?: () => unknown };
+    // 1. The widget's own default activation (Button/Entry/Toggle/…).
+    if (typeof w.activate === 'function' && w.activate() === true) return true;
+    // 2. Row fallback: reproduce a click on a GtkListBox row — select + activate.
+    const parent = typeof w.get_parent === 'function' ? w.get_parent() : null;
+    if (parent && widgetType(parent as Gtk.Widget) === 'GtkListBox') {
+        const box = parent as {
+            select_row?: (row: unknown) => void;
+            emit?: (signal: string, ...args: unknown[]) => void;
+        };
+        let activated = false;
+        if (typeof box.select_row === 'function') {
+            box.select_row(widget); // → row-selected (selection-driven nav)
+            activated = true;
+        }
+        if (typeof box.emit === 'function') {
+            box.emit('row-activated', widget); // → row-activated (activatable rows)
+            activated = true;
+        }
+        return activated;
+    }
+    return false;
 }
 
 function nthChild(widget: Gtk.Widget, index: number): Gtk.Widget | null {
