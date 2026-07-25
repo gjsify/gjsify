@@ -279,15 +279,45 @@ gboolean dispatch_cb(gpointer data) {
 // dispatch that can never run — GjsContext dispose has begun, the main
 // context will not be iterated again — so the deferred finalize is executed
 // HERE, synchronously, while JS is still fully callable (§5e steps 1-4
-// discipline). A tsfn whose claims were never released is force-closed the
-// same way (foreign threads calling past this point violate the claim
-// contract — UB in Node too, see file header).
+// discipline). A tsfn whose claims were never released (the shutdown
+// conformance test's 32 producers loop napi_call_threadsafe_function until
+// napi_closing, then exit — no release ever) is JOINED before it is freed:
+// set `closing`, then wait for thread_count to reach 0 — every claimant drains
+// its claim (its next call returns napi_closing) before the free, so no foreign
+// thread touches freed memory. This is the teardown-path arm of the same
+// thread_count==0 join-before-free the dispatch uses (async_work realizes it
+// with g_thread_pool_free wait=TRUE; tsfn cannot join threads it does not own,
+// so it waits for the voluntary drain). Without it, a producer's next
+// napi_closing push would lock a g_mutex_clear'd mutex and re-arm a dispatch on
+// a freed GMainContext — the abort-path UAF, reached here. A deadline caps a
+// claimant that never drains (a claim-contract violation — UB in Node too),
+// falling back to the pre-fix force-free rather than hanging teardown.
 void finalize_env_tsfns(napi_env env) {
     while (!env->tsfns.empty()) {
         napi_threadsafe_function tsfn = env->tsfns.back();
         g_mutex_lock(&tsfn->mutex);
+        // Stop accepting pushes + wake blocking pushers so they observe it.
         tsfn->closing = true;
         g_cond_broadcast(&tsfn->cond);
+        // Join: wait for every outstanding claim to drain (each claim-consuming
+        // napi_closing push/release drops thread_count and broadcasts at 0).
+        const gint64 deadline =
+            g_get_monotonic_time() + 2 * G_TIME_SPAN_SECOND;
+        bool joined = true;
+        while (tsfn->thread_count > 0) {
+            if (!g_cond_wait_until(&tsfn->cond, &tsfn->mutex, deadline)) {
+                joined = false;
+                break;
+            }
+        }
+        if (!joined) {
+            g_warning("gjsify-napi: threadsafe-function teardown join timed out "
+                      "with %zu claim(s) still outstanding; freeing anyway (a "
+                      "foreign thread holds a tsfn claim without draining it)",
+                      tsfn->thread_count);
+        }
+        // A claimant that reached 0 may have armed a dispatch that can no longer
+        // run (dispose has begun) — destroy it before the free.
         if (tsfn->dispatch_source != nullptr) {
             g_source_destroy(tsfn->dispatch_source);
             g_source_unref(tsfn->dispatch_source);
@@ -384,9 +414,11 @@ napi_status NAPI_CDECL napi_call_threadsafe_function(
         // This closing push just consumed the caller's claim; if it was the
         // LAST one, arm the JS-thread dispatch so the deferred finalize runs now
         // that no thread can re-enter (the free half of the abort-path fix —
-        // dispatch_cb frees only at thread_count == 0). Coalesces if pending.
+        // dispatch_cb frees only at thread_count == 0; coalesces if pending) AND
+        // wake a teardown JOIN (finalize_env_tsfns) waiting on the last claim.
         if (func->thread_count == 0) {
             gjsify_napi::schedule_dispatch_locked(func);
+            g_cond_broadcast(&func->cond);
         }
         g_mutex_unlock(&func->mutex);
         return napi_closing;
@@ -422,6 +454,10 @@ napi_status NAPI_CDECL napi_release_threadsafe_function(
     // AFTER a prior abort must still arm the finalize. Coalesces if pending.
     if (func->thread_count == 0 || mode == napi_tsfn_abort) {
         gjsify_napi::schedule_dispatch_locked(func);
+    }
+    if (func->thread_count == 0) {
+        // Wake a teardown JOIN (finalize_env_tsfns) waiting on the last claim.
+        g_cond_broadcast(&func->cond);
     }
     g_mutex_unlock(&func->mutex);
     return napi_ok;
