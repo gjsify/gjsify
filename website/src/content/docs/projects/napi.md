@@ -36,7 +36,7 @@ A golden-diff harness runs a deterministic workout of each addon on **Node (the 
 | [`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3) | C, node-addon-api | synchronous | ✅ byte-identical |
 | [`bufferutil`](https://github.com/websockets/bufferutil) | C, node-gyp-build | synchronous | ✅ |
 | [`utf-8-validate`](https://github.com/websockets/utf-8-validate) | C++, node-gyp-build | synchronous | ✅ |
-| [`@node-rs/argon2`](https://github.com/napi-rs/node-rs) | Rust, napi-rs | synchronous | ✅ |
+| [`@node-rs/argon2`](https://github.com/napi-rs/node-rs) | Rust, napi-rs | synchronous | ✅ byte-identical |
 | [`node-sqlite3`](https://github.com/TryGhost/node-sqlite3) | C++, node-addon-api | **asynchronous** | ✅ byte-identical |
 
 Those first four are C, C++ and Rust addons emitted by three different N-API code generators — strong evidence that an arbitrary *synchronous* addon runs unmodified. `node-sqlite3` additionally drives the async surface (`napi_async_work` + threadsafe functions), so the whole asynchronous `node-addon-api` ecosystem is reachable, not just the sync subset.
@@ -63,9 +63,9 @@ import Database from 'better-sqlite3'; // require('bufferutil') / etc.
 const db = new Database(':memory:');
 ```
 
-Under the hood the `napiNodeAddonPlugin` (in `@gjsify/rolldown-plugin-gjsify`, the forward mirror of the `gi://`→`requireGi` rewrite) intercepts the addon's own acquisition helper — `bindings`, `node-gyp-build`, or a direct `.node` import — and routes the compiled `.node` through `loadAddon`, locating it with node-gyp-build's own probe order (`build/Release` → `build/Debug` → `prebuilds/`). It is always-on for `--app gjs` and inert when no native addon is in the graph.
+Under the hood the `napiNodeAddonPlugin` (in `@gjsify/rolldown-plugin-gjsify`, the forward mirror of the `gi://`→`requireGi` rewrite) intercepts the addon's own acquisition helper — `bindings`, `node-gyp-build`, a direct `.node` import, or a napi-rs generated loader (`@node-rs/*`) — and routes the compiled `.node` through `loadAddon`. For the node-gyp-build/bindings case it locates the binary with node-gyp-build's own probe order (`build/Release` → `build/Debug` → `prebuilds/`); for a napi-rs package it detects the generated loader (a package.json `napi`/optionalDependencies signal plus a native-`main` match) and replaces the whole module with `module.exports = loadAddon(<current-platform sibling .node>)`, so the generated `createRequire` loader body never reaches the bundle. It is always-on for `--app gjs` and inert when no native addon is in the graph.
 
-**Escape hatch — `loadAddon(path)`** (shown above) stays available for loading a `.node` by an arbitrary runtime path, or for a napi-rs *generated* loader (`@node-rs/*`), whose `createRequire` loader body is not yet transparently bundleable.
+**Escape hatch — `loadAddon(path)`** (shown above) stays available for loading a `.node` by an arbitrary runtime path.
 
 At runtime you additionally need a built `.node` addon to load — compiled locally with a C++ toolchain, or a shipped prebuild, exactly as on Node. See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the full API surface and the current addon matrix.
 
