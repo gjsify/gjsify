@@ -431,9 +431,10 @@ jobs:
   # mozjs-major pin (ADR 0011) holds with no source build. meson builds the Vala+C++
   # shim into libgjsifynapi.dylib + GjsifyNapi-1.0.{gir,typelib} (macOS uses ld64's
   # -exported_symbols_list, not the GNU version-script — see meson.build), and the
-  # load + P0.x value-model gates run UNMODIFIED node-gyp .node addons through it on
-  # `gjs` (the P1 tsfn gate is DEFERRED — its deliveries pass but `gjs` segfaults at
-  # EXIT on macOS, a teardown-ordering follow-up; see the step below + STATUS.md).
+  # load + P0.x value-model gates PLUS the P1 tsfn gate run UNMODIFIED node-gyp
+  # .node addons through it on `gjs` (the earlier macOS exit-segfault after the tsfn
+  # gate was an abort-path use-after-free — a tsfn freed under a live foreign claim —
+  # now fixed by gating the finalize on thread_count == 0; see the P1 step below).
   # The darwin-arm64 prebuild is staged + uploaded (the shim's
   # OWN prebuild triple — node-gi's conformance.mjs already computes
   # `${platform}-${arch}` = darwin-arm64 for the non-linux case). DEFERRED here (NOT
@@ -514,15 +515,21 @@ jobs:
         working-directory: packages/napi/napi
         run: GI_TYPELIB_PATH="$PWD/build" DYLD_LIBRARY_PATH="$PWD/build" gjs test/p04-gate.js
 
-      # DEFERRED on macOS: the P1 tsfn gate. Its tsfn DELIVERIES all pass on
-      # macOS/mozjs-140 (coalescing, flood-under-GC, blocking, abort-under-load —
-      # all "ok" in CI), but `gjs` then SEGFAULTS at process EXIT after the last
-      # test — a macOS-specific teardown-ordering crash (the dylib + SpiderMonkey
-      # GC unload order at exit differs from Linux, where the same gate + its
-      # valgrind leg are clean). macOS therefore validates the shim's build + load
-      # + value model; tsfn/async teardown on macOS is a known follow-up (tracked
-      # in STATUS.md "N-API host in GJS"). Do NOT re-enable without a fix — a raw
-      # `gjs test/p1-tsfn-gate.js` exit-segfault would red the whole prebuild job.
+      # Phase-1 threadsafe-function gate on macOS (arm64, mozjs-140). Its tsfn
+      # DELIVERIES always passed here (coalescing, flood-under-GC, blocking,
+      # abort-under-load — all "ok"); what segfaulted was process EXIT after the
+      # last test. Root cause: the abort path FREED a tsfn the instant `closing`
+      # was observed, while foreign claimants still held claims and were about to
+      # lock its (by then g_mutex_clear'd + freed) mutex — a use-after-free that
+      # Linux/glibc tolerated (mutex-destroy is a no-op, freed bytes survive) but
+      # macOS's pthread + allocator + exit-time dyld unload turned into a crash.
+      # Fixed (tsfn.cc): the finalize/free is gated on thread_count == 0 — the
+      # tsfn analog of async_work's join-before-free — so the struct is released
+      # only once every claimant has drained its claim and no thread can touch it.
+      # The team is Linux-only locally, so THIS macOS CI leg is the fix's proof.
+      - name: Gate P1 — threadsafe functions (tsfn)
+        working-directory: packages/napi/napi
+        run: GI_TYPELIB_PATH="$PWD/build" DYLD_LIBRARY_PATH="$PWD/build" gjs test/p1-tsfn-gate.js
 
       # Upload the staged darwin-arm64 prebuild (.dylib + .gir + .typelib) so a
       # release can ship prebuilds/darwin-arm64/ alongside linux-x86_64/.
