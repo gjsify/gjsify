@@ -50,9 +50,17 @@ cc_sources = files(
 # linker-specific, so branch on the host toolchain:
 #   - GNU ld / lld (Linux): --version-script (glob patterns, ABI-only export)
 #   - ld64 (macOS):         -exported_symbols_list (leading-underscore globs)
-# MSVC link.exe (Windows) would need a .def EXPORTS file, but the shim has no
-# viable Windows toolchain (no prebuilt MSVC mozjs-140 + gjs — see STATUS.md
-# "N-API host in GJS" cross-platform prebuilds), so only linux/darwin branch.
+#   - MSVC link.exe / lld-link (Windows): a .def EXPORTS file (no glob support).
+# On Windows the napi_*/node_api_* ABI is already exported via the vendored
+# headers' __declspec(dllexport) (js_native_api.h NAPI_EXTERN on _WIN32), and
+# MSVC hides every non-dllexport symbol by DEFAULT — so the .def only has to add
+# the Vala GI surface (gjsify_napi_init/is_available/install) that g_module
+# resolves from the typelib. That closes the same hygiene contract the
+# version-script/exported-symbols-list enforce elsewhere. The Windows build
+# still requires a from-source gjs + mozjs-140 toolchain (clang-cl/MSVC; see
+# STATUS.md "N-API host in GJS" cross-platform prebuilds + the `windows` job in
+# napi.yml) — mozjs-140 is now obtainable (servo/mozjs prebuilt
+# libmozjs-x86_64-pc-windows-msvc), the open wall is gjs-on-Windows itself.
 host_system = host_machine.system()
 if host_system == 'darwin'
     export_symbols = meson.current_source_dir() / 'src/cc/napi.exported-symbols.txt'
@@ -61,6 +69,13 @@ if host_system == 'darwin'
     # meson names the shared library libgjsifynapi.dylib on macOS; the typelib
     # must record that exact leaf so gjs' g_module_open resolves it at load.
     shared_lib_name = 'libgjsifynapi.dylib'
+elif host_system == 'windows'
+    # MSVC/clang-cl consume /DEF:<file>; the DLL has no `lib` prefix, so the
+    # typelib must record `gjsifynapi.dll` as the leaf g_module_open resolves.
+    def_file = meson.current_source_dir() / 'src/cc/napi.def'
+    export_link_args = ['/DEF:' + def_file]
+    export_link_depends = files('src/cc/napi.def')
+    shared_lib_name = 'gjsifynapi.dll'
 else
     version_script = meson.current_source_dir() / 'src/cc/napi.export.map'
     export_link_args = ['-Wl,--version-script,' + version_script]
@@ -68,13 +83,21 @@ else
     shared_lib_name = 'libgjsifynapi.so'
 endif
 
+# GJS/mozjs-140 are built C++17, no RTTI, no exceptions (mozjs has no stable
+# C++ ABI and is built the same way — ADR 0011). Spell that per argument syntax
+# so the shim matches on every toolchain: GNU/Clang take -fno-*, MSVC/clang-cl
+# take /GR- (no RTTI) and default to no C++ exceptions (no /EHsc).
+cpp = meson.get_compiler('cpp')
+if cpp.get_argument_syntax() == 'msvc'
+    shim_cpp_args = ['/GR-']
+else
+    shim_cpp_args = ['-fno-rtti', '-fno-exceptions']
+endif
+
 libGjsifyNapi = library('gjsifynapi', vala_sources + cc_sources,
     dependencies: dependencies,
     include_directories: include_directories('src/napi-headers'),
-    cpp_args: [
-        '-fno-rtti',
-        '-fno-exceptions',
-    ],
+    cpp_args: shim_cpp_args,
     # Stub vapis for the C++-only deps (mozjs-140, gjs-1.0): meson forwards
     # every dependency() to valac as --pkg; Vala itself never uses them.
     vala_args: [

@@ -1,0 +1,22 @@
+; SPDX-License-Identifier: MIT
+; @gjsify/napi — export hygiene, Windows (MSVC / clang-cl link.exe) counterpart
+; of napi.export.map (GNU version-script) and napi.exported-symbols.txt (ld64).
+;
+; Unlike the POSIX linkers, MSVC link.exe / lld-link take a .def EXPORTS list
+; and support NO glob patterns, so the napi_*/node_api_* ABI families cannot be
+; wildcarded here. They do not NEED to be: the vendored headers already mark
+; every ABI entry point __declspec(dllexport) on _WIN32 (js_native_api.h's
+; NAPI_EXTERN), so link.exe exports them automatically, and MSVC hides every
+; other (non-dllexport) symbol by DEFAULT — the mozjs-140 / gjs internals the
+; shim statically references are never re-exported. That already reproduces the
+; version-script's "napi_*/node_api_* visible, everything else local" contract.
+;
+; What the header macro does NOT cover is the Vala-generated GI surface: valac
+; emits plain C functions with no dllexport, yet g_module_open + g_module_symbol
+; (GetProcAddress) must resolve them from the typelib at import. This .def adds
+; exactly those three — the whole introspectable surface is GjsifyNapi.init()
+; (see src/vala/napi.vala) plus the extern-C bridge it calls.
+EXPORTS
+    gjsify_napi_init
+    gjsify_napi_is_available
+    gjsify_napi_install

@@ -95,16 +95,28 @@ Ships as a prebuilt `.dylib`/`.so` + `.gir` + `.typelib` per platform:
 | Platform | Prebuild dir | Status |
 | --- | --- | --- |
 | Linux x86_64 | `prebuilds/linux-x86_64/` | Supported (full gate + conformance + consumer CI) |
-| macOS arm64 | `prebuilds/darwin-arm64/` | Supported (build + load + P0.x value-model gates **+ the P1 tsfn gate**, all on `gjs` in CI — the earlier tsfn exit-segfault was an abort-path use-after-free, now fixed by the thread_count==0 finalize gate); conformance/consumer/valgrind widening still deferred (no arm64-macOS valgrind). macOS is CI-validated only (the team is Linux-only locally) |
-| Windows x64 | — | **Non-goal** (blocked) |
+| macOS arm64 | `prebuilds/darwin-arm64/` | Supported (build + load + P0.x value-model + **P1 tsfn** gates); the earlier tsfn exit-segfault (a UAF — the tsfn was freed while foreign claimants still held claims) is **fixed** (join-before-free, both abort + teardown paths); conformance/consumer/valgrind widening deferred |
+| Windows x64 | — | **Attempted, blocked at gjs-on-Windows** (shim-side portability done; see below) |
 
-**Windows is a tracked non-goal:** the shim links GJS's SpiderMonkey
-(mozjs-140), and no prebuilt MSVC-ABI mozjs-140 exists (no vcpkg port, no MSYS2
-package, gvsbuild ships only the GTK stack). Building it from Firefox-ESR source
-with clang-cl + Rust plus building gjs against it is the fragile multi-hour build
-we deliberately avoid. See `STATUS.md` → *N-API host in GJS* → cross-platform
-prebuilds. This is the key difference from [`@gjsify/node-gi`](../../node-gi/node-gi),
-which links the portable girepository stack and so runs on all three OSes.
+**Windows is attempted, blocked at gjs-on-Windows.** The shim-side portability
+is complete and Linux-verified: `meson.build` has a `windows` branch (a `.def`
+EXPORTS file — MSVC `link.exe` takes no globs — plus the `gjsifynapi.dll` leaf
+and MSVC-syntax cpp_args), and `src/cc/module.cc`'s POSIX `dlfcn` loader is
+`#ifdef _WIN32`-ported to `LoadLibraryEx`/`GetProcAddress`/`GetModuleHandleEx`.
+A manual-dispatch (`workflow_dispatch`) `windows` job in `napi.yml` drives the
+from-source attempt. **Re-checking the blocker harder overturned one half:** a
+prebuilt MSVC-ABI **mozjs-140 now exists** — `servo/mozjs` ships
+`libmozjs-x86_64-pc-windows-msvc` at `mozjs-sys-v140.13.0-0` (SpiderMonkey ESR
+140.13). **The remaining wall is `libgjs` itself:** no prebuilt libgjs exists for
+Windows (gvsbuild has no gjs/spidermonkey module, GNOME/gjs CI is Linux-only),
+and the servo prebuilt is a patched Rust static-lib layout, not the pkg-config
+`mozjs-140` gjs's meson wants — so gjs must still be source-built with clang-cl.
+A **second wall** waits behind it: an unmodified node-gyp `.node` on Windows
+binds `napi_*` via a delay-load hook against the host `.exe`, which `gjs.exe`
+does not export (there is no POSIX global-namespace self-promotion analog). See
+`STATUS.md` → *N-API host in GJS* → cross-platform prebuilds. This is the key
+difference from [`@gjsify/node-gi`](../../node-gi/node-gi), which links the
+portable girepository stack and so runs on all three OSes.
 
 ## Build
 

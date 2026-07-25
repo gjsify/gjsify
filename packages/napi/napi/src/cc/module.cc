@@ -25,7 +25,18 @@
 
 #include "common.h"
 
+// §3b portability: the addon loader is written against POSIX dlfcn
+// (dlopen/dlsym/dladdr). Windows has no dlfcn — the equivalent is
+// LoadLibraryEx/GetProcAddress/GetModuleHandleEx. The thin shims below keep
+// load_addon_native single-source; the ONE semantic that does NOT port is the
+// flat-namespace symbol self-promotion (ensure_napi_symbols_global) — Windows
+// resolves an addon's napi_* imports via node-gyp's delay-load hook against the
+// HOST .exe, not a global scope, so that function branches on _WIN32.
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 #include <limits.h>
 #include <stdlib.h>
 
@@ -33,6 +44,91 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+
+#ifdef _WIN32
+#define GJSIFY_NAPI_PATH_MAX _MAX_PATH
+#else
+#define GJSIFY_NAPI_PATH_MAX PATH_MAX
+#endif
+
+namespace {
+
+// ---- POSIX dlfcn ⇄ Win32 loader abstraction (§3b portability) ----
+// Uniform names so the loader body stays platform-agnostic; each maps to the
+// native dynamic-loader primitive. Addon handles stay `void*` (HMODULE is a
+// pointer type — reinterpret_cast at the Win32 call sites, no struct churn).
+
+#ifdef _WIN32
+
+// Win32 has no dlerror(); format the thread's last error into a message.
+std::string shim_dl_error() {
+    DWORD err = GetLastError();
+    if (err == 0) {
+        return "unknown load error";
+    }
+    char* buf = nullptr;
+    DWORD n = FormatMessageA(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+            FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        reinterpret_cast<char*>(&buf), 0, nullptr);
+    std::string msg = (n != 0 && buf != nullptr)
+                          ? std::string(buf, n)
+                          : ("Win32 error " + std::to_string(err));
+    if (buf != nullptr) {
+        LocalFree(buf);
+    }
+    // Trim the trailing CRLF FormatMessage appends.
+    while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r')) {
+        msg.pop_back();
+    }
+    return msg;
+}
+
+// LOAD_WITH_ALTERED_SEARCH_PATH: resolve the addon's sibling DLLs from its own
+// directory — the RTLD_LOCAL-neighbourhood behaviour an addon expects, the same
+// posture Node's uv_dlopen uses on Windows.
+void* shim_dl_open_addon(const char* path) {
+    return reinterpret_cast<void*>(
+        LoadLibraryExA(path, nullptr, LOAD_WITH_ALTERED_SEARCH_PATH));
+}
+void* shim_dl_symbol(void* handle, const char* name) {
+    return reinterpret_cast<void*>(
+        GetProcAddress(reinterpret_cast<HMODULE>(handle), name));
+}
+void shim_dl_close(void* handle) {
+    FreeLibrary(reinterpret_cast<HMODULE>(handle));
+}
+// _fullpath canonicalizes without requiring existence (LoadLibraryEx fails
+// cleanly for a missing path); realpath's ENOENT check is thus deferred to open.
+bool shim_realpath(const char* in, char* out, size_t out_sz) {
+    return _fullpath(out, in, static_cast<int>(out_sz)) != nullptr;
+}
+
+#else
+
+void* shim_dl_open_addon(const char* path) {
+    // RTLD_LOCAL so the addon's own symbols do not pollute the global scope or
+    // collide with a second addon; LAZY (not NOW) mirrors Node's DLib default —
+    // real addons carry references never called on this host (node-gi's
+    // Node-only uv_* main-loop bridge), and eager binding would reject them.
+    return dlopen(path, RTLD_LAZY | RTLD_LOCAL);
+}
+void* shim_dl_symbol(void* handle, const char* name) {
+    return dlsym(handle, name);
+}
+void shim_dl_close(void* handle) { dlclose(handle); }
+std::string shim_dl_error() {
+    const char* err = dlerror();
+    return err != nullptr ? std::string(err) : "unknown dlopen error";
+}
+bool shim_realpath(const char* in, char* out, size_t /* out_sz */) {
+    return realpath(in, out) != nullptr;
+}
+
+#endif
+
+}  // namespace
 
 namespace gjsify_napi {
 
@@ -142,6 +238,34 @@ void on_gjs_context_dispose(gpointer data, GObject* /* where_the_object_was */) 
 // own symbols into the global scope so the addon's undefined napi_* bind to
 // ours. Returns false with a thrown JS exception on failure.
 bool ensure_napi_symbols_global(JSContext* cx) {
+#ifdef _WIN32
+    // Windows has NO global flat symbol namespace, so there is nothing to
+    // promote: this shim DLL already exports napi_*/node_api_* via
+    // __declspec(dllexport) (js_native_api.h's NAPI_EXTERN on _WIN32). The OPEN
+    // wall is the other half — an UNMODIFIED node-gyp addon does not bind its
+    // napi_* imports to THIS DLL by name. node-gyp links Windows addons against
+    // a delay-loaded host import lib + win_delay_load_hook that resolves napi_*
+    // from the HOST executable (GetModuleHandle(NULL)) at first call; GJS's
+    // gjs.exe does not export the napi ABI, so unmodified-addon symbol binding
+    // needs the shim to satisfy that delay-load (a napi-exporting host EXE, or a
+    // delay-load-hook cooperation). Tracked in STATUS.md → N-API host
+    // cross-platform → Windows. Here we only assert our own exports resolve so
+    // the rest of the load path stays intact once that wall is solved.
+    HMODULE self = nullptr;
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(&napi_create_reference),
+                           &self) == 0 ||
+        GetProcAddress(self, "napi_create_reference") == nullptr) {
+        return throw_load_error(
+            cx, "gjsify-napi: the shim DLL does not export the Node-API ABI "
+                "(napi_create_reference) — check the __declspec(dllexport) / "
+                ".def export configuration");
+    }
+    g_debug("gjsify-napi: shim exports the napi ABI (Windows: addon binding "
+            "relies on the delay-load host model — see STATUS.md)");
+    return true;
+#else
     void* ours = reinterpret_cast<void*>(&napi_create_reference);
     void* found = dlsym(RTLD_DEFAULT, "napi_create_reference");
     if (found == ours) {
@@ -182,6 +306,7 @@ bool ensure_napi_symbols_global(JSContext* cx) {
     g_debug("gjsify-napi: promoted shim napi_* symbols to the global scope "
             "(GI had loaded the shim RTLD_LOCAL)");
     return true;
+#endif  // _WIN32
 }
 
 // The loadAddon JSNative (§3a): dlopen + three-path registration (§3c),
@@ -198,8 +323,8 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
         return false;  // OOM, exception already pending
     }
 
-    char resolved[PATH_MAX];
-    if (realpath(path_utf8.get(), resolved) == nullptr) {
+    char resolved[GJSIFY_NAPI_PATH_MAX];
+    if (!shim_realpath(path_utf8.get(), resolved, sizeof(resolved))) {
         return throw_load_error(
             cx, std::string("gjsify-napi: cannot resolve addon path '") +
                     path_utf8.get() + "': " + strerror(errno));
@@ -217,20 +342,21 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
     }
 
     // §3b step 2: the addon imports napi_*; its own symbols must not pollute
-    // the global scope or collide with a second addon → RTLD_LOCAL. LAZY, not
-    // NOW, mirroring Node's own addon loader (node::DLib kDefaultFlags =
-    // RTLD_LAZY): real addons legitimately carry references to symbols that
-    // are never called on this host — node-gi's Node-only libuv main-loop
-    // bridge (uv_*) is exactly that — and eager binding would reject them at
-    // load. Every napi_*/node_api_* symbol still resolves (the shim defines
-    // the full ABI, stubs included), so the fail-loud posture is unchanged.
+    // the global scope or collide with a second addon → local, neighbourhood
+    // search (shim_dl_open_addon: RTLD_LAZY|RTLD_LOCAL on POSIX,
+    // LoadLibraryEx + LOAD_WITH_ALTERED_SEARCH_PATH on Windows). LAZY (POSIX)
+    // mirrors Node's own addon loader (node::DLib kDefaultFlags = RTLD_LAZY):
+    // real addons legitimately carry references to symbols that are never
+    // called on this host — node-gi's Node-only libuv main-loop bridge (uv_*)
+    // is exactly that — and eager binding would reject them at load. Every
+    // napi_*/node_api_* symbol still resolves (the shim defines the full ABI,
+    // stubs included), so the fail-loud posture is unchanged.
     const size_t pending_before = pending_modules.size();
-    void* handle = dlopen(resolved, RTLD_LAZY | RTLD_LOCAL);
+    void* handle = shim_dl_open_addon(resolved);
     if (handle == nullptr) {
-        const char* err = dlerror();
         return throw_load_error(
             cx, std::string("gjsify-napi: failed to load addon '") + resolved +
-                    "': " + (err != nullptr ? err : "unknown dlopen error"));
+                    "': " + shim_dl_error());
     }
 
     // §3c path 1: static-constructor registration during dlopen. Validate +
@@ -251,7 +377,7 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
         return nullptr;
     };
     if (drain_pending() != nullptr) {
-        dlclose(handle);
+        shim_dl_close(handle);
         return throw_load_error(
             cx, std::string("gjsify-napi: '") + resolved +
                     "' is a legacy (NAN/V8) addon (nm_version != 1); only "
@@ -262,7 +388,7 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
     // node_napi_env__::New (refs/node/src/node_api.cc:44-54).
     int32_t api_version = gjsify_napi::kNapiDefaultModuleApiVersion;
     auto get_api_version = reinterpret_cast<node_api_addon_get_api_version_func>(
-        dlsym(handle, "node_api_module_get_api_version_v1"));
+        shim_dl_symbol(handle, "node_api_module_get_api_version_v1"));
     if (get_api_version != nullptr) {
         api_version = get_api_version();
     }
@@ -270,7 +396,7 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
         api_version = gjsify_napi::kNapiDefaultModuleApiVersion;
     }
     if (api_version == NAPI_VERSION_EXPERIMENTAL) {
-        dlclose(handle);
+        shim_dl_close(handle);
         return throw_load_error(
             cx, std::string("gjsify-napi: '") + resolved +
                     "' targets the experimental Node-API version, which "
@@ -278,7 +404,7 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
                     "not implemented)");
     }
     if (api_version > gjsify_napi::kNapiVersionMax) {
-        dlclose(handle);
+        shim_dl_close(handle);
         return throw_load_error(
             cx, std::string("gjsify-napi: '") + resolved +
                     "' requires Node-API version " +
@@ -291,9 +417,9 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
     napi_addon_register_func modern_init = nullptr;
     if (static_mods.empty()) {
         modern_init = reinterpret_cast<napi_addon_register_func>(
-            dlsym(handle, "napi_register_module_v1"));
+            shim_dl_symbol(handle, "napi_register_module_v1"));
         if (modern_init == nullptr) {
-            dlclose(handle);
+            shim_dl_close(handle);
             return throw_load_error(
                 cx,
                 std::string("gjsify-napi: '") + resolved +
