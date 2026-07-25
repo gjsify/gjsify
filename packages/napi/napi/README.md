@@ -95,7 +95,7 @@ Ships as a prebuilt `.dylib`/`.so` + `.gir` + `.typelib` per platform:
 | Platform | Prebuild dir | Status |
 | --- | --- | --- |
 | Linux x86_64 | `prebuilds/linux-x86_64/` | Supported (full gate + conformance + consumer CI) |
-| macOS arm64 | `prebuilds/darwin-arm64/` | Sync/value-model supported (build + load + P0.x gates); **tsfn/async teardown segfaults at process exit — deferred**; conformance/consumer/valgrind widening deferred |
+| macOS arm64 | `prebuilds/darwin-arm64/` | Supported (build + load + P0.x value-model gates **+ the P1 tsfn gate**, all on `gjs` in CI — the earlier tsfn exit-segfault was an abort-path use-after-free, now fixed by the thread_count==0 finalize gate); conformance/consumer/valgrind widening still deferred (no arm64-macOS valgrind). macOS is CI-validated only (the team is Linux-only locally) |
 | Windows x64 | — | **Non-goal** (blocked) |
 
 **Windows is a tracked non-goal:** the shim links GJS's SpiderMonkey

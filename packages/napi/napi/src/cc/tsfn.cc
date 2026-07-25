@@ -28,14 +28,25 @@
 //     thread toggles that need this same mutex — the node-gi drain-lock
 //     lesson, toggle.cc DrainTsfnCb).
 //
-// Lifetime: the struct is freed on the JS thread only, either by the dispatch
-// (closing decided: abort, or last claim released + queue drained — Node
-// parity) or by env teardown (finalize_env_tsfns: the release(abort) issued
-// by an env cleanup hook schedules a dispatch that would never run, because
-// the main context stops iterating once GjsContext dispose began). ABI
-// contract, as in Node: a thread must hold a claim (initial_thread_count /
-// napi_acquire) while calling, and must make no call after its release —
-// a claimless call racing the final free is UB in every host.
+// Lifetime: the struct is freed on the JS thread only, and NEVER while a
+// foreign thread still holds a claim — the dispatch finalizes only once
+// thread_count has reached 0 (a natural close, OR an abort whose remaining
+// claimants have each drained their claim via a claim-consuming napi_closing
+// push/release, every one of which re-arms the dispatch as it drops the last
+// claim). This is the tsfn analog of async_work's join-before-free
+// (g_thread_pool_free wait=TRUE): thread_count == 0 under the mutex means every
+// claimant's last struct access happened-before this dispatch re-acquired the
+// lock, so no foreign thread can touch freed tsfn memory. The alternative — the
+// old "free the instant closing is observed" abort path — freed the struct
+// while claimants were still about to lock the (now cleared) mutex: a
+// use-after-free Linux/glibc tolerates (destroy is a no-op, freed bytes survive)
+// but macOS's pthread + allocator + exit-time dylib unload turn into a crash.
+// The remaining fallback is env teardown (finalize_env_tsfns: a release(abort)
+// issued by an env cleanup hook schedules a dispatch that would never run, the
+// main context stops iterating once GjsContext dispose began). ABI contract, as
+// in Node: a thread must hold a claim (initial_thread_count / napi_acquire)
+// while calling, and must make no call after its release — a claimless call
+// racing the final free is UB in every host.
 
 #include "common.h"
 
@@ -199,8 +210,10 @@ void finalize_tsfn(napi_threadsafe_function tsfn) {
 // The JS-thread dispatch (Node AsyncCb → Dispatch → DispatchOne loop). Pops
 // ONE item under the lock, RELEASES the lock, invokes call_js, re-checks —
 // the lock is never held across JS (see file header). Decides + performs
-// finalization when closing (abort) or when the last claim is gone and the
-// queue drained (Node's natural close).
+// finalization ONLY at thread_count == 0 — a natural close (last claim gone +
+// queue drained) or an abort whose remaining claimants have all drained. While
+// an abort is closing but claims remain, it defers (join-before-free); the
+// claim-consuming pushes/releases re-arm it when the last claim drops.
 gboolean dispatch_cb(gpointer data) {
     auto tsfn = static_cast<napi_threadsafe_function>(data);
     g_mutex_lock(&tsfn->mutex);
@@ -211,8 +224,15 @@ gboolean dispatch_cb(gpointer data) {
     }
     unsigned iterations_left = kMaxDispatchIterations;
     for (;;) {
-        if (tsfn->closing ||
-            (tsfn->thread_count == 0 && tsfn->queue.empty())) {
+        // Finalize (free) ONLY once thread_count == 0 — no foreign thread can
+        // still be inside, or about to enter, napi_call_threadsafe_function
+        // holding a claim (§5e join-before-free; see the file header). A natural
+        // close needs the queue drained too; an abort (closing) then drops any
+        // leftover items via finalize_tsfn's env==NULL drain. Freeing while a
+        // claim is outstanding is the abort-path UAF — the closing pushes/
+        // releases below re-arm this dispatch when the LAST claim drops.
+        if (tsfn->thread_count == 0 &&
+            (tsfn->closing || tsfn->queue.empty())) {
             tsfn->closing = true;
             // A same-thread release() from inside call_js may have re-armed a
             // wake meanwhile — destroy it, or it would fire into freed memory.
@@ -224,6 +244,13 @@ gboolean dispatch_cb(gpointer data) {
             g_mutex_unlock(&tsfn->mutex);
             finalize_tsfn(tsfn);
             return G_SOURCE_REMOVE;
+        }
+        // Closing (abort) but claims are still outstanding: stop delivering and
+        // yield. Each claimant's claim-consuming napi_closing push/release
+        // re-arms this dispatch when it drops the last claim (thread_count → 0),
+        // and only THEN is the struct freed — never under a live claim.
+        if (tsfn->closing) {
+            break;
         }
         if (tsfn->queue.empty()) {
             break;  // idle: claims alive, nothing queued
@@ -252,15 +279,45 @@ gboolean dispatch_cb(gpointer data) {
 // dispatch that can never run — GjsContext dispose has begun, the main
 // context will not be iterated again — so the deferred finalize is executed
 // HERE, synchronously, while JS is still fully callable (§5e steps 1-4
-// discipline). A tsfn whose claims were never released is force-closed the
-// same way (foreign threads calling past this point violate the claim
-// contract — UB in Node too, see file header).
+// discipline). A tsfn whose claims were never released (the shutdown
+// conformance test's 32 producers loop napi_call_threadsafe_function until
+// napi_closing, then exit — no release ever) is JOINED before it is freed:
+// set `closing`, then wait for thread_count to reach 0 — every claimant drains
+// its claim (its next call returns napi_closing) before the free, so no foreign
+// thread touches freed memory. This is the teardown-path arm of the same
+// thread_count==0 join-before-free the dispatch uses (async_work realizes it
+// with g_thread_pool_free wait=TRUE; tsfn cannot join threads it does not own,
+// so it waits for the voluntary drain). Without it, a producer's next
+// napi_closing push would lock a g_mutex_clear'd mutex and re-arm a dispatch on
+// a freed GMainContext — the abort-path UAF, reached here. A deadline caps a
+// claimant that never drains (a claim-contract violation — UB in Node too),
+// falling back to the pre-fix force-free rather than hanging teardown.
 void finalize_env_tsfns(napi_env env) {
     while (!env->tsfns.empty()) {
         napi_threadsafe_function tsfn = env->tsfns.back();
         g_mutex_lock(&tsfn->mutex);
+        // Stop accepting pushes + wake blocking pushers so they observe it.
         tsfn->closing = true;
         g_cond_broadcast(&tsfn->cond);
+        // Join: wait for every outstanding claim to drain (each claim-consuming
+        // napi_closing push/release drops thread_count and broadcasts at 0).
+        const gint64 deadline =
+            g_get_monotonic_time() + 2 * G_TIME_SPAN_SECOND;
+        bool joined = true;
+        while (tsfn->thread_count > 0) {
+            if (!g_cond_wait_until(&tsfn->cond, &tsfn->mutex, deadline)) {
+                joined = false;
+                break;
+            }
+        }
+        if (!joined) {
+            g_warning("gjsify-napi: threadsafe-function teardown join timed out "
+                      "with %zu claim(s) still outstanding; freeing anyway (a "
+                      "foreign thread holds a tsfn claim without draining it)",
+                      tsfn->thread_count);
+        }
+        // A claimant that reached 0 may have armed a dispatch that can no longer
+        // run (dispose has begun) — destroy it before the free.
         if (tsfn->dispatch_source != nullptr) {
             g_source_destroy(tsfn->dispatch_source);
             g_source_unref(tsfn->dispatch_source);
@@ -354,6 +411,15 @@ napi_status NAPI_CDECL napi_call_threadsafe_function(
             return napi_invalid_arg;
         }
         func->thread_count--;
+        // This closing push just consumed the caller's claim; if it was the
+        // LAST one, arm the JS-thread dispatch so the deferred finalize runs now
+        // that no thread can re-enter (the free half of the abort-path fix —
+        // dispatch_cb frees only at thread_count == 0; coalesces if pending) AND
+        // wake a teardown JOIN (finalize_env_tsfns) waiting on the last claim.
+        if (func->thread_count == 0) {
+            gjsify_napi::schedule_dispatch_locked(func);
+            g_cond_broadcast(&func->cond);
+        }
         g_mutex_unlock(&func->mutex);
         return napi_closing;
     }
@@ -377,13 +443,21 @@ napi_status NAPI_CDECL napi_release_threadsafe_function(
         return napi_invalid_arg;
     }
     func->thread_count--;
-    if ((func->thread_count == 0 || mode == napi_tsfn_abort) &&
-        !func->closing) {
-        if (mode == napi_tsfn_abort) {
-            func->closing = true;
-            g_cond_broadcast(&func->cond);  // wake blocking pushers
-        }
+    if (mode == napi_tsfn_abort && !func->closing) {
+        func->closing = true;
+        g_cond_broadcast(&func->cond);  // wake blocking pushers
+    }
+    // Arm the JS-thread dispatch when this drops the last claim (natural close,
+    // OR the deferred abort-path finalize once every claimant has drained) or
+    // when an abort just closed the tsfn (so a still-populated queue reaches its
+    // env==NULL drain + finalize). Not gated on !closing: a last-claim release
+    // AFTER a prior abort must still arm the finalize. Coalesces if pending.
+    if (func->thread_count == 0 || mode == napi_tsfn_abort) {
         gjsify_napi::schedule_dispatch_locked(func);
+    }
+    if (func->thread_count == 0) {
+        // Wake a teardown JOIN (finalize_env_tsfns) waiting on the last claim.
+        g_cond_broadcast(&func->cond);
     }
     g_mutex_unlock(&func->mutex);
     return napi_ok;
