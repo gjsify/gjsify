@@ -163,7 +163,7 @@ const IGNORE = [
     /^refs\//,
     /^website\//,
     /^docs\//,
-    /^\.github\/workflows\/(deploy-docs|commitlint|release|audit-runtimes|prebuilds|node-gi)\.yml$/,
+    /^\.github\/workflows\/(deploy-docs|commitlint|release|audit-runtimes|prebuilds|node-gi|napi)\.yml$/,
     /^\.githooks\//,
     // @gjsify/node-gi (the Node-native GObject-Introspection engine, Axis 5) is
     // NOT a gjsify workspace member — the GJS-first install/foreach tooling can't
@@ -172,6 +172,14 @@ const IGNORE = [
     // tested on Node). Without this carve-out its files map to no workspace and
     // land in `unmatched`, forcing a conservative full run on every node-gi PR.
     /^packages\/node-gi\//,
+    // @gjsify/napi (the N-API host over GJS's SpiderMonkey, the forward mirror of
+    // node-gi) is likewise NOT a gjsify workspace member — the GJS-first
+    // install/foreach tooling can't build its Vala+C++/meson shim or its node-gyp
+    // test addons, so the main workflow neither builds nor tests it. Its own
+    // `.github/workflows/napi.yml` is the source of truth. Without this carve-out
+    // its files map to no workspace and force a conservative full run on every
+    // napi PR.
+    /^packages\/napi\//,
     // Flatpak build/distribution tooling (SDK-extension manifest + metainfo).
     // Like `.githooks/`, it has no package-test consumers; its own
     // `tests/e2e/flatpak-sdk-extension` runs on `tests/e2e/**` / global triggers.
