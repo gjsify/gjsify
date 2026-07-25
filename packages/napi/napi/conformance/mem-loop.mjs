@@ -27,7 +27,7 @@ const load = globalThis.__gjsifyNapiLoadAddon;
 delete globalThis.__gjsifyNapiLoadAddon;
 
 const here = GLib.path_get_dirname(import.meta.url.replace(/^file:\/\//, ''));
-const rel = (dir, target) => `${here}/dist/build-tree/${dir}/build/Release/${target}.node`;
+const rel = (dir, target) => `${here}/dist/build-tree/js-native-api/${dir}/build/Release/${target}.node`;
 const PATHS = {
     test_number: rel('test_number', 'test_number'),
     test_array: rel('test_array', 'test_array'),
