@@ -1,0 +1,3 @@
+"pure-finalizer.count" 1
+"js-finalizer.count" 2
+"js-finalizer.called" true

@@ -1,0 +1,19 @@
+"echo" "hello"
+"readwrite=1" 1
+"readwrite=2" 2
+"readonly-write!" "TypeError"
+"hiddenValue.truthy" true
+"enum" "echo" true
+"enum" "readwriteValue" true
+"enum" "readonlyValue" true
+"enum" "hiddenValue" false
+"enum" "readwriteAccessor1" false
+"enum" "readwriteAccessor2" false
+"enum" "readonlyAccessor1" false
+"enum" "readonlyAccessor2" false
+"rwAccessor1" 1 1
+"roAccessor1-write!" "TypeError"
+"rwAccessor2" 2 2
+"roAccessor2-write!" "TypeError"
+"static" 10 undefined
+"TestDefineClass" "cbDataIsNull=napi_ok|cbIsNull=Invalid argument|envIsNull=Invalid argument|nameIsNull=Invalid argument|propertiesIsNull=Invalid argument|resultIsNull=Invalid argument"

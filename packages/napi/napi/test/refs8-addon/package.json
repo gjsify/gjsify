@@ -1,0 +1,7 @@
+{
+    "name": "gjsify-napi-refs8-gate",
+    "version": "0.0.0",
+    "private": true,
+    "description": "P0.3 gate addon for @gjsify/napi — NAPI_VERSION=8 module for the <10 primitive-ref rejection case, built with node-gyp (npm exec -- node-gyp rebuild).",
+    "license": "MIT"
+}

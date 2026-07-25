@@ -1,0 +1,7 @@
+{
+    "name": "gjsify-napi-class-gate",
+    "version": "0.0.0",
+    "private": true,
+    "description": "P0.2 gate addon for @gjsify/napi — ObjectWrap-style class + property/error/instanceof/run_script surface, built with node-gyp (npm exec -- node-gyp rebuild).",
+    "license": "MIT"
+}

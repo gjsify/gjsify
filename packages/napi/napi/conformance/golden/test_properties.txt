@@ -1,0 +1,26 @@
+"echo" "hello"
+"readwrite=1" 1
+"readwrite=2" 2
+"readonly-write!" "TypeError"
+"hiddenValue.truthy" true
+"enum" "echo" true
+"enum" "readwriteValue" true
+"enum" "readonlyValue" true
+"enum" "hiddenValue" false
+"enum" "NameKeyValue" true
+"enum" "readwriteAccessor1" false
+"enum" "readwriteAccessor2" false
+"enum" "readonlyAccessor1" false
+"enum" "readonlyAccessor2" false
+"sym0" "Symbol(NameKeySymbol)"
+"sym1" "Symbol()"
+"sym2-is-registered" true
+"rwDesc" "function" "function" true
+"roDesc" "function" true true
+"rwAccessor1" 1 1
+"roAccessor1-write!" "TypeError"
+"rwAccessor2" 2 2
+"roAccessor2-write!" "TypeError"
+"has.echo" true
+"has.hiddenValue" true
+"has.doesnotexist" false

@@ -1,0 +1,11 @@
+"resolve" 42
+"reject" "It's not you, it's me."
+"chain" "chained answer"
+"isPromise(deferred)" true
+"isPromise(rejected)" true
+"reject-reason" -1
+"isPromise" "2.4" false
+"isPromise" "'str'" false
+"isPromise" "undefined" false
+"isPromise" "null" false
+"isPromise" "{}" false

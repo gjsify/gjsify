@@ -1,0 +1,7 @@
+{
+    "name": "gjsify-napi-buffer-gate",
+    "version": "0.0.0",
+    "private": true,
+    "description": "P0.4 gate addon for @gjsify/napi — node::Buffer (§5f moving-GC pointer-stability proof), ArrayBuffer/typed array/DataView, Promise resolve+reject, Date, uint64 BigInt, built with node-gyp (npm exec -- node-gyp rebuild).",
+    "license": "MIT"
+}

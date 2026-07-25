@@ -1,0 +1,37 @@
+{
+  "comment": "Strict exclusion ledger for the @gjsify/napi conformance oracle. Each entry documents ONE program the GJS-under-shim leg cannot pass byte-identically to the Node reference, with a precise reason. An UNLISTED failure fails the harness; a LISTED program that starts passing also fails (stale entry — remove it). Node (the reference) must always pass. Every reason here is a Phase-0-deferred capability, NOT a conformance defect in the implemented surface.",
+  "entries": [
+    {
+      "addon": "test_bigint",
+      "reason": "Exercises napi_create_bigint_words / napi_get_value_bigint_words (the BigInt word-array ABI) via TestWords/CreateTooBigBigInt/MakeBigIntWordsThrow — Phase-0 loud stubs. The int64/uint64 BigInt surface (TestInt64/TestUint64/IsLossless) works on both runtimes; only the word-array marshalling is deferred."
+    },
+    {
+      "addon": "test_string",
+      "reason": "Exercises node_api_create_external_string_latin1 / node_api_create_external_string_utf16 (external, caller-owned string storage) via TestLatin1External/TestUtf16External — Phase-0 loud stubs. All copying Latin1/UTF-8/UTF-16 create/extract paths pass on both runtimes; only external (zero-copy) strings are deferred."
+    },
+    {
+      "addon": "test_typedarray",
+      "reason": "Exercises napi_create_external_arraybuffer (external, caller-owned ArrayBuffer backing) via External() — a Phase-0 loud stub. Multiply / CreateTypedArray (all 12 kinds) / Detach / IsDetached pass on both runtimes; only external ArrayBuffers are deferred."
+    },
+    {
+      "addon": "test_reference",
+      "reason": "Exercises napi_create_reference with refcount 0 (WEAK references): the reference does not preserve value identity under the shim, as the in-GC weak-reference regime (toggle-ref-driven weak/strong tracking + external finalizers) is deferred in Phase 0. The strong-reference + registered-symbol (node_api_symbol_for) surface works."
+    },
+    {
+      "addon": "test_finalizer",
+      "reason": "binding.gyp defines NAPI_EXPERIMENTAL and the addon references node_api_post_finalizer — outside the Phase-0 NAPI_VERSION=10 non-experimental ABI surface, so the shim cannot resolve the symbol at dlopen (RTLD_NOW). Additionally exercises the in-GC finalizer regime (pure finalizer in the current tick), which is deferred."
+    },
+    {
+      "addon": "test_general",
+      "reason": "binding.gyp defines NAPI_EXPERIMENTAL and the addon references node_api_post_finalizer — outside the Phase-0 NAPI_VERSION=10 non-experimental ABI surface, so the shim cannot resolve the symbol at dlopen (RTLD_NOW)."
+    },
+    {
+      "addon": "test_object",
+      "reason": "binding.gyp defines NAPI_EXPERIMENTAL and the addon references node_api_create_object_with_properties — outside the Phase-0 NAPI_VERSION=10 non-experimental ABI surface, so the shim cannot resolve the symbol at dlopen (RTLD_NOW)."
+    },
+    {
+      "addon": "test_dataview",
+      "reason": "binding.gyp defines NAPI_EXPERIMENTAL and the addon references node_api_is_sharedarraybuffer — outside the Phase-0 NAPI_VERSION=10 non-experimental ABI surface, so the shim cannot resolve the symbol at dlopen (RTLD_NOW)."
+    }
+  ]
+}

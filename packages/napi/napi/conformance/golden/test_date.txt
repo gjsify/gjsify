@@ -1,0 +1,9 @@
+"createDate.isDate" true
+"createDate.value" 1549183351
+"isDate(new Date)" true
+"isDate(2.4)" false
+"isDate(string)" false
+"isDate(undefined)" false
+"isDate(null)" false
+"isDate({})" false
+"getDateValue" 1549183351

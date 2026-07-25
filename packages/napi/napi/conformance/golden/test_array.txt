@@ -1,0 +1,21 @@
+"oob-high" "assertion (((uint32_t)index < length)) failed: Index out of bounds!"
+"oob-neg" "assertion (index >= 0) failed: Invalid index. Expects a positive integer."
+"get" 0 "same-ref"
+"get" 1 "same-ref"
+"get" 2 "same-ref"
+"get" 3 "same-ref"
+"get" 4 "same-ref"
+"get" 5 "same-ref"
+"get" 6 "same-ref"
+"New.length" 7
+"New.deep-equal" true
+"New[5].name" "hello"
+"New[6]" "[\"world\",\"node\",\"abi\"]"
+"has[0]" true
+"has[oob]" false
+"NewWithLength(0).isArray" true
+"NewWithLength(1).isArray" true
+"NewWithLength(2^32-1).isArray" true
+"del.before" 4 true
+"del.result" true
+"del.after" 4 false

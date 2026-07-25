@@ -1,0 +1,7 @@
+"typeof" "symbol"
+"description" "\"sym-desc\""
+"toString" "Symbol(sym-desc)"
+"distinct" true
+"no-arg.typeof" "symbol"
+"no-arg.description" "undefined"
+"non-string!" "Error: assertion (valuetype == napi_string) failed: Wrong type of arguments. Expects a string."

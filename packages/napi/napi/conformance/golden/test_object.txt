@@ -1,0 +1,10 @@
+"Get(hello)" "world"
+"GetNamed(hello)" "world"
+"Has(hello)" true
+"Has(missing)" false
+"HasOwn(hello)" true
+"Set" 42
+"Delete" true false
+"GetPropertyNames" "[\"x\",\"y\"]"
+"Freeze" true
+"Seal" true

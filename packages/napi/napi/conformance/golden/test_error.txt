@@ -1,0 +1,36 @@
+"checkError" "Error" true
+"checkError" "TypeError" true
+"checkError" "SyntaxError" true
+"checkError" "RangeError" true
+"checkError" "ReferenceError" true
+"checkError" "URIError" true
+"checkError" "EvalError" true
+"checkError" "MyError" true
+"checkError" "{}" false
+"checkError" "'str'" false
+"throwExisting" "Error: existing error"
+"throwError" "Error: error"
+"throwRange" "RangeError: range error"
+"throwType" "TypeError: type error"
+"throwSyntax" "SyntaxError: syntax error"
+"throwArbitrary" "42" true
+"throwArbitrary" "{}" true
+"throwArbitrary" "[]" true
+"throwArbitrary" "sym" true
+"throwArbitrary" "true" true
+"throwArbitrary" "'ball'" true
+"throwArbitrary" "undefined" true
+"throwArbitrary" "null" true
+"throwArbitrary" "NaN" false
+"throwErrorCode" "ERR_TEST_CODE|Error [error]"
+"throwRangeErrorCode" "ERR_TEST_CODE|RangeError [range error]"
+"throwTypeErrorCode" "ERR_TEST_CODE|TypeError [type error]"
+"throwSyntaxErrorCode" "ERR_TEST_CODE|SyntaxError [syntax error]"
+"createError" "true|error"
+"createRangeError" "true|range error"
+"createTypeError" "true|type error"
+"createSyntaxError" "true|syntax error"
+"createErrorCode" "true|Error [error]|ERR_TEST_CODE|Error"
+"createRangeErrorCode" "true|RangeError [range error]|ERR_TEST_CODE|RangeError"
+"createTypeErrorCode" "true|TypeError [type error]|ERR_TEST_CODE|TypeError"
+"createSyntaxErrorCode" "true|SyntaxError [syntax error]|ERR_TEST_CODE|SyntaxError"

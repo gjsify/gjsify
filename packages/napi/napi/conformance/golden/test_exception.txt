@@ -1,0 +1,14 @@
+"init-throw" "Error during Init"
+"binding-recovered" true
+"returnException===theError" true
+"allowException-passes" true
+"wasPending(after-throw)" true
+"returnException(no-throw)" undefined
+"constructReturnException===theError" true
+"constructAllowException-passes" true
+"wasPending(after-ctor-throw)" true
+"constructReturnException(no-throw)" undefined
+"allowException(no-throw)" "ok"
+"wasPending(clean)" false
+"constructAllowException(no-throw)" "ok"
+"wasPending(clean2)" false

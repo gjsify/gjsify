@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT
+# @gjsify/napi — export hygiene (§3b step 3).
+#
+# Only the Node-API ABI (napi_*/node_api_*) and the GObject/GI surface
+# (gjsify_napi_*, incl. the Vala-generated type + namespace symbols GI
+# resolves via dlsym) are exported; everything internal stays hidden. This is
+# the counterpart of Node/Bun exporting the ABI from the main executable
+# (Bun: src/symbols.dyn), realized as a shared-library version script.
+{
+  global:
+    napi_*;
+    node_api_*;
+    gjsify_napi_*;
+  local:
+    *;
+};

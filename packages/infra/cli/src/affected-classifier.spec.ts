@@ -165,6 +165,34 @@ export default async (): Promise<void> => {
             expect(r.skipAll).toBe(false);
         });
 
+        await it('packages/napi change → skipAll (own napi.yml, not a workspace)', async () => {
+            // napi is not a gjsify workspace; its own workflow builds + tests it
+            // (Vala+C++/meson shim + node-gyp addons). Its files are ignored so a
+            // napi-only PR skips the main run.
+            const r = await runClassify(root, [
+                'packages/napi/napi/src/cc/value.cc',
+                'packages/napi/napi/conformance/programs/test_number.mjs',
+                'packages/napi/napi/scripts/conformance.mjs',
+            ]);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('napi.yml workflow change → ignored (its own workflow)', async () => {
+            const r = await runClassify(root, ['.github/workflows/napi.yml']);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('napi alongside a real src change → napi ignored, no full run', async () => {
+            const r = await runClassify(root, [
+                'packages/napi/napi/src/cc/value.cc',
+                'packages/node/fs/src/index.ts',
+            ]);
+            expect(r.global).toBe(false);
+            expect(r.skipAll).toBe(false);
+        });
+
         await it('docs inside a global-trigger dir → skipAll (ignore wins over global)', async () => {
             // A README in a GLOBAL_TRIGGERS path (packages/infra/cli/,
             // workspace/, …) must NOT force a full run — IGNORE is applied
