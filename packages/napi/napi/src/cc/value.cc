@@ -437,6 +437,31 @@ napi_status NAPI_CDECL napi_create_symbol(napi_env env, napi_value description,
     return gjsify_napi::clear_last_error(env);
 }
 
+// The registered-symbol counterpart of napi_create_symbol: `Symbol.for(desc)`.
+// Non-experimental since NAPI_VERSION 9 (js_native_api.h). SpiderMonkey's
+// JS::GetSymbolFor is the exact analogue of V8's Symbol::For that Node uses.
+napi_status NAPI_CDECL node_api_symbol_for(napi_env env,
+                                           const char* utf8description,
+                                           size_t length, napi_value* result) {
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(
+        env, utf8description != nullptr || length == 0, napi_invalid_arg);
+    const size_t len =
+        (length == NAPI_AUTO_LENGTH) ? strlen(utf8description) : length;
+    JS::RootedString key(
+        env->cx, gjsify_napi::new_string_utf8_lossy(env->cx, utf8description, len));
+    if (key == nullptr) {
+        return gjsify_napi::set_last_error(env, napi_generic_failure);
+    }
+    JS::Symbol* sym = JS::GetSymbolFor(env->cx, key);
+    if (sym == nullptr) {
+        return gjsify_napi::set_last_error(env, napi_generic_failure);
+    }
+    *result = gjsify_napi::arena_push(env, JS::SymbolValue(sym));
+    return gjsify_napi::clear_last_error(env);
+}
+
 // ---- more string extracts (exact Node write/NUL/length semantics,
 // js_native_api_v8.cc:2508-2536 latin1, 2584-2617 utf16) ----
 

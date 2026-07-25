@@ -402,8 +402,16 @@ napi_status NAPI_CDECL napi_create_array_with_length(napi_env env,
                                                      napi_value* result) {
     GJSIFY_NAPI_CHECK_ENV(env);
     GJSIFY_NAPI_CHECK_ARG(env, result);
-    JSObject* arr = JS::NewArrayObject(env->cx, length);
+    // Match V8's Array::New(length): set the length WITHOUT pre-allocating the
+    // backing store. JS::NewArrayObject(cx, length) reserves `length` dense
+    // slots, so a documented large length (up to 2^32-1) OOMs; create an empty
+    // array and set its length property instead → a sparse array like Node.
+    JS::RootedObject arr(env->cx, JS::NewArrayObject(env->cx, 0));
     if (arr == nullptr) {
+        return gjsify_napi::set_last_error(env, napi_generic_failure);
+    }
+    if (length > 0 &&
+        !JS::SetArrayLength(env->cx, arr, static_cast<uint32_t>(length))) {
         return gjsify_napi::set_last_error(env, napi_generic_failure);
     }
     *result = gjsify_napi::arena_push(env, JS::ObjectValue(*arr));

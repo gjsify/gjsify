@@ -10,7 +10,7 @@
 // undefined symbols always bind at dlopen (RTLD_NOW) — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
-// never with a crash. 27 stubs.
+// never with a crash. 26 stubs.
 
 #include "common.h"
 
@@ -40,13 +40,6 @@ napi_status NAPI_CDECL node_api_create_external_string_utf16(napi_env env, char1
     (void)finalize_hint;
     (void)result;
     (void)copied;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL node_api_symbol_for(napi_env env, const char* utf8description, size_t length, napi_value* result) {
-    (void)utf8description;
-    (void)length;
-    (void)result;
     GJSIFY_NAPI_STUB(env);
 }
 
