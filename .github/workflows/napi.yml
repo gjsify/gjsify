@@ -25,6 +25,10 @@ on:
       - 'packages/napi/**'
       - 'packages/node-gi/**'
       - '.github/workflows/napi.yml'
+  # Manual driver for the experimental `windows` job below (gated on this event)
+  # — the from-source gjs + mozjs-140 Windows attempt is opt-in so it never reds
+  # a normal push/PR while gjs-on-Windows remains blocked (see STATUS.md).
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -538,4 +542,232 @@ jobs:
         with:
           name: napi-prebuild-darwin-arm64
           path: packages/napi/napi/prebuilds/darwin-arm64
+          if-no-files-found: error
+
+  # Windows attempt (win32-x64) — EXPERIMENTAL, manual-dispatch only. UNLIKE the
+  # macOS job (which ships), this job is expected to hit a documented wall and is
+  # here to (a) prove how far the toolchain acquisition gets and (b) pinpoint the
+  # exact remaining blocker on a real windows-latest runner. It runs ONLY on
+  # workflow_dispatch (never on push/PR) so it can't red normal CI.
+  #
+  # THE WALL (re-checked 2026-07-25): the shim links GJS's SpiderMonkey
+  # (mozjs-140) + libgjs. Two halves:
+  #   • GObject/GI half (glib/gobject/gio/girepository + g-ir-compiler + pkgconf)
+  #     — SOLVED: gvsbuild ships a prebuilt MSVC-ABI GTK4 bundle (reused verbatim
+  #     from node-gi.yml's `windows` job).
+  #   • mozjs-140 — NOW OBTAINABLE: servo/mozjs publishes a prebuilt
+  #     libmozjs-x86_64-pc-windows-msvc archive at mozjs-sys v140.13.0 (ESR 140),
+  #     the same mozjs major the Fedora/macOS jobs pin. This overturns the prior
+  #     "no prebuilt MSVC mozjs-140 exists" conclusion — BUT it is servo's PATCHED
+  #     fork in a Rust-crate static-lib layout, NOT a pkg-config `mozjs-140.pc` +
+  #     shared lib that gjs's meson `dependency('mozjs-140')` consumes.
+  #   • libgjs — the OPEN WALL: no prebuilt libgjs exists for Windows (gvsbuild
+  #     has no gjs/spidermonkey project; conda-forge spidermonkey is 91 + skips
+  #     win; MSYS2 mozjs/gjs are open unmerged requests #17734/#5699 and mingw-ABI
+  #     anyway), and GNOME/gjs upstream CI is Linux-only (no Windows artifact).
+  #     gjs's own README.MSVC.md requires building gjs from source with clang-cl
+  #     against a mozjs-140 — experimental on Windows. This job attempts exactly
+  #     that (against the servo prebuilt) and walls at the gjs `meson setup`.
+  # Unblocks when: a prebuilt libgjs-win32 (a gvsbuild gjs/spidermonkey module or
+  # a GNOME gjs Windows CI artifact) appears, OR gjs builds cleanly against the
+  # servo/mozjs prebuilt (a pkg-config `mozjs-140.pc` shim + clang-cl gjs build).
+  windows:
+    name: Windows attempt (from-source gjs + mozjs-140 / windows-latest x64)
+    runs-on: windows-latest
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    env:
+      # Same gvsbuild bundle + prefix node-gi.yml's `windows` job uses (shared
+      # cache key) — the GObject/GI half the shim also links.
+      GVSBUILD_VERSION: '2026.6.0'
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+      # servo/mozjs prebuilt SpiderMonkey (ESR 140), MSVC-ABI x86_64.
+      MOZJS_TAG: 'mozjs-sys-v140.13.0-0'
+      MOZJS_PREFIX: 'C:\mozjs-140'
+      # A gjs release on the mozjs-140 line (matches the Fedora/macOS pin).
+      GJS_REF: '1.88.0'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # ---- GObject/GI half (SOLVED via gvsbuild) — verbatim from node-gi.yml ----
+      - name: Cache gvsbuild GTK4 bundle
+        id: cache-gtk
+        uses: actions/cache@v4
+        with:
+          path: C:\gtk-build\gtk\x64\release
+          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+
+      - name: Download + extract gvsbuild GTK4 (MSVC-ABI, girepository-2.0)
+        if: steps.cache-gtk.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      - name: Put GTK on PATH + set GI/PKG env
+        shell: pwsh
+        run: |
+          "$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "PKG_CONFIG_PATH=$env:GTK_PREFIX\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GI_TYPELIB_PATH=$env:GTK_PREFIX\lib\girepository-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # gvsbuild omits ffi.h/ffitarget.h (GLib's girffi.h #includes ffi.h); supply
+      # them from vcpkg's libffi — same fix node-gi.yml's `windows` job uses.
+      - name: Supply libffi headers (gvsbuild omits ffi.h)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install libffi:x64-windows
+          $inc = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include"
+          Copy-Item "$inc\ffi.h","$inc\ffitarget.h" -Destination "$env:GTK_PREFIX\include" -Force
+
+      # ---- mozjs-140 half (NOW OBTAINABLE via servo/mozjs prebuilt) ----
+      - name: Cache servo/mozjs prebuilt (mozjs-140 MSVC)
+        id: cache-mozjs
+        uses: actions/cache@v4
+        with:
+          path: C:\mozjs-140
+          key: servo-mozjs-${{ env.MOZJS_TAG }}-x86_64-msvc-v1
+
+      # Download + extract the servo/mozjs prebuilt and PRINT its layout so the CI
+      # log documents exactly what ships (headers? static vs shared? any .pc?) —
+      # the evidence behind the "mozjs-140 is obtainable, but as a Rust static-lib
+      # layout not a pkg-config mozjs-140" finding.
+      - name: Download + inspect servo/mozjs prebuilt (mozjs-140, x86_64-msvc)
+        if: steps.cache-mozjs.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/servo/mozjs/releases/download/$env:MOZJS_TAG/libmozjs-x86_64-pc-windows-msvc.tar.gz"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o mozjs.tar.gz $url
+          New-Item -ItemType Directory -Force -Path $env:MOZJS_PREFIX | Out-Null
+          tar.exe -xzf mozjs.tar.gz -C $env:MOZJS_PREFIX
+          Remove-Item mozjs.tar.gz
+          Write-Host "--- servo/mozjs prebuilt tree (top 3 levels) ---"
+          Get-ChildItem -Recurse -Depth 2 $env:MOZJS_PREFIX | Select-Object -ExpandProperty FullName
+          Write-Host "--- static/import libs ---"
+          Get-ChildItem -Recurse $env:MOZJS_PREFIX -Include *.lib,*.a,*.dll | Select-Object -ExpandProperty FullName
+          Write-Host "--- any pkg-config (.pc) shipped? (expected: none) ---"
+          Get-ChildItem -Recurse $env:MOZJS_PREFIX -Include *.pc -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+
+      # ---- THE WALL: build gjs-on-Windows from source against the servo mozjs ----
+      # This is the documented blocker. gjs's meson wants a pkg-config
+      # `mozjs-140` (Requires-private nspr, a shared/usable libmozjs + the JSAPI
+      # headers). We best-effort synthesize a `mozjs-140.pc` pointing at the servo
+      # prebuilt and run gjs's `meson setup` — the step surfaces the EXACT gap
+      # (mozjs-140 not found, or found-but-servo's-fork-mismatch, or a
+      # gjs-on-Windows meson error). If configure ever passes, `meson compile`
+      # runs. Expected to fail here; that failure IS the concrete wall.
+      - name: Build gjs from source (clang-cl) against servo mozjs — EXPECTED WALL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pip install --quiet meson ninja
+          git clone --depth 1 --branch $env:GJS_REF https://gitlab.gnome.org/GNOME/gjs.git gjs-src
+          # Best-effort mozjs-140.pc over the servo prebuilt layout (paths printed
+          # by the inspect step above). This is deliberately optimistic — servo's
+          # fork is a Rust static-lib layout, so this is the point that reveals
+          # whether gjs's meson can consume it at all.
+          $pcDir = "$env:MOZJS_PREFIX\pkgconfig"
+          New-Item -ItemType Directory -Force -Path $pcDir | Out-Null
+          # Build the .pc as a string array (no PowerShell here-string — its `"@`
+          # terminator must sit at column 0, impossible inside an indented YAML
+          # run block). Single-quoted lines keep pkg-config's ${...} vars literal.
+          $prefixFwd = $env:MOZJS_PREFIX -replace '\\','/'
+          $pc = @(
+            "prefix=$prefixFwd"
+            'libdir=${prefix}/lib'
+            'includedir=${prefix}/include'
+            ''
+            'Name: mozjs-140'
+            'Description: SpiderMonkey 140 (servo/mozjs prebuilt, MSVC) - SYNTHESIZED'
+            'Version: 140.13.0'
+            'Libs: -L${libdir} -lmozjs-140'
+            'Cflags: -I${includedir}'
+          )
+          $pc | Set-Content -Path "$pcDir\mozjs-140.pc" -Encoding ascii
+          $env:PKG_CONFIG_PATH = "$pcDir;$env:GTK_PREFIX\lib\pkgconfig"
+          Write-Host "mozjs-140 via pkg-config:"
+          pkg-config --modversion mozjs-140
+          # clang-cl toolchain per gjs README.MSVC.md.
+          meson setup gjs-src gjs-build --prefix C:\gjs `
+            -Dc_std=c11 -Dcpp_std=c++17 --buildtype release
+          meson compile -C gjs-build
+          meson install -C gjs-build
+          "$env:GTK_PREFIX\bin;C:\gjs\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "PKG_CONFIG_PATH=C:\gjs\lib\pkgconfig;$pcDir;$env:GTK_PREFIX\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # ---- Post-wall: the shim build + gates (reached only if gjs built) ----
+      # These document the intended completion path; they run only if the gjs
+      # build above succeeded (default `if: success()`). The meson `windows`
+      # branch (.def exports + gjsifynapi.dll leaf) + the module.cc `#ifdef
+      # _WIN32` loader shims make this build possible once libgjs exists.
+      - name: Build the @gjsify/napi shim (meson) + stage win32-x64 prebuild
+        working-directory: packages/napi/napi
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          meson setup build .
+          meson compile -C build
+          New-Item -ItemType Directory -Force -Path prebuilds/win32-x64 | Out-Null
+          Copy-Item build/gjsifynapi.dll,build/GjsifyNapi-1.0.gir,build/GjsifyNapi-1.0.typelib prebuilds/win32-x64/
+          Write-Host "staged: $(Get-ChildItem prebuilds/win32-x64 | Select-Object -ExpandProperty Name)"
+
+      - name: Build gate test addons (node-gyp / MSVC)
+        working-directory: packages/napi/napi
+        run: npm run build:test-addons
+
+      # Windows resolves the shim DLL via PATH (no LD_LIBRARY_PATH/DYLD_*); the
+      # build dir carries gjsifynapi.dll, GI resolves the typelib via
+      # GI_TYPELIB_PATH. Run the load + value-model gates (P1 tsfn deferred, as on
+      # macOS).
+      - name: Gate P0.0 — load (unmodified .node addon through the shim)
+        working-directory: packages/napi/napi
+        shell: pwsh
+        run: |
+          $env:GI_TYPELIB_PATH = "$PWD\build"
+          $env:PATH = "$PWD\build;$env:PATH"
+          gjs test/load-gate.js test/hello-addon/build/Release/hello.node
+
+      - name: Gate P0.1 — env + value model + scopes
+        working-directory: packages/napi/napi
+        shell: pwsh
+        run: |
+          $env:GI_TYPELIB_PATH = "$PWD\build"
+          $env:PATH = "$PWD\build;$env:PATH"
+          gjs test/p01-gate.js
+
+      - name: Gate P0.2 — objects + functions + classes
+        working-directory: packages/napi/napi
+        shell: pwsh
+        run: |
+          $env:GI_TYPELIB_PATH = "$PWD\build"
+          $env:PATH = "$PWD\build;$env:PATH"
+          gjs test/p02-gate.js
+
+      - name: Gate P0.4 — arraybuffer / typedarray
+        working-directory: packages/napi/napi
+        shell: pwsh
+        run: |
+          $env:GI_TYPELIB_PATH = "$PWD\build"
+          $env:PATH = "$PWD\build;$env:PATH"
+          gjs test/p04-gate.js
+
+      - name: Upload win32-x64 prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: napi-prebuild-win32-x64
+          path: packages/napi/napi/prebuilds/win32-x64
           if-no-files-found: error
