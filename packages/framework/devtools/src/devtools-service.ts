@@ -219,9 +219,12 @@ export class DevtoolsService {
         return JSON.stringify({ path: pathOfWidget(focus), name: focus.get_name() || null, type: widgetType(focus) });
     }
 
-    /** `ActivateWidget(path) -> b` — activate the widget at `path` (Button→clicked,
-     * ActionRow→activated, …), the click-drive counterpart of DumpTree/GetProperty.
-     * Throws if the path resolves to no live widget; returns whether it was activatable. */
+    /** `ActivateWidget(path) -> b` — activate the widget at `path`: its own
+     * default activation (Button→clicked, Entry→activate, Toggle) or, for a
+     * GtkListBoxRow/AdwActionRow, a click on the owning GtkListBox (select the
+     * row + row-activated) so nav / preference rows drive. The click-drive
+     * counterpart of DumpTree/GetProperty. Throws if the path resolves to no
+     * live widget; returns whether it activated. */
     ActivateWidget(path: string): boolean {
         this._guard('ActivateWidget');
         const resolved = this._resolveRootWidget(path);

@@ -96,5 +96,60 @@ export default async () => {
             // Only a strict true counts as activated.
             expect(activateWidget(asWidget({ activate: () => undefined as unknown as boolean }))).toBe(false);
         });
+
+        // A GtkListBoxRow / AdwActionRow is NOT activatable via gtk_widget_activate()
+        // (activate() → false); the fallback reproduces a real click on the parent
+        // GtkListBox: select the row (row-selected) AND emit row-activated.
+        await it('selects + activates a row via its parent GtkListBox', async () => {
+            let selected: unknown = null;
+            const emitted: Array<{ signal: string; row: unknown }> = [];
+            const listbox = {
+                constructor: { $gtype: { name: 'GtkListBox' } },
+                select_row: (row: unknown) => {
+                    selected = row;
+                },
+                emit: (signal: string, row: unknown) => emitted.push({ signal, row }),
+            };
+            const row = { activate: () => false, get_parent: () => listbox };
+            expect(activateWidget(asWidget(row))).toBe(true);
+            expect(selected).toBe(row); // select_row(row) → row-selected (selection nav)
+            expect(emitted.length).toBe(1);
+            expect(emitted[0].signal).toBe('row-activated');
+            expect(emitted[0].row).toBe(row);
+        });
+
+        await it('does NOT drive the row when the parent is not a GtkListBox', async () => {
+            let touched = false;
+            const box = {
+                constructor: { $gtype: { name: 'GtkBox' } },
+                select_row: () => {
+                    touched = true;
+                },
+                emit: () => {
+                    touched = true;
+                },
+            };
+            const row = { activate: () => false, get_parent: () => box };
+            expect(activateWidget(asWidget(row))).toBe(false);
+            expect(touched).toBe(false);
+        });
+
+        await it('prefers direct activation and never consults the parent when activate() succeeds', async () => {
+            let touched = false;
+            const btn = {
+                activate: () => true,
+                get_parent: () => ({
+                    constructor: { $gtype: { name: 'GtkListBox' } },
+                    select_row: () => {
+                        touched = true;
+                    },
+                    emit: () => {
+                        touched = true;
+                    },
+                }),
+            };
+            expect(activateWidget(asWidget(btn))).toBe(true);
+            expect(touched).toBe(false);
+        });
     });
 };
