@@ -58,6 +58,8 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 
 For `--app gjs`, the target is `firefox140` (SpiderMonkey 140) and `gi://*`, `cairo`, `system` and `gettext` are externalised. For `--app node`, the target is `node24`.
 
+**Native N-API addons under `--app gjs`.** A `--app gjs` build transparently routes a compiled `.node` addon through [`@gjsify/napi`](/gjsify/projects/napi/)'s `loadAddon` — intercepting the addon's own `bindings` / `node-gyp-build` helper (or a direct `.node` import) and locating the binary with node-gyp-build's probe order. So `import Database from 'better-sqlite3'` works after `gjsify install @gjsify/napi`, with no config. It is inert when no native addon is in the graph, and never active for `--app node`/`browser`/`nativescript`.
+
 </details>
 
 #### Bundling third-party CLIs that read their own `package.json` at load time

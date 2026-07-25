@@ -55,7 +55,19 @@ The full synchronous N-API surface is implemented, plus the async / threadsafe-f
 gjsify install @gjsify/napi
 ```
 
-Installing through the `gjsify` CLI puts the shim's typelib on `GI_TYPELIB_PATH` for you. At runtime you additionally need a built `.node` addon to load — compiled locally with a C++ toolchain, or a shipped prebuild, exactly as on Node. See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the full API surface and the current addon matrix.
+Installing through the `gjsify` CLI puts the shim's typelib on `GI_TYPELIB_PATH` for you. From then on a normal native-addon import **just works** in a `gjsify build --app gjs` build — no wrapper, no manual `loadAddon`:
+
+```ts
+import Database from 'better-sqlite3'; // require('bufferutil') / etc.
+
+const db = new Database(':memory:');
+```
+
+Under the hood the `napiNodeAddonPlugin` (in `@gjsify/rolldown-plugin-gjsify`, the forward mirror of the `gi://`→`requireGi` rewrite) intercepts the addon's own acquisition helper — `bindings`, `node-gyp-build`, or a direct `.node` import — and routes the compiled `.node` through `loadAddon`, locating it with node-gyp-build's own probe order (`build/Release` → `build/Debug` → `prebuilds/`). It is always-on for `--app gjs` and inert when no native addon is in the graph.
+
+**Escape hatch — `loadAddon(path)`** (shown above) stays available for loading a `.node` by an arbitrary runtime path, or for a napi-rs *generated* loader (`@node-rs/*`), whose `createRequire` loader body is not yet transparently bundleable.
+
+At runtime you additionally need a built `.node` addon to load — compiled locally with a C++ toolchain, or a shipped prebuild, exactly as on Node. See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the full API surface and the current addon matrix.
 
 ## See also
 

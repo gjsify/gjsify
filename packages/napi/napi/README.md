@@ -34,6 +34,42 @@ raw-boxed-value trick and `JS::Rooted` scopes). The shim `dlopen`s the addon
 so an addon's undefined napi symbols bind to ours — exactly as Node/Bun export
 the ABI from the main binary, which is why **consumers need no special build**.
 
+## Usage — transparent (primary)
+
+After `gjsify install @gjsify/napi`, a normal native-addon import **just works**
+in a `gjsify build --app gjs` build — no wrapper, no manual `loadAddon`:
+
+```ts
+import Database from 'better-sqlite3'; // require('bufferutil') / etc.
+
+const db = new Database(':memory:');
+db.exec('CREATE TABLE t (n INT)');
+```
+
+The `napiNodeAddonPlugin` in `@gjsify/rolldown-plugin-gjsify` (the forward mirror
+of the `gjsGiNodePlugin` `gi://`→`requireGi` rewrite) intercepts the addon's own
+acquisition helper — `bindings`, `node-gyp-build`, or a direct `.node` import —
+and rewrites it to `loadAddon('<abs .node>')`. It locates the compiled `.node`
+using node-gyp-build's own probe order (`build/Release` → `build/Debug` →
+`prebuilds/<platform>-<arch>`), so the GJS build routes the SAME binary Node
+loads. Always-on for `--app gjs`, inert when no native addon is in the graph.
+
+**Escape hatch — explicit `loadAddon`.** When you want to load a `.node` by an
+arbitrary runtime path (not a static import), call it directly:
+
+```ts
+import { loadAddon, hasNapi } from '@gjsify/napi';
+
+if (hasNapi()) {
+    const addon = loadAddon('/abs/path/to/build/Release/addon.node');
+}
+```
+
+**Not (yet) transparent:** a napi-rs *generated* loader (`@node-rs/*`) — the
+plugin locates its `.node` but the generated `require('node:module')` +
+`createRequire` loader body does not survive `--app gjs` bundling; use the
+explicit `loadAddon` escape hatch for those (tracked in `STATUS.md`).
+
 ## Requirements
 
 - A C++ toolchain (`g++`/`clang`), `meson`, `vala`, `g-ir-compiler`
@@ -69,7 +105,18 @@ gjsify run test:mem              # valgrind leak/UAF leg for the gates
 
 gjsify run test:conformance      # golden-diff vs Node over node's js-native-api addons
 gjsify run test:consumer         # better-sqlite3 v13.0.1 runs on GJS, byte-vs-Node
+
+gjsify run test:addons:setup     # vendor + source-build the real-addon matrix
+gjsify run test:addons           # pinned baseline: loadAddon({addonPath}), byte-vs-Node
+gjsify run test:addons:transparent  # transparent: napiNodeAddonPlugin auto-resolves, byte-vs-Node
 ```
+
+`test:addons:transparent` is the end-to-end proof of the transparent path: it
+builds each real addon `--app gjs` through `napiNodeAddonPlugin`'s
+auto-resolution (no hand-pinned addonPath) and requires byte-identical output vs
+Node. bufferutil + utf-8-validate (node-gyp-build) and sqlite3 (bindings) pass;
+`@node-rs/argon2` (napi-rs generated loader) is a documented FINDING (see the
+transparent-usage note above).
 
 `gjsify run test:conformance:update` regenerates the golden files;
 `conformance/ledger.json` records each Phase-0-deferred program with a precise
@@ -83,14 +130,6 @@ The pin is intrinsic and by design: the **shim** links GJS's SpiderMonkey (built
 `-fno-rtti -fno-exceptions`, matching GJS) and must be rebuilt when GJS bumps its
 mozjs major — mozjs has no stable C++ ABI. The **addon** is untouched by mozjs
 churn: it speaks only the stable napi C ABI. That asymmetry is the whole point.
-
-## Caveat — the `.node` resolver is gate-scoped
-
-Today an addon is loaded through an explicit `loadAddon(path)` (the gates and the
-consumer harness do this). The transparent `require('./foo.node')` →
-`loadAddon` rewrite is currently gate-scoped; a proper
-`rolldown-plugin-gjsify` build integration is a follow-up (tracked in
-`STATUS.md` `## Open TODOs`).
 
 ## License
 
