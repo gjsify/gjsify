@@ -64,10 +64,31 @@ void RefTracker::FinalizeAll(RefTracker* list_head) {
     }
 }
 
+// Log + clear a pending exception (shared with tsfn.cc — declared in
+// common.h): the "no JS frame below us" posture for finalizers and loop-
+// dispatched tsfn callbacks alike (Bun's clearExceptionsBetweenFinalizers
+// lesson).
+void log_and_clear_pending_exception(napi_env env, const char* where) {
+    if (!JS_IsExceptionPending(env->cx)) {
+        return;
+    }
+    JS::RootedValue exc(env->cx);
+    JS_GetPendingException(env->cx, &exc);
+    JS_ClearPendingException(env->cx);
+    JSString* str = JS::ToString(env->cx, exc);
+    if (str == nullptr) {
+        JS_ClearPendingException(env->cx);
+    }
+    JS::UniqueChars utf8 =
+        str ? JS_EncodeStringToUTF8(env->cx, JS::RootedString(env->cx, str))
+            : nullptr;
+    fprintf(stderr, "[gjsify-napi] unhandled exception in %s: %s\n", where,
+            utf8 ? utf8.get() : "<unprintable>");
+}
+
 // Shared "run a user napi_finalize with JS callable" helper (§5c drain
 // semantics): fresh handle scope per finalizer, exceptions logged and
-// cleared between finalizers (Bun's clearExceptionsBetweenFinalizers
-// lesson).
+// cleared between finalizers.
 static void run_user_finalizer(napi_env env, napi_finalize cb, void* data,
                                void* hint) {
     if (cb == nullptr) {
@@ -76,22 +97,7 @@ static void run_user_finalizer(napi_env env, napi_finalize cb, void* data,
     napi_handle_scope scope = nullptr;
     napi_open_handle_scope(env, &scope);
     cb(env, data, hint);
-    if (JS_IsExceptionPending(env->cx)) {
-        JS::RootedValue exc(env->cx);
-        JS_GetPendingException(env->cx, &exc);
-        JS_ClearPendingException(env->cx);
-        JSString* str = JS::ToString(env->cx, exc);
-        if (str == nullptr) {
-            JS_ClearPendingException(env->cx);
-        }
-        JS::UniqueChars utf8 =
-            str ? JS_EncodeStringToUTF8(env->cx,
-                                        JS::RootedString(env->cx, str))
-                : nullptr;
-        fprintf(stderr,
-                "[gjsify-napi] unhandled exception in native finalizer: %s\n",
-                utf8 ? utf8.get() : "<unprintable>");
-    }
+    log_and_clear_pending_exception(env, "native finalizer");
     napi_close_handle_scope(env, scope);
 }
 

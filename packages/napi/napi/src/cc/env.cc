@@ -122,6 +122,13 @@ void napi_env__::teardown() {
         hook.fn(hook.arg);
     }
 
+    // 1b. finalize threadsafe functions (§7): a release/abort issued by a
+    //     cleanup hook above scheduled a JS-thread finalize dispatch that can
+    //     never run — the main context stops iterating once GjsContext
+    //     dispose began — so it is executed synchronously here, while JS is
+    //     still fully callable. Never-released tsfns are force-closed too.
+    gjsify_napi::finalize_env_tsfns(this);
+
     // 2. drain finalizers already queued by earlier GC deaths.
     gjsify_napi::drain_finalizer_queue(this);
 

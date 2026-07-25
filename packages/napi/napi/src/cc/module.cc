@@ -217,9 +217,15 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
     }
 
     // §3b step 2: the addon imports napi_*; its own symbols must not pollute
-    // the global scope or collide with a second addon → RTLD_LOCAL.
+    // the global scope or collide with a second addon → RTLD_LOCAL. LAZY, not
+    // NOW, mirroring Node's own addon loader (node::DLib kDefaultFlags =
+    // RTLD_LAZY): real addons legitimately carry references to symbols that
+    // are never called on this host — node-gi's Node-only libuv main-loop
+    // bridge (uv_*) is exactly that — and eager binding would reject them at
+    // load. Every napi_*/node_api_* symbol still resolves (the shim defines
+    // the full ABI, stubs included), so the fail-loud posture is unchanged.
     const size_t pending_before = pending_modules.size();
-    void* handle = dlopen(resolved, RTLD_NOW | RTLD_LOCAL);
+    void* handle = dlopen(resolved, RTLD_LAZY | RTLD_LOCAL);
     if (handle == nullptr) {
         const char* err = dlerror();
         return throw_load_error(
@@ -433,9 +439,6 @@ NAPI_NO_RETURN void NAPI_CDECL napi_fatal_error(const char* location,
 // ---- the GI bootstrap surface (§3a) ----
 
 extern "C" gboolean gjsify_napi_install(void) {
-    if (loader_installed) {
-        return TRUE;
-    }
     GjsContext* gjs = gjs_context_get_current();
     if (gjs == nullptr) {
         g_warning("gjsify-napi: no current GjsContext — init() must be "
@@ -452,18 +455,33 @@ extern "C" gboolean gjsify_napi_install(void) {
         g_warning("gjsify-napi: no current JS global (not inside a realm)");
         return FALSE;
     }
-    JSFunction* fn = js::NewFunctionWithReserved(cx, load_addon_native, 1, 0,
-                                                 "__gjsifyNapiLoadAddon");
-    if (fn == nullptr) {
-        g_warning("gjsify-napi: failed to create the loadAddon native");
+    // (Re-)define the bootstrap property when absent: consumers capture the
+    // native and delete the property (§3a), and init() is documented
+    // idempotent — a SECOND consumer (e.g. node-gi's gjs host mode after the
+    // L1 already captured) must be able to re-obtain the loader.
+    bool has_loader = false;
+    if (!JS_HasProperty(cx, global, "__gjsifyNapiLoadAddon", &has_loader)) {
+        g_warning("gjsify-napi: failed to probe __gjsifyNapiLoadAddon");
         return FALSE;
     }
-    JS::RootedObject fn_obj(cx, JS_GetFunctionObject(fn));
-    // attrs 0 → non-enumerable, writable, configurable — the L1 deletes the
-    // property after capturing the function.
-    if (!JS_DefineProperty(cx, global, "__gjsifyNapiLoadAddon", fn_obj, 0)) {
-        g_warning("gjsify-napi: failed to define __gjsifyNapiLoadAddon");
-        return FALSE;
+    if (!has_loader) {
+        JSFunction* fn = js::NewFunctionWithReserved(
+            cx, load_addon_native, 1, 0, "__gjsifyNapiLoadAddon");
+        if (fn == nullptr) {
+            g_warning("gjsify-napi: failed to create the loadAddon native");
+            return FALSE;
+        }
+        JS::RootedObject fn_obj(cx, JS_GetFunctionObject(fn));
+        // attrs 0 → non-enumerable, writable, configurable — consumers delete
+        // the property after capturing the function.
+        if (!JS_DefineProperty(cx, global, "__gjsifyNapiLoadAddon", fn_obj,
+                               0)) {
+            g_warning("gjsify-napi: failed to define __gjsifyNapiLoadAddon");
+            return FALSE;
+        }
+    }
+    if (loader_installed) {
+        return TRUE;
     }
     // §5b weak machinery: ONE process-wide sweep callback (GJS registers its
     // own compartment variant the same way, gi/object.cpp:2503). Removed in
