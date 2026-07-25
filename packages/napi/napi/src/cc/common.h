@@ -290,9 +290,12 @@ void finalize_env_tsfns(napi_env env);
 
 // ---- §? asynchronous work items (async_work.cc) ----
 
-// Env teardown step 1c: run every still-pending async_work completion
-// synchronously, JS callable (the deferred g_idle can no longer fire once
-// GjsContext dispose has begun — mirror finalize_env_tsfns).
+// Env teardown step 1c (§5e crash-class boundary): drain the worker pool
+// deterministically — g_thread_pool_free(wait=TRUE) lets in-flight execute
+// finish and JOINS every worker, so none touches the tearing-down env — then
+// run every still-pending completion synchronously, JS callable (the deferred
+// g_idle can no longer fire once GjsContext dispose has begun — mirror
+// finalize_env_tsfns).
 void drain_env_async_works(napi_env env);
 // Env destruction: free every async_work the addon never deleted (Node leaks
 // its equivalent — the struct is addon-owned). Runs after teardown, no JS.
@@ -436,10 +439,15 @@ struct napi_env__ {
     // create, unregistered by the JS-thread finalize; teardown force-
     // finalizes leftovers — tsfn.cc).
     std::vector<napi_threadsafe_function> tsfns;
-    // Live async_work items (JS-thread-only: registered at create, unlinked by
+    // Live async_work items (registered at create on the JS thread, unlinked by
     // the completion dispatch's self-delete; teardown drains pending
     // completions, the destructor frees leftovers — async_work.cc).
     std::vector<napi_async_work> async_works;
+    // Per-env worker pool backing napi_queue_async_work (libuv-thread-pool
+    // analog). Lazily created on first queue; drained + freed deterministically
+    // at teardown (g_thread_pool_free wait=TRUE) BEFORE any root is dropped, so
+    // no worker outlives the env. nullptr until the first queue — async_work.cc.
+    GThreadPool* async_pool = nullptr;
     // Env cleanup hooks, run LIFO as teardown step 1.
     struct CleanupHook {
         void(NAPI_CDECL* fn)(void* arg);
