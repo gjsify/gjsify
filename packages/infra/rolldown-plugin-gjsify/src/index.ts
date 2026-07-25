@@ -33,9 +33,11 @@ export {
     nodeGypBuildShim,
     bindingsShim,
     napiRsShim,
+    isNapiRsPackageJson,
+    detectNapiRsEntry,
     AddonNotBuiltError,
 } from './plugins/napi-node-addon.js';
-export type { NapiNodeAddonPluginOptions } from './plugins/napi-node-addon.js';
+export type { NapiNodeAddonPluginOptions, AddonPackageJson } from './plugins/napi-node-addon.js';
 export {
     platformResolvePlugin,
     detectNativescriptPlatform,
