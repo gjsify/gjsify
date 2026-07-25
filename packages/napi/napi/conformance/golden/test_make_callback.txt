@@ -1,0 +1,3 @@
+"no-arg" 42 "args" 0 "this===recv" true
+"one-arg" 42 "args" 1 "this===recv" true "x" 1337
+"multi-arg" 42 "args" 3 "this===recv" true "vals" [1,2,3]

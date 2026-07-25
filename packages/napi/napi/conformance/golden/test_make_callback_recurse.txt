@@ -1,0 +1,2 @@
+"propagates" "Error: hi from domain error"
+"returns-recv" true

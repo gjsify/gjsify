@@ -1,0 +1,2 @@
+"returns" 42
+"throws" "Error: foo"
