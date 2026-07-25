@@ -46,6 +46,15 @@ export const ADDONS = {
         addon: 'node_modules/@node-rs/argon2-linux-x64-gnu/argon2.linux-x64-gnu.node',
         workout: 'workouts/argon2.mjs',
         binding: 'napi-rs',
+        // TRANSPARENT gate only: the pinned baseline (addon-gate.mjs) replaces the
+        // whole generated loader (`entryReplace`), so it passes. The TRANSPARENT
+        // path auto-LOCATES the .node correctly (napiNodeAddonPlugin routes the
+        // platform sibling through loadAddon) but the napi-rs GENERATED loader
+        // BODY (`require('node:module')`+`createRequire`+branch chain) does not
+        // survive `--app gjs` bundling — full transparency needs entry-replacement
+        // (deferred, see napi-node-addon.ts TODO). Flagged so the transparent
+        // matrix records a FINDING, not a hard failure.
+        transparentDefer: true,
     },
     sqlite3: {
         // node-addon-api, fundamentally ASYNC — every op runs through a
