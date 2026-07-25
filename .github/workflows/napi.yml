@@ -100,8 +100,10 @@ jobs:
       - name: Verify stubs.cc is regenerated in sync
         working-directory: packages/napi/napi
         run: |
+          cp src/cc/stubs.cc "$RUNNER_TEMP/stubs.committed"
           python3 scripts/gen-stubs.py
-          git diff --exit-code src/cc/stubs.cc
+          diff -u "$RUNNER_TEMP/stubs.committed" src/cc/stubs.cc \
+            || { echo "::error::stubs.cc out of sync — run: python3 scripts/gen-stubs.py"; exit 1; }
 
       # The gate + conformance addons (raw C/C++ N-API, node-gyp).
       - name: Build gate test addons (node-gyp)
