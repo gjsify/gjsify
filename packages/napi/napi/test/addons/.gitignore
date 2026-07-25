@@ -1,0 +1,7 @@
+# Vendored real npm native addons (multi-MB sources + compiled .node) — never
+# committed. Fetched at gate time via `npm i --prefix . <addon>` + a source
+# rebuild (node-gyp / cargo). Only the gate scripts + workouts are tracked.
+node_modules/
+package.json
+package-lock.json
+*/build/

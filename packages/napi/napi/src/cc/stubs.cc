@@ -10,7 +10,7 @@
 // napi_*/node_api_* references always resolve — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
-// never with a crash. 14 stubs.
+// never with a crash. 10 stubs.
 
 #include "common.h"
 
@@ -79,31 +79,6 @@ napi_status NAPI_CDECL node_api_create_buffer_from_arraybuffer(napi_env env, nap
     (void)byte_offset;
     (void)byte_length;
     (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_async_work(napi_env env, napi_value async_resource, napi_value async_resource_name, napi_async_execute_callback execute, napi_async_complete_callback complete, void* data, napi_async_work* result) {
-    (void)async_resource;
-    (void)async_resource_name;
-    (void)execute;
-    (void)complete;
-    (void)data;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_delete_async_work(napi_env env, napi_async_work work) {
-    (void)work;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_queue_async_work(node_api_basic_env env, napi_async_work work) {
-    (void)work;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_cancel_async_work(node_api_basic_env env, napi_async_work work) {
-    (void)work;
     GJSIFY_NAPI_STUB(env);
 }
 

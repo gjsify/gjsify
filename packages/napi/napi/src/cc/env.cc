@@ -94,6 +94,10 @@ napi_env__::napi_env__(JSContext* cx_in, GjsContext* gjs, int32_t api_version,
 
 napi_env__::~napi_env__() {
     teardown();
+    // Free any async_work the addon never deleted (its completion already ran,
+    // or it was created-but-never-queued). Self-deleted works are already
+    // unlinked, so this cannot double-free. Runs at context dispose, no JS.
+    gjsify_napi::destroy_env_async_works(this);
     // Bundle memory is freed HERE, not in teardown(): function objects
     // created by this env keep the bundle pointer in their reserved slot,
     // and JS may still call them after an early teardown — the trampoline
@@ -128,6 +132,11 @@ void napi_env__::teardown() {
     //     dispose began — so it is executed synchronously here, while JS is
     //     still fully callable. Never-released tsfns are force-closed too.
     gjsify_napi::finalize_env_tsfns(this);
+
+    // 1c. drain pending async_work completions (§?): a work queued in the last
+    //     tick before dispose has a g_idle completion that can no longer fire —
+    //     run it here, JS still callable, exactly like the tsfn finalize above.
+    gjsify_napi::drain_env_async_works(this);
 
     // 2. drain finalizers already queued by earlier GC deaths.
     gjsify_napi::drain_finalizer_queue(this);

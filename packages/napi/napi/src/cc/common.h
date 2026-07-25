@@ -288,6 +288,16 @@ void log_and_clear_pending_exception(napi_env env, const char* where);
 // GjsContext dispose has begun). Runs with JS fully callable.
 void finalize_env_tsfns(napi_env env);
 
+// ---- §? asynchronous work items (async_work.cc) ----
+
+// Env teardown step 1c: run every still-pending async_work completion
+// synchronously, JS callable (the deferred g_idle can no longer fire once
+// GjsContext dispose has begun — mirror finalize_env_tsfns).
+void drain_env_async_works(napi_env env);
+// Env destruction: free every async_work the addon never deleted (Node leaks
+// its equivalent — the struct is addon-owned). Runs after teardown, no JS.
+void destroy_env_async_works(napi_env env);
+
 // ---- §5d instance state: fast tier + WeakMap tier ----
 //
 // Instances of napi_define_class classes and napi_create_external externals
@@ -426,6 +436,10 @@ struct napi_env__ {
     // create, unregistered by the JS-thread finalize; teardown force-
     // finalizes leftovers — tsfn.cc).
     std::vector<napi_threadsafe_function> tsfns;
+    // Live async_work items (JS-thread-only: registered at create, unlinked by
+    // the completion dispatch's self-delete; teardown drains pending
+    // completions, the destructor frees leftovers — async_work.cc).
+    std::vector<napi_async_work> async_works;
     // Env cleanup hooks, run LIFO as teardown step 1.
     struct CleanupHook {
         void(NAPI_CDECL* fn)(void* arg);
