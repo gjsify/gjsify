@@ -1,0 +1,3 @@
+"increment" 42
+"typeof obj" "object"
+"finalizer-callback-ran" true

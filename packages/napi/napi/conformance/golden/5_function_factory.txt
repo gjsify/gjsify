@@ -1,0 +1,2 @@
+"typeof fn" "function"
+"fn()" "hello world"
