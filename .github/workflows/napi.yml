@@ -48,7 +48,7 @@ jobs:
         run: |
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            mozjs140-devel gjs gjs-devel \
+            mozjs140-devel gjs gjs-devel libsoup3 \
             gobject-introspection gobject-introspection-devel glib2-devel \
             vala meson ninja-build valgrind
           gjs --version
@@ -155,7 +155,7 @@ jobs:
         run: |
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            mozjs140-devel gjs gjs-devel \
+            mozjs140-devel gjs gjs-devel libsoup3 \
             gobject-introspection gobject-introspection-devel glib2-devel \
             vala meson ninja-build
           gjs --version
