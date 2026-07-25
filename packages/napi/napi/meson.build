@@ -32,6 +32,7 @@ vala_sources = files(
 # .cc slices. The vendored Node-API headers live in src/napi-headers/.
 cc_sources = files(
     'src/cc/arraybuffer.cc',
+    'src/cc/async_work.cc',
     'src/cc/env.cc',
     'src/cc/error.cc',
     'src/cc/function.cc',

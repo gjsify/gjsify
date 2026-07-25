@@ -42,8 +42,8 @@
       "reason": "Exercises the WEAK-reference regime: after a reference's count drops to 0, object-like values must survive as weak pointers until GC while primitives/strings/bigints are released immediately, and a global (registered) symbol stays strong forever. This in-GC weak-reference regime (toggle-ref-driven weak/strong tracking) is deferred in Phase 0 — the same reason test_reference is ledgered. First divergence: a refcount-0 reference does not preserve value identity under the shim (getRefValue returns undefined where Node still returns the weakly-held value)."
     },
     {
-      "addon": "na_test_instance_data",
-      "reason": "The node_api.h instance-data test reaches the instance data from (a) an async_work completion callback — napi_create_async_work is a Phase-0 loud stub — and (b) a node::Buffer external-buffer finalizer (napi_create_external_buffer). Both are deferred capabilities, so asyncWorkCallback fails loud under the shim. (The js-native-api instance-data surface — napi_set/get_instance_data + finalizer — passes as program test_instance_data.)"
+      "addon": "test_async",
+      "reason": "The async_work happy path passes byte-identical under the shim — Test (Execute doubles the input on the worker phase, Complete delivers it) and DoRepeatedWork (Complete reports napi_ok) both match Node. Only TestCancel diverges: it queues a work and then cancels it (queue-then-cancel), but the GJS host has no libuv thread pool, so napi_queue_async_work runs Execute INLINE — by the time napi_cancel_async_work is called the work has already run, so cancel returns napi_generic_failure (Node's uv_cancel-on-a-running-item / UV_EBUSY result) and the addon's NODE_API_CALL throws 'Unknown failure'. Cancelling a queued-but-not-started work needs true worker-thread concurrency; the inline-execute model (documented tradeoff) keeps only the cancel-before-queue window. A real GThreadPool worker would close this gap — a possible follow-up."
     },
     {
       "addon": "test_cannot_run_js",

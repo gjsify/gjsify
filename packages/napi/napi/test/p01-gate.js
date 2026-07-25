@@ -160,7 +160,7 @@ check('escapeTest', v.escapeTest(), 'escaped');
 check('scopeMismatchDetected', v.scopeMismatchDetected(), true);
 
 // ---- loud stubs + last_error ----
-check('stubCheck (napi_create_array -> generic failure + message)', v.stubCheck(), true);
+check('stubCheck (napi_get_uv_event_loop -> generic failure + message)', v.stubCheck(), true);
 
 // ---- module surface ----
 check('version()', v.version(), 10);

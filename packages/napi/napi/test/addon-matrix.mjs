@@ -14,9 +14,10 @@
 //   aliases     extra `name=path` bundler aliases (rarely needed).
 //   binding     optional bindingModules for addons whose entry does its own
 //               dynamic addon require (better-sqlite3 / node-sqlite3 style).
-//   async       true = this addon is expected to exercise napi_create_async_work
-//               (the deferred stub); the gate treats a hard failure as a FINDING,
-//               not a gate failure.
+//   async       true = a hard failure is a FINDING, not a gate failure (used
+//               while a capability the addon needs was a deferred stub). Unset
+//               now that async_work is implemented — node-sqlite3 passes, so a
+//               regression must fail hard.
 
 export const ADDONS = {
     bufferutil: {
@@ -47,12 +48,14 @@ export const ADDONS = {
         binding: 'napi-rs',
     },
     sqlite3: {
+        // node-addon-api, fundamentally ASYNC — every op runs through a
+        // Napi::AsyncWorker (napi_create/queue/complete_async_work). Passes
+        // byte-identical now that async_work is implemented.
         pkg: 'sqlite3',
         index: 'node_modules/sqlite3/lib/sqlite3.js',
         addon: 'node_modules/sqlite3/build/Release/node_sqlite3.node',
         prebuilds: [],
         workout: 'workouts/sqlite3.mjs',
-        async: true,
         binding: 'node-sqlite3',
     },
 };
