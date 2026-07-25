@@ -1,0 +1,156 @@
+"asBool(false)" false
+"asBool(true)" true
+"asBool!" "undefined" "A boolean was expected"
+"asBool!" "null" "A boolean was expected"
+"asBool!" "NaN" "A boolean was expected"
+"asBool!" "0" "A boolean was expected"
+"asBool!" "\"\"" "A boolean was expected"
+"asBool!" "'0'" "A boolean was expected"
+"asBool!" "1" "A boolean was expected"
+"asBool!" "'1'" "A boolean was expected"
+"asBool!" "'true'" "A boolean was expected"
+"asBool!" "{}" "A boolean was expected"
+"asBool!" "[]" "A boolean was expected"
+"asBool!" "sym" "A boolean was expected"
+"asInt32" "0" "=>" 0
+"asInt32" "1" "=>" 1
+"asInt32" "1" "=>" 1
+"asInt32" "1.1" "=>" 1
+"asInt32" "1.9" "=>" 1
+"asInt32" "0.9" "=>" 0
+"asInt32" "999.9" "=>" 999
+"asInt32" "NaN" "=>" 0
+"asInt32!" "undefined" "A number was expected"
+"asInt32!" "null" "A number was expected"
+"asInt32!" "false" "A number was expected"
+"asInt32!" "\"\"" "A number was expected"
+"asInt32!" "'1'" "A number was expected"
+"asInt32!" "{}" "A number was expected"
+"asInt32!" "[]" "A number was expected"
+"asInt32!" "sym" "A number was expected"
+"asUInt32" "0" "=>" 0
+"asUInt32" "1" "=>" 1
+"asUInt32" "1" "=>" 1
+"asUInt32" "1.1" "=>" 1
+"asUInt32" "1.9" "=>" 1
+"asUInt32" "0.9" "=>" 0
+"asUInt32" "999.9" "=>" 999
+"asUInt32" "NaN" "=>" 0
+"asUInt32!" "undefined" "A number was expected"
+"asUInt32!" "null" "A number was expected"
+"asUInt32!" "false" "A number was expected"
+"asUInt32!" "\"\"" "A number was expected"
+"asUInt32!" "'1'" "A number was expected"
+"asUInt32!" "{}" "A number was expected"
+"asUInt32!" "[]" "A number was expected"
+"asUInt32!" "sym" "A number was expected"
+"asInt64" "0" "=>" 0
+"asInt64" "1" "=>" 1
+"asInt64" "1" "=>" 1
+"asInt64" "1.1" "=>" 1
+"asInt64" "1.9" "=>" 1
+"asInt64" "0.9" "=>" 0
+"asInt64" "999.9" "=>" 999
+"asInt64" "NaN" "=>" 0
+"asInt64!" "undefined" "A number was expected"
+"asInt64!" "null" "A number was expected"
+"asInt64!" "false" "A number was expected"
+"asInt64!" "\"\"" "A number was expected"
+"asInt64!" "'1'" "A number was expected"
+"asInt64!" "{}" "A number was expected"
+"asInt64!" "[]" "A number was expected"
+"asInt64!" "sym" "A number was expected"
+"asInt32(-1)" -1
+"asInt64(-1)" -1
+"asUInt32(-1)" 4294967295
+"asDouble" "0" "=>" 0
+"asDouble" "1" "=>" 1
+"asDouble" "1" "=>" 1
+"asDouble" "1.1" "=>" 1.1
+"asDouble" "1.9" "=>" 1.9
+"asDouble" "0.9" "=>" 0.9
+"asDouble" "999.9" "=>" 999.9
+"asDouble" "-1" "=>" -1
+"asDouble" "NaN" "=>" NaN
+"asDouble!" "undefined" "A number was expected"
+"asDouble!" "null" "A number was expected"
+"asDouble!" "false" "A number was expected"
+"asDouble!" "\"\"" "A number was expected"
+"asDouble!" "'1'" "A number was expected"
+"asDouble!" "{}" "A number was expected"
+"asDouble!" "[]" "A number was expected"
+"asDouble!" "sym" "A number was expected"
+"asString(\"\")" ""
+"asString(\"test\")" "test"
+"asString!" "undefined" "A string was expected"
+"asString!" "null" "A string was expected"
+"asString!" "false" "A string was expected"
+"asString!" "1" "A string was expected"
+"asString!" "1.1" "A string was expected"
+"asString!" "NaN" "A string was expected"
+"asString!" "{}" "A string was expected"
+"asString!" "[]" "A string was expected"
+"asString!" "sym" "A string was expected"
+"toBool" "true" true
+"toBool" "1" true
+"toBool" "-1" true
+"toBool" "'true'" true
+"toBool" "'false'" true
+"toBool" "{}" true
+"toBool" "[]" true
+"toBool" "sym" true
+"toBool" "false" false
+"toBool" "undefined" false
+"toBool" "null" false
+"toBool" "0" false
+"toBool" "NaN" false
+"toBool" "\"\"" false
+"toNumber" "0" 0
+"toNumber" "1" 1
+"toNumber" "1.1" 1.1
+"toNumber" "-1" -1
+"toNumber" "'0'" 0
+"toNumber" "'1'" 1
+"toNumber" "'1.1'" 1.1
+"toNumber" "[]" 0
+"toNumber" "false" 0
+"toNumber" "null" 0
+"toNumber" "\"\"" 0
+"toNumber" "NaN" NaN
+"toNumber" "{}" NaN
+"toNumber" "undefined" NaN
+"toNumber(sym)!" "TypeError"
+"toObject" "{}" "Object:{}"
+"toObject" "{test:1}" "Object:{\"test\":1}"
+"toObject" "[]" "Array:[]"
+"toObject" "[1,2,3]" "Array:[1,2,3]"
+"toObject" "false" "Boolean:false"
+"toObject" "true" "Boolean:true"
+"toObject" "''" "String:\"\""
+"toObject" "0" "Number:0"
+"toObject(false)!==false" true
+"toString" "\"\"" ""
+"toString" "'test'" "test"
+"toString" "undefined" "undefined"
+"toString" "null" "null"
+"toString" "false" "false"
+"toString" "true" "true"
+"toString" "0" "0"
+"toString" "1.1" "1.1"
+"toString" "NaN" "NaN"
+"toString" "{}" "[object Object]"
+"toString" "[]" ""
+"toString" "[1,2,3]" "1,2,3"
+"toString({toString})" "test"
+"toString(sym)!" "TypeError"
+"testNull.getValueBool" "envIsNull=Invalid argument|inputTypeCheck=A boolean was expected|resultIsNull=Invalid argument|valueIsNull=Invalid argument"
+"testNull.getValueInt32" "envIsNull=Invalid argument|inputTypeCheck=A number was expected|resultIsNull=Invalid argument|valueIsNull=Invalid argument"
+"testNull.getValueUint32" "envIsNull=Invalid argument|inputTypeCheck=A number was expected|resultIsNull=Invalid argument|valueIsNull=Invalid argument"
+"testNull.getValueInt64" "envIsNull=Invalid argument|inputTypeCheck=A number was expected|resultIsNull=Invalid argument|valueIsNull=Invalid argument"
+"testNull.getValueDouble" "envIsNull=Invalid argument|inputTypeCheck=A number was expected|resultIsNull=Invalid argument|valueIsNull=Invalid argument"
+"testNull.coerceToBool" "envIsNull=Invalid argument|inputTypeCheck=napi_ok|resultIsNull=Invalid argument|valueIsNull=Invalid argument"
+"testNull.coerceToObject" "envIsNull=Invalid argument|inputTypeCheck=napi_ok|resultIsNull=Invalid argument|valueIsNull=Invalid argument"
+"testNull.coerceToString" "envIsNull=Invalid argument|inputTypeCheck=napi_ok|resultIsNull=Invalid argument|valueIsNull=Invalid argument"
+"testNull.getValueStringUtf8" "bufAndOutLengthIsNull=Invalid argument|envIsNull=Invalid argument|valueIsNull=Invalid argument|wrongTypeIn=A string was expected"
+"testNull.getValueStringLatin1" "bufAndOutLengthIsNull=Invalid argument|envIsNull=Invalid argument|valueIsNull=Invalid argument|wrongTypeIn=A string was expected"
+"testNull.getValueStringUtf16" "bufAndOutLengthIsNull=Invalid argument|envIsNull=Invalid argument|valueIsNull=Invalid argument|wrongTypeIn=A string was expected"

@@ -1,0 +1,39 @@
+"Multiply.u8" true 3 0 3 6
+"Multiply.f64" true 3 "-0" -3.3 -6.6
+"External" true 3 0 1 2
+"Create" "Int8Array" true true true
+"Create" "Uint8Array" true true true
+"Create" "Uint8ClampedArray" true true true
+"Create" "Int16Array" true true true
+"Create" "Uint16Array" true true true
+"Create" "Int32Array" true true true
+"Create" "Uint32Array" true true true
+"Create" "Float16Array" true true true
+"Create" "Float32Array" true true true
+"Create" "Float64Array" true true true
+"Create" "BigInt64Array" true true true
+"Create" "BigUint64Array" true true true
+"Create-oob" "Int8Array" "RangeError"
+"Create-oob" "Uint8Array" "RangeError"
+"Create-oob" "Uint8ClampedArray" "RangeError"
+"Create-oob" "Int16Array" "RangeError"
+"Create-oob" "Uint16Array" "RangeError"
+"Create-oob" "Int32Array" "RangeError"
+"Create-oob" "Uint32Array" "RangeError"
+"Create-oob" "Float16Array" "RangeError"
+"Create-oob" "Float32Array" "RangeError"
+"Create-oob" "Float64Array" "RangeError"
+"Create-oob" "BigInt64Array" "RangeError"
+"Create-oob" "BigUint64Array" "RangeError"
+"Detach" "Int8Array" false true 0
+"Detach" "Uint8Array" false true 0
+"Detach" "Uint8ClampedArray" false true 0
+"Detach" "Int16Array" false true 0
+"Detach" "Uint16Array" false true 0
+"Detach" "Int32Array" false true 0
+"Detach" "Uint32Array" false true 0
+"Detach" "Float16Array" false true 0
+"Detach" "Float32Array" false true 0
+"Detach" "Float64Array" false true 0
+"Detach" "BigInt64Array" false true 0
+"Detach" "BigUint64Array" false true 0

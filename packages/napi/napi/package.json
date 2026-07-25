@@ -60,7 +60,10 @@
         "test:gate:p03": "sh test/run-p03-gate.sh",
         "test:mem": "sh test/p03-mem.sh",
         "test:consumer": "node test/consumer-gate.mjs",
-        "test:consumer:mem": "sh test/consumer-mem.sh"
+        "test:consumer:mem": "sh test/consumer-mem.sh",
+        "test:conformance": "node scripts/conformance.mjs",
+        "test:conformance:update": "node scripts/conformance.mjs --update-golden",
+        "test:conformance:mem": "sh scripts/conformance-mem.sh"
     },
     "dependencies": {
         "@girs/glib-2.0": "^4.1.0",

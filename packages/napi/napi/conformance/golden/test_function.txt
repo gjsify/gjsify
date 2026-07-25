@@ -1,0 +1,10 @@
+"TestCall(()=>1)" 1
+"TestCall(()=>null)" null
+"TestCall(x=>x+1,1)" 2
+"TestCall(nested,1)" 2
+"TestName.name" "Name"
+"TestNameShort.name" "Name_"
+"MakeTrackedFunction.truthy" true
+"post-gc" "ok"
+"CreateFunctionParameters" "cbIsNull=Invalid argument|envIsNull=Invalid argument|nameIsNull=napi_ok|resultIsNull=Invalid argument"
+"TestBadReturnExceptionPending" "Error|throwing exception"

@@ -1,0 +1,4 @@
+"NewScope" "ok"
+"NewScopeEscape.isObject" true
+"NewScopeEscapeTwice" "ok"
+"NewScopeWithException" "boom"

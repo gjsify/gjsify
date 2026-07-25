@@ -1,0 +1,10 @@
+"value.desc" "function" "function" true false false
+"valueReadonly.desc" "function" true false false
+"plusOne.desc" true true "function" false false
+"ctor" 9
+"set" 10 10
+"valueReadonly-write!" "TypeError"
+"plusOne" 11 12 13
+"multiply()" 13
+"multiply(10)" 130
+"multiply(-1)" -13 -13 true

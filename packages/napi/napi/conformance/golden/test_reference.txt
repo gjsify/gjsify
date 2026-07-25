@@ -1,0 +1,13 @@
+"finalizeCount.init" 0
+"sym.weak.same" true
+"symFor.strong.same" true
+"symFor.strong.registered" true
+"symForEmpty.registered" true
+"symForIncorrectLength!" "Error: Invalid argument"
+"external.typeof" "object"
+"external.count" 0
+"external.checked" "ok"
+"strong.same" true
+"inc" 2
+"dec1" 1
+"dec0" 0

@@ -1,0 +1,18 @@
+"strictEquals(v1,v1)" true
+"strictEquals(v1,v2)" false
+"strictEquals(v2,v3)" true
+"getPrototype(base)" true
+"getPrototype(extended)" true
+"getVersion" 10
+"typeof" "undefined" true
+"typeof" "null" false
+"typeof" "true" true
+"typeof" "1" true
+"typeof" "'s'" true
+"typeof" "sym" true
+"typeof" "{}" true
+"typeof" "fn" true
+"getUndefined" true
+"getNull" true
+"instanceof(Array)" true
+"instanceof(Object)" false

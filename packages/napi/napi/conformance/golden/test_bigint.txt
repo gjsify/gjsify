@@ -1,0 +1,50 @@
+"Int64" "0n" "=>" 0n
+"Lossless64" "0n" true
+"Uint64" "0n" "=>" 0n
+"LosslessU64" "0n" true
+"Words" "0n" "=>" 0n
+"Int64" "0n" "=>" 0n
+"Lossless64" "0n" true
+"Uint64" "0n" "=>" 0n
+"LosslessU64" "0n" true
+"Words" "0n" "=>" 0n
+"Int64" "1n" "=>" 1n
+"Lossless64" "1n" true
+"Uint64" "1n" "=>" 1n
+"LosslessU64" "1n" true
+"Words" "1n" "=>" 1n
+"Int64" "-1n" "=>" -1n
+"Lossless64" "-1n" true
+"LosslessU64" "-1n" false
+"Words" "-1n" "=>" -1n
+"Int64" "100n" "=>" 100n
+"Lossless64" "100n" true
+"Uint64" "100n" "=>" 100n
+"LosslessU64" "100n" true
+"Words" "100n" "=>" 100n
+"Int64" "2121n" "=>" 2121n
+"Lossless64" "2121n" true
+"Uint64" "2121n" "=>" 2121n
+"LosslessU64" "2121n" true
+"Words" "2121n" "=>" 2121n
+"Int64" "-1233n" "=>" -1233n
+"Lossless64" "-1233n" true
+"LosslessU64" "-1233n" false
+"Words" "-1233n" "=>" -1233n
+"Int64" "986583n" "=>" 986583n
+"Lossless64" "986583n" true
+"Uint64" "986583n" "=>" 986583n
+"LosslessU64" "986583n" true
+"Words" "986583n" "=>" 986583n
+"Int64" "-976675n" "=>" -976675n
+"Lossless64" "-976675n" true
+"LosslessU64" "-976675n" false
+"Words" "-976675n" "=>" -976675n
+"Lossless64" "98765432213456789876546896323445679887645323232436587988766545658n" false
+"LosslessU64" "98765432213456789876546896323445679887645323232436587988766545658n" false
+"Words" "98765432213456789876546896323445679887645323232436587988766545658n" "=>" 98765432213456789876546896323445679887645323232436587988766545658n
+"Lossless64" "-4350987086545760976737453646576078997096876957864353245245769809n" false
+"LosslessU64" "-4350987086545760976737453646576078997096876957864353245245769809n" false
+"Words" "-4350987086545760976737453646576078997096876957864353245245769809n" "=>" -4350987086545760976737453646576078997096876957864353245245769809n
+"CreateTooBig" "Error: Invalid argument"
+"WordsThrow" "RangeError: Maximum BigInt size exceeded"
