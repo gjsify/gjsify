@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/node-polyfills",
-    "version": "0.21.0",
+    "version": "0.22.0",
     "description": "Meta package: all @gjsify Node.js polyfill packages as dependencies",
     "type": "module",
     "keywords": [

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.22.0](https://github.com/gjsify/gjsify/compare/v0.21.0...v0.22.0) (2026-07-25)
+
+### Features
+
+* **adwaita-web:** isolate widgets from host CSS ([#789](https://github.com/gjsify/gjsify/issues/789)) ([bcbb40f](https://github.com/gjsify/gjsify/commit/bcbb40fe24687f009e600ae5a7145baa65d8ea82))
+* **cli:** warn on a native dep installed without a binary ([#793](https://github.com/gjsify/gjsify/issues/793)) ([c6e7df6](https://github.com/gjsify/gjsify/commit/c6e7df65a0598fbe96990f91e1bf9c7692a7f0a5)), closes [#792](https://github.com/gjsify/gjsify/issues/792)
+* **devtools:** add ActivateWidget click-drive method ([#796](https://github.com/gjsify/gjsify/issues/796)) ([a25d3db](https://github.com/gjsify/gjsify/commit/a25d3db1c9959601c882ffea07c1a9810f035c76))
+* **node-gi:** darwin --windowing DATA (schemas/icons/gtksource) ([#795](https://github.com/gjsify/gjsify/issues/795)) ([ffb76ac](https://github.com/gjsify/gjsify/commit/ffb76acce370657a462a080e32cb5000e64e9dad)), closes [#66](https://github.com/gjsify/gjsify/issues/66)
+
+### Bug Fixes
+
+* **adwaita-storybook:** render Columns toggle icon ([#790](https://github.com/gjsify/gjsify/issues/790)) ([7ae5211](https://github.com/gjsify/gjsify/commit/7ae5211ebb7f71296f89fd8b86fd88b6dd8b0f83))
+* **adwaita-web:** hide view-switcher-bar when unrevealed ([#797](https://github.com/gjsify/gjsify/issues/797)) ([78e3d3d](https://github.com/gjsify/gjsify/commit/78e3d3d2b4f7934d7740ed387e18f6f68fee90c7))
+
+### Documentation
+
+* **website:** link each widget to its upstream reference ([#791](https://github.com/gjsify/gjsify/issues/791)) ([bc409cc](https://github.com/gjsify/gjsify/commit/bc409ccd4d307911b137c25af9013acf26a8c468))
+
+### Continuous Integration
+
+* **node-gi:** also ship the linux-arm64 prebuild ([#794](https://github.com/gjsify/gjsify/issues/794)) ([53a5761](https://github.com/gjsify/gjsify/commit/53a5761dae4d5fea193256b5c9a0a02c32cda4b8)), closes [#792](https://github.com/gjsify/gjsify/issues/792)
+* **node-gi:** ship the linux-x64 prebuild in the release ([#792](https://github.com/gjsify/gjsify/issues/792)) ([2675263](https://github.com/gjsify/gjsify/commit/2675263263bc158bbbe1dcbc1b2c956ddafb06f4))
+
 ## [0.21.0](https://github.com/gjsify/gjsify/compare/v0.20.0...v0.21.0) (2026-07-24)
 
 ### Features
