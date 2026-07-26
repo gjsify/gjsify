@@ -3,9 +3,9 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-// Import index.ts to trigger side-effect registration (Document.registerElementFactory)
+// The barrel is side-effect free — these are plain named imports. The
+// `/register` wiring (element factory + globalThis) is covered by register.spec.ts.
 import { HTMLIFrameElement, IFrameWindowProxy } from './index.js';
-import { Document } from '@gjsify/dom-elements';
 import { HTMLElement, Element, Node } from '@gjsify/dom-elements';
 import { MessageEvent, type Event } from '@gjsify/dom-events';
 import type { MessageBridge } from './message-bridge.js';
@@ -217,18 +217,8 @@ export default async () => {
         });
     });
 
-    // -- Document.createElement('iframe') --
-
-    await describe('Document.registerElementFactory', async () => {
-        await it('should create HTMLIFrameElement via document.createElement', async () => {
-            // The factory is registered as a side-effect in index.ts
-            // which is imported by the test runner
-            const doc = new Document();
-            const iframe = doc.createElement('iframe');
-            expect(iframe instanceof HTMLIFrameElement).toBe(true);
-            expect(iframe.tagName).toBe('IFRAME');
-        });
-    });
+    // -- Document.createElement('iframe') lives in register.spec.ts --
+    // (it depends on `@gjsify/iframe/register` having run; AGENTS.md testing rule 7)
 
     // -- IFrameWindowProxy (unit tests without WebView) --
 

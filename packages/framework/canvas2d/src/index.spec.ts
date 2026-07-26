@@ -6,8 +6,10 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { HTMLCanvasElement } from '@gjsify/dom-elements';
 
-// Import canvas2d to register the '2d' context factory
-import '@gjsify/canvas2d';
+// The '2d' context factory is owned by the DOM pillar — pull in exactly the
+// granular register these tests need. `@gjsify/canvas2d/register` (which also
+// installs globalThis.ImageData / Path2D) is exercised in register.spec.ts.
+import '@gjsify/dom-elements/register/canvas';
 import type { CanvasRenderingContext2D } from '@gjsify/canvas2d';
 import { Path2D, ImageData, parseColor } from '@gjsify/canvas2d';
 

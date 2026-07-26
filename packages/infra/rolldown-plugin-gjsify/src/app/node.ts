@@ -59,13 +59,15 @@ const NODE_GI_BARE_MODULE_SPECIFIERS = Object.values(ALIASES_GJS_FOR_NODE);
 const REGISTER_SUBPATH_RE = /\/register(\/|$)/;
 
 /**
- * Reverse-bridge register routing: a node build with an EXPLICIT `--globals`
- * register-inject stub (`pluginOptions.autoGlobalsInject`, set by the CLI for
- * `--app node` when the user names globals — e.g. `--globals auto,dom`) is a
- * genuine GJS source that needs the REAL `@gjsify/*` register bodies (document,
- * HTMLCanvasElement, matchMedia, …) running over `@gjsify/node-gi`, not the
- * default `@gjsify/empty` stubs that keep cross-platform node bundles loadable
+ * Reverse-bridge register routing: a node build of a GENUINE GJS SOURCE needs
+ * the REAL `@gjsify/*` register bodies (document, HTMLCanvasElement, the `'2d'`
+ * context factory, matchMedia, …) running over `@gjsify/node-gi`, not the
+ * default `@gjsify/empty` stubs that keep CROSS-PLATFORM node bundles loadable
  * on plain Node.
+ *
+ * Applied by `setupForNode` when `isGjsSourceBuild` is true — see the comment
+ * on that flag for why BOTH reverse-bridge signals qualify, not just the
+ * explicit `--globals` stub.
  *
  * Two adjustments over the standard node alias map:
  *  1. every `<pkg>/register…` → `@gjsify/empty` entry is DROPPED so the
@@ -76,7 +78,7 @@ const REGISTER_SUBPATH_RE = /\/register(\/|$)/;
  *     specifiers resolve on node exactly as they do on gjs.
  *
  * Applied to the BASE map only — `pluginOptions.aliases` / user aliases still
- * override. Without the inject stub the map is untouched (the plain-Node
+ * override. On a non-reverse-bridge build the map is untouched (the plain-Node
  * loadability guarantee for cross-platform packages is not regressed).
  */
 export function enableGjsRegistersForNode(baseAliases: Record<string, string>): Record<string, string> {
@@ -89,6 +91,41 @@ export function enableGjsRegistersForNode(baseAliases: Record<string, string>): 
         if (REGISTER_SUBPATH_RE.test(key)) out[key] = value;
     }
     return out;
+}
+
+/**
+ * Is this `--app node` build a GENUINE GJS SOURCE going through the node-gi
+ * reverse bridge, rather than the node target of a cross-platform package?
+ *
+ * Two signals qualify, and BOTH must gate the same things:
+ *  - `nodeGiGlobalsInject` — the CLI's post-tree-shake detection found bare GJS
+ *    ambient globals (`print`/`imports`/`ARGV`/…) in the bundled output;
+ *  - `registerInject` (the `--globals` auto/explicit inject stub) — the user
+ *    asked for GJS registers on the node target explicitly.
+ *
+ * This predicate exists as ONE named function because the two consumers used to
+ * ask the question separately and disagree: `emitGirs` took the union while the
+ * register-alias lift took only the explicit stub. A reverse-bridge build then
+ * got its `@girs/*` routed through to `requireGi` while a `/register`
+ * side-effect import in the SAME graph was still emptied to `@gjsify/empty` —
+ * silently dropping `@gjsify/dom-elements/register/canvas`'s `'2d'` context
+ * factory, so `@gjsify/canvas2d`'s `Canvas2DBridge` never fired `onReady`.
+ *
+ * A build with NEITHER signal is byte-unchanged: the `@gjsify/empty` register
+ * routing and the `@girs/*` emptying both stay, so a cross-platform package's
+ * node bundle keeps loading on plain Node without node-gi installed.
+ *
+ * KNOWN NARROWNESS (pre-dates this predicate, tracked in STATUS.md): the
+ * `nodeGiGlobalsInject` detector keys on BARE ambient globals, so a genuine GJS
+ * source that uses `gi://` but logs via `console.log` and passes no `--globals`
+ * is not recognised — its `@girs/*` AND its registers are both emptied. The two
+ * are now at parity; widening the signal itself is the separate fix.
+ */
+export function isGjsSourceBuild(options: {
+    nodeGiGlobalsInject?: boolean;
+    registerInject?: string | undefined;
+}): boolean {
+    return Boolean(options.nodeGiGlobalsInject || options.registerInject);
 }
 
 export interface NodeBuildConfig {
@@ -171,9 +208,39 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     const virtualEntries = wrapInputWithSideEffects(entryPoints, sideEffectImports);
     const finalInput = virtualEntries.input;
 
+    /**
+     * Is this a GENUINE GJS SOURCE built via the node-gi reverse bridge (as
+     * opposed to a cross-platform package's plain-Node bundle)?
+     *
+     * TWO signals answer that ONE question and both must count:
+     *
+     *  - `nodeGiGlobalsInject` — the CLI detected BARE GJS ambient globals
+     *    (`print`/`imports`/`ARGV`) in the tree-shaken output. Only genuine GJS
+     *    source has those (the detector deliberately ignores the
+     *    `globalThis.imports` isomorphic-guard shape).
+     *  - `autoGlobalsInject` — the user named EXPLICIT `--globals` (e.g.
+     *    `--globals auto,dom`), i.e. asked for the DOM surface on Node.
+     *
+     * Both already gate `emptyGirs` below. The register routing used to consult
+     * ONLY the explicit stub, and that asymmetry was a
+     * bug: a reverse-bridge build got its `@girs/*` value imports routed
+     * through to `requireGi` while a `/register` side-effect import in the very
+     * same graph was still emptied to `@gjsify/empty`. It surfaced as
+     * `@gjsify/canvas2d`'s `Canvas2DBridge` silently losing the `'2d'` context
+     * factory (`@gjsify/dom-elements/register/canvas` → empty → `getContext('2d')`
+     * null → `onReady` never fires) on a plain `gjsify build … --app node`, with
+     * no `--globals` flag anywhere — guarded by the node-gi
+     * `test/canvas2d-bridge.test.mjs` golden.
+     *
+     * A build with NEITHER signal is byte-unchanged: the `@gjsify/empty`
+     * register routing stays, so a cross-platform package's node bundle keeps
+     * loading on plain Node without node-gi installed.
+     */
+    const gjsSourceBuild = isGjsSourceBuild({ ...input.pluginOptions, registerInject });
+
     const baseAliases = getAliasesForNode({ external });
     const aliasMap = {
-        ...(registerInject ? enableGjsRegistersForNode(baseAliases) : baseAliases),
+        ...(gjsSourceBuild ? enableGjsRegistersForNode(baseAliases) : baseAliases),
         ...input.pluginOptions.aliases,
         ...input.userAliases,
     };
@@ -276,10 +343,9 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // `emptyGirs` also lifts for the explicit-register reverse-bridge case:
         // the injected register bodies (dom-elements, canvas2d, …) are genuine
         // GJS code whose `@girs/*` value imports must route through to
-        // `requireGi`, exactly like the ambient-globals case.
-        gjsImportsEmptyPlugin({
-            emptyGirs: !(input.pluginOptions.nodeGiGlobalsInject || registerInject),
-        }),
+        // `requireGi`, exactly like the ambient-globals case. Same predicate as
+        // the register-alias lift above — one question, one flag.
+        gjsImportsEmptyPlugin({ emptyGirs: !gjsSourceBuild }),
         aliasPlugin({ entries: flattenAliases(aliasMap) }),
         // Blueprint (.blp → XML string): the reverse bridge runs REAL GTK on
         // Node, so a GJS app entry (composite-template windows) must build for

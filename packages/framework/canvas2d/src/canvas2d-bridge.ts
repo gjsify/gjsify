@@ -8,6 +8,14 @@ import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import type Cairo from 'cairo';
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement, notifyElementResize } from '@gjsify/dom-elements';
+// `_onDraw` calls `canvas.getContext('2d')`, so this widget REQUIRES the DOM
+// pillar's `'2d'` context factory to be registered. Per the framework-package
+// rule ("a framework pkg needing a global imports `@gjsify/<web-or-dom-pkg>/register`
+// explicitly") we depend on it here — in the module that needs it — rather than
+// re-registering the factory ourselves or relying on `--globals auto` happening
+// to detect `HTMLCanvasElement` in the consumer's bundle. Tree-shakes with the
+// bridge: a consumer importing only `Path2D` never pulls it.
+import '@gjsify/dom-elements/register/canvas';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import type { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
 import { Event } from '@gjsify/dom-events';
@@ -87,7 +95,8 @@ export const Canvas2DBridge = GObject.registerClass(
                 this._canvas = new GjsifyHTMLCanvasElement();
                 this._canvas.width = width;
                 this._canvas.height = height;
-                // Import side-effect registers the '2d' factory, so getContext('2d') works
+                // The `@gjsify/dom-elements/register/canvas` import at the top of this
+                // module registers the '2d' factory, so getContext('2d') works.
                 this._ctx = this._canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
                 if (this._ctx) {
                     for (const cb of this._readyCallbacks) {
