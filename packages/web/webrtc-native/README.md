@@ -15,6 +15,27 @@ import { RTCPeerConnection } from '@gjsify/webrtc';
 
 The `@gjsify/webrtc-native` prebuild (`.so` + `.typelib`) is loaded automatically by `gjsify run` via the `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH` detection in the CLI.
 
+## Platform coverage
+
+| Platform | Prebuild | Built by |
+|---|---|---|
+| `linux-x86_64` | ✅ `.so` + `.typelib` | native runner |
+| `linux-aarch64` | ✅ | native runner |
+| `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
+| macOS (`darwin-arm64` / `darwin-x64`) | ❌ | **unverified, see below** |
+| Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
+
+All prebuilds are produced by [`.github/workflows/prebuilds.yml`](../../../.github/workflows/prebuilds.yml)
+and committed back to the repository.
+
+**macOS is not blocked — it is unverified.** The bridge needs `gstreamer-sdp-1.0` and
+`gstreamer-webrtc-1.0`, which come from gst-plugins-base/bad inside Homebrew's unified
+`gstreamer` formula; whether that formula exports both `.pc` files has not been confirmed.
+`meson.build` already emits the correct `.dylib` typelib leaf, so the only open question is
+the Homebrew dependency closure. The manual-dispatch
+`build-prebuilds-macos-experimental` job in the prebuilds workflow exists to answer it —
+run it, read the `pkg-config` report it prints, then promote or document the result.
+
 ## License
 
 MIT

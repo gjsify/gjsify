@@ -687,12 +687,20 @@ jobs:
   # GENERALIZATION of the consumer-sqlite job above into a reusable tool that
   # builds a gjsify package's OWN GJS test suite `--app node` (gi:// →
   # @gjsify/node-gi) and runs it on node + bun + deno. This job runs the PROOF
-  # SET (packages that pass today: sqlite=Gda, http2=Soup, zlib=Gio — three
-  # GNOME lib families) under `--require-pass`, so a regression in the reverse
-  # bridge fails CI. The full 22-package rollout + a non-gating full-survey job
-  # are documented follow-ups; the gap report + methodology live in
-  # docs/reports/node-gi-consumer-survey.md. Setup mirrors consumer-sqlite; the
-  # extra bun+deno legs come free from the harness's PATH-skip.
+  # SET under `--require-pass`, so a regression in the reverse bridge fails CI:
+  # sqlite=Gda, http2=Soup, zlib=Gio, tls=Gio/glib-networking, ws=Soup,
+  # dom-elements=GdkPixbuf(+cairo/Pango via the '2d' factory),
+  # node-globals=GLib, canvas2d-core=cairo/PangoCairo/GdkPixbuf,
+  # crypto=GLib.Checksum/Hmac, string_decoder=pure-TS — the survey's green
+  # packages whose system deps fit this minimal container (crypto +
+  # string_decoder additionally pin the imports.byteArray seeding and the
+  # harness's forced sibling-polyfill closure — survey P3/P4). The remaining
+  # green candidates (devtools/devtools-browser/storybook/adwaita-app +
+  # os/worker_threads) need the full gtk4/libadwaita/webkitgtk stack resp.
+  # procps/sab-native hosts and stay a documented follow-up, like the
+  # non-gating full-survey job; the gap report + methodology live in
+  # docs/reports/node-gi-consumer-survey.md. Setup mirrors consumer-sqlite;
+  # the extra bun+deno legs come free from the harness's PATH-skip.
   consumer-suites:
     name: node-gi consumer harness (proof set / Node+Bun+Deno)
     runs-on: ubuntu-latest
@@ -702,12 +710,18 @@ jobs:
     steps:
       - name: Install toolchain + GI dev headers + cairo + libgda + libsoup + gjs
         run: |
+          # glib-networking = the GIO TLS backend @gjsify/tls runs on;
+          # gdk-pixbuf2 = the GdkPixbuf typelib behind @gjsify/dom-elements'
+          # Image; pango + dejavu-sans-fonts = PangoCairo text metrics for
+          # @gjsify/canvas2d-core (a real font keeps layout sizes deterministic,
+          # same rationale as the build-test job's conformance deps).
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs \
             cairo-devel cairo-gobject-devel \
             libgda libgda-sqlite \
-            libsoup3
+            libsoup3 glib-networking \
+            gdk-pixbuf2 pango dejavu-sans-fonts
           gjs --version
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
 
@@ -760,7 +774,10 @@ jobs:
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
           gjsify workspace @gjsify/unit build:gjsify --with-dependencies
-          for p in @gjsify/sqlite @gjsify/http2 @gjsify/zlib; do
+          for p in @gjsify/sqlite @gjsify/http2 @gjsify/zlib \
+                   @gjsify/tls @gjsify/ws @gjsify/dom-elements \
+                   @gjsify/node-globals @gjsify/canvas2d-core \
+                   @gjsify/crypto @gjsify/string_decoder; do
             gjsify workspace "$p" build:gjsify --with-dependencies
           done
 
@@ -769,6 +786,9 @@ jobs:
           export PATH="$PWD/node_modules/.bin:$PATH"
           node scripts/node-gi-consumer-harness.mjs \
             @gjsify/sqlite @gjsify/http2 @gjsify/zlib \
+            @gjsify/tls @gjsify/ws @gjsify/dom-elements \
+            @gjsify/node-globals @gjsify/canvas2d-core \
+            @gjsify/crypto @gjsify/string_decoder \
             --runtimes node,bun,deno --require-pass \
             --out /tmp/node-gi-consumer-survey.json
 

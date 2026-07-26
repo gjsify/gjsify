@@ -1,6 +1,6 @@
 # @gjsify/oxfmt-native
 
-A native Rust cdylib + Vala/GObject bridge that wraps oxc's formatter ([oxfmt](https://oxc.rs/docs/guide/usage/formatter)) and exposes it to GJS via `gi://`. This is the formatter engine used by `gjsify format` / `gjsify fix` under GJS — npm's `oxfmt` is a Rust N-API binary that cannot load in GJS, so this bridge is how gjsify formats without a Node runtime. The bridge links oxfmt's pure-Rust CLI core, so the full CLI surface runs in-process: `.oxfmtrc(.json)` + `.editorconfig` resolution, ignore handling, parallel file walking, `--write` / `--check` / `--list-different`. Ships prebuilt `.so` + `.gir` + `.typelib` for Linux.
+A native Rust cdylib + Vala/GObject bridge that wraps oxc's formatter ([oxfmt](https://oxc.rs/docs/guide/usage/formatter)) and exposes it to GJS via `gi://`. This is the formatter engine used by `gjsify format` / `gjsify fix` under GJS — npm's `oxfmt` is a Rust N-API binary that cannot load in GJS, so this bridge is how gjsify formats without a Node runtime. The bridge links oxfmt's pure-Rust CLI core, so the full CLI surface runs in-process: `.oxfmtrc(.json)` + `.editorconfig` resolution, ignore handling, parallel file walking, `--write` / `--check` / `--list-different`. Ships prebuilt native libraries + `.gir` + `.typelib` for Linux and macOS — see [Platform coverage](#platform-coverage).
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -39,6 +39,26 @@ The Rust shim path-deps into the `refs/oxc` submodule (pinned to the `oxfmt_v*` 
 git submodule update --init refs/oxc
 gjsify workspace @gjsify/oxfmt-native build:prebuilds   # needs meson + vala + cargo
 ```
+
+## Platform coverage
+
+| Platform | Prebuild | Built by |
+|---|---|---|
+| `linux-x86_64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
+| `linux-aarch64` | ✅ | native runner |
+| `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ❌ | not built — the `refs/oxc` crate graph is too slow under QEMU |
+| `darwin-arm64` (macOS, Apple silicon) | ✅ `.dylib` + `.gir` + `.typelib` | `macos-latest` runner |
+| `darwin-x64` (macOS, Intel) | ❌ | — no runner leg yet |
+| Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
+
+All prebuilds are produced by [`.github/workflows/prebuilds.yml`](../../../.github/workflows/prebuilds.yml)
+and committed back to the repository.
+
+**Known gap — a `darwin-arm64` prebuild is built and shipped, but the CLI does not
+load it yet.** `detectNativePackages()` (`packages/infra/cli/src/utils/detect-native-packages.ts`)
+hardcodes a `linux-` directory prefix, and `buildNativeEnv()` exports `LD_LIBRARY_PATH`,
+which macOS `dyld` ignores in favour of `DYLD_LIBRARY_PATH`. Both are CLI-side fixes;
+until they land, `gjsify format` on macOS falls back to spawning the npm `oxfmt` Node launcher.
 
 ## License
 

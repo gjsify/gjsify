@@ -13,8 +13,16 @@
 # off-Linux, so "can a user on a Mac/Windows use gjsify" == the npm-installed CLI.
 #
 # Each substantive step is continue-on-error so ONE run maps ALL the gaps at once
-# (version? build? run? the install backend?); the final summary fails the job if
-# the core path (version/build/run) broke, while surfacing every step's outcome.
+# (version? build? run? the install backend?); the final summary surfaces every
+# step's outcome and then fails the job if ANY of them broke.
+#
+# The install backend is part of that gate as of the OS-axis fix. It used to be
+# reported-only because linking a bin off Linux was structurally impossible —
+# the backend wrote a file symlink (needs elevation/Developer Mode on Windows) or
+# fell back to copying a `#!/usr/bin/env node` script, and Windows executes
+# neither (extension-less files are not on PATHEXT, and there is no shebang
+# handling). win32 now gets npm's three-file cmd-shim set instead, so a failure
+# there is a regression rather than a known gap.
 name: CLI cross-platform (Node / macOS + Windows)
 
 on:
@@ -93,6 +101,38 @@ jobs:
         working-directory: gjsify-diag
         run: npx gjsify install @gjsify/path
 
+      # The install backend's bin linking is the part that used to be
+      # structurally impossible off Linux: it created a file symlink (needs
+      # elevation/Developer Mode on Windows) and fell back to a raw copy of a
+      # `#!/usr/bin/env node` script, which Windows can execute either way —
+      # extension-less files are not on PATHEXT and there is no shebang
+      # handling. It now writes npm's three-file cmd-shim set on win32 instead.
+      # `@gjsify/cli` is the target because it declares a real Node bin with a
+      # shebang, so this exercises the shebang-driven shim, not a stub.
+      - name: 'Install backend: bin shim is created AND runnable'
+        id: binshim
+        continue-on-error: true
+        env:
+          CLI_VERSION: ${{ github.event.inputs.cli_version || 'latest' }}
+          RUNNER_OS_NAME: ${{ runner.os }}
+        run: |
+          set -eux
+          mkdir gjsify-binshim && cd gjsify-binshim
+          npm init -y >/dev/null
+          # Install through gjsify's OWN backend (not npm), so the entry under
+          # node_modules/.bin is the one linkBins wrote.
+          npx --yes "@gjsify/cli@${CLI_VERSION}" install "@gjsify/cli@${CLI_VERSION}"
+          ls -la node_modules/.bin/
+          test -e node_modules/.bin/gjsify
+          if [ "$RUNNER_OS_NAME" = "Windows" ]; then
+            # cmd.exe and pwsh entry points — absent before this fix.
+            test -f node_modules/.bin/gjsify.cmd
+            test -f node_modules/.bin/gjsify.ps1
+          fi
+          # Actually run it through the shim (git-bash on Windows uses the
+          # extension-less `sh` member of the trio).
+          ./node_modules/.bin/gjsify --version
+
       - name: Diagnostic summary
         run: |
           echo "## gjsify CLI on ${{ matrix.os }} (Node)" >> "$GITHUB_STEP_SUMMARY"
@@ -102,12 +142,32 @@ jobs:
           echo "| gjsify build --app node | ${{ steps.build.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| run the bundle | ${{ steps.run.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| gjsify install (backend) | ${{ steps.install.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "--- outcomes: version=${{ steps.version.outcome }} build=${{ steps.build.outcome }} run=${{ steps.run.outcome }} install=${{ steps.install.outcome }}"
-          # Core toolchain = version + build + run. install is reported but not yet
-          # gating (the backend's off-Linux gaps are a known follow-up).
-          if [ "${{ steps.version.outcome }}" = "success" ] && [ "${{ steps.build.outcome }}" = "success" ] && [ "${{ steps.run.outcome }}" = "success" ]; then
-            echo "CORE CLI PATH GREEN on ${{ matrix.os }}"
+          echo "| .bin shim created + runnable | ${{ steps.binshim.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "--- outcomes: version=${{ steps.version.outcome }} build=${{ steps.build.outcome }} run=${{ steps.run.outcome }} install=${{ steps.install.outcome }} binshim=${{ steps.binshim.outcome }}"
+          # Every substantive step stays continue-on-error so ONE run still maps
+          # ALL the gaps; the gate lives here, at the end.
+          #
+          # `install` and `binshim` are now part of that gate. They used to be
+          # reported-only because the backend genuinely could not link a bin off
+          # Linux: it wrote a file symlink (needs elevation on Windows) or fell
+          # back to copying a `#!/usr/bin/env node` script, and Windows can
+          # execute neither. That is fixed — win32 now gets npm's three-file
+          # cmd-shim set — so a failure here is a real regression, not a known
+          # gap, and must red the job.
+          #
+          # NOTE: this workflow deliberately exercises the PUBLISHED CLI, so the
+          # install/binshim legs only go green from the release that carries the
+          # fix onward. It is workflow_dispatch + a weekly cron + a PR trigger
+          # scoped to this file, so a red run informs, it never blocks a PR.
+          FAILED=0
+          if [ "${{ steps.version.outcome }}" != "success" ]; then FAILED=1; fi
+          if [ "${{ steps.build.outcome }}" != "success" ]; then FAILED=1; fi
+          if [ "${{ steps.run.outcome }}" != "success" ]; then FAILED=1; fi
+          if [ "${{ steps.install.outcome }}" != "success" ]; then FAILED=1; fi
+          if [ "${{ steps.binshim.outcome }}" != "success" ]; then FAILED=1; fi
+          if [ "$FAILED" = "0" ]; then
+            echo "CLI PATH GREEN on ${{ matrix.os }} (toolchain + install backend)"
           else
-            echo "CORE CLI PATH BROKEN on ${{ matrix.os }} — see the step outcomes above"
+            echo "CLI PATH BROKEN on ${{ matrix.os }} — see the step outcomes above"
             exit 1
           fi
