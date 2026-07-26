@@ -678,6 +678,16 @@ imports.signals.addSignalMethods(emitter);      // the pure-JS Signals mixin
 emitter.connect('ready', () => imports.mainloop.quit());
 imports.mainloop.timeout_add(50, () => { emitter.emit('ready'); return false; });
 imports.mainloop.run();                          // thin GLib.MainLoop wrapper
+
+// imports.byteArray — the legacy byte-array module, with GJS semantics
+// (fromString/toString are zero-terminated + fatal-decode; fromGBytes/toGBytes
+// round-trip GLib.Bytes; fromArray wraps in the legacy ByteArray class). This
+// is the seam @gjsify/utils' cli()/gbytesToUint8Array — and through them
+// @gjsify/os + @gjsify/child_process — read GLib subprocess output with:
+const [ok, out] = imports.gi.GLib.spawn_command_line_sync('echo hi');
+console.log(imports.byteArray.toString(out));    // 'hi\n'
+const bytes = imports.byteArray.toGBytes(Uint8Array.of(1, 2, 3));
+imports.byteArray.fromGBytes(bytes);             // Uint8Array [1, 2, 3] (a copy)
 ```
 
 A follow-up `--app node` build step will inject this automatically for any

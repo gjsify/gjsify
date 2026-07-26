@@ -17,6 +17,16 @@
 //      (the sqlite `--alias` pattern — the specs' `node:<name>` import is
 //      retargeted onto the libgda/GLib-backed POLYFILL under test, not Node's
 //      own builtin) under Node via a Node-runnable `gjsify` (npm rolldown).
+//      The build ALSO forces every `runtimes.node === "native"` @gjsify/*
+//      package in the target's transitive workspace-dep closure onto its
+//      POLYFILL body (`--alias @gjsify/<dep>=<abs lib/esm/index.js>`): the
+//      standard node routing rewrites those onto `<dep>/globals` native
+//      re-exports, which lack the polyfill-only surface the polyfill under
+//      test imports (the survey's P4/P7 — `@gjsify/buffer`'s
+//      normalizeEncoding/checkEncoding helpers, `@gjsify/message-channel`'s
+//      CONSTRUCTIBLE MessagePort vs Node's non-constructible global). Forcing
+//      the closure reproduces the graph the suite runs against on gjs — the
+//      thing this harness exists to measure.
 //   3. Runs the ONE `--app node` bundle on node, and — reusing example/harness.mjs's
 //      RUNTIMES map + PATH-skip — on bun and deno too (Node-API is their common ABI).
 //   4. Captures build ok/fail, run exit code, the `@gjsify/unit` summary counts
@@ -39,7 +49,7 @@
 // the `@gjsify/node-gi` addon built (packages/node-gi/node-gi, `npm install`).
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, mkdirSync, symlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -161,6 +171,88 @@ function enumerateGjsOnly() {
         }
     }
     return out.sort();
+}
+
+// ── forced sibling-polyfill aliases (survey P4/P7 fix) ───────────────────────
+// The `--alias node:<self>=@gjsify/<self>` retarget bundles the POLYFILL under
+// test, but its sibling `@gjsify/*` imports still get the standard node-target
+// routing: a `runtimes.node === "native"` sibling rewrites to its
+// `<pkg>/globals` native re-export. That mixed polyfill/native graph is NOT the
+// graph the suite exercises on gjs, and it demonstrably lacks polyfill-only
+// surface — `@gjsify/buffer/globals` (= `node:buffer`) has no
+// normalizeEncoding/checkEncoding (broke crypto 526/570 + string_decoder 0/…),
+// and `@gjsify/message-channel/globals` re-exports Node's NON-CONSTRUCTIBLE
+// global MessagePort (broke worker_threads 0/… with "Constructor cannot be
+// called"). So: walk the target's transitive workspace-dep closure
+// (dependencies + optionalDependencies) and force every native-slot @gjsify/*
+// member onto its polyfill entry via a user alias (user aliases override the
+// derived runtime-aliases map). Only built entries are forced — an unbuilt
+// sibling keeps the default routing rather than a dead path.
+const pkgJsonCache = new Map();
+function readPkgJson(dir) {
+    if (!pkgJsonCache.has(dir)) {
+        try {
+            pkgJsonCache.set(dir, JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8')));
+        } catch {
+            pkgJsonCache.set(dir, null);
+        }
+    }
+    return pkgJsonCache.get(dir);
+}
+
+function polyfillEntryOf(pkgDir, pkgJson) {
+    const dot = pkgJson.exports?.['.'];
+    const rel = (typeof dot === 'object' && dot !== null ? dot.default : dot) ?? pkgJson.main ?? 'lib/esm/index.js';
+    const abs = join(pkgDir, rel);
+    return existsSync(abs) ? abs : null;
+}
+
+function collectForcedPolyfillAliases(startDir) {
+    const aliases = [];
+    const visited = new Set();
+    const queue = [startDir];
+    while (queue.length) {
+        const dir = queue.shift();
+        if (visited.has(dir)) continue;
+        visited.add(dir);
+        const pkg = readPkgJson(dir);
+        if (!pkg) continue;
+        const deps = { ...pkg.dependencies, ...pkg.optionalDependencies };
+        for (const depName of Object.keys(deps)) {
+            if (!depName.startsWith('@gjsify/')) continue;
+            const depDir = findPackageDir(depName);
+            if (!depDir || visited.has(depDir)) continue;
+            queue.push(depDir);
+            const depPkg = readPkgJson(depDir);
+            if (depPkg?.gjsify?.runtimes?.node !== 'native') continue;
+            const entry = polyfillEntryOf(depDir, depPkg);
+            if (entry) aliases.push(`${depName}=${entry}`);
+        }
+    }
+    return aliases;
+}
+
+// ── test fixtures ────────────────────────────────────────────────────────────
+// Packages with on-disk worker/data fixtures (e.g. worker_threads'
+// `fixtures/echo-worker.mjs`) stage them via a `prebuild:test:fixtures` script
+// into `<pkg>/fixtures/` and resolve them RELATIVE TO THE BUNDLE
+// (`new URL('./fixtures/…', import.meta.url)`). The package's own test bundles
+// live at the package root, this harness's live in `dist/` — so stage the
+// fixtures and bridge `dist/fixtures` → `../fixtures` with a symlink.
+function stageFixtures(dir, distDir, gjsify, timeout) {
+    const pkg = readPkgJson(dir);
+    if (pkg?.scripts?.['prebuild:test:fixtures']) {
+        exec(gjsify, ['run', 'prebuild:test:fixtures'], { cwd: dir, timeout });
+    }
+    const fixtures = join(dir, 'fixtures');
+    const distFixtures = join(distDir, 'fixtures');
+    if (existsSync(fixtures) && !existsSync(distFixtures)) {
+        try {
+            symlinkSync('../fixtures', distFixtures, 'dir');
+        } catch {
+            /* best-effort — a broken link surfaces as the fixture-load failure it bridges */
+        }
+    }
 }
 
 // ── failure-reason grouping ──────────────────────────────────────────────────
@@ -324,11 +416,23 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
 
     try {
         mkdirSync(distDir, { recursive: true });
-        // 2. build --app node with the sqlite --alias pattern.
+        // 2. build --app node with the sqlite --alias pattern, plus the forced
+        // sibling-polyfill closure (see collectForcedPolyfillAliases above).
         const relEntry = entrySrc.replace(dir + '/', '');
+        const forcedAliases = collectForcedPolyfillAliases(dir);
         const b = exec(
             gjsify,
-            ['build', relEntry, '--app', 'node', '--alias', `node:${bare}=${name}`, '--outfile', outfile],
+            [
+                'build',
+                relEntry,
+                '--app',
+                'node',
+                '--alias',
+                `node:${bare}=${name}`,
+                ...forcedAliases.flatMap((a) => ['--alias', a]),
+                '--outfile',
+                outfile,
+            ],
             { cwd: dir, timeout },
         );
         if (!b.ok || !existsSync(outAbs)) {
@@ -338,6 +442,7 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
             return result;
         }
         result.build = { ok: true };
+        stageFixtures(dir, distDir, gjsify, timeout);
 
         // 3+4. run on each requested runtime, capture + classify
         for (const rt of runtimes) {

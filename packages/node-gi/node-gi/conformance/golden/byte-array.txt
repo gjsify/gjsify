@@ -1,0 +1,14 @@
+fromString: 6 true Uint8Array
+toString: héllo
+instance toString: héllo
+zero-terminated: hi
+latin1 round-trip: äöü
+toGBytes size: 3
+fromGBytes: 3 true 1,2,3
+Bytes.toArray: 1,2,3
+fromArray: 2 104 105 hi
+spawn: true "conf\n"
+toGBytes throws: Error | Argument to ByteArray.toGBytes() must be a Uint8Array
+fromGBytes throws: TypeError
+fatal decode throws: TypeError
+fromString throws: Error
