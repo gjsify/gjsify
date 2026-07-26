@@ -63,7 +63,6 @@ jobs:
       # A fresh project that depends on the PUBLISHED @gjsify/cli — exactly what a
       # user on this OS would have. npm wires the bin (a .cmd shim on Windows).
       - name: Scaffold a minimal gjsify project (npm install @gjsify/cli)
-        id: scaffold
         env:
           CLI_VERSION: ${{ github.event.inputs.cli_version || 'latest' }}
         run: |
@@ -74,11 +73,7 @@ jobs:
           # a minimal --app node entry that touches a node: builtin (stays external
           # on the node target) so we exercise real bundling, not an empty file.
           printf "import { platform, arch } from 'node:os';\nconsole.log('GJSIFY_DIAG_OK', platform(), arch());\n" > hello.ts
-          installed="$(node -p "require('./node_modules/@gjsify/cli/package.json').version")"
-          echo "installed @gjsify/cli: ${installed}"
-          # Resolved, not requested: `latest` says nothing about which fixes are
-          # in the tarball. The gate below keys on this.
-          echo "installed=${installed}" >> "$GITHUB_OUTPUT"
+          echo "installed @gjsify/cli: $(node -p "require('./node_modules/@gjsify/cli/package.json').version")"
 
       - name: 'CLI loads: gjsify --version'
         id: version
@@ -139,10 +134,7 @@ jobs:
           ./node_modules/.bin/gjsify --version
 
       - name: Diagnostic summary
-        env:
-          INSTALLED_CLI: ${{ steps.scaffold.outputs.installed }}
         run: |
-          BINSHIM_GATES=0
           echo "## gjsify CLI on ${{ matrix.os }} (Node)" >> "$GITHUB_STEP_SUMMARY"
           echo "| step | outcome |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
@@ -158,39 +150,17 @@ jobs:
           # `install` is part of that gate: the native backend's path handling is
           # already Windows-correct, so a failure there is a real regression.
           #
-          # `binshim` gates CONDITIONALLY, on the version actually installed.
-          # This workflow exercises the PUBLISHED CLI — that is its whole point,
-          # it reproduces what a user on this OS gets — and the win32 cmd-shim
-          # set (npm's three-file `<name>` / `.cmd` / `.ps1` trio, replacing a
-          # file symlink that needs elevation and a `#!`-script Windows cannot
-          # execute) only exists from the release that carries it onward.
-          # Gating it unconditionally would mean a permanently red required
-          # check that says nothing about the change under review, which is
-          # worse than no signal: people learn to ignore it. Never gating it
-          # means the switch gets forgotten and the leg silently stays
-          # decorative — the failure mode this repo has hit before.
-          #
-          # So: compare the RESOLVED installed version against the first release
-          # that can carry the fix. Below it the step still runs and reports but
-          # does not red the job; at or above it, it gates like the rest. No
-          # human step to remember, and the reason is visible in the log.
-          # Meanwhile `utils/bin-shim.spec.ts` unit-tests the win32 branch from
-          # Linux by injecting the platform.
-          BINSHIM_GATED_SINCE=0.22.1
-          if [ -z "$INSTALLED_CLI" ]; then
-            echo "binshim: installed version unknown — not gating"
-          elif [ "$(printf '%s\n%s\n' "$BINSHIM_GATED_SINCE" "$INSTALLED_CLI" | sort -V | head -n1)" = "$BINSHIM_GATED_SINCE" ]; then
-            BINSHIM_GATES=1
-            echo "binshim: installed ${INSTALLED_CLI} >= ${BINSHIM_GATED_SINCE} — gating on it"
-          else
-            echo "binshim: installed ${INSTALLED_CLI} < ${BINSHIM_GATED_SINCE} — reporting only"
-          fi
+          # `binshim` gates like every other step. It covers npm's win32
+          # cmd-shim trio (`<name>` / `.cmd` / `.ps1`), which replaces a file
+          # symlink needing elevation and a `#!` script Windows cannot execute.
+          # `utils/bin-shim.spec.ts` additionally unit-tests the win32 branch
+          # from Linux by injecting the platform.
           FAILED=0
           if [ "${{ steps.version.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.build.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.run.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.install.outcome }}" != "success" ]; then FAILED=1; fi
-          if [ "$BINSHIM_GATES" = "1" ] && [ "${{ steps.binshim.outcome }}" != "success" ]; then FAILED=1; fi
+          if [ "${{ steps.binshim.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "$FAILED" = "0" ]; then
             echo "CLI PATH GREEN on ${{ matrix.os }} (toolchain + install backend)"
           else
