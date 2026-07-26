@@ -41,6 +41,54 @@ Vite preset (or any Vite/bundler setup). Type declarations are shipped
 pre-built at `lib/types/index.d.ts`, so `gjsify tsc` consumers resolve the
 package's types without compiling its source.
 
+## Shared behaviour (`@gjsify/adwaita-core`)
+
+The widget *behaviour* — as opposed to the DOM rendering — comes from
+[`@gjsify/adwaita-core`](../adwaita-core), the headless Adwaita layer defined by
+[ADR 0004](../../../docs/adr/0004-headless-adwaita-core.md). It is pure TypeScript
+with no platform imports, and `@gjsify/adwaita-nativescript` composes the exact
+same state machines, so a behaviour fix lands once and both ports pick it up.
+
+| Element | Core state machine | What core owns |
+| --- | --- | --- |
+| `<adw-toast-overlay>` | `AdwToastQueue` + `AdwToast` | one toast at a time, FIFO ordering, auto-dismiss lifecycle |
+| `<adw-combo-row>` | `ComboState` | options list, index↔value mapping, out-of-range guards, programmatic-vs-user split |
+| `<adw-spin-row>` | `SpinState` | value/min/max/step with clamping on every mutation |
+| `<adw-toggle-group>` | `ToggleGroupState` | segment list, guarded active index |
+| `<adw-expander-row>` | `ExpanderState` | expanded/collapsed disclosure |
+| `<adw-alert-dialog>` | `AdwAlertResponses` | response registry, default/close response, resolve-to-chosen-id |
+
+Each element keeps only the DOM half: the markup, the CSS classes and the
+`notify::*` / `response` `CustomEvent`s. The public element API is unchanged —
+the composition is an implementation detail.
+
+### Toasts are queued, one at a time
+
+`<adw-toast-overlay>` follows `Adw.ToastOverlay`: it shows **exactly one** toast
+and queues the rest FIFO. Each queued toast is shown only after the visible one
+is dismissed — by its timeout, by its close button, by its action button, or by
+`dismiss()`.
+
+```typescript
+const overlay = document.querySelector('adw-toast-overlay');
+
+overlay.addToast('File moved to Trash', { timeout: 3, buttonLabel: 'Undo', onAction: undo });
+overlay.addToast('Second file moved');   // waits its turn — not shown yet
+
+overlay.currentToast?.title;  // 'File moved to Trash'
+overlay.pendingToasts;        // 1
+
+overlay.dismiss();      // show the next queued toast now
+overlay.clearToasts();  // dismiss the visible one and drop the queue
+```
+
+`addToast()`'s `timeout` is in **seconds** (mirroring `Adw.Toast:timeout`); `0`
+keeps the toast until it is dismissed and holds the queue behind it. The
+auto-dismiss runs on the browser's timers by default; assign
+`overlay.scheduler` a custom `ToastScheduler` (the seam `@gjsify/adwaita-core`
+defines) to drive toast lifetimes from your own clock — that is how the
+package's own regression tests advance time without real timers.
+
 ## Theming a page without `<adw-window>`
 
 The components read their colours from the `--window-*` CSS custom properties,

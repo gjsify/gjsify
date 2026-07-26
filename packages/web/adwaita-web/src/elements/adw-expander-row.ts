@@ -10,10 +10,21 @@
 // Events: notify::expanded (CustomEvent), notify::enable-expansion (CustomEvent)
 //   — mirror Adw.ExpanderRow's GObject signal names so the same code path drives
 //   both the web and GTK renderers.
+//
+// The DISCLOSURE state (the expanded flag and its idempotent, notify-on-change
+// transitions) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link ExpanderState}; this element composes it and keeps only the DOM render
+// half — the header/content markup, the `expanded` attribute reflection and the
+// `notify::expanded` event. `@gjsify/adwaita-nativescript` composes the same
+// state machine, so both ports share one behaviour.
+//
 // Reference: refs/adwaita-web/adwaita-web/scss/_expander_row.scss
 // Reference: refs/libadwaita/src/stylesheet/widgets/_expander-row.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// disclosure state machine composed from @gjsify/adwaita-core.
+
+import { ExpanderState } from '@gjsify/adwaita-core';
 
 export class AdwExpanderRow extends HTMLElement {
     private _headerEl!: HTMLDivElement;
@@ -25,19 +36,33 @@ export class AdwExpanderRow extends HTMLElement {
     private _contentEl!: HTMLDivElement;
     private _prefixEl!: HTMLDivElement;
     private _suffixEl!: HTMLDivElement;
+    /** The headless expanded/collapsed disclosure state machine (ADR 0004). */
+    private readonly _state = new ExpanderState();
     private _initialized = false;
+
+    constructor() {
+        super();
+        // Subscribed in the constructor (NOT connectedCallback) so a disclosure
+        // set before the element is connected still reflects to the attribute.
+        // The custom-element constructor rules allow this — nothing touches the
+        // DOM until the state actually changes.
+        this._state.subscribe((expanded) => {
+            if (expanded) this.setAttribute('expanded', '');
+            else this.removeAttribute('expanded');
+            if (this._initialized) this._render();
+        });
+    }
 
     static get observedAttributes() {
         return ['title', 'subtitle', 'expanded', 'enable-expansion', 'show-enable-switch'];
     }
 
     get expanded(): boolean {
-        return this.hasAttribute('expanded');
+        return this._state.expanded;
     }
 
     set expanded(value: boolean) {
-        if (value) this.setAttribute('expanded', '');
-        else this.removeAttribute('expanded');
+        this._state.setExpanded(value);
     }
 
     get enableExpansion(): boolean {
@@ -122,10 +147,14 @@ export class AdwExpanderRow extends HTMLElement {
         this._headerEl.addEventListener('click', (event) => {
             // Clicks on the enable switch toggle expansion-enable, not disclosure.
             if (this._enableLabel.contains(event.target as Node)) return;
-            this.expanded = !this.expanded;
-            this.dispatchEvent(
-                new CustomEvent('notify::expanded', { bubbles: true, detail: { expanded: this.expanded } }),
-            );
+            // The core state machine flips + reflects + re-renders; the event is
+            // emitted here so only a USER disclosure notifies (a programmatic
+            // `expanded = …` stays silent, as it always has on this port).
+            if (this._state.toggle()) {
+                this.dispatchEvent(
+                    new CustomEvent('notify::expanded', { bubbles: true, detail: { expanded: this.expanded } }),
+                );
+            }
         });
 
         this._enableSwitch.addEventListener('change', () => {
@@ -138,11 +167,18 @@ export class AdwExpanderRow extends HTMLElement {
             );
         });
 
+        // Seed the disclosure from the parsed markup — attributeChangedCallback
+        // is guarded until the element is initialized, so a declarative
+        // `expanded` attribute has to be adopted here.
+        this._state.setExpanded(this.hasAttribute('expanded'));
         this._render();
     }
 
-    attributeChangedCallback() {
-        if (this._initialized) this._render();
+    attributeChangedCallback(name: string) {
+        if (!this._initialized) return;
+        // The `expanded` attribute is the declarative face of the core state.
+        if (name === 'expanded') this._state.setExpanded(this.hasAttribute('expanded'));
+        this._render();
     }
 
     private _render() {

@@ -2,17 +2,30 @@
 // Attributes: title, subtitle, items (JSON string[]), selected (index number)
 // Events: notify::selected (CustomEvent, mirrors GJS GObject signal naming)
 // The native <select> is stretched invisibly over the row so clicking anywhere opens it.
+//
+// The SELECTION state machine (the options list, the two-way index↔value mapping,
+// the empty/out-of-range guards and the programmatic-vs-interactive notify split)
+// is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link ComboState};
+// this element composes it and keeps only the DOM render half — the <select>, the
+// inline value label and the `notify::selected` event.
+// `@gjsify/adwaita-nativescript` composes the same state machine, so both ports
+// share one behaviour.
+//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
-//   title/subtitle text column added to match Adw.ComboRow.
+//   title/subtitle text column added to match Adw.ComboRow; the selection state
+//   machine composed from @gjsify/adwaita-core.
+
+import { ComboState } from '@gjsify/adwaita-core';
 
 export class AdwComboRow extends HTMLElement {
     private _select!: HTMLSelectElement;
     private _valueEl!: HTMLSpanElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
-    private _items: string[] = [];
+    /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
+    private readonly _state = new ComboState();
     private _initialized = false;
 
     static get observedAttributes() {
@@ -20,7 +33,7 @@ export class AdwComboRow extends HTMLElement {
     }
 
     get selected(): number {
-        return this._select ? this._select.selectedIndex : parseInt(this.getAttribute('selected') || '0', 10);
+        return this._initialized ? this._state.selectedIndex : parseInt(this.getAttribute('selected') || '0', 10);
     }
 
     set selected(value: number) {
@@ -31,8 +44,12 @@ export class AdwComboRow extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        this._items = JSON.parse(this.getAttribute('items') || '[]');
-        const selectedIdx = parseInt(this.getAttribute('selected') || '0', 10);
+        const items: string[] = JSON.parse(this.getAttribute('items') || '[]');
+        // Seed the headless state BEFORE subscribing, so building the initial DOM
+        // below is not driven by a change notification.
+        this._state.setOptions(items.map((item) => ({ label: item, value: item })));
+        this._state.setSelectedIndex(parseInt(this.getAttribute('selected') || '0', 10));
+        const selectedIdx = this._state.selectedIndex;
 
         const text = document.createElement('div');
         text.className = 'adw-row-text';
@@ -45,11 +62,11 @@ export class AdwComboRow extends HTMLElement {
         // Visible selected value display
         this._valueEl = document.createElement('span');
         this._valueEl.className = 'adw-row-value';
-        this._valueEl.textContent = this._items[selectedIdx] ?? '';
+        this._valueEl.textContent = this._state.selectedLabel;
 
         // Hidden select overlaying the entire row
         const select = document.createElement('select');
-        this._items.forEach((item, i) => {
+        items.forEach((item, i) => {
             const option = document.createElement('option');
             option.value = String(i);
             option.textContent = item;
@@ -60,16 +77,26 @@ export class AdwComboRow extends HTMLElement {
         this.replaceChildren(text, this._valueEl, select);
 
         this._select = select;
-        this._select.addEventListener('change', () => {
-            const idx = this._select.selectedIndex;
-            this._valueEl.textContent = this._items[idx] ?? '';
-            this.setAttribute('selected', String(idx));
+
+        // The core state drives the inline label + the <select> on every change,
+        // and the notify::selected event only on an interactive pick.
+        this._state.subscribe((change) => {
+            this._valueEl.textContent = change.label;
+            if (this._select.selectedIndex !== change.selected) this._select.selectedIndex = change.selected;
+            if (!change.interactive) return;
+            this.setAttribute('selected', String(change.selected));
             this.dispatchEvent(
                 new CustomEvent('notify::selected', {
                     bubbles: true,
-                    detail: { selected: idx },
+                    detail: { selected: change.selected },
                 }),
             );
+        });
+
+        this._select.addEventListener('change', () => {
+            // A user pick — `select()` guards the no-op case and notifies
+            // `interactive`, so the subscriber emits notify::selected.
+            this._state.select(this._select.selectedIndex);
         });
 
         this._renderText();
@@ -78,9 +105,9 @@ export class AdwComboRow extends HTMLElement {
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
         if (!this._initialized) return;
         if (name === 'selected') {
-            const idx = parseInt(value || '0', 10);
-            this._select.selectedIndex = idx;
-            this._valueEl.textContent = this._items[idx] ?? '';
+            // A programmatic set — the core state notifies `interactive: false`,
+            // so the subscriber re-syncs the display without emitting an event.
+            this._state.setSelectedIndex(parseInt(value || '0', 10));
         } else {
             this._renderText();
         }
