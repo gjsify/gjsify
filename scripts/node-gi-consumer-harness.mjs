@@ -278,9 +278,9 @@ function stageFixtures(dir, distDir, gjsify, timeout) {
 // quotes the name into its message (`Timeout: "<name>" exceeded 5000ms`), so
 // double-quoted spans are blanked before matching.
 //
-// A real process timeout is NOT here — it is detected via `killed` and
-// reported as its own `timeout` status, so a test merely NAMED "timeout" can't
-// mis-bucket.
+// A real process timeout is NOT here — it is detected from the spawn error
+// (`ETIMEDOUT`) and reported as its own `timeout` status, so a test merely
+// NAMED "timeout" can't mis-bucket.
 const REASON_RULES = [
     [
         /Typelib file for namespace '?(Gtk|Gdk|Adw|Gsk)'?|namespace (Gtk|Gdk|Adw)|cannot open display|GDK_BACKEND|Gtk-WARNING|gtk_init|could not (find|open) display/i,
@@ -433,7 +433,14 @@ function exec(cmd, args, opts) {
             code: err.status ?? err.code ?? -1,
             stdout: (err.stdout || '').toString(),
             stderr: (err.stderr || '').toString(),
-            killed: !!err.killed,
+            // A wall-clock kill by `execFileSync`'s own `timeout` does NOT set
+            // `killed` — Node reports `code:'ETIMEDOUT'`, `signal:'SIGTERM'`,
+            // `status:null` (measured). Keying only on `killed` made the
+            // `timeout` status unreachable, so every genuine hang was recorded
+            // as a plain `fail` and then bucketed by whatever its output
+            // happened to say — which is exactly how a suite that PASSES and
+            // then never exits gets filed under a failure reason.
+            timedOut: err.code === 'ETIMEDOUT' || !!err.killed,
         };
     }
 }
@@ -517,10 +524,18 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
             // are drawn from the same records, never from the whole stdout.
             const failures = collectFailures(text);
             const samples = failures.map(formatFailure);
-            if (r.killed) {
-                // A genuine wall-clock timeout — likely a blocking mainloop that
-                // never returns (an async-Gio consumer, unlike synchronous sqlite).
-                result.runtimes[rt] = { status: 'timeout', reason: 'mainloop-hang-or-timeout', samples };
+            if (r.timedOut) {
+                // A genuine wall-clock kill. Distinguish a suite that never got
+                // to report from one that reported cleanly and then refused to
+                // exit — the latter is a process-lifetime bug, not a test
+                // failure, and filing both under one reason hides it.
+                const cleanThenHung = summary && summary.failed === 0;
+                result.runtimes[rt] = {
+                    status: 'timeout',
+                    reason: cleanThenHung ? 'no-exit-after-pass' : 'mainloop-hang-or-timeout',
+                    ...(cleanThenHung ? summary : {}),
+                    samples,
+                };
             } else if (r.ok && summary && summary.failed === 0) {
                 result.runtimes[rt] = { status: 'pass', ...summary };
             } else if (summary && summary.failed > 0) {
