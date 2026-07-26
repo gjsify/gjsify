@@ -61,6 +61,15 @@ function setupSyntheticRepo(parent) {
         `// initial affected bundle\n`,
     );
 
+    // The build pipeline the CLI bundle INLINES. A resolver change here is
+    // silently absent from `dist/cli.gjs.mjs` until it is rebuilt, so the hook
+    // treats it exactly like `cli/src/`.
+    mkdirSync(join(root, 'packages', 'infra', 'rolldown-plugin-gjsify', 'src', 'plugins'), { recursive: true });
+    writeFileSync(
+        join(root, 'packages', 'infra', 'rolldown-plugin-gjsify', 'src', 'plugins', 'alias.ts'),
+        `export const aliasPlugin = () => ({ name: 'gjsify-alias' });\n`,
+    );
+
     mkdirSync(join(root, 'packages', 'infra', 'tsc', 'src'), { recursive: true });
     mkdirSync(join(root, 'packages', 'infra', 'tsc', 'dist'), { recursive: true });
     writeFileSync(
@@ -183,6 +192,52 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
 
         const finalBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
         assert.notEqual(finalBundle, initialBundle, 'cli bundle was not refreshed by the rebuild');
+    });
+
+    it('auto-rebuilds when packages/infra/rolldown-plugin-gjsify/src/ changes', () => {
+        // The committed `dist/cli.gjs.mjs` inlines the whole build pipeline, and
+        // `node_modules/.bin/gjsify` prefers that bundle over the workspace
+        // `lib/` whenever `gjs` is on PATH. Without this trigger a resolver fix
+        // (the `aliasPlugin` virtual-module scoping guard is the case that
+        // surfaced it) appears to change nothing at all locally — no error, just
+        // the old behaviour — and every e2e booting the bundle keeps exercising
+        // the stale pipeline.
+        const { root, logPath } = setupSyntheticRepo(parent);
+        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
+
+        const pluginSrc = 'packages/infra/rolldown-plugin-gjsify/src/plugins/alias.ts';
+        writeFileSync(
+            join(root, pluginSrc),
+            `export const aliasPlugin = () => ({ name: 'gjsify-alias', resolveId: () => null });\n`,
+        );
+        execFileSync('git', ['-C', root, 'add', pluginSrc]);
+
+        const result = runHook(root);
+        assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
+
+        const invocations = readLog(logPath);
+        assert.deepEqual(invocations, [
+            'workspace @gjsify/cli build',
+            'workspace @gjsify/cli build:gjs-bundle',
+            'workspace @gjsify/cli build:affected-bundle',
+        ]);
+
+        const filesInCommit = execFileSync(
+            'git',
+            ['-C', root, 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
+            { encoding: 'utf-8' },
+        )
+            .trim()
+            .split('\n');
+        assert.ok(
+            filesInCommit.includes('packages/infra/cli/dist/cli.gjs.mjs'),
+            `dist/cli.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
+        );
+        assert.notEqual(
+            readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8'),
+            initialBundle,
+            'cli bundle was not refreshed by the rebuild',
+        );
     });
 
     it('skips the rebuild when SKIP_GJSIFY_HOOKS=1', () => {
