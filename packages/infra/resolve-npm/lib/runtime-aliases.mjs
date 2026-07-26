@@ -16,7 +16,9 @@
 // The bundler's alias resolver consults this triplet when routing bare
 // `@gjsify/<X>` specifiers per `--app <target>`:
 //
-//   slot=polyfill → keep as-is (`@gjsify/<X>` — our impl ships)
+//   slot=polyfill → `@gjsify/<X>/<target>` when the package's `exports` map
+//                   declares that platform-entry subpath (ADR 0014), else keep
+//                   as-is (`@gjsify/<X>` — the shared impl ships)
 //   slot=native   → redirect to `@gjsify/<X>/globals` (re-exports native value)
 //   slot=partial  → keep as-is (our impl, gracefully degrades at runtime)
 //   slot=none     → no rewrite (the package's polyfill resolves normally;
@@ -32,6 +34,30 @@
 // When a slot=native package is missing the corresponding `globals.mjs`
 // re-export file, the resolver emits a warn-once log and falls back to
 // `@gjsify/empty` (the current behavior) — surfacing the gap is desirable.
+//
+// ── Platform-entry routing (ADR 0014) ──────────────────────────────────────
+//
+// `polyfill` is the STRONG promise: "our implementation fully covers this API
+// on this runtime". A package can only keep that promise off GJS if the code
+// the target actually resolves is free of GLib/Gio. Several packages already
+// ship a real per-target implementation (`src/browser.ts` → the `./browser`
+// export subpath) but nothing ever routed to it: the root `.` export has no
+// `"browser"` condition and the alias layer kept `polyfill` as a no-op, so the
+// GJS body was bundled for the browser and every GLib call TypeError'd against
+// the `{}` that `gjsImportsEmptyPlugin` substitutes for `@girs/*`.
+//
+// So: on a NON-gjs target, `slot=polyfill` routes to `@gjsify/<X>/<target>`
+// whenever the package's `exports` map declares that subpath. The `gjs` target
+// is never rerouted (`src/index.ts` IS the GJS implementation).
+//
+// `partial` deliberately does NOT route. `partial` is the weak promise ("works
+// here, degrades") and the shared body's degradation IS its contract; the
+// `partial` packages' platform entries are also not yet at export parity with
+// their root entry (`@gjsify/fs`'s `src/browser.ts` is missing 34 value
+// exports), so routing them would turn a call-time degradation into a
+// build-time MISSING_EXPORT. Reaching parity is exactly the work that promotes
+// a package from `partial` to `polyfill`; `scripts/audit-runtimes.mjs`
+// (`platform-entry-parity` probe) gates that promotion.
 
 import { readdir, readFile } from 'node:fs/promises';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -40,6 +66,28 @@ import { fileURLToPath } from 'node:url';
 
 const VALID_SLOTS = new Set(['polyfill', 'native', 'partial', 'none']);
 const VALID_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript']);
+
+/**
+ * Collect the target names for which `exports` declares a `./<target>`
+ * platform-entry subpath. Shared by the sync + async package ingesters so the
+ * two paths cannot drift.
+ *
+ * @param {unknown} exportsField
+ * @returns {Set<string>}
+ */
+function collectPlatformEntries(exportsField) {
+    /** @type {Set<string>} */
+    const found = new Set();
+    if (!exportsField || typeof exportsField !== 'object') return found;
+    for (const target of VALID_TARGETS) {
+        // The `gjs` target is never a platform entry — `.` IS the GJS impl.
+        if (target === 'gjs') continue;
+        if (Object.prototype.hasOwnProperty.call(exportsField, `./${target}`)) {
+            found.add(target);
+        }
+    }
+    return found;
+}
 
 /** @typedef {'polyfill'|'native'|'partial'|'none'} Slot */
 /**
@@ -50,7 +98,14 @@ const VALID_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript']);
  *
  * @typedef {{gjs?:Slot, node?:Slot, browser?:Slot, nativescript?:Slot}} RuntimeTriplet
  */
-/** @typedef {{name:string, dir:string, runtimes:RuntimeTriplet, hasGlobals:boolean}} PackageRecord */
+/**
+ * @typedef {{name:string, dir:string, runtimes:RuntimeTriplet, hasGlobals:boolean,
+ *            platformEntries:Set<string>}} PackageRecord
+ *
+ * `platformEntries` holds the target names (`browser` / `nativescript` / …)
+ * for which the package's `exports` map declares a `./<target>` subpath — the
+ * per-runtime implementation entry that `slot=polyfill` routes to (ADR 0014).
+ */
 
 let _cache = null;
 const _warned = new Set();
@@ -145,7 +200,8 @@ async function ingestPackageDir(dir, out) {
                 }
             }
             const hasGlobals = existsSync(join(dir, 'globals.mjs'));
-            out.set(name, { name, dir, runtimes: triplet, hasGlobals });
+            const platformEntries = collectPlatformEntries(json?.exports);
+            out.set(name, { name, dir, runtimes: triplet, hasGlobals, platformEntries });
         }
     } catch {
         // Ignore unreadable / invalid package.json
@@ -180,7 +236,8 @@ function ingestPackageDirSync(dir, out) {
                 }
             }
             const hasGlobals = existsSync(join(dir, 'globals.mjs'));
-            out.set(name, { name, dir, runtimes: triplet, hasGlobals });
+            const platformEntries = collectPlatformEntries(json?.exports);
+            out.set(name, { name, dir, runtimes: triplet, hasGlobals, platformEntries });
         }
     } catch {
         // Ignore unreadable / invalid package.json
@@ -328,8 +385,21 @@ function resolveSlot(rec, target) {
     if (!slot) return null; // Slot undeclared → no opinion, leave to hardcoded maps.
     switch (slot) {
         case 'polyfill':
+            // ADR 0014 — platform-entry routing. `polyfill` promises a FULL
+            // implementation on this runtime; when the package ships a
+            // per-target entry (`exports["./<target>"]`), that entry IS the
+            // implementation for the target and the shared `.` body (which on
+            // most packages is the GLib/Gio-backed GJS impl) must not be
+            // bundled. Never applies to `gjs` — `.` is the GJS impl.
+            if (target !== 'gjs' && rec.platformEntries?.has(target)) {
+                return `${rec.name}/${target}`;
+            }
+            // No platform entry → the shared body is the implementation.
+            return null;
         case 'partial':
             // Keep as-is — bundler resolves `@gjsify/<X>` to its `lib/esm/index.js`.
+            // `partial` does NOT route to a platform entry even when one exists;
+            // see the header note (parity is the promotion gate to `polyfill`).
             return null;
         case 'native':
             if (rec.hasGlobals) {

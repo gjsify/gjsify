@@ -10,4 +10,4 @@
 // Web APIs like fetch, AbortController, Headers, Request, Response are
 // provided by `@gjsify/web-globals` — not this package.
 
-export { ensureMainLoop } from '@gjsify/utils';
+export { ensureMainLoop } from '@gjsify/utils/core';

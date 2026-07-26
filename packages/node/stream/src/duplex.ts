@@ -6,7 +6,7 @@
 // layout, where Duplex.prototype is built by mixing Writable methods into a
 // Readable-prototype-chain.
 
-import { nextTick } from '@gjsify/utils';
+import { nextTick } from '@gjsify/utils/core';
 import type { DuplexOptions } from 'node:stream';
 
 import { Readable_ } from './readable.js';

@@ -3,7 +3,7 @@
 
 import Gio from '@girs/gio-2.0';
 import type GLib from '@girs/glib-2.0';
-import type { ErrnoException } from '@gjsify/utils';
+import type { ErrnoException } from '@gjsify/utils/core';
 import { isIP } from 'node:net';
 
 // Error codes

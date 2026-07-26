@@ -1,6 +1,6 @@
 // Registers: process, global + Error.captureStackTrace polyfill + Promise.withResolvers
 
-import { initErrorV8Methods } from '@gjsify/utils';
+import { initErrorV8Methods } from '@gjsify/utils/core';
 import process from '@gjsify/process';
 
 // Promise.withResolvers polyfill for SpiderMonkey < 121

@@ -5,13 +5,119 @@
 import { describe, it, expect, on } from '@gjsify/unit';
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
-import { SharedBuffer, atomics, hasNativeSab, fdChannel } from './index.js';
+import {
+    SharedBuffer,
+    atomics,
+    hasNativeSab,
+    fdChannel,
+    resolveNativeSab,
+    NATIVE_SAB_UNAVAILABLE,
+    nativeSab,
+} from './index.js';
 
 export default async () => {
     await on('Gjs', async () => {
         await describe('SharedBuffer — module load', async () => {
             await it('hasNativeSab() returns true when prebuild is loaded', async () => {
                 expect(hasNativeSab()).toBe(true);
+            });
+        });
+
+        // The platform contract from ADR 0013: cross-process SharedBuffer is
+        // Linux-only, and EVERY other platform (macOS, Windows) has to degrade
+        // through exactly one gate — hasNativeSab() === false — rather than
+        // crash somewhere downstream. These pin that gate.
+        await describe('SharedBuffer — honest degradation without the native backend', async () => {
+            await it('resolveNativeSab(undefined) is null — not running on GJS at all', async () => {
+                expect(resolveNativeSab(undefined)).toBeNull();
+            });
+
+            await it('resolveNativeSab() is null when the typelib is absent (property throws)', async () => {
+                // GJS raises on `imports.gi.<Ns>` when no typelib is on
+                // GI_TYPELIB_PATH. That is the literal macOS/Windows situation:
+                // no prebuild ships, so the namespace never resolves.
+                const throwingGi = new Proxy(
+                    {},
+                    {
+                        get() {
+                            throw new Error("Requiring GjsifySabNative, version none: Typelib file for namespace 'GjsifySabNative' not found");
+                        },
+                    },
+                ) as Record<string, unknown>;
+                expect(resolveNativeSab(throwingGi)).toBeNull();
+            });
+
+            await it('resolveNativeSab() is null when the namespace resolves to nothing', async () => {
+                expect(resolveNativeSab({})).toBeNull();
+                expect(resolveNativeSab({ GjsifySabNative: undefined })).toBeNull();
+                expect(resolveNativeSab({ GjsifySabNative: null })).toBeNull();
+            });
+
+            await it('resolveNativeSab() is null for a stale/partial typelib — never a half-loaded module', async () => {
+                // Without the shape check a partially-shaped module would leave
+                // hasNativeSab() === true and then fail with an opaque TypeError
+                // at the first SharedBuffer.create() — the obscure-crash mode
+                // this gate exists to prevent.
+                expect(resolveNativeSab({ GjsifySabNative: {} })).toBeNull();
+                expect(resolveNativeSab({ GjsifySabNative: { SharedBuffer: {}, FdChannel: {} } })).toBeNull();
+                expect(
+                    resolveNativeSab({
+                        GjsifySabNative: { SharedBuffer: { create: () => null }, FdChannel: {} },
+                    }),
+                ).toBeNull();
+            });
+
+            await it('resolveNativeSab() returns the module for a real gi — positive control', async () => {
+                // Ties the helper to the module-level load: the same input the
+                // module used at import time must produce the same answer.
+                const gi = (globalThis as unknown as { imports: { gi: Record<string, unknown> } }).imports.gi;
+                expect(resolveNativeSab(gi)).toBe(nativeSab);
+                expect(hasNativeSab()).toBe(true);
+            });
+
+            await it('the unavailability message names the platform scope, not a broken install', async () => {
+                expect(NATIVE_SAB_UNAVAILABLE).toContain('Linux-only');
+                expect(NATIVE_SAB_UNAVAILABLE).toContain('hasNativeSab()');
+                expect(NATIVE_SAB_UNAVAILABLE).toContain('macOS');
+                expect(NATIVE_SAB_UNAVAILABLE).toContain('Windows');
+            });
+
+            await it('a real GJS process without the typelib reports unavailable and exits cleanly', async () => {
+                // End-to-end fidelity for the macOS/Windows case, which we cannot
+                // reproduce by hiding a module: spawn a real `gjs` with the
+                // prebuild search paths stripped and assert the namespace fails
+                // to resolve WITHOUT taking the process down. A positive control
+                // (same child, env intact) proves the check isn't vacuous.
+                const childPath = `/tmp/sab-spec-degrade-${Date.now()}.mjs`;
+                const childCode =
+                    `let available = true;\n` +
+                    `try { void imports.gi.GjsifySabNative.SharedBuffer; } catch (_) { available = false; }\n` +
+                    `print(available ? 'AVAILABLE' : 'UNAVAILABLE');\n`;
+                GLib.file_set_contents(childPath, childCode);
+
+                const runChild = (stripTypelibPath: boolean): { out: string; status: number } => {
+                    const launcher = new Gio.SubprocessLauncher({ flags: Gio.SubprocessFlags.STDOUT_PIPE });
+                    if (stripTypelibPath) {
+                        launcher.unsetenv('GI_TYPELIB_PATH');
+                        launcher.unsetenv('LD_LIBRARY_PATH');
+                    }
+                    const child = launcher.spawnv(['gjs', '-m', childPath]);
+                    const [, stdout] = child.communicate_utf8(null, null);
+                    return { out: (stdout ?? '').trim(), status: child.get_exit_status() };
+                };
+
+                try {
+                    const withoutTypelib = runChild(true);
+                    expect(withoutTypelib.out).toBe('UNAVAILABLE');
+                    // The key property: an absent backend is a clean answer, not a crash.
+                    expect(withoutTypelib.status).toBe(0);
+
+                    const withTypelib = runChild(false);
+                    expect(withTypelib.out).toBe('AVAILABLE');
+                    expect(withTypelib.status).toBe(0);
+                } finally {
+                    GLib.unlink(childPath);
+                }
             });
         });
 

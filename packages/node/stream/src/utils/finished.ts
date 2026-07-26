@@ -4,7 +4,7 @@
 //            refs/node/lib/internal/streams/utils.js
 // Reimplemented for GJS using @gjsify/utils microtask scheduling.
 
-import { queueMicrotask } from '@gjsify/utils';
+import { queueMicrotask } from '@gjsify/utils/core';
 import type { FinishedOptions } from 'node:stream';
 
 import { Stream_ } from '../stream-base.js';

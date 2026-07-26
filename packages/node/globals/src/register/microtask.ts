@@ -1,5 +1,5 @@
 // Registers: queueMicrotask
-import { queueMicrotask as _queueMicrotask } from '@gjsify/utils';
+import { queueMicrotask as _queueMicrotask } from '@gjsify/utils/core';
 
 if (typeof queueMicrotask !== 'function') {
     Object.defineProperty(globalThis, 'queueMicrotask', {

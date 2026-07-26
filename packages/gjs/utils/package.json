@@ -13,6 +13,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./core": {
+            "types": "./lib/types/core.d.ts",
+            "default": "./lib/esm/core.js"
+        },
         "./main-loop": {
             "types": "./lib/types/main-loop.d.ts",
             "default": "./lib/esm/main-loop.js"
@@ -55,6 +59,26 @@
     },
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/utils#readme",
     "gjsify": {
-        "tier": 1
+        "tier": 1,
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "runtimeSubpaths": {
+            "./core": {
+                "gjs": "polyfill",
+                "node": "polyfill",
+                "browser": "polyfill",
+                "nativescript": "polyfill"
+            },
+            "./main-loop": {
+                "gjs": "polyfill",
+                "node": "polyfill",
+                "browser": "polyfill",
+                "nativescript": "polyfill"
+            }
+        }
     }
 }

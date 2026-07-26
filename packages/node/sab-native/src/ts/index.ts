@@ -10,9 +10,18 @@
 //   - atomics.{add,load,store,xchg,cmpxchg,wait,notify}32 — operates on
 //     `SharedBuffer` instances directly, no `Atomics.*` overload.
 //
-// The package is GJS-only by construction. On Node the lazy load returns
-// null; consumers must guard with `hasNativeSab()` before calling
-// `SharedBuffer.create()` (which throws if the prebuild is absent).
+// Platform scope (ADR 0013, docs/adr/0013-sab-native-platform-scope.md):
+// the native backend is **Linux-only** today — it is built on memfd_create(2),
+// the non-private SYS_futex flavour and SCM_RIGHTS, and prebuilds ship for
+// linux-{x86_64,aarch64,ppc64,s390x,riscv64} only. macOS is a decided but
+// not-yet-implemented port (shm_open + os_sync_wait_on_address, macOS 14.4+);
+// Windows is blocked (no GJS host, and no cross-process address-keyed wait
+// primitive exists there).
+//
+// The package is GJS-only by construction. On Node — and on any platform or
+// build without the prebuild — the lazy load yields null; consumers MUST guard
+// with `hasNativeSab()` before touching `SharedBuffer`, which throws a
+// descriptive error rather than failing obscurely.
 
 /* ── Native GI module surface ───────────────────────────────────────────── */
 
@@ -78,31 +87,76 @@ interface _GjsRuntimeGlobals {
 
 const _runtime = globalThis as unknown as _GjsRuntimeGlobals;
 
-let _mod: GjsifySabNativeModule | null = null;
-const _gi: Record<string, unknown> | undefined = _runtime.imports?.gi;
-if (_gi) {
+/**
+ * Resolve the `GjsifySabNative` GI module out of a GJS `imports.gi` object,
+ * normalising **every** unavailable case to `null`.
+ *
+ * Exported so the degradation contract can be pinned by a spec without a
+ * second process (see `shared-buffer.gjs.spec.ts`). Three ways this returns
+ * `null`, all of which must behave identically to the caller:
+ *
+ * 1. `gi` itself is absent — we are not on GJS at all (Node, browser).
+ * 2. The property access throws — GJS raises when the typelib is not on
+ *    `GI_TYPELIB_PATH`, i.e. no prebuild for this platform. This is the
+ *    macOS/Windows case.
+ * 3. The access succeeds but yields something that is not the module we
+ *    expect — a stale, partial or shadowed typelib. Without the shape check
+ *    a `undefined`/partial value would leave `hasNativeSab()` reporting
+ *    `true` and then blow up with an opaque `TypeError` at first use; the
+ *    check converts that into the same clean "unavailable" answer.
+ *
+ * @internal
+ */
+export function resolveNativeSab(gi: Record<string, unknown> | undefined): GjsifySabNativeModule | null {
+    if (!gi) return null;
+    let candidate: unknown;
     try {
-        _mod = _gi['GjsifySabNative'] as GjsifySabNativeModule;
+        candidate = gi['GjsifySabNative'];
     } catch {
-        // GjsifySabNative typelib not installed — package is unusable;
-        // SharedBuffer.create() will throw with a precise error message.
+        // Typelib not installed for this platform/arch — the package is
+        // unusable here; SharedBuffer.create() throws a descriptive error.
+        return null;
     }
+    if (!candidate || typeof candidate !== 'object') return null;
+    const mod = candidate as Partial<GjsifySabNativeModule>;
+    if (typeof mod.SharedBuffer?.create !== 'function') return null;
+    if (typeof mod.FdChannel?.make_pair !== 'function') return null;
+    return mod as GjsifySabNativeModule;
 }
+
+const _mod: GjsifySabNativeModule | null = resolveNativeSab(_runtime.imports?.gi);
 
 /** The native GjsifySabNative module, or null if not installed. */
 export const nativeSab: GjsifySabNativeModule | null = _mod;
 
-/** Returns true when the GjsifySabNative native library is available. */
+/**
+ * Returns true when the GjsifySabNative native library is available.
+ *
+ * This is THE gate for cross-process `SharedBuffer` support and it is
+ * platform-conditional by design: it is `true` only on Linux (see ADR 0013),
+ * and `false` on macOS, Windows, Node and the browser. Guard every use of
+ * `SharedBuffer` / `atomics` / `fdChannel` with it.
+ */
 export function hasNativeSab(): boolean {
     return _mod !== null;
 }
 
 /* ── Public JS façade ───────────────────────────────────────────────────── */
 
-const PREBUILD_MISSING =
-    '@gjsify/sab-native prebuild is not loaded — ' +
-    'install the package on a Linux system with the prebuild available, ' +
-    'or build locally via `meson compile` in packages/node/sab-native/.';
+/**
+ * Message thrown by `SharedBuffer.create()` / `.fromFd()` when the native
+ * backend is unavailable. Names the actual situation — a platform-scoped
+ * capability — instead of implying a broken install.
+ *
+ * @internal exported so specs and docs can assert the exact contract text.
+ */
+export const NATIVE_SAB_UNAVAILABLE =
+    '@gjsify/sab-native: the native backend is not available on this platform. ' +
+    'Cross-process SharedBuffer is currently Linux-only (memfd_create + futex + SCM_RIGHTS); ' +
+    'prebuilds ship for linux-{x86_64,aarch64,ppc64,s390x,riscv64} only — ' +
+    'macOS support is planned and Windows is unsupported (see docs/adr/0013-sab-native-platform-scope.md). ' +
+    'Guard with hasNativeSab() before using SharedBuffer. ' +
+    'On Linux, a missing prebuild can be built locally with `gjsify workspace @gjsify/sab-native build:prebuilds`.';
 
 /**
  * A shared-memory region backed by an anonymous memfd (Linux) and
@@ -137,7 +191,7 @@ export class SharedBuffer {
      * @throws Error if the prebuild is not loaded, or if memfd_create/mmap fail.
      */
     static create(size: number): SharedBuffer {
-        if (!_mod) throw new Error(PREBUILD_MISSING);
+        if (!_mod) throw new Error(NATIVE_SAB_UNAVAILABLE);
         if (!Number.isInteger(size) || size <= 0) {
             throw new TypeError('SharedBuffer.create: size must be a positive integer');
         }
@@ -157,7 +211,7 @@ export class SharedBuffer {
      *             results in silent partial maps.
      */
     static fromFd(fd: number, size: number): SharedBuffer {
-        if (!_mod) throw new Error(PREBUILD_MISSING);
+        if (!_mod) throw new Error(NATIVE_SAB_UNAVAILABLE);
         if (!Number.isInteger(fd) || fd < 0) {
             throw new TypeError('SharedBuffer.fromFd: fd must be a non-negative integer');
         }

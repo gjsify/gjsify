@@ -23,7 +23,7 @@ import {
     type Response as BridgeResponse,
 } from '@gjsify/http-soup-bridge';
 import { ServerRequestSocket } from './server-request-socket.js';
-import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
+import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils/core';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
 

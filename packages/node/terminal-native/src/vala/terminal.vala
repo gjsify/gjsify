@@ -1,13 +1,16 @@
 /*
- * GjsifyTerminal — Linux terminal primitives for GJS.
+ * GjsifyTerminal — POSIX terminal primitives for GJS.
  *
- * Exposes Posix/Linux syscalls that have no GLib equivalent:
+ * Exposes POSIX syscalls that have no GLib equivalent:
  *   • Posix.isatty()      — reliable TTY detection
  *   • ioctl(TIOCGWINSZ)   — actual terminal dimensions
  *   • termios raw mode    — keypress-level input for interactive prompts
  *   • SIGWINCH watcher    — notify on terminal resize (GLib.Unix.signal_add)
  *
- * No dependencies beyond glib-2.0 / gobject-2.0.
+ * No dependencies beyond glib-2.0 / gobject-2.0. Portable across POSIX hosts
+ * (Linux, macOS, the BSDs): `struct winsize` + `TIOCGWINSZ` come from the
+ * sibling `terminal-compat.vapi` rather than Vala's Linux-specific
+ * `linux.vapi` — see that file for why.
  */
 
 using GLib;
@@ -16,7 +19,8 @@ namespace GjsifyTerminal {
 
     // Specific ioctl binding for TIOCGWINSZ — avoids variadic ambiguity.
     [CCode (cname = "ioctl", cheader_filename = "sys/ioctl.h,termios.h")]
-    private static extern int _ioctl_winsize (int fd, ulong request, ref Linux.winsize ws);
+    private static extern int _ioctl_winsize (int fd, ulong request,
+                                              ref GjsifyTerminalCompat.Winsize ws);
 
     // Explicit tcgetattr / tcsetattr with ref to match C pointer semantics.
     [CCode (cname = "tcgetattr", cheader_filename = "termios.h")]
@@ -55,8 +59,8 @@ namespace GjsifyTerminal {
         public static bool get_size (int fd, out int rows, out int cols,
                                      out int xpixel, out int ypixel) {
             rows = 0; cols = 0; xpixel = 0; ypixel = 0;
-            var ws = Linux.winsize ();
-            if (_ioctl_winsize (fd, Linux.Termios.TIOCGWINSZ, ref ws) != 0) {
+            var ws = GjsifyTerminalCompat.Winsize ();
+            if (_ioctl_winsize (fd, GjsifyTerminalCompat.TIOCGWINSZ, ref ws) != 0) {
                 return false;
             }
             rows   = (int) ws.ws_row;

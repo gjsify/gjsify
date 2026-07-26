@@ -2,7 +2,7 @@
 // these are native; the alias layer maps this subpath to @gjsify/empty for
 // Node builds.
 
-import { registerGlobal } from '@gjsify/utils';
+import { registerGlobal } from '@gjsify/utils/core';
 import { Blob, File } from './blob.js';
 
 registerGlobal('Blob', Blob);

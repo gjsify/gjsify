@@ -18,7 +18,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { Server, type Socket } from 'node:net';
 import type { Server as NetServer } from 'node:net';
-import { createNodeError, deferEmit } from '@gjsify/utils';
+import { createNodeError, deferEmit } from '@gjsify/utils/core';
 import { parseClientHelloSni } from './internal/sni-parser.js';
 import { checkHostMatch, splitHost } from './internal/hostname.js';
 import { createSecureContext, type SecureContext, type SecureContextOptions } from './secure-context.js';

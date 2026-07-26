@@ -11,7 +11,7 @@
 // main context but never dispatch (gjs -m exits as soon as JS eval ends),
 // and the process would exit with code 0 regardless of `code`.
 
-import { ensureMainLoop, quitMainLoop } from '@gjsify/utils';
+import { ensureMainLoop, quitMainLoop } from '@gjsify/utils/core';
 import { getGjsGlobal } from './gjs.js';
 
 /**

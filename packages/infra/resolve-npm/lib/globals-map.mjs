@@ -214,6 +214,20 @@ export const GJS_GLOBALS_MAP = {
     matchMedia:           '@gjsify/dom-elements/register/match-media',
     location:             '@gjsify/dom-elements/register/location',
     navigator:            '@gjsify/dom-elements/register/navigator',
+
+    // --- Canvas 2D + IFrame (GTK/WebKit-backed DOM classes) ----------------
+    //
+    // These live in `packages/framework/*` rather than a Web/DOM pillar because
+    // their implementations are GTK/Cairo- and WebKit-bound (ADR 0012). They are
+    // DELIBERATELY NOT members of `GJS_GLOBALS_GROUPS.dom`: that group is the
+    // coarse `--globals auto,dom` safety net, and pulling these into it would
+    // make every `auto,dom` build hard-require `@gjsify/canvas2d` /
+    // `@gjsify/iframe` (and, for the latter, WebKitGTK) as an installed
+    // dependency. Auto-detection injects them only when the identifier is
+    // actually referenced in the bundled, tree-shaken output.
+    ImageData:            '@gjsify/canvas2d/register',
+    Path2D:               '@gjsify/canvas2d/register',
+    HTMLIFrameElement:    '@gjsify/iframe/register',
 };
 
 /**
@@ -268,6 +282,11 @@ export const GJS_GI_BACKED_REGISTERS = {
     '@gjsify/webaudio/register':     ['Gst', 'GstApp'],
     '@gjsify/webrtc/register':       ['Gst', 'GstWebRTC', 'GstSdp'],
     '@gjsify/gamepad/register':      ['Manette'],
+    // Imports `@gjsify/dom-elements/register/canvas` (Gdk/GdkPixbuf/Pango/
+    // PangoCairo) plus `@gjsify/canvas2d-core`, which uses the `cairo` foreign
+    // struct module.
+    '@gjsify/canvas2d/register':     ['Gdk', 'GdkPixbuf', 'Pango', 'PangoCairo'],
+    '@gjsify/iframe/register':       ['WebKit'],
 };
 
 // ─── Browser target ────────────────────────────────────────────────────────
