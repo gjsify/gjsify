@@ -1,7 +1,8 @@
 // Reference: Node.js lib/v8.js
-// Reimplemented for GJS — heap stats via /proc/self/status, serialization via V8 wire format
+// Reimplemented for GJS — heap stats via a per-platform process-memory reader
+// (`./heap/`), serialization via the V8 wire format
 
-import { getHeapStatistics } from './heap.js';
+import { getHeapStatistics } from './heap/index.js';
 import { Serializer, Deserializer, DefaultSerializer, DefaultDeserializer } from './serdes.js';
 
 export { getHeapStatistics };
