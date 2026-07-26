@@ -3,6 +3,7 @@
 // underlying source (GLib, /proc, globalThis.process) is unavailable.
 
 import { getGjsGlobal } from './gjs.js';
+import { probeUname } from './uname.js';
 
 type ProcessPlatform = NodeJS.Platform;
 type ProcessArch = NodeJS.Architecture;
@@ -82,32 +83,45 @@ export function detectPpid(): number {
     return 0;
 }
 
+/**
+ * Is `globalThis.process` a REAL Node process, or our own bootstrap stub?
+ *
+ * This distinction is load-bearing. The GJS bundle banner installs a minimal
+ * `globalThis.process` at byte 1 (see `process-stub.ts`) whose `platform` and
+ * `arch` are provisional placeholders. Reading them back here would be
+ * circular: we would "detect" our own guess and then adopt it as the answer —
+ * which is exactly why `process.arch` reported `x64` on aarch64. The stub
+ * carries an empty `versions`, so a `versions.node` string is a reliable
+ * marker of the genuine article.
+ */
+function realNodeProcess(): NodeJS.Process | undefined {
+    const p = globalThis.process as NodeJS.Process | undefined;
+    return typeof p?.versions?.node === 'string' ? p : undefined;
+}
+
 export function detectPlatform(): ProcessPlatform {
-    try {
-        const GLib = getGjsGlobal().imports?.gi?.GLib;
-        if (GLib) {
-            const osInfo = GLib.get_os_info('ID');
-            if (osInfo) return 'linux';
-        }
-    } catch {
-        /* ignore */
-    }
+    // Node / Bun / Deno: the host already knows, and it is authoritative.
+    const node = realNodeProcess();
+    if (typeof node?.platform === 'string') return node.platform;
 
-    if (typeof getGjsGlobal().imports?.system !== 'undefined') {
-        return 'linux';
-    }
+    // GJS: ask the kernel. `GLib.get_os_info('ID')` is NOT usable for this —
+    // it answers with the distribution id (`fedora`), not the OS family.
+    const uname = probeUname();
+    if (uname) return uname.platform;
 
-    if (typeof globalThis.process?.platform === 'string') {
-        return globalThis.process.platform as ProcessPlatform;
-    }
-
+    // Probe unavailable. Linux is the overwhelmingly common GJS host and the
+    // only one with a CI-verified toolchain, so it stays the fallback — but it
+    // is now a fallback, not an assertion.
     return 'linux';
 }
 
 export function detectArch(): ProcessArch {
-    if (typeof globalThis.process?.arch === 'string') {
-        return globalThis.process.arch as ProcessArch;
-    }
+    const node = realNodeProcess();
+    if (typeof node?.arch === 'string') return node.arch;
+
+    const uname = probeUname();
+    if (uname) return uname.arch;
+
     return 'x64';
 }
 

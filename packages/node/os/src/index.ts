@@ -2,24 +2,27 @@
 // Reimplemented for GJS using GLib (get_home_dir, get_host_name, etc.)
 
 import { cli, getPathSeparator } from '@gjsify/utils';
+import { mapMachine, mapSysname } from '@gjsify/utils/core';
 import Gio from '@girs/gio-2.0';
 
 /** Cached OS detection result */
-let _os = '';
+let _os: NodeJS.Platform | '' = '';
 
-/** Get the OS name (darwin, linux, win32) via uname */
-const getOs = () => {
+/**
+ * Get the OS family in Node's `process.platform` vocabulary.
+ *
+ * Uses `uname -s`, which is POSIX. The previous `uname -o` is a GNU extension:
+ * Darwin's `uname` rejects it outright, and `cli()` throws on any stderr — so
+ * this function, and everything branching on it, was simply unreachable on
+ * macOS. That is why `@gjsify/os` ran as a non-gating probe on the macOS CI
+ * leg rather than as part of the suite.
+ *
+ * The `uname` → Node-name mapping is shared with `@gjsify/process` via
+ * `@gjsify/utils/core` so the two can never disagree.
+ */
+const getOs = (): NodeJS.Platform => {
     if (_os) return _os;
-    const os = cli('uname -o').trim();
-    if (/\bDarwin\b/i.test(os)) {
-        _os = 'darwin';
-        return _os;
-    }
-    if (/\bLinux\b/i.test(os)) {
-        _os = 'linux';
-        return _os;
-    }
-    _os = 'win32';
+    _os = mapSysname(cli('uname -s')) ?? 'linux';
     return _os;
 };
 
@@ -54,17 +57,15 @@ export const tmpdir = () => GLib.get_tmp_dir();
 
 export const type = () => cli('uname').trim();
 
-export const platform = () => cli('uname -s').trim().toLowerCase() as NodeJS.Platform;
+// Node defines `os.platform()` and `os.arch()` as returning exactly
+// `process.platform` / `process.arch`. Sharing the mapping (rather than
+// lower-casing `uname -s` and hand-rolling a second, shorter arch table) keeps
+// that identity true and fixes both surfaces at once: the old `toLowerCase()`
+// produced `mingw64_nt-10.0` on MSYS, and the old arch table knew nothing of
+// ppc64 / s390x / riscv64 / loong64 — it returned the raw `uname -m` string.
+export const platform = (): NodeJS.Platform => getOs();
 
-export const arch = () => {
-    const machine = cli('uname -m').trim();
-    // Map uname -m to Node.js arch names
-    if (machine === 'x86_64' || machine === 'amd64') return 'x64';
-    if (machine === 'aarch64' || machine === 'arm64') return 'arm64';
-    if (machine === 'i686' || machine === 'i386') return 'ia32';
-    if (machine.startsWith('arm')) return 'arm';
-    return machine;
-};
+export const arch = (): NodeJS.Architecture => mapMachine(cli('uname -m')) ?? 'x64';
 
 export const machine = () => cli('uname -m').trim();
 
