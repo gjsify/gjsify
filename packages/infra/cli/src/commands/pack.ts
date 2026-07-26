@@ -31,6 +31,7 @@ import { join, resolve } from 'node:path';
 import { createTarball, gzip, type TarWriteEntry } from '@gjsify/tar';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { readPackageJson } from '../utils/pkg-json.js';
 import { runLifecycleScript } from '../utils/run-lifecycle-script.js';
 
 interface PackOptions {
@@ -543,21 +544,86 @@ function globToRegex(glob: string): RegExp {
     return new RegExp(`^${pat}($|/)`);
 }
 
+const DEP_BLOCKS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
+
+/** Every `<block>.<name>` in `pkg` whose range uses the `workspace:` protocol. */
+function collectWorkspaceProtocolDeps(pkg: Record<string, unknown>): string[] {
+    const found: string[] = [];
+    for (const block of DEP_BLOCKS) {
+        const deps = pkg[block] as Record<string, string> | undefined;
+        if (!deps) continue;
+        for (const [name, range] of Object.entries(deps)) {
+            if (typeof range === 'string' && range.startsWith('workspace:')) found.push(`${block}.${name}`);
+        }
+    }
+    return found;
+}
+
+/**
+ * Monorepo root to resolve `workspace:` ranges against.
+ *
+ * `findWorkspaceRoot` is deliberately strict: it only accepts a candidate root
+ * whose OWN `workspaces` globs list `start` as a member (so an unrelated
+ * grand-parent monorepo can't be picked up). Packing needs a WIDER answer,
+ * because some packages live inside the monorepo on purpose WITHOUT being
+ * members — `packages/napi/**` and `packages/node-gi/**` are excluded from
+ * `package.json#workspaces` (own CI, own release cadence, see AGENTS.md). For
+ * those the strict lookup returns `null`, and the pre-fix code took that as
+ * "nothing to do" and shipped the literal `workspace:^` string.
+ *
+ * So: strict answer first, else the nearest ancestor that declares
+ * `workspaces` at all — the monorepo the package physically lives in, whose
+ * members are exactly the siblings a `workspace:` range can refer to.
+ */
+function findPackWorkspaceRoot(start: string): string | null {
+    const strict = findWorkspaceRoot(start);
+    if (strict) return strict;
+    let dir = start;
+    for (let i = 0; i < 12; i++) {
+        const pkgPath = join(dir, 'package.json');
+        if (existsSync(pkgPath) && readPackageJson(pkgPath)?.workspaces !== undefined) return dir;
+        const parent = resolve(dir, '..');
+        if (parent === dir) break;
+        dir = parent;
+    }
+    return null;
+}
+
 /**
  * Walk pkg.dependencies / devDependencies / peerDependencies /
  * optionalDependencies and replace `workspace:^` / `workspace:~` /
  * `workspace:*` ranges with the resolved npm range based on each sibling
  * workspace's version field.
+ *
+ * A `workspace:` range that survives into a published tarball is unresolvable
+ * by EVERY registry client (`npm install` fails with `Unsupported URL Type
+ * "workspace:"`), so there is no such thing as a harmless skip here: this
+ * either substitutes or throws. Same failure mode, same reasoning as
+ * `expandFilesPatterns` above — a packer that silently produces a broken
+ * tarball costs a whole release train (v0.4.20, v0.4.37).
  */
 function rewriteWorkspaceDeps(pkg: Record<string, unknown>, wsDir: string): Record<string, unknown> {
-    const root = findWorkspaceRoot(wsDir);
-    if (!root) return pkg;
+    const root = findPackWorkspaceRoot(wsDir);
+    if (!root) {
+        // No enclosing monorepo. Fine for a standalone package — but then a
+        // `workspace:` range cannot possibly be resolved, so refuse rather
+        // than ship it.
+        const unresolvable = collectWorkspaceProtocolDeps(pkg);
+        if (unresolvable.length > 0) {
+            throw new Error(
+                `gjsify pack: ${String(pkg.name)} declares workspace: ranges (${unresolvable.join(', ')}) ` +
+                    `but ${wsDir} is not inside a monorepo (no ancestor package.json declares "workspaces"). ` +
+                    `A workspace: range cannot be published — replace it with a real npm range, or pack from within the monorepo.`,
+            );
+        }
+        return pkg;
+    }
     const siblings = new Map<string, string>();
     for (const ws of discoverWorkspaces(root)) {
         if (ws.name && ws.version) siblings.set(ws.name, ws.version);
     }
     const cloned = JSON.parse(JSON.stringify(pkg)) as Record<string, unknown>;
-    for (const block of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+    for (const block of DEP_BLOCKS) {
         const deps = cloned[block] as Record<string, string> | undefined;
         if (!deps) continue;
         for (const [name, range] of Object.entries(deps)) {
@@ -565,7 +631,7 @@ function rewriteWorkspaceDeps(pkg: Record<string, unknown>, wsDir: string): Reco
             const wsVer = siblings.get(name);
             if (!wsVer) {
                 throw new Error(
-                    `gjsify pack: ${cloned.name} declares workspace:^ on ${name} but no sibling workspace with that name exists in the monorepo at ${root}`,
+                    `gjsify pack: ${cloned.name} declares ${range} on ${name} (${block}) but no sibling workspace with that name exists in the monorepo at ${root}`,
                 );
             }
             const operator = range.slice('workspace:'.length);

@@ -47,11 +47,14 @@
 //
 // `--changed-from-stdin` skips `git diff` entirely and reads a newline-
 // separated list of paths from stdin. Useful for local debugging and
-// for the spec suite.
+// for the spec suite. Stdin is slurped via `utils/stdin.ts`, NOT
+// `readFileSync(0)` — `@gjsify/fs` has no numeric-fd path, so the Node
+// idiom opens the relative file `./0` and the committed GJS classifier
+// bundle died with `ENOENT … read '0'` on every `--changed-from-stdin` run.
 
 import type { Command } from '../types/index.js';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readStdinLines } from '../utils/stdin.js';
 
 import {
     discoverWorkspaces,
@@ -351,11 +354,6 @@ function runGitDiff(cwd: string, base: string, head: string): string[] {
         process.exit(2);
     }
     return r.stdout.split('\n').filter(Boolean);
-}
-
-function readStdinLines(): string[] {
-    const data = readFileSync(0, 'utf8');
-    return data.split('\n').map((s) => s.trim()).filter(Boolean);
 }
 
 // ─── Output ────────────────────────────────────────────────────────────────
