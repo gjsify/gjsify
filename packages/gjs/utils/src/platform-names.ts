@@ -26,6 +26,10 @@ export type ProcessPlatform =
     | 'sunos'
     | 'win32';
 
+// Exactly `NodeJS.Architecture`, member for member — verified against
+// @types/node. Notably it has NO 32-bit `ppc` or `s390`: Node dropped both, so
+// `uname -m` reporting them maps to undefined rather than to a value
+// `process.arch` can never hold.
 export type ProcessArch =
     | 'arm'
     | 'arm64'
@@ -33,10 +37,8 @@ export type ProcessArch =
     | 'loong64'
     | 'mips'
     | 'mipsel'
-    | 'ppc'
     | 'ppc64'
     | 'riscv64'
-    | 's390'
     | 's390x'
     | 'x64';
 
@@ -88,12 +90,8 @@ export function mapMachine(machine: string): ProcessArch | undefined {
         case 'ppc64le':
         case 'ppc64':
             return 'ppc64';
-        case 'ppc':
-            return 'ppc';
         case 's390x':
             return 's390x';
-        case 's390':
-            return 's390';
         case 'riscv64':
             return 'riscv64';
         case 'loongarch64':
