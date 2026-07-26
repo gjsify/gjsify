@@ -83,6 +83,45 @@ env:
     packages/infra/npm-registry
     packages/infra/tar
 
+  # ── Browser leg (see the `browser` job) ────────────────────────────────
+  # Playwright `--grep` regex matching the browser bundles that are KNOWN RED
+  # today. They run as a NON-GATING probe so wiring the axis in does not red
+  # main, exactly like MACOS_PROBE_PACKAGES above; everything else gates. Each
+  # entry must name a real, understood defect and must be DELETED once fixed —
+  # a growing list means the axis is being routed around instead of used.
+  #
+  #   events  `src/test.browser.mts` is `export * from './test.mjs'`, i.e. it
+  #           re-runs the GJS/Node spec files in a browser. AGENTS.md forbids
+  #           exactly that ("never import … *.spec.ts files that do"). It does
+  #           not fail, it HANGS — the bundle never sets `data-tests-done`, so
+  #           the Playwright timeout is the only signal.
+  #   util    Same forbidden re-export shape. `util.styleText`'s spec reads bare
+  #           `process.env.FORCE_COLOR`, and `--app browser` maps `process` to
+  #           `@gjsify/empty`, so the assertion dies on `process is not defined`
+  #           (1 of 269). The IMPL is fine — `styleText` guards with
+  #           `globalThis.process?.stdout`; the SPEC is the browser-hostile part.
+  #   streams The spec feeds STRING chunks into `new Response(stream).text()`.
+  #           Per the Fetch spec a body stream must yield `Uint8Array`, and
+  #           Firefox enforces it ("Can't convert value to Uint8Array while
+  #           consuming Body") where Chromium and undici are lenient (3 of 13).
+  #           A genuine engine difference the axis exists to surface.
+  BROWSER_PROBE_GREP: '@gjsify/(events|util|streams) — browser unit tests'
+
+  # Packages whose `--app browser` BUILD (not test) is known broken, so the
+  # staging step below does not red the build job over them. Also deliberately
+  # ledgered rather than skipped: `build-bundles.mjs` still attempts them and
+  # says so when one starts working again.
+  #
+  #   constants  `gjsify build --app browser` dies with a rolldown MissingExport:
+  #              `lib/esm/index.js` imports `{ constants }` from `node:os`,
+  #              `node:fs` and `node:crypto`, all of which the browser alias
+  #              layer maps to `@gjsify/empty` (which exports nothing). The build
+  #              then prints the CLI help + a `{"error": …}` line, writes no
+  #              bundle — and EXITS 0. That silent-zero is why `build-bundles.mjs`
+  #              asserts the artifact exists instead of trusting the exit code;
+  #              the exit code itself is a `@gjsify/cli` bug to fix separately.
+  BROWSER_KNOWN_BROKEN_BUILDS: '@gjsify/constants'
+
 jobs:
   # Matrix planner — emits the Fedora legs the build/test jobs run as a JSON job
   # output that the matrix `fromJSON`s (a matrix axis can't be built inline here).
@@ -361,6 +400,61 @@ jobs:
           path: .gjsify-cache/macos-test-bundles
           retention-days: 1
           if-no-files-found: error
+
+      # ── Browser leg: build the bundles HERE, run them THERE ──────────────
+      # Same split as the macOS leg above, for the same reason: the bundler
+      # toolchain (`gjsify` + node_modules + the build cache) exists only in this
+      # Fedora image, while Playwright's browser dependencies are Debian/Ubuntu-
+      # only (`playwright install-deps` has no Fedora support), so the RUN has to
+      # happen on ubuntu-latest. `--app browser` output is a SINGLE self-contained
+      # ESM file with no unbundled imports at all, so shipping it across is sound.
+      #
+      # Scope: `$INCLUDE_ARGS` is the classifier's `--include @gjsify/x …` list and
+      # `build-bundles.mjs` takes the same flag, so a selective run builds only the
+      # affected packages' bundles. A full run (or a change to `tests/browser/**`,
+      # i.e. `@gjsify/tests-browser` in the closure — the harness itself, which
+      # every bundle rides on) builds all of them.
+      - name: Stage browser test bundles for the Playwright leg
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
+        timeout-minutes: 30
+        env:
+          FULL: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args == '' || contains(needs.changes.outputs.include-args, '@gjsify/tests-browser') }}
+          INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
+        run: |
+          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
+            set -e
+            out=.gjsify-cache/browser-test-bundles
+            rm -rf \"\$out\"
+            if [ \"\$FULL\" = \"true\" ]; then
+              echo \"[ci] browser bundles: all\"
+              node tests/browser/scripts/build-bundles.mjs --jobs 2 --known-broken \"\$BROWSER_KNOWN_BROKEN_BUILDS\"
+            else
+              echo \"[ci] browser bundles (selective): \$INCLUDE_ARGS\"
+              node tests/browser/scripts/build-bundles.mjs --jobs 2 --known-broken \"\$BROWSER_KNOWN_BROKEN_BUILDS\" \$INCLUDE_ARGS
+            fi
+            # Mirror the package-relative paths into the staging dir so the
+            # artifact unpacks straight back onto `packages/<pillar>/<pkg>/dist/`
+            # in the Playwright job (discover-bundles.mjs resolves them from the
+            # repo root, and http-server serves them from there).
+            for f in packages/*/*/dist/test.browser.mjs; do
+              [ -e \"\$f\" ] || continue
+              mkdir -p \"\$out/\$(dirname \$f)\"
+              cp \"\$f\" \"\$out/\$f\"
+            done
+            find \"\$out\" -name test.browser.mjs | sort
+          '"
+
+      - name: Upload browser test bundles
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-test-bundles-fedora${{ matrix.fedora.v }}
+          path: .gjsify-cache/browser-test-bundles
+          retention-days: 1
+          # `warn`, not `error`: a selective closure with no browser-capable
+          # package legitimately produces zero bundles. The Playwright job
+          # reports the count it received and no-ops cleanly at zero.
+          if-no-files-found: warn
 
   # ── Type-check: packages ────────────────────────────────────────────
   # Restores the build job's .d.ts and type-checks the workspace packages in
@@ -764,6 +858,128 @@ jobs:
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples'
       - name: Test net examples
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples:net'
+
+  # ── Browser tests (Playwright / Firefox) ────────────────────────────
+  # The THIRD test axis, alongside `test:gjs` (the `test` job) and `test:node`
+  # (`cross-runtime`). Until this job existed it was documented in AGENTS.md and
+  # implemented in `tests/browser/` + 50-odd `src/test.browser.mts` entries, but
+  # NO workflow ran it — so every `src/browser.ts` in the repo was unverified by
+  # construction, which is exactly how a `validateHeaderName` with an empty
+  # function body survived in `@gjsify/http`.
+  #
+  # Why NOT the Fedora container every other job uses: Playwright's dependency
+  # installer (`playwright install --with-deps`) supports Debian/Ubuntu only, so
+  # a Fedora-hosted run would need a hand-curated `dnf` list that silently drifts
+  # on every Playwright bump — the same class of unverified-by-construction
+  # problem this job exists to remove. Running on plain `ubuntu-latest` lets
+  # Playwright own its own dependency set. The GJS toolchain is not needed here:
+  # the `build` job already produced the bundles (see "Stage browser test bundles
+  # for the Playwright leg"), and `--app browser` output is a single
+  # self-contained ESM file.
+  #
+  # Firefox is the ONLY browser installed. It is the primary target because
+  # Firefox and GJS share SpiderMonkey, so the suite validates the same engine
+  # our GJS implementations claim to match. `playwright.config.ts` still declares
+  # a `chromium` project for local `--project=chromium` engine-diff runs; CI does
+  # not pay for that download.
+  browser:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: Browser (Playwright/Firefox) Fedora ${{ matrix.fedora.v }} bundles
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26.x
+
+      # `pattern` + `merge-multiple` so this stays correct if the Fedora axis
+      # ever grows a second leg (the bundles are identical builds). Unpacked at
+      # the repo root: the staging dir mirrors `packages/<pillar>/<pkg>/dist/`,
+      # which is both where `discover-bundles.mjs` looks and what the harness
+      # http-server serves.
+      - name: Download the staged browser test bundles
+        uses: actions/download-artifact@v8
+        with:
+          pattern: browser-test-bundles-fedora*
+          merge-multiple: true
+          path: .
+
+      - name: Report the bundle set
+        id: bundles
+        run: |
+          set -e
+          COUNT=$(find packages -name test.browser.mjs -path '*/dist/*' 2>/dev/null | wc -l | tr -d '[:space:]')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "[ci] $COUNT browser test bundle(s) received"
+          find packages -name test.browser.mjs -path '*/dist/*' 2>/dev/null | sort
+          if [ "$COUNT" = "0" ]; then
+            echo "::notice title=Browser tests::No browser-capable package in the affected closure — nothing to run."
+          fi
+
+      # Only the Playwright runner + the static server are installed, straight
+      # from `tests/browser/package.json`, INSIDE `tests/browser` (npm keeps a
+      # workspace-member install local, so the workspace root is untouched and no
+      # ~2 GB `gjsify install` is paid for a leaf harness). `--ignore-scripts`
+      # skips @playwright/test's postinstall, which would download all three
+      # browser engines; the explicit `playwright install firefox` below fetches
+      # only the one we run.
+      - name: Install the Playwright runner
+        if: ${{ steps.bundles.outputs.count != '0' }}
+        working-directory: tests/browser
+        run: npm install --no-save --no-package-lock --no-workspaces --ignore-scripts
+
+      - name: Cache the Playwright browser download
+        if: ${{ steps.bundles.outputs.count != '0' }}
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-firefox-${{ runner.os }}-${{ hashFiles('tests/browser/package.json') }}
+          restore-keys: |
+            playwright-firefox-${{ runner.os }}-
+
+      - name: Install Firefox
+        if: ${{ steps.bundles.outputs.count != '0' }}
+        working-directory: tests/browser
+        run: npx playwright install --with-deps firefox
+
+      # The gate. `--pass-with-no-tests` because a selective closure can leave
+      # this set empty (e.g. only a probe-listed package was affected).
+      - name: Run the browser test suite
+        if: ${{ steps.bundles.outputs.count != '0' }}
+        working-directory: tests/browser
+        run: npx playwright test --project=firefox --reporter=list --pass-with-no-tests --grep-invert "$BROWSER_PROBE_GREP"
+
+      # NON-GATING probe over the ledgered failures in $BROWSER_PROBE_GREP.
+      # Answers "is that still broken?" on every run without reddening main.
+      # Delete an entry from the ledger the moment its package goes green.
+      - name: Probe the known-red browser bundles (not a gate)
+        if: ${{ steps.bundles.outputs.count != '0' }}
+        continue-on-error: true
+        working-directory: tests/browser
+        run: |
+          if npx playwright test --project=firefox --reporter=list --pass-with-no-tests --grep "$BROWSER_PROBE_GREP"; then
+            echo "::notice title=Browser probe::every ledgered bundle passed — drop it from BROWSER_PROBE_GREP in main.yml"
+          else
+            echo "::warning title=Browser probe::a ledgered bundle still fails — expected while its entry is in BROWSER_PROBE_GREP"
+            exit 1
+          fi
+
+      - name: Upload the Playwright report
+        if: ${{ failure() && steps.bundles.outputs.count != '0' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-fedora${{ matrix.fedora.v }}
+          path: |
+            tests/browser/playwright-report
+            tests/browser/test-results
+          retention-days: 7
+          if-no-files-found: ignore
 
   # Integration tests are NOT wired into CI yet (opt-in; suites have
   # CI-incompatible preconditions). The classifier still emits run-integration
