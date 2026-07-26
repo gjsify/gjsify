@@ -75,7 +75,15 @@ fi
 # `--name-only` keeps the command output single-line per file (cheap to
 # substring-check via `head -1` for emptiness).
 
-CLI_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/cli/src/ packages/infra/cli/package.json | head -1)"
+# `packages/infra/resolve-npm/lib/` is included deliberately. Those files are
+# DATA the bundle inlines — `globals-map.mjs`'s GJS_GLOBALS_MAP (identifier →
+# `/register` subpath) and `index.mjs`'s alias maps. `node_modules/.bin/gjsify`
+# prefers the committed `dist/cli.gjs.mjs` over the workspace `lib/`, so a new
+# entry in either map SILENTLY no-ops locally until the bundle is rebuilt:
+# `--globals auto` simply fails to inject the identifier, with no error. That
+# is a far worse failure mode than a stale-but-equivalent binary, which is why
+# this one non-`cli/src` path earns a trigger.
+CLI_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/cli/src/ packages/infra/cli/package.json packages/infra/resolve-npm/lib/ | head -1)"
 TSC_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/tsc/src/ packages/infra/tsc/package.json | head -1)"
 
 # Avoid re-entering rebuild if nothing relevant changed.
@@ -84,7 +92,7 @@ if [ -z "$CLI_SRC_CHANGED" ] && [ -z "$TSC_SRC_CHANGED" ]; then
 fi
 
 echo "[gjsify pre-commit] detected staged changes that may stale the committed GJS bundle(s):"
-[ -n "$CLI_SRC_CHANGED" ] && echo "  • packages/infra/cli/src/ (or package.json)"
+[ -n "$CLI_SRC_CHANGED" ] && echo "  • packages/infra/cli/src/ (or package.json), or packages/infra/resolve-npm/lib/"
 [ -n "$TSC_SRC_CHANGED" ] && echo "  • packages/infra/tsc/src/ (or package.json)"
 echo "[gjsify pre-commit] rebuilding affected bundle(s) — bypass with 'git commit --no-verify' or SKIP_GJSIFY_HOOKS=1."
 

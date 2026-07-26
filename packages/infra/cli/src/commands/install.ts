@@ -31,16 +31,18 @@
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
-import { detectNativePackages } from '../utils/detect-native-packages.js';
+import { detectNativePackages, libraryPathVar } from '../utils/detect-native-packages.js';
+import { buildLauncherShims } from '../utils/bin-shim.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { atomicWriteStrict } from '../utils/install-cache-fs.js';
 import { acquireInstallLock } from '../utils/install-lock.js';
 import { nodeBinary } from '../utils/run-node.js';
+import { spawnToCompletion } from '../utils/spawn.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import {
     binDirOnPath,
@@ -58,6 +60,28 @@ import {
     writePackageJson,
     type DependencyKind,
 } from '../utils/pkg-json-edit.js';
+
+/**
+ * Link type for the workspace↔workspace directory links.
+ *
+ * Windows cannot create a *directory symlink* without elevation or Developer
+ * Mode (`EPERM`), but any user can create an NTFS **junction** — which is why
+ * npm and yarn both use junctions for workspace links. These two call sites had
+ * no try/catch, so a non-elevated Windows workspace install hard-failed here.
+ */
+const WORKSPACE_LINK_TYPE: 'junction' | undefined = process.platform === 'win32' ? 'junction' : undefined;
+
+/**
+ * The `target` argument for a workspace link.
+ *
+ * Node normalises a `'junction'` target with `path.resolve()` — i.e. against
+ * the process CWD, NOT the link's own directory — so a junction MUST be given
+ * an absolute path. POSIX symlinks stay relative so the tree survives being
+ * moved.
+ */
+function workspaceLinkTarget(linkPath: string, absTarget: string): string {
+    return WORKSPACE_LINK_TYPE === 'junction' ? resolve(absTarget) : relative(dirname(linkPath), absTarget);
+}
 
 interface InstallOptions {
     packages?: string[];
@@ -690,7 +714,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
                 if (!target) continue;
                 const linkPath = join(target.location, 'node_modules', link.depName);
                 parentDirs.add(dirname(linkPath));
-                const relTarget = relative(dirname(linkPath), link.targetLocation);
+                const relTarget = workspaceLinkTarget(linkPath, link.targetLocation);
                 plans.push({ linkPath, relTarget });
             }
             // Phase 1: one mkdir per unique parent (max ~213 instead of ~793).
@@ -707,12 +731,12 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
                 // `{ recursive: true, force: true }` handles every shape (rm
                 // no-ops on missing paths under force; recursive covers dirs).
                 try {
-                    await fsp.rm(linkPath, { recursive: true, force: true });
+                    await fsp.rm(linkPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
                 } catch {
                     /* unexpected; symlink call below will surface the real
                        cause if it persists. */
                 }
-                await fsp.symlink(relTarget, linkPath);
+                await fsp.symlink(relTarget, linkPath, WORKSPACE_LINK_TYPE);
             };
             for (let i = 0; i < Math.min(SYMLINK_CONCURRENCY, plans.length); i++) {
                 workers.push(
@@ -769,8 +793,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             }
             if (existsHere) continue;
             mkdirSync(dirname(linkPath), { recursive: true });
-            const relTarget = relative(dirname(linkPath), ws.location);
-            symlinkSync(relTarget, linkPath);
+            symlinkSync(workspaceLinkTarget(linkPath, ws.location), linkPath, WORKSPACE_LINK_TYPE);
             rootHoisted++;
         }
         if (rootHoisted > 0) {
@@ -983,15 +1006,28 @@ function writeWorkspaceBinShims(cwd: string, workspaces: ReturnType<typeof disco
         mkdirSync(wsBinDir, { recursive: true });
         for (const [binName, { nodeTarget, gjsTarget }] of merged) {
             const linkPath = join(wsBinDir, binName);
-            try {
-                rmSync(linkPath, { force: true });
-            } catch {
-                /* fine */
+            for (const file of [linkPath, `${linkPath}.cmd`, `${linkPath}.ps1`]) {
+                try {
+                    rmSync(file, { force: true, maxRetries: 10, retryDelay: 100 });
+                } catch {
+                    /* fine */
+                }
             }
             writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs), {
                 mode: 0o755,
             });
             chmodSync(linkPath, 0o755);
+            // Windows executes neither an extension-less file nor a `#!` line —
+            // the sh shim above is only reachable from git-bash/MSYS/WSL. Write
+            // the `.cmd`/`.ps1` companions cmd.exe and pwsh need, mirroring what
+            // npm's cmd-shim lays down next to every linked bin.
+            if (process.platform === 'win32') {
+                for (const [suffix, contents] of Object.entries(
+                    buildWorkspaceBinShimsForWindows(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs),
+                )) {
+                    writeFileSync(`${linkPath}.${suffix}`, contents, { mode: 0o755 });
+                }
+            }
             wsBinsCreated++;
         }
     }
@@ -1116,17 +1152,24 @@ function scopedOverrideFor(
     return undefined;
 }
 
-function buildBinShim(
+export function buildBinShim(
     wsLocation: string,
     nodeTarget?: string,
     gjsTarget?: string,
     nativePrebuildDirs: string[] = [],
+    platform: string = process.platform,
 ): string {
     const nodeAbs = nodeTarget ? join(wsLocation, nodeTarget) : null;
     const gjsAbs = gjsTarget ? join(wsLocation, gjsTarget) : null;
     // GJS-only env preamble — Node ignores GI_TYPELIB_PATH so we scope the
     // export to the gjs branch, keeping the shim minimal when no native pkgs
     // exist or only the Node bin is in play.
+    //
+    // The library-path variable is host-dependent: `dyld` on macOS never reads
+    // LD_LIBRARY_PATH, so exporting it there silently produced a launcher that
+    // could not load a single `darwin-arm64` prebuild. `libraryPathVar()` is the
+    // one place that mapping lives.
+    const { name: libVar } = libraryPathVar(platform);
     const gjsPreamble =
         nativePrebuildDirs.length === 0
             ? ''
@@ -1134,8 +1177,8 @@ function buildBinShim(
                   const joined = `'${nativePrebuildDirs.join(':').replace(/'/g, `'\\''`)}'`;
                   return (
                       `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
-                      `LD_LIBRARY_PATH=${joined}\${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}\n` +
-                      `export GI_TYPELIB_PATH LD_LIBRARY_PATH\n`
+                      `${libVar}=${joined}\${${libVar}:+":$${libVar}"}\n` +
+                      `export GI_TYPELIB_PATH ${libVar}\n`
                   );
               })();
     if (nodeAbs && gjsAbs) {
@@ -1165,6 +1208,42 @@ function buildBinShim(
     if (nodeAbs) return `#!/bin/sh\nexec node "${nodeAbs}" "$@"\n`;
     if (gjsAbs) return `#!/bin/sh\n${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
     throw new Error('buildBinShim: either nodeTarget or gjsTarget must be provided');
+}
+
+/**
+ * `.cmd` / `.ps1` companions for {@link buildBinShim}.
+ *
+ * The `sh` shim's gjs-first / node-fallback probe has no Windows counterpart to
+ * express: there is no GJS host on Windows at all (no prebuilt `libgjs` — see
+ * `website/src/content/docs/platform-support.md`), so a workspace that ships
+ * both targets resolves to Node here, and a GJS-only workspace gets an honest
+ * `gjs`-invoking shim that fails exactly the way the `sh` one does.
+ *
+ * Exported + platform-free so it is unit-tested from Linux.
+ */
+export function buildWorkspaceBinShimsForWindows(
+    wsLocation: string,
+    nodeTarget?: string,
+    gjsTarget?: string,
+    nativePrebuildDirs: string[] = [],
+): { cmd: string; ps1: string } {
+    const nodeAbs = nodeTarget ? join(wsLocation, nodeTarget) : null;
+    const gjsAbs = gjsTarget ? join(wsLocation, gjsTarget) : null;
+    if (nodeAbs) return buildLauncherShims({ interpreter: 'node', target: nodeAbs });
+    if (gjsAbs) {
+        // Windows has no dedicated library-path variable — LoadLibrary searches
+        // PATH — so the prebuild dirs go there, `;`-separated (which is also
+        // GLib's G_SEARCHPATH_SEPARATOR on Windows, hence the same join for
+        // GI_TYPELIB_PATH).
+        const joined = nativePrebuildDirs.join(';');
+        return buildLauncherShims({
+            interpreter: 'gjs',
+            interpreterArgs: ['-m'],
+            target: gjsAbs,
+            prependEnv: nativePrebuildDirs.length === 0 ? {} : { GI_TYPELIB_PATH: joined, PATH: joined },
+        });
+    }
+    throw new Error('buildWorkspaceBinShimsForWindows: either nodeTarget or gjsTarget must be provided');
 }
 
 /**
@@ -1218,24 +1297,26 @@ async function projectInstallViaNpm(args: InstallOptions): Promise<void> {
 }
 
 async function spawnNpm(npmArgs: string[]): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        const child = spawn('npm', npmArgs, { stdio: 'inherit' });
-        child.on('close', (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`npm install exited with code ${code}`));
+    // `completion: 'return'` — the `--backend npm` branch of the handler
+    // RETURNS after `runPostInstallChecks()` instead of exiting, so under GJS
+    // this must not leave the main loop `spawn()` arms parked (see
+    // utils/spawn.ts). The npm backend needs a Node host anyway, so the
+    // blocking path costs nothing in practice.
+    return spawnToCompletion('npm', npmArgs, {
+        completion: 'return',
+        notFound: () => new Error('npm not found on PATH — install Node.js first.'),
+    })
+        .then(({ code }) => {
+            if (code !== 0) throw new Error(`npm install exited with code ${code}`);
+        })
+        .catch((err: Error) => {
+            // A raw spawn failure still carries an errno `code`; the mapped
+            // not-found hint and the non-zero-exit error do not, and already
+            // read as finished sentences.
+            const errno = (err as NodeJS.ErrnoException).code;
+            console.error(errno === undefined ? err.message : `npm install failed: ${err.message}`);
+            process.exit(1);
         });
-        child.on('error', (err) => {
-            const code = (err as NodeJS.ErrnoException).code;
-            const msg =
-                code === 'ENOENT'
-                    ? 'npm not found on PATH — install Node.js first.'
-                    : `npm install failed: ${err.message}`;
-            reject(new Error(msg));
-        });
-    }).catch((err: Error) => {
-        console.error(err.message);
-        process.exit(1);
-    });
 }
 
 async function installGlobalAndLink(specs: string[], opts: { verbose: boolean }): Promise<void> {

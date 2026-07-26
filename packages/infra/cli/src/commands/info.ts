@@ -28,12 +28,17 @@ export const infoCommand: Command<unknown, InfoOptions> = {
         const cwd = process.cwd();
         const file = args.file ? resolve(args.file as string) : null;
         const nativePackages = detectNativePackages(cwd);
-        const { LD_LIBRARY_PATH, GI_TYPELIB_PATH } = buildNativeEnv(nativePackages);
+        // Which variables this yields is host-dependent: GI_TYPELIB_PATH
+        // everywhere, plus the loader path variable the host actually consults
+        // (LD_LIBRARY_PATH on Linux, DYLD_LIBRARY_PATH on macOS, PATH on
+        // Windows). Iterate rather than destructuring two fixed names, or the
+        // printed environment is wrong off Linux.
+        const nativeEnv = buildNativeEnv(nativePackages);
+        const envEntries = Object.entries(nativeEnv).filter(([, value]) => value !== undefined);
 
         if (args.export) {
             // Machine-readable output for eval
-            console.log(`export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"`);
-            console.log(`export GI_TYPELIB_PATH="${GI_TYPELIB_PATH}"`);
+            for (const [key, value] of envEntries) console.log(`export ${key}="${value}"`);
             return;
         }
 
@@ -51,8 +56,7 @@ export const infoCommand: Command<unknown, InfoOptions> = {
 
         console.log('');
         console.log('To run your app directly with gjs, set:');
-        console.log(`  export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"`);
-        console.log(`  export GI_TYPELIB_PATH="${GI_TYPELIB_PATH}"`);
+        for (const [key, value] of envEntries) console.log(`  export ${key}="${value}"`);
 
         if (file) {
             console.log(`  gjs -m ${file}`);

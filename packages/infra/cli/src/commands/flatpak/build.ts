@@ -4,10 +4,10 @@
 // shape (manifest, build-dir, install, repo, bundle), plus a `--tarball`
 // helper for Flathub submissions.
 
-import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { Command } from '../../types/index.js';
+import { spawnToCompletion } from '../../utils/spawn.js';
 
 interface FlatpakBuildOptions {
     manifest?: string;
@@ -138,6 +138,12 @@ export const flatpakBuildCommand: Command<unknown, FlatpakBuildOptions> = {
         }
 
         console.log(`[gjsify flatpak build] done (${buildDir})`);
+        // Terminal command: exit explicitly. Under GJS the async `spawn` used
+        // above arms a GLib main loop (`ensureMainLoop`) that only
+        // `process.exit()` quits — returning here would park the CLI at 0% CPU
+        // after flatpak-builder had already finished. Same reason `foreach` /
+        // `workspace` / `check` end this way; see utils/spawn.ts.
+        return process.exit(0);
     },
 };
 
@@ -194,7 +200,7 @@ async function runTar(args: string[], opts: { verbose?: boolean }) {
     return runProc('tar', args, opts, { notFoundHint: 'tar not found.' });
 }
 
-function runProc(
+async function runProc(
     cmd: string,
     args: string[],
     opts: { verbose?: boolean },
@@ -203,18 +209,16 @@ function runProc(
     if (opts.verbose) {
         console.log(`[gjsify flatpak] ${cmd} ${args.join(' ')}`);
     }
-    return new Promise((res, rej) => {
-        const child = spawn(cmd, args, { stdio: 'inherit' });
-        child.on('error', (err: NodeJS.ErrnoException) => {
-            if (err.code === 'ENOENT') {
-                rej(new Error(`gjsify flatpak: ${extra.notFoundHint}`));
-            } else {
-                rej(err);
-            }
-        });
-        child.on('exit', (code) => {
-            if (code === 0) res();
-            else rej(new Error(`gjsify flatpak: ${cmd} exited with status ${code}`));
-        });
+    // `completion: 'exit'` — the handler ends in `process.exit(0)` (added for
+    // exactly this reason), so the GLib main loop `spawn()` arms under GJS is
+    // quit on the way out and the STREAMING path stays available. That matters
+    // here more than anywhere: `flatpak-builder` runs for minutes and its live
+    // progress is the whole point of `stdio: 'inherit'`. See utils/spawn.ts.
+    const { code } = await spawnToCompletion(cmd, args, {
+        completion: 'exit',
+        notFound: () => new Error(`gjsify flatpak: ${extra.notFoundHint}`),
     });
+    if (code !== 0) {
+        throw new Error(`gjsify flatpak: ${cmd} exited with status ${code}`);
+    }
 }

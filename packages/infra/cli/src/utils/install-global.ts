@@ -25,7 +25,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { detectNativePackages } from './detect-native-packages.js';
+import { detectNativePackages, libraryPathVar } from './detect-native-packages.js';
+import { buildLauncherShims, parseShebang, type Shebang } from './bin-shim.js';
 
 export interface GlobalLayout {
     /** Where extracted package trees live: `<prefix>/node_modules/<pkg>/`. */
@@ -206,7 +207,9 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
                 /* best effort */
             }
             const linkPath = path.join(layout.binDir, binName);
-            fs.rmSync(linkPath, { force: true });
+            for (const stale of [linkPath, `${linkPath}.cmd`, `${linkPath}.ps1`]) {
+                fs.rmSync(stale, { force: true, maxRetries: 10, retryDelay: 100 });
+            }
             // Inline `${target}` directly — this file is rewritten on every
             // install, paths are user-owned, and POSIX `sh` quoting via
             // single-quotes plus `'\''` for embedded quotes is well-defined.
@@ -228,6 +231,37 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
                 : `#!/bin/sh\nexec ${shQuote(targetAbs)} "$@"\n`;
             fs.writeFileSync(linkPath, launcher);
             fs.chmodSync(linkPath, 0o755);
+            // Windows runs neither an extension-less file nor a `#!` line, so
+            // the `sh` launcher above is only reachable from git-bash/MSYS/WSL.
+            // Write the `.cmd`/`.ps1` companions cmd.exe and pwsh need — the
+            // same three-file layout npm's cmd-shim produces.
+            if (process.platform === 'win32') {
+                const joined = nativePrebuildDirs.join(';');
+                // No dedicated DLL-search variable on Windows: LoadLibrary
+                // searches PATH, and GLib's search-path separator is `;` there
+                // too — so both variables take the same `;`-joined value.
+                const prependEnv: Record<string, string> =
+                    isGjsBundle && nativePrebuildDirs.length > 0 ? { GI_TYPELIB_PATH: joined, PATH: joined } : {};
+                // A non-bundle bin is exec'd directly by the sh launcher, which
+                // relies on its `#!` line; batch/pwsh have no shebang support,
+                // so read the interpreter out of it the way cmd-shim does
+                // (defaulting to `node`, what every npm bin declares).
+                const shebang = isGjsBundle ? null : readShebangOf(targetAbs);
+                const shims = isGjsBundle
+                    ? buildLauncherShims({
+                          interpreter: 'gjs',
+                          interpreterArgs: ['-m'],
+                          target: targetAbs,
+                          prependEnv,
+                      })
+                    : buildLauncherShims({
+                          interpreter: shebang?.prog || 'node',
+                          interpreterArgs: shebang?.args.trim() ? shebang.args.trim().split(/\s+/) : [],
+                          target: targetAbs,
+                      });
+                fs.writeFileSync(`${linkPath}.cmd`, shims.cmd);
+                fs.writeFileSync(`${linkPath}.ps1`, shims.ps1);
+            }
             created.push({ name: binName, target: targetAbs, link: linkPath });
         }
     }
@@ -241,21 +275,38 @@ function shQuote(s: string): string {
 
 /**
  * Build the POSIX-sh `export` lines that prepend the given prebuild
- * directories to GI_TYPELIB_PATH and LD_LIBRARY_PATH. Any pre-existing value
- * inherited from the user's environment is preserved as a suffix so
- * user-installed typelibs/libraries still resolve.
+ * directories to GI_TYPELIB_PATH and the host's shared-library search path.
+ * Any pre-existing value inherited from the user's environment is preserved as
+ * a suffix so user-installed typelibs/libraries still resolve.
+ *
+ * The library variable is host-dependent — `LD_LIBRARY_PATH` on Linux,
+ * `DYLD_LIBRARY_PATH` on macOS (dyld never reads the ELF one), so a launcher
+ * written on a Mac used to export a variable nothing consults, leaving every
+ * `darwin-arm64` prebuild unloadable. `platform` is a parameter so both
+ * branches are unit-testable from either host.
  *
  * Returns the empty string when no prebuilds were found — avoids emitting an
  * inert assignment in the launcher.
  */
-function buildLauncherEnvPreamble(prebuildsDirs: string[]): string {
+export function buildLauncherEnvPreamble(prebuildsDirs: string[], platform: string = process.platform): string {
     if (prebuildsDirs.length === 0) return '';
+    const { name: libVar } = libraryPathVar(platform);
     const joined = shQuote(prebuildsDirs.join(':'));
     return (
         `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
-        `LD_LIBRARY_PATH=${joined}\${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}\n` +
-        `export GI_TYPELIB_PATH LD_LIBRARY_PATH\n`
+        `${libVar}=${joined}\${${libVar}:+":$${libVar}"}\n` +
+        `export GI_TYPELIB_PATH ${libVar}\n`
     );
+}
+
+/** Parse a bin file's `#!` line; `null` when unreadable or not a shebang. */
+function readShebangOf(file: string): Shebang | null {
+    try {
+        const head = fs.readFileSync(file, 'utf-8');
+        return parseShebang(head.trimStart().split(/\r*\n/, 1)[0] ?? '');
+    } catch {
+        return null;
+    }
 }
 
 function pickBinMap(pkgName: string, pkgJson: Record<string, unknown>): Map<string, string> | null {

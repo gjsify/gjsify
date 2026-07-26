@@ -344,7 +344,7 @@ export default async (): Promise<void> => {
             await it('matches segment-aware, not prefix-of-string', () => {
                 // fs-promises is a prefix-of-string match for fs but
                 // belongs to its own workspace.
-                const r = workspacesForChangedFiles(ws, '/abs', [
+                const r = workspacesForChangedFiles(ws, [
                     'packages/node/fs-promises/src/x.ts',
                     'packages/node/fs/src/y.ts',
                 ]);
@@ -354,13 +354,13 @@ export default async (): Promise<void> => {
             });
 
             await it('unmatched files surface for caller-side classification', () => {
-                const r = workspacesForChangedFiles(ws, '/abs', ['README.md', 'scripts/audit-runtimes.mjs']);
+                const r = workspacesForChangedFiles(ws, ['README.md', 'scripts/audit-runtimes.mjs']);
                 expect(r.matched.size).toBe(0);
                 expect(r.unmatched.length).toBe(2);
             });
 
             await it('multiple files in one workspace coalesce', () => {
-                const r = workspacesForChangedFiles(ws, '/abs', [
+                const r = workspacesForChangedFiles(ws, [
                     'packages/node/fs/src/a.ts',
                     'packages/node/fs/src/b.ts',
                     'packages/node/fs/package.json',
@@ -370,12 +370,22 @@ export default async (): Promise<void> => {
             });
 
             await it('handles backslashes (Windows-style diff)', () => {
-                const r = workspacesForChangedFiles(ws, '/abs', ['packages\\node\\fs\\src\\index.ts']);
+                const r = workspacesForChangedFiles(ws, ['packages\\node\\fs\\src\\index.ts']);
                 expect(r.matched.has('@gjsify/fs')).toBeTruthy();
             });
 
+            await it('absolute paths are unmatched (caller falls back to a full run)', () => {
+                // Inputs are repo-relative by contract. An absolute path shares
+                // no leading segment with any workspace, so it surfaces in
+                // `unmatched` rather than silently matching the wrong one —
+                // this is why the matcher needs no root directory.
+                const r = workspacesForChangedFiles(ws, ['/abs/packages/node/fs/src/y.ts']);
+                expect(r.matched.size).toBe(0);
+                expect(r.unmatched.length).toBe(1);
+            });
+
             await it('empty input → empty output', () => {
-                const r = workspacesForChangedFiles(ws, '/abs', []);
+                const r = workspacesForChangedFiles(ws, []);
                 expect(r.matched.size).toBe(0);
                 expect(r.unmatched.length).toBe(0);
             });

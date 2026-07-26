@@ -36,9 +36,7 @@ export default async () => {
         await it('encodes a scoped name with lowercase %2f and a literal @', async () => {
             // The exact shape npm-package-arg produces (npa.js:188). %2F
             // (uppercase) or an encoded @ would miss the registry create route.
-            expect(escapePackageName('@gjsify/browser-node-polyfills')).toBe(
-                '@gjsify%2fbrowser-node-polyfills',
-            );
+            expect(escapePackageName('@gjsify/browser-node-polyfills')).toBe('@gjsify%2fbrowser-node-polyfills');
         });
 
         await it('matches npm-package-arg name.replace("/", "%2f") byte-for-byte', async () => {
@@ -90,13 +88,73 @@ export default async () => {
             expect(h['content-type']).toBe('application/json');
         });
 
-        await it('sets a real (non-placeholder) user-agent', async () => {
+        await it('sets a user-agent carrying this CLI’s real version', async () => {
+            // The concern is NOT one particular dead string (the old assertion
+            // pinned `gjsify-install/0.3.7`, a literal that no longer exists
+            // anywhere in the tree, so it could never fail). It is that the UA
+            // reports the version the CLI actually IS: the previous default was
+            // a hard-coded `gjsify-publish/0.5.0` while the package sat at
+            // 0.22.0, and a stale UA is exactly what a WAF/CDN frontdoor or a
+            // registry-side incident report has to be able to trust.
             const h = buildPublishHeaders(URL, { npmrc: npmrcWithToken('tok') });
             expect(typeof h['user-agent']).toBe('string');
-            // The dead `gjsify-install/0.3.7` placeholder must not be what we
-            // send on a publish PUT.
-            expect(h['user-agent']).not.toBe('gjsify-install/0.3.7');
-            expect(h['user-agent'].length).toBeGreaterThan(0);
+
+            const match = /^gjsify-publish\/(\S+) \(.+ .+\)$/.exec(h['user-agent'] as string);
+            expect(match).toBeTruthy();
+            const version = match?.[1] ?? '';
+            // Resolution must have succeeded — `unknown` is the marker
+            // `cliVersion()` emits when it cannot read its own package.json.
+            expect(version).not.toBe('unknown');
+            // …and be a real semver-shaped version, not a placeholder like
+            // `0.0.0-dev` (the shape a compile-time define leaves behind when
+            // it silently fails to run).
+            expect(/^\d+\.\d+\.\d+/.test(version)).toBe(true);
+            expect(version.startsWith('0.0.0')).toBe(false);
+        });
+
+        await it('reports the SAME version the CLI package declares', async () => {
+            // The regression this guards: a hand-maintained version literal
+            // drifting from package.json. Reading the manifest here means the
+            // assertion tracks every release automatically.
+            //
+            // The manifest is found by walking UP, not by a fixed
+            // `../../package.json` — this spec runs from a bundle in `dist/`,
+            // where a fixed depth resolves one directory too high. That is the
+            // same trap the implementation avoids.
+            //
+            // Two start points, because neither alone covers every way this
+            // bundle gets run: `import.meta.url` is right for the shipped
+            // `dist/test.node.mjs`, and `process.cwd()` covers a bundle emitted
+            // OUTSIDE the package (a scratch `--outfile`, which is how a
+            // single-suite build is usually driven). Both walks are strict —
+            // there is no fallback that would let the assertion pass without a
+            // real manifest.
+            const { readFileSync } = await import('node:fs');
+            const { dirname } = await import('node:path');
+            const { fileURLToPath } = await import('node:url');
+            const walkUp = (start: string): string => {
+                let dir = start;
+                for (let i = 0; i < 12; i++) {
+                    try {
+                        const pkg = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8')) as {
+                            name?: string;
+                            version?: string;
+                        };
+                        if (pkg.name === '@gjsify/cli' && pkg.version) return pkg.version;
+                    } catch {
+                        /* keep climbing */
+                    }
+                    const parent = dirname(dir);
+                    if (parent === dir) break;
+                    dir = parent;
+                }
+                return '';
+            };
+            const declared = walkUp(dirname(fileURLToPath(import.meta.url))) || walkUp(process.cwd());
+            expect(declared.length).toBeGreaterThan(0);
+
+            const h = buildPublishHeaders(URL, { npmrc: npmrcWithToken('tok') });
+            expect(h['user-agent']?.startsWith(`gjsify-publish/${declared} `)).toBe(true);
         });
 
         await it('honours an explicit userAgent override', async () => {

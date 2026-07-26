@@ -19,18 +19,19 @@
 
 import { spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
-import { detectNativePackages, buildNativeEnv } from './detect-native-packages.js';
+import { detectNativePackages, buildNativeEnv, type NativeEnv } from './detect-native-packages.js';
 
 /**
- * Pure env computation for a given bundle. Returns the LD_LIBRARY_PATH /
- * GI_TYPELIB_PATH values that {@link runGjsBundle} would inject into the
+ * Pure env computation for a given bundle. Returns the typelib +
+ * shared-library search paths that {@link runGjsBundle} would inject into the
  * spawned `gjs` process, plus the formatted env-prefix string used for the
- * `$ …` echo.
+ * `$ …` echo. Which library variable is set is host-dependent
+ * (`LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` / `PATH`) — see `buildNativeEnv`.
  */
 export function computeNativeEnvForBundle(
     bundlePath: string,
     cwd: string = process.cwd(),
-): { env: { LD_LIBRARY_PATH: string; GI_TYPELIB_PATH: string }; envPrefix: string } {
+): { env: NativeEnv; envPrefix: string } {
     const resolvedBundle = resolve(bundlePath);
 
     const cwdPackages = detectNativePackages(cwd);

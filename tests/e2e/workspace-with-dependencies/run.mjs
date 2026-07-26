@@ -164,6 +164,42 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
         assert.ok(m['@test/utils'] === undefined, 'utils mark must not exist — no --with-dependencies');
     });
 
+    // yarn spells this `yarn workspace <name> run <script>`, and the command's
+    // own docs advertise that form as the equivalent — so it has to work. The
+    // prefix is OPTIONAL, never the default: gjsify's command names collide
+    // with the most common script names (`build`, `check`, `test`, `install`,
+    // …), so a full yarn-style CLI proxy would make `workspace <name> build`
+    // ambiguous between the build COMMAND and the build SCRIPT.
+    it('accepts the yarn `run <script>` spelling, identically to the short form', async () => {
+        clearMarks();
+        const withRun = await runCli(cliEntry, ['workspace', '@test/cli', 'run', 'build'], { cwd: root });
+        assert.equal(withRun.status, 0, `workspace run failed: ${withRun.stderr}\n${withRun.stdout}`);
+        const viaRun = markMtimes();
+        assert.ok(viaRun['@test/cli'] !== undefined, '@test/cli mark missing via `run build`');
+        assert.ok(viaRun['@test/core'] === undefined, 'the `run` prefix must not imply --with-dependencies');
+
+        clearMarks();
+        const short = await runCli(cliEntry, ['workspace', '@test/cli', 'build'], { cwd: root });
+        assert.equal(short.status, 0, `workspace failed: ${short.stderr}\n${short.stdout}`);
+        assert.deepEqual(
+            Object.keys(markMtimes()).sort(),
+            Object.keys(viaRun).sort(),
+            'the two spellings must build exactly the same set',
+        );
+    });
+
+    it('forwards extra args through the `run` prefix, not as the script name', async () => {
+        clearMarks();
+        // `--with-dependencies` after `run <script>` must still be parsed as the
+        // flag it is; a naive shift would swallow it as a positional.
+        const r = await runCli(cliEntry, ['workspace', '@test/cli', 'run', 'build', '--with-dependencies'], {
+            cwd: root,
+        });
+        assert.equal(r.status, 0, `workspace run failed: ${r.stderr}\n${r.stdout}`);
+        const m = markMtimes();
+        assert.ok(m['@test/core'] !== undefined, 'core mark missing — the flag was not honoured after `run`');
+    });
+
     it('--with-dependencies builds the transitive closure in topological order', async () => {
         clearMarks();
         const r = await runCli(cliEntry, ['workspace', '@test/cli', 'build', '--with-dependencies'], { cwd: root });

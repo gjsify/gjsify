@@ -1,5 +1,18 @@
 {
     "extends": "./tsconfig.json",
+    "compilerOptions": {
+        // `build:types` emits ONLY declarations. Both build steps target
+        // `lib/esm` (rolldown via `build:gjsify`, tsc via this config's
+        // inherited `outDir`), so whichever ran last used to win: on an
+        // incremental build tsc skipped emit and rolldown's output survived,
+        // on a clean build tsc overwrote it. That made the shipped JS depend
+        // on tsbuildinfo state — and silently dropped the compile-time
+        // `__PACKAGE_VERSION__` define rolldown applies (tsc knows nothing
+        // about it), degrading the registry user-agent to its
+        // define-did-not-run marker. Declarations-only makes `lib/esm` the
+        // bundler's alone, matching the majority of the workspace.
+        "emitDeclarationOnly": true
+    },
     "exclude": [
         "src/test.mts",
         "src/**/*.spec.ts",

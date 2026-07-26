@@ -19,7 +19,7 @@
 // — `@gjsify/rolldown-plugin-gjsify` has no test runner of its own.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { enableGjsRegistersForNode } from '@gjsify/rolldown-plugin-gjsify';
+import { enableGjsRegistersForNode, isGjsSourceBuild } from '@gjsify/rolldown-plugin-gjsify';
 import { ALIASES_WEB_FOR_NODE, ALIASES_WEB_FOR_GJS } from '@gjsify/resolve-npm';
 
 const REGISTER_SUBPATH_RE = /\/register(\/|$)/;
@@ -56,6 +56,32 @@ export default async () => {
 
         await it('does not mutate the input map', async () => {
             expect(base['@gjsify/dom-elements/register/document']).toBe('@gjsify/empty');
+        });
+    });
+
+    // The GATE that decides whether the lift above runs at all. Regression: the
+    // two consumers of this question used to disagree — `emptyGirs` took the
+    // union of both reverse-bridge signals while the register-alias lift took
+    // only the explicit `--globals` stub. A plain `gjsify build … --app node` of
+    // a genuine GJS source (recognised via `nodeGiGlobalsInject`) therefore got
+    // its `@girs/*` routed through to `requireGi` while a `/register` import in
+    // the SAME graph was still emptied, silently dropping the `'2d'` context
+    // factory so `Canvas2DBridge.onReady` never fired. Guarded end-to-end by the
+    // node-gi `test/canvas2d-bridge.test.mjs` golden; pinned cheaply here.
+    await describe('isGjsSourceBuild — the reverse-bridge gate', async () => {
+        await it('qualifies on the ambient-globals signal alone', async () => {
+            expect(isGjsSourceBuild({ nodeGiGlobalsInject: true })).toBe(true);
+        });
+
+        await it('qualifies on the explicit --globals inject stub alone', async () => {
+            expect(isGjsSourceBuild({ registerInject: '\0gjsify-inject-globals' })).toBe(true);
+        });
+
+        await it('does NOT qualify when neither signal is present', async () => {
+            // A cross-platform package's node bundle must keep loading on plain
+            // Node without node-gi installed — so the empty routing stays.
+            expect(isGjsSourceBuild({})).toBe(false);
+            expect(isGjsSourceBuild({ nodeGiGlobalsInject: false, registerInject: undefined })).toBe(false);
         });
     });
 };

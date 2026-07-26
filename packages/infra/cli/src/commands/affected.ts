@@ -110,7 +110,7 @@ export const affectedCommand: Command<unknown, AffectedOptions> = {
             ? readStdinLines()
             : runGitDiff(rootDir, args.base ?? 'origin/main', args.head ?? 'HEAD');
 
-        const result = classifyAndExpand(workspaces, rootDir, changedFiles);
+        const result = classifyAndExpand(workspaces, changedFiles);
         emit(args.format, result);
     },
 };
@@ -146,6 +146,11 @@ const GLOBAL_TRIGGERS = [
     // can break assertions anywhere. Treat it as a global trigger so a
     // `@gjsify/unit` change re-runs the full suite.
     /^packages\/gjs\/unit\//,
+    // The composite action every CI job runs to set itself up. A change here
+    // alters the environment of the whole matrix, so it must force a full run
+    // EXPLICITLY — it already did, but only by falling through to the
+    // conservative "unmatched files" path, which is luck rather than intent.
+    /^\.github\/actions\//,
     // Cross-cutting dep + lockfile + root config.
     /^gjsify-lock\.json$/,
     /^package\.json$/,
@@ -163,7 +168,7 @@ const IGNORE = [
     /^refs\//,
     /^website\//,
     /^docs\//,
-    /^\.github\/workflows\/(deploy-docs|commitlint|release|audit-runtimes|prebuilds|node-gi|napi)\.yml$/,
+    /^\.github\/workflows\/(deploy-docs|commitlint|release|audit-runtimes|prebuilds|node-gi|napi|cli-cross-platform|build-ci-image)\.yml$/,
     /^\.githooks\//,
     // @gjsify/node-gi (the Node-native GObject-Introspection engine, Axis 5) is
     // NOT a gjsify workspace member — the GJS-first install/foreach tooling can't
@@ -197,11 +202,7 @@ const IGNORE = [
 /** Patterns that suggest a test-only change. */
 const TEST_PATHS = [/\.spec\.[mc]?[tj]sx?$/, /^tests\/(e2e|integration)\//];
 
-function classifyAndExpand(
-    workspaces: readonly Workspace[],
-    rootDir: string,
-    changedFiles: readonly string[],
-): ClassifyResult {
+function classifyAndExpand(workspaces: readonly Workspace[], changedFiles: readonly string[]): ClassifyResult {
     const files = changedFiles.map((f) => f.replace(/\\/g, '/')).filter((f) => f.length > 0);
     if (files.length === 0) {
         return {
@@ -249,7 +250,7 @@ function classifyAndExpand(
         }
     }
     // Map files → workspaces. Files outside any workspace stay in `unmatched`.
-    const { matched, unmatched } = workspacesForChangedFiles(workspaces, rootDir, remaining);
+    const { matched, unmatched } = workspacesForChangedFiles(workspaces, remaining);
     // Unmatched-but-not-ignored files are suspicious enough to fall back to
     // the conservative "full run" path. Examples: a new top-level dotfile,
     // a script in `scripts/` we haven't carved out, a refs/-adjacent file.

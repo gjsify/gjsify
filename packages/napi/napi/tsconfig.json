@@ -17,6 +17,14 @@
     "rootDir": "src/ts",
     "declarationDir": "lib/types",
     "composite": true,
+    // Without this, `composite` derives the buildinfo path from the common
+    // source directory and drops it at `packages/napi/tsconfig.tsbuildinfo`
+    // — one level ABOVE this package, where the `clear` script's
+    // `rm -rf … tsconfig.tsbuildinfo` can never reach it. A stale one makes
+    // the declaration emit a SILENT no-op: tsc exits 0 and never writes
+    // `lib/types/index.d.ts`, so a publish ships a package whose `types`
+    // entry point does not exist.
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo",
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,

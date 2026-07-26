@@ -15,8 +15,9 @@
 // are reachable here, the `--json` flag routes through this command first
 // (since the typescript-check binding is positional `[paths..]`).
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { prefixLines } from '../utils/prefixed-output.js';
+import { spawnToCompletion } from '../utils/spawn.js';
 import { readPackageJson } from '../utils/pkg-json.js';
 import { join } from 'node:path';
 import { cpus } from 'node:os';
@@ -37,36 +38,41 @@ interface CheckOptions {
  * indicates failure. Output is forwarded to the parent's stdout/stderr,
  * line-prefixed with the workspace name when `prefix` is set.
  */
-function runCheck(ws: Workspace, prefix: string | null): Promise<number> {
-    return new Promise((resolve) => {
-        const child = spawn('npm', ['run', 'check', '--if-present'], {
+async function runCheck(ws: Workspace, prefix: string | null): Promise<number> {
+    // `completion: 'exit'` — every path out of this command's handler ends in
+    // `process.exit(…)`, which quits the GLib main loop `spawn()` arms under
+    // GJS, so the STREAMING async path is safe here (and required: the
+    // blocking one would serialize the parallel workers). See utils/spawn.ts.
+    const flushers: Array<() => void> = [];
+    try {
+        const { code } = await spawnToCompletion('npm', ['run', 'check', '--if-present'], {
+            completion: 'exit',
             cwd: ws.location,
-            stdio: prefix === null ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+            stdio: prefix === null ? 'inherit' : 'pipe',
+            onSpawn: (child) => {
+                // Shared with `foreach`: live line-prefixing on a tty, buffered
+                // flush-on-close on a non-tty sink. The previous inline
+                // forwarder wrote every line live — under GJS
+                // `process.stdout.write` is a blocking `Gio.write_all`, so a
+                // parallel check into a backpressuring CI pipe could stall the
+                // GLib loop the same way the foreach examples build did. See
+                // utils/prefixed-output.ts.
+                const buffered = !process.stdout.isTTY;
+                if (prefix !== null && child.stdout && child.stderr) {
+                    const tag = `[${prefix}] `;
+                    flushers.push(prefixLines(child.stdout, process.stdout, tag, buffered));
+                    flushers.push(prefixLines(child.stderr, process.stderr, tag, buffered));
+                }
+            },
         });
-
-        // Shared with `foreach`: live line-prefixing on a tty, buffered
-        // flush-on-close on a non-tty sink. The previous inline forwarder
-        // wrote every line live — under GJS `process.stdout.write` is a
-        // blocking `Gio.write_all`, so a parallel check into a
-        // backpressuring CI pipe could stall the GLib loop the same way
-        // the foreach examples build did. See utils/prefixed-output.ts.
-        const buffered = !process.stdout.isTTY;
-        const flushers: Array<() => void> = [];
-        if (prefix !== null && child.stdout && child.stderr) {
-            const tag = `[${prefix}] `;
-            flushers.push(prefixLines(child.stdout, process.stdout, tag, buffered));
-            flushers.push(prefixLines(child.stderr, process.stderr, tag, buffered));
-        }
-
-        child.on('close', (code) => {
-            for (const flush of flushers) flush();
-            resolve(code ?? 1);
-        });
-        child.on('error', () => {
-            for (const flush of flushers) flush();
-            resolve(1);
-        });
-    });
+        for (const flush of flushers) flush();
+        return code ?? 1;
+    } catch {
+        // Spawn failure (npm not on PATH, …) reports as a failed check —
+        // `gjsify check` aggregates codes rather than throwing per workspace.
+        for (const flush of flushers) flush();
+        return 1;
+    }
 }
 
 export const checkCommand: Command<unknown, CheckOptions> = {

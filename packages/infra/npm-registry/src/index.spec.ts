@@ -130,6 +130,19 @@ export default async () => {
             expect(typeof h['user-agent']).toBe('string');
         });
 
+        await it('buildHeaders UA carries the package version, not a hard-coded one', async () => {
+            // Guards the `gjsify.defineFromPackageJson` wiring end-to-end: the
+            // build must substitute `__PACKAGE_VERSION__` with this package's
+            // own `package.json#version`. Asserting the SHAPE (a real semver,
+            // never the `0.0.0-dev` define-did-not-run marker) rather than a
+            // literal keeps the test from becoming the next thing that drifts.
+            const ua = buildHeaders('https://registry.npmjs.org/lodash', {})['user-agent'];
+            expect(ua.startsWith('gjsify-install/')).toBe(true);
+            const version = ua.slice('gjsify-install/'.length);
+            expect(/^\d+\.\d+\.\d+/.test(version)).toBe(true);
+            expect(version).not.toBe('0.0.0-dev');
+        });
+
         await it('buildHeaders defaults accept-encoding to identity', async () => {
             const h = buildHeaders('https://registry.npmjs.org/lodash', {});
             expect(h['accept-encoding']).toBe('identity');
