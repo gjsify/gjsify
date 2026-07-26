@@ -150,7 +150,7 @@ documents. Two concrete reasons not to extend routing to it:
 - **It would break builds.** The `partial` packages' browser entries are not at export
   parity with their root entries: `@gjsify/fs`'s `src/browser.ts` is missing 34 value
   exports (`cp`, `opendir`, `statfs`, `writev`, …), `@gjsify/zlib`'s is missing 6,
-  `@gjsify/https`' is missing 4. Routing them converts a call-time degradation into a
+  `@gjsify/https`' is missing 2. Routing them converts a call-time degradation into a
   build-time `MISSING_EXPORT`.
 - **Parity is the honest promotion gate.** Reaching export parity is precisely the work
   that earns a package the `partial` → `polyfill` promotion, at which point routing

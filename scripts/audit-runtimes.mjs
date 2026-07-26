@@ -1052,8 +1052,14 @@ async function collectValueExports(file, seen = new Set()) {
         out.add(m[1]);
     }
     // `export { a, b as c }` (optionally `from '…'`) — drop `type` members.
+    // Comments must be stripped BEFORE splitting on `,`: a multi-line export
+    // block that groups its members under `// Sync API`-style headings would
+    // otherwise yield the heading glued to the next name as a phantom export
+    // (`@gjsify/fs` alone produced five). That only surfaces once a slot is
+    // flipped to `polyfill` — i.e. exactly when someone reads the list.
     for (const m of text.matchAll(/^export\s*\{([^}]*)\}\s*(?:from\s*['"][^'"]+['"]\s*)?;?/gm)) {
-        for (const raw of m[1].split(',')) {
+        const members = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        for (const raw of members.split(',')) {
             const t = raw.trim();
             if (!t || /^type\s/.test(t)) continue;
             const parts = t.split(/\s+as\s+/);
