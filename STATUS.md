@@ -952,13 +952,9 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 
 `nodeGiGlobalsInject` keys on BARE ambient globals (`print`/`imports`/`ARGV`), so a genuine GJS source that uses `gi://` but logs via `console.log` — and passes no explicit `--globals` — is not recognised: its `@girs/*` value imports are emptied (`class extends undefined`) **and** its `/register` imports route to `@gjsify/empty`. Verified with both probes. This pre-dates ADR 0012 and hits `@girs/*` and registers equally; ADR 0012 only brought the two into parity via the single `isGjsSourceBuild` gate in `app/node.ts`. Fix by widening the SIGNAL itself — e.g. treat "a `gi://` specifier survived in the bundled graph" as a reverse-bridge build — which closes both at once.
 
-### `@gjsify/webgl` barrel purity (ADR 0012 follow-up)
-
-`packages/framework/webgl/src/ts/index.ts` writes `globalThis.WebGLRenderingContext` / `globalThis.WebGL2RenderingContext` at barrel-import time and ships no `register.ts`; neither identifier is in `GJS_GLOBALS_MAP`, so `--globals auto` cannot inject them. Same E1 class as canvas2d/iframe, left out of that change because the `'webgl'`/`'webgl2'` factories register via a subclass override rather than the context-factory registry. Fix per ADR 0012 rule (b).
-
 ### Regenerate the register-globals closure map after a `GJS_GLOBALS_MAP` change
 
-`node packages/infra/cli/scripts/generate-register-closure.mjs` (`--check` reports staleness). A stale map is fail-soft — builds stay correct but pay extra `--globals auto` analysis passes. Pending after the ADR-0012 map additions. (The related hazard — the committed CLI bundle inlining a stale map — is closed: `.githooks/pre-commit` now also triggers on `packages/infra/resolve-npm/lib/`.)
+`node packages/infra/cli/scripts/generate-register-closure.mjs` (`--check` reports staleness). A stale map is fail-soft — builds stay correct but pay extra `--globals auto` analysis passes. (The related hazard — the committed CLI bundle inlining a stale map — is closed: `.githooks/pre-commit` now also triggers on `packages/infra/resolve-npm/lib/`.)
 
 ### `@gjsify/rolldown-native` macOS prebuild — the last step to a Node-free toolchain on macOS
 

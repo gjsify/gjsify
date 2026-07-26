@@ -1,16 +1,12 @@
+// Pure barrel — named exports only, no top-level side effects (AGENTS.md
+// tree-shakeable-globals rule 1). `globalThis.{WebGLRenderingContext,
+// WebGL2RenderingContext}` used to be written here at barrel-import time; that
+// registration now lives in `./register.ts` (see ADR 0012) and is reached via
+// `--globals auto`, an explicit `import '@gjsify/webgl/register'`, or
+// `WebGLBridge.installGlobals()`.
 import '@girs/gjs';
 import '@girs/gio-2.0';
 import '@girs/gtk-4.0';
-import { WebGLRenderingContext } from './webgl-rendering-context.js';
-import { WebGL2RenderingContext } from './webgl2-rendering-context.js';
-
-interface _WebGLGlobals {
-    WebGLRenderingContext?: typeof WebGLRenderingContext;
-    WebGL2RenderingContext?: typeof WebGL2RenderingContext;
-}
-const _g = globalThis as unknown as _WebGLGlobals;
-_g.WebGLRenderingContext = WebGLRenderingContext;
-_g.WebGL2RenderingContext = WebGL2RenderingContext;
 
 export * from './html-canvas-element.js';
 export * from './webgl-bridge.js';

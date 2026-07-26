@@ -6,7 +6,10 @@ import type Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as OurHTMLCanvasElement } from './html-canvas-element.js';
-import type { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
+// Value imports (not `import type`): `installGlobals()` installs both
+// constructors on globalThis, so it needs the classes at runtime.
+import { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
+import { WebGL2RenderingContext as OurWebGL2RenderingContext } from './webgl2-rendering-context.js';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import { Event } from '@gjsify/dom-events';
 import { notifyElementResize } from '@gjsify/dom-elements';
@@ -22,7 +25,8 @@ type WebGLReadyCallback = (canvas: globalThis.HTMLCanvasElement, gl: globalThis.
  * - Creates an `HTMLCanvasElement` wrapping the GLArea on first render
  * - Fires `onReady()` callbacks with (canvas, gl) once the context is available
  * - Provides `requestAnimationFrame()` backed by GTK frame clock (vsync) + render signal
- * - `installGlobals()` sets `globalThis.requestAnimationFrame` and `globalThis.performance`
+ * - `installGlobals()` sets `globalThis.{requestAnimationFrame, cancelAnimationFrame,
+ *   performance, WebGLRenderingContext, WebGL2RenderingContext}`
  *
  * Usage:
  * ```ts
@@ -338,23 +342,37 @@ export const WebGLBridge = GObject.registerClass(
         }
 
         /**
-         * Sets browser globals (`requestAnimationFrame`, `performance`) so that
-         * browser-targeted code (e.g. Three.js) works unchanged on GJS.
+         * Sets the browser globals this bridge owns — `requestAnimationFrame`,
+         * `cancelAnimationFrame`, `performance` and the two WebGL context
+         * constructors — so that browser-targeted code (e.g. Three.js) works
+         * unchanged on GJS.
+         *
+         * `WebGLRenderingContext` / `WebGL2RenderingContext` are installed
+         * UNCONDITIONALLY here: per ADR 0012 rule 5 a bridge's `installGlobals()`
+         * and its `/register` install the same set, `installGlobals()` being the
+         * explicit imperative path (`@gjsify/webgl/register` keeps the
+         * if-undefined guard instead). They used to reach `globalThis` for free
+         * as a side effect of importing the `@gjsify/webgl` barrel; moving that
+         * write into `register.ts` must not shrink what this method does.
          */
         installGlobals(): void {
             /**
              * Module-local typed view of the globalThis slots this method writes.
-             * Avoids 3 `(globalThis as any)` writes at the call sites.
+             * Avoids 5 `(globalThis as any)` writes at the call sites.
              */
             interface _RafGlobals {
                 requestAnimationFrame?: (cb: FrameRequestCallback) => number;
                 cancelAnimationFrame?: (id: number) => void;
                 performance?: { now: () => number; timeOrigin: number };
+                WebGLRenderingContext?: typeof OurWebGLRenderingContext;
+                WebGL2RenderingContext?: typeof OurWebGL2RenderingContext;
             }
             const g = globalThis as unknown as _RafGlobals;
 
             g.requestAnimationFrame = (cb: FrameRequestCallback) => this.requestAnimationFrame(cb);
             g.cancelAnimationFrame = (id: number) => this.cancelAnimationFrame(id);
+            g.WebGLRenderingContext = OurWebGLRenderingContext;
+            g.WebGL2RenderingContext = OurWebGL2RenderingContext;
             // Install performance.now() on the same time origin as rAF timestamps.
             // Always override to ensure consistency — native GJS performance.now()
             // may use a different time origin than the frame clock.

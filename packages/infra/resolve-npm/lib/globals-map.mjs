@@ -215,19 +215,22 @@ export const GJS_GLOBALS_MAP = {
     location:             '@gjsify/dom-elements/register/location',
     navigator:            '@gjsify/dom-elements/register/navigator',
 
-    // --- Canvas 2D + IFrame (GTK/WebKit-backed DOM classes) ----------------
+    // --- Canvas 2D + IFrame + WebGL (GTK/WebKit-backed DOM classes) --------
     //
     // These live in `packages/framework/*` rather than a Web/DOM pillar because
-    // their implementations are GTK/Cairo- and WebKit-bound (ADR 0012). They are
-    // DELIBERATELY NOT members of `GJS_GLOBALS_GROUPS.dom`: that group is the
-    // coarse `--globals auto,dom` safety net, and pulling these into it would
-    // make every `auto,dom` build hard-require `@gjsify/canvas2d` /
-    // `@gjsify/iframe` (and, for the latter, WebKitGTK) as an installed
-    // dependency. Auto-detection injects them only when the identifier is
-    // actually referenced in the bundled, tree-shaken output.
+    // their implementations are GTK/Cairo-, WebKit- and Gwebgl/GLArea-bound
+    // (ADR 0012). They are DELIBERATELY NOT members of `GJS_GLOBALS_GROUPS.dom`:
+    // that group is the coarse `--globals auto,dom` safety net, and pulling
+    // these into it would make every `auto,dom` build hard-require
+    // `@gjsify/canvas2d` / `@gjsify/iframe` / `@gjsify/webgl` (and, for the
+    // second, WebKitGTK) as an installed dependency. Auto-detection injects them
+    // only when the identifier is actually referenced in the bundled,
+    // tree-shaken output.
     ImageData:            '@gjsify/canvas2d/register',
     Path2D:               '@gjsify/canvas2d/register',
     HTMLIFrameElement:    '@gjsify/iframe/register',
+    WebGLRenderingContext:  '@gjsify/webgl/register',
+    WebGL2RenderingContext: '@gjsify/webgl/register',
 };
 
 /**
@@ -287,6 +290,14 @@ export const GJS_GI_BACKED_REGISTERS = {
     // struct module.
     '@gjsify/canvas2d/register':     ['Gdk', 'GdkPixbuf', 'Pango', 'PangoCairo'],
     '@gjsify/iframe/register':       ['WebKit'],
+    // The WebGL context classes reach the GL driver through the `gwebgl` Vala
+    // bridge shipped as this package's own prebuild, and decode `texImage2D`
+    // sources via GdkPixbuf. Gtk/Gdk are NOT listed: they are pulled by
+    // `webgl-bridge.ts` (the `Gtk.GLArea` widget), which the register does not
+    // import — its chain is the two context classes only. As with the entries
+    // above, the always-present base namespaces (GLib) are omitted; only the
+    // ones whose absence breaks a GTK-less host are worth naming.
+    '@gjsify/webgl/register':        ['GdkPixbuf', 'Gwebgl'],
 };
 
 // ─── Browser target ────────────────────────────────────────────────────────

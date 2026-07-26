@@ -142,12 +142,17 @@ Two deliberate non-decisions:
   ownership-based and testable — rule 3 above means any such register is visible in
   `GJS_GLOBALS_MAP` and covered by a spec, so a future "just add a register here"
   cannot pass review silently.
-- **`@gjsify/webgl` has the same untreated violation** (`src/ts/index.ts` writes
+- **`@gjsify/webgl` had the same untreated violation** (`src/ts/index.ts` wrote
   `globalThis.WebGLRenderingContext` / `WebGL2RenderingContext` at barrel load, no
-  `register.ts`, neither identifier mapped). It falls under rule 2 of this ADR and
-  is tracked in STATUS.md `## Open TODOs`; it was left out of this change to keep
-  the diff reviewable and because the `'webgl'`/`'webgl2'` factories register via a
-  subclass override rather than the context-factory registry.
+  `register.ts`, neither identifier mapped). It falls under rule 2 of this ADR; it
+  was left out of this change to keep the diff reviewable and because the
+  `'webgl'`/`'webgl2'` factories register via a subclass override rather than the
+  context-factory registry. **Resolved in a follow-up** under this same ADR:
+  `@gjsify/webgl/register` now installs both constructors (guarded),
+  `WebGLBridge.installGlobals()` installs them unconditionally per rule 5, and both
+  identifiers are mapped in `GJS_GLOBALS_MAP` with a `GJS_GI_BACKED_REGISTERS` entry
+  of `['GdkPixbuf', 'Gwebgl']` — Gtk/Gdk are NOT in that set, because the register's
+  import chain is the two context classes only, not the `Gtk.GLArea` bridge.
 
 ## Implementation
 

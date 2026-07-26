@@ -633,10 +633,14 @@ export const ALIASES_WEB_FOR_NODE = {
     '@gjsify/dom-elements/register/match-media': '@gjsify/empty',
     '@gjsify/dom-elements/register/location': '@gjsify/empty',
     '@gjsify/dom-elements/register/navigator': '@gjsify/empty',
-    // Canvas 2D + IFrame registers (GTK/Cairo- and WebKit-backed, ADR 0012) —
-    // no-op on Node, exactly like the dom-elements registers above.
+    // Canvas 2D + IFrame + WebGL registers (GTK/Cairo-, WebKit- and
+    // Gwebgl/GLArea-backed, ADR 0012) — no-op on Node, exactly like the
+    // dom-elements registers above. Only the `@gjsify/*`-qualified form is
+    // mirrored: per ADR 0012 no bare-specifier `/register` alias is invented for
+    // a framework package.
     '@gjsify/canvas2d/register': '@gjsify/empty',
     '@gjsify/iframe/register': '@gjsify/empty',
+    '@gjsify/webgl/register': '@gjsify/empty',
     '@gjsify/buffer/register': '@gjsify/empty',
 
     // xmlhttprequest + DOMParser — no-op on Node
