@@ -98,6 +98,15 @@ const _workerDataWaiters: Array<(value: unknown) => void> = [];
 
 function _setWorkerData(value: unknown): void {
     _workerData = value;
+    // The EXPORTED binding must be reassigned too. `export let workerData`
+    // below is initialised once, at module-eval, from a `_workerData` that is
+    // still `null` — so updating only the private variable left the documented
+    // "replaced once the envelope lands" behaviour permanently unimplemented,
+    // and every consumer reading `workerData` (the Node-compatible spelling)
+    // saw `null` forever. Only the non-Node `onWorkerData()` worked, because it
+    // reads `_workerData` directly. `export let` is a live binding, so this
+    // assignment propagates to importers.
+    workerData = value;
     _workerDataReceived = true;
     while (_workerDataWaiters.length > 0) {
         _workerDataWaiters.shift()!(value);

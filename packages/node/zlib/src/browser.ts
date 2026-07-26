@@ -202,8 +202,8 @@ export const zstdDecompressSync = unsupportedSyncOp('zstdDecompressSync', 'zstd'
 
 // ─── Streaming classes — Transform wrappers ───────────────────────────────
 
-class ZlibTransform extends Transform {
-    private _format: WebCompressionFormat;
+export class ZlibTransform extends Transform {
+    protected _format: WebCompressionFormat;
     private _direction: 'compress' | 'decompress';
     private _chunks: Uint8Array[] = [];
 
@@ -211,6 +211,15 @@ class ZlibTransform extends Transform {
         super();
         this._format = format;
         this._direction = direction;
+    }
+
+    /**
+     * Format to use for the buffered input. Overridable so `Unzip` can pick
+     * between gzip and zlib-wrapped deflate once it has seen the header —
+     * which is only possible because `_flush` already buffers the whole input.
+     */
+    protected _resolveFormat(_input: Uint8Array): WebCompressionFormat {
+        return this._format;
     }
 
     _transform(chunk: unknown, _enc: string, cb: (err: Error | null, data?: unknown) => void): void {
@@ -226,7 +235,7 @@ class ZlibTransform extends Transform {
             merged.set(c, off);
             off += c.length;
         }
-        runStream(this._format, this._direction, merged).then(
+        runStream(this._resolveFormat(merged), this._direction, merged).then(
             (out) => {
                 this.push(out);
                 cb();
@@ -255,6 +264,52 @@ export class InflateRaw extends ZlibTransform {
     constructor() { super('deflate-raw', 'decompress'); }
 }
 
+/**
+ * Node's `Unzip` accepts EITHER gzip or zlib-wrapped deflate and picks by
+ * inspecting the header. The Web API has no such auto-detecting format, but it
+ * does not need one: `_flush` already buffers the entire input before handing
+ * it to `DecompressionStream`, so the header is in hand at the only moment the
+ * format has to be chosen.
+ *
+ * Note `'deflate'` in the WHATWG vocabulary is the ZLIB-wrapped form (RFC 1950)
+ * — `'deflate-raw'` is the unwrapped one — so it is the correct partner to gzip
+ * here. Input that is neither surfaces as a `DecompressionStream` error, which
+ * is what Node does too.
+ */
+export class Unzip extends ZlibTransform {
+    constructor() {
+        super('gzip', 'decompress');
+    }
+
+    protected override _resolveFormat(input: Uint8Array): WebCompressionFormat {
+        // RFC 1952 §2.3.1: gzip streams start with the magic bytes 1f 8b.
+        return input.length >= 2 && input[0] === 0x1f && input[1] === 0x8b ? 'gzip' : 'deflate';
+    }
+}
+
+// Zstd has no CompressionStream codec in any browser (the WHATWG
+// `CompressionFormat` enum is exactly deflate | deflate-raw | gzip), so these
+// throw — exactly as the GJS root entry does, for the same reason (no codec in
+// GLib). They exist because undici v7 reads `zlib.createZstdDecompress` at
+// module-init: the property must be present, it just must never work.
+export class ZstdCompress extends Transform {
+    constructor() {
+        super();
+        const err = new Error('ZstdCompress is not supported in the browser (no Zstd CompressionStream)');
+        (err as Error & { code: string }).code = 'ERR_UNSUPPORTED_OPERATION';
+        throw err;
+    }
+}
+
+export class ZstdDecompress extends Transform {
+    constructor() {
+        super();
+        const err = new Error('ZstdDecompress is not supported in the browser (no Zstd DecompressionStream)');
+        (err as Error & { code: string }).code = 'ERR_UNSUPPORTED_OPERATION';
+        throw err;
+    }
+}
+
 // Brotli streaming classes throw on construction — no CompressionStream codec
 // exists for brotli in the browser. Honest ENOTSUP > a fake Transform.
 export class BrotliCompress extends Transform {
@@ -280,10 +335,13 @@ export const createDeflateRaw = (_opts?: ZlibOptions): DeflateRaw => new Deflate
 export const createInflateRaw = (_opts?: ZlibOptions): InflateRaw => new InflateRaw();
 export const createBrotliCompress = (_opts?: ZlibOptions): BrotliCompress => new BrotliCompress();
 export const createBrotliDecompress = (_opts?: ZlibOptions): BrotliDecompress => new BrotliDecompress();
-// `createUnzip` accepts gzip or zlib-wrapped deflate input. The browser API
-// has no direct equivalent — gzip-only is the safer default since deflate-only
-// inputs are rare in real-world web traffic.
-export const createUnzip = (_opts?: ZlibOptions): Gunzip => new Gunzip();
+// Auto-detects gzip vs zlib-wrapped deflate from the header, like Node.
+// (It used to return a `Gunzip`, which silently mis-decoded every
+// zlib-wrapped input the API is explicitly documented to accept.)
+export const createUnzip = (_opts?: ZlibOptions): Unzip => new Unzip();
+
+export const createZstdCompress = (_opts?: ZlibOptions): never => new ZstdCompress() as never;
+export const createZstdDecompress = (_opts?: ZlibOptions): never => new ZstdDecompress() as never;
 
 const zlibDefault = {
     constants,
@@ -292,8 +350,10 @@ const zlibDefault = {
     gzipSync, gunzipSync, deflateSync, inflateSync, deflateRawSync, inflateRawSync,
     brotliCompressSync, brotliDecompressSync, zstdCompressSync, zstdDecompressSync,
     Gzip, Gunzip, Deflate, Inflate, DeflateRaw, InflateRaw, BrotliCompress, BrotliDecompress,
+    Unzip, ZlibTransform, ZstdCompress, ZstdDecompress,
     createGzip, createGunzip, createDeflate, createInflate, createDeflateRaw, createInflateRaw,
     createBrotliCompress, createBrotliDecompress, createUnzip,
+    createZstdCompress, createZstdDecompress,
 };
 
 export default zlibDefault;

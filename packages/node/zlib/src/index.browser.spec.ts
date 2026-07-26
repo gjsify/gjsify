@@ -29,6 +29,12 @@ import zlib, {
     BrotliCompress,
     BrotliDecompress,
     constants,
+    createGzip,
+    createDeflate,
+    createUnzip,
+    Unzip,
+    ZstdCompress,
+    ZstdDecompress,
 } from './browser.js';
 
 type AsyncCodec = (
@@ -187,6 +193,66 @@ export default async () => {
                 }
                 expect(code).toBe('ENOTSUP');
             });
+        });
+
+        // `Unzip` must accept EITHER container, like Node's. It previously
+        // returned a plain `Gunzip`, which decoded gzip correctly and silently
+        // mis-decoded every zlib-wrapped input — the half the API exists for.
+        await describe('Unzip auto-detects the container', async () => {
+            /** Pump `input` through a Transform and collect the output. */
+            const through = (stream: NodeJS.ReadWriteStream, input: Uint8Array): Promise<Uint8Array> =>
+                new Promise((resolve, reject) => {
+                    const parts: Uint8Array[] = [];
+                    stream.on('data', (c: Uint8Array) => parts.push(c));
+                    stream.on('error', reject);
+                    stream.on('end', () => {
+                        const total = parts.reduce((n, c) => n + c.length, 0);
+                        const out = new Uint8Array(total);
+                        let off = 0;
+                        for (const p of parts) {
+                            out.set(p, off);
+                            off += p.length;
+                        }
+                        resolve(out);
+                    });
+                    stream.end(input);
+                });
+
+            await it('should round-trip gzip input', async () => {
+                const packed = await through(createGzip() as unknown as NodeJS.ReadWriteStream, new TextEncoder().encode('gzip payload'));
+                const out = await through(createUnzip() as unknown as NodeJS.ReadWriteStream, packed);
+                expect(decode(out)).toBe('gzip payload');
+            });
+
+            await it('should round-trip zlib-wrapped deflate input', async () => {
+                const packed = await through(createDeflate() as unknown as NodeJS.ReadWriteStream, new TextEncoder().encode('deflate payload'));
+                const out = await through(createUnzip() as unknown as NodeJS.ReadWriteStream, packed);
+                expect(decode(out)).toBe('deflate payload');
+            });
+
+            await it('should expose Unzip as a real constructor', async () => {
+                expect(createUnzip() instanceof Unzip).toBe(true);
+            });
+        });
+
+        // Present so a module-init probe (undici v7 reads
+        // `zlib.createZstdDecompress`) finds the property — but never working,
+        // because the WHATWG CompressionFormat enum has no Zstd member.
+        await describe('Zstd streaming classes are ENOTSUP', async () => {
+            for (const [name, Ctor] of [
+                ['ZstdCompress', ZstdCompress],
+                ['ZstdDecompress', ZstdDecompress],
+            ] as const) {
+                await it(`should throw ERR_UNSUPPORTED_OPERATION from ${name}`, async () => {
+                    let code: string | undefined;
+                    try {
+                        new Ctor();
+                    } catch (e: unknown) {
+                        code = (e as Error & { code?: string }).code;
+                    }
+                    expect(code).toBe('ERR_UNSUPPORTED_OPERATION');
+                });
+            }
         });
     });
 };
