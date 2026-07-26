@@ -283,6 +283,36 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
         },
     );
 
+    // Regression, sibling of the case above and the one that actually shipped
+    // damage: when the in-process dispatched subcommand THROWS, the catch used
+    // a BARE `process.exit(1)`. Under GJS that is deferred and RETURNS, so
+    // execution fell through to the trailing exit-code line, which recomputed
+    // the code and won — `gjsify run <script>` reported 0 for a command that
+    // had just failed. Everything chaining on it got a false green: every
+    // `a && b` build script, CI, and `gjsify onboard`, which published a
+    // package whose build had failed and then reported "0 failed".
+    //
+    // `gjsify build` on a missing entry throws in every environment (either
+    // "no usable bundler engine under GJS" on a workspace whose
+    // @gjsify/rolldown-native facade is unbuilt, or an unresolved-entry error),
+    // so the assertion is on the EXIT CODE, not on a particular message.
+    // GJS-only (the fast path is gated on `isGjs()`).
+    it(
+        'propagates a THROWING in-process gjsify subcommand through run (GJS)',
+        { skip: hasGjs() ? false : 'gjs not on PATH' },
+        async () => {
+            const bundle = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
+            const pkgPath = join(wsDir, 'package.json');
+            const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+            // Single `gjsify <subcommand>` → in-process fast path.
+            pkg.scripts.throwfail = 'gjsify build ./definitely-missing-entry.ts';
+            writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+
+            const r = await runGjs(bundle, ['run', 'throwfail'], { cwd: wsDir });
+            assert.notEqual(r.status, 0, `expected non-zero exit, got 0:\n${r.stdout}\n${r.stderr}`);
+        },
+    );
+
     // `-w <name>` / `--workspace <name>` (npm/yarn parity): run the target as a
     // script in the named workspace's directory. Resolves by package name AND
     // by workspace-relative path (so both `-w @test/app` and `-w packages/app`

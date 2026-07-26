@@ -378,6 +378,17 @@ async function runScript(script: string, extraArgs: readonly string[], cwd: stri
         process.env.npm_package_name = env.npm_package_name;
         process.env.npm_package_version = env.npm_package_version;
         if (env.FORCE_COLOR !== undefined) process.env.FORCE_COLOR = env.FORCE_COLOR;
+        // Track the failure LOCALLY rather than through `process.exitCode`.
+        // Under GJS `process.exit()` is deferred (see the note below), so the
+        // `process.exit(1)` that used to live in the catch returned instead of
+        // terminating, execution fell through to the exit-code line below, and
+        // whatever that computed WON. The dispatched command's failure was then
+        // reported as success: `gjsify run build:gjsify` exited 0 while the
+        // `gjsify build` it dispatched exited 1, so `gjsify onboard` happily
+        // published a package whose build had just failed. Anything chaining on
+        // `gjsify run <script>` — every `a && b` build script, CI, onboard —
+        // got a false green from it.
+        let dispatchFailed = false;
         try {
             // Dynamic import to avoid a static cli-app ↔ run.ts import cycle;
             // cli-app is already loaded (the CLI is running through it), so this
@@ -386,21 +397,22 @@ async function runScript(script: string, extraArgs: readonly string[], cwd: stri
             await runCli(inProcArgv);
         } catch (err) {
             console.error((err as Error).message);
-            process.exit(1);
+            dispatchFailed = true;
         }
-        // Honor a non-zero `process.exitCode` set by the dispatched handler
-        // (e.g. a failing check that sets the code instead of exiting) —
-        // a bare exit(0) here masked such failures as success.
-        process.exit(process.exitCode != null ? Number(process.exitCode) : 0);
-        // `process.exit()` under GJS is NOT synchronous — with the GLib main
-        // loop armed (`ensureMainLoop`, e.g. by a bundle the in-process dispatch
-        // just ran) it defers the actual teardown, so execution CONTINUES past
-        // the call. Without this `return` the function falls through to the
-        // shell-spawn fallback below and runs the SAME command a SECOND time
-        // (the double-execution bug). Mirrors the file-mode path's `return`
-        // after `runGjsBundle`. Keep both — the return is the real guard, the
-        // exit sets the status code for when the loop finally unwinds.
-        return;
+        // A thrown command wins over `process.exitCode`; otherwise honour a
+        // non-zero code the handler set instead of throwing (e.g. a failing
+        // check) — a bare exit(0) here masked those as success too.
+        const dispatchCode = dispatchFailed ? 1 : process.exitCode != null ? Number(process.exitCode) : 0;
+        // `return process.exit(…)`, never a bare call. Under GJS `process.exit()`
+        // is NOT synchronous — with the GLib main loop armed (`ensureMainLoop`,
+        // e.g. by a bundle the in-process dispatch just ran) it defers the
+        // actual teardown and RETURNS, so execution continues past the call.
+        // Without the `return` the function falls through to the shell-spawn
+        // fallback below and runs the SAME command a SECOND time (the
+        // double-execution bug). Mirrors the file-mode path's `return` after
+        // `runGjsBundle`. The return is the real guard; the exit sets the status
+        // code for when the loop finally unwinds.
+        return process.exit(dispatchCode);
     }
 
     const fullCmd = extraArgs.length > 0 ? `${literal} ${extraArgs.map(shellEscape).join(' ')}` : literal;
