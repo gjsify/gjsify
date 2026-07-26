@@ -193,6 +193,81 @@ describe('--app node gi:// → node-gi bundle E2E', { timeout: 10 * 60 * 1000 },
         assert.match(out, /loaded-ok/, 'gated gi:// bundle must run without @gjsify/node-gi installed');
     });
 
+    it('a user --alias never reaches the gi:// virtual module', () => {
+        // Regression guard for the alias leak that blocked `@gjsify/module` on
+        // every runtime (docs/reports/node-gi-consumer-survey.md gap 5).
+        //
+        // `gjsGiNodePlugin` emits a `\0gjsify-gi-node:*` virtual module whose
+        // source is `import { createRequire } from 'node:module'`. The alias
+        // rewrite used to be applied importer-blind, so a build carrying
+        // `--alias node:module=<something>` — which is exactly what the node-gi
+        // consumer harness does to put the polyfill UNDER TEST behind the
+        // builtin — handed the generated module the retargeted `createRequire`.
+        // The bundle then called it at top level before the polyfill's GLib
+        // proxy existed (`TypeError: … reading 'filename_from_uri'`), and past
+        // that hit a genuine cycle (the polyfill's Gio-backed loader needs GLib,
+        // which is reached through the very module being loaded).
+        //
+        // Two-sided assertion: the alias MUST still apply to the user's own
+        // source (it is scoped, not disabled) and MUST NOT apply inside the
+        // generated module.
+        writeFileSync(
+            join(projectDir, 'src', 'fake-module.js'),
+            [
+                'export function createRequire() {',
+                "    throw new Error('FAKE_MODULE_POLYFILL_WAS_USED');",
+                '}',
+                "export const MARKER = 'FAKE_MODULE_POLYFILL_MARKER';",
+                '',
+            ].join('\n'),
+        );
+        writeFileSync(
+            join(projectDir, 'src', 'aliased.ts'),
+            [
+                "import Gio from 'gi://Gio?version=2.0';",
+                // @ts-expect-error — resolved through the alias below.
+                "import { MARKER } from 'node:module';",
+                'console.log(MARKER, typeof Gio);',
+                '',
+            ].join('\n'),
+        );
+
+        execFileSync(
+            'npx',
+            [
+                'gjsify',
+                'build',
+                'src/aliased.ts',
+                '--app',
+                'node',
+                '--alias',
+                `node:module=${join(projectDir, 'src', 'fake-module.js')}`,
+                '--outfile',
+                'dist/aliased.mjs',
+            ],
+            { cwd: projectDir, stdio: 'pipe', timeout: 90 * 1000 },
+        );
+
+        const content = readFileSync(join(projectDir, 'dist', 'aliased.mjs'), 'utf-8');
+
+        // The generated gi shim kept the RUNTIME's createRequire.
+        assert.ok(
+            /from\s*["']node:module["']/.test(content),
+            `the gi:// virtual module must still import the runtime "node:module"\nContext: ${snippet(content, 'createRequire')}`,
+        );
+        // …and the user's own import still went through the alias.
+        assert.ok(
+            content.includes('FAKE_MODULE_POLYFILL_MARKER'),
+            'the user source must still be aliased (the guard is importer-scoped, not a blanket opt-out)',
+        );
+
+        execFileSync('node', ['--check', join(projectDir, 'dist', 'aliased.mjs')], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 30 * 1000,
+        });
+    });
+
     it('node bundle output is syntactically valid JavaScript', () => {
         const outPath = join(projectDir, 'dist', 'app.mjs');
         if (!existsSync(outPath)) return; // skip if previous test did not build

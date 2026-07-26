@@ -6,3 +6,4 @@ export * from './merge.js';
 export { detectFreeGlobals } from './detect-free-globals.js';
 export { resolveGlobalsList, writeRegisterInjectFile } from './scan-globals.js';
 export { inlineStaticReads } from './inline-static-reads.js';
+export { GJSIFY_VIRTUAL_PREFIX, isGjsifyVirtualModuleId } from './virtual-module-id.js';

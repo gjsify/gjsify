@@ -20,8 +20,41 @@
 // resolve through the "import" condition (Rolldown's default), bypassing the
 // `cjs-compat.cjs` shim that unwraps named-export ESM modules to their
 // constructor — breaking `util.inherits(Child, Stream)` patterns.
+//
+// ── Two invariants this plugin holds ────────────────────────────────────────
+//
+// 1. **Gjsify-generated modules are NOT aliased.** An import whose importer is
+//    a `\0gjsify-*` virtual module (`isGjsifyVirtualModuleId`) is left alone.
+//    We wrote that module's source; it names the RUNTIME module it needs and
+//    must get exactly that. The motivating failure: `gjsGiNodePlugin`'s
+//    `import { createRequire } from 'node:module'` was rewritten onto the
+//    `@gjsify/module` polyfill by the consumer harness's
+//    `--alias node:module=@gjsify/module`, so the bundle called the polyfill's
+//    `createRequire` at top level before its GLib proxy existed
+//    (`TypeError: … reading 'filename_from_uri'`) — and the polyfill's own
+//    Gio-backed loader can only reach GLib THROUGH the module it was being
+//    asked to load. The guard is importer-based rather than a per-specifier
+//    carve-out so it covers every current and future virtual module (entry
+//    wrapper, gi-node, napi-addon, gjs-imports-empty).
+//
+// 2. **An alias target is TERMINAL — exactly one hop, never a chain.** The
+//    `entries` map handed in is already MERGED across tiers (derived slot
+//    routing → curated `ALIASES_*` tables → per-target overrides → user
+//    `--alias`, later wins, see `app/*.ts`), so the tier a value came from is
+//    no longer recoverable here. Re-feeding a target through the table would
+//    therefore apply slot routing to USER aliases too, which is precisely what
+//    must not happen: `scripts/node-gi-consumer-harness.mjs` builds
+//    `--alias node:<x>=@gjsify/<x>` to put the POLYFILL under test behind a
+//    Node builtin, and 34 of those polyfills declare `runtimes.node: "native"`
+//    — a second hop would silently route them back to `@gjsify/<x>/globals`
+//    (i.e. Node's own builtin) and the suite would measure nothing. The
+//    "second pass" of the slot-routing model is a COMPOSITION concern, and it
+//    is resolved where the tiers are still distinguishable — see
+//    `withDerivedSlotRouting` in `@gjsify/resolve-npm`.
 
 import type { Plugin } from 'rolldown';
+
+import { isGjsifyVirtualModuleId } from '../utils/virtual-module-id.js';
 
 export interface AliasPluginOptions {
     entries: Record<string, string>;
@@ -35,6 +68,10 @@ export function aliasPlugin(options: AliasPluginOptions): Plugin {
         resolveId: {
             order: 'pre' as const,
             async handler(source, importer, extraOptions) {
+                // Invariant 1 — never rewrite an import that WE generated.
+                if (isGjsifyVirtualModuleId(importer)) {
+                    return null;
+                }
                 if (!Object.prototype.hasOwnProperty.call(entries, source)) {
                     return null;
                 }
