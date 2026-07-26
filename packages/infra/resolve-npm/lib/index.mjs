@@ -19,25 +19,44 @@ import { getDerivedAliasesSync as _getDerivedAliasesSync } from './runtime-alias
  *
  * ## Why this exists (ADR 0014)
  *
- * The alias layer was designed as a TWO-PASS chain, and `app/browser.ts` says
- * so in its own comment: the curated table maps a bare specifier
- * (`os`, `node:os`) to `@gjsify/<X>`, and "the dynamic per-runtimes-triplet
- * resolver (`getDerivedAliasesSync`) finishes the routing in a second pass".
+ * A curated table maps a bare specifier (`os`, `node:os`) to `@gjsify/<X>`,
+ * while the derived per-runtimes-triplet map (`getDerivedAliasesSync`) maps
+ * `@gjsify/os` → `@gjsify/os/browser`. Applying the second to the values of
+ * the first is what makes ADR 0014's platform-entry routing reach a browser
+ * bundle at all: those bundles hit the packages through the bare/`node:` form,
+ * not by package name. (A direct `import … from '@gjsify/os'` routes on its own
+ * — it is a plain key hit in the merged map.)
  *
- * That second pass never fires for a bare specifier. `aliasPlugin` resolves a
- * hit via `this.resolve(target, importer, { skipSelf: true })`, and `skipSelf`
- * deliberately excludes the gjsify alias plugin from the nested resolution —
- * so `os` → `@gjsify/os` lands on the package ROOT and the derived entry
- * `@gjsify/os` → `@gjsify/os/browser` is never consulted. A direct
- * `import … from '@gjsify/os'` in source DOES route (single hop, verified);
- * a browser bundle importing bare `os` does not. Since every browser bundle
- * reaches these packages through the bare/`node:` form, the platform-entry
- * routing of ADR 0014 would have been inert without this.
+ * ## Why HERE and not as a second pass in `aliasPlugin`
  *
- * Composing the two maps here — at the point the bare table is materialised —
- * collapses the chain to a single hop, keeps the curated table itself a pure
- * bare-name → package statement (no slot policy duplicated into it), and needs
- * no change in the bundler plugins.
+ * This looks like it wants to be a resolver chain — `os` → `@gjsify/os` →
+ * `@gjsify/os/browser` — but it must not be one. Slot routing may only be
+ * applied to values that CAME FROM a curated/derived table, and by the time
+ * `aliasPlugin` sees the map it has been merged flat across four tiers
+ * (derived → curated `ALIASES_*` → per-target overrides → user `--alias`,
+ * later wins — see `app/*.ts`). Tier information is gone, so a chain there
+ * would re-route USER aliases too:
+ *
+ *   - `scripts/node-gi-consumer-harness.mjs` builds `--alias node:<x>=@gjsify/<x>`
+ *     to put the POLYFILL under test behind a Node builtin. 34 of those
+ *     polyfills declare `runtimes.node: "native"`, so a second hop hands back
+ *     `@gjsify/<x>/globals` — Node's own builtin — and the suite measures
+ *     nothing while reporting green.
+ *   - Value-level chaining also has no notion of the documented KEY-level
+ *     "curated wins over derived" precedence. Measured on the composed maps:
+ *     `gjs` 0 of 114 entries would change, `node` 0 of 148 — and on
+ *     `nativescript` the only 4 changes are regressions (`fs` →
+ *     `@gjsify/native-fs-bridge` → `@gjsify/empty`, because a bridge package
+ *     that IS the native implementation declares `nativescript: "native"`,
+ *     which routes to a `globals.mjs` it does not ship).
+ *
+ * So composition happens at materialisation, where the tiers are still
+ * distinguishable, the curated table stays a pure bare-name → package
+ * statement (no slot policy duplicated into it), and `aliasPlugin` keeps its
+ * one-hop `skipSelf: true` contract. Composing a table is therefore an
+ * explicit, per-table decision; `ALIASES_NODE_FOR_NATIVESCRIPT` is
+ * deliberately NOT composed (see the STATUS.md TODO on the `native` slot's
+ * double meaning for the bridge packages).
  *
  * Evaluated LAZILY (on property read) and cached: `getDerivedAliasesSync` walks
  * the workspace, and importing `@gjsify/resolve-npm` must not pay for a
@@ -351,11 +370,18 @@ export const ALIASES_NODE_FOR_BROWSER = withDerivedSlotRouting(
  * - **Mobile-tractable Node built-ins → `@gjsify/<X>`.** `assert`,
  *   `async_hooks`, `buffer`, `crypto`, `events`, `fs`, `os`, `path`,
  *   `process`, `stream`, `string_decoder`, `url`, `util`, `querystring`
- *   route to their gjsify polyfills. The polyfills themselves may declare
- *   `runtimes.nativescript = "polyfill" | "partial" | "none"`; the
- *   triplet-driven `getDerivedAliasesSync('nativescript')` second pass
- *   reads the declaration and either keeps the resolution as-is (polyfill /
- *   partial) or redirects to `/globals` (native) or `@gjsify/empty` (none).
+ *   route to their gjsify polyfills. NOTE: unlike `ALIASES_NODE_FOR_BROWSER`,
+ *   this table is deliberately NOT wrapped in `withDerivedSlotRouting` — the
+ *   VALUES here are taken as final. Composing it today would only change 4 of
+ *   122 entries and all four are regressions: `fs`/`fs/promises` point at
+ *   `@gjsify/native-fs-bridge`, which declares `nativescript: "native"` meaning
+ *   "this package IS the native implementation", while the slot vocabulary's
+ *   `native` means "the RUNTIME provides it, route to `<pkg>/globals`" — a file
+ *   the bridge does not ship, so the composed value degrades to
+ *   `@gjsify/empty`. Settle the bridge packages' slot declarations first (see
+ *   STATUS.md `Open TODOs`), then compose. An import by PACKAGE NAME does route
+ *   per the declared slot (plain key hit in the merged map) — which is why the
+ *   bridges are ALREADY emptied on that path today, same TODO.
  * - **`ws` / `isomorphic-ws` → `@gjsify/empty`.** NS apps use `WebSocket`
  *   from the global runtime, not the `ws` package.
  *

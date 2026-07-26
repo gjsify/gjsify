@@ -4,10 +4,14 @@
 // (they appear transitively via `@gjsify/unit` and similar packages with
 // GJS-specific code paths). Bare Node specifiers + their `node:*` prefix
 // variants are routed to `@gjsify/<X>` via the curated
-// `ALIASES_NODE_FOR_BROWSER` table — the dynamic per-runtimes-triplet
-// resolver (`getDerivedAliasesSync`) finishes the routing in a second pass
-// (`@gjsify/<X>` → `@gjsify/<X>/globals` / `@gjsify/empty` depending on the
-// slot declaration).
+// `ALIASES_NODE_FOR_BROWSER` table, whose VALUES already carry the
+// per-runtimes-triplet slot routing (`@gjsify/<X>` → `@gjsify/<X>/browser` /
+// `/globals` / `@gjsify/empty`): that table is exported through
+// `withDerivedSlotRouting` in `@gjsify/resolve-npm`. Composition happens THERE,
+// not as a resolver second pass here — `aliasPlugin` resolves an alias target
+// in exactly one hop, because the map it receives is merged flat across tiers
+// and a chain would re-route user `--alias` targets too (full argument in
+// `withDerivedSlotRouting`'s doc comment and `plugins/alias.ts`).
 
 import { aliasPlugin } from '../plugins/alias.js';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';

@@ -16,10 +16,21 @@
 // GJS-specific code paths that never execute on NS.
 //
 // Bare Node specifiers + their `node:*` prefix variants are routed to
-// `@gjsify/<X>` via the curated `ALIASES_NODE_FOR_NATIVESCRIPT` table — the
-// dynamic per-runtimes-triplet resolver (`getDerivedAliasesSync`) finishes
-// the routing in a second pass (`@gjsify/<X>` → `@gjsify/<X>/globals` /
-// `@gjsify/empty` depending on the slot declaration).
+// `@gjsify/<X>` via the curated `ALIASES_NODE_FOR_NATIVESCRIPT` table. Unlike
+// the browser table, this one is NOT passed through `withDerivedSlotRouting`:
+// slot routing would only change 4 of its 122 entries and all four are
+// regressions — `fs`/`fs/promises` (+ their `node:` forms) deliberately point
+// at `@gjsify/native-fs-bridge`, which declares `nativescript: "native"` in the
+// "this package IS the native implementation" sense and therefore routes to a
+// `globals.mjs` it does not ship → `@gjsify/empty`. The slot vocabulary's
+// `native` means "the RUNTIME provides this, use its value", so the bridge
+// packages are mis-declared; that is tracked in STATUS.md and must be settled
+// before this table is composed. A direct `import … from
+// '@gjsify/native-fs-bridge'` already hits the derived map (plain key hit) and
+// is emptied TODAY — same root cause, listed in the same TODO.
+//
+// Derived `@gjsify/<X>` entries are merged into the map below, so an import by
+// PACKAGE NAME still routes per its declared slot in a single hop.
 //
 // No `cssAsStringPlugin` (NativeScript ships its own CSS pipeline as part
 // of `@nativescript/core`) and no `blueprintPlugin` (Blueprint is GTK-only).
