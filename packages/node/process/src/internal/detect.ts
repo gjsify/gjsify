@@ -84,45 +84,61 @@ export function detectPpid(): number {
 }
 
 /**
- * Is `globalThis.process` a REAL Node process, or our own bootstrap stub?
+ * Are we running on GJS?
  *
- * This distinction is load-bearing. The GJS bundle banner installs a minimal
- * `globalThis.process` at byte 1 (see `process-stub.ts`) whose `platform` and
- * `arch` are provisional placeholders. Reading them back here would be
- * circular: we would "detect" our own guess and then adopt it as the answer —
- * which is exactly why `process.arch` reported `x64` on aarch64. The stub
- * carries an empty `versions`, so a `versions.node` string is a reliable
- * marker of the genuine article.
+ * Asked FIRST, before `globalThis.process` is consulted at all, and that order
+ * is deliberate: under GJS `globalThis.process` eventually becomes THIS very
+ * object (the register installs our singleton), and `platform` / `arch` are
+ * lazy own properties on it. Consulting it from inside those getters is a
+ * self-reference.
+ *
+ * It does not currently recurse — measured — but only because something in a
+ * typical bundle reads `platform` during init, while `globalThis.process` is
+ * still the byte-1 banner stub, which resolves the property to a plain value
+ * before the register swaps the object in. That is read ORDER, not a
+ * guarantee: a bundle whose first read lands after the swap would re-enter the
+ * getter. Checking for GJS first removes the possibility by construction
+ * rather than relying on the ordering holding.
+ *
+ * NB the obvious marker for "a real Node process" does NOT work here:
+ * `@gjsify/process` deliberately reports `versions.node = '20.0.0'` for npm
+ * packages that gate on it, so our own object answers to that test.
  */
-function realNodeProcess(): NodeJS.Process | undefined {
-    const p = globalThis.process as NodeJS.Process | undefined;
-    return typeof p?.versions?.node === 'string' ? p : undefined;
+function onGjs(): boolean {
+    try {
+        return getGjsGlobal().imports?.gi !== undefined;
+    } catch {
+        return false;
+    }
 }
 
 export function detectPlatform(): ProcessPlatform {
-    // Node / Bun / Deno: the host already knows, and it is authoritative.
-    const node = realNodeProcess();
-    if (typeof node?.platform === 'string') return node.platform;
-
     // GJS: ask the kernel. `GLib.get_os_info('ID')` is NOT usable for this —
-    // it answers with the distribution id (`fedora`), not the OS family.
-    const uname = probeUname();
-    if (uname) return uname.platform;
+    // it answers with the distribution id (measured: `fedora`), not the OS
+    // family.
+    if (onGjs()) {
+        const uname = probeUname();
+        if (uname) return uname.platform;
+        // Probe unavailable. Linux is the overwhelmingly common GJS host and
+        // the only one with a CI-verified toolchain, so it stays the fallback —
+        // but it is now a fallback, not an assertion.
+        return 'linux';
+    }
 
-    // Probe unavailable. Linux is the overwhelmingly common GJS host and the
-    // only one with a CI-verified toolchain, so it stays the fallback — but it
-    // is now a fallback, not an assertion.
-    return 'linux';
+    // Node / Bun / Deno: the host already knows, and it is authoritative.
+    const host = globalThis.process as NodeJS.Process | undefined;
+    return typeof host?.platform === 'string' ? host.platform : 'linux';
 }
 
 export function detectArch(): ProcessArch {
-    const node = realNodeProcess();
-    if (typeof node?.arch === 'string') return node.arch;
+    if (onGjs()) {
+        const uname = probeUname();
+        if (uname) return uname.arch;
+        return 'x64';
+    }
 
-    const uname = probeUname();
-    if (uname) return uname.arch;
-
-    return 'x64';
+    const host = globalThis.process as NodeJS.Process | undefined;
+    return typeof host?.arch === 'string' ? host.arch : 'x64';
 }
 
 export function getPid(): number {
