@@ -20,6 +20,7 @@
         "src/vala"
     ],
     "gjsify": {
+        "platforms": ["linux-x86_64", "linux-aarch64", "darwin-arm64"],
         "prebuilds": "prebuilds",
         "runtimes": {
             "gjs": "polyfill",
