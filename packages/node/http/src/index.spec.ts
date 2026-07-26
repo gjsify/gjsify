@@ -801,6 +801,104 @@ export default async () => {
         });
     });
 
+    // --- Server-side request headers ---
+    //
+    // Regression guard for a SILENT header loss: the client sent its headers on the
+    // wire correctly, but the server-side `IncomingMessage` came up completely empty
+    // (`req.headers === {}`, `req.rawHeaders === []`) while method, url and body were
+    // all intact. Root cause was one layer below this package — `Request:header-pairs`
+    // on the `@gjsify/http-soup-bridge` Vala bridge is a `G_TYPE_STRV` property, and a
+    // GStrv property read marshalled to an opaque boxed HANDLE instead of a `string[]`
+    // (fixed in `@gjsify/node-gi`'s `GValueToJs`). A handle is a truthy object with
+    // `length === undefined`, so `bridgeReq.header_pairs ?? []` kept it and the
+    // `[name, value, …]` pair loop in `server.ts` ran ZERO times — no error, no
+    // warning, just no headers.
+    //
+    // The single existing `'should receive request headers'` case only echoed ONE
+    // header back through the response body, so the failure surfaced as a body
+    // mismatch inside an `'end'` listener. A throw from a stream listener is an
+    // uncaught exception (correct Node semantics — verified against real `node:http`),
+    // which kills the process before the runner can report. These cases therefore
+    // CAPTURE what the server saw, resolve, and assert AFTER the round-trip — so a
+    // regression is a reported test failure, not a dead process.
+    await describe('http server request headers', async () => {
+        interface SeenRequest {
+            headers: Record<string, string | string[] | undefined>;
+            rawHeaders: string[];
+        }
+
+        /** One round-trip; resolves with the header state the SERVER observed. */
+        const captureServerRequest = (headers: Record<string, string>): Promise<SeenRequest> =>
+            new Promise<SeenRequest>((resolve, reject) => {
+                let seen: SeenRequest | null = null;
+                const server = http.createServer((req, res) => {
+                    seen = {
+                        headers: req.headers as Record<string, string | string[] | undefined>,
+                        rawHeaders: req.rawHeaders,
+                    };
+                    res.writeHead(200);
+                    res.end('ok');
+                });
+                server.on('error', reject);
+                server.listen(0, () => {
+                    const addr = server.address() as { port: number };
+                    const req = http.request({ hostname: '127.0.0.1', port: addr.port, path: '/', headers }, (res) => {
+                        res.on('data', () => {});
+                        res.on('end', () => {
+                            server.close(() => {
+                                if (seen) resolve(seen);
+                                else reject(new Error('request handler never ran'));
+                            });
+                        });
+                    });
+                    req.on('error', reject);
+                    req.end();
+                });
+            });
+
+        await it('should deliver every client-set header to the server', async () => {
+            const seen = await captureServerRequest({
+                'X-Test': 'custom-value',
+                'X-Second': 'other-value',
+                'Content-Type': 'text/plain',
+            });
+
+            expect(seen.headers['x-test']).toBe('custom-value');
+            expect(seen.headers['x-second']).toBe('other-value');
+            expect(seen.headers['content-type']).toBe('text/plain');
+        });
+
+        await it('should always deliver the implicit Host header', async () => {
+            // Host is set by the client even when the caller passes no headers at all —
+            // so an empty `req.headers` is detectable without relying on a custom one.
+            const seen = await captureServerRequest({});
+
+            expect(typeof seen.headers.host).toBe('string');
+            expect(String(seen.headers.host)).toContain('127.0.0.1');
+        });
+
+        await it('should expose the same headers through rawHeaders', async () => {
+            const seen = await captureServerRequest({ 'X-Test': 'custom-value' });
+
+            // Flat [name, value, name, value, …] — the shape that collapsed to [].
+            expect(Array.isArray(seen.rawHeaders)).toBe(true);
+            expect(seen.rawHeaders.length).toBeGreaterThan(0);
+            expect(seen.rawHeaders.length % 2).toBe(0);
+
+            // Wire casing is not normative (Node forwards the caller's casing, the GJS
+            // client lower-cases on setHeader), so match names case-insensitively.
+            const names: string[] = [];
+            const values: string[] = [];
+            for (let i = 0; i + 1 < seen.rawHeaders.length; i += 2) {
+                names.push(seen.rawHeaders[i].toLowerCase());
+                values.push(seen.rawHeaders[i + 1]);
+            }
+            expect(names).toContain('x-test');
+            expect(names).toContain('host');
+            expect(values[names.indexOf('x-test')]).toBe('custom-value');
+        });
+    });
+
     // --- ServerResponse API ---
     await describe('ServerResponse API', async () => {
         await it('should support setHeader/getHeader/hasHeader/removeHeader', async () => {

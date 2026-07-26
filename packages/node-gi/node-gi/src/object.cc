@@ -258,7 +258,32 @@ Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
       // NOT special-cased here: gjs leaves it as a GLib.Bytes boxed handle
       // (value.cpp has no GBytes case → the generic boxed branch), which is what the
       // MakeBoxedHandle below already produces (verified: a GBytes signal param →
-      // `instanceof GLib.Bytes`). A GStrv-as-array read stays a follow-up.
+      // `instanceof GLib.Bytes`).
+      //
+      // G_TYPE_STRV (a NULL-terminated gchar**, e.g. Gtk.Widget:css-classes,
+      // Gio.ThemedIcon:names, or any Vala `public string[] x { get; }` property —
+      // valac emits g_param_spec_boxed(…, G_TYPE_STRV) for those). This is the READ
+      // half of the pair JsToGValue's GStrv branch opened: without it a GStrv
+      // property fell through to MakeBoxedHandle and JS got an opaque boxed handle
+      // instead of an array — SILENTLY, because a handle is a truthy object whose
+      // `.length` is undefined, so `arr ?? []` keeps it and every index/`for` over it
+      // yields nothing (this is how @gjsify/http lost every request header on the
+      // node-gi bridge: `bridgeReq.header_pairs` became a handle and the pair loop
+      // ran zero times). Mirrors GJS gjs_value_from_g_value_internal
+      // (refs/gjs/gi/value.cpp:1082 `gtype == G_TYPE_STRV` → gjs_array_from_strv).
+      // NULL → an EMPTY ARRAY, not null: GJS explicitly excludes G_TYPE_STRV from its
+      // "pointer-valued NULL → JS null" pre-check (value.cpp:1023) and documents the
+      // choice in gjs_array_from_strv (arg.cpp:2267) — "clients would need to always
+      // check for both an empty array and null" otherwise. g_value_get_boxed BORROWS;
+      // every string is copied into JS, so nothing is owned here.
+      if (G_VALUE_HOLDS(v, G_TYPE_STRV)) {
+        const gchar* const* strv = static_cast<const gchar* const*>(g_value_get_boxed(v));
+        guint len = 0;
+        while (strv != nullptr && strv[len] != nullptr) len++;
+        Napi::Array arr = Napi::Array::New(env, len);
+        for (guint i = 0; i < len; i++) arr.Set(i, Napi::String::New(env, strv[i]));
+        return arr;
+      }
       if (G_VALUE_HOLDS(v, G_TYPE_BYTE_ARRAY)) {
         GByteArray* ba = static_cast<GByteArray*>(g_value_get_boxed(v));
         if (ba == nullptr) return env.Null();
