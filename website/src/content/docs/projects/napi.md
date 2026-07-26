@@ -25,7 +25,7 @@ if (hasNapi()) {
 }
 ```
 
-Your addon is built the normal way (node-gyp / prebuilds) — nothing about it changes. The hard part is on the shim side: SpiderMonkey has a **moving GC**, so an `napi_value` can't be a raw engine value (the shortcut Bun takes on JSC) — it is a handle into a per-environment arena of GC-traced slots. Asynchronous work (threadsafe functions, `napi_async_work`) is delivered to the addon's callbacks through a `g_idle` source on the GLib main context, so there is no separate libuv loop to run.
+Your addon is built the normal way (node-gyp / prebuilds) — nothing about it changes. The hard part is on the shim side: SpiderMonkey has a **moving GC**, so an `napi_value` can't be a raw engine value (the shortcut Bun takes on JSC) — it is a handle into a per-environment arena of GC-traced slots. Asynchronous work is bridged to GLib instead of libuv: threadsafe-function calls and `napi_async_work` completions dispatch onto the GLib main context through a `g_idle` source, while `napi_async_work` runs its `execute` callback on a `GThreadPool` worker — so async addons get real concurrency, with no separate libuv loop to run.
 
 ## What runs today
 
@@ -43,7 +43,11 @@ Those first four are C, C++ and Rust addons emitted by three different N-API cod
 
 ### Scope
 
-The full synchronous N-API surface is implemented, plus the async / threadsafe-function group. A few Node-specific corners stay stubbed because they have no engine-agnostic meaning on GJS — most notably `napi_get_uv_event_loop` (GJS has no libuv loop; the GLib main context *is* the loop). The async model currently runs an addon's work callback inline and delivers its completion on the next main-loop turn, which is correct on GJS's single-threaded engine; true worker-thread concurrency is a possible future refinement.
+The full synchronous N-API surface is implemented, plus the async / threadsafe-function group. `napi_async_work` runs each addon's `execute` on a **`GThreadPool` worker** and marshals `complete` back onto the GLib main context, so async addons run with genuine concurrency (a 5×1s workload finishes in ~1s on a five-thread pool, not ~5s). A few Node-specific corners stay stubbed because they have no engine-agnostic meaning on GJS — most notably `napi_get_uv_event_loop` (GJS has no libuv loop; the GLib main context *is* the loop).
+
+### Platforms
+
+Prebuilt and CI-validated on **Linux (x86_64)** and **macOS (arm64)** — the same GJS + mozjs-140 pairing on both, with the full load / value-model / threadsafe-function gates green. **Windows** is groundwork-only: the loader and build wiring exist behind a manual CI job, but it is blocked upstream — no prebuilt `libgjs` for Windows exists yet (the shim links GJS's SpiderMonkey, so it needs a Windows `libgjs` the ecosystem doesn't ship). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the platform matrix.
 
 ## Not a replacement for `gi://`
 
