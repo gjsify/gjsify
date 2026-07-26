@@ -249,8 +249,18 @@ jobs:
         run: |
           CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
           mkdir -p /tmp/gjsify-node-cli
-          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+          cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1
+          # Prefer the version this checkout declares, but do not REQUIRE it to
+          # be on npm yet. The release commit bumps every package.json and only
+          # then does release.yml publish, so between those two events this step
+          # asks npm for a version that provably does not exist and reddens main
+          # on every single release. A recurring, self-resolving red teaches
+          # people to ignore the signal.
+          if ! npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null; then
+            echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."
+            npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save
+          fi
+          cd - >/dev/null
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           echo "Node bundler: $(node_modules/.bin/gjsify --version)"
 
@@ -386,8 +396,18 @@ jobs:
         run: |
           CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
           mkdir -p /tmp/gjsify-node-cli
-          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+          cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1
+          # Prefer the version this checkout declares, but do not REQUIRE it to
+          # be on npm yet. The release commit bumps every package.json and only
+          # then does release.yml publish, so between those two events this step
+          # asks npm for a version that provably does not exist and reddens main
+          # on every single release. A recurring, self-resolving red teaches
+          # people to ignore the signal.
+          if ! npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null; then
+            echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."
+            npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save
+          fi
+          cd - >/dev/null
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           echo "Node bundler: $(node_modules/.bin/gjsify --version)"
 
