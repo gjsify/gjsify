@@ -29,7 +29,6 @@
 //     the documented resume/pause races (see `utils/prompt.ts`).
 
 import { readFileSync } from 'node:fs';
-import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 /** Minimal structural view of the bits of `GioUnix.InputStream` used here. */
 interface GioUnixInputStreamLike {
@@ -71,10 +70,44 @@ function readStdinTextGjs(): string {
     return new TextDecoder().decode(buf);
 }
 
-/** Read the whole of stdin as UTF-8. Works on Node and under the GJS bundle. */
+/**
+ * Read the whole of stdin as UTF-8. Works on Node and under the GJS bundle.
+ *
+ * Branches on the CAPABILITY (is `GioUnix.InputStream` usable?) rather than on
+ * the RUNTIME (`isGjs()`). The runtime probe was wrong in CI: the GJS leg took
+ * the Node branch and died with `ENOENT … read '0'`, while the identical
+ * committed bundle piped correctly on a developer machine — so the probe's
+ * answer is not stable across hosts, and a wrong answer here is fatal rather
+ * than merely slower.
+ *
+ * Asking about the capability cannot be wrong-footed that way, and it degrades
+ * in the one direction that has a working fallback: a host where GioUnix is
+ * absent or fails to load (Homebrew's macOS gjs cannot even dlopen the library
+ * its own typelibs reference) falls back to `readFileSync(0)`, which is right
+ * on every real Node/Bun/Deno host and merely fails the same way it did before
+ * on a GJS host that has no fd support either.
+ */
 export function readStdinText(): string {
-    if (isGjs()) return readStdinTextGjs();
+    if (hasGioUnixInputStream()) {
+        try {
+            return readStdinTextGjs();
+        } catch (err) {
+            // A GioUnix that is present but unusable must not be fatal when a
+            // fallback exists — but do not hide it either.
+            console.warn(`[gjsify] GioUnix stdin read failed (${(err as Error).message}); falling back to fd 0.`);
+        }
+    }
     return readFileSync(0, 'utf-8');
+}
+
+/** Is `GioUnix.InputStream` present AND constructible on this host? */
+function hasGioUnixInputStream(): boolean {
+    try {
+        const gi = (globalThis as unknown as { imports?: { gi?: { GioUnix?: GioUnixLike } } }).imports?.gi;
+        return typeof gi?.GioUnix?.InputStream === 'function';
+    } catch {
+        return false;
+    }
 }
 
 /**

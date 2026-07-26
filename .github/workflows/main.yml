@@ -725,6 +725,21 @@ jobs:
       - name: Install GJS + SpiderMonkey (mozjs-140) via Homebrew
         run: brew install gjs
 
+      # dyld must be able to find `libgjs.0.dylib`. GJS's own `GjsPrivate`
+      # typelib — which Gio's core override loads from `_init` — records the
+      # library by BARE name, and Homebrew does not put its lib dir on the
+      # default dyld search path. Without this, merely importing `Gio` dies
+      # with "Unsupported type void, deriving from fundamental void" after a
+      # `Failed to load shared library 'libgjs.0.dylib'` warning: the typelib
+      # loads, its shared library does not, and the override then marshals a
+      # type that is no longer resolvable.
+      #
+      # Note this is the DYLD_ variable specifically — dyld ignores the ELF
+      # `LD_LIBRARY_PATH`, which is the same asymmetry `buildNativeEnv()`
+      # already handles for our own prebuilds.
+      - name: Put the Homebrew lib dir on the dyld search path
+        run: echo "DYLD_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
+
       # Fail LOUDLY and early if the host is missing something the bundles
       # import, instead of letting it surface as a confusing suite failure. The
       # `--app gjs` bundles in this set externalise exactly three specifiers:
