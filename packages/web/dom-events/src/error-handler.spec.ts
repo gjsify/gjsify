@@ -147,5 +147,121 @@ export const ErrorHandlerTest = async () => {
                 }
             });
         });
+
+        // WHATWG DOM § 2.7 "dispatch": an exception thrown by a listener is
+        // REPORTED and dispatch continues with the remaining listeners — it
+        // never propagates out of `dispatchEvent()`. The plain case has been
+        // guarded for a while; these pin the paths where the REPORTING step
+        // itself throws, which used to re-open the hole completely (dispatch
+        // aborted, remaining listeners silently swallowed, the exception
+        // surfaced to the `dispatchEvent()` caller AND the event stayed
+        // flagged as "currently dispatching" forever).
+        await describe('listener exceptions never escape dispatch', async () => {
+            await it('keeps invoking later listeners after one throws', async () => {
+                const originalConsoleError = console.error;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (console as any).error = () => {};
+                try {
+                    const target = new EventTarget();
+                    const seen: number[] = [];
+                    target.addEventListener('multi', () => seen.push(1));
+                    target.addEventListener('multi', () => {
+                        throw new Error('middle listener exploded');
+                    });
+                    target.addEventListener('multi', () => seen.push(3));
+                    expect(target.dispatchEvent(new Event('multi'))).toBe(true);
+                    expect(seen).toStrictEqual([1, 3]);
+                } finally {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (console as any).error = originalConsoleError;
+                }
+            });
+
+            await it('survives a thrown value whose accessors throw', async () => {
+                const g = globalThis as { reportError?: (err: unknown) => void };
+                const originalReport = g.reportError;
+                const originalConsoleError = console.error;
+                delete g.reportError;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (console as any).error = () => {};
+                try {
+                    const target = new EventTarget();
+                    const seen: string[] = [];
+                    target.addEventListener('hostile', () => {
+                        const hostile = new Error('unreadable');
+                        Object.defineProperty(hostile, 'name', {
+                            get() {
+                                throw new Error('name getter exploded');
+                            },
+                        });
+                        throw hostile;
+                    });
+                    target.addEventListener('hostile', () => seen.push('after'));
+                    // Must not throw, and the later listener must still run.
+                    expect(target.dispatchEvent(new Event('hostile'))).toBe(true);
+                    expect(seen).toStrictEqual(['after']);
+                } finally {
+                    if (originalReport !== undefined) g.reportError = originalReport;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (console as any).error = originalConsoleError;
+                }
+            });
+
+            await it('survives a throwing console.error in the fallback path', async () => {
+                const g = globalThis as { reportError?: (err: unknown) => void };
+                const originalReport = g.reportError;
+                const originalConsoleError = console.error;
+                delete g.reportError;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (console as any).error = () => {
+                    throw new Error('console.error was monkey-patched badly');
+                };
+                try {
+                    const target = new EventTarget();
+                    const seen: string[] = [];
+                    target.addEventListener('badconsole', () => {
+                        throw new Error('listener threw');
+                    });
+                    target.addEventListener('badconsole', () => seen.push('after'));
+                    expect(target.dispatchEvent(new Event('badconsole'))).toBe(true);
+                    expect(seen).toStrictEqual(['after']);
+                } finally {
+                    if (originalReport !== undefined) g.reportError = originalReport;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (console as any).error = originalConsoleError;
+                }
+            });
+
+            await it('restores dispatch state so the event can be re-dispatched', async () => {
+                const g = globalThis as { reportError?: (err: unknown) => void };
+                const originalReport = g.reportError;
+                const originalConsoleError = console.error;
+                delete g.reportError;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (console as any).error = () => {
+                    throw new Error('console.error was monkey-patched badly');
+                };
+                try {
+                    const target = new EventTarget();
+                    let calls = 0;
+                    target.addEventListener('rewedge', () => {
+                        calls++;
+                        throw new Error('always throws');
+                    });
+                    const event = new Event('rewedge');
+                    target.dispatchEvent(event);
+                    // Pre-fix this threw InvalidStateError because the
+                    // `kDispatching` flag was never cleared.
+                    target.dispatchEvent(event);
+                    expect(calls).toBe(2);
+                    expect(event.eventPhase).toBe(0);
+                    expect(event.currentTarget).toBeNull();
+                } finally {
+                    if (originalReport !== undefined) g.reportError = originalReport;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (console as any).error = originalConsoleError;
+                }
+            });
+        });
     });
 };

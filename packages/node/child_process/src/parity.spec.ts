@@ -381,6 +381,102 @@ export default async () => {
         });
     });
 
+    // ==================== execSync / execFileSync timeout ====================
+    // Ports refs/node-test/parallel/test-child-process-execsync.js (the
+    // `timeout` case) — Node routes execSync/execFileSync through spawnSync,
+    // so `options.timeout` kills the child with `killSignal` (default
+    // SIGTERM) and the thrown error carries `signal` + `status: null` +
+    // `code: 'ETIMEDOUT'`. Both wrappers previously called
+    // `Gio.Subprocess.communicate()` straight through and ignored `timeout`
+    // entirely, so `execSync('sleep 10', { timeout: 100 })` blocked the whole
+    // process for the full 10s.
+
+    await describe('child_process execSync — timeout', async () => {
+        await it('kills the child after `timeout` ms instead of blocking', async () => {
+            const start = Date.now();
+            let err: (Error & { code?: string; signal?: string | null; killed?: boolean }) | null = null;
+            try {
+                execSync('sleep 10', { timeout: 200 });
+            } catch (e) {
+                err = e as Error & { code?: string; signal?: string | null; killed?: boolean };
+            }
+            const elapsed = Date.now() - start;
+            expect(err).toBeTruthy();
+            // The whole point: we came back long before the child's 10s.
+            expect(elapsed).toBeLessThan(5000);
+            expect(err?.signal).toBe('SIGTERM');
+        });
+
+        await it('uses the requested killSignal', async () => {
+            let err: (Error & { signal?: string | null }) | null = null;
+            try {
+                execSync('sleep 10', { timeout: 100, killSignal: 'SIGKILL' });
+            } catch (e) {
+                err = e as Error & { signal?: string | null };
+            }
+            expect(err?.signal).toBe('SIGKILL');
+        });
+
+        await it('does not fire when the child exits in time', async () => {
+            const out = execSync('echo quick', { encoding: 'utf8', timeout: 10000 });
+            expect((out as string).trim()).toBe('quick');
+        });
+    });
+
+    await describe('child_process execFileSync — timeout', async () => {
+        await it('kills the child after `timeout` ms instead of blocking', async () => {
+            const start = Date.now();
+            let err: (Error & { code?: string; signal?: string | null }) | null = null;
+            try {
+                execFileSync('sleep', ['10'], { timeout: 200 });
+            } catch (e) {
+                err = e as Error & { code?: string; signal?: string | null };
+            }
+            const elapsed = Date.now() - start;
+            expect(err).toBeTruthy();
+            expect(elapsed).toBeLessThan(5000);
+            expect(err?.signal).toBe('SIGTERM');
+        });
+
+        await it('does not fire when the child exits in time', async () => {
+            const out = execFileSync('echo', ['quick'], { encoding: 'utf8', timeout: 10000 });
+            expect((out as string).trim()).toBe('quick');
+        });
+    });
+
+    // ============ exec/execFile spawn failure must not go unhandled ============
+    // `refs/node/lib/child_process.js` ends `execFile` with
+    // `child.addListener('error', errorhandler)`, so the child returned by
+    // exec/execFile ALWAYS carries an 'error' listener of Node's own and the
+    // internal `child.emit('error', …)` on a spawn failure can never be
+    // unhandled. Ours delivered the error straight to the callback and then
+    // emitted 'error' on a listener-less emitter — and EventEmitter RETHROWS
+    // an unhandled 'error', turning a fully handled ENOENT into a
+    // process-level uncaught exception raised from a timer callback.
+
+    await describe('child_process execFile — spawn failure is handled', async () => {
+        await it('carries an internal error listener like Node does', async () => {
+            const child = execFile('definitely_not_a_real_binary_xyz123', () => {});
+            expect(child.listenerCount('error')).toBeGreaterThan(0);
+        });
+
+        await it('reports ENOENT through the callback', async () => {
+            const err = await new Promise<Error & { code?: string }>((resolve) => {
+                execFile('definitely_not_a_real_binary_xyz123', (e) => resolve(e as Error & { code?: string }));
+            });
+            expect(err).toBeTruthy();
+            expect(err.code).toBe('ENOENT');
+        });
+
+        await it('still delivers the error to a user listener', async () => {
+            const err = await new Promise<Error & { code?: string }>((resolve) => {
+                const child = execFile('definitely_not_a_real_binary_xyz123', () => {});
+                child.on('error', (e: unknown) => resolve(e as Error & { code?: string }));
+            });
+            expect(err.code).toBe('ENOENT');
+        });
+    });
+
     // ==================== ENOENT error.code ====================
     // Ports refs/node-test/parallel/test-child-process-spawn-error.js semantics.
     // Node sets err.code='ENOENT', err.errno=-2, err.syscall='spawn <file>',
