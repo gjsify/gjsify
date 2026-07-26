@@ -14,7 +14,7 @@
 //!   - tokio-task running `Bundler::generate()` on the worker pool
 //!   - calls into JsPluginProxy from various worker threads
 //!   - JsPluginProxy serializes a `HookRequest`, pushes to channel
-//!   - eventfd-write wakes the GLib main loop
+//!   - a byte on the wakeup pipe wakes the GLib main loop
 //!   - Vala source pulls requests, emits GObject signal on main thread
 //!   - JS handler runs, calls `session.respond(req_id, json)`
 //!   - Vala forwards to `gjsify_rolldown_session_respond` extern
@@ -35,8 +35,9 @@ use rolldown_plugin::{
     HookGenerateBundleArgs, HookInjectionOutputReturn, HookLoadArgs, HookLoadOutput,
     HookLoadReturn, HookNoopReturn, HookRenderChunkArgs, HookRenderChunkOutput,
     HookRenderChunkReturn, HookResolveIdArgs, HookResolveIdOutput, HookResolveIdReturn,
-    HookTransformArgs, HookTransformOutput, HookTransformReturn, HookUsage, HookWriteBundleArgs,
-    Plugin, PluginContext, SharedLoadPluginContext, SharedTransformPluginContext,
+    HookTransformArgs, HookTransformOutput, HookTransformOutputMap, HookTransformReturn, HookUsage,
+    HookWriteBundleArgs, Plugin, PluginContext, SharedLoadPluginContext,
+    SharedTransformPluginContext,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
@@ -111,7 +112,7 @@ pub enum HookRequestPayload {
 }
 
 /// Wire-format envelope for one hook invocation. Sent over
-/// crossbeam channel; eventfd written after each push.
+/// crossbeam channel; the wakeup pipe is woken after each push.
 pub struct HookRequest {
     pub req_id: u64,
     pub plugin_index: usize,
@@ -277,7 +278,13 @@ impl HookResponse {
                 };
                 Ok(Some(HookTransformOutput {
                     code,
-                    map: None,
+                    // The bridge has no source-map channel at all (JS
+                    // never gets to return one), so this is the explicit
+                    // "no sourcemap intended" case rather than rolldown's
+                    // `Omitted` (= plugin forgot one → SOURCEMAP_BROKEN).
+                    // Matches how upstream migrated its own `map: None`
+                    // call sites when the enum replaced the Option.
+                    map: HookTransformOutputMap::Null,
                     side_effects: None,
                     module_type,
                 }))
@@ -295,7 +302,8 @@ impl HookResponse {
                 let module_type = parse_module_type(v.module_type.as_deref())?;
                 Ok(Some(HookTransformOutput {
                     code: v.code,
-                    map: None,
+                    // See `into_transform_return_with_bytes`.
+                    map: HookTransformOutputMap::Null,
                     side_effects: None,
                     module_type,
                 }))
@@ -312,7 +320,8 @@ impl HookResponse {
                     .map_err(|e| anyhow!("rolldown: malformed renderChunk response: {e}"))?;
                 Ok(Some(HookRenderChunkOutput {
                     code: v.code,
-                    map: None,
+                    // See `into_transform_return_with_bytes`.
+                    map: HookTransformOutputMap::Null,
                 }))
             }
             HookResponse::Error { message, stack } => Err(combine(message, stack)),
@@ -367,11 +376,11 @@ pub struct JsPluginProxy {
     /// Atomic monotonic ID dispenser; shared across all proxies in
     /// the same session via Arc clone in the session constructor.
     pub next_request_id: std::sync::Arc<AtomicU64>,
-    /// Wakeup pipe written after each request.send() so the Vala
+    /// Wakeup pipe woken after each request.send() so the Vala
     /// source on the main loop can react. Owned handle (see
-    /// `SessionShared`): keeps the fd number reserved even when this
+    /// `SessionShared`): keeps both fd numbers reserved even when this
     /// proxy outlives the session's runtime shutdown.
-    pub request_eventfd: std::sync::Arc<std::os::fd::OwnedFd>,
+    pub request_wakeup: std::sync::Arc<crate::wakeup::Wakeup>,
     /// Maximum time we wait for a JS response before failing the
     /// build with a timeout error. Defaults to 60s.
     pub response_timeout: Duration,
@@ -406,7 +415,7 @@ impl JsPluginProxy {
     }
 
     /// Push a hook request onto the channel + wake the main loop via
-    /// eventfd-write, then await the JS-side response.
+    /// the wakeup pipe, then await the JS-side response.
     async fn dispatch(&self, payload: HookRequestPayload) -> anyhow::Result<HookResponse> {
         let (resp, _bytes) = self.dispatch_inner(payload, None, None).await?;
         Ok(resp)
@@ -469,7 +478,10 @@ impl JsPluginProxy {
             return Err(anyhow!("rolldown: plugin channel closed (session aborted)"));
         }
 
-        crate::session::wake_eventfd(&self.request_eventfd);
+        // Wake AFTER the queue push — the reader drains the wakeup pipe
+        // before it drains the queue, so this ordering is what makes a
+        // coalesced (buffer-full) wake safe. See `crate::wakeup`.
+        self.request_wakeup.wake();
 
         let result = tokio::time::timeout(self.response_timeout, reply_rx).await;
         // Clear the context registration regardless of outcome; the
@@ -621,7 +633,10 @@ impl Plugin for JsPluginProxy {
         args: &HookRenderChunkArgs<'_>,
     ) -> impl std::future::Future<Output = HookRenderChunkReturn> + Send {
         let proxies = self.proxies("renderChunk");
-        let code = args.code.clone();
+        // `args.code` is an `Arc<String>` (rolldown keeps the chunk code
+        // recoverable after the hook chain); the wire payload owns its
+        // own String.
+        let code = args.code.as_ref().clone();
         let file_name = args.chunk.filename.to_string();
         let name = args.chunk.name.to_string();
         let is_entry = args.chunk.is_entry;

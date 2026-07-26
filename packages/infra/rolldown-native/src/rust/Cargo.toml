@@ -2,6 +2,11 @@
 name = "gjsify_rolldown"
 version = "0.1.0"
 edition = "2024"
+# `std::io::pipe()` (the portable main-loop wakeup channel in src/wakeup.rs)
+# is stable since 1.87. The rolldown graph already needs >= 1.85 for
+# edition2024, so this only makes the stricter bound fail loudly instead of
+# surfacing as a confusing "no function `pipe` in module `std::io`".
+rust-version = "1.87"
 publish = false
 
 [lib]

@@ -150,6 +150,14 @@ namespace GjsifyRolldown {
         private uint _ctx_response_source_id = 0;
 
         /**
+         * Scratch buffer for draining the wakeup pipes. Their content is
+         * meaningless — only the readability edge matters — so one buffer
+         * is shared by all three watch callbacks; they all dispatch on the
+         * same main-loop thread and never run concurrently.
+         */
+        private char[] _drain_buf = new char[4096];
+
+        /**
          * Emitted whenever rolldown invokes a plugin hook.
          *
          * @hook_name: one of `load`, `transform`, `resolveId`,
@@ -210,9 +218,10 @@ namespace GjsifyRolldown {
             int req_fd = _session_request_fd (_handle);
             int comp_fd = _session_complete_fd (_handle);
 
-            // Watch the eventfds on the GLib main loop. add_full hands
-            // the source priority + condition; we own the fd lifetime
-            // via Rust, so don't pass close_fd:true.
+            // Watch the wakeup-pipe read ends on the GLib main loop.
+            // add_full hands the source priority + condition; we own the
+            // fd lifetime via Rust (both pipe ends live in the session's
+            // Arc<Wakeup>), so don't pass close_fd:true.
             //
             // IMPORTANT: each watch source holds a strong GObject ref on
             // the session (the explicit `this.ref ()` below, released 1:1
@@ -223,8 +232,8 @@ namespace GjsifyRolldown {
             // its own signal-handler closures — a self cycle) gets
             // collected by the SpiderMonkey GC: dispose() removes the
             // watch sources while the Rust build is still running, every
-            // later eventfd wake lands on an unwatched fd, and the build
-            // stalls forever (issue #501). The extra refs also flip GJS's
+            // later wake lands on an unwatched fd, and the build stalls
+            // forever (issue #501). The extra refs also flip GJS's
             // toggle-ref into "keep the JS wrapper rooted" mode, so the
             // signal closures survive until the sources are dropped.
             var req_chan = new GLib.IOChannel.unix_new (req_fd);
@@ -253,9 +262,9 @@ namespace GjsifyRolldown {
         /**
          * close — release the session's resources.
          *
-         * Removes the three GLib eventfd watch sources and drops the owned
+         * Removes the three GLib wakeup-pipe watch sources and drops the owned
          * Rust handle (whose `free_function`, gjsify_rolldown_session_free,
-         * tears down the bundler + tokio runtime + eventfds). Without this,
+         * tears down the bundler + tokio runtime + wakeup pipes). Without this,
          * every bundle leaked its session for the process lifetime — the
          * watch sources hold a ref on the session, so neither the GObject
          * nor the Rust side could ever be collected. Idempotent; safe to
@@ -268,14 +277,44 @@ namespace GjsifyRolldown {
             _handle = null;
         }
 
-        private bool on_ctx_response_ready (GLib.IOChannel source, GLib.IOCondition cond) {
-            char[] sink = new char[8];
+        /**
+         * Consume EVERY byte currently queued on a wakeup pipe.
+         *
+         * The wakeup fds are pipes on every platform (see
+         * src/rust/src/wakeup.rs) — a byte stream, not an eventfd counter
+         * that one 8-byte read resets. Reading a single fixed-size chunk
+         * would leave the rest queued, and GLib's watch is
+         * level-triggered: the callback is re-dispatched (re-draining the
+         * queue for nothing) once per chunk until the pipe finally
+         * empties, so a burst of N hook wakeups costs N/chunk no-op main
+         * loop iterations instead of one. Draining to `AGAIN` collapses a
+         * burst back into a single wake-up cycle — the coalescing the
+         * eventfd counter used to give us for free.
+         *
+         * The order also matters: drain the pipe FIRST, then the queue.
+         * The Rust writer drops a wake when the buffer is full, which is
+         * only safe because every drain here is followed by a full queue
+         * drain (see src/rust/src/wakeup.rs). Every caller below keeps
+         * that order.
+         *
+         * Both ends are O_NONBLOCK, so the final read returns
+         * `IOStatus.AGAIN` instead of blocking the main loop.
+         */
+        private void drain_wakeup (GLib.IOChannel source) {
             try {
-                size_t got;
-                source.read_chars (sink, out got);
+                size_t got = 0;
+                while (source.read_chars (_drain_buf, out got) == GLib.IOStatus.NORMAL && got > 0) {
+                    // Keep reading until AGAIN/EOF; the bytes themselves
+                    // carry no information.
+                }
             } catch (Error e) {
-                // ignore — eventfd had nothing left
+                // Transient/EAGAIN-equivalent — the queue drain below is
+                // what actually matters.
             }
+        }
+
+        private bool on_ctx_response_ready (GLib.IOChannel source, GLib.IOCondition cond) {
+            drain_wakeup (source);
 
             while (_handle != null) {
                 var resp_bytes = _glue_session_next_context_response (_handle);
@@ -300,18 +339,9 @@ namespace GjsifyRolldown {
         }
 
         private bool on_request_ready (GLib.IOChannel source, GLib.IOCondition cond) {
-            // Drain the eventfd counter (best-effort; ignore errors).
-            // Drain via posix read() — IOChannel.read_chars wants
-            // `char[]` and Vala can't auto-convert from `uint8[]`.
-            // The eventfd content is an opaque 8-byte counter; we
-            // discard it (just need the wake-up).
-            char[] sink = new char[8];
-            try {
-                size_t got;
-                source.read_chars (sink, out got);
-            } catch (Error e) {
-                // EAGAIN-equivalent — eventfd had nothing left, fine.
-            }
+            // Drain the wakeup pipe FIRST, then the queue — see
+            // drain_wakeup() for why that order is load-bearing.
+            drain_wakeup (source);
 
             // Pull all queued requests in this wake-up cycle.
             while (_handle != null) {
@@ -373,13 +403,7 @@ namespace GjsifyRolldown {
         }
 
         private bool on_complete_ready (GLib.IOChannel source, GLib.IOCondition cond) {
-            char[] sink = new char[8];
-            try {
-                size_t got;
-                source.read_chars (sink, out got);
-            } catch (Error e) {
-                // ignore
-            }
+            drain_wakeup (source);
 
             if (_handle == null) return false;
             try {
