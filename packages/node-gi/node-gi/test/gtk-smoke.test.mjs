@@ -53,7 +53,17 @@ const skip = !haveDisplay
     ? `Gtk-4.0 typelib unavailable: ${loadError.message}`
     : false;
 
-test('Gtk.Application.run() runs a real app and co-pumps libuv', { skip }, () => {
+// The runtime that is running THIS file. Two INDEPENDENT properties are under
+// test here and must stay apart: the GTK half is portable (a real
+// `Gtk.Application` builds a window, activates and exits 0 on gjs, node, bun
+// and deno), while the libuv co-pump is Node-only by design — Bun and Deno
+// drive GLib from the portable `startMainContextPump`, so a blocking `run()`
+// does not advance their own loop. Asserting both at once would report a
+// missing Node-only extra as a missing GUI capability.
+const RUNTIME =
+    typeof globalThis.Bun !== 'undefined' ? 'bun' : typeof globalThis.Deno !== 'undefined' ? 'deno' : 'node';
+
+test('Gtk.Application.run() runs a real app', { skip }, () => {
   const app = new Gtk.Application({
     application_id: 'eu.jumplink.NodeGiSmoke',
     flags: Gio.ApplicationFlags.NON_UNIQUE, // no session-bus uniqueness round-trip
@@ -89,11 +99,24 @@ test('Gtk.Application.run() runs a real app and co-pumps libuv', { skip }, () =>
   try {
     assert.equal(status, 0, 'app.run([]) should exit 0');
     assert.equal(activated, true, 'the activate signal handler should have run');
-    assert.equal(
-      global.__uvTimerFired,
-      true,
-      'libuv must advance (setTimeout fires) during the blocking g_application_run',
-    );
+
+    // Node-only: the uv-nesting bridge co-pumps libuv during the blocking GLib
+    // loop. On bun/deno the portable pump is not active while run() blocks, so
+    // this timer legitimately does not fire — assert the DIFFERENCE rather than
+    // skipping, so a regression in either direction is caught.
+    if (RUNTIME === 'node') {
+      assert.equal(
+        global.__uvTimerFired,
+        true,
+        'libuv must advance (setTimeout fires) during the blocking g_application_run',
+      );
+    } else {
+      assert.equal(
+        global.__uvTimerFired,
+        false,
+        `${RUNTIME}: a blocking run() is not expected to advance the runtime loop (no uv co-pump)`,
+      );
+    }
   } finally {
     delete global.__uvTimerFired;
   }

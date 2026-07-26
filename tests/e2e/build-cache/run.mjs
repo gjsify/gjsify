@@ -19,7 +19,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -248,5 +248,120 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
         const r = await runCli(cliEntry, ['foreach', '--cached', '--exec', '--', 'node', '-e', ''], { cwd: root });
         assert.notEqual(r.status, 0, 'expected non-zero exit for --cached --exec');
         assert.match(r.stdout + r.stderr, /--cached only applies to script mode/i);
+    });
+});
+
+// The dual emit: `build:gjsify` (bundler → `lib/esm`) and `build:types`
+// (`gjsify tsc` → `lib/types`) are two SEPARATE scripts writing into two
+// sub-trees of ONE directory, `lib/`. At whole-`lib/` cache granularity both
+// claimed the same output unit, so a cache HIT on either did its
+// delete-then-copy over the whole tree and silently destroyed the other's
+// output — and because a hit means the script never ran, nothing regenerated
+// it. Measured before the fix: `build:gjsify` hitting the cache after
+// `build:types` had run left the package with NO `lib/types/` at all, i.e. a
+// package whose `types` entry point does not exist (the failure
+// `assertTypeDeclarationsShipped` exists to catch, one step earlier).
+describe('gjsify build cache — the dual emit must not clobber itself', { timeout: 300_000 }, () => {
+    let root, cliEntry, pkg;
+
+    const libTree = () => {
+        const out = [];
+        const walk = (dir, prefix) => {
+            if (!existsSync(dir)) return;
+            for (const entry of readdirSync(dir)) {
+                const abs = join(dir, entry);
+                if (statSync(abs).isDirectory()) walk(abs, `${prefix}${entry}/`);
+                else out.push(`${prefix}${entry}`);
+            }
+        };
+        walk(join(pkg, 'lib'), 'lib/');
+        return out.sort();
+    };
+
+    before(() => {
+        root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-dual-emit-'));
+        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        writeFileSync(
+            join(root, 'package.json'),
+            JSON.stringify(
+                { name: 'dual-emit-monorepo', version: '0.0.0', private: true, type: 'module', workspaces: ['packages/*'] },
+                null,
+                2,
+            ) + '\n',
+        );
+        pkg = join(root, 'packages', 'a');
+        mkdirSync(join(pkg, 'src'), { recursive: true });
+        writeFileSync(join(pkg, 'src', 'index.ts'), 'export const x = 1;\n');
+        const write = (dir, file, body) =>
+            `node -e "const fs=require('fs');fs.mkdirSync('lib/${dir}',{recursive:true});fs.writeFileSync('lib/${dir}/${file}','${body}')"`;
+        writeFileSync(
+            join(pkg, 'package.json'),
+            JSON.stringify(
+                {
+                    name: '@test/dual',
+                    version: '0.0.1',
+                    type: 'module',
+                    scripts: {
+                        // Stand-ins for the real scripts, same output shape.
+                        'build:gjsify': write('esm', 'index.js', 'export const x=1;'),
+                        'build:types': write('types', 'index.d.ts', 'export declare const x: number;'),
+                    },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+    });
+
+    after(() => {
+        if (root) rmSync(root, { recursive: true, force: true });
+    });
+
+    it('a cache HIT on build:gjsify leaves the build:types output intact', async () => {
+        const run = (script) => runCli(cliEntry, ['workspace', '@test/dual', script, '--cached'], { cwd: root });
+
+        const cold = await run('build:gjsify');
+        assert.equal(cold.status, 0, cold.stderr);
+        assert.deepEqual(libTree(), ['lib/esm/index.js']);
+
+        const types = await run('build:types');
+        assert.equal(types.status, 0, types.stderr);
+        assert.deepEqual(libTree(), ['lib/esm/index.js', 'lib/types/index.d.ts']);
+
+        const warm = await run('build:gjsify');
+        assert.equal(warm.status, 0, warm.stderr);
+        assert.match(warm.stderr, /\[gjsify build-cache\] @test\/dual: hit/, 'expected a cache hit');
+        assert.deepEqual(
+            libTree(),
+            ['lib/esm/index.js', 'lib/types/index.d.ts'],
+            'the build:gjsify cache hit must not delete lib/types — the .d.ts emit belongs to build:types, ' +
+                'and nothing would regenerate it (the script did not run)',
+        );
+    });
+
+    it('the reverse order is symmetric: a build:types hit keeps lib/esm', async () => {
+        const run = (script) => runCli(cliEntry, ['workspace', '@test/dual', script, '--cached'], { cwd: root });
+        rmSync(join(pkg, 'lib'), { recursive: true, force: true });
+        assert.equal((await run('build:types')).status, 0);
+        assert.equal((await run('build:gjsify')).status, 0);
+        const warm = await run('build:types');
+        assert.equal(warm.status, 0, warm.stderr);
+        assert.match(warm.stderr, /\[gjsify build-cache\] @test\/dual: hit/);
+        assert.deepEqual(libTree(), ['lib/esm/index.js', 'lib/types/index.d.ts']);
+    });
+
+    it('each script records ONLY its own sub-tree as a cache output', async () => {
+        const r = await runCli(cliEntry, ['workspace', '@test/dual', 'build:gjsify', '--cached'], {
+            cwd: root,
+            env: { GJSIFY_BUILD_CACHE: '1' },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        // Whether it stored (miss) or restored (hit), the log names the unit
+        // the entry owns — `lib/esm`, never the whole `lib`.
+        assert.match(r.stderr, /@test\/dual: (stored \S+ \(lib\/esm\)|hit \S+ — (restored )?lib\/esm)/);
+        assert.ok(
+            !/@test\/dual: (stored \S+ \(lib\)|hit \S+ — (restored )?lib\b(?!\/))/.test(r.stderr),
+            `build:gjsify must not claim the whole lib/ directory — got: ${r.stderr}`,
+        );
     });
 });

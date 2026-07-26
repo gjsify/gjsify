@@ -16,9 +16,35 @@ type ProcessArch = NodeJS.Architecture;
 
 const startTime = Date.now();
 
+/**
+ * Install `key` as a lazily-computed OWN property.
+ *
+ * `platform` and `arch` are answered by one `uname -sm` spawn under GJS, which
+ * measured at ~2.5 ms — cheap once, but wasted on every bundle that never asks
+ * (most of them), and paid at import time by everything that pulls in
+ * `@gjsify/process`. Computing on first read moves that cost to the callers
+ * who actually want it.
+ *
+ * Deliberately an own property rather than a prototype getter: Node exposes
+ * `process.platform` as an own enumerable property, so `Object.keys(process)`
+ * and spreads must keep seeing it. The accessor replaces itself with a plain
+ * value on first read, so repeat access costs nothing and the shape settles.
+ */
+function defineLazy<T>(target: object, key: string, compute: () => T): void {
+    Object.defineProperty(target, key, {
+        configurable: true,
+        enumerable: true,
+        get(): T {
+            const value = compute();
+            Object.defineProperty(target, key, { value, configurable: true, enumerable: true, writable: false });
+            return value;
+        },
+    });
+}
+
 export class Process extends EventEmitter {
-    readonly platform: ProcessPlatform;
-    readonly arch: ProcessArch;
+    readonly platform!: ProcessPlatform;
+    readonly arch!: ProcessArch;
     readonly env: Record<string, string | undefined>;
     readonly argv: string[];
     readonly argv0: string;
@@ -35,8 +61,8 @@ export class Process extends EventEmitter {
     constructor() {
         super();
 
-        this.platform = detectPlatform();
-        this.arch = detectArch();
+        defineLazy(this, 'platform', detectPlatform);
+        defineLazy(this, 'arch', detectArch);
         this.env = getEnvProxy();
         this.argv = getArgv();
         this.argv0 = this.argv[0] || 'gjs';

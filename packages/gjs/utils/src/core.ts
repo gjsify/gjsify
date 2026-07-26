@@ -36,6 +36,7 @@ export * from './gio-errors.js';
 export * from './globals.js';
 export * from './message.js';
 export * from './microtask.js';
+export * from './platform-names.js';
 export * from './structured-clone.js';
 
 // ── GJS-GUARDED (portable fallback off GJS) ─────────────────────────────────

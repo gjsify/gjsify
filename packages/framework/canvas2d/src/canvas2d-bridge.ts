@@ -16,6 +16,12 @@ import { HTMLCanvasElement as GjsifyHTMLCanvasElement, notifyElementResize } fro
 // to detect `HTMLCanvasElement` in the consumer's bundle. Tree-shakes with the
 // bridge: a consumer importing only `Path2D` never pulls it.
 import '@gjsify/dom-elements/register/canvas';
+// `@gjsify/canvas2d-core`'s root entry is headless (Cairo + PangoCairo only),
+// so its pixel interop — `getImageData` / `putImageData` / `drawImage` /
+// `createPattern` — is injected. This package already binds Gtk/Gdk, so it
+// supplies the GDK-backed implementation explicitly rather than inheriting it
+// from the DOM pillar's canvas register above. Idempotent side-effect module.
+import '@gjsify/canvas2d-core/gdk';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import type { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
 import { Event } from '@gjsify/dom-events';

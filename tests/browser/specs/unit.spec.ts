@@ -17,8 +17,9 @@ const bundles = discoverBundles();
 if (bundles.length === 0) {
     test('no browser test bundles found', () => {
         console.warn(
-            'No test.browser.mjs bundles found. Run build:test:browser in web/dom packages first.\n' +
-                'From repo root: yarn test:browser:build',
+            'No test.browser.mjs bundles found — nothing to run.\n' +
+                'Build them first: node tests/browser/scripts/build-bundles.mjs\n' +
+                '(or, for one package: cd packages/<pillar>/<pkg> && gjsify run build:test:browser)',
         );
     });
 }

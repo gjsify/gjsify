@@ -3,6 +3,7 @@
 // underlying source (GLib, /proc, globalThis.process) is unavailable.
 
 import { getGjsGlobal } from './gjs.js';
+import { probeUname } from './uname.js';
 
 type ProcessPlatform = NodeJS.Platform;
 type ProcessArch = NodeJS.Architecture;
@@ -82,33 +83,62 @@ export function detectPpid(): number {
     return 0;
 }
 
-export function detectPlatform(): ProcessPlatform {
+/**
+ * Are we running on GJS?
+ *
+ * Asked FIRST, before `globalThis.process` is consulted at all, and that order
+ * is deliberate: under GJS `globalThis.process` eventually becomes THIS very
+ * object (the register installs our singleton), and `platform` / `arch` are
+ * lazy own properties on it. Consulting it from inside those getters is a
+ * self-reference.
+ *
+ * It does not currently recurse — measured — but only because something in a
+ * typical bundle reads `platform` during init, while `globalThis.process` is
+ * still the byte-1 banner stub, which resolves the property to a plain value
+ * before the register swaps the object in. That is read ORDER, not a
+ * guarantee: a bundle whose first read lands after the swap would re-enter the
+ * getter. Checking for GJS first removes the possibility by construction
+ * rather than relying on the ordering holding.
+ *
+ * NB the obvious marker for "a real Node process" does NOT work here:
+ * `@gjsify/process` deliberately reports `versions.node = '20.0.0'` for npm
+ * packages that gate on it, so our own object answers to that test.
+ */
+function onGjs(): boolean {
     try {
-        const GLib = getGjsGlobal().imports?.gi?.GLib;
-        if (GLib) {
-            const osInfo = GLib.get_os_info('ID');
-            if (osInfo) return 'linux';
-        }
+        return getGjsGlobal().imports?.gi !== undefined;
     } catch {
-        /* ignore */
+        return false;
     }
+}
 
-    if (typeof getGjsGlobal().imports?.system !== 'undefined') {
+export function detectPlatform(): ProcessPlatform {
+    // GJS: ask the kernel. `GLib.get_os_info('ID')` is NOT usable for this —
+    // it answers with the distribution id (measured: `fedora`), not the OS
+    // family.
+    if (onGjs()) {
+        const uname = probeUname();
+        if (uname) return uname.platform;
+        // Probe unavailable. Linux is the overwhelmingly common GJS host and
+        // the only one with a CI-verified toolchain, so it stays the fallback —
+        // but it is now a fallback, not an assertion.
         return 'linux';
     }
 
-    if (typeof globalThis.process?.platform === 'string') {
-        return globalThis.process.platform as ProcessPlatform;
-    }
-
-    return 'linux';
+    // Node / Bun / Deno: the host already knows, and it is authoritative.
+    const host = globalThis.process as NodeJS.Process | undefined;
+    return typeof host?.platform === 'string' ? host.platform : 'linux';
 }
 
 export function detectArch(): ProcessArch {
-    if (typeof globalThis.process?.arch === 'string') {
-        return globalThis.process.arch as ProcessArch;
+    if (onGjs()) {
+        const uname = probeUname();
+        if (uname) return uname.arch;
+        return 'x64';
     }
-    return 'x64';
+
+    const host = globalThis.process as NodeJS.Process | undefined;
+    return typeof host?.arch === 'string' ? host.arch : 'x64';
 }
 
 export function getPid(): number {

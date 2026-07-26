@@ -159,7 +159,8 @@ class GioOutputStreamWritable extends Writable {
 }
 
 interface ExecError extends Error {
-    status?: number;
+    /** `null` when the child was signalled (timeout kill) — matches Node. */
+    status?: number | null;
     code?: number | string;
     errno?: number;
     syscall?: string;
@@ -632,6 +633,76 @@ function _capturePidAtSpawn(proc: Gio.Subprocess): number {
     return 0;
 }
 
+/**
+ * Bounded `communicate()` shared by the two synchronous exec wrappers.
+ *
+ * `Gio.Subprocess.communicate()` blocks the calling thread and never iterates
+ * a GLib main context, so `options.timeout` cannot be honoured by arming a
+ * timer around it — the timer could never fire. `communicateWithTimeout()`
+ * (see `communicate.ts`) drives `communicate_async()` on a PRIVATE main
+ * context instead, which is the same mechanism `spawnSync` already uses. NOT
+ * the GNU coreutils `timeout(1)` binary: that is absent on macOS/Windows,
+ * masks the child's pid and cannot report the real termination signal.
+ *
+ * @returns the drained output plus whether the deadline was hit
+ */
+function _communicateSync(
+    proc: Gio.Subprocess,
+    stdinBytes: GLib.Bytes | null,
+    timeoutMs: number,
+    killSignal: string | number | undefined,
+): { stdout: GLib.Bytes | null; stderr: GLib.Bytes | null; timedOut: boolean } {
+    if (timeoutMs <= 0) {
+        // tuple: [success, stdout, stderr]
+        const ret = proc.communicate(stdinBytes, null);
+        return { stdout: ret[1] ?? null, stderr: ret[2] ?? null, timedOut: false };
+    }
+    const bounded = communicateWithTimeout(proc, stdinBytes, timeoutMs, () => {
+        killProcess(proc, killSignal ?? 'SIGTERM');
+    });
+    if (bounded.error) throw bounded.error;
+    return { stdout: bounded.stdout, stderr: bounded.stderr, timedOut: bounded.timedOut };
+}
+
+/**
+ * Build the error `execSync` / `execFileSync` throw when `options.timeout`
+ * elapsed, mirroring what `spawnSync` puts in `result.error`:
+ * `code: 'ETIMEDOUT'`, `killed: true`, `signal: <killSignal>` (default
+ * `SIGTERM`) and `status: null` — the child was signalled, so it has no exit
+ * status. `stdout`/`stderr` carry the PARTIAL output captured before the
+ * kill, in the caller's requested encoding (Node attaches them too).
+ *
+ * NB Node itself leaves `killed` undefined on the `spawnSync`-derived error
+ * (its message is `spawnSync <file> ETIMEDOUT`); `killed: true` +
+ * `Command failed: …` is this package's established convention — see the
+ * `spawnSync` timeout path — and is what makes the timeout distinguishable
+ * from a plain non-zero exit at the call site.
+ */
+function _syncTimeoutError(
+    cmd: string,
+    stdoutBytes: GLib.Bytes | null,
+    stderrBytes: GLib.Bytes | null,
+    encoding: BufferEncoding | 'buffer' | null | undefined,
+    killSignal: string | number | undefined,
+): ExecError {
+    const stdoutData = stdoutBytes ? gbytesToUint8Array(stdoutBytes) : new Uint8Array(0);
+    const stderrData = stderrBytes ? gbytesToUint8Array(stderrBytes) : new Uint8Array(0);
+    const stderrStr = new TextDecoder().decode(stderrData);
+    const error = new Error(`Command failed: ${cmd}\n${stderrStr}`) as ExecError;
+    error.code = 'ETIMEDOUT';
+    error.killed = true;
+    error.signal = typeof killSignal === 'string' ? killSignal : 'SIGTERM';
+    error.status = null;
+    if (encoding === 'buffer' || encoding === null) {
+        error.stdout = Buffer.from(stdoutData);
+        error.stderr = Buffer.from(stderrData);
+    } else {
+        error.stdout = new TextDecoder().decode(stdoutData);
+        error.stderr = stderrStr;
+    }
+    return error;
+}
+
 // Execute a command in a shell and buffer the output (sync).
 export function execSync(command: string, options?: ExecSyncOptions): Buffer | string {
     const encoding = options?.encoding;
@@ -662,7 +733,16 @@ export function execSync(command: string, options?: ExecSyncOptions): Buffer | s
         ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
         : null;
 
-    const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
+    const timeoutMs = options?.timeout && options.timeout > 0 ? options.timeout : 0;
+    const { stdout: stdoutBytes, stderr: stderrBytes, timedOut } = _communicateSync(
+        proc,
+        stdinBytes,
+        timeoutMs,
+        options?.killSignal,
+    );
+    if (timedOut) {
+        throw _syncTimeoutError(command, stdoutBytes, stderrBytes, encoding, options?.killSignal);
+    }
 
     const status = proc.get_exit_status();
     if (status !== 0) {
@@ -802,6 +882,33 @@ interface _ExecImplCtx {
     callback?: (error: ExecError | null, stdout: string | Buffer, stderr: string | Buffer) => void;
 }
 
+/**
+ * Node's internal `errorhandler` stand-in for `exec` / `execFile`.
+ *
+ * `refs/node/lib/child_process.js` ends `execFile` with
+ * `child.addListener('error', errorhandler)` — the child returned by
+ * `exec`/`execFile` ALWAYS carries an `'error'` listener of Node's own, and
+ * that handler is what routes the failure into the user callback. Because
+ * of it, `child.emit('error', …)` on the spawn-failure path can never be
+ * unhandled.
+ *
+ * Ours calls `ctx.callback` directly, so before this the emit was
+ * listener-less whenever the caller used the callback shape (the documented,
+ * common one) without also attaching `.on('error')`. `EventEmitter.emit`
+ * RETHROWS an unhandled `'error'` (see `@gjsify/events`), so a perfectly
+ * handled `execFile('missing-binary', cb)` — cb already invoked with ENOENT —
+ * additionally threw the very same error out of a `setTimeout` callback,
+ * i.e. as a process-level uncaught exception.
+ *
+ * The absorber is a no-op because the error has already been delivered
+ * through the callback; a user-supplied `.on('error')` listener is a
+ * SECOND listener and still fires, exactly as in Node. `spawn()` keeps the
+ * unguarded emit — there Node's throw-on-unhandled-'error' IS the contract.
+ */
+function _absorbExecError(): void {
+    /* Node's errorhandler equivalent — the callback already got the error. */
+}
+
 function _execImpl(
     child: ChildProcess,
     argv: string[],
@@ -809,6 +916,8 @@ function _execImpl(
     opts: ExecOptions,
     ctx: _ExecImplCtx,
 ): ChildProcess {
+    child.on('error', _absorbExecError);
+
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     let didKillForTimeout = false;
     let didKillForMaxBuffer = false;
@@ -1095,7 +1204,22 @@ export function execFileSync(
         ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
         : null;
 
-    const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
+    const timeoutMs = _options?.timeout && _options.timeout > 0 ? _options.timeout : 0;
+    const { stdout: stdoutBytes, stderr: stderrBytes, timedOut } = _communicateSync(
+        proc,
+        stdinBytes,
+        timeoutMs,
+        _options?.killSignal,
+    );
+    if (timedOut) {
+        throw _syncTimeoutError(
+            `${file} ${_args.join(' ')}`.trim(),
+            stdoutBytes,
+            stderrBytes,
+            encoding,
+            _options?.killSignal,
+        );
+    }
 
     const status = proc.get_exit_status();
     if (status !== 0) {

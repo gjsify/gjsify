@@ -1,166 +1,195 @@
 # node-gi consumer survey — running `@gjsify/*` GJS test suites on Node/Bun/Deno
 
-**Generated:** 2026-07-18 (P3/P4/P7/P8 re-measured 2026-07-26) · **Harness:** [`scripts/node-gi-consumer-harness.mjs`](../../scripts/node-gi-consumer-harness.mjs) · **Raw data:** [`node-gi-consumer-survey.json`](node-gi-consumer-survey.json)
+**Generated:** 2026-07-26 (harness run 18:09Z) · **Harness:** [`scripts/node-gi-consumer-harness.mjs`](../../scripts/node-gi-consumer-harness.mjs) · **Raw data:** [`node-gi-consumer-survey.json`](node-gi-consumer-survey.json)
 
-This report generalizes the proven `@gjsify/sqlite` "run its own GJS test suite on Node via `@gjsify/node-gi`" leg (the [`consumer-sqlite`](../../.github/workflows/node-gi.yml) CI job / ADR-0005 second-consumer gate) into a **reusable cross-runtime harness**, then runs it across the GJS-only packages plus a sample of dual (cross-runtime) packages to produce a concrete PASS/FAIL gap report. The goal is to prioritize the remaining Axis-5 (`gi://` reverse bridge) work: **which real consumers already run unchanged on Node, and exactly what blocks the rest.**
+This report generalizes the `@gjsify/sqlite` "run its own GJS test suite on Node via `@gjsify/node-gi`" leg (the [`consumer-sqlite`](../../.github/workflows/node-gi.yml) CI job / ADR-0005 second-consumer gate) into a **reusable cross-runtime harness**, then runs it across every GJS-only package with a test entry to produce a concrete PASS/FAIL gap report. The goal is to prioritize the remaining Axis-5 (`gi://` reverse bridge) work: **which real consumers already run unchanged on Node/Bun/Deno, and exactly what blocks the rest.**
 
-The full 22-package rollout as committed `test:gjs-on-node` legs + a full CI matrix are deliberately **out of scope** here (see [Follow-ups](#follow-ups)); this survey + a first `consumer-suites` CI proof job are the deliverable.
+Committed per-package `test:gjs-on-node` legs and a full CI matrix are deliberately **out of scope** here (see [Follow-ups](#follow-ups)); this survey plus the `consumer-suites` CI proof job are the deliverable.
 
 ## How the harness works
 
 For each package the harness ([`scripts/node-gi-consumer-harness.mjs`](../../scripts/node-gi-consumer-harness.mjs)):
 
-1. Picks a node-gi test **entry** — a committed `src/test.node-gi.mts` (a hand-written proof leg, like sqlite's) if present, else **generates** one from the package's existing `src/test.mts` by prepending a bare `print(...)` call. That bare GJS ambient global is the genuine-GJS-source signal `detectNodeGiGlobals` looks for: it flips `nodeGiGlobalsInject`, so `@gjsify/node-gi/globals` is auto-injected **and** `@girs/*` value imports resolve to their real bodies whose inner `gi://Ns?version=X` are rewritten to `requireGi('Ns','X')`. (Same mechanism sqlite's `test.node-gi.mts` uses.)
-2. Builds that entry `gjsify build --app node --alias node:<name>=@gjsify/<name>` (the sqlite `--alias` pattern — the specs' `node:<name>` import is retargeted onto the GNOME-backed polyfill under test, not Node's own builtin), under Node via a Node-runnable `@gjsify/cli` (npm `rolldown`). Since 2026-07-26 the build additionally forces every `runtimes.node === "native"` `@gjsify/*` package in the target's transitive workspace-dep closure onto its polyfill body (the P4/P7 fix — reproduces the gjs graph the suite actually exercises) and stages the package's on-disk test fixtures next to the bundle (`prebuild:test:fixtures` + a `dist/fixtures → ../fixtures` symlink).
-3. Runs the ONE `--app node` bundle on **node**, and — reusing `packages/node-gi/example/harness.mjs`'s runtime map + PATH-skip — on **bun** and **deno** too (Node-API is their common ABI).
-4. Captures build ok/fail, run exit code, the `@gjsify/unit` summary counts, and representative failure lines, then **groups the failure reason**.
+1. Picks a node-gi test **entry** — a committed `src/test.node-gi.mts` (a hand-written proof leg, like sqlite's) if present, else **generates** one from the package's existing `src/test.mts` by prepending a bare `print(...)` call. That bare GJS ambient global is the genuine-GJS-source signal `detectNodeGiGlobals` looks for: it flips `nodeGiGlobalsInject`, so `@gjsify/node-gi/globals` is auto-injected **and** `@girs/*` value imports resolve to their real bodies whose inner `gi://Ns?version=X` are rewritten to `requireGi('Ns','X')`. (Same mechanism sqlite's `test.node-gi.mts` uses.) In this run only `sqlite` used a committed entry; the other 32 were generated.
+2. Builds that entry `gjsify build --app node --alias node:<name>=@gjsify/<name>` (the sqlite `--alias` pattern — the specs' `node:<name>` import is retargeted onto the GNOME-backed polyfill under test, not Node's own builtin), under Node via a Node-runnable `@gjsify/cli` (npm `rolldown`). The build additionally forces every `runtimes.node === "native"` `@gjsify/*` package in the target's transitive workspace-dep closure onto its polyfill body — a mixed polyfill/native graph is not the graph the suite exercises on gjs — and stages the package's on-disk test fixtures next to the bundle (`prebuild:test:fixtures` + a `dist/fixtures → ../fixtures` symlink).
+3. Runs the ONE `--app node` bundle on **node**, and — reusing `packages/node-gi/example/harness.mjs`'s runtime map + PATH-skip — on **bun** and **deno** too (Node-API is their common ABI). Each consumed package's `prebuilds/<os>-<arch>/` is prepended to `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH` (the CLI's own `detectNativePackages` + `buildNativeEnv`), so Vala-bridge consumers can load their typelib.
+4. Captures build ok/fail, run exit code, the `@gjsify/unit` summary counts and representative failure lines, then **groups the failure reason** from the **failure region only** — the messages of the tests that actually failed, or the error lines of a build/load failure when a run produced no per-test markers. A green suite's hundreds of passing test names never decide the bucket, so the group attributions below are checkable against the samples stored beside them in the JSON.
 
 It **tolerates** failures and captures them; `--require-pass` turns it into a CI gate (exit non-zero unless every listed package passes on node).
 
+Statuses in the table: `pass` (clean summary, 0 failed) · `partial` (summary with failures) · `ran-no-summary` (clean exit code, but the suite never printed its `@gjsify/unit` summary) · `fail` (non-zero exit with no clean summary) · `timeout` (outlived the per-package budget and was killed). A wall-clock kill is reported under one of two reasons, because they are different diseases: `mainloop-hang-or-timeout` when the suite never got to report, and `no-exit-after-pass` when it reported cleanly and then refused to exit — the latter keeps its summary counts, so a green-but-hung run is visibly green.
+
 ### Environment
 
-Fedora 43 (host) · GJS 1.88.0 · Node 24.15.0 · Bun 1.3.13 · Deno 2.9.2 · girepository-2.0 = 2.88.1 · `@gjsify/node-gi` built from this tree (node-gyp + staged prebuild for the Deno load path). Per-test timeout 5000 ms (`@gjsify/unit` default); per-package harness timeout 40 s (a genuine wall-clock kill ⇒ `timeout` status).
+Fedora 44 (host desktop, full GTK stack) · GJS 1.88.0 · Node 24.15.0 · Bun 1.3.14 · Deno 2.9.3 · girepository-2.0 = 2.88.1 · `@gjsify/node-gi` built from this tree (node-gyp + staged prebuild for the Deno load path). Run as `--gjs-only --timeout 180000`: per-test timeout 5000 ms and per-suite 30 s (`@gjsify/unit` defaults), per-package wall clock 180 s.
+
+## Scope
+
+**33 packages** — every `@gjsify/*` whose `package.json#gjsify.runtimes.node` is `"none"` and which ships a `src/test.mts` (or a committed `src/test.node-gi.mts`). That is exactly what `--gjs-only` selects, and it is the population this survey is about: packages that have no Node story *except* the reverse bridge.
+
+Packages declaring a `native` or `polyfill` node slot are out of scope by construction — they already run on Node without node-gi and are covered by their own `test:node` leg (`path`, `buffer`, `querystring`, `string_decoder`, `events`, `stream`, `assert` are in that group). One of them, `string_decoder`, is still wired into the `consumer-suites` CI gate as a pure-TS control; it therefore appears under [Proof legs](#proof-legs-wired-in-ci) but not in the table below.
 
 ## Results
 
-37 `@gjsify/*` packages: 26 GJS-only (`gi://` value imports, `runtimes.node: "none"`) + 5 already-proven synchronous ones + a 6-package pure-TS **dual** sample (`path`/`buffer`/`querystring`/`string_decoder`/`events`/`assert`) run to check the polyfills are cross-runtime.
+Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (non-zero exit / no clean summary) · ⏱ killed on the wall clock · ▶ ran but emitted no `@gjsify/unit` summary.
 
-Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (exit non-zero / no clean summary) · ⏱ wall-clock timeout · ▶ ran but emitted no `@gjsify/unit` summary.
-
-| pkg | build | node | bun | deno | dominant gap |
+| pkg | build | node | bun | deno | failure group |
 |---|---|---|---|---|---|
-| `sqlite` | ok | ✅ 105/105 | ✅ 105/105 | ✅ 105/105 |  |
-| `crypto` | ok | ✅ 626/626 | ✅ 626/626 | ✅ 626/626 | (was 🟡 526/570 — P4, RESOLVED) |
-| `os` | ok | ✅ 276/276 | ✅ 276/276 | ✅ 276/276 | (was 🟡 11/41 — P3 `imports.byteArray`, RESOLVED) |
-| `module` | ok | ❌ fail | ❌ fail | ❌ fail | CLI alias-scoping bug (P9, reclassified from P3) |
-| `zlib` | ok | ✅ 53376/53376 | ✅ 53376/53376 | 🟡 53374/53375 | (deno: 1 flake) |
-| `child_process` | ok | ❌ fail | ❌ fail | ❌ fail | (was `ByteArray.fromGBytes` — P3 part RESOLVED, stdout reads work; residual = a polyfill fidelity bug, see P3) |
-| `dgram` | ok | 🟡 123/129 | 🟡 123/129 | ✅ 118/118 | async mainloop (UDP recv) |
-| `dns` | ok | 🟡 79/85 | 🟡 78/85 | 🟡 79/85 | async mainloop |
-| `fs` | ok | ❌ fail | ❌ fail | ❌ fail | async mainloop (Gio async) |
-| `node-globals` | ok | ✅ 221/221 | 🟡 218/221 | ✅ 221/221 | (bun: 3) |
-| `http` | ok | ❌ fail | ❌ fail | ❌ fail | Vala typelib not on GI path |
-| `http2` | ok | ✅ 102/102 | ✅ 102/102 | ✅ 102/102 |  |
-| `net` | ok | ❌ fail | ❌ fail | ❌ fail | async mainloop |
-| `tls` | ok | ✅ 158/158 | ✅ 158/158 | ✅ 158/158 |  |
-| `tty` | ok | ✅ 29/29 | ✅ 29/29 | 🟡 40/55 | (deno: terminal probe) |
-| `v8` | ok | 🟡 56/60 | ✅ 72/72 | ✅ 72/72 | (node-only: Buffer.copy range) |
-| `worker_threads` | ok | ✅ 282/282 | 🟡 258/268 | 🟡 262/270 | (was 🟡 0/82 — P7, RESOLVED on node; bun/deno residuals = worker-subprocess/SAB runtime quirks) |
-| `ws` | ok | ✅ 19/19 | ✅ 19/19 | ✅ 19/19 |  |
-| `webaudio` | ok | ▶ no-summary | ▶ no-summary | ▶ no-summary | GStreamer + bespoke entry |
-| `webrtc` | ok | ❌ fail | ❌ fail | ❌ fail | Vala typelib not on GI path |
-| `canvas2d-core` | ok | ✅ 578/578 | ✅ 578/578 | ✅ 578/578 | (was: bare `cairo` → P2; then 529/543 → caller-alloc struct OUT + Uint8Array→GBytes, both RESOLVED) |
-| `dom-elements` | ok | ✅ 441/441 | ✅ 441/441 | ✅ 441/441 |  |
-| `adwaita-app` | ok | ✅ 28/28 | ✅ 28/28 | ✅ 28/28 |  |
-| `canvas2d` | ok | ✅ 191/191 | — | — | (was: bare `cairo` → P2 + the P2½ engine gaps; re-measured on node) |
-| `devtools` | ok | ✅ 20/20 | ✅ 20/20 | ✅ 20/20 |  |
-| `devtools-browser` | ok | ✅ 40/40 | ✅ 40/40 | ✅ 40/40 |  |
-| `devtools-mcp` | ok | ✅ 7/7 | ✅ 7/7 | ✅ 7/7 | (was ❌ build module-not-found ×6 — P8, RESOLVED upstream) |
+| `adwaita-app` | ok | ✅ 28/28 | ✅ 28/28 | ✅ 28/28 | |
+| `canvas2d` | ok | ✅ 191/191 | ✅ 191/191 | ✅ 191/191 | |
+| `canvas2d-core` | ok | ✅ 599/599 | ✅ 599/599 | ✅ 599/599 | |
+| `child_process` | ok | ✅ 225/225 | 🟡 28/37 | 🟡 28/37 | bun/deno: mainloop-drain |
+| `crypto` | ok | ✅ 626/626 | ✅ 626/626 | ✅ 626/626 | |
+| `devtools` | ok | ✅ 39/39 | ✅ 39/39 | ✅ 39/39 | |
+| `devtools-browser` | ok | ✅ 40/40 | ✅ 40/40 | ✅ 40/40 | |
+| `devtools-cdp` | ok | ✅ 86/86 | ✅ 86/86 | ✅ 86/86 | |
+| `devtools-mcp` | ok | ✅ 7/7 | ✅ 7/7 | ✅ 7/7 | |
+| `devtools-protocol` | ok | ✅ 24/24 | ✅ 24/24 | ✅ 24/24 | |
+| `dgram` | ok | ✅ 146/146 | 🟡 123/129 | ✅ 118/118 | bun: mainloop-drain |
+| `dns` | ok | ✅ 118/118 | 🟡 78/85 | 🟡 79/85 | bun/deno: mainloop-drain |
+| `dom-elements` | ok | ✅ 441/441 | ✅ 441/441 | ✅ 441/441 | |
 | `event-bridge` | ok | ✅ 0/0 | ✅ 0/0 | ✅ 0/0 | (vacuous — 0 runnable specs) |
-| `iframe` | ok | 🟡 275/276 | ✅ 277/277 | 🟡 270/273 | (1 WebKit `toStringTag`) |
-| `storybook` | ok | ✅ 9/9 | ✅ 9/9 | ✅ 9/9 |  |
-| `path` | ok | ✅ 432/432 | ✅ 432/432 | ✅ 432/432 |  |
-| `buffer` | ok | ✅ 317/317 | ✅ 317/317 | ✅ 317/317 |  |
-| `querystring` | ok | ✅ 471/471 | ✅ 471/471 | ✅ 471/471 |  |
-| `string_decoder` | ok | ✅ 103/103 | ✅ 103/103 | ✅ 103/103 | (was 🟡 0/0 — P4, RESOLVED) |
-| `events` | ok | ✅ 266/266 | ✅ 266/266 | ✅ 266/266 |  |
-| `stream` | ok | ❌ fail | ❌ fail | ❌ fail | async mainloop (data events) |
-| `assert` | ok | ✅ 117/117 | ✅ 117/117 | ✅ 117/117 |  |
+| `fs` | ok | ❌ fail | ▶ no-summary | ▶ no-summary | node: runtime-typeerror-or-unimpl; bun/deno: no-unit-summary |
+| `http` | ok | ❌ fail | 🟡 845/874 | 🟡 845/874 | node: other; bun/deno: mainloop-drain |
+| `http2` | ok | ✅ 102/102 | ✅ 102/102 | ✅ 102/102 | |
+| `iframe` | ok | ✅ 275/275 | ✅ 275/275 | ✅ 275/275 | |
+| `module` | ok | ❌ fail | ❌ fail | ❌ fail | node: needs-gjs-imports-runtime; bun/deno: runtime-typeerror-or-unimpl |
+| `net` | ok | ❌ fail | 🟡 241/284 | 🟡 241/284 | node/bun/deno: mainloop-drain |
+| `node-globals` | ok | ⏱ 221/221 then hang | ▶ no-summary | ▶ no-summary | node: no-exit-after-pass; bun/deno: no-unit-summary |
+| `os` | ok | ✅ 276/276 | ✅ 276/276 | ✅ 276/276 | |
+| `sqlite` | ok | ✅ 105/105 | ✅ 105/105 | ✅ 105/105 | |
+| `storybook` | ok | ✅ 9/9 | ✅ 9/9 | ✅ 9/9 | |
+| `tls` | ok | ✅ 158/158 | ✅ 158/158 | ✅ 158/158 | |
+| `tsc` | ok | ✅ 0/0 | ✅ 0/0 | ✅ 0/0 | (vacuous — 0 runnable specs) |
+| `tty` | ok | ✅ 29/29 | ✅ 29/29 | 🟡 40/55 | deno: assertion-mismatch |
+| `v8` | ok | 🟡 56/60 | ✅ 72/72 | ✅ 72/72 | node: other |
+| `webaudio` | ok | ▶ no-summary | ▶ no-summary | ▶ no-summary | no-unit-summary |
+| `webrtc` | ok | ❌ fail | ❌ fail | ❌ fail | node/bun: other; deno: mainloop-drain |
+| `worker_threads` | ok | ✅ 282/282 | ▶ no-summary | ▶ no-summary | bun/deno: no-unit-summary |
+| `ws` | ok | ✅ 19/19 | ✅ 19/19 | ✅ 19/19 | |
+| `zlib` | ok | ✅ 53376/53376 | ✅ 53376/53376 | 🟡 53374/53375 | deno: other |
 
-*(2026-07-18: `worker_threads`/`string_decoder` showed `0/…` because `@gjsify/unit` counted more failing assertions than `it()`s — leaked/stray — so `passed` was clamped to 0; both were genuine fails, since resolved.)*
+Every package **builds** `--app node`. 25 of 33 pass on node, 22 on bun, 21 on deno; ~57k tests pass per runtime (the bulk is `zlib`'s exhaustive matrix).
 
-### Genuine passes — 21 packages run unchanged on node-gi
+### Genuine passes
 
-**`gi://` reverse-bridge consumers (real GNOME libs on Node/Bun/Deno):** `sqlite` (Gda), `http2` (Soup 3.0 + ALPN), `tls` (Gio/glib-networking), `ws` (Soup), `dom-elements` (GdkPixbuf), `node-globals` (GLib), `tty` (node/bun), `canvas2d-core` (cairo + PangoCairo + GdkPixbuf — headless Canvas 2D incl. text metrics + putImageData, 578/578 ×3 runtimes), `canvas2d` (the GTK-bridge package, 191/191 on node), **`os` (GLib spawn + `imports.byteArray`, 276/276 ×3 — P3 fix)**, **`crypto` (GLib.Checksum/Hmac, 626/626 ×3 — P4 fix)**, **`worker_threads` (Gio.Subprocess workers + sab-native, 282/282 on node — P7 fix; bun/deno carry a handful of worker-subprocess/SAB runtime quirks)**, and the pure-logic layers of `devtools` / `devtools-browser` / `storybook` / `adwaita-app` / **`devtools-mcp` (7/7 ×3 — P8 resolved)**.
+**Green on all three runtimes (19, of which 17 have runnable specs):** `sqlite` (Gda), `http2` (Soup 3.0 + ALPN), `tls` (Gio/glib-networking), `ws` (Soup), `crypto` (GLib.Checksum/Hmac), `os` (GLib spawn + `imports.byteArray`), `dom-elements` (GdkPixbuf + the `'2d'` factory), `canvas2d-core` (cairo + PangoCairo + GdkPixbuf + Gdk — headless Canvas 2D incl. text metrics and `putImageData`), `canvas2d` (the GTK-bridge package), `iframe` (WebKit), and the pure-logic layers of `devtools`, `devtools-browser`, `devtools-cdp`, `devtools-mcp`, `devtools-protocol`, `storybook`, `adwaita-app`.
 
-> Note on `devtools`/`storybook`/`adwaita-app`: they build against `gi://Gtk`/`Adw` and pass **headless** because their unit specs exercise pure logic (`LoadToken`, the story registry, nav-model, mock widget-trees), not live widgets. Live-GTK-on-Node is separately proven by the existing `gtk-smoke` job. `event-bridge`'s `0/0` is **not** a real pass — its `test.mts` has no runnable specs on this path (they need live GTK controllers).
+**Green on node, runtime-specific residue elsewhere (6):** `child_process` (Gio.Subprocess), `dgram` (UDP via Gio.Socket), `dns` (Gio.Resolver), `worker_threads` (Gio.Subprocess workers + sab-native), `zlib` (Gio.ZlibCompressor), `tty`.
 
-**Pure-TS dual sample (validates the polyfills are cross-runtime):** `path`, `buffer`, `querystring`, `events`, `assert`, **`string_decoder` (103/103 ×3 — P4 fix)** — all ✅ on node/bun/deno.
+> `devtools`/`storybook`/`adwaita-app` build against `gi://Gtk`/`Adw` and pass **headless** because their unit specs exercise pure logic (`LoadToken`, the story registry, nav-model, mock widget-trees), not live widgets. Live-GTK-on-Node is separately proven by the `gtk-smoke` job. `event-bridge` and `tsc` report `0/0`: both suites live entirely inside `on('Gjs', …)`, which does not fire on the node-gi path, so nothing runs — a `0/0` is not a pass.
 
 ## Gaps, grouped by root cause (prioritized)
 
-These directly prioritize the remaining Axis-5 work — each root cause is fixed once and unblocks all its consumers.
+Each root cause is fixed once and unblocks all its consumers.
 
-### P1 — Async Gio callbacks + timers don't drain in a bare `node bundle.mjs` run — **RESOLVED (2026-07-18)**
-**Blocked:** `fs`, `net`, `dns`, `dgram`, `stream` (and contributed to `worker_threads`; masked the true score of `crypto`/`os`). **Signature:** every failure was `Timeout: "…" exceeded 5000ms` — **nothing pumped the default GLib main context** in a plain Node script that never calls `Gtk.Application.run()`/`GLib.MainLoop.run()`.
+### 1. Process lifetime under the reverse bridge — `node-globals` never exits (blocks the CI gate)
 
-**Fixed by the uv-driven auto-pump** (node-gi `src/loop.cc`, armed by `startMainLoop`): pending GLib sources now dispatch from Node's own libuv loop (a uv_prepare/uv_check drain + mirrored uv_timer/uv_poll wake-ups on the context's queried fds, a `beforeExit` kick for the empty-loop bootstrap, and Node-conventional keep-alive — an in-flight scope=async callback / an armed GLib timeout hold the process). Harness A/B on this branch (`--runtimes node`):
+**Affects:** `node-globals` (node: hang; bun/deno: early exit), and possibly `fs` + `worker_threads` on bun/deno (same `ran-no-summary` shape).
 
-| pkg | before | after |
-|---|---|---|
-| `dns` | 🟡 79/85 (timeouts) | ✅ **118/118** |
-| `dgram` | 🟡 123/129 (timeouts) | ✅ **146/146** |
-| `stream` | ❌ fail (all timeouts) | 🟡 **520/521** (1 error-ordering mismatch, `promises.finished` on an insta-destroyed readable) |
-| `fs` | ❌ fail (all timeouts) | ❌ fail — but **no more timeouts**: the residual is a URL-path stringification gap (`ENOENT … /[object …`), a P3-family marshalling issue |
-| `net` | ❌ fail (all timeouts) | ❌ fail — but **no more mainloop hangs**: the residual is the known **P3** `ByteArray.fromGBytes` gap (now surfaced in the socket read path) |
+`@gjsify/node-globals` runs its suite correctly under node-gi and then refuses to die:
 
-Conformance program `async-gio-await` (top-level awaits on a GLib timeout, an idle and a Gio async read — no loop anywhere) runs **byte-identical to `gjs -m`** on node; ledgered for bun/deno (no libuv there — they keep `startMainContextPump`).
+```
+$ node packages/node/globals/dist/test.node-gi.harness.node-globals.mjs
+…
+✔ [Node.js 24.15.0] 221 completed  (36.7ms)
+   <no exit; killed after 90 s in a manual repro, after 180 s by the harness → recorded `fail`>
+```
 
-### P2 — Bare GJS built-ins (`cairo`, `system`, `gettext`) not externalised for `--app node` — RESOLVED
-**Was blocking:** `canvas2d-core`, `canvas2d`. **Signature:** `ERR_MODULE_NOT_FOUND: Cannot find package 'cairo'`. node-gi already **ships** `@gjsify/node-gi/cairo`. The real gap was NOT the alias map (`ALIASES_GJS_FOR_NODE` was already filled) but `app/node.ts`'s `NODE_GI_BARE_MODULE_SPECIFIERS` `exactExternal` array, which listed only `system`/`gettext` — under `@gjsify/rolldown-native` (the GJS bundler) the resolveId `{external:true}` flag is dropped at the JSON options boundary, so ONLY the string array keeps a target external; cairo missing there left the bare `cairo` unresolved. **Fixed** by deriving the array from `ALIASES_GJS_FOR_NODE`'s values (`NODE_GI_BARE_MODULE_SPECIFIERS = Object.values(...)`) so it can't drift again — cairo/system/gettext all externalise + resolve on the GJS bundler now. unit `packages/infra/cli/src/node-gi-externals.spec.ts`; e2e `tests/e2e/node-gi-build`. (npm rolldown honoured the flag, so the gap was invisible until a Cairo consumer was built on the GJS bundler.)
+All 221 tests pass, the summary prints in 36 ms, and the process then holds the loop open indefinitely. The same bundle on **bun and deno exits 0 after 16 test markers**, mid-suite (last marker: the `clearImmediate` spec), never reaching the summary — the mirror-image lifetime bug, and why both show `ran-no-summary`.
 
-### P2½ — caller-allocates OUT structs + Uint8Array→GBytes IN — RESOLVED
-**Was blocking:** `canvas2d-core` at 529/543 after P2 (the 14 residual failures were node-gi ENGINE marshalling gaps, not cairo): 11× `PangoLayout.get_pixel_extents: caller-allocates OUT parameter type is not yet supported` (text metrics / `measureText`) + 3× `Unsupported interface IN argument` (a `Uint8Array` passed to `GdkPixbuf.Pixbuf.new_from_bytes`'s `GLib.Bytes` param in `putImageData`). **Fixed at the engine:** (a) caller-allocates OUT now covers PLAIN non-boxed structs — the engine g_malloc0's the struct, the callee fills it in place, JS gets a field-readable handle that owns the storage (`BoxedHandle.rawOwned` → g_free on GC), gjs's `CallerAllocatesOut`; (b) a JS `Uint8Array`/`Buffer`/`DataView`/`ArrayBuffer` at a `GLib.Bytes` IN-arg is copied into a fresh GBytes and released per transfer after the invoke, gjs's `GBytesIn::in` (the byte slice is read via `napi_get_typedarray_info`'s data pointer — Bun misreports the byte offset relative to its arraybuffer pointer for subarray views). **Result: `canvas2d-core` 578/578 on node, bun AND deno** (the suite even completes 35 more tests than the 543 it could register before — the aborting text suites now run to the end). Conformance programs `caller-alloc-struct-out` + `bytes-in` are byte-identical to gjs on all four runtimes; the gimarshalling `gbytes_none_in(Uint8Array)` skip is live.
+Ruled out so far:
 
-### P3 — GLib/GObject marshalling-helper gaps — **RESOLVED (2026-07-26)**
-**Was blocking:** `child_process` (`ByteArray.fromGBytes` undefined ⇒ couldn't read subprocess stdout), `os` (`imports.byteArray.toString` undefined ⇒ `.toString()` of undefined threw inside `@gjsify/utils`' `cli()`; stuck at 11/41), `module` (attributed here, but reclassified — see P9).
+- **Not** the webgl/canvas2d work — the bundle contains no webgl register and requires exactly one namespace, `requireGi('GLib','2.0')`.
+- **Not** a repeating GLib timeout holding the process alive (the documented `setInterval`-semantics keep-alive of the uv auto-pump): the globals specs only assert `typeof setInterval === 'function'` and never arm one.
 
-The empirical root cause was ONE gap, not many: node-gi's globals shim seeded `imports.{gi,system,gettext,cairo,signals,mainloop,package,searchPath}` but **not the legacy `imports.byteArray` module** — the seam `@gjsify/utils`' `gbytesToUint8Array()`/`cli()` (and through them `os` + `child_process`) read GLib subprocess output with. The suspected GLib marshalling gaps do NOT exist: `GLib.filename_from_uri` / `spawn_command_line_sync` (guint8[] OUT) / `file_get_contents` all marshal correctly (probed directly), `imports.searchPath` was already seeded, and `globalThis.exports` is a plain global write that needs no seeding.
+Cause still unknown. This is the top priority because **`node-globals` is one of the nine packages in the `--require-pass` `consumer-suites` gate**, so as long as it hangs, that gate cannot be green on a host that reproduces this. `fs` and `worker_threads` show the same bun/deno symptom and may share the cause; that is unverified.
 
-**Fixed** in `packages/node-gi/node-gi/overrides/byte-array.js` (wired into `globals.js` `makeImports`): the full gjs `imports.byteArray` surface — `fromString`/`toString` (ZERO-TERMINATED + fatal decode, per gjs/gjs/byteArray.cpp + text-encoding.cpp), `fromGBytes`/`toGBytes` (GLib.Bytes round-trip over the engine's boxed-GBytes `toArray()`/ctor), `fromArray` + the legacy `ByteArray` wrapper class, the legacy own `toString(encoding)` on returned arrays, and gjs-matching error classes (Error for arg parsing, TypeError for the GBytes typecheck + fatal decode). Pinned byte-identical to gjs by `conformance/programs/byte-array.conf.mjs` (gjs=node golden) + `test/byte-array.test.mjs`. Harness A/B: `os` 🟡 11/41 → ✅ **276/276** on node/bun/deno; `child_process` fail-at-first-stdout-read → runs deep into its suite (all output/cwd/env reads pass) but still exits non-zero: the residual is a **`@gjsify/child_process` fidelity bug, not a node-gi gap** — `_execImpl` emits `'error'` on the ChildProcess with no listener attached (real Node's `execFile` wires an internal `errorhandler`, refs/node lib/child_process.js), which is fatal under Node's unhandled-`'error'` rule but invisible under gjs (an exception leaving a GLib source callback is logged, not fatal). Fix belongs in `packages/node/child_process`.
+### 2. No auto-pump on bun/deno — async Gio suites time out where node passes
 
-### P4 — `normalizeEncoding`/`checkEncoding` unresolved when a polyfill is force-aliased onto Node — **RESOLVED (2026-07-26, harness artifact)**
-**Was blocking:** `crypto` (the encoding path of hash/hmac — 44 of 570), `string_decoder` (all). **Determination: a harness/test-setup artifact, NOT an engine gap** — and Node-target-specific as suspected (`--app gjs` resolves `@gjsify/buffer` to the full polyfill; nothing bites there). The `--alias node:<self>=@gjsify/<self>` retarget bundles the polyfill under test, but its SIBLING `@gjsify/*` imports still got the standard node-target routing: `@gjsify/buffer` declares `runtimes.node: "native"`, so the derived alias map rewrote it to `@gjsify/buffer/globals` = `export * from 'node:buffer'` — which does not export the polyfill-only pure-TS helpers `normalizeEncoding`/`checkEncoding`/`base64Encode` ⇒ `(0, ye.normalizeEncoding) is not a function` at runtime. A mixed polyfill/native graph is not the graph the suite exercises on gjs.
+**Affects:** `child_process` (28/37), `dns` (78–79/85), `dgram` (bun 123/129), `net` (241/284), `http` (845/874) — all on bun and/or deno. On node, `child_process`/`dns`/`dgram` pass outright, and `net`/`http` fail for unrelated reasons (gaps 3 and 4).
 
-**Fixed in the harness** (`collectForcedPolyfillAliases` in `scripts/node-gi-consumer-harness.mjs`): the build now walks the target's transitive workspace-dep closure and forces every `runtimes.node === "native"` `@gjsify/*` member onto its polyfill entry (`--alias @gjsify/<dep>=<abs lib/esm/index.js>` — user aliases override the derived map), reproducing the gjs graph. A/B: `crypto` 🟡 526/570 → ✅ **626/626** on node/bun/deno (the aborting encoding suites register 56 more tests); `string_decoder` 🟡 0/… → ✅ **103/103** ×3. The proof set is unregressed (sqlite/http2/zlib byte-same results). Out-of-band recommendation for the `packages/node/buffer` owner: `@gjsify/buffer/globals.mjs` could additionally re-export its pure-TS extension helpers (they are part of the package's public API that native `node:buffer` can never provide), which would also fix any real-world `--app node` bundle importing them.
+Signature is uniform: `Timeout: "…" exceeded 5000ms` on exactly the tests that await a Gio async completion (subprocess stdout, resolver lookups, UDP recv, socket round-trips, server requests). Node drains pending GLib sources from its own libuv loop (the uv-driven auto-pump in node-gi's `src/loop.cc`); bun and deno have no libuv to hook, so they run the timer-driven `startMainContextPump` instead, and it does not deliver the same completions in time. Closing this is what turns the bun/deno columns green for the whole async-Gio family at once.
 
-### P5 — Package-own Vala-bridge typelib not on the GI search path — RESOLVED
-**Was blocking:** `http` (`GjsifyHttpSoupBridge`), `webrtc` (`GjsifyWebrtc`). **Not an engine gap** — `scripts/node-gi-consumer-harness.mjs` now prepends each consumed package's `prebuilds/linux-<arch>/` to `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH` at the run step, reusing the CLI's `detectNativePackages`+`buildNativeEnv` (so the transitive case works — `@gjsify/http`'s typelib lives in `@gjsify/http-soup-bridge`, `@gjsify/webrtc`'s in `@gjsify/webrtc-native`). The `gjsify run/showcase --runtime node` launcher path was already covered by `runRuntimeBundle`→`computeNativeEnvForBundle`. **Proof:** `webrtc`'s failure moved from missing-typelib to a downstream marshalling error (`TypeError: expected an array for the array argument`, a P3-family gap) — the `GjsifyWebrtc` typelib now loads; `http` likewise loads its bridge. `http2`/`tls`/`ws` never needed this (system Soup/Gio).
+### 3. `net` on node — residual socket-lifecycle failures
 
-### P6 — GStreamer / display-bound
-`webaudio` (GStreamer AudioContext; bespoke `test.mts` with no `run()` summary), `webrtc` (also needs its Vala bridge, P5). Need GStreamer typelibs; low priority.
+**Affects:** `net` (node).
 
-> The **GL/display gate itself is PROVEN on node-gi**: a `Gtk.GLArea` realizes with a live, CURRENT
-> OpenGL ES 3.2 context under headless software GL (Xvfb/X11 + mesa llvmpipe, `GSK_RENDERER=cairo`
-> + `LIBGL_ALWAYS_SOFTWARE=1`), the `gwebgl` Vala bridge draws + reads pixels back through it, and
-> the FULL `@gjsify/webgl` `WebGLBridge` (TS `WebGLRenderingContext`) clears + reads back through
-> the same stack — all byte-identical to `gjs -m`. See
-> `packages/node-gi/node-gi/test/webgl-glarea.test.mjs` + the node-gi README
-> `### WebGL / Gtk.GLArea`. The remaining WebGL-on-node work is breadth
-> (shader/buffer/texture — a three.js consumer), not the GL context.
+Even with the auto-pump, the node run exits non-zero with a small, specific set: `should emit end event when server closes` and `should emit connect and ready events` time out, and `should handle server close while client connected` fails an equality assertion. The bulk of the suite is fine (bun/deno reach 241/284 with the pump-related timeouts on top), so this is a close-path/event-ordering gap in `@gjsify/net` or in how a `Gio.SocketService` shutdown propagates, not the missing-pump class above.
 
-### P7 — Constructor / registerClass — **RESOLVED (2026-07-26, harness artifact — NOT an engine gap)**
-`worker_threads`: `MessagePort … Constructor cannot be called`. **Determination: no node-gi native-constructor gap exists.** The wrapper's `_inner = new SharedMessagePort()` field initializer imports `MessagePort` from `@gjsify/message-channel`, whose `runtimes.node: "native"` slot routed it to `@gjsify/message-channel/globals` = `globalThis.MessagePort` — and **Node's global `MessagePort` is deliberately non-constructible** (`new MessagePort()` throws `TypeError: Constructor cannot be called` in Node itself). The polyfill needs the CONSTRUCTIBLE, transport-pluggable `@gjsify/message-channel` polyfill body, i.e. the same P4 mixed-graph artifact. A second, independent artifact hid behind it: the suite's on-disk worker fixtures (`fixtures/echo-worker.mjs`) are staged by the package's `prebuild:test:fixtures` script and resolved RELATIVE TO THE BUNDLE, which the harness put in `dist/` (the package's own test bundles live at the package root).
+### 4. `http` on node — an uncaught assertion inside a stream callback aborts the process
 
-**Fixed in the harness**: the P4 `collectForcedPolyfillAliases` closure covers the message-channel routing, and `stageFixtures` now runs the package's `prebuild:test:fixtures` script + symlinks `dist/fixtures → ../fixtures`. A/B: 🟡 0/82 → ✅ **282/282 on node** (bun 258/268, deno 262/270 — the residuals are worker-subprocess/SAB runtime quirks of the same family as the documented dgram/tty ones, not engine gaps).
+**Affects:** `http` (node).
 
-### P8 — `--app node` build resolution — **RESOLVED (2026-07-26, fixed upstream since the survey)**
-`devtools-mcp`: `--app node: Module not found` ×6 at build time. Re-measured on the current tree: the build succeeds and the suite passes — ✅ **7/7 on node/bun/deno** (A: ❌ build → B: ✅ 7/7 ×3). The resolution gap was closed by CLI/bundler work that landed between 2026-07-18 and 2026-07-26; no node-gi action was needed.
+Reproduced with the harness's typelib env: the suite runs to `http.createServer round-trip › should receive request headers`, where the expectation fires **inside** an `IncomingMessage` `'end'` listener:
 
-### P9 — `module`: user `--alias` leaks into the CLI's virtual gi modules (reclassified from P3)
-`module` still fails, but NOT for the reasons P3 guessed (`GLib.filename_from_uri` marshals fine, `imports.searchPath` is seeded, `globalThis.exports` needs no seeding). The real blocker: the harness's `--alias node:module=@gjsify/module` retarget is applied IMPORTER-BLIND, so the `\0gjsify-gi-node:*` virtual modules the CLI's `gjsGiNodePlugin` emits — whose source is `import { createRequire } from 'node:module'` (`packages/infra/rolldown-plugin-gjsify/src/plugins/gjs-gi-node.ts`) — get their `node:module` import rewritten onto the polyfill UNDER TEST. The bundle then calls `@gjsify/module`'s own `createRequire` at top level, before the polyfill's lazy GLib namespace proxy (`var o = new Proxy(...)`) is initialized ⇒ `TypeError: Cannot read properties of undefined (reading 'filename_from_uri')` in `fileUrlToPath` — and even past the TDZ, the polyfill's Gio-based CJS loader cannot bootstrap `@gjsify/node-gi/gi` (it needs GLib, which needs the loader — a genuine cycle). The virtual gi modules MUST always get the RUNTIME's real `createRequire`. **Fix belongs in the CLI, not the harness/engine** (out of scope here): either skip user-alias rewriting when the importer is a gjsify virtual module (`importer?.startsWith('\0gjsify-')` in the alias plugin's resolveId), or have `gjs-gi-node.ts` obtain `createRequire` alias-proof via `process.getBuiltinModule('node:module')` (Node ≥ 22.3 / Bun / Deno 2). After that CLI fix, re-measure `module` — its remaining failures (if any) are expected to be ordinary suite-level ones.
+```
+Error:       Expected values to match using ===
+      Expected: custom-value (string)
+      Actual: no header (string)
+    at IncomingMessage.<anonymous> (…/test.node-gi.harness.http.mjs)
+    at endReadableNT (node:internal/streams/readable)
+```
 
-### Near-passes / runtime-specific quirks (not blockers)
-`iframe` (1 WebKit `Symbol.toStringTag ===`; deno 3), `v8` (4 `Buffer.copy` range errors on **node only** — bun/deno 72/72), `zlib` (1 deno flake), `tty` (deno 40/55 vs node 29/29 — terminal probing differs), `node-globals` (3 bun), `dgram` (node/bun 6 UDP-recv timeouts, deno clean).
+Two distinct problems: a **fidelity bug** (a request header set by the client does not reach the handler — `no header`), and the fact that a throw from a listener dispatched off a GLib source is fatal under Node while it is merely logged under gjs, so the process dies before `@gjsify/unit` can print anything. bun/deno get past it (the same assertion is counted, not fatal) and finish at 845/874.
+
+### 5. `module` — user `--alias` leaks into the CLI's virtual gi modules
+
+**Affects:** `module` (all three runtimes).
+
+`TypeError: Cannot read properties of undefined (reading 'filename_from_uri')` (bun: `undefined is not an object (evaluating 'o.filename_from_uri')`). The harness's `--alias node:module=@gjsify/module` retarget is applied IMPORTER-BLIND, so the `\0gjsify-gi-node:*` virtual modules the CLI's `gjsGiNodePlugin` emits — whose source is `import { createRequire } from 'node:module'` ([`plugins/gjs-gi-node.ts`](../../packages/infra/rolldown-plugin-gjsify/src/plugins/gjs-gi-node.ts)) — get their `node:module` import rewritten onto the polyfill UNDER TEST. The bundle then calls `@gjsify/module`'s own `createRequire` at top level, before the polyfill's lazy GLib namespace proxy is initialized; and even past that, the polyfill's Gio-based CJS loader cannot bootstrap `@gjsify/node-gi/gi` (it needs GLib, which needs the loader — a genuine cycle). The virtual gi modules MUST always get the RUNTIME's real `createRequire`.
+
+**Fix belongs in the CLI**, not the harness or the engine: either skip user-alias rewriting when the importer is a gjsify virtual module (`importer?.startsWith('\0gjsify-')` in the alias plugin's `resolveId`), or have `gjs-gi-node.ts` obtain `createRequire` alias-proof via `process.getBuiltinModule('node:module')` (Node ≥ 22.3 / Bun / Deno 2). Re-measure `module` afterwards; its remaining failures, if any, are expected to be ordinary suite-level ones.
+
+### 6. `webrtc` — native abort in the data-channel path
+
+**Affects:** `webrtc` (node, bun; deno times out in the same region).
+
+The suite gets through construction, SDP round-trips, ICE candidates and the deferred-API guards, then aborts inside `Loopback data channel`:
+
+```
+free(): invalid pointer
+   (SIGABRT, exit 134)
+```
+
+A double-free / ownership bug on the GStreamer `webrtcbin` + data-channel path under node-gi — a native-side memory-management gap, distinct from every marshalling issue above. The Vala bridge itself loads fine (`GjsifyWebrtc` resolves via the staged prebuild path); without that env the same bundle fails earlier with `Typelib file for namespace 'GjsifyWebrtc' not found`, which is a harness-env dependency, not an engine gap.
+
+### 7. `fs` — the harness stages only `fixtures/`, not the suite's `test/` dir
+
+**Affects:** `fs` (node: hard fail; bun/deno: early exit with no summary).
+
+`Failed to create file "…/packages/node/fs/dist/test/watch.js.2F2YS3": No such file or directory`. `sync.spec.ts` resolves its scratch file as `join(__dirname, 'test/watch.js')`, i.e. relative to the BUNDLE. The package's own test bundle lives at the package root (where `test/` exists); the harness builds into `dist/`, and `stageFixtures` bridges only `fixtures/` (`dist/fixtures → ../fixtures`), not `test/`. Fix in the harness — bridge the package's on-disk test dirs generally, or build the harness bundle at the package root — then re-measure `fs`; the bun/deno early exit may or may not survive that.
+
+### 8. Display/media-bound and bespoke entries
+
+`webaudio` emits no `@gjsify/unit` summary on any runtime and its failures are `Unable to decode audio data` — the GStreamer decodebin path is not usable in this configuration, and its bespoke `test.mts` has no `run()` summary either. Low priority.
+
+### 9. Runtime-specific quirks (not blockers)
+
+`v8` — 4 `Buffer.copy` range errors (`The value of "sourceStart" is out of range …`) on **node only**, which also cuts the run short (60 registered vs 72 on bun/deno). `tty` — deno registers a different suite (40/55, all `Expected values to match using ===` on the color-depth probes: `NO_COLOR`, `TERM=xterm-256color`, `TERM=dumb`), while node and bun are 29/29. `zlib` — one deno failure, `gunzip async should decompress concatenated gzip members — failed to write whole buffer`, out of 53375.
 
 ## Proof legs (wired in CI)
 
-The `consumer-suites` job in [`node-gi.yml`](../../.github/workflows/node-gi.yml) runs the harness `--require-pass` over **nine** packages on node/bun/deno: `sqlite` (Gda), `http2` (Soup), `zlib` (Gio), `tls` (Gio/glib-networking), `ws` (Soup), `dom-elements` (GdkPixbuf + the '2d' factory), `node-globals` (GLib), `crypto` (GLib.Checksum/Hmac) and `string_decoder` (pure TS) — every survey-green package whose system deps fit the job's minimal container (dnf adds `glib-networking gdk-pixbuf2 pango dejavu-sans-fonts` for the expansion).
+The `consumer-suites` job in [`node-gi.yml`](../../.github/workflows/node-gi.yml) runs the harness `--require-pass` over **nine** packages on node/bun/deno: `sqlite` (Gda), `http2` (Soup), `zlib` (Gio), `tls` (Gio/glib-networking), `ws` (Soup), `dom-elements` (GdkPixbuf + the `'2d'` factory), `node-globals` (GLib), `crypto` (GLib.Checksum/Hmac) and `string_decoder` (pure TS). The job pins Node 24 (gjsify's `--app node` compile target) and installs `glib-networking gdk-pixbuf2 pango dejavu-sans-fonts` on top of the base container. A regression in the reverse bridge fails that job; the existing `consumer-sqlite` job stays as-is.
 
-**The counts in this report were measured on a Fedora 43 DESKTOP with gtk4 and Node 24.15.0; the gate runs a minimal Fedora 44 container.** That difference, not any code change, is what the first widened run exposed, and it is the reason a green row here is not by itself sufficient to add a package to the gate:
+**The counts in this report were measured on a Fedora 44 DESKTOP with the full GTK stack; the gate runs a minimal Fedora 44 container.** That difference — not any code change — is why a green row here is not by itself sufficient to add a package to the gate. Before promoting a package, check what its bundle actually loads (`grep -o "requireGi(\`[A-Za-z]*\`" <bundle>`) against what the container installs.
 
-- `node-globals` failed 216/217 because the job pinned Node **22**, where `structuredClone(File)` returns a plain `Blob` and drops the `File` brand plus `name`/`lastModified`; Node 24 returns a real `File`. The pin is now `'24'` — which is also gjsify's `--app node` compile target, so the leg no longer runs the bundle below the version it was compiled for.
-- `canvas2d-core` failed 201/245 IDENTICALLY on node, bun and deno — the signature of an environment gap, not a code one. It hard-imports `gi://Gdk?version=4.0` (`canvas-pattern.ts`, `context/pixels.ts`, `context/drawing.ts`), and `Gdk-4.0.typelib` ships in Fedora's `gtk4`, which the container deliberately does not install. It is **out of the proof set** until that import is removed, because the package documents itself as headless with "NO GTK dependency" — the very property the `canvas2d-core` / `canvas2d` split exists to provide — so installing gtk4 to make the gate pass would cement the contract violation instead of fixing it. `crypto` + `string_decoder` additionally pin the P3 `imports.byteArray` seeding and the P4 forced-polyfill-closure harness fix. A regression in the reverse bridge fails that job. The existing `consumer-sqlite` job stays as-is. Still-green candidates NOT wired (deps too heavy for the container): `devtools`/`devtools-browser`/`storybook`/`adwaita-app` (gtk4/libadwaita/webkitgtk stack), `os` (spawns `ps`/`renice`), `worker_threads` (sab-native host surface).
+Two current consequences:
+
+- **`node-globals` is in the gate and hangs on this desktop** (gap 1). Until that is understood, the gate's green depends on the container not reproducing the hang.
+- **`canvas2d-core` is 599/599 on all three runtimes, and the headless core itself is Gdk-free** — the only `gi://Gdk` file is `src/gdk-pixel-bridge.ts`, exposed as the side-effect subpath `@gjsify/canvas2d-core/gdk`, so nothing in the package's ROOT entry graph pulls Gdk. What is *not* true is that its SUITE runs without Gdk: `src/test.mts` imports `./gdk-pixel-bridge.js` on purpose (so the core's pixel specs run standalone), and the built harness bundle consequently requires `Gdk 4.0`, `GdkPixbuf`, `Pango`, `PangoCairo` plus bare `cairo`. Promoting it into the gate therefore needs one of: a committed `src/test.node-gi.mts` that exercises the headless core without the GDK pixel bridge, or `gtk4` in the container (which pulls graphene/vulkan-loader into a 20-minute job).
+
+Still-green candidates not wired (deps too heavy for the container): `devtools`/`devtools-browser`/`devtools-cdp`/`devtools-mcp`/`devtools-protocol`/`storybook`/`adwaita-app`/`iframe` (gtk4/libadwaita/webkitgtk stack), `os` (spawns `ps`/`renice`), `worker_threads` (sab-native host surface), `canvas2d` (GTK).
 
 ## Follow-ups
 
-Enumerated, prioritized by the survey above:
+Prioritized by the gaps above:
 
-1. ~~**P1 fix (node-gi auto main-context co-pump under Node)** — unblocks `fs`/`net`/`dns`/`dgram`/`stream`. Highest leverage.~~ ✓ DONE (uv-driven auto-pump; see the P1 section above for the A/B numbers).
-2. **P2 (bare `cairo`/`system`/`gettext` externalisation) — DONE**: `app/node.ts` derives the `exactExternal` set from `ALIASES_GJS_FOR_NODE`'s values, so canvas2d-core/canvas2d resolve `@gjsify/node-gi/cairo` on the GJS bundler now.
-2½. **P2½ (caller-allocates OUT structs + Uint8Array→GBytes IN) — DONE**: `canvas2d-core` 529/543 → **578/578 on node/bun/deno** (see the P2½ section above).
-3. **P3 marshalling-helper seeding — DONE**: `imports.byteArray` seeded in node-gi's globals shim (`overrides/byte-array.js`, gjs semantics, conformance-pinned). `os` ✅ 276/276 ×3; `child_process`'s residual is a `@gjsify/child_process` fidelity bug (unlistened `'error'` emit in `_execImpl` — see the P3 section), `module`'s is the P9 CLI alias-scoping bug.
-4. **P5 (harness prepends each package's `prebuilds/` to `GI_TYPELIB_PATH`) — DONE**: `http`/`webrtc` and other Vala-bridge consumers now load their typelib on node-gi (residual failures are downstream marshalling gaps, not typelib-not-found).
-5. **Full rollout — CI proof set widened to 9** (`sqlite`/`http2`/`zlib` + `tls`/`ws`/`dom-elements`/`node-globals`/`crypto`/`string_decoder`, see Proof legs; `canvas2d-core` pending its Gdk removal). Remaining: committed `src/test.node-gi.mts` + `test:gjs-on-node` legs per package, and the GTK-stack candidates (`devtools`/`devtools-browser`/`storybook`/`adwaita-app`) once the job (or a sibling job) carries gtk4/libadwaita/webkitgtk.
-6. **Full CI matrix:** run the whole survey (not just the proof set) as a non-gating `continue-on-error` job that publishes this table, so regressions/improvements surface per PR.
-7. **P4 — DONE** (harness forced-polyfill closure; see P4). **P7 — DONE** (same closure + fixture staging; see P7). **P8 — DONE** (resolved upstream; see P8). Open: **P9** (CLI alias-scoping for virtual gi modules — unblocks `module`), the `@gjsify/child_process` `'error'`-listener fidelity fix, and optionally exporting `@gjsify/buffer`'s pure-TS helpers from its `globals.mjs` (see P4).
+1. **`node-globals` process lifetime** — the node non-exit + the bun/deno early exit (gap 1). Highest leverage: it is the one open item that sits inside the CI gate. Repro: `node packages/node/globals/dist/test.node-gi.harness.node-globals.mjs`.
+2. **bun/deno main-context pump parity** (gap 2) — unblocks the bun/deno columns of `child_process`, `dns`, `dgram`, `net`, `http` in one change.
+3. **CLI alias-scoping for virtual gi modules** (gap 5) — unblocks `module`; the fix is in `rolldown-plugin-gjsify`, not the engine or the harness.
+4. **`@gjsify/http` request-header propagation + throw-in-callback fatality** (gap 4), and **`@gjsify/net`'s close/connect event ordering** (gap 3).
+5. **`webrtc` data-channel double-free** (gap 6) — a native-side ownership audit of the GStreamer webrtcbin path.
+6. **Harness fix:** stage the suite's on-disk `test/` dir alongside `fixtures/` (gap 7).
+7. **Widen the proof set:** `canvas2d-core` once its suite can run without `Gdk` (or the container carries gtk4); the GTK-stack candidates once a sibling job carries gtk4/libadwaita/webkitgtk.
+8. **Full CI matrix:** run the whole survey (not just the proof set) as a non-gating `continue-on-error` job that publishes this table, so regressions and improvements surface per PR.

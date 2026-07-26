@@ -2,6 +2,15 @@
 // DOMMatrixReadOnly + the '2d' context factory.
 
 import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
+// `@gjsify/canvas2d-core`'s root entry is HEADLESS by contract (no GTK), so it
+// ships the Cairo⇄pixel-buffer interop that `getImageData` / `putImageData` /
+// `drawImage` / `createPattern` need behind an injected seam. This subpath is
+// the GDK-backed implementation; importing it registers the bridge. We wire it
+// here — in the module that registers the '2d' factory — because a canvas
+// created through the DOM pillar is by definition running in a GTK process,
+// and because `@gjsify/dom-elements` cannot reach `@gjsify/canvas2d` (that
+// edge is the cycle `@gjsify/canvas2d-core` was extracted to break).
+import '@gjsify/canvas2d-core/gdk';
 
 import { HTMLCanvasElement } from '../html-canvas-element.js';
 import { DOMMatrix, DOMMatrixReadOnly } from '../dom-matrix.js';

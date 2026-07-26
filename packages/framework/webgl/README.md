@@ -30,6 +30,39 @@ widget.onReady((canvas, gl) => {
 window.set_child(widget);
 ```
 
+## Globals
+
+The package root is a **side-effect-free barrel** — importing it gives you named
+exports and nothing else. Browser globals are installed by the dedicated
+`/register` subpath:
+
+```typescript
+import '@gjsify/webgl/register';   // globalThis.WebGLRenderingContext, globalThis.WebGL2RenderingContext
+```
+
+You normally never write that import: `gjsify build` defaults to `--globals auto`,
+which detects a free `WebGLRenderingContext` / `WebGL2RenderingContext` reference in
+the bundled output and injects the subpath for you. Application and example code
+should rely on that (see the tree-shakeable-globals convention in `AGENTS.md`) — an
+explicit `/register` import in app code hides auto-detection gaps.
+
+What each entry point gives you:
+
+| | `@gjsify/webgl` | `@gjsify/webgl/register` | `WebGLBridge.installGlobals()` |
+|---|---|---|---|
+| `WebGLRenderingContext`, `WebGL2RenderingContext`, `HTMLCanvasElement`, `WebGLBridge`, the WebGL object + extension classes | named exports | — | — |
+| `globalThis.WebGLRenderingContext`, `globalThis.WebGL2RenderingContext` | — | ✅ (installed only when absent) | ✅ (installed unconditionally) |
+| `globalThis.requestAnimationFrame`, `globalThis.cancelAnimationFrame`, `globalThis.performance` | — | — | ✅ |
+
+The `'webgl'` / `'webgl2'` contexts themselves need no register: this package's
+`HTMLCanvasElement` subclass answers `getContext('webgl')` directly, so a
+`WebGLBridge` works even with `--globals none`.
+
+> **Changed after 0.22.0** — up to and including 0.22.0, `import { WebGLBridge } from '@gjsify/webgl'`
+> installed `WebGLRenderingContext` / `WebGL2RenderingContext` on `globalThis` as an
+> import side effect. They now come from `/register` (or `installGlobals()`). See
+> [ADR 0012](https://github.com/gjsify/gjsify/blob/main/docs/adr/0012-framework-register-ownership.md).
+
 ## Running GJS apps that use this package
 
 This package ships prebuilt native libraries for the platforms listed under

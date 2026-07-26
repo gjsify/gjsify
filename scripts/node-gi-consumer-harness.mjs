@@ -31,8 +31,9 @@
 //      RUNTIMES map + PATH-skip — on bun and deno too (Node-API is their common ABI).
 //   4. Captures build ok/fail, run exit code, the `@gjsify/unit` summary counts
 //      (`✔ [rt] M completed` / `❌ [rt] N of M tests failed`), and the first error
-//      line, then GROUPS the failure reason (needs-GTK-display / missing-typelib /
-//      marshalling / mainloop-hang / build-error / …).
+//      lines, then GROUPS the failure reason (needs-GTK-display / missing-typelib /
+//      marshalling / mainloop-hang / build-error / …) — from the FAILED tests'
+//      messages ONLY, never the whole stdout (see `REASON_RULES`).
 //
 // TOLERATES failures — captures them. Emits a structured JSON report + a table.
 //
@@ -256,10 +257,30 @@ function stageFixtures(dir, distDir, gjsify, timeout) {
 }
 
 // ── failure-reason grouping ──────────────────────────────────────────────────
-// Ordered, first-match-wins. Each rule maps a failure-signature (drawn from the
-// FAILED-test messages + stderr, NOT arbitrary stdout) to a group. A real
-// process timeout is NOT here — it is detected via `killed` and reported as its
-// own `timeout` status, so a test merely NAMED "timeout" can't mis-bucket.
+// PRECEDENCE IS THE ARRAY ORDER — first match wins, and the order is the
+// statement of intent: a NAMED typelib beats the generic "typelib" catch-all,
+// an engine marshalling error beats the generic TypeError shape, a timed-out
+// test beats an assertion (it never reached its assertion). It is an ordered
+// ARRAY, never an object, so precedence can never drift with key-insertion
+// order; `tests/e2e/node-gi-consumer-harness/run.mjs` pins both the order and
+// the scope below.
+//
+// SCOPE — a rule is matched against the FAILURE REGION ONLY: the messages of
+// the tests that actually failed, or (when a run produced no per-test markers
+// at all) the error lines of the build/load failure. It is NOT matched against
+// the run's whole stdout. A suite that is 95% green prints hundreds of PASSING
+// test names, and any one of them mentioning "microtask" / "assert" /
+// "typelib" would otherwise decide the bucket for the handful of tests that
+// did fail — that is how `@gjsify/node-globals` (three `structuredClone`
+// assertion failures) landed under `mainloop-drain` in the committed survey.
+// The failing test's own NAME is user prose for the same reason, so it is used
+// only when the failure carried no message; `@gjsify/unit`'s TimeoutError
+// quotes the name into its message (`Timeout: "<name>" exceeded 5000ms`), so
+// double-quoted spans are blanked before matching.
+//
+// A real process timeout is NOT here — it is detected from the spawn error
+// (`ETIMEDOUT`) and reported as its own `timeout` status, so a test merely
+// NAMED "timeout" can't mis-bucket.
 const REASON_RULES = [
     [
         /Typelib file for namespace '?(Gtk|Gdk|Adw|Gsk)'?|namespace (Gtk|Gdk|Adw)|cannot open display|GDK_BACKEND|Gtk-WARNING|gtk_init|could not (find|open) display/i,
@@ -287,7 +308,14 @@ const REASON_RULES = [
         'runtime-typeerror-or-unimpl',
     ],
     [
-        /hang|did not exit|still running after|deadlock|main-?loop|MainLoop|g_main|microtask|promise.*not.*drain/i,
+        // `Timeout: "<test>" exceeded <n>ms` is `@gjsify/unit`'s TimeoutError —
+        // the P1 signature (nothing pumps the default GLib main context in a
+        // bare `node bundle.mjs`), i.e. the same root cause as the wall-clock
+        // `timeout` status, only per-test. It has to be listed EXPLICITLY: the
+        // old whole-stdout haystack caught these packages by accident (via an
+        // unrelated `MainLoop`/`microtask` mention elsewhere in the log), and
+        // scoping to the failure region would otherwise drop them to `other`.
+        /Timeout:[^\n]*exceeded \d+\s*ms|hang|did not exit|still running after|deadlock|main-?loop|MainLoop|g_main|microtask|promise.*not.*drain/i,
         'mainloop-drain',
     ],
     [/expect|toBe|toEqual|toContain|toThrow|assert|AssertionError|Expected/i, 'assertion-mismatch'],
@@ -299,20 +327,32 @@ const REASON_RULES = [
 
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
-// Pull up to `max` representative FAILURE lines: each failing `it()` prints
-// `  ❌ <name>` then the error message on the next line (see @gjsify/unit). We
-// pair name+message; fall back to raw error/throw lines (build/load failures).
-function collectFailSamples(text, max = 4) {
+// `@gjsify/unit`'s SUMMARY line also starts with ❌ (`❌ [rt] N of M tests
+// failed`). It is a counter, not a failure — `parseSummary` already reads it —
+// so it must not enter the failure region it would otherwise pollute.
+const SUMMARY_MARKER = /^(?:\[[^\]]*\]\s*)?\d+\s+of\s+\d+\s+tests failed/;
+
+/**
+ * Pull up to `max` structured FAILURE records — the failure region of a run.
+ *
+ * Each failing `it()` prints `  ❌ <name>` (or `⏱ <name>` for a timeout) and
+ * the error message on the next line (see `@gjsify/unit`'s reporter), so a
+ * record is `{ name, message }`. When a run produced no per-test markers at
+ * all (a build or load failure), the error-ish lines ARE the failure — they
+ * become records with an empty `name`.
+ *
+ * @returns {{ name: string, message: string }[]}
+ */
+function collectFailures(text, max = 4) {
     const lines = text.split('\n').map(stripAnsi);
     const out = [];
     for (let i = 0; i < lines.length && out.length < max; i++) {
         const t = lines[i].trim();
         const m = t.match(/^(?:❌|⏱|✗|✘)\s+(.*)$/);
-        if (m) {
-            const name = m[1].replace(/\s*\(\d.*\)\s*$/, '').trim();
-            const msg = (lines[i + 1] || '').trim().slice(0, 160);
-            out.push(msg ? `${name} — ${msg}` : name);
-        }
+        if (!m) continue;
+        const name = m[1].replace(/\s*\(\d.*\)\s*$/, '').trim();
+        if (SUMMARY_MARKER.test(name)) continue;
+        out.push({ name, message: (lines[i + 1] || '').trim().slice(0, 160) });
     }
     if (out.length) return out;
     // no per-test markers → build/load failure: grab error-ish lines
@@ -320,17 +360,34 @@ function collectFailSamples(text, max = 4) {
         const t = raw.trim();
         if (!t) continue;
         if (/error|throw|not found|undefined|typelib|cannot|failed|Exception|Requiring/i.test(t)) {
-            out.push(t.slice(0, 200));
+            out.push({ name: '', message: t.slice(0, 200) });
             if (out.length >= max) break;
         }
     }
     if (out.length) return out;
     const nonEmpty = lines.map((l) => l.trim()).filter(Boolean);
-    return nonEmpty.length ? [nonEmpty[nonEmpty.length - 1].slice(0, 200)] : [];
+    return nonEmpty.length ? [{ name: '', message: nonEmpty[nonEmpty.length - 1].slice(0, 200) }] : [];
 }
 
-function classify(samples, fullText) {
-    const hay = (samples.join('\n') + '\n' + fullText).slice(0, 8000);
+/** Render a failure record the way the report stores it. */
+const formatFailure = (f) => (f.name && f.message ? `${f.name} — ${f.message}` : f.name || f.message);
+
+// What a rule is matched against: the failure's MESSAGE (the name only as a
+// last resort, when the failure carried none), with double-quoted spans blanked
+// so a test NAME quoted into a message — `Timeout: "should assert …" exceeded
+// 5000ms` — cannot decide the bucket.
+const signatureOf = (f) => (f.message || f.name).replace(/"[^"\n]*"/g, '""');
+
+/**
+ * Bucket a failure by root cause. Matched ONLY against the failure records the
+ * report also stores next to the reason, so an attribution is verifiable by
+ * eye: if none of the printed samples carries the signature, the bucket is
+ * wrong. First rule in `REASON_RULES` order wins.
+ *
+ * @param {{ name: string, message: string }[]} failures
+ */
+function classify(failures) {
+    const hay = failures.map(signatureOf).join('\n').slice(0, 8000);
     for (const [re, group] of REASON_RULES) if (re.test(hay)) return group;
     return 'other';
 }
@@ -376,7 +433,14 @@ function exec(cmd, args, opts) {
             code: err.status ?? err.code ?? -1,
             stdout: (err.stdout || '').toString(),
             stderr: (err.stderr || '').toString(),
-            killed: !!err.killed,
+            // A wall-clock kill by `execFileSync`'s own `timeout` does NOT set
+            // `killed` — Node reports `code:'ETIMEDOUT'`, `signal:'SIGTERM'`,
+            // `status:null` (measured). Keying only on `killed` made the
+            // `timeout` status unreachable, so every genuine hang was recorded
+            // as a plain `fail` and then bucketed by whatever its output
+            // happened to say — which is exactly how a suite that PASSES and
+            // then never exits gets filed under a failure reason.
+            timedOut: err.code === 'ETIMEDOUT' || !!err.killed,
         };
     }
 }
@@ -436,9 +500,8 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
             { cwd: dir, timeout },
         );
         if (!b.ok || !existsSync(outAbs)) {
-            const text = b.stdout + '\n' + b.stderr;
-            const samples = collectFailSamples(text);
-            result.build = { ok: false, reason: classify(samples, text), samples };
+            const failures = collectFailures(b.stdout + '\n' + b.stderr);
+            result.build = { ok: false, reason: classify(failures), samples: failures.map(formatFailure) };
             return result;
         }
         result.build = { ok: true };
@@ -457,30 +520,32 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
             const r = exec(cmd, baseArgs, { cwd: dir, timeout, env: NATIVE_ENV });
             const text = r.stdout + '\n' + r.stderr;
             const summary = parseSummary(r.stdout);
-            if (r.killed) {
-                // A genuine wall-clock timeout — likely a blocking mainloop that
-                // never returns (an async-Gio consumer, unlike synchronous sqlite).
+            // ONE failure region per run — the reason and the reported samples
+            // are drawn from the same records, never from the whole stdout.
+            const failures = collectFailures(text);
+            const samples = failures.map(formatFailure);
+            if (r.timedOut) {
+                // A genuine wall-clock kill. Distinguish a suite that never got
+                // to report from one that reported cleanly and then refused to
+                // exit — the latter is a process-lifetime bug, not a test
+                // failure, and filing both under one reason hides it.
+                const cleanThenHung = summary && summary.failed === 0;
                 result.runtimes[rt] = {
                     status: 'timeout',
-                    reason: 'mainloop-hang-or-timeout',
-                    samples: collectFailSamples(text),
+                    reason: cleanThenHung ? 'no-exit-after-pass' : 'mainloop-hang-or-timeout',
+                    ...(cleanThenHung ? summary : {}),
+                    samples,
                 };
             } else if (r.ok && summary && summary.failed === 0) {
                 result.runtimes[rt] = { status: 'pass', ...summary };
             } else if (summary && summary.failed > 0) {
-                const samples = collectFailSamples(text);
-                result.runtimes[rt] = { status: 'partial', ...summary, reason: classify(samples, text), samples };
+                result.runtimes[rt] = { status: 'partial', ...summary, reason: classify(failures), samples };
             } else if (r.ok && !summary) {
                 // Ran clean but produced no unit summary (bespoke entry w/o run()).
-                result.runtimes[rt] = {
-                    status: 'ran-no-summary',
-                    reason: 'no-unit-summary',
-                    samples: collectFailSamples(text),
-                };
+                result.runtimes[rt] = { status: 'ran-no-summary', reason: 'no-unit-summary', samples };
             } else {
                 // Non-zero exit with no parseable summary — threw at import/eval.
-                const samples = collectFailSamples(text);
-                result.runtimes[rt] = { status: 'fail', reason: classify(samples, text), samples };
+                result.runtimes[rt] = { status: 'fail', reason: classify(failures), samples };
             }
         }
     } finally {
@@ -608,4 +673,8 @@ function main() {
     }
 }
 
-main();
+// Only run when invoked directly, so the pure helpers stay unit-testable
+// (`tests/e2e/node-gi-consumer-harness/run.mjs` imports them).
+if (process.argv[1] && resolve(process.argv[1]).endsWith('node-gi-consumer-harness.mjs')) main();
+
+export { REASON_RULES, classify, collectFailures, formatFailure, parseSummary };

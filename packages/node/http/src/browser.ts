@@ -198,7 +198,15 @@ export class IncomingMessage extends EventEmitter {
     }
 
     read(): Uint8Array | string | null {
-        return this._buffer.length === 0 ? null : (this._buffer.shift() as Uint8Array | string);
+        if (this._buffer.length === 0) return null;
+        const chunk = this._buffer.shift() as Uint8Array | string;
+        // A paused reader that drains LATER (the usual shape: `'readable'` →
+        // read on a later turn) must still get `'end'`. `_push(null)` can only
+        // emit it while the buffer is already empty, so re-check here once this
+        // read empties it. Deferred to a microtask so `'end'` never fires
+        // synchronously from inside the consumer's own `read()` call.
+        if (this._buffer.length === 0) queueMicrotask(() => this._maybeEnd());
+        return chunk;
     }
 
     pause(): this {

@@ -32,8 +32,38 @@
 export const BOOTSTRAP_CODE = `\
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import System from 'system';
 
 const loop = new GLib.MainLoop(null, false);
+
+// Shutdown bookkeeping.
+//
+// \`loop.run()\` is the LAST statement of this module — it only starts after
+// the worker's own script has finished. \`loop.quit()\` on a loop that is not
+// running yet is a silent NO-OP, so every shutdown request that arrives while
+// the worker script is still executing used to be lost: the module went on to
+// call \`loop.run()\` afterwards and the child ran forever.
+//
+// The parent's death is exactly that case. When the spawner dies its end of
+// our stdin pipe closes, the reader below sees EOF and asked the loop to quit
+// — too early to matter. The child then sat in \`loop.run()\` with no armed
+// source, or (when its script had a still-pending top-level await, which GJS
+// services by spinning the job queue) burned a full core, forever. Node's
+// workers are threads and die with the process that owns them; an orphan that
+// outlives — and out-CPUs — its parent is never right.
+//
+// So: record the request (\`shuttingDown\`) and honour it at both ends —
+// \`loop.run()\` is skipped when shutdown was already requested, and the EOF
+// path exits the process outright so a worker script that never settles
+// cannot keep the orphan alive either. \`terminate\`/\`parentPort.close()\`
+// deliberately keep the softer flag-only path: their parent is alive and
+// waiting on the exit event, and \`Worker.terminate()\` already has a
+// \`force_exit()\` backstop for a wedged script.
+let shuttingDown = false;
+function requestShutdown() {
+  shuttingDown = true;
+  loop.quit();
+}
 const stdinStream = Gio.UnixInputStream.new(0, false);
 const dataIn = Gio.DataInputStream.new(stdinStream);
 const stdoutStream = Gio.UnixOutputStream.new(1, false);
@@ -265,7 +295,7 @@ const parentPort = {
   },
   emit(ev, ...a) { (_listeners.get(ev) || []).forEach(fn => fn(...a)); },
   postMessage(data) { send({ type: 'message', data }); },
-  close() { send({ type: 'exit', code: 0 }); loop.quit(); },
+  close() { send({ type: 'exit', code: 0 }); requestShutdown(); },
   removeAllListeners(ev) {
     if (ev) _listeners.delete(ev); else _listeners.clear();
     return this;
@@ -287,7 +317,14 @@ function readNext() {
   dataIn.read_line_async(GLib.PRIORITY_DEFAULT, null, (source, result) => {
     try {
       const [line] = source.read_line_finish_utf8(result);
-      if (line === null) { loop.quit(); return; }
+      if (line === null) {
+        // EOF on stdin = the spawner is gone. Nothing can reach us again and
+        // nobody is left to observe an exit code, so leave immediately —
+        // even from inside the worker script's own pending top-level await.
+        requestShutdown();
+        System.exit(0);
+        return;
+      }
       const msg = JSON.parse(line);
       if (typeof msg.__msgport === 'number') {
         // Cross-process MessagePort traffic — route to the local child-
@@ -311,11 +348,13 @@ function readNext() {
         if (init.sabSocketFd === 3) drainSabFds(countSabPlaceholders(msg.data));
         parentPort.emit('message', materialise(msg.data));
       }
-      else if (msg.type === 'terminate') { send({ type: 'exit', code: 1 }); loop.quit(); return; }
+      else if (msg.type === 'terminate') { send({ type: 'exit', code: 1 }); requestShutdown(); return; }
       readNext();
     } catch (err) {
-      send({ type: 'error', message: 'bootstrap message error: ' + (err && err.message ? err.message : err), stack: err && err.stack || '' });
-      loop.quit();
+      try {
+        send({ type: 'error', message: 'bootstrap message error: ' + (err && err.message ? err.message : err), stack: err && err.stack || '' });
+      } catch (_) { /* parent's end of stdout is gone too — nothing to report to */ }
+      requestShutdown();
     }
   });
 }
@@ -335,5 +374,7 @@ try {
   send({ type: 'error', message: error.message, stack: error.stack || '' });
 }
 
-loop.run();
+// Skip the loop entirely when shutdown was requested while the script above
+// was still running — otherwise that lost quit() strands the child forever.
+if (!shuttingDown) loop.run();
 `;

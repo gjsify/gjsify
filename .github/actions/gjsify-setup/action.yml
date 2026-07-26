@@ -136,6 +136,7 @@ runs:
           packages/*/*/dist
           packages/*/*/dist-templates
           !packages/infra/cli/dist/cli.gjs.mjs
+          !packages/infra/cli/dist/affected.gjs.mjs
           !packages/infra/tsc/dist/tsc.gjs.mjs
         # v3: cache now also covers packages/*/*/dist-templates (create-gjsify's
         # processed templates — a build output the e2e create-app suite needs).
@@ -150,8 +151,33 @@ runs:
     # @gjsify/resolve-npm is a no-build package; its lib/*.mjs are TRACKED SOURCE.
     # A restore-key fallback can extract an OLD archive whose stale resolve-npm/lib
     # shadows the checkout — re-checkout just that dir from HEAD.
-    - name: Re-assert committed resolve-npm source over the build cache
+    #
+    # The committed GJS bundles need the same treatment, and for the same
+    # reason: they are tracked, version-locked artifacts that live under a
+    # CACHED path (`packages/*/*/dist`). The `!` excludes above are the first
+    # line of defence, but they only help for entries someone remembered to
+    # list — `affected.gjs.mjs` was missed, so every job restored a stale copy
+    # over the checkout and ran it. That is invisible: the "Verify committed
+    # CLI GJS bundle" step runs BEFORE this cache is restored, so it cannot
+    # catch a clobber that happens after it. Re-checking out from HEAD is
+    # exhaustive by construction — it covers any tracked file under dist/,
+    # including ones added later.
+    - name: Re-assert committed sources over the build cache
       shell: bash
       run: |
-        chown -R testuser:testuser packages/infra/resolve-npm/lib
-        su testuser -c "git -c safe.directory='*' checkout HEAD -- packages/infra/resolve-npm/lib"
+        # Explicit paths, not a word-split variable — the latter behaves
+        # differently across shells and this must not depend on that.
+        chown -R testuser:testuser \
+          packages/infra/resolve-npm/lib packages/infra/cli/dist packages/infra/tsc/dist
+        # Report BEFORE repairing — after the checkout the tree is clean by
+        # construction, so a check placed after it could never fire.
+        SHADOWED=$(su testuser -c "git -c safe.directory='*' diff --name-only HEAD -- \
+          packages/infra/resolve-npm/lib packages/infra/cli/dist packages/infra/tsc/dist")
+        su testuser -c "git -c safe.directory='*' checkout HEAD -- \
+          packages/infra/resolve-npm/lib packages/infra/cli/dist packages/infra/tsc/dist"
+        if [ -n "$SHADOWED" ]; then
+          echo "::warning::The build cache shadowed tracked file(s); restored from HEAD. Add them to the cache excludes:"
+          echo "$SHADOWED"
+        else
+          echo "Tracked build outputs match the checkout."
+        fi

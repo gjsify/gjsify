@@ -17,6 +17,14 @@
     "rootDir": "src/ts",
     "declarationDir": "lib/types",
     "composite": true,
+    // `composite` derives the buildinfo path from outDir + the rootDir-relative
+    // config path. With outDir "lib" (1 level) and rootDir "src/ts" (2), that
+    // resolves to `lib/../../tsconfig.tsbuildinfo` — i.e. ../tsconfig.tsbuildinfo,
+    // OUTSIDE this package, in the shared pillar dir where every sibling native
+    // bridge lands on the SAME file and the `clear` script can never reach it.
+    // A stale/foreign one makes the declaration emit a SILENT no-op (tsc exits 0,
+    // `lib/types/index.d.ts` is never written). Same fix as packages/napi/napi.
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo",
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,

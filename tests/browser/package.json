@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "check": "gjsify tsc --noEmit",
+        "build": "node scripts/build-bundles.mjs",
         "test": "playwright test --project=firefox",
         "test:firefox": "playwright test --project=firefox",
         "test:chromium": "playwright test --project=chromium"

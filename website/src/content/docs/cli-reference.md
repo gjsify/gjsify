@@ -264,7 +264,7 @@ Any identifier below can appear in `--globals` (or be detected automatically). G
 | `location` | `@gjsify/dom-elements/register/location` |
 | `navigator` | `@gjsify/dom-elements/register/navigator` |
 
-**Canvas 2D / IFrame (GTK + WebKit-backed, GJS-only)**
+**Canvas 2D / IFrame / WebGL (GTK-, WebKit- and GLArea-backed, GJS-only)**
 
 These are *not* part of the coarse `dom` group — injecting them requires the
 corresponding package (and, for the iframe, WebKitGTK) to be installed, so
@@ -275,6 +275,7 @@ bundled output.
 |---|---|
 | `ImageData`, `Path2D` | `@gjsify/canvas2d/register` |
 | `HTMLIFrameElement` | `@gjsify/iframe/register` |
+| `WebGLRenderingContext`, `WebGL2RenderingContext` | `@gjsify/webgl/register` |
 
 Unknown identifiers are silently ignored. If a `ReferenceError: X is not defined` still happens, add `X` as an extra: `--globals auto,X`.
 

@@ -6,13 +6,12 @@
 // Original: see canvas-rendering-context-2d.ts pre-split.
 
 import Cairo from 'cairo';
-import Gdk from 'gi://Gdk?version=4.0';
-import type GdkPixbuf from 'gi://GdkPixbuf';
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
 import { asCairoPattern } from '../cairo-types.js';
 import { isPixbufImageSource, isCanvasImageSource } from '../dom-types.js';
 import { Path2D } from '../canvas-path.js';
+import { type CanvasImageHandle, getCanvasPixelBridge } from '../pixel-bridge.js';
 
 export interface DrawingMethods {
     fill(fillRule?: CanvasFillRule): void;
@@ -47,7 +46,7 @@ declare module '../canvas-rendering-context-2d.js' {
     interface CanvasRenderingContext2D extends DrawingMethods {}
 }
 
-function getDrawImageSource(image: unknown): { pixbuf: GdkPixbuf.Pixbuf; imgWidth: number; imgHeight: number } | null {
+function getDrawImageSource(image: unknown): { pixbuf: CanvasImageHandle; imgWidth: number; imgHeight: number } | null {
     // HTMLImageElement (GdkPixbuf-backed)
     if (isPixbufImageSource(image)) {
         const pixbuf = image._pixbuf;
@@ -58,9 +57,9 @@ function getDrawImageSource(image: unknown): { pixbuf: GdkPixbuf.Pixbuf; imgWidt
     if (isCanvasImageSource(image)) {
         const w = image.width ?? 0;
         const h = image.height ?? 0;
-        // Reject non-positive / non-finite dimensions before they reach
-        // GdkPixbuf — `pixbuf_get_from_surface` logs a GLib-CRITICAL on
-        // `width > 0 && height > 0` assertion failure for NaN/0 inputs.
+        // Reject non-positive / non-finite dimensions before they reach the
+        // pixel bridge — GDK's `pixbuf_get_from_surface` logs a GLib-CRITICAL
+        // on the `width > 0 && height > 0` assertion for NaN/0 inputs.
         if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
             return null;
         }
@@ -68,7 +67,10 @@ function getDrawImageSource(image: unknown): { pixbuf: GdkPixbuf.Pixbuf; imgWidt
         if (ctx2d && typeof ctx2d._getSurface === 'function') {
             const surface = ctx2d._getSurface();
             surface.flush();
-            const pixbuf = Gdk.pixbuf_get_from_surface(surface, 0, 0, w, h);
+            // Snapshot the source surface rather than using it as the Cairo
+            // source directly: `drawImage(canvas, …)` may draw a canvas onto
+            // ITSELF, and Cairo forbids a surface being its own source.
+            const pixbuf = getCanvasPixelBridge().imageFromSurface(surface, 0, 0, w, h);
             if (pixbuf) {
                 return { pixbuf, imgWidth: w, imgHeight: h };
             }
@@ -311,7 +313,7 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
         this._ctx.scale(dw / sw, dh / sh);
         this._ctx.translate(-sx, -sy);
 
-        Gdk.cairo_set_source_pixbuf(this._ctx, pixbuf, 0, 0);
+        getCanvasPixelBridge().setSourceImage(this._ctx, pixbuf, 0, 0);
 
         // Apply Cairo interpolation filter based on imageSmoothingEnabled +
         // imageSmoothingQuality. setSource installs a fresh SurfacePattern and

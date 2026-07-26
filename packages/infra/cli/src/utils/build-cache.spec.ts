@@ -19,6 +19,7 @@ import {
     composeCacheKey,
     hashPackageInputs,
     modifiedOutputDirs,
+    outputUnits,
     pruneCacheEntries,
     readCacheEntry,
     restoreCacheEntry,
@@ -175,6 +176,46 @@ export default async () => {
                 writeFileSync(join(ws.location, 'lib', 'tracked.mjs'), 'committed source\n');
                 const before = snapshotOutputDirs(ws.location);
                 // Simulated build: writes dist only.
+                mkdirSync(join(ws.location, 'dist'), { recursive: true });
+                writeFileSync(join(ws.location, 'dist', 'bundle.js'), 'built\n');
+                expect(modifiedOutputDirs(ws.location, before)).toStrictEqual(['dist']);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('splits a dir-only candidate into per-child units so the dual emit cannot overlap', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-build-cache-'));
+            try {
+                const ws = makeWorkspace(root, 'a', '@x/a');
+                // The package convention: `build:gjsify` → lib/esm,
+                // `build:types` → lib/types. Two scripts, ONE parent dir.
+                mkdirSync(join(ws.location, 'lib', 'esm'), { recursive: true });
+                mkdirSync(join(ws.location, 'lib', 'types'), { recursive: true });
+                writeFileSync(join(ws.location, 'lib', 'esm', 'index.js'), 'export const x = 1;\n');
+                writeFileSync(join(ws.location, 'lib', 'types', 'index.d.ts'), 'export declare const x: number;\n');
+                expect(outputUnits(ws.location)).toStrictEqual(['lib/esm', 'lib/types']);
+
+                // Re-running only the types half must claim only `lib/types`;
+                // at whole-`lib` granularity a hit would wipe `lib/esm`.
+                const before = snapshotOutputDirs(ws.location);
+                writeFileSync(join(ws.location, 'lib', 'types', 'other.d.ts'), 'export {};\n');
+                expect(modifiedOutputDirs(ws.location, before)).toStrictEqual(['lib/types']);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('keeps whole-dir granularity when the candidate holds loose files', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-build-cache-'));
+            try {
+                const ws = makeWorkspace(root, 'a', '@x/a');
+                // `@gjsify/tsc` shape: committed loose `lib*.d.ts` files.
+                mkdirSync(join(ws.location, 'lib'), { recursive: true });
+                writeFileSync(join(ws.location, 'lib', 'lib.esnext.d.ts'), 'export {};\n');
+                expect(outputUnits(ws.location)).toStrictEqual(['lib']);
+                // …and a build that never touches it still records nothing.
+                const before = snapshotOutputDirs(ws.location);
                 mkdirSync(join(ws.location, 'dist'), { recursive: true });
                 writeFileSync(join(ws.location, 'dist', 'bundle.js'), 'built\n');
                 expect(modifiedOutputDirs(ws.location, before)).toStrictEqual(['dist']);

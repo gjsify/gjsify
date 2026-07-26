@@ -52,7 +52,7 @@
         "init:meson": "meson setup build .",
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build:meson": "gjsify run init:meson && meson compile -C build",
-        "build:prebuilds": "gjsify run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/",
+        "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
         "build:test-addons": "for d in test/*-addon; do (cd \"$d\" && npm exec -- node-gyp rebuild) || exit 1; done",
         "build:stubs": "python3 scripts/gen-stubs.py",
         "test:gate": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/load-gate.js test/hello-addon/build/Release/hello.node",

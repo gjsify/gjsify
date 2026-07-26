@@ -9,7 +9,6 @@
 
 // Re-export key types for convenience
 export { DOMException } from '@gjsify/dom-exception';
-export { AudioContext, HTMLAudioElement } from '@gjsify/webaudio';
 export { Event, EventTarget, CustomEvent } from '@gjsify/dom-events';
 export { AbortController, AbortSignal } from '@gjsify/abort-controller';
 export { URL, URLSearchParams } from '@gjsify/url';
@@ -17,6 +16,15 @@ export { Blob, File } from '@gjsify/buffer';
 export { FormData } from '@gjsify/formdata';
 export { performance, PerformanceObserver } from '@gjsify/perf_hooks';
 
-// NOTE: @gjsify/webrtc re-exports are NOT included here because the package
-// requires native GStreamer typelibs (GjsifyWebrtc). Import from '@gjsify/webrtc'
-// directly when WebRTC is needed. Globals are auto-injected by --globals auto.
+// NOTE: @gjsify/webrtc and @gjsify/webaudio re-exports are NOT included here
+// because both require native GStreamer typelibs (GjsifyWebrtc / Gst + GstApp,
+// the latter with a top-level `Gst.init(null)`). Import from '@gjsify/webrtc' /
+// '@gjsify/webaudio' directly when they are needed; their globals are
+// auto-injected by --globals auto, which maps `AudioContext` &co straight to
+// `@gjsify/webaudio/register`.
+//
+// This exclusion is what makes this package's declared `node: "polyfill"` slot
+// true. Re-exporting webaudio — which declares `node: "none"` — meant a
+// `--app node` bundle that touched `@gjsify/web-globals` hard-required
+// GStreamer at module load. The rule was already applied to webrtc and simply
+// missed for its sibling.

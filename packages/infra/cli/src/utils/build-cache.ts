@@ -27,14 +27,20 @@
 //     outputs/<dir>/…        — copies of the output dirs the build MODIFIED
 //
 // Output contract: after a successful (miss) run, the candidate output dirs
-// (`lib/`, `dist/`, `dist-templates/`) are compared against a pre-run
-// snapshot and ONLY the dirs the script actually created/modified are
-// stored. On a later hit, EXACTLY those dirs are replaced (delete-then-copy
-// within the package). This is the safety rule from the v0.x CI incident
-// where a raw YAML cache restored over a package whose committed `lib/` is
-// tracked source: a dir the build never touches is never recorded, so it can
-// never be restored over. Packages that don't define the script at all are
-// filtered out by the calling command and never reach the cache.
+// (`lib/`, `dist/`, `dist-templates/`) are expanded into OUTPUT UNITS — the
+// candidate's immediate sub-directories when it holds only directories
+// (`lib/esm`, `lib/types`), else the candidate itself — compared against a
+// pre-run snapshot, and ONLY the units the script actually created/modified
+// are stored. On a later hit, EXACTLY those units are replaced
+// (delete-then-copy within the package). This is the safety rule from the
+// v0.x CI incident where a raw YAML cache restored over a package whose
+// committed `lib/` is tracked source: a unit the build never touches is never
+// recorded, so it can never be restored over. The sub-directory granularity
+// additionally keeps the two halves of the dual emit apart — `build:gjsify`
+// (→ `lib/esm`) and `build:types` (→ `lib/types`) both write under `lib/`, and
+// at whole-dir granularity a cache hit on one WIPED the other's output. See
+// `outputUnits`. Packages that don't define the script at all are filtered out
+// by the calling command and never reach the cache.
 //
 // Growth is bounded: at most MAX_KEYS_PER_PACKAGE entries per package,
 // oldest (by last store/use) evicted.
@@ -65,8 +71,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDependencyGraph, type DependencyGraph, type Workspace } from '@gjsify/workspace';
 
-/** Bump to invalidate every existing cache entry (schema/semantic changes). */
-export const BUILD_CACHE_LAYOUT_VERSION = 'v1';
+/**
+ * Bump to invalidate every existing cache entry (schema/semantic changes).
+ *
+ * v2: output ownership moved from the whole candidate dir to per-child
+ * "output units" (`lib/esm` vs `lib/types`) — a v1 manifest recording `lib`
+ * would restore over the sibling subtree a different script owns.
+ */
+export const BUILD_CACHE_LAYOUT_VERSION = 'v2';
 
 /** Conventional per-package build output directories, checked in this order. */
 export const OUTPUT_DIR_CANDIDATES = ['lib', 'dist', 'dist-templates'] as const;
@@ -252,50 +264,106 @@ export function hashOutputDirs(location: string, dirs: readonly string[]): strin
 }
 
 /**
- * Cheap per-dir change signature (existence + file list + sizes + mtimes).
+ * The cacheable output units of a package — the granularity at which a cache
+ * entry claims ownership.
+ *
+ * A candidate dir (`lib/`) is NOT automatically one unit, because the package
+ * convention splits it between two DIFFERENT scripts: `build:gjsify` writes
+ * `lib/esm/**` (bundler output) and `build:types` writes `lib/types/**` (the
+ * `gjsify tsc` declaration emit). At whole-`lib/` granularity both scripts
+ * claim the same unit, so a cache HIT on either one does its delete-then-copy
+ * over the WHOLE tree and silently destroys the other's output — measured:
+ * `build:gjsify` hitting the cache after `build:types` ran left the package
+ * with no `lib/types/` at all, and since the script never ran, nothing
+ * regenerated them. That ships a tarball whose `types` entry point does not
+ * exist (the failure `assertTypeDeclarationsShipped` exists to catch).
+ *
+ * So: when a candidate dir contains ONLY sub-directories, each child is its
+ * own unit (`lib/esm`, `lib/types`) and the two scripts stop overlapping. A
+ * candidate holding loose files degrades to the whole dir — a build writing
+ * directly into `lib/` genuinely owns it, and the coarse unit is still
+ * correct, just less precise.
+ *
+ * The safety rule is unchanged and in fact tightened: a unit the build never
+ * modifies is never recorded, so it can never be restored over (`@gjsify/tsc`'s
+ * committed, no-build `lib/lib*.d.ts` are loose files → one `lib` unit → never
+ * touched by any build → never captured).
+ */
+export function outputUnits(location: string): string[] {
+    const units: string[] = [];
+    for (const dir of OUTPUT_DIR_CANDIDATES) {
+        const abs = join(location, dir);
+        if (!existsSync(abs)) continue;
+        let entries: string[];
+        try {
+            entries = readdirSync(abs).filter((name) => name !== 'node_modules');
+        } catch {
+            continue;
+        }
+        // `lstatSync` rather than `withFileTypes` — the CLI also runs from the
+        // GJS bundle, where `@gjsify/fs` is the readdir implementation.
+        const allDirs = entries.every((name) => {
+            try {
+                return lstatSync(join(abs, name)).isDirectory();
+            } catch {
+                return false;
+            }
+        });
+        if (entries.length === 0 || !allDirs) {
+            units.push(dir);
+            continue;
+        }
+        for (const child of [...entries].sort()) units.push(`${dir}/${child}`);
+    }
+    return units;
+}
+
+/** Cheap change signature for ONE unit (file list + sizes + mtimes). */
+function signatureOf(location: string, unit: string): string {
+    const files: { rel: string; abs: string; link?: string }[] = [];
+    walkFiles(join(location, unit), unit, files);
+    const hash = createHash('sha256');
+    for (const f of files) {
+        let stamp = 'link';
+        if (f.link === undefined) {
+            try {
+                const st = lstatSync(f.abs);
+                stamp = `${st.size}:${st.mtimeMs}`;
+            } catch {
+                stamp = 'gone';
+            }
+        }
+        hash.update(`${f.rel} ${stamp}\n`);
+    }
+    return hash.digest('hex');
+}
+
+/**
+ * Cheap per-unit change signature (existence + file list + sizes + mtimes).
  * Taken BEFORE running the script and compared AFTER, to detect which output
- * dirs the build actually modified. Content hashing is deliberately avoided
+ * units the build actually modified. Content hashing is deliberately avoided
  * here — a build that rewrites identical bytes still bumps mtimes, and that
- * is exactly the "this dir belongs to the build" signal we want.
+ * is exactly the "this unit belongs to the build" signal we want.
+ *
+ * Units absent before the run are recorded as `null` so a freshly created
+ * `lib/esm` still reads as "modified".
  */
 export function snapshotOutputDirs(location: string): Record<string, string | null> {
     const snapshot: Record<string, string | null> = {};
-    for (const dir of OUTPUT_DIR_CANDIDATES) {
-        const abs = join(location, dir);
-        if (!existsSync(abs)) {
-            snapshot[dir] = null;
-            continue;
-        }
-        const files: { rel: string; abs: string; link?: string }[] = [];
-        walkFiles(abs, dir, files);
-        const hash = createHash('sha256');
-        for (const f of files) {
-            let stamp = 'link';
-            if (f.link === undefined) {
-                try {
-                    const st = lstatSync(f.abs);
-                    stamp = `${st.size}:${st.mtimeMs}`;
-                } catch {
-                    stamp = 'gone';
-                }
-            }
-            hash.update(`${f.rel} ${stamp}\n`);
-        }
-        snapshot[dir] = hash.digest('hex');
-    }
+    for (const dir of OUTPUT_DIR_CANDIDATES) snapshot[dir] = null;
+    for (const unit of outputUnits(location)) snapshot[unit] = signatureOf(location, unit);
     return snapshot;
 }
 
-/** Output dirs whose signature changed (or that newly appeared) since `before`. */
+/** Output units whose signature changed (or that newly appeared) since `before`. */
 export function modifiedOutputDirs(location: string, before: Record<string, string | null>): string[] {
-    const after = snapshotOutputDirs(location);
     const modified: string[] = [];
-    for (const dir of OUTPUT_DIR_CANDIDATES) {
-        // Newly created, deleted, or changed — all count as "the build owns
-        // this dir". A dir that is now ABSENT cannot be stored, though.
-        if (after[dir] !== before[dir] && after[dir] !== null) modified.push(dir);
+    for (const unit of outputUnits(location)) {
+        // Newly created or changed — both mean "the build owns this unit".
+        // A unit that is now ABSENT cannot be stored and is simply not listed.
+        if (signatureOf(location, unit) !== (before[unit] ?? null)) modified.push(unit);
     }
-    return modified;
+    return modified.sort();
 }
 
 export interface ComposeCacheKeyInput {

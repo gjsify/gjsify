@@ -17,6 +17,12 @@
     "rootDir": "src/ts",
     "declarationDir": "lib/types",
     "composite": true,
+    // `composite` derives the buildinfo path from outDir + the rootDir-relative
+    // config path. With outDir "lib" (1 level) and rootDir "src/ts" (2), that
+    // resolves OUTSIDE this package (packages/web/tsconfig.tsbuildinfo), where
+    // the `clear` script can never reach it and siblings collide on one file.
+    // A stale/foreign one makes the declaration emit a SILENT no-op.
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,

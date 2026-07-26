@@ -2,10 +2,10 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasPattern
 
 import Cairo from 'cairo';
-import Gdk from 'gi://Gdk?version=4.0';
 
 import { asCairoPattern, type CairoPattern } from './cairo-types.js';
 import { isPixbufImageSource, isCanvasImageSource } from './dom-types.js';
+import { getCanvasPixelBridge } from './pixel-bridge.js';
 
 /**
  * CanvasPattern wrapping a Cairo SurfacePattern.
@@ -52,7 +52,7 @@ export class CanvasPattern {
             const h = pixbuf.get_height();
             const surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, w, h);
             const ctx = new Cairo.Context(surface);
-            Gdk.cairo_set_source_pixbuf(ctx, pixbuf, 0, 0);
+            getCanvasPixelBridge().setSourceImage(ctx, pixbuf, 0, 0);
             ctx.paint();
             ctx.$dispose();
             return new CanvasPattern(surface, repetition);

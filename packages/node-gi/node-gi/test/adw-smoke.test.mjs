@@ -64,7 +64,18 @@ const skip = !haveDisplay
     ? `Adw-1 / Gtk-4.0 typelib unavailable: ${loadError.message}`
     : false;
 
-test('Adw.Application runs Adwaita chrome + CSS on Node', { skip }, () => {
+// The runtime running THIS file. Two INDEPENDENT properties are under test and
+// must stay apart: the Adwaita half is portable (a blocking
+// `Adw.Application.run()` is driven by GLib, not by the host loop), while the
+// libuv co-pump is Node-only by design — Bun and Deno drive GLib from the
+// portable `startMainContextPump`, so a blocking run() does not advance their
+// loop. Asserting both at once reports a missing Node-only extra as a missing
+// Adwaita capability.
+const RUNTIME =
+  typeof globalThis.Bun !== 'undefined' ? 'bun' : typeof globalThis.Deno !== 'undefined' ? 'deno' : 'node';
+const EXPECT_UV_COPUMP = RUNTIME === 'node';
+
+test('Adw.Application runs Adwaita chrome + CSS', { skip }, () => {
   const app = new Adw.Application({
     application_id: 'eu.jumplink.NodeGiAdw',
     flags: Gio.ApplicationFlags.NON_UNIQUE, // no session-bus uniqueness round-trip
@@ -126,10 +137,14 @@ test('Adw.Application runs Adwaita chrome + CSS on Node', { skip }, () => {
       // the uv co-pump source sits BELOW GDK_PRIORITY_REDRAW (loop.cc — GTK
       // rendering outranks Node timers, browser-like), so the 10 ms timer is
       // legitimately delayed past the window's first paint cycles.
+      //
+      // Off Node there is no co-pump to wait for, so waiting for the flag would
+      // burn the full cap on every run for a timer that by design never fires —
+      // quit as soon as the widget work is done instead.
       let waitedMs = 0;
       GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
         waitedMs += 50;
-        if (global.__adwUvTimerFired || waitedMs >= 2000) {
+        if (!EXPECT_UV_COPUMP || global.__adwUvTimerFired || waitedMs >= 2000) {
           app.quit();
           return GLib.SOURCE_REMOVE;
         }
@@ -148,10 +163,17 @@ test('Adw.Application runs Adwaita chrome + CSS on Node', { skip }, () => {
     assert.equal(status, 0, 'app.run([]) should exit 0');
     assert.equal(activated, true, 'the activate signal handler should have run');
     assert.equal(cssClassApplied, true, 'add_css_class should take effect (has_css_class true)');
+
+    // Node-only: the uv-nesting bridge co-pumps libuv during the blocking GLib
+    // loop. On bun/deno the portable pump is not active while run() blocks, so
+    // this timer legitimately does not fire — assert the DIFFERENCE rather than
+    // skipping, so a regression in either direction is caught.
     assert.equal(
       global.__adwUvTimerFired,
-      true,
-      'libuv must advance (setTimeout fires) during the blocking g_application_run',
+      EXPECT_UV_COPUMP,
+      EXPECT_UV_COPUMP
+        ? 'libuv must advance (setTimeout fires) during the blocking g_application_run'
+        : `${RUNTIME}: a blocking run() is not expected to advance the runtime loop (no uv co-pump)`,
     );
   } finally {
     delete global.__adwUvTimerFired;

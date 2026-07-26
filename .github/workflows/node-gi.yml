@@ -251,7 +251,7 @@ jobs:
       - name: Install toolchain + GTK4/Adwaita + Xvfb + dbus
         run: |
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz gjs \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip gjs \
             glib2-devel gobject-introspection-devel gobject-introspection \
             gtk4-devel libadwaita-devel adwaita-icon-theme gtksourceview5-devel \
             xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
@@ -266,6 +266,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      # Bun + Deno so the GUI proof below can run on all four runtimes. Both
+      # setup actions unpack a zip, so they MUST come after the dnf step above
+      # and that step must carry `unzip` — every other job in this file that
+      # uses them installs it for exactly this reason.
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -290,6 +304,36 @@ jobs:
       # inserts into a GtkSource.View gutter and rasterises; the Learn6502-port
       # groundwork), which need the Gtk-4.0 typelib the fast headless leg lacks) in
       # one node --test invocation so each reports even if one fails.
+      # The GUI capability is portable — the addon is Node-API and a blocking
+      # `Gtk.Application.run()` is driven by GLib, not by the host's loop — so
+      # it is gated on bun and deno as well, not just node.
+      #
+      # Bun and Deno need their OWN test runners: `bun file.mjs` refuses
+      # `node:test` outright ("Cannot use test outside of the test runner"), so
+      # a plain-script invocation proves nothing.
+      - name: GTK GUI proof on Bun + Deno (xvfb + dbus)
+        working-directory: packages/node-gi/node-gi
+        run: |
+          # Bun and Deno run SEQUENTIALLY, each under its own `xvfb-run -a`.
+          # They were briefly concurrent, which raced: two simultaneous
+          # `xvfb-run -a` both scan for a free display number and can settle on
+          # the same one, and the loser dies with "Failed to open display".
+          # There is nothing to win here anyway — both suites together run in
+          # well under a second, while this job is minutes of dnf + node-gyp.
+          # Sequential costs noise and cannot race.
+          run_rt() {
+            xvfb-run -a dbus-run-session -- \
+              env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+              "$@" > "/tmp/gui-$1.log" 2>&1
+          }
+          status=0
+          run_rt bun  test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs || status=1
+          run_rt deno test -A --node-modules-dir=auto test/gtk-smoke.test.mjs test/adw-smoke.test.mjs || status=1
+          for rt in bun deno; do
+            echo "::group::$rt"; cat "/tmp/gui-$rt.log"; echo "::endgroup::"
+          done
+          exit $status
+
       - name: GTK/Adw smoke test (xvfb + dbus)
         working-directory: packages/node-gi/node-gi
         run: |

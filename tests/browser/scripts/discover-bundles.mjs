@@ -7,16 +7,20 @@ const REPO_ROOT = join(__dirname, '..', '..', '..');
 
 // Directories to scan for test.browser.mjs bundles, in discovery order.
 // `node` pillar joins `web` + `dom`: 20+ Node-API packages declare
-// `browser:"polyfill"` and need browser-side validation. Per-package
-// `src/test.browser.mts` skeletons land in a later wave (R1) — until a
-// package has a `dist/test.browser.mjs`, this entry is a no-op.
+// `browser:"polyfill"` and need browser-side validation. `framework` is here
+// because `@gjsify/stories` + `@gjsify/storybook-core` are pure-TS all-runtime
+// packages that ship a `src/test.browser.mts` — while this list omitted the
+// pillar, their bundles were built by `build:test:browser` and then silently
+// never executed. Until a package has a `dist/test.browser.mjs`, an entry here
+// is a no-op. Keep in sync with `build-bundles.mjs`' PACKAGE_DIRS.
 const PACKAGE_DIRS = [
     { dir: join(REPO_ROOT, 'packages', 'web'),  urlBase: '/packages/web' },
     { dir: join(REPO_ROOT, 'packages', 'dom'),  urlBase: '/packages/dom' },
     { dir: join(REPO_ROOT, 'packages', 'node'), urlBase: '/packages/node' },
+    { dir: join(REPO_ROOT, 'packages', 'framework'), urlBase: '/packages/framework' },
 ];
 
-// Discovers all test.browser.mjs bundles under packages/{web,dom,node}/<pkg>/dist/
+// Discovers all test.browser.mjs bundles under packages/{web,dom,node,framework}/<pkg>/dist/
 export function discoverBundles() {
     const bundles = [];
 

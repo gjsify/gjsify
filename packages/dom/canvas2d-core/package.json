@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/canvas2d-core",
     "version": "0.22.0",
-    "description": "Cairo-backed Canvas 2D core (CanvasRenderingContext2D, Path2D, ImageData) — no GTK dependency",
+    "description": "Cairo-backed Canvas 2D core (CanvasRenderingContext2D, Path2D, ImageData) — headless root entry, no GTK dependency",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -10,6 +10,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./gdk": {
+            "types": "./lib/types/gdk-pixel-bridge.d.ts",
+            "default": "./lib/esm/gdk-pixel-bridge.js"
+        },
         "./globals": "./globals.mjs"
     },
     "files": [
@@ -17,6 +21,8 @@
         "globals.mjs"
     ],
     "sideEffects": [
+        "./src/gdk-pixel-bridge.ts",
+        "./lib/esm/gdk-pixel-bridge.js",
         "./globals.mjs"
     ],
     "scripts": {

@@ -2,13 +2,11 @@
 // Reference: refs/node-canvas — Canvas 2D ImageData API.
 // Original: see canvas-rendering-context-2d.ts pre-split.
 
-import type GLib from '@girs/glib-2.0';
 import Cairo from 'cairo';
-import Gdk from 'gi://Gdk?version=4.0';
-import GdkPixbuf from 'gi://GdkPixbuf';
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
 import { OurImageData } from '../image-data.js';
+import { getCanvasPixelBridge } from '../pixel-bridge.js';
 
 export interface PixelMethods {
     createImageData(sw: number, sh: number): ImageData;
@@ -41,8 +39,9 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
         this._ensureSurface();
         this._surface.flush();
 
-        // Use Gdk.pixbuf_get_from_surface to read pixels
-        const pixbuf = Gdk.pixbuf_get_from_surface(this._surface, sx, sy, sw, sh);
+        // Cairo exposes no pixel accessor in GJS — read through the platform
+        // pixel bridge (GDK's `pixbuf_get_from_surface` today).
+        const pixbuf = getCanvasPixelBridge().imageFromSurface(this._surface, sx, sy, sw, sh);
         if (!pixbuf) {
             return new OurImageData(sw, sh) as unknown as ImageData;
         }
@@ -85,7 +84,6 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
         const sw = dirtyWidth ?? imageData.width;
         const sh = dirtyHeight ?? imageData.height;
 
-        // Create a GdkPixbuf from the ImageData RGBA
         const srcData = imageData.data;
         const srcWidth = imageData.width;
 
@@ -102,20 +100,10 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
             }
         }
 
-        const pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
-            regionData as unknown as GLib.Bytes,
-            GdkPixbuf.Colorspace.RGB,
-            true, // has_alpha
-            8, // bits_per_sample
-            sw,
-            sh,
-            sw * 4, // rowstride
-        );
-
         // putImageData per spec ignores compositing — always uses SOURCE operator
         this._ctx.save();
         this._ctx.setOperator(Cairo.Operator.SOURCE);
-        Gdk.cairo_set_source_pixbuf(this._ctx, pixbuf, dx + sx, dy + sy);
+        getCanvasPixelBridge().setSourcePixels(this._ctx, regionData, sw, sh, dx + sx, dy + sy);
         this._ctx.rectangle(dx + sx, dy + sy, sw, sh);
         this._ctx.fill();
         this._ctx.restore();

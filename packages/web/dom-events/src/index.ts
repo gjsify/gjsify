@@ -384,79 +384,95 @@ export class EventTarget {
         ev[kCurrentTarget] = this;
         ev[kEventPhase] = Event.AT_TARGET;
 
-        const list = this._listeners.get(event.type);
-        if (list) {
-            const entries = [...list];
-            for (const entry of entries) {
-                if (entry.removed) continue;
-                if (ev[kImmediateStop]) break;
-                if (ev[kStop]) break;
+        // The per-listener `try` below already keeps a throwing listener from
+        // aborting dispatch, but the dispatch STATE must be restored even when
+        // something outside that `try` escapes (a `removeEventListener` for an
+        // `once` entry, a throwing `entry.listener` property accessor, …).
+        // Without this `finally` the event keeps `kDispatching = true` forever
+        // and every later `dispatchEvent(sameEvent)` throws
+        // `InvalidStateError: The event is already being dispatched.` — the
+        // event object is permanently wedged.
+        try {
+            const list = this._listeners.get(event.type);
+            if (list) {
+                const entries = [...list];
+                for (const entry of entries) {
+                    if (entry.removed) continue;
+                    if (ev[kImmediateStop]) break;
+                    if (ev[kStop]) break;
 
-                if (entry.once) {
-                    this.removeEventListener(event.type, entry.listener, { capture: entry.capture });
-                }
-
-                try {
-                    if (entry.passive) ev[kInPassiveListener] = true;
-                    if (typeof entry.listener === 'function') {
-                        entry.listener.call(this, event);
-                    } else if (typeof entry.listener.handleEvent === 'function') {
-                        entry.listener.handleEvent.call(entry.listener, event);
+                    if (entry.once) {
+                        this.removeEventListener(event.type, entry.listener, { capture: entry.capture });
                     }
-                } catch (err) {
-                    // "Report the exception" per WHATWG DOM § 2.7 step 8.6
-                    // and HTML § 8.2.5 "Report an exception":
-                    //
-                    //   1. If `globalThis.reportError` is wired (W3C
-                    //      standard since 2022, browsers + Deno + Node 18+),
-                    //      delegate so the runtime's `error` / `unhandled
-                    //      rejection` machinery + `ErrorEvent` dispatch run.
-                    //   2. Fallback console path MUST format the error
-                    //      defensively. `console.error(err)` on a bare
-                    //      Error rendered as `{}` under `@gjsify/console`'s
-                    //      `_formatArgs` (which JSON.stringify's non-string
-                    //      args; Error's enumerable property set is empty).
-                    //      The result was that listener exceptions in
-                    //      production GJS apps surfaced as a single `{}`
-                    //      line with NO message + NO stack — debugged for
-                    //      hours in pixel-rpg/map-editor's Pair-Editing
-                    //      hand-test before tracing back to here.
-                    //
-                    // The fallback prefers `err.stack` (includes name +
-                    // message + frames), then falls back to formatted
-                    // name+message, then String(err) for non-Error throws.
-                    const g = globalThis as { reportError?: (err: unknown) => void };
-                    if (typeof g.reportError === 'function') {
-                        try {
-                            g.reportError(err);
-                        } catch {
-                            /* reportError shouldn't throw — defensive */
+
+                    try {
+                        if (entry.passive) ev[kInPassiveListener] = true;
+                        if (typeof entry.listener === 'function') {
+                            entry.listener.call(this, event);
+                        } else if (typeof entry.listener.handleEvent === 'function') {
+                            entry.listener.handleEvent.call(entry.listener, event);
                         }
-                    } else if (err instanceof Error) {
-                        // `err.stack` shape differs by runtime:
-                        //   - V8 (Node, Chrome): "Error: foo\n  at …"
-                        //     (message embedded at the top)
-                        //   - SpiderMonkey (GJS, Firefox): "@file:line:col"
-                        //     (frames ONLY, message NOT at the top)
-                        // Always prepend name + message so the log line
-                        // carries the actionable description regardless
-                        // of runtime.
-                        const head = `${err.name}: ${err.message}`;
-                        console.error(err.stack ? `${head}\n${err.stack}` : head);
-                    } else {
-                        console.error(String(err));
+                    } catch (err) {
+                        reportListenerException(err);
+                    } finally {
+                        ev[kInPassiveListener] = false;
                     }
-                } finally {
-                    ev[kInPassiveListener] = false;
                 }
             }
+        } finally {
+            ev[kEventPhase] = Event.NONE;
+            ev[kCurrentTarget] = null;
+            ev[kDispatching] = false;
         }
 
-        ev[kEventPhase] = Event.NONE;
-        ev[kCurrentTarget] = null;
-        ev[kDispatching] = false;
-
         return !event.defaultPrevented;
+    }
+}
+
+/**
+ * "Report the exception" per WHATWG DOM § 2.7 step 8.6 and HTML § 8.2.5
+ * "Report an exception".
+ *
+ *   1. If `globalThis.reportError` is wired (W3C standard since 2022,
+ *      browsers + Deno + Node 18+), delegate so the runtime's `error` /
+ *      `unhandled rejection` machinery + `ErrorEvent` dispatch run.
+ *   2. Fallback console path MUST format the error defensively.
+ *      `console.error(err)` on a bare Error rendered as `{}` under
+ *      `@gjsify/console`'s `_formatArgs` (which JSON.stringify's non-string
+ *      args; Error's enumerable property set is empty). The result was that
+ *      listener exceptions in production GJS apps surfaced as a single `{}`
+ *      line with NO message + NO stack — debugged for hours in
+ *      pixel-rpg/map-editor's Pair-Editing hand-test before tracing back to
+ *      here. The fallback prefers `err.stack` (name + message + frames),
+ *      then formatted name+message, then `String(err)` for non-Error throws.
+ *
+ * REPORTING ITSELF MUST NEVER THROW. Everything it touches is attacker-shaped
+ * data: `err.name` / `err.message` / `err.stack` are getters on a
+ * caller-supplied object (a Proxy, a class with a computed `message`, a
+ * cross-realm error), `String(err)` runs a caller-supplied `toString`, and
+ * `console.error` can be monkey-patched by application code. An escape here
+ * re-opens the exact hole the `catch` closes: dispatch aborts, the remaining
+ * listeners are silently swallowed, and the exception surfaces out of
+ * `dispatchEvent()` — which the DOM spec forbids.
+ */
+function reportListenerException(err: unknown): void {
+    try {
+        const g = globalThis as { reportError?: (err: unknown) => void };
+        if (typeof g.reportError === 'function') {
+            g.reportError(err);
+        } else if (err instanceof Error) {
+            // `err.stack` shape differs by runtime:
+            //   - V8 (Node, Chrome): "Error: foo\n  at …" (message at the top)
+            //   - SpiderMonkey (GJS, Firefox): "@file:line:col" (frames ONLY)
+            // Always prepend name + message so the log line carries the
+            // actionable description regardless of runtime.
+            const head = `${err.name}: ${err.message}`;
+            console.error(err.stack ? `${head}\n${err.stack}` : head);
+        } else {
+            console.error(String(err));
+        }
+    } catch {
+        /* reporting is best-effort — never let it abort dispatch */
     }
 }
 
