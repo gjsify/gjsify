@@ -5,7 +5,7 @@
   "scripts": {
     "copy:assets": "node scripts/copy-showcase-assets.mjs",
     "generate:coverage": "node scripts/generate-coverage.mjs",
-    "build:deps": "gjsify workspace @gjsify/adwaita-web build:scss",
+    "build:deps": "gjsify workspace @gjsify/adwaita-web build -d",
     "start": "gjsify run build:deps && gjsify run generate:coverage && gjsify run copy:assets && astro dev",
     "build": "gjsify run build:deps && gjsify run generate:coverage && gjsify run copy:assets && astro build",
     "serve": "astro preview",
