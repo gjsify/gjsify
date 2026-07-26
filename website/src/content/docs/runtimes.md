@@ -16,6 +16,14 @@ Either way you write standard TypeScript against standard APIs.
 `gjsify build --app <target>` picks the runtime — the same source file builds
 for `gjs`, `node` and `browser`.
 
+:::note[Runtime is not the same as operating system]
+This page covers the **runtime** axis. Which **operating systems** each runtime
+actually works on is a separate question — a package can be fully cross-runtime and
+still be Linux-only, because the native bridge underneath it is. See
+[Platform Support](/gjsify/platform-support/) for the per-OS picture and the
+current gaps.
+:::
+
 ## Two bridge directions
 
 ### Node.js & Web APIs on GJS — `--app gjs`

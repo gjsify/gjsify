@@ -6,7 +6,7 @@ description: Run unchanged GJS / GObject-Introspection code on Node.js, Bun and 
 [`@gjsify/node-gi`](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi) is the **reverse** of the rest of GJSify: instead of bringing Node/Web APIs to GJS, it brings **GObject-Introspection to Node.js, Bun and Deno**. The same unchanged `gi://` source builds and runs natively under GJS *and* on every Node-API runtime — no code changes.
 
 :::note[Stability]
-node-gi is tested and released together with every GJSify release, and real consumers exercise it — `@gjsify/sqlite`'s own test suite runs on it. It is still a **younger part of the framework** than the GJS side, so a breaking change may occasionally ship in a minor release (always with a changelog note). Regular GJS apps are unaffected either way: no GJSify package depends on node-gi at runtime. Details in the [stability model](/gjsify/versioning/#package-tiers).
+node-gi is tested and released together with every GJSify release, and real consumers exercise it — CI runs ten `@gjsify/*` packages' own test suites on it (`sqlite`, `http2`, `zlib`, `tls`, `ws`, `dom-elements`, `node-globals`, `canvas2d-core`, `crypto`, `string_decoder`). It is still a **younger part of the framework** than the GJS side, so a breaking change may occasionally ship in a minor release (always with a changelog note). Regular GJS apps are unaffected either way: no GJSify package depends on node-gi at runtime. Details in the [stability model](/gjsify/versioning/#package-tiers).
 :::
 
 ## One source, every runtime

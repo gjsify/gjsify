@@ -112,6 +112,11 @@ prebuilds/
 
 The CLI auto-detects the host architecture and exports the matching directory.
 
+> **Linux only.** The directory name the CLI looks up is built as `linux-<arch>` with a
+> hardcoded `linux-` prefix, and the environment it exports uses `LD_LIBRARY_PATH`. A
+> `darwin-*` or `win32-*` directory will not be found even if you ship one, so a dlx package
+> that depends on a native prebuild is Linux-only in practice.
+
 ## Build-time gotchas
 
 ### `--outfile` must NOT point at a TypeScript source

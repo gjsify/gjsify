@@ -83,6 +83,7 @@ export default defineConfig({
                         { slug: 'overview' },
                         { slug: 'getting-started' },
                         { slug: 'runtimes' },
+                        { slug: 'platform-support' },
                         { slug: 'how-it-works' },
                         { slug: 'guides/install' },
                     ],

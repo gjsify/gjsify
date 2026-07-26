@@ -88,10 +88,23 @@ Your published package needs:
   `exec gjs -m '<bundle>'` for any `.mjs` target, so the shebang is
   optional — but recommended.)
 
-- Any native prebuilds (`.so` + `.typelib`) declared as runtime
-  dependencies of packages that contain a `gjsify.prebuilds` field.
-  `@gjsify/cli`'s install backend walks those automatically and sets
-  `LD_LIBRARY_PATH` / `GI_TYPELIB_PATH` for the bin launcher.
+- Any native prebuilds (`.so` / `.dylib` / `.dll` + `.typelib`) declared as
+  runtime dependencies of packages that contain a `gjsify.prebuilds` field.
+  `@gjsify/cli`'s install backend walks those automatically and bakes the
+  directories it finds into the bin launcher's environment.
+
+  The walk resolves `prebuilds/<os>-<arch>/` for the running host, accepting
+  both spellings in use — uname-style (`linux-x86_64`, what the Vala bridges
+  stage) and node-style (`darwin-arm64`, `win32-x64`, what `@gjsify/node-gi`
+  and `@gjsify/napi` stage) — preferring whatever the package declares in
+  `gjsify.platforms`. The launcher exports `GI_TYPELIB_PATH` plus the
+  library-search variable the host loader reads: `LD_LIBRARY_PATH` on Linux,
+  `DYLD_LIBRARY_PATH` on macOS, `PATH` on Windows.
+
+  So the *resolution* is cross-platform. Whether your app runs off Linux still
+  depends on whether its native dependencies actually publish an artifact for
+  that host — see [Platform Support](/gjsify/platform-support/) for the
+  per-package matrix.
 
 ## Reference implementations
 

@@ -11,6 +11,13 @@ GJSify ships the **Adwaita** design system to three targets: **native GJS**
 (real native mobile widgets). This gallery documents each Adwaita component
 **once, toolkit-neutrally**, then shows how to build it in all three.
 
+The Web and NativeScript ports share their *behaviour* — toast queueing, row
+selection and clamping, the alert-dialog response model, breakpoint conditions
+and the color-scheme observable all live in the headless, platform-free
+[`@gjsify/adwaita-core`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-core)
+package that both compose. Only the rendering differs, so the ports stay in
+step with Libadwaita and with each other.
+
 Every page follows the same shape:
 
 - a **neutral description** of what the component is and when to use it;

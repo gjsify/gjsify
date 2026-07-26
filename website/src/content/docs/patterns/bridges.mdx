@@ -49,7 +49,9 @@ Three things to know about why this works:
 
 2. **`installGlobals()` is OPTIONAL but the typical case.** It registers the bridge's `requestAnimationFrame`, `cancelAnimationFrame`, `performance.now()`, and (where applicable) `window` / `document` polyfills on `globalThis`. Excalibur, Three.js, p5.js, WebTorrent — anything written against the browser globals — relies on these. **You can skip `installGlobals()` for code you wrote that doesn't read globals.**
 
-3. **Each bridge owns its own `BridgeEnvironment`.** A separate `document`, `body`, and `window` instance per bridge. `bridge.environment.document` is NOT `globalThis.document` (the latter is the shared polyfill from `@gjsify/dom-elements/register`). Code that expects "one document" should call `installGlobals()`; code that wants isolated DOM trees (e.g. an iframe-style embedded app) keeps separate environments per bridge.
+3. **A bridge package's root import has no side effects.** `import { Canvas2DBridge } from '@gjsify/canvas2d'` / `import { IFrameBridge } from '@gjsify/iframe'` only gives you the named exports — the browser globals those packages own live behind a `/register` subpath (`@gjsify/canvas2d/register` → `globalThis.ImageData` / `Path2D`; `@gjsify/iframe/register` → `globalThis.HTMLIFrameElement` + `document.createElement('iframe')`). You don't normally import them: `gjsify build`'s default `--globals auto` detects the identifiers in the bundled output and injects the subpath. The bridges themselves don't depend on those globals, so they work with `--globals none` too. See [ADR 0012](https://github.com/gjsify/gjsify/blob/main/docs/adr/0012-framework-register-ownership.md).
+
+4. **Each bridge owns its own `BridgeEnvironment`.** A separate `document`, `body`, and `window` instance per bridge. `bridge.environment.document` is NOT `globalThis.document` (the latter is the shared polyfill from `@gjsify/dom-elements/register`). Code that expects "one document" should call `installGlobals()`; code that wants isolated DOM trees (e.g. an iframe-style embedded app) keeps separate environments per bridge.
 
 ## Worked example — Canvas2D
 

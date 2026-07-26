@@ -31,6 +31,10 @@ the TODO records the *what's left*.
 | [0008](0008-release-versioning-policy.md) | Release-train versioning policy for `@gjsify/*` | Accepted |
 | [0009](0009-native-adwaita-app-shell.md) | Native Adwaita app shell — extract the GTK application shell | Accepted |
 | [0010](0010-adwaita-web-style-isolation.md) | adwaita-web style isolation — light-DOM boundary reset + token contract | Accepted |
+| [0011](0011-napi-host-in-gjs.md) | N-API host in GJS (`@gjsify/napi`) | Accepted |
+| [0012](0012-framework-register-ownership.md) | Global registration ownership for GTK/WebKit-backed DOM classes | Accepted |
+| [0013](0013-sab-native-platform-scope.md) | `@gjsify/sab-native` stays address-keyed; Linux ships, macOS is the one reachable port, Windows is blocked | Accepted |
+| [0014](0014-utils-core-subpath-and-platform-entry-routing.md) | Cross-runtime reachability — `@gjsify/utils/core` subpath, `polyfill`-slot platform-entry routing, machine-checked invariant | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
