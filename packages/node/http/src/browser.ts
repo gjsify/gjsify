@@ -489,8 +489,19 @@ export function createServer(..._args: unknown[]): Server {
     return notSupported('createServer');
 }
 
-export function validateHeaderName(_name: string): void {}
-export function validateHeaderValue(_name: string, _value: string): void {}
+// Real validation, not no-ops. `validators.ts` is deliberately bridge-free
+// (pure regex over strings, no platform imports — see its header), so the
+// browser entry can and should use the SAME implementation as the root entry.
+// Empty bodies here meant a browser build silently accepted header names and
+// values that Node rejects with `ERR_INVALID_HTTP_TOKEN` /
+// `ERR_HTTP_INVALID_HEADER_VALUE` — a divergence that surfaces as a wire-level
+// bug on the server side, far from its cause.
+// Imported (not just re-exported) so the `httpDefault` object below can
+// reference them — a bare `export … from` never binds names locally.
+import { validateHeaderName, validateHeaderValue } from './validators.js';
+
+export { validateHeaderName, validateHeaderValue };
+
 export function setMaxIdleHTTPParsers(_max: number): void {}
 
 const httpDefault = {
