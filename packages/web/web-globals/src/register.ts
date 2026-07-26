@@ -69,13 +69,18 @@ if (typeof g.PerformanceObserver !== 'function') {
     g.PerformanceObserver = PerformanceObserver;
 }
 
-// Web Audio API via GStreamer
-import '@gjsify/webaudio/register';
-
 // Gamepad API via libmanette
 import '@gjsify/gamepad/register';
 
-// NOTE: @gjsify/webrtc/register is NOT included here because it requires
-// native GStreamer typelibs (GjsifyWebrtc) that are only available when
-// running via `gjsify run` (which sets LD_LIBRARY_PATH/GI_TYPELIB_PATH).
-// WebRTC globals are auto-injected by `gjsify build --globals auto` instead.
+// NOTE: neither @gjsify/webrtc/register NOR @gjsify/webaudio/register is
+// included here. Both need native GStreamer typelibs that only exist when the
+// bundle runs via `gjsify run` (which sets LD_LIBRARY_PATH/GI_TYPELIB_PATH),
+// and `@gjsify/webaudio` additionally calls `Gst.init(null)` at module load.
+// `--globals auto` injects both sets from `GJS_GLOBALS_MAP`, which points
+// `AudioContext` / `Audio` / `HTMLAudioElement` at `@gjsify/webaudio/register`
+// directly — so nothing is lost by not pulling them in from here.
+//
+// The webaudio import used to be here, which quietly contradicted this
+// package's `node: "polyfill"` slot: `--globals auto` injects this catch-all,
+// so every bundle that got it hard-required GStreamer at load. webrtc was
+// already excluded for exactly this reason; webaudio was missed.

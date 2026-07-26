@@ -62,7 +62,6 @@
         "@gjsify/perf_hooks": "workspace:^",
         "@gjsify/url": "workspace:^",
         "@gjsify/web-streams": "workspace:^",
-        "@gjsify/webaudio": "workspace:^",
         "@gjsify/webcrypto": "workspace:^"
     },
     "devDependencies": {
