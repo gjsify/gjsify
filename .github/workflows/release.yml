@@ -797,6 +797,15 @@ jobs:
       # (gjsify tsc -> lib/types). packages/napi/napi is not a workspace, so it is
       # driven with `gjsify run` from inside the package dir rather than through
       # `gjsify workspace`/`foreach`.
+      # The workspace `gjsify` shim prefers the committed GJS bundle, and under
+      # GJS the ONLY bundler engine is @gjsify/rolldown-native — whose JS facade
+      # `lib/` is a build output, not tracked. `gjsify install` does not produce
+      # it, so without this the next step dies with "no usable bundler engine
+      # under GJS". This is the same bootstrap the root `build:infra` runs; it
+      # is mtime-skipped, so it costs nothing when the facade is already there.
+      - name: Bootstrap the native bundler facade
+        run: node scripts/bootstrap-native-facades.mjs
+
       - name: Build @gjsify/napi lib/ (esm + types)
         working-directory: packages/napi/napi
         run: PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH" gjsify run build
