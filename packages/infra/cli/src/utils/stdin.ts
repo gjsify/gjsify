@@ -41,14 +41,11 @@ interface GioUnixLike {
 const CHUNK = 64 * 1024;
 
 /** Read fd 0 to EOF under GJS via GioUnix (no `@gjsify/fs` fd support needed). */
-function readStdinTextGjs(): string {
-    const gi = (globalThis as unknown as { imports?: { gi?: { GioUnix?: GioUnixLike } } }).imports?.gi;
+function readStdinTextGioUnix(): string {
+    const gi = giNamespace() as { GioUnix?: GioUnixLike } | undefined;
     const GioUnix = gi?.GioUnix;
-    if (!GioUnix) {
-        throw new Error(
-            'gjsify: cannot read stdin under GJS — the GioUnix typelib is unavailable. ' +
-                'Install gobject-introspection data for GLib/Gio (gjs ships it) or pass the input as an argument instead.',
-        );
+    if (typeof GioUnix?.InputStream !== 'function') {
+        throw new Error('GioUnix.InputStream is unavailable');
     }
     const stream = new GioUnix.InputStream({ fd: 0, close_fd: false });
     const chunks: Uint8Array[] = [];
@@ -70,44 +67,69 @@ function readStdinTextGjs(): string {
     return new TextDecoder().decode(buf);
 }
 
+/** Minimal structural view of the `Gio` bits the second GJS reader uses. */
+interface GioLike {
+    File: { new_for_path(path: string): { load_contents(cancellable: null): [boolean, Uint8Array] } };
+}
+
+/**
+ * Read stdin under GJS through Gio ALONE, without GioUnix.
+ *
+ * `/dev/stdin` is fd 0 by another name, and `Gio` is present in every bundle
+ * that can reach this code at all. This exists because the GioUnix route has
+ * been observed to be unavailable on a host where it should have worked, and a
+ * second independent mechanism is cheaper than another round of guessing.
+ */
+function readStdinTextGioFile(): string {
+    const gi = giNamespace() as { Gio?: GioLike } | undefined;
+    const Gio = gi?.Gio;
+    if (!Gio?.File) throw new Error('Gio.File is unavailable');
+    const [ok, contents] = Gio.File.new_for_path('/dev/stdin').load_contents(null);
+    if (!ok) throw new Error('Gio.File.load_contents("/dev/stdin") returned false');
+    return new TextDecoder().decode(contents);
+}
+
+/** The GJS `imports.gi` namespace, or `undefined` when not running on GJS. */
+function giNamespace(): Record<string, unknown> | undefined {
+    try {
+        return (globalThis as unknown as { imports?: { gi?: Record<string, unknown> } }).imports?.gi;
+    } catch {
+        return undefined;
+    }
+}
+
 /**
  * Read the whole of stdin as UTF-8. Works on Node and under the GJS bundle.
  *
- * Branches on the CAPABILITY (is `GioUnix.InputStream` usable?) rather than on
- * the RUNTIME (`isGjs()`). The runtime probe was wrong in CI: the GJS leg took
- * the Node branch and died with `ENOENT … read '0'`, while the identical
- * committed bundle piped correctly on a developer machine — so the probe's
- * answer is not stable across hosts, and a wrong answer here is fatal rather
- * than merely slower.
+ * Branches on WHICH RUNTIME CAN WORK, not on which capability is present. The
+ * distinction matters because the two branches are not interchangeable:
+ * `readFileSync(0)` is correct on Node/Bun/Deno and can NEVER work under GJS —
+ * `@gjsify/fs` has no numeric-fd path, so the `0` is coerced to a relative
+ * PATH and the call opens `./0`. A GJS run that reaches that line is already
+ * lost, so using it as GJS's fallback only converts a clear failure into
+ * `ENOENT … read '0'`, which is what a capability probe returning a false
+ * negative did.
  *
- * Asking about the capability cannot be wrong-footed that way, and it degrades
- * in the one direction that has a working fallback: a host where GioUnix is
- * absent or fails to load (Homebrew's macOS gjs cannot even dlopen the library
- * its own typelibs reference) falls back to `readFileSync(0)`, which is right
- * on every real Node/Bun/Deno host and merely fails the same way it did before
- * on a GJS host that has no fd support either.
+ * So: the presence of `imports.gi` decides. On GJS both GJS readers are tried
+ * and a failure THROWS with what was attempted; the Node reader is never
+ * reached. Off GJS there is no gi namespace and `readFileSync(0)` is the only
+ * and correct answer.
  */
 export function readStdinText(): string {
-    if (hasGioUnixInputStream()) {
+    if (!giNamespace()) return readFileSync(0, 'utf-8');
+
+    const attempts: string[] = [];
+    for (const read of [readStdinTextGioUnix, readStdinTextGioFile]) {
         try {
-            return readStdinTextGjs();
+            return read();
         } catch (err) {
-            // A GioUnix that is present but unusable must not be fatal when a
-            // fallback exists — but do not hide it either.
-            console.warn(`[gjsify] GioUnix stdin read failed (${(err as Error).message}); falling back to fd 0.`);
+            attempts.push(`${read.name}: ${(err as Error).message}`);
         }
     }
-    return readFileSync(0, 'utf-8');
-}
-
-/** Is `GioUnix.InputStream` present AND constructible on this host? */
-function hasGioUnixInputStream(): boolean {
-    try {
-        const gi = (globalThis as unknown as { imports?: { gi?: { GioUnix?: GioUnixLike } } }).imports?.gi;
-        return typeof gi?.GioUnix?.InputStream === 'function';
-    } catch {
-        return false;
-    }
+    throw new Error(
+        `gjsify: cannot read stdin under GJS. Tried ${attempts.join('; ')}. ` +
+            'Pass the input as an argument instead (e.g. --base <ref> rather than --changed-from-stdin).',
+    );
 }
 
 /**
