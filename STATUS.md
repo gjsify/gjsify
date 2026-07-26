@@ -929,24 +929,6 @@ Root-cause fix surfaced by this suite: **`@gjsify/buffer` constructed `TextEncod
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-### ⚠ BLOCKER before next release — first-publish + Trusted Publisher for `@gjsify/napi`
-
-`@gjsify/napi` does not exist on npm (`registry.npmjs.org/@gjsify/napi` → 404), yet AGENTS.md documents the user-facing flow as "`import Database from 'better-sqlite3'` just works after `gjsify install @gjsify/napi`". `release.yml` now carries the publish leg (`napi-prebuild-linux` + `napi-prebuild-darwin-arm64` → `publish-napi`), but npm Trusted Publishing requires the package record to exist BEFORE CI can OIDC-publish it, so the FIRST publish is a manual maintainer action. Note `gjsify trust` / `gjsify onboard` cannot help here — `trust.ts`'s `discoverNodeGiPublishables()` only sweeps `packages/node-gi/*`, so the Trusted Publisher must be configured in the web UI until that sweep is generalized.
-
-```bash
-gjsify install --immutable
-cd packages/napi/napi
-gjsify run build:prebuilds                 # libgjsifynapi.so + GjsifyNapi-1.0.{gir,typelib}
-gjsify run build                           # lib/{esm,types} are build artifacts, NOT committed
-gjsify pack --dry-run --json               # expect lib/esm, lib/types, prebuilds/linux-x86_64/*
-gjsify whoami                              # refresh via `npm login` if the token is dead
-gjsify publish --access public --otp <code>
-# Trusted Publisher: https://www.npmjs.com/package/@gjsify/napi/access
-#   Repository gjsify/gjsify | Workflow release.yml | Environment empty | Permission npm publish
-```
-
-No macOS machine is needed — the first manual tarball ships `linux-x86_64` only; `darwin-arm64` joins automatically from the first CI release onward. Until this is done `publish-napi` reds on the first release (deliberately loud); it runs AFTER `publish`, so it cannot block the ~100-package workspace publish. Then strike this entry (precedent: the resolved `@gjsify/adwaita-core` / `@gjsify/oxfmt-native` / `@gjsify/nativescript-vite` blockers).
-
 ### Cross-runtime reachability follow-ups (ADR 0014)
 
 - **`@gjsify/web-globals` declares `node: "polyfill"` but re-exports `@gjsify/webaudio`** (`node: "none"`, hard-bound: `gi://Gst?version=1.0` + a top-level `Gst.init(null)`) from `src/index.ts` and `src/register.ts`. A `--app node` bundle therefore hard-requires the external `@gjsify/node-gi` at module load. Fix by downgrading the slot to `partial` or adding a `src/node.ts` platform entry. Reported on every `audit-runtimes --check` run.
