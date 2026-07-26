@@ -251,7 +251,7 @@ jobs:
       - name: Install toolchain + GTK4/Adwaita + Xvfb + dbus
         run: |
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz gjs \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip gjs \
             glib2-devel gobject-introspection-devel gobject-introspection \
             gtk4-devel libadwaita-devel adwaita-icon-theme gtksourceview5-devel \
             xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
@@ -267,9 +267,10 @@ jobs:
         with:
           node-version: '22'
 
-      # Bun + Deno so the GUI proof below can run on all four runtimes. The
-      # setup actions work inside this fedora:44 container — same pattern the
-      # build-test / cross-runtime / arm64 / consumer-suites jobs already use.
+      # Bun + Deno so the GUI proof below can run on all four runtimes. Both
+      # setup actions unpack a zip, so they MUST come after the dnf step above
+      # and that step must carry `unzip` — every other job in this file that
+      # uses them installs it for exactly this reason.
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
