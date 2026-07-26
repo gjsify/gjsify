@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-18T12:40:29.881Z",
+  "generatedAt": "2026-07-26T18:09:19.462Z",
   "runtimes": [
     "node",
     "bun",
@@ -7,192 +7,85 @@
   ],
   "results": [
     {
-      "name": "@gjsify/sqlite",
-      "dir": "packages/node/sqlite",
+      "name": "@gjsify/adwaita-app",
+      "dir": "packages/framework/adwaita-app",
       "build": {
         "ok": true
       },
       "runtimes": {
         "node": {
           "status": "pass",
-          "total": 105,
+          "total": 28,
           "failed": 0,
-          "passed": 105
+          "passed": 28
         },
         "bun": {
           "status": "pass",
-          "total": 105,
+          "total": 28,
           "failed": 0,
-          "passed": 105
+          "passed": 28
         },
         "deno": {
           "status": "pass",
-          "total": 105,
+          "total": 28,
           "failed": 0,
-          "passed": 105
-        }
-      },
-      "entry": "committed test.node-gi.mts"
-    },
-    {
-      "name": "@gjsify/crypto",
-      "dir": "packages/node/crypto",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "partial",
-          "total": 570,
-          "failed": 44,
-          "passed": 526,
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "should hash empty string with sha256 — (0 , Me.normalizeEncoding) is not a function",
-            "should hash \"hello\" with sha256 — (0 , Me.normalizeEncoding) is not a function",
-            "should hash \"hello\" with md5 — (0 , Me.normalizeEncoding) is not a function",
-            "should hash \"hello\" with sha1 — (0 , Me.normalizeEncoding) is not a function"
-          ]
-        },
-        "bun": {
-          "status": "partial",
-          "total": 570,
-          "failed": 44,
-          "passed": 526,
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "should hash empty string with sha256 — (0, Me.normalizeEncoding) is not a function. (In '(0, Me.normalizeEncoding)(t)', '(0, Me.normalizeEncoding)' is undefined)",
-            "should hash \"hello\" with sha256 — (0, Me.normalizeEncoding) is not a function. (In '(0, Me.normalizeEncoding)(t)', '(0, Me.normalizeEncoding)' is undefined)",
-            "should hash \"hello\" with md5 — (0, Me.normalizeEncoding) is not a function. (In '(0, Me.normalizeEncoding)(t)', '(0, Me.normalizeEncoding)' is undefined)",
-            "should hash \"hello\" with sha1 — (0, Me.normalizeEncoding) is not a function. (In '(0, Me.normalizeEncoding)(t)', '(0, Me.normalizeEncoding)' is undefined)"
-          ]
-        },
-        "deno": {
-          "status": "partial",
-          "total": 570,
-          "failed": 44,
-          "passed": 526,
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "should hash empty string with sha256 — (0 , Me.normalizeEncoding) is not a function",
-            "should hash \"hello\" with sha256 — (0 , Me.normalizeEncoding) is not a function",
-            "should hash \"hello\" with md5 — (0 , Me.normalizeEncoding) is not a function",
-            "should hash \"hello\" with sha1 — (0 , Me.normalizeEncoding) is not a function"
-          ]
+          "passed": 28
         }
       },
       "entry": "generated from test.mts"
     },
     {
-      "name": "@gjsify/os",
-      "dir": "packages/node/os",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "partial",
-          "total": 41,
-          "failed": 30,
-          "passed": 11,
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "type() should return a non-empty string — Cannot read properties of undefined (reading 'toString')",
-            "type() should return Linux on Linux — Cannot read properties of undefined (reading 'toString')",
-            "release() should return a non-empty string — Cannot read properties of undefined (reading 'toString')",
-            "platform() should return a non-empty string — Cannot read properties of undefined (reading 'toString')"
-          ]
-        },
-        "bun": {
-          "status": "partial",
-          "total": 41,
-          "failed": 30,
-          "passed": 11,
-          "reason": "needs-gjs-imports-runtime",
-          "samples": [
-            "type() should return a non-empty string — undefined is not an object (evaluating 'imports.byteArray.toString')",
-            "type() should return Linux on Linux — undefined is not an object (evaluating 'imports.byteArray.toString')",
-            "release() should return a non-empty string — undefined is not an object (evaluating 'imports.byteArray.toString')",
-            "platform() should return a non-empty string — undefined is not an object (evaluating 'imports.byteArray.toString')"
-          ]
-        },
-        "deno": {
-          "status": "partial",
-          "total": 41,
-          "failed": 30,
-          "passed": 11,
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "type() should return a non-empty string — Cannot read properties of undefined (reading 'toString')",
-            "type() should return Linux on Linux — Cannot read properties of undefined (reading 'toString')",
-            "release() should return a non-empty string — Cannot read properties of undefined (reading 'toString')",
-            "platform() should return a non-empty string — Cannot read properties of undefined (reading 'toString')"
-          ]
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/module",
-      "dir": "packages/node/module",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "fail",
-          "reason": "needs-gjs-imports-runtime",
-          "samples": [
-            "import\"@gjsify/node-gi/globals\";import e from\"node:assert\";const t=createRequire(import.meta.url);let n;function load$1(){return n===void 0&&(n=t(`@gjsify/node-gi/gi`).requireGi(`Gio`,`2.0`)),n}__name",
-            "TypeError: Cannot read properties of undefined (reading 'filename_from_uri')"
-          ]
-        },
-        "bun": {
-          "status": "fail",
-          "reason": "needs-gjs-imports-runtime",
-          "samples": [
-            "TypeError: undefined is not an object (evaluating 'o.filename_from_uri')"
-          ]
-        },
-        "deno": {
-          "status": "fail",
-          "reason": "needs-gjs-imports-runtime",
-          "samples": [
-            "error: Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'filename_from_uri')"
-          ]
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/zlib",
-      "dir": "packages/node/zlib",
+      "name": "@gjsify/canvas2d",
+      "dir": "packages/framework/canvas2d",
       "build": {
         "ok": true
       },
       "runtimes": {
         "node": {
           "status": "pass",
-          "total": 53376,
+          "total": 191,
           "failed": 0,
-          "passed": 53376
+          "passed": 191
         },
         "bun": {
           "status": "pass",
-          "total": 53376,
+          "total": 191,
           "failed": 0,
-          "passed": 53376
+          "passed": 191
         },
         "deno": {
-          "status": "partial",
-          "total": 53375,
-          "failed": 1,
-          "passed": 53374,
-          "reason": "other",
-          "samples": [
-            "gunzip async should decompress concatenated gzip members — failed to write whole buffer",
-            "1 of 53375 tests failed"
-          ]
+          "status": "pass",
+          "total": 191,
+          "failed": 0,
+          "passed": 191
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/canvas2d-core",
+      "dir": "packages/dom/canvas2d-core",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 599,
+          "failed": 0,
+          "passed": 599
+        },
+        "bun": {
+          "status": "pass",
+          "total": 599,
+          "failed": 0,
+          "passed": 599
+        },
+        "deno": {
+          "status": "pass",
+          "total": 599,
+          "failed": 0,
+          "passed": 599
         }
       },
       "entry": "generated from test.mts"
@@ -205,34 +98,204 @@
       },
       "runtimes": {
         "node": {
-          "status": "fail",
-          "reason": "marshalling-gap",
-          "samples": [
-            "should run a shell command and return output — Cannot read properties of undefined (reading 'fromGBytes')",
-            "should return Buffer without encoding option — Cannot read properties of undefined (reading 'fromGBytes')",
-            "should respect cwd option — Cannot read properties of undefined (reading 'fromGBytes')",
-            "should respect env option — Cannot read properties of undefined (reading 'fromGBytes')"
-          ]
+          "status": "pass",
+          "total": 225,
+          "failed": 0,
+          "passed": 225
         },
         "bun": {
-          "status": "fail",
-          "reason": "needs-gjs-imports-runtime",
+          "status": "partial",
+          "total": 37,
+          "failed": 9,
+          "passed": 28,
+          "reason": "mainloop-drain",
           "samples": [
-            "should run a shell command and return output — undefined is not an object (evaluating 'imports.byteArray.fromGBytes')",
-            "should return Buffer without encoding option — undefined is not an object (evaluating 'imports.byteArray.fromGBytes')",
-            "should respect cwd option — undefined is not an object (evaluating 'imports.byteArray.fromGBytes')",
-            "should respect env option — undefined is not an object (evaluating 'imports.byteArray.fromGBytes')"
+            "Suite timed out: Timeout: \"describe: child_process.exec\" exceeded 30000ms — ↳ 30.00s",
+            "should call callback with stdout — Timeout: \"should call callback with stdout\" exceeded 30000ms",
+            "Suite timed out: Timeout: \"describe: child_process.execFile\" exceeded 30000ms — ↳ 30.00s",
+            "should call callback with stdout — Timeout: \"should call callback with stdout\" exceeded 30000ms"
           ]
         },
         "deno": {
-          "status": "fail",
-          "reason": "marshalling-gap",
+          "status": "partial",
+          "total": 37,
+          "failed": 9,
+          "passed": 28,
+          "reason": "mainloop-drain",
           "samples": [
-            "should run a shell command and return output — Cannot read properties of undefined (reading 'fromGBytes')",
-            "should return Buffer without encoding option — Cannot read properties of undefined (reading 'fromGBytes')",
-            "should respect cwd option — Cannot read properties of undefined (reading 'fromGBytes')",
-            "should respect env option — Cannot read properties of undefined (reading 'fromGBytes')"
+            "Suite timed out: Timeout: \"describe: child_process.exec\" exceeded 30000ms — ↳ 30.00s",
+            "should call callback with stdout — Timeout: \"should call callback with stdout\" exceeded 30000ms",
+            "Suite timed out: Timeout: \"describe: child_process.execFile\" exceeded 30000ms — ↳ 30.00s",
+            "should call callback with stdout — Timeout: \"should call callback with stdout\" exceeded 30000ms"
           ]
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/crypto",
+      "dir": "packages/node/crypto",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 626,
+          "failed": 0,
+          "passed": 626
+        },
+        "bun": {
+          "status": "pass",
+          "total": 626,
+          "failed": 0,
+          "passed": 626
+        },
+        "deno": {
+          "status": "pass",
+          "total": 626,
+          "failed": 0,
+          "passed": 626
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/devtools",
+      "dir": "packages/framework/devtools",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 39,
+          "failed": 0,
+          "passed": 39
+        },
+        "bun": {
+          "status": "pass",
+          "total": 39,
+          "failed": 0,
+          "passed": 39
+        },
+        "deno": {
+          "status": "pass",
+          "total": 39,
+          "failed": 0,
+          "passed": 39
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/devtools-browser",
+      "dir": "packages/framework/devtools-browser",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 40,
+          "failed": 0,
+          "passed": 40
+        },
+        "bun": {
+          "status": "pass",
+          "total": 40,
+          "failed": 0,
+          "passed": 40
+        },
+        "deno": {
+          "status": "pass",
+          "total": 40,
+          "failed": 0,
+          "passed": 40
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/devtools-cdp",
+      "dir": "packages/framework/devtools-cdp",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 86,
+          "failed": 0,
+          "passed": 86
+        },
+        "bun": {
+          "status": "pass",
+          "total": 86,
+          "failed": 0,
+          "passed": 86
+        },
+        "deno": {
+          "status": "pass",
+          "total": 86,
+          "failed": 0,
+          "passed": 86
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/devtools-mcp",
+      "dir": "packages/framework/devtools-mcp",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 7,
+          "failed": 0,
+          "passed": 7
+        },
+        "bun": {
+          "status": "pass",
+          "total": 7,
+          "failed": 0,
+          "passed": 7
+        },
+        "deno": {
+          "status": "pass",
+          "total": 7,
+          "failed": 0,
+          "passed": 7
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/devtools-protocol",
+      "dir": "packages/framework/devtools-protocol",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 24,
+          "failed": 0,
+          "passed": 24
+        },
+        "bun": {
+          "status": "pass",
+          "total": 24,
+          "failed": 0,
+          "passed": 24
+        },
+        "deno": {
+          "status": "pass",
+          "total": 24,
+          "failed": 0,
+          "passed": 24
         }
       },
       "entry": "generated from test.mts"
@@ -245,24 +308,17 @@
       },
       "runtimes": {
         "node": {
-          "status": "partial",
-          "total": 129,
-          "failed": 6,
-          "passed": 123,
-          "reason": "other",
-          "samples": [
-            "should receive UDP message — Timeout: \"should receive UDP message\" exceeded 5000ms",
-            "should report correct rinfo family — Timeout: \"should report correct rinfo family\" exceeded 5000ms",
-            "should receive UDP message — Timeout: \"should receive UDP message\" exceeded 5000ms",
-            "should report correct rinfo family — Timeout: \"should report correct rinfo family\" exceeded 5000ms"
-          ]
+          "status": "pass",
+          "total": 146,
+          "failed": 0,
+          "passed": 146
         },
         "bun": {
           "status": "partial",
           "total": 129,
           "failed": 6,
           "passed": 123,
-          "reason": "other",
+          "reason": "mainloop-drain",
           "samples": [
             "should receive UDP message — Timeout: \"should receive UDP message\" exceeded 5000ms",
             "should report correct rinfo family — Timeout: \"should report correct rinfo family\" exceeded 5000ms",
@@ -287,23 +343,16 @@
       },
       "runtimes": {
         "node": {
-          "status": "partial",
-          "total": 85,
-          "failed": 6,
-          "passed": 79,
-          "reason": "mainloop-drain",
-          "samples": [
-            "should resolve localhost — Timeout: \"should resolve localhost\" exceeded 5000ms",
-            "should return all addresses with all: true — Timeout: \"should return all addresses with all: true\" exceeded 5000ms",
-            "should error on non-existent hostname — Timeout: \"should error on non-existent hostname\" exceeded 5000ms",
-            "should resolve localhost to IPv4 addresses — Timeout: \"should resolve localhost to IPv4 addresses\" exceeded 5000ms"
-          ]
+          "status": "pass",
+          "total": 118,
+          "failed": 0,
+          "passed": 118
         },
         "bun": {
           "status": "partial",
           "total": 85,
-          "failed": 7,
-          "passed": 78,
+          "failed": 6,
+          "passed": 79,
           "reason": "mainloop-drain",
           "samples": [
             "should resolve localhost — Timeout: \"should resolve localhost\" exceeded 5000ms",
@@ -324,6 +373,62 @@
             "should error on non-existent hostname — Timeout: \"should error on non-existent hostname\" exceeded 5000ms",
             "should resolve localhost to IPv4 addresses — Timeout: \"should resolve localhost to IPv4 addresses\" exceeded 5000ms"
           ]
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/dom-elements",
+      "dir": "packages/dom/dom-elements",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 441,
+          "failed": 0,
+          "passed": 441
+        },
+        "bun": {
+          "status": "pass",
+          "total": 441,
+          "failed": 0,
+          "passed": 441
+        },
+        "deno": {
+          "status": "pass",
+          "total": 441,
+          "failed": 0,
+          "passed": 441
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/event-bridge",
+      "dir": "packages/framework/event-bridge",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 0,
+          "failed": 0,
+          "passed": 0
+        },
+        "bun": {
+          "status": "pass",
+          "total": 0,
+          "failed": 0,
+          "passed": 0
+        },
+        "deno": {
+          "status": "pass",
+          "total": 0,
+          "failed": 0,
+          "passed": 0
         }
       },
       "entry": "generated from test.mts"
@@ -337,68 +442,24 @@
       "runtimes": {
         "node": {
           "status": "fail",
-          "reason": "other",
+          "reason": "runtime-typeerror-or-unimpl",
           "samples": [
-            "should stat current directory — Timeout: \"should stat current directory\" exceeded 5000ms",
-            "should return error for non-existent path — Timeout: \"should return error for non-existent path\" exceeded 5000ms",
-            "should lstat current directory — Timeout: \"should lstat current directory\" exceeded 5000ms",
-            "should create and remove a directory — Timeout: \"should create and remove a directory\" exceeded 5000ms"
+            "should be executed without error — Failed to create file “/home/jumplink/Projekte/werkstatt/gjsify/gjsify/packages/node/fs/dist/test/watch.js.VXVDT3”: No such file or directory"
           ]
         },
         "bun": {
-          "status": "fail",
-          "reason": "other",
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
           "samples": [
-            "should stat current directory — Timeout: \"should stat current directory\" exceeded 5000ms",
-            "should return error for non-existent path — Timeout: \"should return error for non-existent path\" exceeded 5000ms",
-            "should lstat current directory — Timeout: \"should lstat current directory\" exceeded 5000ms",
-            "should create and remove a directory — Timeout: \"should create and remove a directory\" exceeded 5000ms"
+            "stat"
           ]
         },
         "deno": {
-          "status": "fail",
-          "reason": "other",
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
           "samples": [
-            "should stat current directory — Timeout: \"should stat current directory\" exceeded 5000ms",
-            "should return error for non-existent path — Timeout: \"should return error for non-existent path\" exceeded 5000ms",
-            "should lstat current directory — Timeout: \"should lstat current directory\" exceeded 5000ms",
-            "should create and remove a directory — Timeout: \"should create and remove a directory\" exceeded 5000ms"
+            "stat"
           ]
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/node-globals",
-      "dir": "packages/node/globals",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 221,
-          "failed": 0,
-          "passed": 221
-        },
-        "bun": {
-          "status": "partial",
-          "total": 221,
-          "failed": 3,
-          "passed": 218,
-          "reason": "mainloop-drain",
-          "samples": [
-            "should clone Error with cause — Expected values to match using ===",
-            "should clone Blob preserving type and size — Expected values to match using ===",
-            "should clone File preserving name and lastModified — Expected values to match using ===",
-            "[Node.js 24.3.0] 3 of 221 tests failed"
-          ]
-        },
-        "deno": {
-          "status": "pass",
-          "total": 221,
-          "failed": 0,
-          "passed": 221
         }
       },
       "entry": "generated from test.mts"
@@ -412,23 +473,38 @@
       "runtimes": {
         "node": {
           "status": "fail",
-          "reason": "missing-typelib",
+          "reason": "other",
           "samples": [
-            "Error: Failed to require GjsifyHttpSoupBridge 1.0: Typelib file for namespace 'GjsifyHttpSoupBridge', version '1.0' not found"
+            "✔ should not throw for valid header names  (0.3ms)",
+            "✔ should throw TypeError for empty string  (0.1ms)",
+            "✔ should throw for invalid characters  (0.1ms)",
+            "✔ should throw for header name with spaces  (0.1ms)"
           ]
         },
         "bun": {
-          "status": "fail",
-          "reason": "missing-typelib",
+          "status": "partial",
+          "total": 874,
+          "failed": 29,
+          "passed": 845,
+          "reason": "mainloop-drain",
           "samples": [
-            "error: Failed to require GjsifyHttpSoupBridge 1.0: Typelib file for namespace 'GjsifyHttpSoupBridge', version '1.0' not found"
+            "should create a server and handle a GET request — Timeout: \"should create a server and handle a GET request\" exceeded 5000ms",
+            "should receive request headers — Timeout: \"should receive request headers\" exceeded 5000ms",
+            "should handle POST with body — Timeout: \"should handle POST with body\" exceeded 5000ms",
+            "should handle 404 status code — Timeout: \"should handle 404 status code\" exceeded 5000ms"
           ]
         },
         "deno": {
-          "status": "fail",
-          "reason": "missing-typelib",
+          "status": "partial",
+          "total": 874,
+          "failed": 29,
+          "passed": 845,
+          "reason": "mainloop-drain",
           "samples": [
-            "error: Uncaught (in promise) Error: Failed to require GjsifyHttpSoupBridge 1.0: Typelib file for namespace 'GjsifyHttpSoupBridge', version '1.0' not found"
+            "should create a server and handle a GET request — Timeout: \"should create a server and handle a GET request\" exceeded 5000ms",
+            "should receive request headers — Timeout: \"should receive request headers\" exceeded 5000ms",
+            "should handle POST with body — Timeout: \"should handle POST with body\" exceeded 5000ms",
+            "should handle 404 status code — Timeout: \"should handle 404 status code\" exceeded 5000ms"
           ]
         }
       },
@@ -463,6 +539,66 @@
       "entry": "generated from test.mts"
     },
     {
+      "name": "@gjsify/iframe",
+      "dir": "packages/framework/iframe",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 275,
+          "failed": 0,
+          "passed": 275
+        },
+        "bun": {
+          "status": "pass",
+          "total": 275,
+          "failed": 0,
+          "passed": 275
+        },
+        "deno": {
+          "status": "pass",
+          "total": 275,
+          "failed": 0,
+          "passed": 275
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/module",
+      "dir": "packages/node/module",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "fail",
+          "reason": "needs-gjs-imports-runtime",
+          "samples": [
+            "import\"@gjsify/node-gi/globals\";import e from\"node:assert\";const t=createRequire(import.meta.url);let n;function load$1(){return n===void 0&&(n=t(`@gjsify/node-gi/gi`).requireGi(`Gio`,`2.0`)),n}__name",
+            "TypeError: Cannot read properties of undefined (reading 'filename_from_uri')"
+          ]
+        },
+        "bun": {
+          "status": "fail",
+          "reason": "runtime-typeerror-or-unimpl",
+          "samples": [
+            "TypeError: undefined is not an object (evaluating 'o.filename_from_uri')"
+          ]
+        },
+        "deno": {
+          "status": "fail",
+          "reason": "runtime-typeerror-or-unimpl",
+          "samples": [
+            "error: Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'filename_from_uri')"
+          ]
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
       "name": "@gjsify/net",
       "dir": "packages/node/net",
       "build": {
@@ -471,17 +607,19 @@
       "runtimes": {
         "node": {
           "status": "fail",
-          "reason": "other",
+          "reason": "mainloop-drain",
           "samples": [
-            "should listen and connect — Timeout: \"should listen and connect\" exceeded 5000ms",
-            "should echo data back — Timeout: \"should echo data back\" exceeded 5000ms",
-            "should handle multiple sequential connections — Timeout: \"should handle multiple sequential connections\" exceeded 5000ms",
-            "should set remoteAddress and remotePort on connection — Timeout: \"should set remoteAddress and remotePort on connection\" exceeded 5000ms"
+            "should emit end event when server closes — Timeout: \"should emit end event when server closes\" exceeded 5000ms",
+            "should handle server close while client connected — Expected values to match using ===",
+            "should emit connect and ready events — Timeout: \"should emit connect and ready events\" exceeded 5000ms"
           ]
         },
         "bun": {
-          "status": "fail",
-          "reason": "other",
+          "status": "partial",
+          "total": 284,
+          "failed": 43,
+          "passed": 241,
+          "reason": "mainloop-drain",
           "samples": [
             "should listen and connect — Timeout: \"should listen and connect\" exceeded 5000ms",
             "should echo data back — Timeout: \"should echo data back\" exceeded 5000ms",
@@ -490,14 +628,138 @@
           ]
         },
         "deno": {
-          "status": "fail",
-          "reason": "other",
+          "status": "partial",
+          "total": 284,
+          "failed": 43,
+          "passed": 241,
+          "reason": "mainloop-drain",
           "samples": [
             "should listen and connect — Timeout: \"should listen and connect\" exceeded 5000ms",
             "should echo data back — Timeout: \"should echo data back\" exceeded 5000ms",
             "should handle multiple sequential connections — Timeout: \"should handle multiple sequential connections\" exceeded 5000ms",
             "should set remoteAddress and remotePort on connection — Timeout: \"should set remoteAddress and remotePort on connection\" exceeded 5000ms"
           ]
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/node-globals",
+      "dir": "packages/node/globals",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "timeout",
+          "reason": "no-exit-after-pass",
+          "total": 221,
+          "failed": 0,
+          "passed": 221,
+          "samples": [
+            "✔ should clone undefined  (0.1ms)",
+            "Error",
+            "✔ should clone empty Error  (0.2ms)",
+            "✔ should clone Error with message  (0.1ms)"
+          ]
+        },
+        "bun": {
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
+          "samples": [
+            "✔ should be a function  (0.1ms)"
+          ]
+        },
+        "deno": {
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
+          "samples": [
+            "✔ should be a function  (0.1ms)"
+          ]
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/os",
+      "dir": "packages/node/os",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 276,
+          "failed": 0,
+          "passed": 276
+        },
+        "bun": {
+          "status": "pass",
+          "total": 276,
+          "failed": 0,
+          "passed": 276
+        },
+        "deno": {
+          "status": "pass",
+          "total": 276,
+          "failed": 0,
+          "passed": 276
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/sqlite",
+      "dir": "packages/node/sqlite",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 105,
+          "failed": 0,
+          "passed": 105
+        },
+        "bun": {
+          "status": "pass",
+          "total": 105,
+          "failed": 0,
+          "passed": 105
+        },
+        "deno": {
+          "status": "pass",
+          "total": 105,
+          "failed": 0,
+          "passed": 105
+        }
+      },
+      "entry": "committed test.node-gi.mts"
+    },
+    {
+      "name": "@gjsify/storybook",
+      "dir": "packages/framework/storybook",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 9,
+          "failed": 0,
+          "passed": 9
+        },
+        "bun": {
+          "status": "pass",
+          "total": 9,
+          "failed": 0,
+          "passed": 9
+        },
+        "deno": {
+          "status": "pass",
+          "total": 9,
+          "failed": 0,
+          "passed": 9
         }
       },
       "entry": "generated from test.mts"
@@ -526,6 +788,34 @@
           "total": 158,
           "failed": 0,
           "passed": 158
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/tsc",
+      "dir": "packages/infra/tsc",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "pass",
+          "total": 0,
+          "failed": 0,
+          "passed": 0
+        },
+        "bun": {
+          "status": "pass",
+          "total": 0,
+          "failed": 0,
+          "passed": 0
+        },
+        "deno": {
+          "status": "pass",
+          "total": 0,
+          "failed": 0,
+          "passed": 0
         }
       },
       "entry": "generated from test.mts"
@@ -579,10 +869,10 @@
           "passed": 56,
           "reason": "other",
           "samples": [
-            "Int32Array — The value of \"sourceStart\" is out of range. It must be >= 0 && <= 17. Received 2445",
-            "Float64Array — The value of \"sourceStart\" is out of range. It must be >= 0 && <= 29. Received 2485",
-            "Buffer — The value of \"sourceStart\" is out of range. It must be >= 0 && <= 8. Received 2549",
-            "TypedArray host-object round-trip — The value of \"sourceStart\" is out of range. It must be >= 0 && <= 17. Received 2645"
+            "Int32Array — The value of \"sourceStart\" is out of range. It must be >= 0 && <= 17. Received 2525",
+            "Float64Array — The value of \"sourceStart\" is out of range. It must be >= 0 && <= 29. Received 2565",
+            "Buffer — The value of \"sourceStart\" is out of range. It must be >= 0 && <= 8. Received 2629",
+            "TypedArray host-object round-trip — The value of \"sourceStart\" is out of range. It must be >= 0 && <= 17. Received 2725"
           ]
         },
         "bun": {
@@ -601,6 +891,81 @@
       "entry": "generated from test.mts"
     },
     {
+      "name": "@gjsify/webaudio",
+      "dir": "packages/web/webaudio",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
+          "samples": [
+            "should decode a WAV file — Unable to decode audio data",
+            "should produce non-zero PCM data — Unable to decode audio data",
+            "should call success callback — Unable to decode audio data",
+            "should fire onended after playback completes — Unable to decode audio data"
+          ]
+        },
+        "bun": {
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
+          "samples": [
+            "should decode a WAV file — Unable to decode audio data",
+            "should produce non-zero PCM data — Unable to decode audio data",
+            "should call success callback — Unable to decode audio data",
+            "returns false on GJS/Node so the real decode path runs — Expected values to match using ==="
+          ]
+        },
+        "deno": {
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
+          "samples": [
+            "should decode a WAV file — Unable to decode audio data",
+            "should produce non-zero PCM data — Unable to decode audio data",
+            "should call success callback — Unable to decode audio data",
+            "returns false on GJS/Node so the real decode path runs — Expected values to match using ==="
+          ]
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
+      "name": "@gjsify/webrtc",
+      "dir": "packages/web/webrtc",
+      "build": {
+        "ok": true
+      },
+      "runtimes": {
+        "node": {
+          "status": "fail",
+          "reason": "other",
+          "samples": [
+            "Deferred APIs throw NotSupported",
+            "✔ addTrack throws  (1.0ms)"
+          ]
+        },
+        "bun": {
+          "status": "fail",
+          "reason": "other",
+          "samples": [
+            "Deferred APIs throw NotSupported",
+            "✔ addTrack throws  (0.9ms)"
+          ]
+        },
+        "deno": {
+          "status": "fail",
+          "reason": "mainloop-drain",
+          "samples": [
+            "getStats returns a Map or rejects gracefully — Timeout: \"getStats returns a Map or rejects gracefully\" exceeded 5000ms",
+            "exchanges string and binary payloads over two local peers — Timeout: \"exchanges string and binary payloads over two local peers\" exceeded 5000ms",
+            "REGRESSION — Timeout: \"REGRESSION (2026-06-01): send() throws OperationError when data exceeds SCTP max-message-size\" exceeded 5000ms"
+          ]
+        }
+      },
+      "entry": "generated from test.mts"
+    },
+    {
       "name": "@gjsify/worker_threads",
       "dir": "packages/node/worker_threads",
       "build": {
@@ -608,49 +973,24 @@
       },
       "runtimes": {
         "node": {
-          "status": "partial",
-          "total": 82,
-          "failed": 100,
-          "passed": 0,
-          "reason": "assertion-mismatch",
-          "samples": [
-            "should create port1 and port2 as MessagePort instances — Constructor cannot be called",
-            "should create distinct ports — Constructor cannot be called",
-            "should deliver string messages from port1 to port2 — Constructor cannot be called",
-            "should deliver messages from port2 to port1 — Constructor cannot be called"
-          ],
-          "passedClamped": true,
-          "failedOverTotal": true
+          "status": "pass",
+          "total": 282,
+          "failed": 0,
+          "passed": 282
         },
         "bun": {
-          "status": "partial",
-          "total": 82,
-          "failed": 100,
-          "passed": 0,
-          "reason": "assertion-mismatch",
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
           "samples": [
-            "should create port1 and port2 as MessagePort instances — Use `new MessagePort(...)` instead of `MessagePort(...)`",
-            "should create distinct ports — Use `new MessagePort(...)` instead of `MessagePort(...)`",
-            "should deliver string messages from port1 to port2 — Use `new MessagePort(...)` instead of `MessagePort(...)`",
-            "should deliver messages from port2 to port1 — Use `new MessagePort(...)` instead of `MessagePort(...)`"
-          ],
-          "passedClamped": true,
-          "failedOverTotal": true
+            "✔ should export workerData as null or undefined  (0.1ms)"
+          ]
         },
         "deno": {
-          "status": "partial",
-          "total": 82,
-          "failed": 100,
-          "passed": 0,
-          "reason": "assertion-mismatch",
+          "status": "ran-no-summary",
+          "reason": "no-unit-summary",
           "samples": [
-            "should create port1 and port2 as MessagePort instances — Constructor for class MessagePort cannot be invoked",
-            "should create distinct ports — Constructor for class MessagePort cannot be invoked",
-            "should deliver string messages from port1 to port2 — Constructor for class MessagePort cannot be invoked",
-            "should deliver messages from port2 to port1 — Constructor for class MessagePort cannot be invoked"
-          ],
-          "passedClamped": true,
-          "failedOverTotal": true
+            "✔ should export workerData as null or undefined  (0.1ms)"
+          ]
         }
       },
       "entry": "generated from test.mts"
@@ -684,575 +1024,33 @@
       "entry": "generated from test.mts"
     },
     {
-      "name": "@gjsify/webaudio",
-      "dir": "packages/web/webaudio",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "ran-no-summary",
-          "reason": "no-unit-summary",
-          "samples": [
-            "should start in suspended state — expected an array for the array argument",
-            "should transition to running on resume — expected an array for the array argument",
-            "should transition to suspended on suspend — expected an array for the array argument",
-            "should transition to closed on close — expected an array for the array argument"
-          ]
-        },
-        "bun": {
-          "status": "ran-no-summary",
-          "reason": "no-unit-summary",
-          "samples": [
-            "should start in suspended state — expected an array for the array argument",
-            "should transition to running on resume — expected an array for the array argument",
-            "should transition to suspended on suspend — expected an array for the array argument",
-            "should transition to closed on close — expected an array for the array argument"
-          ]
-        },
-        "deno": {
-          "status": "ran-no-summary",
-          "reason": "no-unit-summary",
-          "samples": [
-            "should start in suspended state — expected an array for the array argument",
-            "should transition to running on resume — expected an array for the array argument",
-            "should transition to suspended on suspend — expected an array for the array argument",
-            "should transition to closed on close — expected an array for the array argument"
-          ]
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/webrtc",
-      "dir": "packages/web/webrtc",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "fail",
-          "reason": "missing-typelib",
-          "samples": [
-            "Error: Failed to require GjsifyWebrtc 0.1: Typelib file for namespace 'GjsifyWebrtc', version '0.1' not found"
-          ]
-        },
-        "bun": {
-          "status": "fail",
-          "reason": "missing-typelib",
-          "samples": [
-            "error: Failed to require GjsifyWebrtc 0.1: Typelib file for namespace 'GjsifyWebrtc', version '0.1' not found"
-          ]
-        },
-        "deno": {
-          "status": "fail",
-          "reason": "missing-typelib",
-          "samples": [
-            "error: Uncaught (in promise) Error: Failed to require GjsifyWebrtc 0.1: Typelib file for namespace 'GjsifyWebrtc', version '0.1' not found"
-          ]
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/canvas2d-core",
-      "dir": "packages/dom/canvas2d-core",
+      "name": "@gjsify/zlib",
+      "dir": "packages/node/zlib",
       "build": {
         "ok": true
       },
       "runtimes": {
         "node": {
           "status": "pass",
-          "total": 578,
+          "total": 53376,
           "failed": 0,
-          "passed": 578
+          "passed": 53376
         },
         "bun": {
           "status": "pass",
-          "total": 578,
+          "total": 53376,
           "failed": 0,
-          "passed": 578
+          "passed": 53376
         },
         "deno": {
-          "status": "pass",
-          "total": 578,
-          "failed": 0,
-          "passed": 578
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/dom-elements",
-      "dir": "packages/dom/dom-elements",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 441,
-          "failed": 0,
-          "passed": 441
-        },
-        "bun": {
-          "status": "pass",
-          "total": 441,
-          "failed": 0,
-          "passed": 441
-        },
-        "deno": {
-          "status": "pass",
-          "total": 441,
-          "failed": 0,
-          "passed": 441
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/adwaita-app",
-      "dir": "packages/framework/adwaita-app",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 28,
-          "failed": 0,
-          "passed": 28
-        },
-        "bun": {
-          "status": "pass",
-          "total": 28,
-          "failed": 0,
-          "passed": 28
-        },
-        "deno": {
-          "status": "pass",
-          "total": 28,
-          "failed": 0,
-          "passed": 28
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/canvas2d",
-      "dir": "packages/framework/canvas2d",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 191,
-          "failed": 0,
-          "passed": 191
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/devtools",
-      "dir": "packages/framework/devtools",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 20,
-          "failed": 0,
-          "passed": 20
-        },
-        "bun": {
-          "status": "pass",
-          "total": 20,
-          "failed": 0,
-          "passed": 20
-        },
-        "deno": {
-          "status": "pass",
-          "total": 20,
-          "failed": 0,
-          "passed": 20
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/devtools-browser",
-      "dir": "packages/framework/devtools-browser",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 40,
-          "failed": 0,
-          "passed": 40
-        },
-        "bun": {
-          "status": "pass",
-          "total": 40,
-          "failed": 0,
-          "passed": 40
-        },
-        "deno": {
-          "status": "pass",
-          "total": 40,
-          "failed": 0,
-          "passed": 40
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/devtools-mcp",
-      "dir": "packages/framework/devtools-mcp",
-      "build": {
-        "ok": false,
-        "reason": "build-error",
-        "samples": [
-          "[gjsify] --app node: could not analyse the bundle for GJS ambient globals (Build failed with 6 errors:",
-          "│                      ╰───────── Module not found.",
-          "│                                   ╰────── Module not found.",
-          "│                                   ╰────── Module not found."
-        ]
-      },
-      "runtimes": {},
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/event-bridge",
-      "dir": "packages/framework/event-bridge",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 0,
-          "failed": 0,
-          "passed": 0
-        },
-        "bun": {
-          "status": "pass",
-          "total": 0,
-          "failed": 0,
-          "passed": 0
-        },
-        "deno": {
-          "status": "pass",
-          "total": 0,
-          "failed": 0,
-          "passed": 0
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/iframe",
-      "dir": "packages/framework/iframe",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
           "status": "partial",
-          "total": 276,
+          "total": 53375,
           "failed": 1,
-          "passed": 275,
-          "reason": "assertion-mismatch",
+          "passed": 53374,
+          "reason": "other",
           "samples": [
-            "Symbol.toStringTag identifies the types — Expected values to match using ===",
-            "[Node.js 24.15.0] 1 of 276 tests failed"
+            "gunzip async should decompress concatenated gzip members — failed to write whole buffer"
           ]
-        },
-        "bun": {
-          "status": "pass",
-          "total": 277,
-          "failed": 0,
-          "passed": 277
-        },
-        "deno": {
-          "status": "partial",
-          "total": 273,
-          "failed": 3,
-          "passed": 270,
-          "reason": "assertion-mismatch",
-          "samples": [
-            "message posted on port1 arrives on port2 — Timeout: \"message posted on port1 arrives on port2\" exceeded 5000ms",
-            "bidirectional traffic — port2 → port1 also works — Timeout: \"bidirectional traffic — port2 → port1 also works\" exceeded 5000ms",
-            "messages sent before addEventListener queue and replay on listen — Timeout: \"messages sent before addEventListener queue and replay on listen\" exceeded 5000ms",
-            "3 of 273 tests failed"
-          ]
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/storybook",
-      "dir": "packages/framework/storybook",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 9,
-          "failed": 0,
-          "passed": 9
-        },
-        "bun": {
-          "status": "pass",
-          "total": 9,
-          "failed": 0,
-          "passed": 9
-        },
-        "deno": {
-          "status": "pass",
-          "total": 9,
-          "failed": 0,
-          "passed": 9
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/path",
-      "dir": "packages/node/path",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 432,
-          "failed": 0,
-          "passed": 432
-        },
-        "bun": {
-          "status": "pass",
-          "total": 432,
-          "failed": 0,
-          "passed": 432
-        },
-        "deno": {
-          "status": "pass",
-          "total": 432,
-          "failed": 0,
-          "passed": 432
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/buffer",
-      "dir": "packages/node/buffer",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 317,
-          "failed": 0,
-          "passed": 317
-        },
-        "bun": {
-          "status": "pass",
-          "total": 317,
-          "failed": 0,
-          "passed": 317
-        },
-        "deno": {
-          "status": "pass",
-          "total": 317,
-          "failed": 0,
-          "passed": 317
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/querystring",
-      "dir": "packages/node/querystring",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 471,
-          "failed": 0,
-          "passed": 471
-        },
-        "bun": {
-          "status": "pass",
-          "total": 471,
-          "failed": 0,
-          "passed": 471
-        },
-        "deno": {
-          "status": "pass",
-          "total": 471,
-          "failed": 0,
-          "passed": 471
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/string_decoder",
-      "dir": "packages/node/string_decoder",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "partial",
-          "total": 0,
-          "failed": 74,
-          "passed": 0,
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "should create a utf8 decoder by default — (0 , k.normalizeEncoding) is not a function",
-            "should accept encoding parameter — (0 , k.checkEncoding) is not a function",
-            "should accept latin1 encoding — (0 , k.checkEncoding) is not a function",
-            "should accept hex encoding — (0 , k.checkEncoding) is not a function"
-          ],
-          "passedClamped": true,
-          "failedOverTotal": true
-        },
-        "bun": {
-          "status": "partial",
-          "total": 0,
-          "failed": 74,
-          "passed": 0,
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "should create a utf8 decoder by default — (0, k.normalizeEncoding) is not a function. (In '(0, k.normalizeEncoding)(e)', '(0, k.normalizeEncoding)' is undefined)",
-            "should accept encoding parameter — (0, k.checkEncoding) is not a function. (In '(0, k.checkEncoding)(e)', '(0, k.checkEncoding)' is undefined)",
-            "should accept latin1 encoding — (0, k.checkEncoding) is not a function. (In '(0, k.checkEncoding)(e)', '(0, k.checkEncoding)' is undefined)",
-            "should accept hex encoding — (0, k.checkEncoding) is not a function. (In '(0, k.checkEncoding)(e)', '(0, k.checkEncoding)' is undefined)"
-          ],
-          "passedClamped": true,
-          "failedOverTotal": true
-        },
-        "deno": {
-          "status": "partial",
-          "total": 0,
-          "failed": 74,
-          "passed": 0,
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "should create a utf8 decoder by default — (0 , k.normalizeEncoding) is not a function",
-            "should accept encoding parameter — (0 , k.checkEncoding) is not a function",
-            "should accept latin1 encoding — (0 , k.checkEncoding) is not a function",
-            "should accept hex encoding — (0 , k.checkEncoding) is not a function"
-          ],
-          "passedClamped": true,
-          "failedOverTotal": true
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/events",
-      "dir": "packages/node/events",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 266,
-          "failed": 0,
-          "passed": 266
-        },
-        "bun": {
-          "status": "pass",
-          "total": 266,
-          "failed": 0,
-          "passed": 266
-        },
-        "deno": {
-          "status": "pass",
-          "total": 266,
-          "failed": 0,
-          "passed": 266
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/stream",
-      "dir": "packages/node/stream",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "fail",
-          "reason": "assertion-mismatch",
-          "samples": [
-            "should emit data event on push — Timeout: \"should emit data event on push\" exceeded 5000ms",
-            "should emit end when all data consumed after push(null) — Timeout: \"should emit end when all data consumed after push(null)\" exceeded 5000ms",
-            "should emit multiple data events — Timeout: \"should emit multiple data events\" exceeded 5000ms",
-            "should emit close on destroy — Timeout: \"should emit close on destroy\" exceeded 5000ms"
-          ]
-        },
-        "bun": {
-          "status": "fail",
-          "reason": "assertion-mismatch",
-          "samples": [
-            "should emit data event on push — Timeout: \"should emit data event on push\" exceeded 5000ms",
-            "should emit end when all data consumed after push(null) — Timeout: \"should emit end when all data consumed after push(null)\" exceeded 5000ms",
-            "should emit multiple data events — Timeout: \"should emit multiple data events\" exceeded 5000ms",
-            "should emit close on destroy — Timeout: \"should emit close on destroy\" exceeded 5000ms"
-          ]
-        },
-        "deno": {
-          "status": "fail",
-          "reason": "assertion-mismatch",
-          "samples": [
-            "should emit data event on push — Timeout: \"should emit data event on push\" exceeded 5000ms",
-            "should emit end when all data consumed after push(null) — Timeout: \"should emit end when all data consumed after push(null)\" exceeded 5000ms",
-            "should emit multiple data events — Timeout: \"should emit multiple data events\" exceeded 5000ms",
-            "should emit close on destroy — Timeout: \"should emit close on destroy\" exceeded 5000ms"
-          ]
-        }
-      },
-      "entry": "generated from test.mts"
-    },
-    {
-      "name": "@gjsify/assert",
-      "dir": "packages/node/assert",
-      "build": {
-        "ok": true
-      },
-      "runtimes": {
-        "node": {
-          "status": "pass",
-          "total": 117,
-          "failed": 0,
-          "passed": 117
-        },
-        "bun": {
-          "status": "pass",
-          "total": 117,
-          "failed": 0,
-          "passed": 117
-        },
-        "deno": {
-          "status": "pass",
-          "total": 117,
-          "failed": 0,
-          "passed": 117
         }
       },
       "entry": "generated from test.mts"
@@ -1261,60 +1059,52 @@
   "groups": {
     "PASS": [
       "@gjsify/adwaita-app",
-      "@gjsify/assert",
-      "@gjsify/buffer",
       "@gjsify/canvas2d",
       "@gjsify/canvas2d-core",
+      "@gjsify/crypto",
       "@gjsify/devtools",
       "@gjsify/devtools-browser",
+      "@gjsify/devtools-cdp",
+      "@gjsify/devtools-mcp",
+      "@gjsify/devtools-protocol",
       "@gjsify/dom-elements",
       "@gjsify/event-bridge",
-      "@gjsify/events",
       "@gjsify/http2",
-      "@gjsify/path",
-      "@gjsify/querystring",
+      "@gjsify/iframe",
+      "@gjsify/os",
       "@gjsify/sqlite",
       "@gjsify/storybook",
       "@gjsify/tls",
+      "@gjsify/tsc",
       "@gjsify/ws"
     ],
+    "mainloop-drain": [
+      "@gjsify/child_process",
+      "@gjsify/dgram",
+      "@gjsify/dns",
+      "@gjsify/net"
+    ],
     "runtime-typeerror-or-unimpl": [
-      "@gjsify/crypto",
-      "@gjsify/os",
-      "@gjsify/string_decoder"
+      "@gjsify/fs"
+    ],
+    "other": [
+      "@gjsify/http",
+      "@gjsify/v8",
+      "@gjsify/webrtc",
+      "@gjsify/zlib"
     ],
     "needs-gjs-imports-runtime": [
       "@gjsify/module"
     ],
-    "other": [
-      "@gjsify/zlib",
-      "@gjsify/dgram",
-      "@gjsify/fs",
-      "@gjsify/net",
-      "@gjsify/v8"
-    ],
-    "marshalling-gap": [
-      "@gjsify/child_process"
-    ],
-    "mainloop-drain": [
-      "@gjsify/dns",
+    "no-exit-after-pass": [
       "@gjsify/node-globals"
     ],
-    "missing-typelib": [
-      "@gjsify/http",
-      "@gjsify/webrtc"
-    ],
     "assertion-mismatch": [
-      "@gjsify/tty",
-      "@gjsify/worker_threads",
-      "@gjsify/iframe",
-      "@gjsify/stream"
+      "@gjsify/tty"
     ],
     "no-unit-summary": [
-      "@gjsify/webaudio"
-    ],
-    "build-error": [
-      "@gjsify/devtools-mcp"
+      "@gjsify/webaudio",
+      "@gjsify/worker_threads"
     ]
   }
 }
