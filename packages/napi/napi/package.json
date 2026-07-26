@@ -21,6 +21,7 @@
         "src/napi-headers"
     ],
     "gjsify": {
+        "platforms": ["linux-x86_64", "darwin-arm64"],
         "prebuilds": "prebuilds",
         "runtimes": {
             "gjs": "polyfill",
@@ -76,8 +77,9 @@
         "@girs/gobject-2.0": "^4.1.0"
     },
     "devDependencies": {
-        "@gjsify/cli": "workspace:^",
-        "@gjsify/unit": "workspace:^",
+        "@girs/gjs": "^4.1.0",
+        "@gjsify/cli": "^0.22.0",
+        "@gjsify/unit": "^0.22.0",
         "@ts-for-gir/cli": "^4.1.0",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"

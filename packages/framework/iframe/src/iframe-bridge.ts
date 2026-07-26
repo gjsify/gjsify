@@ -5,7 +5,7 @@ import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject';
 import WebKit from 'gi://WebKit?version=6.0';
 
-import { notifyElementResize } from '@gjsify/dom-elements';
+import { Document, notifyElementResize } from '@gjsify/dom-elements';
 
 import {
     buildClickElementExpression,
@@ -404,9 +404,25 @@ export const IFrameBridge = GObject.registerClass(
         }
 
         /**
-         * Set `globalThis.HTMLIFrameElement` to the gjsify implementation.
+         * Install the iframe DOM surface imperatively: sets
+         * `globalThis.HTMLIFrameElement` to the gjsify implementation AND registers
+         * the `'iframe'` element factory so `document.createElement('iframe')`
+         * returns it.
+         *
+         * This is the same pair `@gjsify/iframe/register` installs — the explicit,
+         * unconditional counterpart of the tree-shakeable `/register` subpath (which
+         * `--globals auto` injects when it sees a free `HTMLIFrameElement`). Both are
+         * needed here: the element factory used to come along for free with the
+         * barrel's import side effect, and app code that calls `installGlobals()` and
+         * then `document.createElement('iframe')` must keep working (ADR 0012 moved
+         * the side effect out of `index.ts`; it did not remove the capability).
+         *
+         * Unconditional by design — an explicit call means "make MY implementation
+         * the one `document` and `globalThis` hand out", so it overrides whatever is
+         * already installed.
          */
         installGlobals(): void {
+            Document.registerElementFactory('iframe', () => new HTMLIFrameElement());
             Object.defineProperty(globalThis, 'HTMLIFrameElement', {
                 value: HTMLIFrameElement,
                 writable: true,

@@ -96,7 +96,12 @@
                 }
             ]
         },
-        "tier": 1
+        "tier": 1,
+        "defineFromPackageJson": {
+            "__PACKAGE_VERSION__": {
+                "field": "version"
+            }
+        }
     },
     "files": [
         "lib",

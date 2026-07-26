@@ -41,6 +41,7 @@
         "@codemirror/language": "^6.12.4",
         "@codemirror/state": "^6.7.0",
         "@codemirror/view": "^6.43.4",
+        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/adwaita-fonts": "workspace:^",
         "@gjsify/adwaita-icons": "workspace:^",
         "@lezer/highlight": "^1.2.3"

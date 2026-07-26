@@ -20,6 +20,19 @@ GLib / Gio / Soup 3) that:
    handles transitive dependency resolution, native prebuilds, lockfile,
    and the `~/.local/bin/gjsify` launcher.
 
+> **Platform support.** The global install additionally lays down the GJS-native
+> engine set — `@gjsify/rolldown-native`, `@gjsify/lightningcss-native`,
+> `@gjsify/oxfmt-native`. The CLI locates prebuilds for whatever host it runs on
+> (and exports `DYLD_LIBRARY_PATH` on macOS / `PATH` on Windows rather than
+> Linux's `LD_LIBRARY_PATH`), but `@gjsify/rolldown-native` — the only bundler
+> engine `gjsify build` has under GJS — currently publishes `linux-x86_64` and
+> `linux-aarch64` only. A **Node-free** GJSify toolchain is therefore still
+> Linux-only. On macOS and Windows GJSify works with Node installed, using the
+> npm `rolldown` / `lightningcss` / `oxfmt` packages instead. See
+> [Platform Support](/gjsify/platform-support/) for the per-package matrix and
+> [How It Works → Native prebuilds](/gjsify/how-it-works/#native-prebuilds-and-gjsify-run)
+> for how a prebuild directory is located.
+
 After install:
 
 - The CLI tree lives under `~/.local/share/gjsify/global/node_modules/`.

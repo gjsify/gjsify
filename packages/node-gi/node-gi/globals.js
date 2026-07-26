@@ -22,6 +22,7 @@ import cairo from './cairo.js';
 // Legacy `imports.signals` (the pure-JS Signals mixin) + `imports.mainloop` (the
 // GLib.MainLoop convenience layer) — the GJS script modules many older sources use.
 import * as signalsModule from './overrides/_signals.js';
+import { createByteArray } from './overrides/byte-array.js';
 import { createMainloop } from './overrides/mainloop.js';
 import { createPackage } from './overrides/package.js';
 
@@ -109,6 +110,11 @@ function makeImports() {
     system,
     gettext,
     cairo,
+    // `imports.byteArray` — the legacy GJS byte-array module
+    // (fromGBytes/toGBytes/fromString/toString/fromArray/ByteArray), the seam
+    // `@gjsify/utils`' gbytesToUint8Array/cli() read subprocess output through.
+    // GLib is only pulled in lazily (toGBytes), so seeding it here is free.
+    byteArray: createByteArray(requireGi),
     signals: { addSignalMethods, _connect, _connectAfter, _disconnect, _emit, _signalHandlerIsConnected, _disconnectAll },
     // GJS's `imports.searchPath` — `imports.package.init` unshifts the app's
     // moduledir onto it. Inert on node-gi (ESM + gi://), but present + safe so

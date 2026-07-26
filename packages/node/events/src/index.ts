@@ -1,7 +1,7 @@
 // Reference: Node.js lib/events.js
 // Reimplemented for GJS
 
-import { makeCallable } from '@gjsify/utils';
+import { makeCallable } from '@gjsify/utils/core';
 import { EventEmitter as EventEmitter_ } from './event-emitter.js';
 
 export const EventEmitter = makeCallable(EventEmitter_) as typeof EventEmitter_;

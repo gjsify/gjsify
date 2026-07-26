@@ -264,6 +264,18 @@ Any identifier below can appear in `--globals` (or be detected automatically). G
 | `location` | `@gjsify/dom-elements/register/location` |
 | `navigator` | `@gjsify/dom-elements/register/navigator` |
 
+**Canvas 2D / IFrame (GTK + WebKit-backed, GJS-only)**
+
+These are *not* part of the coarse `dom` group — injecting them requires the
+corresponding package (and, for the iframe, WebKitGTK) to be installed, so
+auto-detection only pulls them in when the identifier actually appears in the
+bundled output.
+
+| Identifier(s) | Register subpath |
+|---|---|
+| `ImageData`, `Path2D` | `@gjsify/canvas2d/register` |
+| `HTMLIFrameElement` | `@gjsify/iframe/register` |
+
 Unknown identifiers are silently ignored. If a `ReferenceError: X is not defined` still happens, add `X` as an extra: `--globals auto,X`.
 
 </details>
@@ -399,7 +411,7 @@ Output: per-runtime summary line, e.g. `[gjsify test] ✅ gjs (412ms)  ✅ node 
 
 ## `gjsify run`
 
-Run a built GJS bundle. Automatically sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` for native prebuilds.
+Run a built GJS bundle. Automatically sets `GI_TYPELIB_PATH` plus the host's library-search variable (`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS, `PATH` on Windows) for native prebuilds.
 
 ```bash
 npx @gjsify/cli run dist/index.js
@@ -621,7 +633,10 @@ npx @gjsify/cli system-check --json
 
 ## `gjsify info`
 
-List native GJSify packages and show the `LD_LIBRARY_PATH` / `GI_TYPELIB_PATH` needed for `gjs`.
+List native GJSify packages and show the environment `gjs` needs to load their prebuilds:
+`GI_TYPELIB_PATH` plus the library-search variable this host's loader reads —
+`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS (`dyld` ignores the Linux one),
+`PATH` on Windows. Only the variables that apply to the running host are emitted.
 
 ```bash
 npx @gjsify/cli info dist/index.js

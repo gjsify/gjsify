@@ -9,6 +9,8 @@ import { Buffer } from 'node:buffer';
 import { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { gbytesToUint8Array, deferEmit, ensureMainLoop } from '@gjsify/utils';
+import { communicateWithTimeout } from './communicate.js';
+import { applyArgv0, detachedPrefix, killProcess, shellArgv } from './platform/index.js';
 
 // Wraps a Gio.InputStream as a Node.js Readable so proc.stdout/stderr work
 // with standard stream consumers (.on('data', ...), pipe, async iteration).
@@ -296,19 +298,35 @@ export interface SpawnOptions {
     uid?: number;
     gid?: number;
     /**
-     * Override what the child process sees as `argv[0]`. Implemented by
-     * wrapping the spawn through `/bin/sh -c 'exec -a "$0" "$@"'` because
-     * `Gio.SubprocessLauncher` does not expose `set_child_setup` to GIR.
+     * Override what the child process sees as `argv[0]`.
+     *
+     * `Gio.SubprocessLauncher` does not expose `set_child_setup` to GIR, so on
+     * POSIX this is implemented by wrapping the spawn through a shell's
+     * `exec -a "$0" "$@"`. Not expressible on Windows — throws there
+     * (`ERR_UNSUPPORTED_OPERATION`).
      */
     argv0?: string;
     /**
-     * Spawn the child as the leader of a new process group via `setsid` so
-     * it survives the parent exiting.
+     * Spawn the child as the leader of a new session/process group so it
+     * survives the parent exiting.
+     *
+     * POSIX: uses `setsid(1)` resolved from PATH. When no `setsid` binary
+     * exists (stock macOS, Windows) the child is still spawned and still
+     * outlives the parent, but is not promoted to a session leader — see the
+     * package README for the exact per-platform contract.
      */
     detached?: boolean;
-    /** No-op on Linux — accepted for cross-platform compatibility. */
+    /**
+     * Accepted and ignored on every platform: `Gio.SubprocessLauncher` exposes
+     * no `CreateProcess` creation flags, so the console-window suppression
+     * Node performs on Windows is unreachable from GIR.
+     */
     windowsHide?: boolean;
-    /** No-op on Linux — accepted for cross-platform compatibility. */
+    /**
+     * Accepted and ignored on every platform: GLib always builds the Windows
+     * command line itself (`protect_argv()`), so its argument quoting cannot
+     * be bypassed the way libuv's can.
+     */
     windowsVerbatimArguments?: boolean;
     /**
      * Allows aborting the child process via an `AbortController`. When the
@@ -396,31 +414,12 @@ export class ChildProcess extends EventEmitter {
     kill(signal?: string | number): boolean {
         if (!this._subprocess) return false;
         try {
-            const sig = signal ?? 'SIGTERM';
-            // SIGKILL has a dedicated Gio path (force_exit) — use it so the
-            // kernel-level termination is correctly issued. Other signals
-            // route through send_signal with the numeric translation.
-            if (sig === 'SIGKILL' || sig === 9) {
-                this._subprocess.force_exit();
-            } else if (typeof sig === 'number') {
-                this._subprocess.send_signal(sig);
-            } else {
-                // Map common signal names — Gio.Subprocess.send_signal takes
-                // a numeric POSIX signal. We don't reach for the full POSIX
-                // table (kill -l) because Node itself only documents the
-                // small set below; downstream usage rarely needs others.
-                const map: Record<string, number> = {
-                    SIGHUP: 1,
-                    SIGINT: 2,
-                    SIGQUIT: 3,
-                    SIGABRT: 6,
-                    SIGKILL: 9,
-                    SIGUSR1: 10,
-                    SIGUSR2: 12,
-                    SIGTERM: 15,
-                };
-                this._subprocess.send_signal(map[sig] ?? 15);
-            }
+            // Signal delivery is platform-specific: the numeric values of
+            // SIGUSR1/SIGUSR2/SIGSTOP/… differ between Linux and macOS, and
+            // Windows has no signals at all (`send_signal` is a documented
+            // no-op there, so every signal maps onto `force_exit`).
+            // `platform/` owns those tables.
+            killProcess(this._subprocess, signal ?? 'SIGTERM');
             this.killed = true;
             return true;
         } catch {
@@ -502,14 +501,14 @@ function _encodeEnvValue(value: unknown): string | undefined {
 //     succeeding-but-running-as-the-parent-uid would be misleading, so we
 //     read the option without throwing and let downstream consumers detect
 //     via `whoami`)
-//   - `argv0`: implemented via `/bin/sh -c 'exec -a "$0" "$@"' argv0 cmd args`
-//     wrapper since Gio.SubprocessLauncher does not expose a `set_child_setup`
-//     hook for posix_spawn-style argv0 override
-//   - `detached`: wraps argv with `setsid` so the child becomes a new process
-//     group leader (matches Node's documented detached semantics on POSIX)
-//   - `windowsHide` / `windowsVerbatimArguments`: no-op on Linux (read without
-//     throwing, ignored — matches Node's documented platform-conditional
-//     behaviour)
+//   - `argv0`: delegated to `platform/` — a shell `exec -a "$0" "$@"` wrapper on
+//     POSIX (Gio.SubprocessLauncher does not expose a `set_child_setup` hook
+//     for posix_spawn-style argv0 override), unsupported on Windows
+//   - `detached`: delegated to `platform/` — prepends `setsid(1)` where one is
+//     on PATH (matches Node's documented detached semantics on POSIX)
+//   - `windowsHide` / `windowsVerbatimArguments`: read without throwing and
+//     ignored on every platform — GIO exposes neither `CreateProcess` creation
+//     flags nor an opt-out from GLib's own Windows argv quoting
 interface _SpawnLowOptions {
     cwd?: string | URL | Uint8Array;
     env?: Record<string, unknown> | NodeJS.ProcessEnv;
@@ -570,12 +569,10 @@ function _spawnSubprocess(
             launcher.setenv(key, value, true);
         }
     }
-    // `argv0` override — wrap argv with `/bin/sh -c 'exec -a "$0" "$@"' argv0`.
-    // The shell's `exec -a NAME` syscalls execve with NAME as argv[0], which is
-    // exactly what Node's posix_spawn-based path does. We intentionally accept
-    // this small perf cost over forking a no-op shell because Gio does not
-    // expose `g_subprocess_launcher_set_child_setup` to GIR bindings — there
-    // is no other path to posix_spawn argv0 control from JS.
+    // `argv0` override. Gio does not expose `g_subprocess_launcher_set_child_setup`
+    // to GIR bindings, so argv[0] cannot be set through the launcher; the
+    // platform layer supplies the closest reachable mechanism (a shell
+    // `exec -a "$0" "$@"` on POSIX) or throws where none exists (Windows).
     let realArgv = argv;
     if (options?.argv0 !== undefined && options.argv0 !== null) {
         if (typeof options.argv0 !== 'string') {
@@ -583,17 +580,17 @@ function _spawnSubprocess(
                 `The "options.argv0" property must be of type string. Received type ${typeof options.argv0}`,
             );
         }
-        // First argv entry is the binary; rest are its args. The shell command
-        // is `exec -a "$0" "$1" "$2" …` and the positional params are
-        // [argv0, binary, ...args].
-        realArgv = ['/bin/sh', '-c', 'exec -a "$0" "$@"', options.argv0, ...argv];
+        realArgv = applyArgv0(options.argv0, argv);
     }
     // `detached: true` — make the child the leader of a new session/process
-    // group so it survives the parent exiting. `setsid` is the standard POSIX
-    // way to do this from a launcher that does not expose `set_child_setup`.
-    // Falls back gracefully when `setsid` is not on PATH (rare).
+    // group so it survives the parent exiting. The platform layer resolves the
+    // helper (`setsid(1)` on POSIX, resolved from PATH) and returns `null` when
+    // the platform has none; in that case the child is still spawned, it just
+    // is not promoted to a session leader (see `platform/darwin.ts` /
+    // `platform/win32.ts` for the exact degraded contract).
     if (options?.detached === true) {
-        realArgv = ['/usr/bin/setsid', ...realArgv];
+        const prefix = detachedPrefix();
+        if (prefix !== null) realArgv = [...prefix, ...realArgv];
     }
     // Spawn, then capture the pid on the VERY NEXT statement. This ordering is
     // load-bearing: `get_identifier()` is only valid while the child is alive,
@@ -645,17 +642,20 @@ export function execSync(command: string, options?: ExecSyncOptions): Buffer | s
         Gio.SubprocessFlags.STDERR_PIPE |
         (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
 
-    const shell = typeof options?.shell === 'string' ? options.shell : '/bin/sh';
+    // Shell selection is Node's own per-platform decision (`/bin/sh`,
+    // `/system/bin/sh` on Android, `%ComSpec%` + `/d /s /c` on Windows) —
+    // see `platform/index.ts`.
+    const argv = shellArgv(command, options?.shell);
     let proc: Gio.Subprocess;
     try {
-        ({ proc } = _spawnSubprocess([shell, '-c', command], flags, options));
+        ({ proc } = _spawnSubprocess(argv, flags, options));
     } catch (err: unknown) {
         // Spawn-time failure (binary missing, invalid argv, …) — Node's
         // execSync surfaces this as a thrown Error with `.code = 'ENOENT'`
         // etc. The shell wrapper makes ENOENT *the shell's* missing-binary,
         // not the user's, but the syscall string still references the
         // shell — match Node's shape.
-        throw _gioErrorToNodeError(err, shell, ['-c', command]);
+        throw _gioErrorToNodeError(err, argv[0], argv.slice(1));
     }
 
     const stdinBytes = input
@@ -764,7 +764,6 @@ function _exec(
     const opts = (options || {}) as ExecOptions;
     const child = new ChildProcess();
 
-    const shell = typeof opts.shell === 'string' ? opts.shell : '/bin/sh';
     // Note: we do NOT request STDIN_PIPE here — `g_subprocess_communicate_async`
     // requires a non-null `stdin_buf` if the launcher was created with
     // STDIN_PIPE, but Node's `exec` contract is "no input is supplied". We
@@ -780,8 +779,9 @@ function _exec(
     const abortSignal = opts.signal;
 
     // `_exec` paths share a fair amount of bookkeeping with `execFile`:
-    // factor out into the inner helper below.
-    return _execImpl(child, [shell, '-c', command], flags, opts, {
+    // factor out into the inner helper below. Shell selection is Node's own
+    // per-platform decision — see `platform/index.ts`.
+    return _execImpl(child, shellArgv(command, opts.shell), flags, opts, {
         cmd: command,
         encoding: opts.encoding,
         maxBuffer,
@@ -820,7 +820,10 @@ function _execImpl(
         timeoutHandle = setTimeout(() => {
             didKillForTimeout = true;
             try {
-                proc.send_signal(typeof ctx.killSignal === 'number' ? ctx.killSignal : 15);
+                // Route through the platform layer so a NAMED killSignal
+                // ('SIGKILL', 'SIGINT', …) is translated to this platform's
+                // number instead of silently degrading to SIGTERM.
+                killProcess(proc, ctx.killSignal);
             } catch {
                 /* already dead */
             }
@@ -841,7 +844,7 @@ function _execImpl(
             abortError = new Error('The operation was aborted');
             abortError.name = 'AbortError';
             try {
-                proc.send_signal(typeof ctx.killSignal === 'number' ? ctx.killSignal : 15);
+                killProcess(proc, ctx.killSignal);
             } catch {
                 /* already dead */
             }
@@ -1178,9 +1181,10 @@ export function spawn(
 
     let argv: string[];
     if (useShell) {
-        const shell = typeof useShell === 'string' ? useShell : '/bin/sh';
-        const fullCmd = [command, ..._args].join(' ');
-        argv = [shell, '-c', fullCmd];
+        // Node joins file + args into one command string, then hands it to the
+        // platform's shell (`<sh> -c <cmd>` on POSIX, `<cmd.exe> /d /s /c "<cmd>"`
+        // on Windows). See `platform/index.ts`.
+        argv = shellArgv([command, ..._args].join(' '), useShell);
     } else {
         argv = [command, ..._args];
     }
@@ -1395,29 +1399,19 @@ export function spawnSync(
 
     let argv: string[];
     if (useShell) {
-        const shell = typeof useShell === 'string' ? useShell : '/bin/sh';
-        const fullCmd = [command, ..._args].join(' ');
-        argv = [shell, '-c', fullCmd];
+        // Node joins file + args into one command string, then hands it to the
+        // platform's shell — see `platform/index.ts`.
+        argv = shellArgv([command, ..._args].join(' '), useShell);
     } else {
         argv = [command, ..._args];
     }
 
-    // `timeout` enforcement for spawnSync — Gio.Subprocess.communicate()
-    // is blocking, so we can't schedule a kill via GLib mainloop. Instead,
-    // wrap the argv with `/usr/bin/timeout` which is the canonical POSIX
-    // tool for this. After the run, exit status 124 means the timeout
-    // fired (SIGTERM path) and 137 means SIGKILL (via -k or --kill-after);
-    // we surface these as `result.error.code = 'ETIMEDOUT'` to match Node.
-    let timeoutWrapped = false;
-    if (options?.timeout && options.timeout > 0) {
-        const seconds = options.timeout / 1000;
-        const killSig = options.killSignal;
-        // `timeout -s SIGNAL DURATION COMMAND` — without -s, timeout sends
-        // SIGTERM. Use the user's killSignal so they can opt into SIGKILL.
-        const sigArg = typeof killSig === 'string' ? killSig.replace(/^SIG/, '') : 'TERM';
-        argv = ['/usr/bin/timeout', '-s', sigArg, String(seconds), ...argv];
-        timeoutWrapped = true;
-    }
+    // `timeout` is enforced IN PROCESS by `communicateWithTimeout()` — a GLib
+    // timer on a private main context that drives `communicate_async()` and
+    // kills the child on the deadline. It used to be delegated to the GNU
+    // coreutils `timeout(1)` binary (absent on macOS and Windows), which also
+    // masked the child's real pid and termination signal. See `communicate.ts`.
+    const timeoutMs = options?.timeout && options.timeout > 0 ? options.timeout : 0;
 
     const flags =
         Gio.SubprocessFlags.STDOUT_PIPE |
@@ -1471,15 +1465,6 @@ export function spawnSync(
         };
     }
 
-    // NOTE: `timeout` is enforced UPSTREAM (before spawn) by wrapping
-    // argv with `/usr/bin/timeout` (see the `argv` construction earlier
-    // when `options?.timeout` is set). We can't enforce timeout HERE
-    // because `proc.communicate()` is fully synchronous and does not
-    // iterate the GLib main context — a `GLib.timeout_add` callback
-    // would never fire until communicate returns. We detect the timeout
-    // path AFTER communicate via the exit code (124 = SIGTERM, 137 =
-    // SIGKILL — the conventional `timeout(1)` exit codes).
-
     const stdinBytes = input
         ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : (input as Uint8Array))
         : null;
@@ -1487,11 +1472,25 @@ export function spawnSync(
     let stdoutBytes: GLib.Bytes | null;
     let stderrBytes: GLib.Bytes | null;
     let commError: ExecError | null = null;
+    let timeoutFired = false;
     try {
-        const ret = proc.communicate(stdinBytes, null);
-        // tuple: [success, stdout, stderr]
-        stdoutBytes = ret[1] ?? null;
-        stderrBytes = ret[2] ?? null;
+        if (timeoutMs > 0) {
+            // Deadline path — `proc.communicate()` blocks without iterating any
+            // main context, so the timer has to drive `communicate_async()` on
+            // a private context instead (no re-entrancy into app code).
+            const bounded = communicateWithTimeout(proc, stdinBytes, timeoutMs, () => {
+                killProcess(proc, options?.killSignal ?? 'SIGTERM');
+            });
+            timeoutFired = bounded.timedOut;
+            if (bounded.error) throw bounded.error;
+            stdoutBytes = bounded.stdout;
+            stderrBytes = bounded.stderr;
+        } else {
+            const ret = proc.communicate(stdinBytes, null);
+            // tuple: [success, stdout, stderr]
+            stdoutBytes = ret[1] ?? null;
+            stderrBytes = ret[2] ?? null;
+        }
     } catch (err: unknown) {
         commError = err instanceof Error ? (err as ExecError) : (new Error(String(err)) as ExecError);
         stdoutBytes = null;
@@ -1515,13 +1514,11 @@ export function spawnSync(
         const requested = options?.killSignal;
         signal = typeof requested === 'string' ? requested : 'SIGTERM';
     }
-    // Timeout-wrapper detection: `/usr/bin/timeout` exits 124 when SIGTERM
-    // fired, 137 when SIGKILL (rare with our flags). When wrapped, report
-    // ETIMEDOUT instead of treating the 124 as a normal exit.
-    let timeoutFired = false;
-    if (timeoutWrapped && (status === 124 || status === 137)) {
-        timeoutFired = true;
-        // Synthesise the signal name Node would have surfaced.
+    // The child we killed on the deadline was terminated by a signal, so
+    // `get_if_signaled()` above already produced the right name — but pin it
+    // explicitly for the rare case where the child managed to exit normally in
+    // the same instant the timer fired.
+    if (timeoutFired) {
         signal = typeof options?.killSignal === 'string' ? options.killSignal : 'SIGTERM';
     }
 

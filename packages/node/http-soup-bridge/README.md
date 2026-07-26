@@ -76,9 +76,12 @@ the `gjsify.prebuilds` field at startup, so consumers don't need to install
 the bridge into a system path.
 
 The CI workflow at `.github/workflows/prebuilds.yml` builds prebuilds for
-linux-x86_64, linux-aarch64, linux-ppc64, linux-s390x, and linux-riscv64
-and auto-commits them to the repo. x86_64 and aarch64 use native GitHub
-runners; ppc64, s390x, and riscv64 use QEMU via `uraimo/run-on-arch-action`.
+linux-x86_64, linux-aarch64, linux-ppc64, linux-s390x, linux-riscv64 and
+darwin-arm64, and auto-commits them to the repo. linux x86_64/aarch64 and
+darwin-arm64 use native GitHub runners; ppc64, s390x, and riscv64 use QEMU
+via `uraimo/run-on-arch-action`. The macOS artifact is named
+`libgjsifyhttpsoupbridge.dylib` and its typelib records that leaf — see
+[Platform coverage](#platform-coverage).
 
 ## TS types
 
@@ -94,3 +97,19 @@ npx @ts-for-gir/cli generate \
 
 After publication this step disappears — the package's `dependencies`
 already references `@girs/gjsifyhttpsoupbridge-1.0`.
+
+## Platform coverage
+
+| Platform | Prebuild | Built by |
+|---|---|---|
+| `linux-x86_64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
+| `linux-aarch64` | ✅ | native runner |
+| `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
+| `darwin-arm64` (macOS, Apple silicon) | ✅ `.dylib` + `.gir` + `.typelib` | `macos-latest` runner |
+| `darwin-x64` (macOS, Intel) | ❌ | — no runner leg yet |
+| Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
+
+**Known gap — a `darwin-arm64` prebuild is built and shipped, but the CLI does not
+load it yet.** `detectNativePackages()` (`packages/infra/cli/src/utils/detect-native-packages.ts`)
+hardcodes a `linux-` directory prefix, and `buildNativeEnv()` exports `LD_LIBRARY_PATH`,
+which macOS `dyld` ignores in favour of `DYLD_LIBRARY_PATH`.

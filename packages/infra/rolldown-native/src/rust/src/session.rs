@@ -1,6 +1,6 @@
 //! BundleSession — owns the tokio runtime, the plugin-channel pump,
-//! the eventfd wakeup pair, and the BundleHandle the JS layer uses
-//! to drive the build.
+//! the wakeup pipes, and the BundleHandle the JS layer uses to drive
+//! the build.
 //!
 //! Lifecycle:
 //!   1. `start()` — caller passes options + plugin metadata. We
@@ -8,16 +8,18 @@
 //!      Bundler::with_plugins, spawn a tokio task that drives
 //!      `Bundler::generate()` to completion, return the session.
 //!   2. While the build runs, the worker pool calls into the proxies,
-//!      pushing HookRequests to the channel + writing the request
-//!      eventfd. JS drains via `next_request()` and replies via
+//!      pushing HookRequests to the channel + waking the request
+//!      pipe. JS drains via `next_request()` and replies via
 //!      `respond()`.
 //!   3. When the bundle task completes, the result is stored on the
 //!      session. The Vala side polls `try_take_result()` after
-//!      seeing the request_eventfd close (or its own completion
-//!      eventfd, see Phase B.2 — for B.1 we expose `wait()` only).
+//!      waking on the completion pipe.
+//!
+//! The wakeup channels are plain anonymous pipes on every platform —
+//! see `crate::wakeup` for why (portability) and for the
+//! counter-vs-byte-stream semantics that entails.
 
 use std::ffi::CString;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 use std::sync::Arc;
@@ -35,6 +37,7 @@ use tokio::runtime::{Builder, Runtime};
 use tokio::sync::oneshot;
 
 use crate::plugin_proxy::{HookRequest, HookResponse, JsPluginProxy, PluginMeta};
+use crate::wakeup::Wakeup;
 use crate::{BundleOutputJson, OutputJson, convert_output};
 
 #[derive(Debug, Deserialize)]
@@ -44,7 +47,7 @@ pub struct StartArgs {
 }
 
 /// One context-resolve sub-result flowing Rust → JS. Surfaces through
-/// the `context_response_eventfd` queue.
+/// the `context_response_wakeup` queue.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextResolveResponse {
@@ -64,16 +67,16 @@ pub struct ContextResolveResponse {
 /// `Arc` and cloned into each proxy. Holds everything the proxies
 /// need to (a) register/unregister parent `PluginContext` snapshots
 /// for nested-protocol callbacks, (b) deliver context-resolve results
-/// to JS via the dedicated eventfd, and (c) accumulate `this.warn()`
+/// to JS via the dedicated wakeup pipe, and (c) accumulate `this.warn()`
 /// strings into the final BundleOutput.
 pub struct SessionShared {
     pub contexts: Mutex<std::collections::HashMap<u64, PluginContext>>,
     pub next_child_id: AtomicU64,
     pub context_response_tx: Sender<ContextResolveResponse>,
-    /// Owned handle — the fd stays reserved for as long as any clone
-    /// (incl. leaked post-shutdown tasks) is alive, so a stale write
+    /// Owned pipe — both fds stay reserved for as long as any clone
+    /// (incl. leaked post-shutdown tasks) is alive, so a stale wake
     /// can never land in a recycled fd number of a later session.
-    pub context_response_eventfd: Arc<OwnedFd>,
+    pub context_response_wakeup: Arc<Wakeup>,
     pub context_warnings: Mutex<Vec<String>>,
     /// Phase B.4 — parallel bytes-payload slots keyed by req_id.
     /// `request_payloads` holds Rust → JS payloads (e.g. transform
@@ -96,12 +99,12 @@ pub struct BundleSession {
     pub request_rx: Receiver<HookRequest>,
     /// Pending requests waiting on JS reply. Keyed by req_id.
     pub pending: Mutex<std::collections::HashMap<u64, oneshot::Sender<HookResponse>>>,
-    /// eventfd for "request available" wakeup → GLib main loop watches.
-    pub request_eventfd: Arc<OwnedFd>,
+    /// "Request available" wakeup → GLib main loop watches its read fd.
+    pub request_wakeup: Arc<Wakeup>,
     /// Result of the bundle task once complete. None while still running.
     pub result: Mutex<Option<Result<String, String>>>,
-    /// Completion eventfd: written exactly once when `result` is set.
-    pub complete_eventfd: Arc<OwnedFd>,
+    /// Completion wakeup: woken exactly once when `result` is set.
+    pub complete_wakeup: Arc<Wakeup>,
     /// Cancel flag — set by the C side via `cancel()`. tokio task
     /// observes via shared atomic and aborts.
     pub cancelled: Arc<std::sync::atomic::AtomicBool>,
@@ -110,7 +113,7 @@ pub struct BundleSession {
     pub shared: Arc<SessionShared>,
     /// Receiver side of the context-response channel. Drained by
     /// `gjsify_rolldown_session_next_context_response` from the GLib
-    /// main loop after waking on `context_response_eventfd`.
+    /// main loop after waking on `context_response_wakeup`.
     pub context_response_rx: Receiver<ContextResolveResponse>,
 }
 
@@ -168,37 +171,39 @@ pub extern "C" fn gjsify_rolldown_session_start(
         }
     };
 
-    // Create the eventfd pair. EFD_NONBLOCK so writes never block;
-    // EFD_SEMAPHORE off (we use counter-mode so JS can read once
-    // per drain cycle and process all pending requests in a loop).
-    // Each fd is wrapped in Arc<OwnedFd> immediately: every holder
+    // Create the three wakeup pipes (see `crate::wakeup`): non-blocking
+    // + close-on-exec on both ends, one portable implementation on every
+    // platform. Each is wrapped in Arc<Wakeup> immediately: every holder
     // (proxies, the bundle task, SessionShared, the session itself)
-    // keeps a clone, so the fd number stays reserved until the LAST
+    // keeps a clone, so both fd numbers stay reserved until the LAST
     // user — including tasks leaked past the runtime shutdown
     // timeout — has dropped it. Closing eagerly in session_free while
-    // such tasks still hold the raw number let their deferred
-    // `libc::write` land in whatever fd the kernel recycled the
-    // number into (issue #501's stale-fd hazard).
-    let request_eventfd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
-    if request_eventfd < 0 {
-        unsafe { *err_out = err_to_cstr("rolldown: eventfd(request) failed".to_string()) };
-        return ptr::null_mut();
-    }
-    let request_eventfd = Arc::new(unsafe { OwnedFd::from_raw_fd(request_eventfd) });
-    let complete_eventfd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
-    if complete_eventfd < 0 {
-        unsafe { *err_out = err_to_cstr("rolldown: eventfd(complete) failed".to_string()) };
-        return ptr::null_mut();
-    }
-    let complete_eventfd = Arc::new(unsafe { OwnedFd::from_raw_fd(complete_eventfd) });
-
-    let context_response_eventfd =
-        unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
-    if context_response_eventfd < 0 {
-        unsafe { *err_out = err_to_cstr("rolldown: eventfd(context_response) failed".to_string()) };
-        return ptr::null_mut();
-    }
-    let context_response_eventfd = Arc::new(unsafe { OwnedFd::from_raw_fd(context_response_eventfd) });
+    // such tasks still hold the raw number let their deferred wake land
+    // in whatever fd the kernel recycled the number into (issue #501's
+    // stale-fd hazard).
+    let request_wakeup = match Wakeup::new() {
+        Ok(w) => Arc::new(w),
+        Err(e) => {
+            unsafe { *err_out = err_to_cstr(format!("rolldown: wakeup pipe (request): {e}")) };
+            return ptr::null_mut();
+        }
+    };
+    let complete_wakeup = match Wakeup::new() {
+        Ok(w) => Arc::new(w),
+        Err(e) => {
+            unsafe { *err_out = err_to_cstr(format!("rolldown: wakeup pipe (complete): {e}")) };
+            return ptr::null_mut();
+        }
+    };
+    let context_response_wakeup = match Wakeup::new() {
+        Ok(w) => Arc::new(w),
+        Err(e) => {
+            unsafe {
+                *err_out = err_to_cstr(format!("rolldown: wakeup pipe (context_response): {e}"))
+            };
+            return ptr::null_mut();
+        }
+    };
 
     let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (request_tx, request_rx) = unbounded::<HookRequest>();
@@ -209,7 +214,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
         contexts: Mutex::new(std::collections::HashMap::new()),
         next_child_id: AtomicU64::new(1),
         context_response_tx,
-        context_response_eventfd: context_response_eventfd.clone(),
+        context_response_wakeup: context_response_wakeup.clone(),
         context_warnings: Mutex::new(Vec::new()),
         request_payloads: Mutex::new(std::collections::HashMap::new()),
         response_payloads: Mutex::new(std::collections::HashMap::new()),
@@ -234,7 +239,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
                 hooks: meta.hooks.clone(),
                 request_tx: request_tx.clone(),
                 next_request_id: next_request_id.clone(),
-                request_eventfd: request_eventfd.clone(),
+                request_wakeup: request_wakeup.clone(),
                 response_timeout: Duration::from_secs(60),
                 load_id_filter,
                 transform_id_filter,
@@ -270,7 +275,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
 
     let result_slot: Arc<Mutex<Option<Result<String, String>>>> = Arc::new(Mutex::new(None));
     let result_slot_clone = result_slot.clone();
-    let complete_eventfd_for_task = complete_eventfd.clone();
+    let complete_wakeup_for_task = complete_wakeup.clone();
     let cancelled_for_task = cancelled.clone();
     let shared_for_task = shared.clone();
 
@@ -282,16 +287,16 @@ pub extern "C" fn gjsify_rolldown_session_start(
         };
         *result_slot_clone.lock().unwrap() = Some(final_json);
         // Signal completion to the GLib main loop.
-        wake_eventfd(&complete_eventfd_for_task);
+        complete_wakeup_for_task.wake();
     });
 
     let session = Box::new(BundleSession {
         runtime,
         request_rx,
         pending: Mutex::new(std::collections::HashMap::new()),
-        request_eventfd,
+        request_wakeup,
         result: Mutex::new(None),
-        complete_eventfd,
+        complete_wakeup,
         cancelled,
         shared,
         context_response_rx,
@@ -389,7 +394,7 @@ pub extern "C" fn gjsify_rolldown_session_request_fd(session: *mut BundleSession
     if session.is_null() {
         return -1;
     }
-    unsafe { (*session).request_eventfd.as_raw_fd() }
+    unsafe { (*session).request_wakeup.read_fd() }
 }
 
 #[unsafe(no_mangle)]
@@ -397,7 +402,7 @@ pub extern "C" fn gjsify_rolldown_session_complete_fd(session: *mut BundleSessio
     if session.is_null() {
         return -1;
     }
-    unsafe { (*session).complete_eventfd.as_raw_fd() }
+    unsafe { (*session).complete_wakeup.read_fd() }
 }
 
 /// Drain one pending request. Returns NULL when the channel is
@@ -541,11 +546,11 @@ pub extern "C" fn gjsify_rolldown_session_free(session: *mut BundleSession) {
     unregister_result_slot(session);
     let boxed = unsafe { Box::from_raw(session) };
     // Shut the runtime down FIRST (up to 500ms drain; workers that
-    // don't finish in time are leaked), THEN let the eventfds drop.
-    // The fds are Arc<OwnedFd>, so even a task leaked past the
-    // shutdown timeout keeps its clone alive — the fd number stays
-    // reserved and a deferred stale write can never corrupt whatever
-    // fd the kernel would otherwise have recycled the number into.
+    // don't finish in time are leaked), THEN let the wakeup pipes drop.
+    // They are Arc<Wakeup>, so even a task leaked past the shutdown
+    // timeout keeps its clone alive — the fd numbers stay reserved and
+    // a deferred stale wake can never corrupt whatever fd the kernel
+    // would otherwise have recycled the number into.
     boxed.runtime.shutdown_timeout(Duration::from_millis(500));
 }
 
@@ -609,7 +614,7 @@ pub extern "C" fn gjsify_rolldown_session_context_resolve(
                 error: Some(format!("rolldown: malformed context_resolve args JSON: {e}")),
             };
             let _ = session.shared.context_response_tx.send(resp);
-            wake_eventfd(&session.shared.context_response_eventfd);
+            session.shared.context_response_wakeup.wake();
             return child_id;
         }
     };
@@ -654,7 +659,7 @@ pub extern "C" fn gjsify_rolldown_session_context_resolve(
             },
         };
         let _ = shared.context_response_tx.send(resp);
-        wake_eventfd(&shared.context_response_eventfd);
+        shared.context_response_wakeup.wake();
     });
 
     child_id
@@ -680,8 +685,8 @@ pub extern "C" fn gjsify_rolldown_session_context_warn(
     session.shared.context_warnings.lock().unwrap().push(msg);
 }
 
-/// FFI: get the eventfd that signals "a context-resolve sub-result is
-/// available". GLib main loop watches this with `G_IO_IN`.
+/// FFI: get the wakeup-pipe read fd that signals "a context-resolve
+/// sub-result is available". GLib main loop watches this with `G_IO_IN`.
 #[unsafe(no_mangle)]
 pub extern "C" fn gjsify_rolldown_session_context_response_fd(
     session: *mut BundleSession,
@@ -690,7 +695,7 @@ pub extern "C" fn gjsify_rolldown_session_context_response_fd(
         return -1;
     }
     let session = unsafe { &*session };
-    session.shared.context_response_eventfd.as_raw_fd()
+    session.shared.context_response_wakeup.read_fd()
 }
 
 /// FFI: drain one pending context-resolve response. Returns NULL when
@@ -718,13 +723,6 @@ pub extern "C" fn gjsify_rolldown_session_next_context_response(
     };
     unsafe { *out_len = json.len() };
     CString::new(json).ok().map(|c| c.into_raw()).unwrap_or(ptr::null_mut())
-}
-
-pub(crate) fn wake_eventfd(fd: &OwnedFd) {
-    let one: u64 = 1;
-    unsafe {
-        libc::write(fd.as_raw_fd(), &one as *const u64 as *const libc::c_void, 8);
-    }
 }
 
 // ---------------------------------------------------------------------

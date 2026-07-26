@@ -3,8 +3,8 @@
 
 import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'node:events';
-import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
-import type { ErrnoException } from '@gjsify/utils';
+import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils/core';
+import type { ErrnoException } from '@gjsify/utils/core';
 import { Socket } from './socket.js';
 
 export interface ListenOptions {

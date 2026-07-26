@@ -11,6 +11,68 @@ export {
     resetRuntimeAliasesCache,
 } from './runtime-aliases.mjs';
 
+import { getDerivedAliasesSync as _getDerivedAliasesSync } from './runtime-aliases.mjs';
+
+/**
+ * Wrap a bare-specifier alias table so its `@gjsify/<X>` VALUES are passed
+ * through the derived per-target slot routing before the caller sees them.
+ *
+ * ## Why this exists (ADR 0014)
+ *
+ * The alias layer was designed as a TWO-PASS chain, and `app/browser.ts` says
+ * so in its own comment: the curated table maps a bare specifier
+ * (`os`, `node:os`) to `@gjsify/<X>`, and "the dynamic per-runtimes-triplet
+ * resolver (`getDerivedAliasesSync`) finishes the routing in a second pass".
+ *
+ * That second pass never fires for a bare specifier. `aliasPlugin` resolves a
+ * hit via `this.resolve(target, importer, { skipSelf: true })`, and `skipSelf`
+ * deliberately excludes the gjsify alias plugin from the nested resolution —
+ * so `os` → `@gjsify/os` lands on the package ROOT and the derived entry
+ * `@gjsify/os` → `@gjsify/os/browser` is never consulted. A direct
+ * `import … from '@gjsify/os'` in source DOES route (single hop, verified);
+ * a browser bundle importing bare `os` does not. Since every browser bundle
+ * reaches these packages through the bare/`node:` form, the platform-entry
+ * routing of ADR 0014 would have been inert without this.
+ *
+ * Composing the two maps here — at the point the bare table is materialised —
+ * collapses the chain to a single hop, keeps the curated table itself a pure
+ * bare-name → package statement (no slot policy duplicated into it), and needs
+ * no change in the bundler plugins.
+ *
+ * Evaluated LAZILY (on property read) and cached: `getDerivedAliasesSync` walks
+ * the workspace, and importing `@gjsify/resolve-npm` must not pay for a
+ * filesystem scan that a `--app gjs` build never needs. The trap set covers
+ * everything a consumer does with these tables — `Object.entries`, spread and
+ * direct indexing.
+ *
+ * @param {Record<string,string>} table
+ * @param {'gjs'|'node'|'browser'|'nativescript'} target
+ * @returns {Record<string,string>}
+ */
+function withDerivedSlotRouting(table, target) {
+    /** @type {Record<string,string>|null} */
+    let routed = null;
+    const materialise = () => {
+        if (routed) return routed;
+        const derived = _getDerivedAliasesSync(target);
+        /** @type {Record<string,string>} */
+        const out = {};
+        for (const [bare, pkg] of Object.entries(table)) {
+            out[bare] = Object.prototype.hasOwnProperty.call(derived, pkg) ? derived[pkg] : pkg;
+        }
+        routed = out;
+        return routed;
+    };
+    return new Proxy(table, {
+        get: (_t, prop) =>
+            typeof prop === 'string' ? materialise()[prop] : Reflect.get(table, prop),
+        has: (_t, prop) => Reflect.has(materialise(), prop),
+        ownKeys: () => Reflect.ownKeys(materialise()),
+        getOwnPropertyDescriptor: (_t, prop) =>
+            Reflect.getOwnPropertyDescriptor(materialise(), prop),
+    });
+}
+
 /** Array of Node.js build in module names */
 export const EXTERNALS_NODE = [
     'assert',
@@ -202,7 +264,7 @@ export const ALIASES_NODE_FOR_GJS = {
  * baubable `@gjsify/{process,buffer,stream,...}` builds. Adopt only when the
  * per-package browser slots are R1-validated.
  */
-export const ALIASES_NODE_FOR_BROWSER = {
+const ALIASES_NODE_FOR_BROWSER_TABLE = {
     'assert':              '@gjsify/assert',
     'assert/strict':       '@gjsify/assert/strict',
     'async_hooks':         '@gjsify/async_hooks',
@@ -262,6 +324,18 @@ export const ALIASES_NODE_FOR_BROWSER = {
     'ws':                  '@gjsify/empty',        // browser native WebSocket
     'isomorphic-ws':       '@gjsify/empty',
 }
+
+/**
+ * Bare Node-builtin specifier → polyfill / empty-stub mapping for `--app
+ * browser`, with ADR-0014 platform-entry routing already applied to the values
+ * (`os` → `@gjsify/os/browser` when that package's browser slot is `polyfill`
+ * and it exports a `./browser` subpath). See `withDerivedSlotRouting` above for
+ * why the two-pass chain has to be collapsed here.
+ */
+export const ALIASES_NODE_FOR_BROWSER = withDerivedSlotRouting(
+    ALIASES_NODE_FOR_BROWSER_TABLE,
+    'browser',
+);
 
 /**
  * Bare Node-builtin specifier → polyfill / empty-stub mapping for `--app
@@ -559,6 +633,10 @@ export const ALIASES_WEB_FOR_NODE = {
     '@gjsify/dom-elements/register/match-media': '@gjsify/empty',
     '@gjsify/dom-elements/register/location': '@gjsify/empty',
     '@gjsify/dom-elements/register/navigator': '@gjsify/empty',
+    // Canvas 2D + IFrame registers (GTK/Cairo- and WebKit-backed, ADR 0012) —
+    // no-op on Node, exactly like the dom-elements registers above.
+    '@gjsify/canvas2d/register': '@gjsify/empty',
+    '@gjsify/iframe/register': '@gjsify/empty',
     '@gjsify/buffer/register': '@gjsify/empty',
 
     // xmlhttprequest + DOMParser — no-op on Node

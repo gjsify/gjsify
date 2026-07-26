@@ -11,7 +11,7 @@
 // Original: see file-handle.ts pre-split.
 
 import GLib from '@girs/glib-2.0';
-import { createGLibFileError } from '@gjsify/utils';
+import { createGLibFileError } from '@gjsify/utils/core';
 import type { OpenFlags } from './types/index.js';
 
 // POSIX numeric open(2) flags (values on Linux x86-64).

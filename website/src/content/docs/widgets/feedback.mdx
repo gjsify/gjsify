@@ -34,6 +34,13 @@ single action button, that floats over the content for a few seconds and then
 dismisses itself. It is shown through a **toast overlay** that wraps the page and
 layers toasts above the bottom edge, so it never displaces the content beneath.
 
+The overlay shows **one toast at a time**: adding a toast while another is
+visible queues it, and it appears only once the visible one is dismissed — by
+its timeout, its close button, its action button, or an explicit dismissal. All
+three ports share that queue: it lives in the headless
+[`@gjsify/adwaita-core`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-core)
+layer, which the Web and NativeScript renderers compose.
+
 <AdwWidget title="Adw.Toast" padding="flush">
   <Fragment slot="preview">
     <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
@@ -75,8 +82,13 @@ layers toasts above the bottom edge, so it never displaces the content beneath.
 
     <script type="module">
         // Toasts are shown imperatively — the overlay floats them over its content.
+        // The timeout is in seconds; a second toast added now would be queued and
+        // shown once this one is dismissed.
         const overlay = document.getElementById('overlay');
         overlay.addToast('File moved to Trash', { timeout: 3, buttonLabel: 'Undo' });
+
+        overlay.pendingToasts;  // how many are waiting behind the visible one
+        overlay.dismiss();      // dismiss now and show the next queued toast
     </script>
     ```
   </Fragment>

@@ -4,7 +4,7 @@
 // Reimplemented for GJS — direct opts.transform/flush/final assignment matches
 // Node's instance-method override pattern.
 
-import { nextTick } from '@gjsify/utils';
+import { nextTick } from '@gjsify/utils/core';
 import type { TransformOptions } from 'node:stream';
 
 import { Duplex_ } from './duplex.js';

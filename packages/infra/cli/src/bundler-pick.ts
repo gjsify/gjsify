@@ -54,10 +54,18 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
     // Fail with the actionable diagnosis instead.
     if (isGjs()) {
         throw new Error(
-            'gjsify build: no usable bundler engine under GJS — `@gjsify/rolldown-native` is not loadable ' +
-                '(its JS facade lib/ is not built, or its prebuild typelib is missing from GI_TYPELIB_PATH), ' +
-                'and the npm `rolldown` engine is a Rust napi crate that cannot run under GJS. ' +
-                'Build the facade first (`gjsify workspace @gjsify/rolldown-native build` under Node) or run this build under Node.',
+            'gjsify build: no usable bundler engine under GJS — `@gjsify/rolldown-native` is not loadable, ' +
+                'and the npm `rolldown` engine is a Rust napi crate that cannot run under GJS.\n' +
+                'Most likely cause: the CLI bundle was invoked DIRECTLY (`gjs -m …/cli.gjs.mjs` or by executing ' +
+                'dist/cli.gjs.mjs), which bypasses the `gjsify` launcher that exports GI_TYPELIB_PATH / ' +
+                'LD_LIBRARY_PATH for the prebuilds. The typelib lookup happens inside the GJS runtime, so those ' +
+                'must be set BEFORE the process starts — the CLI cannot repair it from the inside. ' +
+                'Run through the `gjsify` bin instead (`node_modules/.bin/gjsify …`, or the globally installed shim), ' +
+                'or export the env yourself:\n' +
+                '  P=<repo>/packages/infra/rolldown-native/prebuilds/linux-x86_64\n' +
+                '  GI_TYPELIB_PATH=$P LD_LIBRARY_PATH=$P gjs -m …/cli.gjs.mjs build …\n' +
+                'Other causes: the JS facade `lib/` is not built (`gjsify workspace @gjsify/rolldown-native build` ' +
+                'under Node), or no prebuild exists for this architecture. Running the build under Node also works.',
         );
     }
     // Indirect specifier so Rolldown's static-analysis doesn't try to

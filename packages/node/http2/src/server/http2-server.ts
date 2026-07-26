@@ -13,7 +13,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
 import { Buffer } from 'node:buffer';
-import { deferEmit, ensureMainLoop } from '@gjsify/utils';
+import { deferEmit, ensureMainLoop } from '@gjsify/utils/core';
 import { Http2ServerRequest } from './request.js';
 import { Http2ServerResponse, ServerHttp2Stream, type Http2NativeBackend } from './response.js';
 import { ServerHttp2Session } from './session.js';

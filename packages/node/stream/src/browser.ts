@@ -7,8 +7,14 @@
 //
 // This module is the `@gjsify/stream` entry the bundler picks up when
 // `gjsify build --app browser` resolves `stream` / `node:stream` /
-// `@gjsify/stream` (per `ALIASES_NODE_FOR_BROWSER` in
-// `packages/infra/resolve-npm/lib/index.mjs`, PR #388). The full GJS impl
+// `@gjsify/stream`. Two hops: `ALIASES_NODE_FOR_BROWSER`
+// (`packages/infra/resolve-npm/lib/index.mjs`) maps the bare/`node:` specifier
+// to `@gjsify/stream`, then the derived runtime-alias layer
+// (`lib/runtime-aliases.mjs`) rewrites that to `@gjsify/stream/browser`
+// because this package declares `runtimes.browser: "polyfill"` AND exports a
+// `./browser` subpath — the platform-entry routing of ADR 0014. Until that ADR
+// landed the second hop did not exist and this file was never reached: the
+// browser build silently bundled the GJS impl instead. The full GJS impl
 // (`./index.js`) is large (Readable/Writable internals + GJS-tuned scheduling)
 // and bundling it for the browser would needlessly inflate every web build.
 //
@@ -515,3 +521,13 @@ const streamDefault = Object.assign(Stream, {
 });
 
 export default streamDefault;
+
+// CJS-interop parity with `./index.ts` (AGENTS.md § CJS-ESM Interop). Rolldown's
+// `__toCommonJS` helper special-cases a `"module.exports"` OWN-property on the
+// module namespace and returns it verbatim, so a bundled CJS
+// `class X extends require('stream')` / `util.inherits(X, require('stream'))`
+// gets the callable constructor instead of the namespace object. Browser
+// bundles carry plenty of legacy CJS deps that do exactly this, and the
+// platform entry is what `--app browser` resolves (ADR 0014) — without this
+// line the browser build silently loses the fix the GJS/Node entry has.
+export { streamDefault as 'module.exports' };

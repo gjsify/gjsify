@@ -18,6 +18,71 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Package lists shared between the job that BUILDS a bundle and the job that
+# RUNS it. Workflow-level `env` is visible to every job's `run:` steps (and
+# survives the `su testuser -c` boundary, which preserves the environment), so
+# each list has exactly ONE definition. Paths, not package names, because both
+# consumers work on directories (`cd <dir> && gjsify run <script>`).
+env:
+  # ── macOS leg (see the `macos` job) ────────────────────────────────────
+  # A curated subset, not the full 113-spec suite. Two groups:
+  #
+  #   platform-aware — packages that dispatch on the host OS and whose macOS
+  #   branch has never executed anywhere:
+  #     v8            `src/heap/darwin.ts` (`ps -o rss=,vsz=`; no procfs) behind
+  #                   a SystemVersion.plist probe — the spec asserts
+  #                   `used_heap_size > 0`, so the darwin reader is really read.
+  #     child_process `src/platform/darwin.ts` — the BSD signal table (SIGUSR1 is
+  #                   30 on Darwin, 10 on Linux; SIGSTOP 17 vs 19), `detached`
+  #                   degrading without `setsid(1)`, and the new in-process
+  #                   `communicate.ts` timeout that replaced GNU `timeout(1)`.
+  #     path          POSIX/Win32 dispatch + `getPathSeparator()`; also the
+  #                   single largest pure-logic suite here (432 cases).
+  #
+  #   controls — pure-TS/engine-level packages that MUST behave identically on
+  #   both hosts. If one of these reds while the platform-aware ones pass, the
+  #   fault is the harness/toolchain, not the package:
+  #     querystring, string_decoder (pure logic),
+  #     buffer (Blob/atob/btoa — i.e. macOS SpiderMonkey itself).
+  #
+  # NOT here yet: `@gjsify/os`. Its `getOs()` shells out to `uname -o`, a GNU
+  # extension Darwin's uname rejects; `@gjsify/utils`' `cli()` throws on any
+  # stderr output, so every `os.cpus()/totalmem()/uptime()` call would throw and
+  # `src/darwin.ts` is unreachable dead code. The fix is the capability probe
+  # `@gjsify/v8` and `@gjsify/child_process` already use (a
+  # `/System/Library/CoreServices/SystemVersion.plist` `GLib.file_test`, no uname
+  # parsing). Until that lands `os` runs as a NON-GATING probe below — move it
+  # from MACOS_PROBE_PACKAGES to MACOS_TEST_PACKAGES once it is fixed.
+  MACOS_TEST_PACKAGES: >-
+    packages/node/v8
+    packages/node/child_process
+    packages/node/path
+    packages/node/querystring
+    packages/node/string_decoder
+    packages/node/buffer
+  MACOS_PROBE_PACKAGES: >-
+    packages/node/os
+
+  # ── Bun + Deno leg (see the `cross-runtime` job) ───────────────────────
+  # Packages whose `--app node` test bundle actually exercises OUR code on a
+  # Node-API runtime. The filter is NOT `gjsify.runtimes.node != "none"` alone:
+  # a spec that imports `node:path` gets Node's/Bun's/Deno's own builtin (the
+  # bundle externalises it), so such a leg would test the runtime, not the
+  # polyfill. Every entry below either imports its own package by name, or
+  # imports a bare Web specifier that `ALIASES_WEB_FOR_NODE` routes to the
+  # POLYFILL (`dom-events`-style), or is infra code that is nobody's builtin.
+  # All nine were run locally on node + bun + deno before being listed.
+  CROSS_RUNTIME_PACKAGES: >-
+    packages/gjs/unit
+    packages/web/adwaita-core
+    packages/framework/storybook-core
+    packages/web/domparser
+    packages/web/webstorage
+    packages/infra/semver
+    packages/infra/workspace
+    packages/infra/npm-registry
+    packages/infra/tar
+
 jobs:
   # Matrix planner — emits the Fedora legs the build/test jobs run as a JSON job
   # output that the matrix `fromJSON`s (a matrix axis can't be built inline here).
@@ -27,9 +92,42 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       fedora-matrix: ${{ steps.plan.outputs.fedora-matrix }}
+      macos-matrix: ${{ steps.plan.outputs.macos-matrix }}
+      macos-enabled: ${{ steps.plan.outputs.macos-enabled }}
     steps:
       - id: plan
-        run: echo 'fedora-matrix=[{"v":"44","gjs":"GJS 1.88 / SM 140"}]' >> "$GITHUB_OUTPUT"
+        env:
+          # Booleans/enums only — never interpolate attacker-controlled text
+          # (titles, branch names, …) into this shell.
+          EVENT: ${{ github.event_name }}
+          MACOS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:macos') }}
+        run: |
+          echo 'fedora-matrix=[{"v":"44","gjs":"GJS 1.88 / SM 140"}]' >> "$GITHUB_OUTPUT"
+
+          # macOS leg. The axis is an OBJECT for the same reason the Fedora one
+          # is: `runs-on` and the job name are read off the entry, so adding an
+          # Intel `macos-13` leg later is one more object rather than a static
+          # `include:` (an include for a runner absent from a reduced axis
+          # spawns a phantom leg).
+          #
+          # The enable/disable decision is a SEPARATE boolean, deliberately not
+          # an empty array: an empty matrix vector is a workflow-authoring
+          # hazard, while a job-level `if:` skips cleanly and reads as "skipped"
+          # rather than "no legs".
+          echo 'macos-matrix=[{"os":"macos-latest","arch":"arm64","gjs":"Homebrew GJS 1.88 / SM 140"}]' >> "$GITHUB_OUTPUT"
+
+          # Cost control. GitHub bills macOS runners at 10x Linux, so the leg is
+          # OFF on pull_request by default and ON for push-to-main + the nightly
+          # sweep — the same "full on main/nightly, reduced on PR" shape the
+          # Fedora axis uses. Escape hatch: label a PR `ci:macos` to opt that PR
+          # in (for a change that touches a per-platform module).
+          if [ "$EVENT" = "pull_request" ] && [ "$MACOS_LABEL" != "true" ]; then
+            echo 'macos-enabled=false' >> "$GITHUB_OUTPUT"
+            echo "[ci] macOS leg: skipped (pull_request without the ci:macos label)"
+          else
+            echo 'macos-enabled=true' >> "$GITHUB_OUTPUT"
+            echo "[ci] macOS leg: enabled ($EVENT)"
+          fi
 
   # Classifier job — diffs HEAD vs the PR's base SHA, emits per-test-tier
   # gates as job outputs. Runs in seconds on plain ubuntu-latest with no
@@ -210,6 +308,60 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      # ── macOS leg: build the bundles HERE, run them THERE ────────────────
+      # `@gjsify/rolldown-native` is the only bundler engine that runs under
+      # GJS, and it does not compile for Apple targets at all (its Rust core
+      # wakes the GLib loop with `eventfd(2)`) — see
+      # website/src/content/docs/platform-support.md. On macOS `gjsify build`
+      # therefore has to run under Node + npm `rolldown`, which would mean a
+      # full `gjsify install` (a ~2 GB, ~16 min cold extract) on a runner billed
+      # at 10x. So the build stays on this Fedora leg — where npm rolldown /
+      # rolldown-native, node_modules and the build cache already exist — and
+      # macOS executes the result.
+      #
+      # That is sound because `--app gjs` output is a SINGLE self-contained file
+      # whose only unbundled imports are `gi://GLib|Gio|GioUnix` (verified with
+      # `grep -oE 'gi://[^"]+'` on every bundle in this set): platform-neutral
+      # JS plus three typelibs the macOS host provides. What this DOES verify is
+      # runtime behaviour on macOS/arm64 — the gap this leg exists to close.
+      # What it does NOT verify is the gjsify build toolchain on macOS; that is
+      # a separate gap owned by `cli-cross-platform.yml`, and it cannot be
+      # closed here while the native bundler has no Apple target at all.
+      #
+      # Each bundle is copied to a flat staging dir so the macOS side can just
+      # glob it — the package list stays defined exactly once (workflow `env`).
+      # Staged under `.gjsify-cache/` because gjsify-setup already creates that
+      # dir and chowns it to testuser, and it is gitignored (no stray untracked
+      # path in the work tree). It is NOT the tarball cache path
+      # (`.gjsify-cache/gjsify/tarballs`), so the install cache is untouched.
+      - name: Stage GJS test bundles for the macOS leg
+        if: ${{ needs.setup.outputs.macos-enabled == 'true' }}
+        run: |
+          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
+            set -e
+            out=.gjsify-cache/macos-test-bundles
+            rm -rf \"\$out\"
+            mkdir -p \"\$out/gate\" \"\$out/probe\"
+            for d in \$MACOS_TEST_PACKAGES; do
+              (cd \"\$d\" && gjsify run build:test:gjs)
+              cp \"\$d/test.gjs.mjs\" \"\$out/gate/\$(basename \$d).test.gjs.mjs\"
+            done
+            for d in \$MACOS_PROBE_PACKAGES; do
+              (cd \"\$d\" && gjsify run build:test:gjs)
+              cp \"\$d/test.gjs.mjs\" \"\$out/probe/\$(basename \$d).test.gjs.mjs\"
+            done
+            ls -l \"\$out/gate\" \"\$out/probe\"
+          '"
+
+      - name: Upload GJS test bundles for the macOS leg
+        if: ${{ needs.setup.outputs.macos-enabled == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gjs-test-bundles-fedora${{ matrix.fedora.v }}
+          path: .gjsify-cache/macos-test-bundles
+          retention-days: 1
+          if-no-files-found: error
+
   # ── Type-check: packages ────────────────────────────────────────────
   # Restores the build job's .d.ts and type-checks the workspace packages in
   # its own job so it overlaps with test/e2e instead of serializing after the
@@ -312,25 +464,35 @@ jobs:
         if: ${{ matrix.shard == 1 && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/webgl')) }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
-  # ── CLI cross-runtime tests (Node + Bun + Deno) ─────────────────────
-  # The @gjsify/cli itself is host-runtime-aware: it runs under gjs, node, bun
-  # AND deno, and its DEFAULT `--app` target + `--runtime` follow the host. Its
-  # own `@gjsify/unit` test suite (built engine-agnostic to dist/test.node.mjs)
-  # must therefore pass on all Node-API runtimes. The main `test` job already
-  # runs it on node (`gjsify foreach test`); this job additionally runs the SAME
-  # bundle on Bun and Deno (reusing node-gi.yml's setup-bun/setup-deno pattern).
-  # Bun/Deno self-fake `process.versions.node`, so the fixed `isNode()` detector
-  # (Bun/Deno probed first) is what keeps host-derived defaults correct there.
-  # (`test:gjs` is intentionally NOT run here: the gjs bundle builds, but the
-  # build-cache suite's file-hashing loop hangs under @gjsify/fs's readSync.)
-  cli-cross-runtime:
+  # ── Cross-runtime tests (Node + Bun + Deno) ─────────────────────────
+  # Bun and Deno share the `node` runtime slot with Node via the Node-API common
+  # ABI, which the runtime model ASSERTS. This job is where that assertion is
+  # actually tested.
+  #
+  # Two payloads, one job (the container boot + install + cache restore is the
+  # dominant cost, so splitting them would double it):
+  #
+  #   1. @gjsify/cli — host-runtime-aware: it runs under gjs, node, bun AND
+  #      deno, and its DEFAULT `--app` target + `--runtime` follow the host, so
+  #      its own suite must pass on all three. Bun/Deno self-fake
+  #      `process.versions.node`, so the fixed `isNode()` detector (Bun/Deno
+  #      probed first) is what keeps host-derived defaults correct there.
+  #      (`test:gjs` is intentionally NOT run here: the gjs bundle builds, but
+  #      the build-cache suite's file-hashing loop hangs under @gjsify/fs's
+  #      readSync.)
+  #
+  #   2. $CROSS_RUNTIME_PACKAGES — the nine packages whose `--app node` bundle
+  #      genuinely contains OUR code (see the workflow `env` block for why the
+  #      set is not simply "every package with runtimes.node != none"). Same
+  #      shape as the CLI: build ONE engine-agnostic bundle, run it three times.
+  cross-runtime:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli')) }}
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar')) }}
     strategy:
       fail-fast: false
       matrix:
         fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
-    name: CLI cross-runtime (node+bun+deno) Fedora ${{ matrix.fedora.v }}
+    name: Cross-runtime (node+bun+deno) Fedora ${{ matrix.fedora.v }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -375,12 +537,150 @@ jobs:
       # self-contained + world-readable, and bun/deno land on PATH via the setup
       # actions (which the `su testuser` environment would drop). A non-zero exit
       # from @gjsify/unit fails the step.
-      - name: Test on Node
+      - name: Test CLI on Node
         run: cd packages/infra/cli && node dist/test.node.mjs
-      - name: Test on Bun
+      - name: Test CLI on Bun
         run: cd packages/infra/cli && bun dist/test.node.mjs
-      - name: Test on Deno
+      - name: Test CLI on Deno
         run: cd packages/infra/cli && deno run -A --no-lock --node-modules-dir=none dist/test.node.mjs
+
+      # ── The package set ─────────────────────────────────────────────────
+      # Build as testuser (matching every other build step's ownership model);
+      # run as root so bun/deno stay on PATH, exactly as the CLI steps above.
+      # The interpreter invocations here are byte-identical to the `test:node` /
+      # `test:bun` / `test:deno` scripts each package declares — the scripts are
+      # the contract for local runs, this loop is the CI driver.
+      - name: Build package test bundles (--app node)
+        run: |
+          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
+            set -e
+            for d in \$CROSS_RUNTIME_PACKAGES; do
+              echo \"[ci] build:test:node \$d\"
+              (cd \"\$d\" && gjsify run build:test:node)
+            done
+          '"
+      - name: Test packages on Node
+        run: |
+          set -e
+          for d in $CROSS_RUNTIME_PACKAGES; do
+            echo "::group::node — $d"
+            (cd "$d" && node test.node.mjs)
+            echo "::endgroup::"
+          done
+      - name: Test packages on Bun
+        run: |
+          set -e
+          for d in $CROSS_RUNTIME_PACKAGES; do
+            echo "::group::bun — $d"
+            (cd "$d" && bun test.node.mjs)
+            echo "::endgroup::"
+          done
+      # `--node-modules-dir=none` keeps Deno from materialising a node_modules
+      # tree next to the bundle; the bundle resolves nothing at runtime.
+      # NOTE: `@gjsify/unit`'s `on('Node.js', …)` blocks do NOT run under Deno
+      # (Deno is correctly detected as its own runtime and those suites are
+      # counted as "ignored"). Only `@gjsify/tar` in this set has such a block —
+      # 25 of its 27 cases run on Deno. Watch that count when adding a package:
+      # a suite that is entirely `on('Node.js')`-wrapped would be vacuous here.
+      - name: Test packages on Deno
+        run: |
+          set -e
+          for d in $CROSS_RUNTIME_PACKAGES; do
+            echo "::group::deno — $d"
+            (cd "$d" && deno run -A --no-lock --node-modules-dir=none test.node.mjs)
+            echo "::endgroup::"
+          done
+
+  # ── macOS: the GJS suite on Apple silicon ───────────────────────────
+  # Until this job existed, every one of the ~10,000 test cases across 113 spec
+  # files ran on Linux ONLY. The non-Linux legs elsewhere in the repo test other
+  # things: node-gi.yml tests node-gi, napi.yml tests the N-API shim,
+  # cli-cross-platform.yml runs four diagnostic steps. None of them execute a
+  # `@gjsify/*` polyfill suite on macOS.
+  #
+  # This job does, for a curated subset (see $MACOS_TEST_PACKAGES in the
+  # workflow `env` block for the set and the reason for each entry). It runs the
+  # bundles the Fedora `build` job staged — the build cannot happen here, see
+  # the "Stage GJS test bundles" step for why.
+  #
+  # Toolchain copied from napi.yml's `macos` job: Homebrew's `gjs` 1.88.x pulls
+  # `spidermonkey` (mozjs-140) + glib/gobject-introspection transitively, which
+  # is the same GJS/SM pairing the Fedora image ships, so a difference here is a
+  # difference in the OS, not in the engine version.
+  #
+  # Cost: OFF on pull_request unless the PR is labelled `ci:macos` (macOS
+  # runners bill at 10x). ON for push-to-main + the nightly sweep, where a red
+  # is a signal rather than a merge blocker.
+  macos:
+    needs: [setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.setup.outputs.macos-enabled == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        macos: ${{ fromJSON(needs.setup.outputs.macos-matrix) }}
+    name: macOS ${{ matrix.macos.arch }} GJS suite (${{ matrix.macos.gjs }})
+    runs-on: ${{ matrix.macos.os }}
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      # No `actions/checkout` — this job runs prebuilt, self-contained bundles
+      # and needs nothing from the work tree. Skipping it keeps the billed
+      # minutes down.
+      - name: Install GJS + SpiderMonkey (mozjs-140) via Homebrew
+        run: brew install gjs
+
+      # Fail LOUDLY and early if the host is missing something the bundles
+      # import, instead of letting it surface as a confusing suite failure. The
+      # `--app gjs` bundles in this set externalise exactly three specifiers:
+      # gi://GLib, gi://Gio and gi://GioUnix (all version 2.0).
+      - name: Verify gjs + the GLib/Gio/GioUnix typelibs
+        run: |
+          gjs --version
+          gjs -c 'const {GLib, Gio, GioUnix} = imports.gi; void Gio; void GioUnix; print("GLib " + GLib.MAJOR_VERSION + "." + GLib.MINOR_VERSION + "." + GLib.MICRO_VERSION + " — Gio + GioUnix typelibs load OK");'
+
+      # `pattern` + `merge-multiple` so this stays correct if the Fedora axis
+      # ever grows a second leg (the bundles are identical builds).
+      - name: Download the staged GJS test bundles
+        uses: actions/download-artifact@v8
+        with:
+          pattern: gjs-test-bundles-fedora*
+          merge-multiple: true
+          path: bundles
+
+      # The gate. Every bundle runs even if an earlier one fails, so one red
+      # package does not hide the state of the rest.
+      - name: Run the GJS test suites
+        run: |
+          status=0
+          for f in bundles/gate/*.test.gjs.mjs; do
+            echo "::group::$(basename "$f")"
+            gjs -m "$f" || { status=1; echo "::error title=macOS GJS suite::$(basename "$f") failed"; }
+            echo "::endgroup::"
+          done
+          exit $status
+
+      # NON-GATING probe. `@gjsify/os` cannot pass on macOS today: `getOs()`
+      # shells out to `uname -o` (a GNU extension Darwin rejects) through
+      # `@gjsify/utils`' `cli()`, which throws on any stderr output — so
+      # `src/darwin.ts` is unreachable. This step answers "is that still true?"
+      # on every run without reddening main. When the capability probe used by
+      # @gjsify/v8 / @gjsify/child_process lands in @gjsify/os, move it from
+      # MACOS_PROBE_PACKAGES to MACOS_TEST_PACKAGES and delete this step.
+      - name: Probe @gjsify/os on macOS (known gap — not a gate)
+        continue-on-error: true
+        run: |
+          status=0
+          for f in bundles/probe/*.test.gjs.mjs; do
+            echo "::group::probe $(basename "$f")"
+            gjs -m "$f" || status=1
+            echo "::endgroup::"
+          done
+          if [ "$status" != "0" ]; then
+            echo "::warning title=macOS probe::a probe suite failed — expected while the @gjsify/os uname gap is open"
+          fi
+          exit $status
 
   # ── E2E tests ───────────────────────────────────────────────────────
   # Exercises the CLI end-to-end (install, build, dlx, publish, …) in its own

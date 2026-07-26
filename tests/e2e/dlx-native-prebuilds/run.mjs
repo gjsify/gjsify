@@ -18,6 +18,14 @@
 //   1. `runGjsBundle` walks node_modules from the bundle dir as well as CWD.
 //   2. The walker scans every package, so transitive native deps surface
 //      automatically.
+//
+// The second describe() block covers the OS-axis follow-up: the walker used to
+// interpolate a literal `linux-` prefix, so it could only ever find the
+// uname-style directories the Vala/meson bridges stage — never the node-style
+// `${process.platform}-${process.arch}` ones `@gjsify/node-gi` and
+// `@gjsify/napi` stage, and never a `darwin-arm64` artifact at all. Both
+// spellings must resolve, and the emitted environment must name the variable
+// the HOST's loader reads.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -125,5 +133,98 @@ describe('CLI dlx / native-prebuild env injection E2E', { timeout: 10 * 60 * 100
             fromBundleAndProjectCwd.env.GI_TYPELIB_PATH.length > 0,
             'GI_TYPELIB_PATH must be populated when CWD is the project dir',
         );
+    });
+});
+
+describe('CLI native-prebuild resolution across naming conventions E2E', { timeout: 10 * 60 * 1000 }, () => {
+    /** uname-style arch token, matching what the meson jobs name their dirs. */
+    const UNAME_ARCH = { x64: 'x86_64', arm64: 'aarch64', arm: 'armv7', ia32: 'i686' }[process.arch] ?? process.arch;
+    /** Environment variable the host's dynamic loader actually consults. */
+    const LIB_VAR =
+        process.platform === 'darwin' ? 'DYLD_LIBRARY_PATH' : process.platform === 'win32' ? 'PATH' : 'LD_LIBRARY_PATH';
+
+    let root;
+    let bundlePath;
+    let cleanCwd;
+
+    /** Seed `<root>/node_modules/<name>` with a gjsify manifest + prebuild dirs. */
+    const seed = (name, prebuildDirs, platforms) => {
+        const pkgDir = join(root, 'node_modules', ...name.split('/'));
+        mkdirSync(pkgDir, { recursive: true });
+        writeFileSync(
+            join(pkgDir, 'package.json'),
+            JSON.stringify({
+                name,
+                version: '1.0.0',
+                gjsify: { prebuilds: 'prebuilds', ...(platforms ? { platforms } : {}) },
+            }),
+        );
+        for (const dir of prebuildDirs) {
+            mkdirSync(join(pkgDir, 'prebuilds', dir), { recursive: true });
+            writeFileSync(join(pkgDir, 'prebuilds', dir, 'placeholder'), '');
+        }
+    };
+
+    before(() => {
+        root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-prebuild-naming-'));
+        writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'naming-consumer', private: true }));
+
+        // uname-style — how every Vala/meson bridge stages (`prebuilds/linux-x86_64`).
+        seed('@test/uname-style', [`${process.platform}-${UNAME_ARCH}`]);
+        // node-style — how @gjsify/node-gi and @gjsify/napi stage
+        // (`prebuilds/${process.platform}-${process.arch}`).
+        seed('@test/node-style', [`${process.platform}-${process.arch}`]);
+        // Declares its own spelling AND ships only a foreign platform: must be
+        // skipped cleanly, exactly like @gjsify/sab-native on a Mac.
+        seed('@test/foreign-only', ['plan9-sparc'], ['plan9-sparc']);
+
+        bundlePath = join(root, 'bundle.js');
+        writeFileSync(bundlePath, '// synthetic bundle\n');
+        cleanCwd = mkdtempSync(join(tmpdir(), 'gjsify-e2e-prebuild-naming-cwd-'));
+    });
+
+    after(() => {
+        if (cleanCwd) rmSync(cleanCwd, { recursive: true, force: true });
+        if (root) rmSync(root, { recursive: true, force: true });
+    });
+
+    it('resolves BOTH the uname-style and node-style prebuild directories', async () => {
+        const cliReq = createRequire(import.meta.url);
+        const { computeNativeEnvForBundle } = await import(
+            pathToFileURL(cliReq.resolve('@gjsify/cli/lib/utils/run-gjs.js')).href
+        );
+        const { env } = computeNativeEnvForBundle(bundlePath, cleanCwd);
+
+        assert.ok(
+            env.GI_TYPELIB_PATH.includes(join('uname-style', 'prebuilds', `${process.platform}-${UNAME_ARCH}`)),
+            `uname-style prebuild dir missing from GI_TYPELIB_PATH: ${env.GI_TYPELIB_PATH}`,
+        );
+        assert.ok(
+            env.GI_TYPELIB_PATH.includes(join('node-style', 'prebuilds', `${process.platform}-${process.arch}`)),
+            `node-style prebuild dir missing from GI_TYPELIB_PATH: ${env.GI_TYPELIB_PATH}`,
+        );
+    });
+
+    it('skips a package that ships nothing for this host', async () => {
+        const cliReq = createRequire(import.meta.url);
+        const { computeNativeEnvForBundle } = await import(
+            pathToFileURL(cliReq.resolve('@gjsify/cli/lib/utils/run-gjs.js')).href
+        );
+        const { env } = computeNativeEnvForBundle(bundlePath, cleanCwd);
+        assert.ok(!env.GI_TYPELIB_PATH.includes('foreign-only'), 'a foreign-platform-only package must not resolve');
+    });
+
+    it('emits the library variable THIS host’s loader reads, and no other', async () => {
+        const cliReq = createRequire(import.meta.url);
+        const { computeNativeEnvForBundle } = await import(
+            pathToFileURL(cliReq.resolve('@gjsify/cli/lib/utils/run-gjs.js')).href
+        );
+        const { env, envPrefix } = computeNativeEnvForBundle(bundlePath, cleanCwd);
+
+        assert.ok(env[LIB_VAR], `expected ${LIB_VAR} to be set on ${process.platform}`);
+        assert.match(envPrefix, new RegExp(`${LIB_VAR}=`));
+        for (const other of ['LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH'].filter((v) => v !== LIB_VAR)) {
+            assert.equal(env[other], undefined, `${other} must not be emitted on ${process.platform}`);
+        }
     });
 });

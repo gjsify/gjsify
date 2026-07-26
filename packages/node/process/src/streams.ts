@@ -5,7 +5,7 @@
 // installed; otherwise GLib + env fallbacks handle the readable cases.
 
 import { EventEmitter } from '@gjsify/events';
-import { ensureMainLoop, quitMainLoop } from '@gjsify/utils';
+import { ensureMainLoop, quitMainLoop } from '@gjsify/utils/core';
 import { nativeTerminal } from '@gjsify/terminal-native';
 import { StringDecoder } from '@gjsify/string_decoder';
 import { getGjsGlobal, getGioNamespace } from './internal/gjs.js';

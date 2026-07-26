@@ -14,7 +14,7 @@ import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
 | `assert` | — | Full | AssertionError, deepEqual, throws, strict |
 | `async_hooks` | — | Full | AsyncLocalStorage, AsyncResource, createHook |
 | `buffer` | — | Full | Buffer via Blob/File/atob/btoa |
-| `child_process` | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess |
+| `child_process` | Gio | Full | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess. Shell (`/bin/sh` · `%ComSpec%` + `/d /s /c`), `detached` (`setsid(1)`), `argv0` and signal numbers resolve per platform; `spawnSync` timeouts run on an in-process GLib timer (no `timeout(1)`). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/node/child_process#platform-support) for the per-platform contract |
 | `cluster` | — | Stub | isPrimary, isWorker |
 | `console` | — | Full | Console with stream support |
 | `constants` | — | Full | Flattened `os.constants` + `fs.constants` (deprecated Node alias) |
@@ -47,7 +47,7 @@ import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
 | `tty` | — | Full | ReadStream/WriteStream, ANSI escapes |
 | `url` | GLib | Full | URL (static `createObjectURL`/`revokeObjectURL`), URLSearchParams via GLib.Uri |
 | `util` | — | Full | inspect, format, promisify, types |
-| `v8` | — | Partial | Wire-format v15 serialize/deserialize; getHeapStatistics; no heap snapshot or CPU profile |
+| `v8` | GLib | Partial | Wire-format v15 serialize/deserialize; `getHeapStatistics` approximated from OS process memory (`/proc/self/status` on Linux, `ps` on macOS, all-zero where no reader exists); no heap snapshot or CPU profile |
 | `vm` | — | Partial | runInThisContext, runInNewContext, Script, compileFunction |
 | `worker_threads` | Gio, GLib | Partial | MessageChannel/Port/BroadcastChannel, subprocess Worker; SharedArrayBuffer via `@gjsify/sab-native` (cross-process, file-based) |
 | `ws` (npm) | Soup 3.0 | Partial | `ws`-compat WebSocket client + WebSocketServer over `@gjsify/websocket` |

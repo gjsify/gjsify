@@ -27,10 +27,21 @@
 //     literal `@`. (gjsify's URL encoding already matches this — it was never
 //     the bug.)
 //
-// This module is pure (no I/O, no `gi://`) so it is unit-testable on both Node
-// and GJS without dragging in the runtime fetch/Soup stack.
+// This module pulls in no `gi://` and no runtime fetch/Soup stack, so it is
+// unit-testable on both Node and GJS. Its one filesystem touch is the
+// manifest walk backing the user-agent version — see `cliVersion()`.
 
+import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildHeaders, type NpmrcConfig } from '@gjsify/npm-registry';
+
+/**
+ * Compile-time constant injected by `package.json#gjsify.defineFromPackageJson`
+ * — see {@link cliVersion}. Only ever defined in a bundled artifact; `typeof`
+ * keeps the reference legal in the plain-`tsc` output where it is not.
+ */
+declare const __PACKAGE_VERSION__: string | undefined;
 
 /**
  * Percent-encode a package name for the publish PUT path, matching
@@ -60,9 +71,8 @@ export interface PublishHeaderOptions {
      */
     authorization?: string;
     /**
-     * npm user-agent. Defaults to an npm-CLI-shaped string. The registry does
-     * not validate the exact value, but a real UA is what npm sends; the dead
-     * `gjsify-install/0.3.7` placeholder is not used here.
+     * npm user-agent. Defaults to an npm-CLI-shaped string carrying this CLI's
+     * real version — never a hard-coded placeholder (see {@link cliVersion}).
      */
     userAgent?: string;
 }
@@ -114,6 +124,65 @@ export function buildPublishHeaders(url: string, opts: PublishHeaderOptions): Re
 }
 
 /**
+ * This CLI's own `package.json#version`, memoised. Two layers, because
+ * `@gjsify/cli` is a DUAL-ENTRY package and neither layer covers both entries:
+ *
+ * 1. **`__PACKAGE_VERSION__`** — the compile-time define
+ *    (`package.json#gjsify.defineFromPackageJson`), the mechanism
+ *    `@gjsify/npm-registry` uses for the same stale-UA bug. Zero I/O, but the
+ *    bundler only ever writes `dist/cli.gjs.mjs`: the npm-wired Node bin under
+ *    `lib/` is emitted by plain `tsc`, which knows nothing about defines. A
+ *    define alone would therefore have left the Node entry — the one `npm
+ *    install @gjsify/cli` actually runs — on a permanent placeholder.
+ *
+ * 2. **an upward manifest walk** for the nearest `package.json` naming
+ *    `@gjsify/cli`, covering `lib/`. Deliberately NOT a fixed
+ *    `new URL('../../package.json', import.meta.url)` read: that resolves
+ *    correctly from `lib/utils/` but points one directory too high from
+ *    `dist/`, and the build-time `inlineStaticReads` pass that would have
+ *    frozen it is scoped to `node_modules` paths, so first-party source never
+ *    gets it. The walk is depth-independent and so works from `src/`, `lib/`,
+ *    `dist/`, and from an installed `node_modules/@gjsify/cli/**` alike.
+ *
+ * `GJSIFY_CLI_PACKAGE_JSON` overrides both, matching `self-update.ts`.
+ */
+let cachedCliVersion: string | undefined;
+function cliVersion(): string {
+    if (cachedCliVersion !== undefined) return cachedCliVersion;
+    cachedCliVersion =
+        (typeof __PACKAGE_VERSION__ === 'string' ? __PACKAGE_VERSION__ : '') || walkForCliVersion() || 'unknown';
+    return cachedCliVersion;
+}
+
+/** Nearest ancestor `package.json` whose `name` is `@gjsify/cli`; '' when none. */
+function walkForCliVersion(): string {
+    const override = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[
+        'GJSIFY_CLI_PACKAGE_JSON'
+    ];
+    let dir: string;
+    try {
+        dir = override ? dirname(override) : dirname(fileURLToPath(import.meta.url));
+    } catch {
+        return '';
+    }
+    for (let i = 0; i < 12; i++) {
+        try {
+            const pkg = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8')) as {
+                name?: unknown;
+                version?: unknown;
+            };
+            if (pkg.name === '@gjsify/cli' && typeof pkg.version === 'string') return pkg.version;
+        } catch {
+            /* no manifest here (or unreadable) — keep climbing */
+        }
+        const parent = dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+    }
+    return '';
+}
+
+/**
  * npm-CLI-shaped user-agent. Format mirrors npm-registry-fetch's
  * `default-opts.js` (`npm@<v>/node@<v>+<arch> (<platform>)`); we substitute the
  * gjsify CLI identity. The registry does not validate the exact value — it just
@@ -123,5 +192,5 @@ function defaultUserAgent(): string {
     const proc = (globalThis as { process?: { arch?: string; platform?: string } }).process;
     const arch = proc?.arch ?? 'x64';
     const platform = proc?.platform ?? 'linux';
-    return `gjsify-publish/0.5.0 (${platform} ${arch})`;
+    return `gjsify-publish/${cliVersion()} (${platform} ${arch})`;
 }

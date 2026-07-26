@@ -29,23 +29,27 @@
 //   `notify::heading` / `notify::body` / `notify::open` (CustomEvent, bubbles)
 //     mirroring the matching GObject properties.
 //
+// The RESPONSE MODEL — the response registry (id/label/appearance/enabled), the
+// default/close-response semantics and the resolve-to-chosen-id contract — is
+// HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link AdwAlertResponses}; this element composes it and keeps only the DOM
+// render half: the scrim + floating sheet, one `<button>` per registered
+// response, and the `response` event. `@gjsify/adwaita-nativescript` composes the
+// same model, so both ports share one behaviour.
+//
 // Reference: refs/libadwaita/src/adw-alert-dialog.c (AdwAlertDialog behaviour)
 // Reference: refs/libadwaita/src/adw-dialog.c (shared dialog base — Escape/close)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss (floating-sheet)
 // Reference: refs/adwaita-web/adwaita-web/scss/_dialog.scss (alert layout)
 // Copyright (c) 2022 Purism SPC / 2024 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// response model composed from @gjsify/adwaita-core.
+
+import { AdwAlertResponses } from '@gjsify/adwaita-core';
+import type { AdwResponseAppearance } from '@gjsify/adwaita-core';
 
 /** Response button appearance — mirrors Adw.ResponseAppearance. */
-export type AdwResponseAppearance = 'default' | 'suggested' | 'destructive';
-
-interface ResponseInfo {
-    id: string;
-    label: string;
-    appearance: AdwResponseAppearance;
-    enabled: boolean;
-    button: HTMLButtonElement;
-}
+export type { AdwResponseAppearance } from '@gjsify/adwaita-core';
 
 /**
  * A single response declared in markup. Child of <adw-alert-dialog>; its `id`
@@ -68,10 +72,10 @@ export class AdwAlertDialog extends HTMLElement {
     private _childEl!: HTMLDivElement;
     private _responseAreaEl!: HTMLDivElement;
 
-    private _responses: ResponseInfo[] = [];
-    private _byId = new Map<string, ResponseInfo>();
-    private _defaultResponse: string | null = null;
-    private _closeResponse = 'close';
+    /** The headless response registry + default/close semantics + resolution (ADR 0004). */
+    private _model = new AdwAlertResponses();
+    /** The rendered button per registered response id (the DOM half of the model). */
+    private readonly _buttons = new Map<string, HTMLButtonElement>();
     // Set while a response is being emitted from a button so the close handler
     // does not also fire the close-response (mirrors AdwAlertDialog's
     // block_close_response flag).
@@ -121,7 +125,7 @@ export class AdwAlertDialog extends HTMLElement {
 
     /** The ID of the default response (its button is highlighted). */
     get defaultResponse(): string | null {
-        return this._defaultResponse;
+        return this._model.defaultResponse;
     }
 
     set defaultResponse(value: string | null) {
@@ -130,7 +134,7 @@ export class AdwAlertDialog extends HTMLElement {
 
     /** The ID passed to `response` when the dialog is dismissed. */
     get closeResponse(): string {
-        return this._closeResponse;
+        return this._model.closeResponse;
     }
 
     set closeResponse(value: string) {
@@ -202,6 +206,11 @@ export class AdwAlertDialog extends HTMLElement {
             if (el.getAttribute('enabled') === 'false') this.setResponseEnabled(id, false);
         }
 
+        // Seed the headless model's text from the parsed markup (the attributes
+        // stay the source of truth for what is rendered).
+        this._model.heading = this.heading;
+        this._model.body = this.body;
+
         this._render();
     }
 
@@ -210,8 +219,12 @@ export class AdwAlertDialog extends HTMLElement {
         if (oldValue === newValue) return;
         this._render();
         if (name === 'heading') {
+            // Keep the headless model a complete description of the dialog; the
+            // attribute stays the source of truth for the rendered heading.
+            this._model.heading = this.heading;
             this.dispatchEvent(new CustomEvent('notify::heading', { bubbles: true, detail: { heading: this.heading } }));
         } else if (name === 'body') {
+            this._model.body = this.body;
             this.dispatchEvent(new CustomEvent('notify::body', { bubbles: true, detail: { body: this.body } }));
         } else if (name === 'open') {
             this.dispatchEvent(new CustomEvent('notify::open', { bubbles: true, detail: { open: this.open } }));
@@ -226,7 +239,9 @@ export class AdwAlertDialog extends HTMLElement {
 
     /** Adds a response button with the given ID and label. */
     addResponse(id: string, label: string): void {
-        if (this._byId.has(id)) {
+        // The core registry UPDATES a duplicate id in place; AdwAlertDialog
+        // refuses it, so the guard stays here.
+        if (this._model.hasResponse(id)) {
             // Mirror AdwAlertDialog's g_critical without throwing.
             console.warn(
                 `[adw-alert-dialog] Trying to add a response with id '${id}', but such a response already exists`,
@@ -238,12 +253,10 @@ export class AdwAlertDialog extends HTMLElement {
         button.type = 'button';
         button.className = 'adw-button adw-alert-dialog-response';
         button.textContent = label;
+        button.addEventListener('click', () => this._activateResponse(id));
 
-        const info: ResponseInfo = { id, label, appearance: 'default', enabled: true, button };
-        button.addEventListener('click', () => this._activateResponse(info));
-
-        this._responses.push(info);
-        this._byId.set(id, info);
+        this._model.addResponse(id, label);
+        this._buttons.set(id, button);
         if (this._responseAreaEl) this._responseAreaEl.appendChild(button);
         this._render();
     }
@@ -257,80 +270,94 @@ export class AdwAlertDialog extends HTMLElement {
 
     /** Removes a response. */
     removeResponse(id: string): void {
-        const info = this._byId.get(id);
-        if (!info) return;
-        info.button.remove();
-        this._responses = this._responses.filter((r) => r !== info);
-        this._byId.delete(id);
-        if (this._defaultResponse === id) this._defaultResponse = null;
+        if (!this._model.hasResponse(id)) return;
+        this._buttons.get(id)?.remove();
+        this._buttons.delete(id);
+        // `AdwAlertResponses` exposes no removal (a gap against
+        // adw_alert_dialog_remove_response), so the registry is rebuilt from the
+        // survivors — core stays the single owner of the response state.
+        const survivors = this._model.responses.filter((response) => response.id !== id);
+        const rebuilt = new AdwAlertResponses(this._model.heading, this._model.body);
+        for (const response of survivors) {
+            rebuilt.addResponse(response.id, response.label, {
+                appearance: response.appearance,
+                enabled: response.enabled,
+            });
+        }
+        rebuilt.closeResponse = this._model.closeResponse;
+        rebuilt.defaultResponse = this._model.defaultResponse === id ? null : this._model.defaultResponse;
+        this._model = rebuilt;
         this._render();
     }
 
     /** Whether a response with the given ID exists. */
     hasResponse(id: string): boolean {
-        return this._byId.has(id);
+        return this._model.hasResponse(id);
     }
 
     /** Gets a response's label. */
     getResponseLabel(id: string): string | null {
-        return this._byId.get(id)?.label ?? null;
+        return this._model.responses.find((response) => response.id === id)?.label ?? null;
     }
 
     /** Sets a response's label. */
     setResponseLabel(id: string, label: string): void {
-        const info = this._byId.get(id);
-        if (!info) return;
-        info.label = label;
-        info.button.textContent = label;
+        const button = this._buttons.get(id);
+        if (!button) return;
+        // Re-adding a known id updates it in place (the core registry contract).
+        this._model.addResponse(id, label);
+        button.textContent = label;
     }
 
     /** Gets a response's appearance. */
     getResponseAppearance(id: string): AdwResponseAppearance | null {
-        return this._byId.get(id)?.appearance ?? null;
+        return this._model.hasResponse(id) ? this._model.getResponseAppearance(id) : null;
     }
 
     /** Sets a response's appearance (default / suggested / destructive). */
     setResponseAppearance(id: string, appearance: AdwResponseAppearance): void {
-        const info = this._byId.get(id);
-        if (!info) return;
-        info.appearance = appearance;
-        info.button.classList.toggle('suggested-action', appearance === 'suggested');
-        info.button.classList.toggle('destructive-action', appearance === 'destructive');
+        const button = this._buttons.get(id);
+        if (!button) return;
+        this._model.setResponseAppearance(id, appearance);
+        button.classList.toggle('suggested-action', appearance === 'suggested');
+        button.classList.toggle('destructive-action', appearance === 'destructive');
     }
 
     /** Gets whether a response is enabled. */
     getResponseEnabled(id: string): boolean {
-        return this._byId.get(id)?.enabled ?? false;
+        return this._model.hasResponse(id) ? this._model.getResponseEnabled(id) : false;
     }
 
     /** Sets whether a response is enabled (disabled buttons can't be activated). */
     setResponseEnabled(id: string, enabled: boolean): void {
-        const info = this._byId.get(id);
-        if (!info) return;
-        info.enabled = enabled;
-        info.button.disabled = !enabled;
+        const button = this._buttons.get(id);
+        if (!button) return;
+        this._model.setResponseEnabled(id, enabled);
+        button.disabled = !enabled;
     }
 
     /** Sets the default response — its button is highlighted as the suggested one. */
     setDefaultResponse(id: string | null): void {
-        this._defaultResponse = id;
+        this._model.defaultResponse = id;
         this._render();
     }
 
     /** Sets the close response — emitted on dismissal (Escape / scrim click). */
     setCloseResponse(id: string): void {
-        this._closeResponse = id;
+        this._model.closeResponse = id;
     }
 
     // ── internals ──────────────────────────────────────────────────────────
 
     /** A response button was activated: close, then emit `response`. */
-    private _activateResponse(info: ResponseInfo): void {
-        if (!info.enabled) return;
+    private _activateResponse(id: string): void {
+        if (!this._model.getResponseEnabled(id)) return;
         this._blockCloseResponse = true;
         this.open = false;
         this._blockCloseResponse = false;
-        this._emitResponse(info.id);
+        // resolveById validates against the registry (the core resolve-to-chosen-id
+        // contract) and falls back to the close response.
+        this._emitResponse(this._model.resolveById(id));
     }
 
     /** Dismissal (Escape / scrim) — close, then emit the close-response. */
@@ -338,7 +365,8 @@ export class AdwAlertDialog extends HTMLElement {
         if (!this.open) return;
         this.open = false;
         if (this._blockCloseResponse) return;
-        this._emitResponse(this._closeResponse);
+        // No choice was made — the core model resolves that to the close response.
+        this._emitResponse(this._model.resolveById(null));
     }
 
     private _emitResponse(response: string): void {
@@ -347,9 +375,11 @@ export class AdwAlertDialog extends HTMLElement {
 
     /** Move focus to the default response button (or the first enabled one). */
     private _focusInitial(): void {
+        const defaultId = this._model.defaultResponse;
+        const firstEnabledId = this._model.responses.find((response) => response.enabled)?.id;
         const target =
-            (this._defaultResponse ? this._byId.get(this._defaultResponse)?.button : undefined) ??
-            this._responses.find((r) => r.enabled)?.button;
+            (defaultId ? this._buttons.get(defaultId) : undefined) ??
+            (firstEnabledId ? this._buttons.get(firstEnabledId) : undefined);
         target?.focus();
     }
 
@@ -369,14 +399,15 @@ export class AdwAlertDialog extends HTMLElement {
         // Layout: stack vertically by default; lay out horizontally only when
         // prefer-wide-layout is set and there are at most two responses (the
         // AdwAlertDialog heuristic for keeping wide buttons readable).
-        const horizontal = this.preferWideLayout && this._responses.length <= 2;
+        const horizontal = this.preferWideLayout && this._model.responses.length <= 2;
         this._responseAreaEl.classList.toggle('horizontal', horizontal);
 
         // Reflect the default response on its button (suggested highlight) unless
         // the response already carries an explicit appearance.
-        for (const info of this._responses) {
-            const isDefault = info.id === this._defaultResponse && info.appearance === 'default';
-            info.button.classList.toggle('default-response', isDefault);
+        const defaultId = this._model.defaultResponse;
+        for (const response of this._model.responses) {
+            const isDefault = response.id === defaultId && response.appearance === 'default';
+            this._buttons.get(response.id)?.classList.toggle('default-response', isDefault);
         }
     }
 }

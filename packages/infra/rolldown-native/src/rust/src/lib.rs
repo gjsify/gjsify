@@ -36,11 +36,13 @@ use serde::Serialize;
 use tokio::runtime::Builder;
 
 // Plugin-callback machinery (Phase B.1). The session module owns the
-// stateful Bundler instance + tokio runtime + Vala-side eventfd
+// stateful Bundler instance + tokio runtime + the Vala-side wakeup
 // pumps; plugin_proxy holds the JsPluginProxy that bridges
-// rolldown's Pluginable trait to the channel.
+// rolldown's Pluginable trait to the channel; wakeup holds the
+// portable pipe that wakes the GLib main loop.
 pub mod plugin_proxy;
 pub mod session;
+pub mod wakeup;
 
 /// Serializable mirror of the parts of `rolldown_common::Output` we expose to JS.
 ///

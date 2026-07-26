@@ -47,7 +47,7 @@ The full synchronous N-API surface is implemented, plus the async / threadsafe-f
 
 ### Platforms
 
-Prebuilt and CI-validated on **Linux (x86_64)** and **macOS (arm64)** — the same GJS + mozjs-140 pairing on both, with the full load / value-model / threadsafe-function gates green. **Windows** is groundwork-only: the loader and build wiring exist behind a manual CI job, but it is blocked upstream — no prebuilt `libgjs` for Windows exists yet (the shim links GJS's SpiderMonkey, so it needs a Windows `libgjs` the ecosystem doesn't ship). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the platform matrix.
+Prebuilt and CI-validated on **Linux (x86_64)** and **macOS (arm64)** — the same GJS + mozjs-140 pairing on both, with the full load / value-model / threadsafe-function gates green. Both prebuilds are rebuilt from the released source on every release and ship inside the npm tarball (`prebuilds/linux-x86_64/`, `prebuilds/darwin-arm64/` — each a `.so`/`.dylib` plus its `.gir` and `.typelib`). **Windows** is groundwork-only: the loader and build wiring exist behind a manual CI job, but it is blocked upstream — no prebuilt `libgjs` for Windows exists yet (the shim links GJS's SpiderMonkey, so it needs a Windows `libgjs` the ecosystem doesn't ship). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the platform matrix.
 
 ## Not a replacement for `gi://`
 
@@ -59,7 +59,7 @@ Prebuilt and CI-validated on **Linux (x86_64)** and **macOS (arm64)** — the sa
 gjsify install @gjsify/napi
 ```
 
-Installing through the `gjsify` CLI puts the shim's typelib on `GI_TYPELIB_PATH` for you. From then on a normal native-addon import **just works** in a `gjsify build --app gjs` build — no wrapper, no manual `loadAddon`:
+`@gjsify/napi` publishes on the [release train](/gjsify/versioning/) like every other `@gjsify/*` package, with the Linux x86_64 and macOS arm64 prebuilds baked into the tarball — so the install brings the shim itself, not just a build recipe. Installing through the `gjsify` CLI puts the shim's typelib on `GI_TYPELIB_PATH` for you. From then on a normal native-addon import **just works** in a `gjsify build --app gjs` build — no wrapper, no manual `loadAddon`:
 
 ```ts
 import Database from 'better-sqlite3'; // require('bufferutil') / etc.
@@ -72,6 +72,17 @@ Under the hood the `napiNodeAddonPlugin` (in `@gjsify/rolldown-plugin-gjsify`, t
 **Escape hatch — `loadAddon(path)`** (shown above) stays available for loading a `.node` by an arbitrary runtime path.
 
 At runtime you additionally need a built `.node` addon to load — compiled locally with a C++ toolchain, or a shipped prebuild, exactly as on Node. See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the full API surface and the current addon matrix.
+
+### Building the shim yourself
+
+Outside the two prebuilt platforms — or against a GJS built on a different SpiderMonkey major, which the shim is [intrinsically pinned to](https://github.com/gjsify/gjsify/blob/main/docs/adr/0011-napi-host-in-gjs.md) — build it from the sources the tarball ships alongside the prebuilds (`meson.build`, `src/vala`, `src/cc`, `src/napi-headers`):
+
+```bash
+cd node_modules/@gjsify/napi
+meson setup build . && meson compile -C build
+```
+
+That needs `meson`, `vala`, `g-ir-compiler`, a C++ toolchain and the `gjs-1.0` + `mozjs-140` development headers; point `GI_TYPELIB_PATH` (plus `LD_LIBRARY_PATH`, or `DYLD_LIBRARY_PATH` on macOS) at the resulting `build/` directory.
 
 ## See also
 

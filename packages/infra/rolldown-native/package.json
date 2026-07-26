@@ -20,7 +20,11 @@
         "src/vala"
     ],
     "gjsify": {
+        "platforms": ["linux-x86_64", "linux-aarch64"],
         "prebuilds": "prebuilds",
+        "refsLockstep": {
+            "refs/rolldown": { "npm": "rolldown", "tag": "v{version}" }
+        },
         "tier": 1
     },
     "scripts": {
@@ -30,7 +34,7 @@
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
-        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:meson": "node ../../../scripts/check-refs-pin.mjs . && gjsify run init:meson && meson compile -C build",
         "build:types": "gjsify tsc",
         "build:prebuilds": "gjsify run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifyrolldown.so build/libgjsify_rolldown.so build/GjsifyRolldown-1.0.gir build/GjsifyRolldown-1.0.typelib prebuilds/linux-x86_64/"
     },

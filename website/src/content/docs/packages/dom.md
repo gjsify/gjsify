@@ -46,6 +46,8 @@ widget.onReady((canvas, ctx) => {
 window.set_child(widget);
 ```
 
+The bridge package root is a side-effect-free barrel. The Canvas 2D browser globals it owns (`ImageData`, `Path2D`) live behind `@gjsify/canvas2d/register`, which `--globals auto` injects for you when your code references them; `@gjsify/iframe/register` does the same for `HTMLIFrameElement` and `document.createElement('iframe')`.
+
 For the bridge lifecycle (`onReady`, `installGlobals`) and more worked examples — including IFrame and Video — see [Bridge Widgets](/gjsify/patterns/bridges/).
 
 ## Example: WebGL

@@ -26,7 +26,10 @@
         "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs && gjsify run test:node",
         "test:gjs": "gjsify run test.gjs.mjs",
-        "test:node": "node test.node.mjs"
+        "test:node": "node test.node.mjs",
+        "test:bun": "bun test.node.mjs",
+        "test:deno": "deno run -A --no-lock --node-modules-dir=none test.node.mjs",
+        "test:cross-runtime": "gjsify run build:test:node && gjsify run test:node && gjsify run test:bun && gjsify run test:deno"
     },
     "keywords": [
         "gjs",

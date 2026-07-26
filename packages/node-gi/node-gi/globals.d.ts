@@ -15,6 +15,19 @@ export interface GjsImports {
   system: SystemModule;
   /** `imports.gettext` — the `@gjsify/node-gi/gettext` module (no-translation passthrough). */
   gettext: GettextModule;
+  /** `imports.byteArray` — the legacy GJS byte-array module (GJS semantics: zero-terminated, fatal decode). */
+  byteArray: {
+    ByteArray: new (arg?: number | Uint8Array) => {
+      length: number;
+      toString(encoding?: string): string;
+      toGBytes(): unknown;
+    };
+    fromArray(array: Iterable<number>): unknown;
+    fromGBytes(bytes: unknown): Uint8Array;
+    fromString(string: string, encoding?: string): Uint8Array;
+    toGBytes(array: Uint8Array): unknown;
+    toString(byteArray: Uint8Array, encoding?: string): string;
+  };
   versions: Record<string, unknown>;
 }
 

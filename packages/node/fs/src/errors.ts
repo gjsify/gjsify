@@ -2,7 +2,7 @@
 // Reimplemented for GJS using Gio error codes
 
 import type { PathLike } from 'node:fs';
-import { createNodeError as createNodeErrorGeneric, isNotFoundError } from '@gjsify/utils';
+import { createNodeError as createNodeErrorGeneric, isNotFoundError } from '@gjsify/utils/core';
 
 export { isNotFoundError };
 

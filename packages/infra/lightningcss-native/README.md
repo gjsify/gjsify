@@ -1,6 +1,6 @@
 # @gjsify/lightningcss-native
 
-A native Rust cdylib + Vala/GObject bridge that exposes the Rust `lightningcss` CSS transformer and minifier to GJS via `gi://`. Ships prebuilt `.so` + `.typelib` for Linux and is loaded lazily at runtime — the consuming package (`@gjsify/rolldown-plugin-gjsify`'s `cssAsStringPlugin`) falls back to the npm `lightningcss` package when the prebuild is unavailable.
+A native Rust cdylib + Vala/GObject bridge that exposes the Rust `lightningcss` CSS transformer and minifier to GJS via `gi://`. Ships prebuilt native libraries + typelibs for Linux and macOS (see [Platform coverage](#platform-coverage)) and is loaded lazily at runtime — the consuming package (`@gjsify/rolldown-plugin-gjsify`'s `cssAsStringPlugin`) falls back to the npm `lightningcss` package when the prebuild is unavailable.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -31,6 +31,26 @@ if (hasNativeLightningcss()) {
 ```
 
 The native bridge is consumed automatically by `gjsify build --app gjs` via `@gjsify/rolldown-plugin-gjsify`. Direct use is only needed when calling the CSS pipeline outside of a gjsify build.
+
+## Platform coverage
+
+| Platform | Prebuild | Built by |
+|---|---|---|
+| `linux-x86_64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
+| `linux-aarch64` | ✅ | native runner |
+| `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
+| `darwin-arm64` (macOS, Apple silicon) | ✅ `.dylib` + `.gir` + `.typelib` | `macos-latest` runner |
+| `darwin-x64` (macOS, Intel) | ❌ | — no runner leg yet |
+| Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
+
+All prebuilds are produced by [`.github/workflows/prebuilds.yml`](../../../.github/workflows/prebuilds.yml)
+and committed back to the repository.
+
+**Known gap — a `darwin-arm64` prebuild is built and shipped, but the CLI does not
+load it yet.** `detectNativePackages()` (`packages/infra/cli/src/utils/detect-native-packages.ts`)
+hardcodes a `linux-` directory prefix, and `buildNativeEnv()` exports `LD_LIBRARY_PATH`,
+which macOS `dyld` ignores in favour of `DYLD_LIBRARY_PATH`. Both are CLI-side fixes;
+until they land, macOS falls back to the npm `lightningcss` package.
 
 ## License
 

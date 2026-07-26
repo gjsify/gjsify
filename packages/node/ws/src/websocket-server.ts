@@ -29,7 +29,7 @@ import { createHash } from '@gjsify/crypto';
 import Soup from '@girs/soup-3.0';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
-import { ensureMainLoop } from '@gjsify/utils';
+import { ensureMainLoop } from '@gjsify/utils/core';
 import { CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';

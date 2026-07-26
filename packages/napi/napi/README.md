@@ -34,6 +34,28 @@ raw-boxed-value trick and `JS::Rooted` scopes). The shim `dlopen`s the addon
 so an addon's undefined napi symbols bind to ours — exactly as Node/Bun export
 the ABI from the main binary, which is why **consumers need no special build**.
 
+## Install
+
+```bash
+gjsify install @gjsify/napi
+```
+
+Published on the `@gjsify/*` release train. The tarball ships the shim
+**prebuilt** for the platforms in [Platforms](#platforms) below —
+`prebuilds/linux-x86_64/` and `prebuilds/darwin-arm64/`, each a `.so`/`.dylib`
+plus its `.gir` and `.typelib`, rebuilt from the released source by the
+`napi-prebuild-*` jobs in `.github/workflows/release.yml` — so an install brings
+the shim itself, not just a build recipe. Installing through the `gjsify` CLI
+puts the prebuild dir on `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH` for you.
+
+The tarball ALSO ships the build inputs (`meson.build`, `src/vala`, `src/cc`,
+`src/napi-headers`), so on a platform with no prebuild — or against a GJS built
+on a different SpiderMonkey major (see [the mozjs-140 pin](#the-mozjs-140-pin))
+— you can rebuild in place: `cd node_modules/@gjsify/napi && meson setup build .
+&& meson compile -C build`, then point `GI_TYPELIB_PATH` (plus
+`LD_LIBRARY_PATH`, or `DYLD_LIBRARY_PATH` on macOS) at `build/`. See
+[Requirements](#requirements) for the toolchain that needs.
+
 ## Usage — transparent (primary)
 
 After `gjsify install @gjsify/napi`, a normal native-addon import **just works**
@@ -90,7 +112,11 @@ path.
 
 ## Platforms
 
-Ships as a prebuilt `.dylib`/`.so` + `.gir` + `.typelib` per platform:
+Ships as a prebuilt `.dylib`/`.so` + `.gir` + `.typelib` per platform. Both
+supported triples are rebuilt on their own native runner for every release
+(`napi-prebuild-linux` / `napi-prebuild-darwin-arm64` in `release.yml`) and
+staged into the one published tarball, so a single `@gjsify/napi` version serves
+both:
 
 | Platform | Prebuild dir | Status |
 | --- | --- | --- |

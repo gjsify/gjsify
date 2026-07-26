@@ -43,6 +43,7 @@ import {
 } from './install-tarball-cache.js';
 import { getCachedPackument, putCachedPackument } from './install-packument-cache.js';
 import { assertNativeBackendNodeVersion } from './node-version.js';
+import { buildCmdShim, parseShebang } from './bin-shim.js';
 
 // 16-wide download pool. Matched to the shared Soup.Session's lifted
 // `max-conns-per-host` (see @gjsify/fetch `getSharedSession`) — a higher pool
@@ -275,9 +276,7 @@ export function warnMissingNativeBuilds(nodes: ResolvedNode[], prefix: string, l
         if (!hasBinary) {
             try {
                 const releaseDir = path.join(pkgDir, 'build', 'Release');
-                hasBinary = fs
-                    .readdirSync(releaseDir)
-                    .some((f) => f.endsWith('.node') || f.endsWith('.so'));
+                hasBinary = fs.readdirSync(releaseDir).some((f) => f.endsWith('.node') || f.endsWith('.so'));
             } catch {
                 /* no build/Release */
             }
@@ -1140,7 +1139,11 @@ async function extractOne(
         // so a read-only HOME / out-of-disk cache volume doesn't break the install.
         putCachedTarball(node.integrity, bytes);
     }
-    fs.rmSync(dest, { recursive: true, force: true });
+    // `rmWithRetry` (not a bare rmSync): on Windows the delete of a freshly
+    // extracted tree fails with EBUSY/EPERM while any handle is still open, and
+    // stays pending afterwards — so the mkdirSync on the next line would hit
+    // EPERM/ENOTEMPTY. No-op cost on POSIX. This runs for EVERY package.
+    rmWithRetry(dest);
     fs.mkdirSync(dest, { recursive: true });
     await extractWithStallGuard(bytes, dest, node, signal);
     return false;
@@ -1285,6 +1288,74 @@ function depth(installPath: string): number {
     return installPath.split('/node_modules/').length;
 }
 
+/**
+ * Read a bin file's `#!` line, if it has one. Returns `null` for an
+ * unreadable/empty file or a first line that is not a shebang — the same
+ * fallbacks npm's cmd-shim applies (it then invokes the target directly).
+ */
+function readShebang(file: string): ReturnType<typeof parseShebang> {
+    let head: string;
+    try {
+        head = fs.readFileSync(file, 'utf-8');
+    } catch {
+        return null;
+    }
+    const firstLine = head.trimStart().split(/\r*\n/, 1)[0] ?? '';
+    return parseShebang(firstLine);
+}
+
+/**
+ * Materialise ONE `node_modules/.bin/<name>` entry for `targetAbs`.
+ *
+ * Exported (and platform-injectable) so the Windows branch is unit-tested from
+ * a Linux host — the file layout and shim contents are asserted there; only the
+ * `symlinkSync`/`CreateSymbolicLink` syscall behaviour itself is OS-bound.
+ *
+ * POSIX: a relative symlink, with a copy as the fallback (some filesystems and
+ * container overlays reject symlinks).
+ *
+ * Windows: `.bin/<name>` is not on `PATHEXT` and Windows has no shebang
+ * handling, so a symlink OR a copy of a `#!/usr/bin/env node` script is
+ * unrunnable — and a *file* symlink additionally needs elevation or Developer
+ * Mode, so the previous code reliably fell into its copy fallback and produced
+ * a dead entry. npm solves this with three sibling files (`<name>` for
+ * git-bash/MSYS/WSL, `<name>.cmd` for cmd.exe, `<name>.ps1` for pwsh); we write
+ * the same set from the same templates. See `./bin-shim.ts`.
+ */
+export function writeBinEntry(opts: { binDir: string; binName: string; targetAbs: string; platform?: string }): void {
+    const { binDir, binName, targetAbs } = opts;
+    const platform = opts.platform ?? process.platform;
+    const linkPath = path.join(binDir, binName);
+
+    if (platform === 'win32') {
+        const relPosix = path.relative(binDir, targetAbs).split('\\').join('/');
+        const { sh, cmd, ps1 } = buildCmdShim(relPosix, readShebang(targetAbs));
+        for (const [file, contents] of [
+            [linkPath, sh],
+            [`${linkPath}.cmd`, cmd],
+            [`${linkPath}.ps1`, ps1],
+        ] as const) {
+            rmWithRetry(file);
+            fs.writeFileSync(file, contents);
+            try {
+                fs.chmodSync(file, 0o755);
+            } catch {
+                /* inert on Windows; harmless under WSL/MSYS */
+            }
+        }
+        return;
+    }
+
+    rmWithRetry(linkPath);
+    const rel = path.relative(binDir, targetAbs);
+    try {
+        fs.symlinkSync(rel, linkPath);
+    } catch {
+        fs.copyFileSync(targetAbs, linkPath);
+        fs.chmodSync(linkPath, 0o755);
+    }
+}
+
 async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Promise<void> {
     // Only root-level packages publish bins into the top-level
     // `node_modules/.bin/`. Nested-package bins are addressable by their
@@ -1307,20 +1378,25 @@ async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Pro
             } catch {
                 /* best effort */
             }
-            const linkPath = path.join(binDir, binName);
-            fs.rmSync(linkPath, { force: true });
-            const rel = path.relative(binDir, targetAbs);
-            try {
-                fs.symlinkSync(rel, linkPath);
-                created++;
-            } catch {
-                fs.copyFileSync(targetAbs, linkPath);
-                fs.chmodSync(linkPath, 0o755);
-                created++;
-            }
+            writeBinEntry({ binDir, binName, targetAbs });
+            created++;
         }
     }
     if (created > 0) log('bin: linked %d entry(ies) under .bin/', created);
+}
+
+/**
+ * `fs.rmSync(..., { force: true })` with the Windows retry npm/rimraf apply.
+ *
+ * On Windows a delete fails with `EBUSY`/`EPERM` while any process holds a
+ * handle (antivirus scan, an editor, a still-terminating child), and the
+ * deletion stays *pending* until the last handle closes — so an immediately
+ * following create can hit `EPERM`/`ENOTEMPTY`. Node implements the retry loop
+ * for us behind `maxRetries`; it is a no-op on POSIX, where the first attempt
+ * always succeeds.
+ */
+function rmWithRetry(target: string): void {
+    fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 function normalizeBin(pkgName: string, bin: string | Record<string, string>): Map<string, string> {

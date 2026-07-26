@@ -20,8 +20,11 @@ adw-toast-overlay {
     height: 100%;
   }
 
-  // Toasts are layered over the bottom edge of the overlay, stacked newest-last
-  // and centered, the way AdwToastOverlay floats them above its child.
+  // The toast slot: layered over the bottom edge of the overlay and centered,
+  // the way AdwToastOverlay floats a toast above its child. Like
+  // Adw.ToastOverlay only ONE toast is mounted at a time (the queue lives in
+  // `@gjsify/adwaita-core`); the flex column keeps it centered and lets an
+  // outgoing `.hiding` strip finish its exit transition in place.
   .adw-toast-overlay-toasts {
     position: absolute;
     bottom: var(--spacing-m);

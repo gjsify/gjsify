@@ -9,7 +9,8 @@
 // matching yarn's interactive flow. Exit code is non-zero if any child
 // process failed; first failure's stderr is forwarded.
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { spawnToCompletion } from '../utils/spawn.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { cpus } from 'node:os';
 import type { Command } from '../types/index.js';
@@ -696,45 +697,51 @@ function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
     return 'npm';
 }
 
-function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix: string | null): Promise<void> {
-    // Default FORCE_COLOR=1 unless the user explicitly opted out, so tools
-    // that key on `process.stdout.isTTY` (chalk, picocolors, …) still emit
-    // ANSI colors when run under gjsify foreach. Mirrors yarn / npm.
-    const colorEnv =
-        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined ? {} : { FORCE_COLOR: '1' };
-    return new Promise((resolve, reject) => {
-        const child = spawn(cmd, args, {
+async function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix: string | null): Promise<void> {
+    // `completion: 'exit'` — every path out of this command's handler ends in
+    // `process.exit(…)` (see the handler's tail), which is what quits the GLib
+    // main loop `spawn()` arms under GJS. That keeps foreach on the STREAMING
+    // async path: live prefixed output and real parallelism, both of which the
+    // blocking path would destroy. See utils/spawn.ts for the full contract.
+    let tracked: ChildProcess | null = null;
+    const flushers: Array<() => void> = [];
+    try {
+        const result = await spawnToCompletion(cmd, args, {
+            completion: 'exit',
             cwd,
-            stdio: prefix ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-            env: { ...process.env, ...colorEnv },
+            stdio: prefix ? 'pipe' : 'inherit',
+            // Default FORCE_COLOR=1 unless the user explicitly opted out, so
+            // tools that key on `process.stdout.isTTY` (chalk, picocolors, …)
+            // still emit ANSI colors under gjsify foreach. Mirrors yarn / npm.
+            color: true,
+            onSpawn: (child) => {
+                tracked = child;
+                activeChildren.add(child);
+                // Under GJS, `process.stdout.write` is a BLOCKING
+                // `Gio.write_all`. Writing each prefixed line LIVE during a
+                // PARALLEL foreach to a backpressuring pipe (a CI log
+                // collector that drains slowly) stalls the single GLib main
+                // loop on a full pipe → every parallel child's pipe backs up →
+                // their reads stall → the whole run HANGS. (A tty or a file
+                // sink never backpressures, which is why it only bites in CI.)
+                // On a NON-tty sink we therefore BUFFER each child's prefixed
+                // output and flush it as ONE write when that child closes: the
+                // child is already done by then, so its own read can't stall,
+                // and concurrent flushes serialize into brief loop stalls
+                // instead of a deadlock. On a tty (interactive) we keep live
+                // line-prefixing for responsive output.
+                const buffered = !process.stdout.isTTY;
+                if (prefix && child.stdout && child.stderr) {
+                    flushers.push(prefixLines(child.stdout, process.stdout, prefix, buffered));
+                    flushers.push(prefixLines(child.stderr, process.stderr, prefix, buffered));
+                }
+            },
         });
-        activeChildren.add(child);
-        // Under GJS, `process.stdout.write` is a BLOCKING `Gio.write_all`.
-        // Writing each prefixed line LIVE during a PARALLEL foreach to a
-        // backpressuring pipe (a CI log collector that drains slowly) stalls
-        // the single GLib main loop on a full pipe → every parallel child's
-        // pipe backs up → their reads stall → the whole run HANGS. (A tty or a
-        // file sink never backpressures, which is why it only bites in CI.)
-        // On a NON-tty sink we therefore BUFFER each child's prefixed output
-        // and flush it as ONE write when that child closes: the child is
-        // already done by then, so its own read can't stall, and concurrent
-        // flushes serialize into brief loop stalls instead of a deadlock. On a
-        // tty (interactive) we keep live line-prefixing for responsive output.
-        const buffered = !process.stdout.isTTY;
-        const flushers: Array<() => void> = [];
-        if (prefix && child.stdout && child.stderr) {
-            flushers.push(prefixLines(child.stdout, process.stdout, prefix, buffered));
-            flushers.push(prefixLines(child.stderr, process.stderr, prefix, buffered));
+        for (const flush of flushers) flush();
+        if (result.code !== 0) {
+            throw new Error(`${cmd} ${args.join(' ')} exited with code ${result.code}`);
         }
-        child.on('close', (code) => {
-            activeChildren.delete(child);
-            for (const flush of flushers) flush();
-            if (code === 0) resolve();
-            else reject(new Error(`${cmd} ${args.join(' ')} exited with code ${code}`));
-        });
-        child.on('error', (err) => {
-            activeChildren.delete(child);
-            reject(err);
-        });
-    });
+    } finally {
+        if (tracked) activeChildren.delete(tracked);
+    }
 }

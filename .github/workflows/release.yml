@@ -570,3 +570,258 @@ jobs:
         run: |
           node "$CLI_BIN" publish packages/node-gi/node-gi \
             --tolerate-republish --tag latest --access public
+
+  # ---------------------------------------------------------------------------
+  # @gjsify/napi — the N-API host for GJS (native `.node` addons IN GJS), the
+  # forward mirror of @gjsify/node-gi. Same structural situation as node-gi and
+  # the two gtk-runtime packages: `packages/napi/**` is deliberately NOT a root
+  # workspace member (see root package.json#workspaces + the affected-classifier
+  # IGNORE list), so `gjsify foreach` — the enumerator behind the ubuntu
+  # `publish` job's `gjsify run npm:publish` — never sees it. Unlike node-gi,
+  # which was at least published once and then went stale, @gjsify/napi had NO
+  # publish path at all: the package did not exist on npm, while AGENTS.md and
+  # the website documented `gjsify install @gjsify/napi` as the user-facing flow
+  # for transparent `.node` loading. These three jobs are that path.
+  #
+  # SHAPE (mirrors node-gi-prebuild-linux -> publish-node-gi, one leg per
+  # platform): build the meson shim on a native runner per platform, upload the
+  # staged prebuild dir as an artifact, then publish ONE tarball carrying BOTH
+  # prebuild triples. napi.yml already builds + gates the exact same shim on
+  # every push/PR that touches packages/napi/** (Fedora 44 gates + conformance,
+  # macOS build + load/value-model/tsfn gates), so these release jobs only
+  # rebuild + stage — they do not re-run the gates.
+  #
+  # WHY NOT `merge-multiple: true` LIKE node-gi: node-gi's two artifacts are
+  # disjoint triples under one gitignored `prebuilds/` dir, so flattening them is
+  # safe. Here `prebuilds/linux-x86_64/` is COMMITTED, so the macOS runner's
+  # checkout also carries a (possibly stale) copy of it — a merged download could
+  # non-deterministically overwrite the freshly built linux .so with the
+  # committed one. Each leg therefore uploads only its OWN triple dir and
+  # publish-napi downloads each into its own explicit destination.
+  #
+  # RACE SAFETY: identical to publish-node-gi — `packages/napi/**` not being a
+  # workspace means the ubuntu `publish` job can never enumerate, let alone
+  # publish, this package, so the two legs can never write the same version. If
+  # `packages/napi/*` is EVER added to the root `workspaces` list, add
+  # `--exclude '@gjsify/napi'` to the `npm:publish` script's `gjsify foreach` so
+  # the ubuntu job keeps skipping it.
+  napi-prebuild-linux:
+    name: Build @gjsify/napi linux-x86_64 prebuild
+    needs: publish
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: fedora:44
+    steps:
+      # Verbatim from napi.yml's `consumer` job — the meson/Vala/C++ toolchain
+      # plus the mozjs-140 + gjs-devel headers the shim links (ADR 0011's
+      # intrinsic mozjs-major pin). No node-gyp here: this job builds only the
+      # shim, not the N-API test addons.
+      - name: Install toolchain + mozjs-140 + GJS + GI dev headers
+        run: |
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
+            mozjs140-devel gjs gjs-devel libsoup3 \
+            gobject-introspection gobject-introspection-devel glib2-devel \
+            vala meson ninja-build
+          gjs --version
+
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # Verbatim from napi.yml's "Build the @gjsify/napi shim (meson) + stage
+      # prebuild" step: meson builds libgjsifynapi.so + GjsifyNapi-1.0.{gir,typelib}
+      # and stages them into the committed prebuild dir. The freshly built triple
+      # overwrites whatever the checkout carried, so the tarball always ships a
+      # binary built from the released source.
+      - name: Build the @gjsify/napi shim (meson) + stage prebuild
+        working-directory: packages/napi/napi
+        run: |
+          meson setup build .
+          meson compile -C build
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/
+          echo "staged: $(ls -1 prebuilds/linux-x86_64)"
+
+      - name: Upload the linux-x86_64 prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: napi-prebuild-linux-x86_64
+          path: packages/napi/napi/prebuilds/linux-x86_64
+          if-no-files-found: error
+
+  # macOS arm64 leg. Homebrew ships the SAME gjs 1.88.x <-> spidermonkey
+  # (mozjs-140) pairing the Fedora job pins, so no source build is needed; meson
+  # branches to ld64's -exported_symbols_list and the .dylib leaf (see
+  # meson.build). Verbatim from napi.yml's `macos` job, minus the node-gyp gates
+  # (napi.yml runs those on every packages/napi/** push/PR).
+  napi-prebuild-darwin-arm64:
+    name: Build @gjsify/napi darwin-arm64 prebuild
+    needs: publish
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      - name: Install GJS + SpiderMonkey (mozjs-140) + GI toolchain (Homebrew)
+        run: |
+          # `gjs` pulls `spidermonkey` (mozjs-140) + glib/gobject/gio/cairo
+          # transitively; name gobject-introspection (g-ir-compiler), vala, meson,
+          # ninja and pkgconf explicitly so the shim's build deps all resolve.
+          brew install gjs gobject-introspection vala meson ninja pkgconf
+          BREW_PREFIX="$(brew --prefix)"
+          # Neither `gjs` nor `spidermonkey` is keg-only, so brew symlinks their
+          # lib/pkgconfig (gjs-1.0.pc, mozjs-140.pc + the glib/gobject/gio .pc that
+          # gjs-1.0.pc Requires) into $BREW_PREFIX/lib/pkgconfig — one dir resolves
+          # the whole shim closure.
+          echo "PKG_CONFIG_PATH=$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+
+      - name: Verify toolchain (gjs / mozjs-140 / gjs-1.0 / valac)
+        run: |
+          gjs --version
+          echo "mozjs-140: $(pkg-config --modversion mozjs-140)"
+          echo "gjs-1.0:   $(pkg-config --modversion gjs-1.0)"
+          echo "valac:     $(valac --version)"
+
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      - name: Build the @gjsify/napi shim (meson) + stage darwin-arm64 prebuild
+        working-directory: packages/napi/napi
+        run: |
+          meson setup build .
+          meson compile -C build
+          mkdir -p prebuilds/darwin-arm64
+          cp build/libgjsifynapi.dylib build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/darwin-arm64/
+          echo "staged: $(ls -1 prebuilds/darwin-arm64)"
+
+      - name: Upload the darwin-arm64 prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: napi-prebuild-darwin-arm64
+          path: packages/napi/napi/prebuilds/darwin-arm64
+          if-no-files-found: error
+
+  # MAINTAINER ACTION — MANUAL FIRST PUBLISH REQUIRED (like the gtk-runtime and
+  # node-gi packages, but here it has never happened at all: `curl
+  # https://registry.npmjs.org/@gjsify/napi` still 404s). npm Trusted Publishing
+  # (OIDC) can only publish new versions of an EXISTING package, so @gjsify/napi
+  # needs a one-time manual `gjsify publish --access public` + `gjsify trust
+  # @gjsify/napi` (or `gjsify onboard`) from a maintainer machine BEFORE this
+  # job's first CI release — otherwise the OIDC exchange 404s and this job reds.
+  # See AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher
+  # bootstrap".
+  #
+  # WHY THIS JOB BUILDS lib/ (unlike publish-node-gi): node-gi ships committed
+  # hand-written JS, so its publish job only stages prebuilds. @gjsify/napi's
+  # published entry points (`main`/`types` -> lib/esm/index.js,
+  # lib/types/index.d.ts) are BUILD ARTIFACTS that are not committed, so this job
+  # runs the package's own `build` script (build:gjsify + build:types) before
+  # packing. That needs the workspace's @girs/* + @types/node + @gjsify/tsc on
+  # disk (napi's tsconfig `types` array names them), which is exactly what the
+  # ubuntu `publish` job's `gjsify install --immutable` recipe provides — so this
+  # job runs on the SAME ci-fedora image with the SAME Node-free install, then
+  # publishes with the workspace's own `gjsify` (the version being released).
+  publish-napi:
+    name: Publish @gjsify/napi (N-API host for GJS)
+    needs: [publish, napi-prebuild-linux, napi-prebuild-darwin-arm64]
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # id-token: write = npm Trusted Publishing (OIDC), configured for this
+      # workflow file (release.yml). contents: read is for checkout; packages:
+      # read pulls the prebuilt ci-fedora image from ghcr (same as `publish`).
+      contents: read
+      id-token: write
+      packages: read
+    container:
+      # Same image the ubuntu `publish` job builds + publishes on — it carries
+      # gjs (+ libsoup3, which the committed cli.gjs.mjs eager-imports via
+      # gi://Soup), so `gjsify install --immutable` and the workspace `gjsify`
+      # bin run with no manual dnf step.
+      image: ghcr.io/gjsify/ci-fedora:44
+    steps:
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # Stage BOTH prebuild triples into the package's prebuilds/ dir before the
+      # pack (`prebuilds` is in napi's `files`, and the gjsify packer expands a
+      # plain-dir entry recursively — so every triple present on disk ships).
+      # Downloaded first so a missing artifact fails before the multi-minute
+      # workspace install below.
+      - name: Download the linux-x86_64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: napi-prebuild-linux-x86_64
+          path: packages/napi/napi/prebuilds/linux-x86_64
+
+      - name: Download the darwin-arm64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: napi-prebuild-darwin-arm64
+          path: packages/napi/napi/prebuilds/darwin-arm64
+
+      - name: Confirm both prebuilds are staged
+        run: |
+          set -eu
+          ls -la packages/napi/napi/prebuilds/linux-x86_64 packages/napi/napi/prebuilds/darwin-arm64
+          test -f packages/napi/napi/prebuilds/linux-x86_64/libgjsifynapi.so
+          test -f packages/napi/napi/prebuilds/linux-x86_64/GjsifyNapi-1.0.typelib
+          test -f packages/napi/napi/prebuilds/darwin-arm64/libgjsifynapi.dylib
+          test -f packages/napi/napi/prebuilds/darwin-arm64/GjsifyNapi-1.0.typelib
+
+      # No `registry-url` (it would inject a placeholder NODE_AUTH_TOKEN and
+      # defeat OIDC — see the ubuntu `publish` job's rationale).
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '26.x'
+
+      # Phase D.7d Node-free install via the committed GJS bundle — verbatim from
+      # the ubuntu `publish` job. Provides @girs/{gjs,glib-2.0,gobject-2.0},
+      # @types/node and @gjsify/tsc for the type emit below, plus the workspace
+      # `gjsify` bin used for the build + publish.
+      - name: Install dependencies (gjsify install --immutable)
+        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+
+      # `build` = build:gjsify (rolldown --library -> lib/esm) + build:types
+      # (gjsify tsc -> lib/types). packages/napi/napi is not a workspace, so it is
+      # driven with `gjsify run` from inside the package dir rather than through
+      # `gjsify workspace`/`foreach`.
+      - name: Build @gjsify/napi lib/ (esm + types)
+        working-directory: packages/napi/napi
+        run: PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH" gjsify run build
+
+      # A silent no-op emit would otherwise publish a tarball whose `main`/`types`
+      # point at files that do not exist (tsc skips emit when it finds a stale
+      # tsconfig.tsbuildinfo, and the packer only fails on a types path that is
+      # present-but-unpacked). Assert the two published entry points exist.
+      - name: Verify the built lib/ is complete
+        run: |
+          set -eu
+          test -f packages/napi/napi/lib/esm/index.js
+          test -f packages/napi/napi/lib/types/index.d.ts
+          ls -la packages/napi/napi/lib/esm packages/napi/napi/lib/types
+
+      # OIDC Trusted Publishing from release.yml — publishes ONLY @gjsify/napi,
+      # at whatever version its package.json carries at the released tag (the
+      # release-it bumper's `packages/*/*/package.json` glob covers it, so it
+      # tracks the train). Driven by the workspace's own `gjsify` (the version
+      # being released) rather than an npm-installed CLI, because the install
+      # above already put it on disk. --tolerate-republish makes a manual rerun
+      # over an already-published version a no-op instead of a hard 409/403.
+      - name: Publish @gjsify/napi (OIDC, with both prebuilds)
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+        run: |
+          PATH="$PWD/node_modules/.bin:$PATH" gjsify publish packages/napi/napi \
+            --tolerate-republish --tag latest --access public

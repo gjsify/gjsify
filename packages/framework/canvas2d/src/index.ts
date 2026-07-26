@@ -1,6 +1,10 @@
 // Canvas 2D rendering context for GJS, backed by Cairo
 // Core classes live in @gjsify/canvas2d-core; this package adds Canvas2DBridge (GTK).
 // Reimplemented for GJS using Cairo (built-in) and GdkPixbuf for pixel I/O.
+//
+// Barrel — named exports only, ZERO top-level side effects. The `globalThis`
+// writes and the `'2d'` context-factory hookup live in `./register.ts`
+// (`@gjsify/canvas2d/register`), injected automatically by `--globals auto`.
 
 export {
     CanvasRenderingContext2D,
@@ -11,44 +15,3 @@ export {
     parseColor,
 } from '@gjsify/canvas2d-core';
 export { Canvas2DBridge } from './canvas2d-bridge.js';
-
-// Side-effect: register the '2d' context factory on HTMLCanvasElement.
-// This is idempotent — @gjsify/dom-elements also registers it via canvas2d-core.
-// Kept here so that importing @gjsify/canvas2d directly also works (backward compat).
-import { HTMLCanvasElement as GjsifyHTMLCanvasElement } from '@gjsify/dom-elements';
-import { CanvasRenderingContext2D, ImageData, Path2D } from '@gjsify/canvas2d-core';
-
-const CONTEXT_KEY = Symbol.for('gjsify_canvas2d_context');
-
-GjsifyHTMLCanvasElement.registerContextFactory(
-    '2d',
-    (canvas: GjsifyHTMLCanvasElement, options?: unknown) => {
-        // Per spec: once a context type is obtained, subsequent calls return the same instance
-        type CanvasWithContext = GjsifyHTMLCanvasElement & { [CONTEXT_KEY]?: CanvasRenderingContext2D };
-        const c = canvas as CanvasWithContext;
-        const existing = c[CONTEXT_KEY];
-        if (existing) return existing;
-        const ctx = new CanvasRenderingContext2D(canvas, options);
-        c[CONTEXT_KEY] = ctx;
-        return ctx;
-    },
-);
-
-// Register globals
-Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {
-    value: CanvasRenderingContext2D,
-    writable: true,
-    configurable: true,
-});
-
-Object.defineProperty(globalThis, 'ImageData', {
-    value: ImageData,
-    writable: true,
-    configurable: true,
-});
-
-Object.defineProperty(globalThis, 'Path2D', {
-    value: Path2D,
-    writable: true,
-    configurable: true,
-});

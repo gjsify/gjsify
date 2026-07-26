@@ -50,13 +50,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import type * as NodeFs from 'node:fs';
 import { join, resolve } from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
-import type { SpawnOptions } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { findWorkspaceRoot } from './workspace-root.js';
 import { resolveNpmPackage } from './resolve-npm-package.js';
 import { nodeBinary } from './run-node.js';
+import { spawnToCompletion } from './spawn.js';
 import { isGjs, gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 export type OxcTool = 'oxlint' | 'oxfmt';
@@ -319,6 +318,14 @@ export async function runOxc(tool: OxcTool, args: string[], opts: RunOxcOptions 
  * launcher as its first positional (yargs prints top-level help) and the parent
  * hangs waiting on a child that never does the intended work. `nodeBinary()`
  * resolves to PATH `node` under GJS, so the launcher runs on Node as required.
+ *
+ * `completion: 'return'`: `lint` / `format` / `fix` hand the tool's exit code
+ * to `setOxcExitCode`, which deliberately does NOT terminate the process on a
+ * clean run — so under GJS this must take `spawnToCompletion`'s blocking path
+ * (see `utils/spawn.ts`; the async one would leave the main loop `spawn()`
+ * arms parked at 0% CPU on the way out). That path also captures and re-emits
+ * the tool's stdout/stderr with a raised `maxBuffer`, which is exactly what a
+ * full-workspace lint needs.
  */
 function spawnOxcLauncher(tool: OxcTool, args: string[], opts: RunOxcOptions = {}): Promise<number> {
     const cwd = opts.cwd ?? process.cwd();
@@ -329,59 +336,16 @@ function spawnOxcLauncher(tool: OxcTool, args: string[], opts: RunOxcOptions = {
         console.log(`[gjsify oxc] ${node} ${launcher} ${args.join(' ')}`);
     }
 
-    // Under the GJS bundle the ASYNC spawn's exit/close event is never delivered
-    // back to JS: the child runs, streams its output, and exits (reaped, no
-    // zombie), but the `Gio.Subprocess` `wait_async` callback that emits
-    // `exit`/`close` does not fire, so the parent's await hangs at 0% CPU
-    // forever (the process sits in `SNl`). `spawnSync` uses the synchronous
-    // `communicate()` path instead — no async callback to lose — so it
-    // completes reliably. It blocks, which is exactly right for a CLI leaf
-    // command that just runs the tool to completion. On Node the async spawn is
-    // fine (and keeps the event loop free), so it is kept there.
-    if (isGjs()) {
-        // Capture stdout/stderr (`'inherit'` is not forwarded through the GJS
-        // spawnSync path — the tool's diagnostics would be silently lost), then
-        // re-emit them so oxlint/oxfmt's own output still reaches the user.
-        // maxBuffer generous: a full-workspace lint with many findings can emit
-        // well past the 1 MB Node default; overflow would truncate diagnostics.
-        const r = spawnSync(node, [launcher, ...args], {
-            stdio: ['inherit', 'pipe', 'pipe'],
-            cwd,
-            maxBuffer: 64 * 1024 * 1024,
-        });
-        if (r.error) {
-            const code = (r.error as NodeJS.ErrnoException).code;
-            if (code === 'ENOENT') return Promise.reject(new OxcNotFoundError(tool, cwd));
-            return Promise.reject(r.error);
+    return spawnToCompletion(node, [launcher, ...args], {
+        completion: 'return',
+        cwd,
+        notFound: () => new OxcNotFoundError(tool, cwd),
+    }).then(({ code, signal }) => {
+        if (signal !== null) {
+            console.error(`[gjsify oxc] ${tool} terminated by signal ${signal}`);
+            return 1;
         }
-        if (r.stdout && r.stdout.length) process.stdout.write(r.stdout);
-        if (r.stderr && r.stderr.length) process.stderr.write(r.stderr);
-        if (r.signal) {
-            console.error(`[gjsify oxc] ${tool} terminated by signal ${r.signal}`);
-            return Promise.resolve(1);
-        }
-        return Promise.resolve(r.status ?? 0);
-    }
-
-    return new Promise((res, rej) => {
-        const spawnOpts: SpawnOptions = { stdio: 'inherit', cwd };
-        const child = spawn(node, [launcher, ...args], spawnOpts);
-
-        child.on('error', (err: NodeJS.ErrnoException) => {
-            if (err.code === 'ENOENT') {
-                rej(new OxcNotFoundError(tool, cwd));
-            } else {
-                rej(err);
-            }
-        });
-        child.on('exit', (code, signal) => {
-            if (signal) {
-                console.error(`[gjsify oxc] ${tool} terminated by signal ${signal}`);
-                res(1);
-                return;
-            }
-            res(code ?? 0);
-        });
+        return code ?? 0;
     });
 }
 

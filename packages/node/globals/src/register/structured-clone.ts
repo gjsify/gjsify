@@ -1,6 +1,6 @@
 // Registers: structuredClone
 
-import { structuredClone as structuredClonePolyfill } from '@gjsify/utils';
+import { structuredClone as structuredClonePolyfill } from '@gjsify/utils/core';
 
 if (typeof globalThis.structuredClone !== 'function') {
     Object.defineProperty(globalThis, 'structuredClone', {

@@ -160,9 +160,51 @@ If `X` is not in the table, it is not yet implemented in GJSify — check the [P
 
 ## Native prebuilds and `gjsify run`
 
-Some GJSify packages need native code. For example, `@gjsify/webgl` ships a Vala-built shared library + GIR typelib to bridge WebGL calls to OpenGL ES through `libepoxy`. These packages publish their binaries under `prebuilds/linux-<arch>/` and declare them via a `"gjsify": { "prebuilds": "prebuilds" }` field in their `package.json`.
+Some GJSify packages need native code. For example, `@gjsify/webgl` ships a Vala-built shared library + GIR typelib to bridge WebGL calls to OpenGL ES through `libepoxy`. These packages publish their binaries under `prebuilds/<os>-<arch>/`, declare the directory via `"gjsify": { "prebuilds": "prebuilds" }` and the targets they promise via `"gjsify": { "platforms": ["linux-x86_64", "darwin-arm64", …] }` in their `package.json`.
 
-`gjsify run` scans your `node_modules` for these packages, prepends the right directories to `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH`, and then spawns `gjs -m <bundle>`:
+### How a prebuild directory is located
+
+Two `<os>-<arch>` spellings are in use, and both resolve:
+
+- **uname-style** — `prebuilds/linux-x86_64/`, `prebuilds/linux-aarch64/`. What every
+  Vala/meson bridge stages, because its CI job names the directory after `uname -m`.
+- **node-style** — <code>prebuilds/&#36;&#123;process.platform&#125;-&#36;&#123;process.arch&#125;/</code>, i.e. `linux-x64`,
+  `darwin-arm64`, `win32-x64`. What `@gjsify/node-gi` and `@gjsify/napi` stage.
+
+The CLI probes the package's own declared spelling from `gjsify.platforms` first, then both
+generic spellings for the running host. A package that ships nothing for your platform is
+skipped silently — every native bridge is optional at runtime.
+
+### The environment it sets
+
+`gjsify run` scans your `node_modules` for these packages and prepends the directories it
+finds to `GI_TYPELIB_PATH` plus **the library-search variable your operating system's loader
+actually reads**:
+
+| host | variable | separator |
+|---|---|---|
+| Linux | `LD_LIBRARY_PATH` | `:` |
+| macOS | `DYLD_LIBRARY_PATH` — `dyld` ignores `LD_LIBRARY_PATH` entirely | `:` |
+| Windows | `PATH` — `LoadLibrary` has no dedicated variable | `;` |
+
+:::caution[Which prebuilds exist is a separate question]
+Resolution is cross-platform; the *artifacts* are not yet. Every native bridge ships
+`linux-x86_64` and `linux-aarch64`; most also ship `linux-ppc64`, `linux-s390x` and
+`linux-riscv64`. `darwin-arm64` is built for `lightningcss-native`, `oxfmt-native`,
+`terminal-native`, `tls-native`, `http-soup-bridge` and `http2-native`.
+
+This matters most for the **Node-free toolchain**: `gjsify install -g` lays down
+`@gjsify/rolldown-native`, `@gjsify/lightningcss-native` and `@gjsify/oxfmt-native`, and
+`@gjsify/rolldown-native` is the *only* bundler engine `gjsify build` has under GJS. It no
+longer has a Rust-level macOS blocker (its wakeup channel is a portable pipe, not
+`eventfd(2)`), but its darwin prebuild has not been built or load-tested yet — so on macOS
+GJSify still needs Node present for the build step, falling back to the npm `rolldown` /
+`lightningcss` / `oxfmt` packages.
+
+The per-package matrix lives in [Platform Support](/gjsify/platform-support/).
+:::
+
+Then it spawns `gjs -m <bundle>`:
 
 <CommandTabs title="Run the bundle">
   <Fragment slot="gjsify">

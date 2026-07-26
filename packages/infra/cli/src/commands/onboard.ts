@@ -28,6 +28,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { DEFAULT_REGISTRY, whoami, type NpmrcConfig } from '@gjsify/npm-registry';
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
+import { mergePublishables } from '../utils/publishable-packages.js';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider } from '../utils/npm-otp.js';
@@ -170,7 +171,11 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
 
         // 2. Enumerate publishable workspaces (non-private, exclude @girs/*).
         const root = findWorkspaceRoot(cwd) ?? cwd;
-        const all = discoverWorkspaces(root, { includeRoot: true });
+        // Non-workspace publishables (packages/{node-gi,napi}/*) publish through
+        // release.yml but `discoverWorkspaces` cannot see them — without this
+        // merge the sweep reports "all done" while a package that was never
+        // published is simply absent from the list.
+        const all = mergePublishables(discoverWorkspaces(root, { includeRoot: true }), cwd);
         const selected = filterWorkspaces(all, { noPrivate: true, exclude: ['@girs/*'] }).filter((ws) => ws.name);
         if (selected.length === 0) {
             const msg = 'gjsify onboard: no publishable workspace packages found.';

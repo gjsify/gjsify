@@ -22,11 +22,31 @@ libGwebgl = library('gwebgl', sources,
     install_dir: [true, true, true, true]
 )
 
+# ----------------------------------------------------------------------------
+# Host-dependent shared-library leaf name.
+#
+# The typelib records the exact filename gjs' g_module_open() resolves at load
+# time, and meson names the shared library per host convention: lib<name>.so on
+# ELF hosts, lib<name>.dylib on macOS. Recording the wrong leaf yields a typelib
+# that IS found via GI_TYPELIB_PATH but whose library never loads — a silent,
+# confusing failure. Mirrors the branch in packages/napi/napi/meson.build.
+#
+# Windows is deliberately absent: this bridge has had no Windows portability
+# work, so `else` (ELF naming) is the honest fallback rather than a .dll branch
+# that would imply support which does not exist.
+# ----------------------------------------------------------------------------
+host_system = host_machine.system()
+if host_system == 'darwin'
+    shared_lib_name = 'libgwebgl.dylib'
+else
+    shared_lib_name = 'libgwebgl.so'
+endif
+
 g_ir_compiler = find_program('g-ir-compiler')
 
 
 # TODO not working if gwebgl-0.1.gir not exists
-custom_target(meson.project_name() + '-0.1.typelib', command: [g_ir_compiler, '--shared-library', 'libgwebgl.so', '--output', '@OUTPUT@', meson.current_build_dir() / meson.project_name() + '-0.1.gir'],
+custom_target(meson.project_name() + '-0.1.typelib', command: [g_ir_compiler, '--shared-library', shared_lib_name, '--output', '@OUTPUT@', meson.current_build_dir() / meson.project_name() + '-0.1.gir'],
               #input: meson.current_build_dir() / meson.project_name() + '-0.1.gir',
               output: meson.project_name() +'-0.1.typelib',
               depends: libGwebgl,

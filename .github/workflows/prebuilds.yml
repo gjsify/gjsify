@@ -19,9 +19,14 @@ on:
       - 'packages/node/sab-native/src/vala/**'
       - 'packages/node/sab-native/meson.build'
       - 'packages/node/tls-native/src/vala/**'
+      - 'packages/node/tls-native/src/c/**'
       - 'packages/node/tls-native/meson.build'
+      - 'packages/node/terminal-native/src/vala/**'
+      - 'packages/node/terminal-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
+      - 'packages/infra/oxfmt-native/src/**'
+      - 'packages/infra/oxfmt-native/meson.build'
       - 'packages/infra/rolldown-native/src/**'
       - 'packages/infra/rolldown-native/meson.build'
       - '.github/workflows/prebuilds.yml'
@@ -235,6 +240,35 @@ jobs:
           path: packages/node/tls-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
+      # -------- @gjsify/terminal-native (GjsifyTerminal) --------
+      # Plain POSIX (isatty / ioctl TIOCGWINSZ / termios) + GLib — no external
+      # libraries, so this is the cheapest bridge in the matrix (~30 s). It backs
+      # @gjsify/tty + @gjsify/process, yet used to be absent from this workflow
+      # entirely: its prebuilds/ held a hand-built linux-x86_64 drop and nothing
+      # else, so aarch64 (and every QEMU arch) silently had no native TTY support.
+      - name: Build @gjsify/terminal-native Vala library
+        working-directory: packages/node/terminal-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/terminal-native prebuilds
+        working-directory: packages/node/terminal-native
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgjsifyterminal.so build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib "prebuilds/linux-${ARCH}/"
+          echo "@gjsify/terminal-native prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/terminal-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: terminal-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/terminal-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
       # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
       # Pure Rust + Vala; depends on `lightningcss = "1"` from crates.io,
       # no submodule needed. cargo first downloads + compiles the crate
@@ -261,6 +295,41 @@ jobs:
         with:
           name: lightningcss-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/infra/lightningcss-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      # -------- @gjsify/oxfmt-native (GjsifyOxfmt) --------
+      # The third member of the GJS engine set `installGjsEnginePackages()`
+      # lays down (with rolldown-native + lightningcss-native), but it was never
+      # built here — its prebuilds/ held a hand-built linux-x86_64 drop only.
+      # Like rolldown-native it path-deps into a submodule (refs/oxc, pinned to
+      # the oxfmt_v* tag matching the workspace's npm `oxfmt`), because oxc's
+      # formatter crates are not consumable from crates.io.
+      - name: Init refs/oxc submodule (oxfmt-native source dep)
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git submodule update --init --recursive refs/oxc
+
+      - name: Build @gjsify/oxfmt-native (Rust cdylib + Vala bridge)
+        working-directory: packages/infra/oxfmt-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/oxfmt-native prebuilds
+        working-directory: packages/infra/oxfmt-native
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgjsifyoxfmt.so build/libgjsify_oxfmt.so build/GjsifyOxfmt-1.0.gir build/GjsifyOxfmt-1.0.typelib "prebuilds/linux-${ARCH}/"
+          echo "@gjsify/oxfmt-native prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/oxfmt-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: oxfmt-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/infra/oxfmt-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
       # -------- @gjsify/rolldown-native (GjsifyRolldown) --------
@@ -462,6 +531,18 @@ jobs:
             ls -lh "prebuilds/linux-${ARCH}/"
             cd ../../..
 
+            # -------- @gjsify/terminal-native --------
+            # POSIX only (isatty / ioctl TIOCGWINSZ / termios) + GLib; no
+            # external libraries, so it is the cheapest build in the QEMU leg.
+            cd packages/node/terminal-native
+            meson setup build .
+            meson compile -C build
+            mkdir -p "prebuilds/linux-${ARCH}"
+            cp build/libgjsifyterminal.so build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib "prebuilds/linux-${ARCH}/"
+            echo "@gjsify/terminal-native prebuilds for linux-${ARCH}:"
+            ls -lh "prebuilds/linux-${ARCH}/"
+            cd ../../..
+
             # -------- @gjsify/lightningcss-native --------
             # Pure crates.io deps (no submodule). Cargo download + compile
             # under QEMU is the slow step here — single-arch cold build
@@ -476,6 +557,11 @@ jobs:
             echo "@gjsify/lightningcss-native prebuilds for linux-${ARCH}:"
             ls -lh "prebuilds/linux-${ARCH}/"
 
+            # NOTE: @gjsify/oxfmt-native is intentionally NOT built in the QEMU
+            # matrix either — it path-deps into the refs/oxc submodule and its
+            # crate graph is the same order of magnitude as rolldown's, so the
+            # same emulation-cost argument applies verbatim.
+            #
             # NOTE: @gjsify/rolldown-native is intentionally NOT built in
             # the QEMU matrix. The rolldown crate graph (tokio + oxc + ~250
             # transitive crates) compiles in ~5 min on native x86_64; under
@@ -534,13 +620,418 @@ jobs:
           path: packages/infra/lightningcss-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
+      - name: Upload @gjsify/terminal-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: terminal-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/terminal-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+  # ----------------------------------------------------------------
+  # macOS (Apple silicon) — prebuilds/darwin-arm64
+  #
+  # Until this job existed, EVERY native bridge shipped linux-<arch> only, which
+  # made the Node-free gjsify toolchain a Linux-only feature: `gjsify install -g`
+  # lays down @gjsify/{rolldown,lightningcss,oxfmt}-native, and on macOS none of
+  # the three had an artifact to install.
+  #
+  # Toolchain: Homebrew, mirroring the `macos` job in napi.yml (the reference
+  # macOS leg in this repo). These bridges are LIGHTER than napi's — they need
+  # glib/gobject-introspection/vala/meson (+ one library each), not libgjs and
+  # mozjs-140 — so there is no source build anywhere in this job.
+  #
+  # WHAT IS DELIBERATELY NOT HERE, and why (each is a hard blocker, not an
+  # oversight — do not "fix" one by adding it to the matrix):
+  #
+  #   • @gjsify/rolldown-native — the Rust blocker is GONE (the three
+  #     `libc::eventfd(2)` descriptors became portable anonymous pipes in
+  #     src/rust/src/wakeup.rs, and `cargo check --target aarch64-apple-darwin`
+  #     passes), and meson.build is darwin-ready. It is not in the REQUIRED
+  #     matrix only because nothing has yet LINKED it on a real macOS host,
+  #     generated its typelib, or loaded it under Homebrew `gjs` — and it needs
+  #     `json-glib` on top of this job's brew closure plus
+  #     `git submodule update --init refs/rolldown` and a rustup toolchain.
+  #     It is wired into the manual-dispatch experimental job below; promote it
+  #     here once that comes back green.
+  #     CONSEQUENCE UNTIL THEN: `gjsify build` still has no engine on macOS —
+  #     this job closes the format/CSS half of the toolchain, not the bundler half.
+  #
+  #   • @gjsify/sab-native — built on `memfd_create`, Linux `futex` and
+  #     `SCM_RIGHTS`. It is Linux-only BY DESIGN; the portability decision for it
+  #     is owned elsewhere. Do not add it here.
+  #
+  #   • @gjsify/webgl and @gjsify/webrtc-native — NOT blocked, just unverified.
+  #     They pull the two heaviest macOS toolchains (gtk4 + libepoxy; the unified
+  #     `gstreamer` formula for gstreamer-sdp-1.0 + gstreamer-webrtc-1.0), and
+  #     GTK4's macOS backend caps at desktop GL 4.1 via CGL — no GLES 3.2, which
+  #     is what the webgl Vala bridge targets. Rather than gamble a red required
+  #     job on an unverified brew closure, they get the manual-dispatch
+  #     `build-prebuilds-macos-experimental` job below.
+  #
+  # NAMING: `darwin-arm64` — the `${process.platform}-${process.arch}` convention
+  # already used by packages/napi (napi.yml stages prebuilds/darwin-arm64) and by
+  # packages/node-gi. The CLI's loader resolves it: `detectNativePackages()`
+  # (packages/infra/cli/src/utils/detect-native-packages.ts) accepts BOTH this
+  # node-style spelling and the uname-style one the Vala/meson jobs stage
+  # (`linux-x86_64`), preferring whatever `package.json#gjsify.platforms`
+  # declares, and `buildNativeEnv()` emits the loader variable the host actually
+  # reads (`DYLD_LIBRARY_PATH` on darwin — dyld ignores the ELF one).
+  # ----------------------------------------------------------------
+  build-prebuilds-macos:
+    name: Build prebuilds (darwin-arm64)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+      # process.platform-process.arch for an Apple-silicon runner.
+      PREBUILD: darwin-arm64
+
+    steps:
+      - name: Install GI toolchain + per-bridge libraries (Homebrew)
+        run: |
+          set -euo pipefail
+          # gobject-introspection pulls glib (glib-2.0/gobject-2.0/gio-2.0 .pc)
+          # and provides g-ir-compiler, which turns valac's .gir into a .typelib.
+          # g-ir-scanner is never invoked — `vala_gir:` makes valac emit the GIR
+          # directly — so no binary has to be introspected at build time.
+          #   gnutls   → @gjsify/tls-native
+          #   libsoup  → @gjsify/http-soup-bridge (needs >= 3.6)
+          #   libnghttp2 → @gjsify/http2-native
+          brew install gobject-introspection vala meson ninja pkgconf gnutls libsoup libnghttp2
+          BREW_PREFIX="$(brew --prefix)"
+          # libnghttp2 is keg-only on macOS (the OS ships its own copy for curl),
+          # so it is NOT symlinked into the brew prefix. http2-native reaches it
+          # through `cc.find_library('nghttp2', has_headers: [...])` rather than
+          # pkg-config, which searches only the compiler's default paths — hence
+          # the explicit CPPFLAGS/LDFLAGS. meson reads all three of these at
+          # `meson setup` time.
+          NGHTTP2_PREFIX="$(brew --prefix libnghttp2)"
+          {
+            echo "PKG_CONFIG_PATH=${BREW_PREFIX}/lib/pkgconfig:${BREW_PREFIX}/share/pkgconfig:${NGHTTP2_PREFIX}/lib/pkgconfig"
+            echo "CPPFLAGS=-I${NGHTTP2_PREFIX}/include"
+            echo "LDFLAGS=-L${NGHTTP2_PREFIX}/lib"
+          } >> "$GITHUB_ENV"
+
+      - name: Ensure a current Rust toolchain
+        # lightningcss-native / oxfmt-native need rustc >= 1.85 (edition2024 in
+        # the transitive graph). macOS runners preinstall rustup, so re-running
+        # rustup-init would fail; install/refresh the stable toolchain instead
+        # and fall back to rustup-init only if rustup is genuinely absent.
+        run: |
+          set -euo pipefail
+          if command -v rustup > /dev/null 2>&1; then
+            rustup toolchain install stable --profile minimal
+            rustup default stable
+          else
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: Verify toolchain
+        run: |
+          valac --version
+          meson --version
+          g-ir-compiler --version || true
+          cargo --version
+          echo "gnutls:      $(pkg-config --modversion gnutls)"
+          echo "libsoup-3.0: $(pkg-config --modversion libsoup-3.0)"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
+      # Pure crates.io deps (no submodule) — the easiest Rust bridge to port.
+      - name: Build @gjsify/lightningcss-native (Rust cdylib + Vala bridge)
+        working-directory: packages/infra/lightningcss-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/lightningcss-native prebuilds
+        working-directory: packages/infra/lightningcss-native
+        run: |
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgjsifylightningcss.dylib build/libgjsify_lightningcss.dylib \
+             build/GjsifyLightningcss-1.0.gir build/GjsifyLightningcss-1.0.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      # -------- @gjsify/oxfmt-native (GjsifyOxfmt) --------
+      - name: Init refs/oxc submodule (oxfmt-native source dep)
+        run: git submodule update --init --recursive refs/oxc
+
+      - name: Build @gjsify/oxfmt-native (Rust cdylib + Vala bridge)
+        working-directory: packages/infra/oxfmt-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/oxfmt-native prebuilds
+        working-directory: packages/infra/oxfmt-native
+        run: |
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgjsifyoxfmt.dylib build/libgjsify_oxfmt.dylib \
+             build/GjsifyOxfmt-1.0.gir build/GjsifyOxfmt-1.0.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      # -------- @gjsify/terminal-native (GjsifyTerminal) --------
+      # Plain POSIX; the only Linux dependency it had was Vala's `linux.vapi`
+      # (`Linux.winsize` / `Linux.Termios.TIOCGWINSZ`), now replaced by the
+      # portable sibling src/vala/terminal-compat.vapi.
+      - name: Build @gjsify/terminal-native Vala library
+        working-directory: packages/node/terminal-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/terminal-native prebuilds
+        working-directory: packages/node/terminal-native
+        run: |
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgjsifyterminal.dylib build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      # -------- @gjsify/tls-native (GjsifyTls) --------
+      # Builds against gnutls headers only. Its Phase-2 SessionAccess reaches
+      # into glib-networking's GTlsConnectionGnutls private struct at RUNTIME;
+      # where that backend is absent, `is_supported()` reports false and the API
+      # degrades to the documented undefined/false/no-op contract — so a macOS
+      # prebuild is still correct, it just may expose Phase 1 (OCSP) only.
+      - name: Build @gjsify/tls-native Vala library
+        working-directory: packages/node/tls-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/tls-native prebuilds
+        working-directory: packages/node/tls-native
+        run: |
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgjsifytls.dylib build/GjsifyTls-1.0.gir build/GjsifyTls-1.0.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      # -------- @gjsify/http-soup-bridge (GjsifyHttpSoupBridge) --------
+      - name: Build @gjsify/http-soup-bridge Vala library
+        working-directory: packages/node/http-soup-bridge
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/http-soup-bridge prebuilds
+        working-directory: packages/node/http-soup-bridge
+        run: |
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgjsifyhttpsoupbridge.dylib build/GjsifyHttpSoupBridge-1.0.gir \
+             build/GjsifyHttpSoupBridge-1.0.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      # -------- @gjsify/http2-native (GjsifyHttp2) --------
+      - name: Build @gjsify/http2-native Vala library
+        working-directory: packages/node/http2-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/http2-native prebuilds
+        working-directory: packages/node/http2-native
+        run: |
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgjsifyhttp2.dylib build/GjsifyHttp2-1.0.gir build/GjsifyHttp2-1.0.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      # A typelib whose recorded shared-library leaf still says `.so` is found via
+      # GI_TYPELIB_PATH but never loads — the exact silent failure this job's
+      # meson `host_machine.system()` branches exist to prevent. Assert it once
+      # here so a regression fails the build instead of shipping a dead prebuild.
+      - name: Verify every typelib records a .dylib leaf
+        run: |
+          set -euo pipefail
+          # `rc`, not `status`: `status` is a read-only special variable in zsh,
+          # so the same snippet stays copy-pasteable outside the bash CI shell.
+          rc=0
+          for gir in \
+            packages/infra/lightningcss-native/prebuilds/${PREBUILD}/*.gir \
+            packages/infra/oxfmt-native/prebuilds/${PREBUILD}/*.gir \
+            packages/node/terminal-native/prebuilds/${PREBUILD}/*.gir \
+            packages/node/tls-native/prebuilds/${PREBUILD}/*.gir \
+            packages/node/http-soup-bridge/prebuilds/${PREBUILD}/*.gir \
+            packages/node/http2-native/prebuilds/${PREBUILD}/*.gir
+          do
+            # -m1 rather than `| head -1`: under `set -o pipefail` a closed pipe
+            # would surface as a spurious failure of the grep itself.
+            leaf="$(grep -m1 -o 'shared-library="[^"]*"' "$gir")"
+            echo "$gir -> $leaf"
+            case "$leaf" in
+              *.dylib\") ;;
+              *) echo "::error file=$gir::expected a .dylib shared-library leaf, got: $leaf"; rc=1 ;;
+            esac
+          done
+          exit $rc
+
+      - name: Upload @gjsify/lightningcss-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: lightningcss-native-prebuilds-darwin-arm64
+          path: packages/infra/lightningcss-native/prebuilds/darwin-arm64/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/oxfmt-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: oxfmt-native-prebuilds-darwin-arm64
+          path: packages/infra/oxfmt-native/prebuilds/darwin-arm64/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/terminal-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: terminal-native-prebuilds-darwin-arm64
+          path: packages/node/terminal-native/prebuilds/darwin-arm64/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/tls-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: tls-native-prebuilds-darwin-arm64
+          path: packages/node/tls-native/prebuilds/darwin-arm64/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/http-soup-bridge prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: http-soup-bridge-prebuilds-darwin-arm64
+          path: packages/node/http-soup-bridge/prebuilds/darwin-arm64/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/http2-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: http2-native-prebuilds-darwin-arm64
+          path: packages/node/http2-native/prebuilds/darwin-arm64/
+          if-no-files-found: error
+          retention-days: 30
+
+  # ----------------------------------------------------------------
+  # macOS exploratory — @gjsify/webgl + @gjsify/webrtc-native
+  #
+  # MANUAL DISPATCH ONLY, and deliberately NOT in `commit-prebuilds`'s `needs`,
+  # so it can never red a normal run — the same honest posture napi.yml uses for
+  # its Windows attempt. These two are not known-blocked; they are UNVERIFIED:
+  #
+  #   • webgl needs gtk4 + libepoxy + gdk-pixbuf. GTK4's macOS (Quartz) backend
+  #     goes through CGL, which tops out at desktop OpenGL 4.1 Core and offers no
+  #     GLES 3.2 — the profile the Vala bridge is written against. Whether the
+  #     bridge merely COMPILES there says nothing about whether Gtk.GLArea can
+  #     actually render, so a green build here is a starting point, not a ship
+  #     signal.
+  #   • webrtc-native needs gstreamer-sdp-1.0 + gstreamer-webrtc-1.0, which come
+  #     from gst-plugins-base/bad inside Homebrew's unified `gstreamer` formula.
+  #     Whether that formula exports both .pc files is the open question.
+  #
+  # Run it, read the log, and promote whatever passes into build-prebuilds-macos
+  # above (with an upload step + commit wiring) — or record the specific failure.
+  # ----------------------------------------------------------------
+  build-prebuilds-macos-experimental:
+    name: Build prebuilds (darwin-arm64) [experimental — rolldown + webgl + webrtc]
+    runs-on: macos-latest
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+      PREBUILD: darwin-arm64
+
+    steps:
+      - name: Install GI toolchain + GTK4/GStreamer (Homebrew)
+        run: |
+          set -euo pipefail
+          # json-glib is rolldown-native's extra dependency over the required job's closure.
+          brew install gobject-introspection vala meson ninja pkgconf gtk4 libepoxy gdk-pixbuf gstreamer json-glib
+          BREW_PREFIX="$(brew --prefix)"
+          echo "PKG_CONFIG_PATH=${BREW_PREFIX}/lib/pkgconfig:${BREW_PREFIX}/share/pkgconfig" >> "$GITHUB_ENV"
+
+      - name: Report what pkg-config actually resolved
+        # The evidence this job exists to produce: whether the unified gstreamer
+        # formula exports gstreamer-sdp-1.0/gstreamer-webrtc-1.0 at all.
+        run: |
+          for pc in gtk4 epoxy gdk-pixbuf-2.0 gstreamer-1.0 gstreamer-sdp-1.0 gstreamer-webrtc-1.0; do
+            printf '%-24s %s\n' "$pc" "$(pkg-config --modversion "$pc" 2>/dev/null || echo 'MISSING')"
+          done
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # @gjsify/rolldown-native is the bundler engine `gjsify build` runs on under
+      # GJS — the one package standing between macOS and a Node-free toolchain.
+      # Its Rust core compiles for aarch64-apple-darwin since the eventfd→pipe
+      # port (src/rust/src/wakeup.rs); what is UNPROVEN is the native build:
+      # linking, GIR generation, and whether the typelib loads under Homebrew gjs.
+      # That is what these steps answer. Promote into the required
+      # `build-prebuilds-macos` job once this comes back green.
+      - name: Install Rust toolchain (rustup, stable)
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+
+      - name: Fetch the pinned rolldown source
+        run: git submodule update --init --depth 1 refs/rolldown
+
+      - name: Build @gjsify/rolldown-native (Rust cdylib + Vala GI bridge)
+        working-directory: packages/infra/rolldown-native
+        run: |
+          set -euo pipefail
+          meson setup build .
+          meson compile -C build
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgjsifyrolldown.dylib build/GjsifyRolldown-1.0.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      - name: Load-test the rolldown typelib under Homebrew gjs
+        # A prebuild that builds but does not LOAD is the failure mode this whole
+        # platform axis exists to catch (a typelib recording the wrong shared-library
+        # leaf is found via GI_TYPELIB_PATH and then silently never loads).
+        working-directory: packages/infra/rolldown-native
+        run: |
+          set -euo pipefail
+          brew install gjs
+          GI_TYPELIB_PATH="$PWD/prebuilds/${PREBUILD}" \
+          DYLD_LIBRARY_PATH="$PWD/prebuilds/${PREBUILD}" \
+            gjs -c 'const { Bundler } = imports.gi.GjsifyRolldown; if (!Bundler) { throw new Error("GjsifyRolldown.Bundler missing"); } print("rolldown typelib loaded OK");'
+
+      - name: Build @gjsify/webgl Vala library
+        working-directory: packages/framework/webgl
+        run: |
+          meson setup build .
+          meson compile -C build
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgwebgl.dylib build/Gwebgl-0.1.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      - name: Build @gjsify/webrtc-native Vala library
+        working-directory: packages/web/webrtc-native
+        run: |
+          meson setup build .
+          meson compile -C build
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgjsifywebrtc.dylib build/GjsifyWebrtc-0.1.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
   # ----------------------------------------------------------------
   # Commit all prebuilds back to the repo
   # (only on push to main, not on PRs)
   # ----------------------------------------------------------------
   commit-prebuilds:
     name: Commit prebuilds to repo
-    needs: [build-prebuilds, build-prebuilds-qemu]
+    # build-prebuilds-macos-experimental is deliberately absent: it is
+    # workflow_dispatch-only, and a skipped job in `needs` would skip this one too.
+    needs: [build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
 
@@ -765,6 +1256,50 @@ jobs:
           name: lightningcss-native-prebuilds-linux-riscv64
           path: packages/infra/lightningcss-native/prebuilds/linux-riscv64/
 
+      # -------- @gjsify/terminal-native --------
+      - name: Download terminal-native x86_64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: terminal-native-prebuilds-linux-x86_64
+          path: packages/node/terminal-native/prebuilds/linux-x86_64/
+
+      - name: Download terminal-native aarch64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: terminal-native-prebuilds-linux-aarch64
+          path: packages/node/terminal-native/prebuilds/linux-aarch64/
+
+      - name: Download terminal-native ppc64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: terminal-native-prebuilds-linux-ppc64
+          path: packages/node/terminal-native/prebuilds/linux-ppc64/
+
+      - name: Download terminal-native s390x prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: terminal-native-prebuilds-linux-s390x
+          path: packages/node/terminal-native/prebuilds/linux-s390x/
+
+      - name: Download terminal-native riscv64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: terminal-native-prebuilds-linux-riscv64
+          path: packages/node/terminal-native/prebuilds/linux-riscv64/
+
+      # -------- @gjsify/oxfmt-native (native runners only) --------
+      - name: Download oxfmt-native x86_64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: oxfmt-native-prebuilds-linux-x86_64
+          path: packages/infra/oxfmt-native/prebuilds/linux-x86_64/
+
+      - name: Download oxfmt-native aarch64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: oxfmt-native-prebuilds-linux-aarch64
+          path: packages/infra/oxfmt-native/prebuilds/linux-aarch64/
+
       # -------- @gjsify/rolldown-native (native runners only) --------
       - name: Download rolldown-native x86_64 prebuilds
         uses: actions/download-artifact@v8
@@ -778,6 +1313,45 @@ jobs:
           name: rolldown-native-prebuilds-linux-aarch64
           path: packages/infra/rolldown-native/prebuilds/linux-aarch64/
 
+      # -------- darwin-arm64 (macOS, Apple silicon) --------
+      # rolldown-native, sab-native, webgl and webrtc-native have no darwin
+      # artifact — see the rationale in build-prebuilds-macos above.
+      - name: Download lightningcss-native darwin-arm64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: lightningcss-native-prebuilds-darwin-arm64
+          path: packages/infra/lightningcss-native/prebuilds/darwin-arm64/
+
+      - name: Download oxfmt-native darwin-arm64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: oxfmt-native-prebuilds-darwin-arm64
+          path: packages/infra/oxfmt-native/prebuilds/darwin-arm64/
+
+      - name: Download terminal-native darwin-arm64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: terminal-native-prebuilds-darwin-arm64
+          path: packages/node/terminal-native/prebuilds/darwin-arm64/
+
+      - name: Download tls-native darwin-arm64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: tls-native-prebuilds-darwin-arm64
+          path: packages/node/tls-native/prebuilds/darwin-arm64/
+
+      - name: Download http-soup-bridge darwin-arm64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: http-soup-bridge-prebuilds-darwin-arm64
+          path: packages/node/http-soup-bridge/prebuilds/darwin-arm64/
+
+      - name: Download http2-native darwin-arm64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          name: http2-native-prebuilds-darwin-arm64
+          path: packages/node/http2-native/prebuilds/darwin-arm64/
+
       - name: Commit prebuilds
         run: |
           git config user.name "github-actions[bot]"
@@ -788,8 +1362,10 @@ jobs:
             packages/node/http-soup-bridge/prebuilds/ \
             packages/node/http2-native/prebuilds/ \
             packages/node/sab-native/prebuilds/ \
+            packages/node/terminal-native/prebuilds/ \
             packages/node/tls-native/prebuilds/ \
             packages/infra/lightningcss-native/prebuilds/ \
+            packages/infra/oxfmt-native/prebuilds/ \
             packages/infra/rolldown-native/prebuilds/
           if git diff --cached --quiet; then
             echo "No prebuild changes to commit."

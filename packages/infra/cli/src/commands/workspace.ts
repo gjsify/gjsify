@@ -1,8 +1,13 @@
-// `gjsify workspace <name> <script> [args..]` — yarn-workspace shortcut.
+// `gjsify workspace <name> [run] <script> [args..]` — yarn-workspace shortcut.
 //
 // Equivalent to `yarn workspace <name> run <script>`: locates the named
 // workspace in the current monorepo, then runs the script there. Used
 // extensively in gjsify's own root `package.json` (17 call sites).
+//
+// BOTH spellings work — the yarn-style `run` prefix is accepted and optional.
+// It is deliberately NOT the default and NOT a full CLI proxy: gjsify's command
+// names collide with the most common script names, so `workspace <name> build`
+// must keep meaning the SCRIPT. See the note at the normalization site below.
 //
 // With `--with-dependencies` / `-d` (synonym: `--topological` / `-t`) the
 // command first runs the SAME script in every transitive workspace
@@ -15,8 +20,8 @@
 // failures on uninbuilt workspace deps are the single biggest local-dev
 // pain point in this monorepo.
 
-import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
+import { spawnToCompletion } from '../utils/spawn.js';
 import { buildDependencyGraph, discoverWorkspaces, topologicalSort, type Workspace } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
@@ -36,7 +41,8 @@ interface WorkspaceCmdOptions {
 
 export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
     command: 'workspace <name> <script> [args..]',
-    description: 'Run a workspace script (`yarn workspace <name> run <script>` equivalent).',
+    description:
+        'Run a workspace script. Both `workspace <name> <script>` and the yarn spelling `workspace <name> run <script>` work.',
     builder: (yargs) =>
         yargs
             .positional('name', {
@@ -122,11 +128,30 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
         const withDeps = args['with-dependencies'] === true;
         const continueOnError = args['continue-on-error'] === true;
 
+        // yarn spells this `yarn workspace <name> run <script>`, and the header
+        // comment above has always advertised that form as the equivalent — so
+        // accept it. `run` is an OPTIONAL prefix, not the default: gjsify's own
+        // command surface collides head-on with the most common script names
+        // (`build`, `check`, `test`, `install`, `publish`, `pack`, `lint`,
+        // `format`), so proxying the whole CLI the way yarn does would make
+        // `gjsify workspace <name> build` ambiguous between the build COMMAND
+        // and the build SCRIPT — and the script reading is the one every script
+        // in this repo relies on.
+        //
+        // A package with a literal `run` script stays reachable: the prefix is
+        // only consumed when something follows it (`… run build`), so a bare
+        // `gjsify workspace <name> run` still runs that package's `run` script.
+        let script = args.script;
+        let extraArgs = args.args ?? [];
+        if (script === 'run' && extraArgs.length > 0) {
+            [script, ...extraArgs] = extraArgs;
+        }
+
         const targetScripts = (target.manifest.scripts as Record<string, string> | undefined) ?? {};
-        if (typeof targetScripts[args.script] !== 'string') {
-            const scriptHint = suggestClosest(args.script, Object.keys(targetScripts));
+        if (typeof targetScripts[script] !== 'string') {
+            const scriptHint = suggestClosest(script, Object.keys(targetScripts));
             console.error(
-                `gjsify workspace: workspace "${args.name}" has no script "${args.script}"` +
+                `gjsify workspace: workspace "${args.name}" has no script "${script}"` +
                     (scriptHint ? ` — did you mean "${scriptHint}"?` : ''),
             );
             // `return process.exit` — see the not-found branch above for why a
@@ -157,8 +182,8 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
             ? new BuildCacheRunner({
                   root,
                   workspaces: allWorkspaces,
-                  script: args.script,
-                  args: args.args ?? [],
+                  script: script,
+                  args: extraArgs,
                   targets: runList.map((w) => w.name),
               })
             : undefined;
@@ -166,17 +191,17 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
         const failures: { workspace: string; error: Error }[] = [];
         for (const ws of runList) {
             const scripts = (ws.manifest.scripts as Record<string, string> | undefined) ?? {};
-            if (typeof scripts[args.script] !== 'string') {
+            if (typeof scripts[script] !== 'string') {
                 // Skip deps that don't declare the script — mirrors
                 // `gjsify foreach`'s --if-present behaviour. The target
                 // itself was validated above; this branch only filters
                 // intermediate deps. A skipped package is also never touched
                 // by the build cache (the no-build-package safety rule).
-                if (verbose) console.error(`[${ws.name}] (no "${args.script}" script — skipping)`);
+                if (verbose) console.error(`[${ws.name}] (no "${script}" script — skipping)`);
                 continue;
             }
             try {
-                await runOne(ws, args.script, args.args ?? [], runner, verbose, cache);
+                await runOne(ws, script, extraArgs, runner, verbose, cache);
             } catch (err) {
                 const e = err instanceof Error ? err : new Error(String(err));
                 console.error(`[${ws.name}] ${e.message}`);
@@ -269,25 +294,22 @@ async function runOne(
     if (verbose) {
         console.error(`[${ws.name}] $ ${runner} ${argv.join(' ')}`);
     }
-    // Default FORCE_COLOR=1 unless the user explicitly opted out (matches
-    // yarn / npm / gjsify run behaviour) — without this, tools that key
-    // on isTTY (chalk, picocolors, biome) drop colors when stdout is a
-    // pipe, including GitHub Actions where the log viewer renders ANSI
-    // fine.
-    const colorEnv =
-        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined ? {} : { FORCE_COLOR: '1' };
-    await new Promise<void>((resolve, reject) => {
-        const child = spawn(runner, argv, {
-            cwd: ws.location,
-            stdio: 'inherit',
-            env: { ...process.env, ...colorEnv },
-        });
-        child.on('close', (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`${runner} ${argv.join(' ')} exited with code ${code}`));
-        });
-        child.on('error', reject);
+    // `completion: 'exit'` — every path out of this command's handler ends in
+    // `process.exit(…)`, which quits the GLib main loop `spawn()` arms under
+    // GJS, so the streaming async path stays safe here. See utils/spawn.ts.
+    //
+    // `color: true` defaults FORCE_COLOR=1 unless the user explicitly opted
+    // out (matches yarn / npm / gjsify run) — without it, tools that key on
+    // isTTY (chalk, picocolors, oxc) drop colors when stdout is a pipe,
+    // including GitHub Actions where the log viewer renders ANSI fine.
+    const { code } = await spawnToCompletion(runner, argv, {
+        completion: 'exit',
+        cwd: ws.location,
+        color: true,
     });
+    if (code !== 0) {
+        throw new Error(`${runner} ${argv.join(' ')} exited with code ${code}`);
+    }
     if (cache && before) cache.storeAfterSuccess(ws, before);
 }
 

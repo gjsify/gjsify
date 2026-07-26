@@ -1,5 +1,15 @@
 {
     "extends": "./tsconfig.json",
+    "compilerOptions": {
+        // `build:types` emits ONLY declarations. Both build steps target
+        // `lib/esm` (rolldown via `build:gjsify`, tsc via the inherited
+        // `outDir`), and `build` runs them in that order — so whichever ran
+        // last won: an incremental build let tsc skip emit and rolldown's
+        // output survived, a clean build let tsc overwrite it. That made the
+        // shipped JS depend on tsbuildinfo state. Declarations-only makes
+        // `lib/esm` the bundler's alone, matching the workspace majority.
+        "emitDeclarationOnly": true
+    },
     "exclude": [
         "src/test.mts",
         "src/**/*.spec.ts",

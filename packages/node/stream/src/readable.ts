@@ -3,7 +3,7 @@
 // Reference: refs/node/lib/internal/streams/readable.js
 // Reimplemented for GJS using @gjsify/events + microtask scheduling.
 
-import { nextTick } from '@gjsify/utils';
+import { nextTick } from '@gjsify/utils/core';
 import type { ReadableOptions } from 'node:stream';
 
 import { Stream_ } from './stream-base.js';

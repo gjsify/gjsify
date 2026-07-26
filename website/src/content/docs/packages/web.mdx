@@ -36,7 +36,8 @@ import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro
 
 | Package | Notes |
 |---|---|
-| `@gjsify/adwaita-web` | Web Components (AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView) + SCSS partials |
+| `@gjsify/adwaita-web` | Web Components (AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView) + SCSS partials. Renders the DOM; the behaviour comes from `@gjsify/adwaita-core` |
+| `@gjsify/adwaita-core` | Headless Adwaita behaviour — breakpoint conditions, color-scheme observable, toast queue (one at a time + FIFO + auto-dismiss), row state machines (expander / combo / spin / toggle group), alert-dialog response model. Pure TS, no platform imports; shared by the Web and NativeScript renderers |
 | `@gjsify/adwaita-fonts` | Adwaita Sans TTF files + `@font-face` CSS |
 | `@gjsify/adwaita-icons` | Adwaita symbolic icons as importable SVG strings |
 

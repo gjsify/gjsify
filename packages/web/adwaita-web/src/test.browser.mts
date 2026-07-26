@@ -11,7 +11,9 @@ import { AdwButtonRowTest } from './adw-button-row.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwDropDownTest } from './adw-drop-down.spec.js';
+import { AdwRowStateTest } from './adw-row-state.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
+import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
 import { AdwViewSwitcherBarTest } from './adw-view-switcher-bar.spec.js';
 import { AdwStyleIsolationTest } from './style-isolation.spec.js';
 
@@ -20,7 +22,9 @@ run({
     AdwDataGridTest,
     AdwDialogTest,
     AdwDropDownTest,
+    AdwRowStateTest,
     AdwTabViewTest,
+    AdwToastOverlayTest,
     AdwViewSwitcherBarTest,
     AdwStyleIsolationTest,
 });
