@@ -64,7 +64,7 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (non-zero exit / 
 | `tty` | ok | ✅ 29/29 | ✅ 29/29 | 🟡 40/55 | deno: assertion-mismatch |
 | `v8` | ok | 🟡 56/60 | ✅ 72/72 | ✅ 72/72 | node: other |
 | `webaudio` | ok | ▶ no-summary | ▶ no-summary | ▶ no-summary | no-unit-summary |
-| `webrtc` | ok | ❌ fail | ❌ fail | ❌ fail | node/bun: other; deno: mainloop-drain |
+| `webrtc` | ok | ▶ no-summary | ▶ no-summary | ▶ no-summary | no-unit-summary |
 | `worker_threads` | ok | ✅ 282/282 | ▶ no-summary | ▶ no-summary | bun/deno: no-unit-summary |
 | `ws` | ok | ✅ 19/19 | ✅ 19/19 | ✅ 19/19 | |
 | `zlib` | ok | ✅ 53376/53376 | ✅ 53376/53376 | 🟡 53374/53375 | deno: other |
@@ -143,18 +143,54 @@ Two distinct problems: a **fidelity bug** (a request header set by the client do
 
 **Re-measured** (`node scripts/node-gi-consumer-harness.mjs @gjsify/module --runtimes node`): the bundle now emits `import { createRequire } from "node:module"` and the `filename_from_uri` TypeError is gone. `module` still fails, with a DIFFERENT and pre-existing error — `TypeError: __name is not a function` — which reproduces identically with the guard disabled and disappears under `--minify false`: rolldown 1.1.4 emits the `output.keepNames` helper (`var __name = …`) ~9 kB into the chunk while the gi virtual module calls it at byte ~200. Tracked in STATUS.md `Open TODOs` as an upstream rolldown issue; it is not an alias-layer problem.
 
-### 6. `webrtc` — native abort in the data-channel path
+### 6. `webrtc` — native abort in the data-channel path (RESOLVED)
 
-**Affects:** `webrtc` (node, bun; deno times out in the same region).
+**Affected:** `webrtc` (node, bun; deno timed out in the same region).
 
-The suite gets through construction, SDP round-trips, ICE candidates and the deferred-API guards, then aborts inside `Loopback data channel`:
+The suite got through construction, SDP round-trips, ICE candidates and the deferred-API guards, then aborted inside `Loopback data channel`:
 
 ```
 free(): invalid pointer
    (SIGABRT, exit 134)
 ```
 
-A double-free / ownership bug on the GStreamer `webrtcbin` + data-channel path under node-gi — a native-side memory-management gap, distinct from every marshalling issue above. The Vala bridge itself loads fine (`GjsifyWebrtc` resolves via the staged prebuild path); without that env the same bundle fails earlier with `Typelib file for namespace 'GjsifyWebrtc' not found`, which is a harness-env dependency, not an engine gap.
+**Root cause — an ENGINE bug, not the Vala bridge.** `JsToGIArgument`'s boxed-handle
+branch handed the callee `h->ptr` verbatim, ignoring the argument's transfer
+annotation. A `(transfer full)` IN arg is ADOPTED by the callee, so both the callee
+and the still-owning JS boxed handle freed the same block. The trigger is
+`RTCSessionDescription.toGstDesc()`:
+
+```ts
+const [ret, sdp] = GstSdp.SDPMessage.new_from_text(this.sdp);   // OUT (transfer full) → handle owns it
+return GstWebRTC.WebRTCSessionDescription.new(type, sdp);       // IN  (transfer full) → callee adopts it
+```
+
+valgrind pins all three events on one 184-byte block: allocated in
+`gst_sdp_message_new` ← `gst_sdp_message_new_from_text` ← `gi_function_info_invoke`;
+freed by `gst_webrtc_session_description_free` ← the node-gi `BoxedHandle` finalizer;
+then freed AGAIN by `gst_sdp_message_free` ← the SDPMessage handle's own finalizer.
+The `gst_sdp_message_init` frame in the abort backtrace is `gst_sdp_message_uninit`
+walking the already-released field pointers.
+
+The same code path is safe on plain GJS (`gjsify workspace @gjsify/webrtc test`
+completes, `Loopback data channel` passes) because gjs COPIES a transferring IN arg —
+`refs/gjs/gi/wrapperutils.h` `GIWrapperBase::transfer_to_gi_argument` →
+`Instance::copy_ptr` (`g_boxed_copy`, or `g_variant_ref` for GVariant). node-gi now
+mirrors that (`TransferBoxedIn` in `packages/node-gi/node-gi/src/marshal.cc`), so the
+callee owns an independent instance and the handle keeps its own. Transfer-NOTHING is
+unchanged. Regression: `packages/node-gi/node-gi/test/boxed-in-transfer.test.mjs`
+(GStreamer-free — `pango_attr_list_insert`, whose `attr` is `(transfer full)`; SIGSEGV
+before the fix).
+
+The Vala bridge (`@gjsify/webrtc-native`) is untouched; its prebuilt `.so`/`.typelib`
+did not need rebuilding.
+
+**Remaining:** the suite runs to completion on node, bun and deno but still scores
+`no-unit-summary` — `packages/web/webrtc/src/test.mts` awaits its spec functions
+directly instead of calling `@gjsify/unit`'s `run()`, so no summary line is emitted
+(identically on GJS). Adding `run()` would make `gjsify workspace @gjsify/webrtc test`
+exit non-zero on the suite's ~20 pre-existing functional failures, so it is tracked
+separately rather than folded into this fix.
 
 ### 7. `fs` — the harness stages only `fixtures/`, not the suite's `test/` dir
 
@@ -191,7 +227,7 @@ Prioritized by the gaps above:
 2. **bun/deno main-context pump parity** (gap 2) — unblocks the bun/deno columns of `child_process`, `dns`, `dgram`, `net`, `http` in one change.
 3. ~~**CLI alias-scoping for virtual gi modules** (gap 5)~~ — **done**; `module` now blocks on the rolldown `keepNames` helper-order bug instead (STATUS.md `Open TODOs`).
 4. **`@gjsify/http` request-header propagation + throw-in-callback fatality** (gap 4), and **`@gjsify/net`'s close/connect event ordering** (gap 3).
-5. **`webrtc` data-channel double-free** (gap 6) — a native-side ownership audit of the GStreamer webrtcbin path.
+5. ~~**`webrtc` data-channel double-free** (gap 6)~~ — RESOLVED: node-gi now copies a `(transfer full)` boxed IN arg (gap 6). Residual: give `@gjsify/webrtc`'s `test.mts` a `run()` summary so the harness can score it.
 6. **Harness fix:** stage the suite's on-disk `test/` dir alongside `fixtures/` (gap 7).
 7. **Widen the proof set:** `canvas2d-core` once its suite can run without `Gdk` (or the container carries gtk4); the GTK-stack candidates once a sibling job carries gtk4/libadwaita/webkitgtk.
 8. **Full CI matrix:** run the whole survey (not just the proof set) as a non-gating `continue-on-error` job that publishes this table, so regressions and improvements surface per PR.
