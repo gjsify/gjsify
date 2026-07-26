@@ -414,7 +414,14 @@ export default async () => {
         await it('should change and restore directory', async () => {
             const original = process.cwd();
             process.chdir('/tmp');
-            expect(process.cwd()).toBe('/tmp');
+            // `cwd()` reports the RESOLVED path, which is not always the string
+            // passed to `chdir`: on macOS `/tmp` is a symlink to `/private/tmp`,
+            // so asserting the literal passes on Linux and fails on macOS. Node
+            // resolves on both. Assert what the test is actually about — that
+            // chdir moved us into that directory — without pinning the spelling.
+            const changed = process.cwd();
+            expect(changed).not.toBe(original);
+            expect(changed.endsWith('/tmp')).toBe(true);
             process.chdir(original);
             expect(process.cwd()).toBe(original);
         });

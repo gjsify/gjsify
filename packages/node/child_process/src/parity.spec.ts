@@ -15,7 +15,14 @@ import { describe, it, expect } from '@gjsify/unit';
 // Testing the child_process module API — all commands are hardcoded safe literals
 import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
 import { Buffer } from 'node:buffer';
+import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+
+// See the note in `index.spec.ts`: a child's reported cwd is the RESOLVED
+// path, which differs from the literal wherever the directory is a symlink
+// (macOS `/tmp` → `/private/tmp`).
+const TMP_DIR = '/tmp';
+const TMP_DIR_RESOLVED = realpathSync(TMP_DIR);
 
 export default async () => {
     // ==================== env value coercion ====================
@@ -128,10 +135,13 @@ export default async () => {
 
     await describe('child_process cwd — type acceptance', async () => {
         await it('accepts a file:// URL', async () => {
-            const url = pathToFileURL('/tmp');
+            // `pwd` prints the RESOLVED directory, so compare against the
+            // symlink target rather than the literal (`/tmp` is a symlink to
+            // `/private/tmp` on macOS; on Linux realpath is the identity).
+            const url = pathToFileURL(TMP_DIR);
             const result = spawnSync('pwd', [], { encoding: 'utf8', cwd: url });
             expect(result.status).toBe(0);
-            expect((result.stdout as string).trim()).toBe('/tmp');
+            expect((result.stdout as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
 
         await it('throws on a non-file: URL', async () => {

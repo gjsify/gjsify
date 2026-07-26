@@ -1,6 +1,16 @@
 import { describe, it, expect, on } from '@gjsify/unit';
 // Testing the child_process module API — all commands are hardcoded safe literals
 import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+
+// A process's working directory is the RESOLVED path, so `pwd` in a child
+// spawned with `cwd: TMP_DIR` prints the symlink target, not the string that
+// was passed in. On macOS `/tmp` is a symlink to `/private/tmp`, so asserting
+// the literal fails there while passing on Linux; Node reports the resolved
+// path on both. Comparing against the resolved value keeps ONE assertion
+// correct on every OS (on Linux `realpathSync('/tmp')` is `/tmp`).
+const TMP_DIR = '/tmp';
+const TMP_DIR_RESOLVED = realpathSync(TMP_DIR);
 
 // Ported from refs/node/test/parallel/test-child-process-exec*.js
 // Original: MIT license, Node.js contributors
@@ -20,8 +30,8 @@ export default async () => {
         });
 
         await it('should respect cwd option', async () => {
-            const result = execSync('pwd', { encoding: 'utf8', cwd: '/tmp' });
-            expect((result as string).trim()).toBe('/tmp');
+            const result = execSync('pwd', { encoding: 'utf8', cwd: TMP_DIR });
+            expect((result as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
 
         await it('should respect env option', async () => {
@@ -65,8 +75,8 @@ export default async () => {
         });
 
         await it('should respect cwd option', async () => {
-            const result = execFileSync('pwd', [], { encoding: 'utf8', cwd: '/tmp' });
-            expect((result as string).trim()).toBe('/tmp');
+            const result = execFileSync('pwd', [], { encoding: 'utf8', cwd: TMP_DIR });
+            expect((result as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
     });
 
@@ -115,8 +125,8 @@ export default async () => {
         });
 
         await it('should respect cwd option', async () => {
-            const result = spawnSync('pwd', [], { encoding: 'utf8', cwd: '/tmp' });
-            expect((result.stdout as string).trim()).toBe('/tmp');
+            const result = spawnSync('pwd', [], { encoding: 'utf8', cwd: TMP_DIR });
+            expect((result.stdout as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
     });
 
@@ -487,7 +497,7 @@ export default async () => {
 
         await it('should support cwd option', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('pwd', [], { cwd: '/tmp' });
+            const child = spawn('pwd', [], { cwd: TMP_DIR });
             const code = await new Promise<number | null>((resolve) => {
                 child.on('exit', (exitCode) => resolve(exitCode));
             });
@@ -604,12 +614,12 @@ export default async () => {
         await it('exec with cwd should change working directory', async () => {
             // Testing child_process API — hardcoded safe literal
             const result = await new Promise<string>((resolve, reject) => {
-                exec('pwd', { encoding: 'utf8', cwd: '/tmp' }, (err, stdout) => {
+                exec('pwd', { encoding: 'utf8', cwd: TMP_DIR }, (err, stdout) => {
                     if (err) reject(err);
                     else resolve(stdout.trim());
                 });
             });
-            expect(result).toBe('/tmp');
+            expect(result).toBe(TMP_DIR_RESOLVED);
         });
     });
 
@@ -774,12 +784,12 @@ export default async () => {
         await it('should handle cwd and env together', async () => {
             const result = execFileSync('sh', ['-c', 'echo $COMBO_VAR && pwd'], {
                 encoding: 'utf8',
-                cwd: '/tmp',
+                cwd: TMP_DIR,
                 env: { PATH: '/usr/bin:/bin', COMBO_VAR: 'combined' },
             });
             const lines = (result as string).trim().split('\n');
             expect(lines[0]).toBe('combined');
-            expect(lines[1]).toBe('/tmp');
+            expect(lines[1]).toBe(TMP_DIR_RESOLVED);
         });
     });
 
