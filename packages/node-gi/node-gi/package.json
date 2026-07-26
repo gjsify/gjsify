@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/node-gi",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "GObject-Introspection runtime for Node.js — load gi:// namespaces (GLib/GObject/Gio/…) with GJS-compatible semantics. Vendored + rewritten from node-gtk under MIT.",
   "type": "module",
   "license": "MIT",
@@ -58,7 +58,12 @@
     "prebuilds"
   ],
   "gjsify": {
-      "platforms": ["linux-x64", "linux-arm64", "darwin-arm64", "win32-x64"],
+    "platforms": [
+      "linux-x64",
+      "linux-arm64",
+      "darwin-arm64",
+      "win32-x64"
+    ],
     "runtimes": {
       "gjs": "none",
       "node": "polyfill",

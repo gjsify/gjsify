@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webrtc-native",
-    "version": "0.22.0",
+    "version": "0.23.0",
     "description": "Vala-based main-thread signal bridge for @gjsify/webrtc. Marshals webrtcbin signals and GstPromise callbacks from GStreamer's streaming thread onto the GLib main context so GJS can safely handle them.",
     "type": "module",
     "main": "lib/esm/index.js",
@@ -19,7 +19,13 @@
         "src/vala"
     ],
     "gjsify": {
-        "platforms": ["linux-x86_64", "linux-aarch64", "linux-ppc64", "linux-s390x", "linux-riscv64"],
+        "platforms": [
+            "linux-x86_64",
+            "linux-aarch64",
+            "linux-ppc64",
+            "linux-s390x",
+            "linux-riscv64"
+        ],
         "prebuilds": "prebuilds",
         "runtimes": {
             "gjs": "polyfill",

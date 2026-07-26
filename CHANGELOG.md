@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.23.0](https://github.com/gjsify/gjsify/compare/v0.22.0...v0.23.0) (2026-07-26)
+
+### Features
+
+* **devtools:** activate list rows like a real click ([#799](https://github.com/gjsify/gjsify/issues/799)) ([026a482](https://github.com/gjsify/gjsify/commit/026a482cf813c7a0ea5e1bd764a85fe4febca386))
+* **napi:** macos arm64 cross-platform prebuild ([#806](https://github.com/gjsify/gjsify/issues/806)) ([0395dd2](https://github.com/gjsify/gjsify/commit/0395dd2036f46635ac0a8ca5f71a352e564afc17))
+* **napi:** phase 1 — node-gi runs under the shim ([5442aff](https://github.com/gjsify/gjsify/commit/5442aff66a7c9d1e1aeb0e0534143bb2341a3766))
+* **napi:** real-addon gegentest matrix + napi_async_work ([#802](https://github.com/gjsify/gjsify/issues/802)) ([0bcbf84](https://github.com/gjsify/gjsify/commit/0bcbf84f2023676f08b2700554b5254177b6ac35))
+* **napi:** run native .node addons on GJS ([0c693fa](https://github.com/gjsify/gjsify/commit/0c693fa10260bdd236b9ca630edc052f5008d36c))
+* **napi:** threadpool-backed async_work ([#807](https://github.com/gjsify/gjsify/issues/807)) ([83b218b](https://github.com/gjsify/gjsify/commit/83b218b42d92ecf7a028cb545902c7e146bbe4cc))
+* **napi:** transparent napi-rs generated loaders ([#808](https://github.com/gjsify/gjsify/issues/808)) ([e8737b9](https://github.com/gjsify/gjsify/commit/e8737b9d66b5a4a249506579977f48eef4d22eb2))
+* **napi:** windows portability groundwork + gated CI attempt ([#810](https://github.com/gjsify/gjsify/issues/810)) ([cbc64a5](https://github.com/gjsify/gjsify/commit/cbc64a5ab014b32df685127f80b018d0c5d67005)), closes [#ifdef](https://github.com/gjsify/gjsify/issues/ifdef) [#7147](https://github.com/gjsify/gjsify/issues/7147) [#17734](https://github.com/gjsify/gjsify/issues/17734)
+* **platform:** detect the OS and CPU axes instead of asserting them ([cfb04ab](https://github.com/gjsify/gjsify/commit/cfb04ab83c1be54e0c58e38c1ef3f505f4048565)), closes [#812](https://github.com/gjsify/gjsify/issues/812)
+* transparent N-API .node addon loading on --app gjs ([#804](https://github.com/gjsify/gjsify/issues/804)) ([07aa0ce](https://github.com/gjsify/gjsify/commit/07aa0cefbaa434424ff7a1b2bd04c356a3e65c3f))
+
+### Bug Fixes
+
+* **browser:** three real bugs in unrouted browser entries ([#814](https://github.com/gjsify/gjsify/issues/814)) ([0f4a110](https://github.com/gjsify/gjsify/commit/0f4a1103eba427a129ca1e5e638b48617875c500))
+* **ci:** make a cold build:infra bootstrap succeed ([5f6d593](https://github.com/gjsify/gjsify/commit/5f6d593d4b0342e20a87fe4e57140afb5e539038))
+* **cli:** never fall back to fd 0 under GJS ([3e64a67](https://github.com/gjsify/gjsify/commit/3e64a67704d9ad3ce0b7c6bad5955455c0ab5a1c))
+* **cli:** stop four silent build-toolchain failures ([c57e143](https://github.com/gjsify/gjsify/commit/c57e143bf1214e532ef927f9f12ab53ff70b81e7))
+* **napi:** gate tsfn finalize on thread_count==0 ([#809](https://github.com/gjsify/gjsify/issues/809)) ([3f12c8b](https://github.com/gjsify/gjsify/commit/3f12c8b1e8c8c6c5f82e2e95063ee2aaa62ac159))
+* **node-gi:** detect harness timeouts via ETIMEDOUT ([89b1efa](https://github.com/gjsify/gjsify/commit/89b1efa013ed54fe85b770c73611890a1d710e03))
+* **node-gi:** scope harness classify() to failures ([7e4c7f6](https://github.com/gjsify/gjsify/commit/7e4c7f6b99875266fc14cda99714568d71f863e8))
+* **rolldown-plugin-gjsify:** globalThis in the GJS banner ([#813](https://github.com/gjsify/gjsify/issues/813)) ([da89c46](https://github.com/gjsify/gjsify/commit/da89c468bf7846e65d1334d8361878ddc946708f))
+* three child-process/event bugs + orphan workers ([e602392](https://github.com/gjsify/gjsify/commit/e6023929084ceae6586a44d77b54204a8d9f8a1f))
+* two host-specific breakages CI found and local runs could not ([0a17892](https://github.com/gjsify/gjsify/commit/0a1789262644f0deeaa5f2ccbf1923fb31b140f4))
+* **utils:** make the arch union exactly NodeJS.Architecture ([2b4f2ac](https://github.com/gjsify/gjsify/commit/2b4f2ac467ff710a1a68cbddbf10556431c99639))
+* **web-globals:** stop the node slot from requiring GStreamer ([f0a36a0](https://github.com/gjsify/gjsify/commit/f0a36a099d7a76ddb4af00b5b2698c16c652fe95))
+
+### Documentation
+
+* **agents:** record the two register/seam changes ([f70db91](https://github.com/gjsify/gjsify/commit/f70db9107f513547996f3d250f94de3523898506))
+* **browser:** correct the exit-code claim in the bundle driver ([98da345](https://github.com/gjsify/gjsify/commit/98da345a6914cf8167459171de74f2034890fd2c))
+* record the platform/toolchain sweep ([2d56f4b](https://github.com/gjsify/gjsify/commit/2d56f4b9d45b306c3181d5e3723cfc0898cbc534))
+* **reports:** refresh the node-gi consumer survey ([0a92748](https://github.com/gjsify/gjsify/commit/0a9274893d74330c23c5c287532b11c28fa0fb49))
+* **status:** the browser test axis is not gated ([48f764b](https://github.com/gjsify/gjsify/commit/48f764b5d3fb079f85ecbb1e6657935b537d8e7a)), closes [#814](https://github.com/gjsify/gjsify/issues/814)
+* **website:** async_work is threadpool-concurrent + platforms ([#811](https://github.com/gjsify/gjsify/issues/811)) ([5fe08ee](https://github.com/gjsify/gjsify/commit/5fe08eefef830a40a44f67593114d3a479c4ac57))
+* **website:** document @gjsify/napi (forward bridge) ([#803](https://github.com/gjsify/gjsify/issues/803)) ([8e9e7ad](https://github.com/gjsify/gjsify/commit/8e9e7adfa3f652168f8eac8674f85407cccedb52))
+
+### Code Refactoring
+
+* **canvas2d-core:** route pixel ops through a seam ([d88b38c](https://github.com/gjsify/gjsify/commit/d88b38c5d457c483080a7ba54d7e28793769a5d2))
+* **process:** ask about GJS before consulting globalThis.process ([c65b85b](https://github.com/gjsify/gjsify/commit/c65b85bd60d9342509cc4d85f96672d5bbd61139))
+* **webgl:** move globalThis writes to /register ([019dba0](https://github.com/gjsify/gjsify/commit/019dba0a4f7a46eaf4674f7eb44f2c20eae0e33a))
+
+### Continuous Integration
+
+* **cli:** gate binshim on the installed CLI version ([8e91e9a](https://github.com/gjsify/gjsify/commit/8e91e9afc93558e87ae264be9095c88c8fa9ea28))
+* **napi:** cache node_modules + polyfill libs ([#805](https://github.com/gjsify/gjsify/issues/805)) ([d654c8b](https://github.com/gjsify/gjsify/commit/d654c8bbcb15c4998ea5b6d5dc5cca1dc2e2d535))
+* **node-gi:** install unzip for the gtk-smoke bun/deno setup ([0f3ba96](https://github.com/gjsify/gjsify/commit/0f3ba962f534658f0e127277007621bef7e8efcb))
+* **node-gi:** run the bun/deno GUI proof sequentially ([b066b5b](https://github.com/gjsify/gjsify/commit/b066b5befc334073f68545e944893c1636683c1c))
+* run the browser test axis ([ded9ca8](https://github.com/gjsify/gjsify/commit/ded9ca8e65bcb2f18694af381df5328307efe98d)), closes [#814](https://github.com/gjsify/gjsify/issues/814)
+* stop the build cache from shadowing committed bundles ([5f0ec02](https://github.com/gjsify/gjsify/commit/5f0ec02af4ac922cac16cafa29385ee8c1c508ea))
+
+### Tests
+
+* **child_process:** compare cwd against the resolved path ([ba37d27](https://github.com/gjsify/gjsify/commit/ba37d276c262a0e7fed70876d9e99fe67825ce9b))
+* **e2e:** wire the two script-level suites into the runner ([e048a46](https://github.com/gjsify/gjsify/commit/e048a46293c9bd4643a505c8ab1e42607b11b3ae))
+* **http:** browser-axis coverage + fix paused read() ([bebd986](https://github.com/gjsify/gjsify/commit/bebd986dc24babd5c50715d69642f59efa712b83))
+* **napi:** expand N-API conformance coverage ([2330e85](https://github.com/gjsify/gjsify/commit/2330e856c97ef0e4a41304f4f0d0240dc19e6fbc))
+* **node-gi:** gate GTK/Adwaita GUI on bun + deno ([1dd4ebb](https://github.com/gjsify/gjsify/commit/1dd4ebbc5675958a32b593fc4a30d6a24a4eaf90))
+
 ## [0.22.0](https://github.com/gjsify/gjsify/compare/v0.21.0...v0.22.0) (2026-07-25)
 
 ### Features
