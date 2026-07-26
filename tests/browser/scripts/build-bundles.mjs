@@ -88,12 +88,24 @@ function runBuild(pkg) {
         child.stderr.on('data', (c) => (output += c));
         child.on('error', (err) => resolve({ pkg, ok: false, output: String(err) }));
         child.on('close', (code) => {
-            // Do NOT trust the exit code alone. `gjsify build` currently exits 0
-            // on a bundler error (observed: `@gjsify/constants` dies with a
-            // rolldown `MissingExport` — `node:os`/`node:fs`/`node:crypto` alias
-            // to `@gjsify/empty` under `--app browser` — prints the CLI help and
-            // a `{"error": …}` line, writes nothing, and returns 0). Trusting it
-            // silently dropped that package from the suite. Assert the artifact.
+            // Do NOT trust the exit code alone — assert the artifact exists.
+            //
+            // `@gjsify/constants` really does fail to build for `--app browser`
+            // (`node:os`/`node:fs`/`node:crypto` alias to `@gjsify/empty`, so
+            // its `{ constants }` re-exports resolve to nothing) and really
+            // does write no bundle, which is why it is ledgered as known-broken.
+            //
+            // An earlier version of this comment claimed the CLI returns 0 in
+            // that case. Re-measured directly with the workspace CLI (0.22.0,
+            // `$?` read without an intervening pipe — a pipeline returns the
+            // LAST command's status, which is how the wrong reading arose):
+            // it exits 1. Note the GLOBAL `gjsify` on PATH may still be 0.21.0,
+            // which predates the exit-code propagation fix; always drive this
+            // through `node_modules/.bin/gjsify`.
+            //
+            // The assertion stays regardless: "wrote the file" is the property
+            // this script actually depends on, and checking it directly is
+            // cheaper than trusting any proxy for it.
             if (code !== 0) return resolve({ pkg, ok: false, output });
             if (!existsSync(bundle)) {
                 return resolve({
