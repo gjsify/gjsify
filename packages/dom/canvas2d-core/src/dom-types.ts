@@ -8,7 +8,8 @@
 // the package work against concrete types instead of `any`.
 
 import type Cairo from 'cairo';
-import type GdkPixbuf from 'gi://GdkPixbuf';
+
+import type { CanvasImageHandle } from './pixel-bridge.js';
 
 /**
  * The HTMLCanvasElement-shaped object passed into the
@@ -32,8 +33,14 @@ export interface CanvasLike {
  */
 export interface PixbufImageSource {
     isPixbuf(): boolean;
-    /** @internal — populated by HTMLImageElement once decoding completes. */
-    _pixbuf: GdkPixbuf.Pixbuf;
+    /**
+     * @internal — populated by HTMLImageElement once decoding completes.
+     *
+     * Typed as the platform-agnostic {@link CanvasImageHandle} (the readable
+     * slice of `GdkPixbuf.Pixbuf`) so the headless core needs no `gi://`
+     * import; a real `GdkPixbuf.Pixbuf` satisfies it structurally.
+     */
+    _pixbuf: CanvasImageHandle;
 }
 
 /**
