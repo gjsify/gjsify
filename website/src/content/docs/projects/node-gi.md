@@ -43,9 +43,14 @@ The engine is one Node-API binary that loads on all four supported runtimes. `in
 | toggle-ref GC + cross-thread teardown | ✅ | ✅ | ✅ | ✅ |
 | GLib async (timeouts, GIO async, DBus) | ✅ | ✅ | ✅ | ✅ |
 | blocking `GLib.MainLoop.run()` / `runAsync()` | ✅ | ✅ | ✅ | ✅ |
-| GTK / Adwaita GUI apps | ✅ | ✅ | — | — |
+| GTK / Adwaita GUI apps | ✅ | ✅ | ✅ | ✅ |
+| libuv kept alive *during* a blocking GLib loop | n/a | ✅ | — | — |
 
-GJS is the reference implementation (native `gi://`). On Node the libuv↔GLib bridge keeps Node's own event loop alive during a blocking GLib loop; on Bun and Deno a portable GLib-iteration pump (`startMainContextPump`) co-pumps GLib from the runtime timer instead. Bun and Deno both reach the conformance subset (the Deno-2.1-era N-API quirks were fixed upstream in Deno 2.9); the one Node-only row is keeping Node's timers alive *during* a blocking GLib loop. The GObject-Introspection conformance oracle (a port of GJS's own `GIMarshallingTests`) runs **byte-identical on gjs / node / bun / deno**.
+GJS is the reference implementation (native `gi://`). On Node the libuv↔GLib bridge keeps Node's own event loop alive during a blocking GLib loop; on Bun and Deno a portable GLib-iteration pump (`startMainContextPump`) co-pumps GLib from the runtime timer instead. Bun and Deno both reach the conformance subset (the Deno-2.1-era N-API quirks were fixed upstream in Deno 2.9); the one Node-only row is keeping the runtime's own timers alive *during* a blocking GLib loop — on Bun and Deno a blocking `run()` does not advance the runtime loop, by design, because they are pumped the other way round.
+
+GUI support is portable across all four runtimes: a blocking `Gtk.Application.run()` is driven by GLib, not by the host's event loop. A real `Gtk.Application` builds an Adwaita window (`Adw.ToolbarView` + `Adw.HeaderBar` + `Adw.StatusPage`), applies a `Gtk.CssProvider` and exits 0 on gjs, node, bun and deno. The `gtk-smoke` CI job gates this on all of them under xvfb. The GObject-Introspection conformance oracle (a port of GJS's own `GIMarshallingTests`) runs **byte-identical on gjs / node / bun / deno**.
+
+Known gap: on Bun and Deno the app prints `GLib-GObject-CRITICAL` / `Gtk-CRITICAL` refcount assertions while tearing down (Node does not). The window renders and the process exits 0, so the capability holds, but the teardown path on those two runtimes is not yet clean.
 
 ## Platforms
 

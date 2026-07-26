@@ -267,6 +267,19 @@ jobs:
         with:
           node-version: '22'
 
+      # Bun + Deno so the GUI proof below can run on all four runtimes. The
+      # setup actions work inside this fedora:44 container — same pattern the
+      # build-test / cross-runtime / arm64 / consumer-suites jobs already use.
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -290,6 +303,36 @@ jobs:
       # inserts into a GtkSource.View gutter and rasterises; the Learn6502-port
       # groundwork), which need the Gtk-4.0 typelib the fast headless leg lacks) in
       # one node --test invocation so each reports even if one fails.
+      # The GUI capability is portable — the addon is Node-API and a blocking
+      # `Gtk.Application.run()` is driven by GLib, not by the host's loop — so
+      # it is gated on bun and deno as well, not just node.
+      #
+      # Bun and Deno need their OWN test runners: `bun file.mjs` refuses
+      # `node:test` outright ("Cannot use test outside of the test runner"), so
+      # a plain-script invocation proves nothing.
+      - name: GTK GUI proof on Bun + Deno (xvfb + dbus)
+        working-directory: packages/node-gi/node-gi
+        run: |
+          # Bun and Deno run CONCURRENTLY: they are independent processes and
+          # `xvfb-run -a` picks a free display per invocation, so the added
+          # wall-clock is max(bun, deno) rather than their sum. The expensive
+          # part of this job — the container, the GTK/Adwaita install and the
+          # addon artifact — is already paid once and shared by both.
+          run_rt() {
+            xvfb-run -a dbus-run-session -- \
+              env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+              "$@" > "/tmp/gui-$1.log" 2>&1
+          }
+          run_rt bun test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs & bun_pid=$!
+          run_rt deno test -A --node-modules-dir=auto test/gtk-smoke.test.mjs test/adw-smoke.test.mjs & deno_pid=$!
+          status=0
+          wait "$bun_pid"  || status=1
+          wait "$deno_pid" || status=1
+          for rt in bun deno; do
+            echo "::group::$rt"; cat "/tmp/gui-$rt.log"; echo "::endgroup::"
+          done
+          exit $status
+
       - name: GTK/Adw smoke test (xvfb + dbus)
         working-directory: packages/node-gi/node-gi
         run: |
