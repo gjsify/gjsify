@@ -19,9 +19,20 @@ import type { Plugin } from 'rolldown';
 import { BUNDLE_URL_BANNER } from './bundle-url-banner.js';
 import { GJS_WELLKNOWN_SYMBOLS_STUB } from './wellknown-symbols-banner.js';
 
+// Every GJS ambient global is reached through `globalThis.` — NEVER as a bare
+// identifier. The banner shares the module's top-level scope with the bundled
+// code, so a bare `imports` binds to any top-level `const imports` a bundled
+// module declares — and since the banner runs at byte 1, that binding is still
+// in its temporal dead zone: `ReferenceError: can't access lexical declaration
+// 'imports' before initialization`, thrown at load, before a single line of
+// program code runs. `@girs/gjs`'s `gjs.js` declares exactly that
+// (`const imports = globalThis.imports || {}`), so the failure is real and
+// arrives whenever tree-shaking happens to retain that module. It was found
+// via `@gjsify/web-streams`, whose GJS test leg died the moment `@gjsify/utils`
+// became more shakeable — but nothing about it is specific to either package.
 export const GJS_PROCESS_STUB =
     'if(typeof globalThis.process==="undefined"){' +
-    'const _s=imports.system,_G=imports.gi.GLib;' +
+    'const _s=globalThis.imports.system,_G=globalThis.imports.gi.GLib;' +
     // process.hrtime needs a `.bigint` property attached to the function
     // itself (Node API shape: `process.hrtime.bigint()` — used by execa,
     // perf-tracking libs, …). Build it as a named local so we can
@@ -41,7 +52,7 @@ export const GJS_PROCESS_STUB =
     'versions:{},config:{},' +
     'cwd(){return _G.get_current_dir()||"/"},' +
     'exit(c){_s.exit(c??0)},' +
-    'stderr:{write(s){printerr(s)}},stdout:{write(s){print(s)}},stdin:null,' +
+    'stderr:{write(s){globalThis.printerr(s)}},stdout:{write(s){globalThis.print(s)}},stdin:null,' +
     'exitCode:undefined,' +
     'nextTick(fn,...a){Promise.resolve().then(()=>fn(...a))},' +
     'hrtime:_h,' +

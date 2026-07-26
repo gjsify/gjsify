@@ -198,7 +198,7 @@ function createAbortError(): Error {
     return err;
 }
 
-import { queueMicrotask as _queueMicrotask } from '@gjsify/utils';
+import { queueMicrotask as _queueMicrotask } from '@gjsify/utils/core';
 
 // ---- ReadableStream state factory ----
 
