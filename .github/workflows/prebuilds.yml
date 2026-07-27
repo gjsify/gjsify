@@ -874,6 +874,99 @@ jobs:
           done
           exit $rc
 
+      # The Vala+Rust bridges ship TWO libraries whose leaf names differ on
+      # purpose (`libgjsifyoxfmt.dylib` is what the typelib names;
+      # `libgjsify_oxfmt.dylib` is what it links against), and nothing above
+      # checks the second one at all. Two ways that ships broken, both of which
+      # this asserts structurally — on the artifact, before it is uploaded:
+      #   • the cdylib is not staged (the `cp` list forgot it), so dyld expands
+      #     the rpath to the right directory and finds nothing there;
+      #   • the Vala library records no `@loader_path`, so dyld searches
+      #     Homebrew prefixes instead of the directory the pair shares.
+      - name: Verify every prebuild resolves its own siblings
+        run: |
+          set -euo pipefail
+          node scripts/check-prebuild-loader-path.mjs \
+            "packages/infra/lightningcss-native/prebuilds/${PREBUILD}" \
+            "packages/infra/oxfmt-native/prebuilds/${PREBUILD}" \
+            "packages/node/terminal-native/prebuilds/${PREBUILD}" \
+            "packages/node/tls-native/prebuilds/${PREBUILD}" \
+            "packages/node/http-soup-bridge/prebuilds/${PREBUILD}" \
+            "packages/node/http2-native/prebuilds/${PREBUILD}"
+
+      # THE gate this job was missing. Until now it built six darwin-arm64
+      # bridges, copied them, and uploaded them for `commit-prebuilds` to commit
+      # to main — without ever loading one. The only job that loaded anything was
+      # the manual-dispatch experimental one, which is precisely why a prebuild
+      # that cannot be loaded reached main unnoticed.
+      #
+      # `imports.gi.<Ns>.<Class>` is the trigger, not a formality: resolving a
+      # GObject class forces GI to call the class's `…_get_type` symbol, which
+      # is what dlopens the recorded shared library and, transitively, its Rust
+      # sibling. A typelib that is merely FOUND resolves the namespace and then
+      # throws here.
+      - name: Load-test every darwin-arm64 prebuild under Homebrew gjs
+        run: |
+          set -euo pipefail
+          brew install gjs
+          rc=0
+          while IFS='|' read -r dir ns sym; do
+            [ -n "$dir" ] || continue
+            abs="$PWD/${dir}/prebuilds/${PREBUILD}"
+            echo "--- ${ns}.${sym} from ${abs}"
+            # GI_TYPELIB_PATH locates the typelib; DYLD_LIBRARY_PATH is what lets
+            # dlopen resolve the BARE leaf the typelib records (dyld has no
+            # notion of "next to the typelib"). This mirrors exactly what the CLI
+            # exports via detectNativePackages()/buildNativeEnv() on darwin, so a
+            # pass here is a pass for a real `gjsify` run. The sibling cdylib is
+            # deliberately NOT covered by that variable — see the next step.
+            # `< /dev/null`: the loop's stdin is the heredoc below, and a child
+            # that reads it would eat the remaining rows.
+            if GI_TYPELIB_PATH="$abs" DYLD_LIBRARY_PATH="$abs" gjs -c \
+                 "const T = imports.gi.${ns}.${sym};
+                  if (typeof T !== 'function') { throw new Error('${ns}.${sym} did not resolve to a class'); }
+                  print('${ns}.${sym} resolved — shared library loaded');" < /dev/null
+            then :; else
+              echo "::error::${ns} prebuild in ${abs} does not load"
+              rc=1
+            fi
+          done <<'EOF'
+          packages/infra/lightningcss-native|GjsifyLightningcss|Engine
+          packages/infra/oxfmt-native|GjsifyOxfmt|Formatter
+          packages/node/terminal-native|GjsifyTerminal|Terminal
+          packages/node/tls-native|GjsifyTls|Tls
+          packages/node/http-soup-bridge|GjsifyHttpSoupBridge|Server
+          packages/node/http2-native|GjsifyHttp2|SessionBridge
+          EOF
+          exit $rc
+
+      # The stricter half: prove the Vala→Rust hop needs NO environment variable.
+      # A prebuild that only loads because a launcher happened to export
+      # DYLD_LIBRARY_PATH is fragile — dlopen the Vala library by ABSOLUTE path
+      # with the loader variables unset, so the ONLY thing that can find the
+      # sibling cdylib is the library's own @loader_path rpath.
+      #
+      # /usr/bin/python3 is used deliberately: SIP strips DYLD_* when spawning a
+      # system binary, so the test cannot be contaminated by inherited state even
+      # if `env -u` missed something.
+      - name: Prove the sibling cdylib resolves with no environment variable
+        run: |
+          set -euo pipefail
+          rc=0
+          for lib in \
+            "packages/infra/lightningcss-native/prebuilds/${PREBUILD}/libgjsifylightningcss.dylib" \
+            "packages/infra/oxfmt-native/prebuilds/${PREBUILD}/libgjsifyoxfmt.dylib"
+          do
+            echo "--- dlopen $lib with no DYLD_* set"
+            if env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH /usr/bin/python3 -c \
+                 'import ctypes, sys; ctypes.CDLL(sys.argv[1]); print("loaded", sys.argv[1])' "$PWD/$lib"
+            then :; else
+              echo "::error::$lib does not resolve its sibling Rust cdylib via @loader_path"
+              rc=1
+            fi
+          done
+          exit $rc
+
       - name: Upload @gjsify/lightningcss-native prebuilds artifact
         uses: actions/upload-artifact@v7
         with:
@@ -996,8 +1089,18 @@ jobs:
           meson setup build .
           meson compile -C build
           mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgjsifyrolldown.dylib build/GjsifyRolldown-1.0.typelib "prebuilds/${PREBUILD}/"
+          # BOTH libraries, not just the one the typelib names. The Vala library
+          # records `@rpath/libgjsify_rolldown.dylib` for its Rust cdylib — a
+          # DIFFERENT leaf (underscore) that this list used to omit, so the load
+          # test below failed with the rpath expanded to exactly this directory
+          # and `(no such file)`. The `.gir` travels with it for the same reason
+          # the linux + required-macOS legs ship it.
+          cp build/libgjsifyrolldown.dylib build/libgjsify_rolldown.dylib \
+             build/GjsifyRolldown-1.0.gir build/GjsifyRolldown-1.0.typelib "prebuilds/${PREBUILD}/"
           ls -lh "prebuilds/${PREBUILD}/"
+
+      - name: Verify the rolldown prebuild resolves its own sibling
+        run: node scripts/check-prebuild-loader-path.mjs "packages/infra/rolldown-native/prebuilds/${PREBUILD}"
 
       - name: Load-test the rolldown typelib under Homebrew gjs
         # A prebuild that builds but does not LOAD is the failure mode this whole
@@ -1010,6 +1113,18 @@ jobs:
           GI_TYPELIB_PATH="$PWD/prebuilds/${PREBUILD}" \
           DYLD_LIBRARY_PATH="$PWD/prebuilds/${PREBUILD}" \
             gjs -c 'const { Bundler } = imports.gi.GjsifyRolldown; if (!Bundler) { throw new Error("GjsifyRolldown.Bundler missing"); } print("rolldown typelib loaded OK");'
+
+      - name: Prove rolldown's sibling cdylib resolves with no environment variable
+        # DYLD_LIBRARY_PATH above only has to find the leaf the typelib names.
+        # The Vala→Rust hop must need nothing at all: dlopen by absolute path
+        # with the loader variables unset leaves @loader_path as the only way the
+        # cdylib next to it can be found.
+        working-directory: packages/infra/rolldown-native
+        run: |
+          set -euo pipefail
+          env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH /usr/bin/python3 -c \
+            'import ctypes, sys; ctypes.CDLL(sys.argv[1]); print("loaded", sys.argv[1])' \
+            "$PWD/prebuilds/${PREBUILD}/libgjsifyrolldown.dylib"
 
       - name: Build @gjsify/webgl Vala library
         working-directory: packages/framework/webgl
