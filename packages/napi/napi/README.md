@@ -190,6 +190,27 @@ reason (an unlisted failure fails the harness; a listed program that starts
 passing also fails — stale entry). `test:conformance:mem` / `test:consumer:mem`
 are the valgrind variants.
 
+## Diagnostics
+
+Loading an addon prints **nothing**. The shim's internal diagnostics — the
+symbol-promotion notes and the §3d P0.0 teardown probe (`GjsContext weak notify
+fired…` / `N env(s) torn down before JS_DestroyContext`) — are `g_debug()`
+messages on GLib's standard debug channel, so they are silent unless you ask for
+them:
+
+```bash
+G_MESSAGES_DEBUG=all GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs your-script.js
+```
+
+Note GLib writes `DEBUG`-level records to **stdout** (only `WARNING` and above
+go to stderr), so capture with `2>&1` — which is why `test:gate:p03`, the one
+leg that asserts the teardown-ordering probe, both sets `G_MESSAGES_DEBUG=all`
+and merges the streams.
+
+Anything the shim reports **unconditionally** is a real problem, not a trace: a
+`g_warning`, or the `napi_fatal_error` / unhandled-exception reports. Do not
+silence those.
+
 ## The mozjs-140 pin
 
 The pin is intrinsic and by design: the **shim** links GJS's SpiderMonkey (built
