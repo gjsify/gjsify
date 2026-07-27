@@ -49,6 +49,14 @@
         "**/test.node.mjs",
         "**/*.gresource",
         "**/*.compiled",
-        "**/*.metainfo.xml"
+        "**/*.metainfo.xml",
+        // oxlint locates an .astro file's `<script>` blocks by a plain text scan,
+        // so a literal `<script>` inside a JSX comment in the TEMPLATE is taken as
+        // a real script opener and the markup after it is parsed as JS ("Unexpected
+        // token"). This component's preview comment mentions `<script>` and the
+        // file has a real `<script>` block further down, which is the exact shape
+        // that trips it. The Astro source is valid — only the linter cannot read
+        // it. Every other .astro file stays linted (frontmatter rules do work).
+        "website/src/components/AdwWidget.astro"
     ]
 }

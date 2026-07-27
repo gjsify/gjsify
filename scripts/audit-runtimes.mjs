@@ -298,7 +298,7 @@ function classifyAxis(relativeDir, pkgName) {
         return 'framework-gjs';
     }
     if (pillar === 'web') {
-        if (/^adwaita/.test(subpath ?? pkgName)) return 'design-identity';
+        if ((subpath ?? pkgName).startsWith('adwaita')) return 'design-identity';
         return 'web-api';
     }
     return 'unknown';

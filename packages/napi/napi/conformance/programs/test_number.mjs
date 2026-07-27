@@ -12,7 +12,14 @@ export default async function run(h) {
     // napi_create_double round-trips (exact, incl. -0/NaN/Infinity/precision loss).
     const nums = [
         0, -0, 1, -1, 100, 2121, -1233, 986583, -976675,
+        // The next two are the ported fixture's out-of-double-range integers (see the
+        // file header). Their rounding IS the thing under test: the transcript records
+        // how napi_create_double/napi_get_value_double degrade them, and GJS-under-shim
+        // must match Node byte-for-byte. Rewriting them to representable values, or to
+        // BigInt literals (a different napi entry point), would delete the assertion.
+        // oxlint-disable-next-line eslint/no-loss-of-precision -- the lossy literal is the fixture
         98765432213456789876546896323445679887645323232436587988766545658,
+        // oxlint-disable-next-line eslint/no-loss-of-precision -- the lossy literal is the fixture
         -4350987086545760976737453646576078997096876957864353245245769809,
         Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER + 10,
         Number.MIN_VALUE, Number.MAX_VALUE, Number.MAX_VALUE + 10,

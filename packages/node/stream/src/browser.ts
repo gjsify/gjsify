@@ -59,13 +59,15 @@ export class Stream extends EventEmitter {
     resume?(): this;
 
     pipe<T extends WritableLike>(dest: T, options?: { end?: boolean }): T {
-        const source = this;
+        // NB upstream (readable-stream / stream-browserify) captures `var source = this`
+        // because its handlers are `function` expressions; ours are arrow functions, so
+        // `this` is already the lexical stream and the capture would be dead weight.
         const ondata = (chunk: unknown): void => {
-            if (dest.writable !== false && dest.write(chunk) === false && source.pause) source.pause();
+            if (dest.writable !== false && dest.write(chunk) === false && this.pause) this.pause();
         };
-        source.on('data', ondata);
+        this.on('data', ondata);
         const ondrain = (): void => {
-            if (source.readable && source.resume) source.resume();
+            if (this.readable && this.resume) this.resume();
         };
         dest.on('drain', ondrain);
 
@@ -82,31 +84,31 @@ export class Stream extends EventEmitter {
         };
         const onerror = (er: Error): void => {
             cleanup();
-            if (EventEmitter.listenerCount(source, 'error') === 0) throw er;
+            if (EventEmitter.listenerCount(this, 'error') === 0) throw er;
         };
         const cleanup = (): void => {
-            source.removeListener('data', ondata);
+            this.removeListener('data', ondata);
             dest.removeListener('drain', ondrain);
-            source.removeListener('end', onend);
-            source.removeListener('close', onclose);
-            source.removeListener('error', onerror);
+            this.removeListener('end', onend);
+            this.removeListener('close', onclose);
+            this.removeListener('error', onerror);
             dest.removeListener('error', onerror);
-            source.removeListener('end', cleanup);
-            source.removeListener('close', cleanup);
+            this.removeListener('end', cleanup);
+            this.removeListener('close', cleanup);
             dest.removeListener('close', cleanup);
         };
 
         if (!dest._isStdio && (!options || options.end !== false)) {
-            source.on('end', onend);
-            source.on('close', onclose);
+            this.on('end', onend);
+            this.on('close', onclose);
         }
-        source.on('error', onerror);
+        this.on('error', onerror);
         dest.on('error', onerror);
-        source.on('end', cleanup);
-        source.on('close', cleanup);
+        this.on('end', cleanup);
+        this.on('close', cleanup);
         dest.on('close', cleanup);
 
-        dest.emit('pipe', source);
+        dest.emit('pipe', this);
         return dest;
     }
 }

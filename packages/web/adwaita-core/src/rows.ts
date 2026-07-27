@@ -54,6 +54,7 @@ export class ExpanderState {
 
     private _emit(): void {
         // Snapshot so a listener that unsubscribes mid-fan-out can't skip another.
+        // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so an unsubscribe mid-fan-out would skip the next listener
         for (const listener of [...this._listeners]) listener(this._expanded);
     }
 
@@ -140,6 +141,8 @@ export class ComboState {
             label: this.selectedLabel,
             interactive,
         };
+        // Snapshot so a listener that unsubscribes mid-fan-out can't skip another.
+        // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so an unsubscribe mid-fan-out would skip the next listener
         for (const listener of [...this._listeners]) listener(change);
     }
 
@@ -247,6 +250,8 @@ export class SpinState {
 
     private _emit(interactive: boolean): void {
         const change: SpinStateChange = { value: this._value, interactive };
+        // Snapshot so a listener that unsubscribes mid-fan-out can't skip another.
+        // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so an unsubscribe mid-fan-out would skip the next listener
         for (const listener of [...this._listeners]) listener(change);
     }
 
@@ -364,6 +369,8 @@ export class ToggleGroupState {
 
     private _emit(): void {
         const change: ToggleGroupStateChange = { selected: this._selected, value: this.selectedValue };
+        // Snapshot so a listener that unsubscribes mid-fan-out can't skip another.
+        // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so an unsubscribe mid-fan-out would skip the next listener
         for (const listener of [...this._listeners]) listener(change);
     }
 
