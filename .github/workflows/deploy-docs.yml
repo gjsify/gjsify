@@ -1,31 +1,71 @@
 name: Deploy Documentation
 
+# Two halves with different audiences:
+#
+#   build  — an ordinary check. Runs on `pull_request` TOO, so a change that
+#            breaks the docs site is caught before the merge instead of after
+#            it. It was main-only until #812 merged fully green and left the
+#            site broken on main for eight hours: the only job that builds the
+#            site appeared in no PR check, so "this PR is green" simply did not
+#            cover it. Nobody was careless — the signal was incomplete.
+#   deploy — main-only, by definition. Needs `pages: write` + `id-token: write`,
+#            which a fork PR's token does not have and must not need.
+#
+# The permissions follow that split (see each job): the BUILD must never
+# require the Pages deploy token, or it could not run on a fork PR at all.
 on:
   push:
     branches: [main]
+    # Kept deliberately COARSE, and repeated verbatim under `pull_request`
+    # below (GitHub Actions does not support YAML anchors). The site resolves
+    # @gjsify/adwaita-web — and transitively its whole workspace-dependency
+    # closure — FROM SOURCE, so the real trigger set is "anything in the
+    # workspace". The previous list named `packages/web/adwaita-web/**`
+    # specifically and therefore could not see `@gjsify/adwaita-core`, the
+    # package #812 introduced and the site then failed to resolve. A
+    # per-package list is a second copy of the dependency graph and drifts from
+    # it; a directory-level list cannot.
     paths:
       - 'website/**'
-      # The site embeds @gjsify/adwaita-web (resolved from workspace source,
-      # compiled during the site build) — its changes alter the rendered docs.
-      - 'packages/web/adwaita-web/**'
+      - 'packages/**'
+      - 'showcases/**'
+      - 'package.json'
+      - 'gjsify-lock.json'
       - '.github/workflows/deploy-docs.yml'
+      - '.github/actions/gjsify-setup/**'
+  pull_request:
+    paths:
+      - 'website/**'
+      - 'packages/**'
+      - 'showcases/**'
+      - 'package.json'
+      - 'gjsify-lock.json'
+      - '.github/workflows/deploy-docs.yml'
+      - '.github/actions/gjsify-setup/**'
   workflow_dispatch:
 
+# Least privilege at the workflow level; each job adds only what it needs.
 permissions:
   contents: read
-  pages: write
-  id-token: write
-  # Pull the private ci-fedora image from ghcr (same as main.yml / release.yml).
-  packages: read
 
+# Pages deployments must serialize on ONE group and must not cancel each other.
+# PR builds deploy nothing, so they get their own per-ref group instead — a PR
+# must not queue behind a Pages deployment, and a superseded PR run should be
+# cancelled like every other PR run (same shape as main.yml's concurrency).
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     name: Build Documentation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Pull the ci-fedora image from ghcr. This is the ONLY extra permission
+      # the build needs — deliberately not `pages: write` / `id-token: write`.
+      packages: read
+    timeout-minutes: 60
     container:
       # Prebuilt CI image (`.docker/ci-fedora.Dockerfile`) baking gjs + the
       # full GNOME devel stack AND `libatomic` — the same image main.yml /
@@ -35,24 +75,50 @@ jobs:
       # `node: error while loading shared libraries: libatomic.so.1`.
       # Using the image also skips the 3-5 min `dnf install` at job start.
       image: ghcr.io/gjsify/ci-fedora:44
+      # REQUIRED by `gjsify-setup`, not optional tuning: the composite raises
+      # testuser's `nofile` via `/etc/security/limits.conf`, and `pam_limits`
+      # refuses to open a session whose limit exceeds the container's HARD
+      # limit — `su testuser -c` then dies with the opaque `su: cannot open
+      # session: Permission denied` before running anything. Every other job
+      # that uses the composite passes this; leaving it off is what made the
+      # first run of this job red.
+      options: --ulimit nofile=1048576:1048576
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      # The SHARED setup every other build job uses (Node, corepack, the
+      # node_modules + build-output caches, the testuser, the Node-free
+      # install, the committed-bundle verification). This job used to hand-roll
+      # a subset of it — setup-node plus a bare `gjs -m … install` — and that
+      # drift is what made it the slowest job in the repo (a cold ~17 min
+      # extract on every run, because it shared no cache with anything) and
+      # what let its environment diverge from the one the build actually needs.
+      - uses: ./.github/actions/gjsify-setup
         with:
-          node-version: '26'
+          fedora-version: '44'
 
-      # Phase D.7d: Node-free install via the committed GJS bundle.
-      # Mirrors main.yml — see that workflow for rationale.
-      - name: Install dependencies (gjsify install --immutable)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+      # The site's `build:deps` builds @gjsify/adwaita-web WITH its workspace
+      # dependencies, which means running `gjsify build --library` — and under
+      # GJS the only bundler engine is @gjsify/rolldown-native, whose JS facade
+      # `lib/` is a build output that `gjsify install` does not produce. Nothing
+      # in this job produced it either, so 7fe6225e3 (which fixed the original
+      # #812 breakage) traded one red for another: "no usable bundler engine
+      # under GJS". `build:infra` is the bootstrap the root build already runs
+      # for exactly this, and its steps are mtime-skipped, so it is close to
+      # free on a warm build cache. Running the SAME script — rather than a
+      # hand-picked subset of its steps — is the point: a subset would be a
+      # third copy of the bootstrap order to keep in sync.
+      - name: Bootstrap the build toolchain (gjsify run build:infra)
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build:infra'
 
       - name: Build documentation site
-        run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run docs:build
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run docs:build'
 
+      # PR runs stop at "did it build?" — there is nothing to deploy, and
+      # uploading a Pages artifact from a fork PR is neither useful nor free.
       - name: Upload artifact
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-pages-artifact@v3
         with:
           path: website/dist
@@ -60,7 +126,14 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
+    # main / manual only. A PR proves the site BUILDS; publishing it is a
+    # main-branch act and needs credentials a fork PR must never require.
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

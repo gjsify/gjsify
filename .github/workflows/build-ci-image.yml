@@ -9,10 +9,20 @@ name: Build CI Fedora image
 # Triggers:
 #   - Weekly cron (Sundays 04:00 UTC). Picks up Fedora security errata.
 #   - Push to main that touches the Dockerfile or this workflow.
+#   - PULL REQUEST that touches the same paths — build only, never push.
 #   - Manual `workflow_dispatch` for ad-hoc rebuilds.
 #
+# Why the PR leg exists: a broken Dockerfile used to be invisible until after
+# the merge, and even then only quietly — main.yml keeps consuming the LAST
+# GOOD `ghcr.io/gjsify/ci-fedora:<major>` tag, so every test job stays green
+# while the image source is broken. Same class as the deploy-docs incident:
+# the only job that verified the artifact ran post-merge. Cost is near zero —
+# the paths filter means it fires only when the image source itself changes.
+#
 # Permissions: writes to GHCR via the workflow-issued GITHUB_TOKEN.
-# `packages: write` is required for `docker push ghcr.io/...`.
+# `packages: write` is required for `docker push ghcr.io/...` — and is exactly
+# what a fork PR's token cannot have, which is why the PR leg neither logs in
+# nor pushes (the build itself is `FROM fedora:<major>`, public Docker Hub).
 
 on:
   schedule:
@@ -20,6 +30,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.docker/ci-fedora.Dockerfile'
+      - '.github/workflows/build-ci-image.yml'
+  pull_request:
     paths:
       - '.docker/ci-fedora.Dockerfile'
       - '.github/workflows/build-ci-image.yml'
@@ -31,6 +45,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # `permissions:` takes no expressions, so this stays `write` for every
+      # event. It is harmless on a PR: the login + push steps below are gated
+      # off there, and GitHub caps a fork PR's token at read-only anyway.
       packages: write
     strategy:
       fail-fast: false
@@ -46,7 +63,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Not on a PR: nothing is pushed there, and the registry cache below is
+      # skipped for the same reason — a fork PR cannot authenticate to GHCR at
+      # all, and a PR leg that needed to would not be a usable check.
       - name: Log in to GHCR
+        if: ${{ github.event_name != 'pull_request' }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -59,6 +80,9 @@ jobs:
           REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "image=ghcr.io/${REPO_LC%/*}/ci-fedora:${{ matrix.fedora-version }}" >> "$GITHUB_OUTPUT"
 
+      # `push` / `cache-*` are the only things that differ between the PR leg
+      # and the real one — the BUILD is byte-identical, which is what makes the
+      # PR leg a meaningful check rather than a lookalike.
       - name: Build & push
         uses: docker/build-push-action@v6
         with:
@@ -68,7 +92,7 @@ jobs:
           # Single-arch (amd64) — main.yml runs on ubuntu-latest x86_64.
           # When we add aarch64 runners we'll grow this list.
           platforms: linux/amd64
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tag.outputs.image }}
-          cache-from: type=registry,ref=${{ steps.tag.outputs.image }}-cache
-          cache-to: type=registry,ref=${{ steps.tag.outputs.image }}-cache,mode=max
+          cache-from: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}-cache', steps.tag.outputs.image) || '' }}
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}-cache,mode=max', steps.tag.outputs.image) || '' }}
