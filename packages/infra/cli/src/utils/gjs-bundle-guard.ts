@@ -28,66 +28,79 @@
 // app (buchhaltung, bauplaner, Learn6502) and CI all produce it through this
 // one code path. A hook would protect only commits in this repo; a per-package
 // script would protect one package.
+//
+// ## The oracle is the module graph, NOT the emitted text
+//
+// The first cut of this guard grepped the output for `from "node:…"`. That is
+// wrong, and CI caught it: `@gjsify/process`'s own test bundle names a case
+//
+//   await it(`named-import hrtime (from "node:process") preserves .bigint`, …)
+//
+// so the phrase appears verbatim inside a STRING, in a bundle that loads and
+// runs under GJS perfectly well. The same trap sits in `@gjsify/cli`'s own
+// bundle, which embeds `giNodeShimSource()`'s `--app node` codegen template
+// (`import { createRequire } from 'node:module';`). Telling a statement from a
+// quoted lookalike needs a JS lexer — but the bundler already did that work:
+// every chunk carries the list of external specifiers it actually imports. That
+// list is exact, engine-independent (npm `rolldown` returns it directly,
+// `@gjsify/rolldown-native` forwards it through `synthRolldownOutput`), and
+// free.
+//
+// Scope is STATIC imports, which is precisely the failure mode above: they are
+// resolved when GJS links the module, so one bad specifier kills the whole
+// bundle. A dynamic `import('node:x')` throws lazily at its call site instead —
+// a real bug, but not "the artifact cannot load", and not what this gate is
+// for.
+
+/** The one bundler-output field this guard needs, from either engine. */
+export interface GuardedChunk {
+    /** Emitted chunk name, for the error message. */
+    fileName?: string;
+    /** External specifiers the chunk STATICALLY imports (rollup/rolldown contract). */
+    imports?: readonly string[];
+}
 
 /**
- * Bare `node:` specifiers this scan tolerates in a `--app gjs` bundle.
+ * Bare `node:` specifiers a `--app gjs` bundle may keep as static imports.
  *
- * Every Node builtin has an `@gjsify/*` polyfill that `--app gjs` aliases to,
- * so nothing here is permitted because GJS could load it — the one entry is a
- * detector limitation, spelled out so it cannot be widened by accident.
+ * Deliberately EMPTY. Every Node builtin has an `@gjsify/*` polyfill that
+ * `--app gjs` aliases to, so there is no specifier that both survives into the
+ * module graph and loads under GJS. Reading the graph instead of the text is
+ * what keeps this list empty — the entries an earlier text-scanning version
+ * needed (`node:module`, `node:process`) were quoted lookalikes, never imports.
  *
- * - `node:module` — NOT an import. `@gjsify/cli`'s GJS bundle contains the
- *   bundler, and `giNodeShimSource()`
- *   (`rolldown-plugin-gjsify/src/plugins/gjs-gi-node.ts`) carries the string
- *   ``  `import { createRequire } from 'node:module';\n`  `` — the shim source
- *   it GENERATES for `--app node` builds. The scan is textual, not a JS lexer,
- *   so a specifier quoted inside a template literal is indistinguishable from a
- *   real statement. Present verbatim in `origin/main`'s bundle, which loads
- *   under GJS.
- *
- * Add an entry ONLY with a comment naming why it is permitted. Note the cost of
- * each one: an allowlisted specifier that later becomes a REAL import is no
- * longer caught, so keep this list at the length of the demonstrated need.
+ * Add an entry ONLY with a comment naming why GJS can resolve it. Each one is a
+ * specifier this guard can no longer catch for real.
  */
-export const GJS_ALLOWED_NODE_IMPORTS: readonly string[] = ['node:module'];
+export const GJS_ALLOWED_NODE_IMPORTS: readonly string[] = [];
 
 /**
- * Matches the import FORMS a bundler emits, so a `node:…` mentioned inside a
- * string literal (e.g. the `@gjsify/streams` hint "Import \"node:stream/web\"
- * or …", which is present in every healthy bundle) is not mistaken for one.
- *
- * Covers `from "node:x"`, the bare side-effect `import "node:x"`, dynamic
- * `import("node:x")` and `require("node:x")`, with or without the whitespace a
- * minified bundle drops.
- */
-const IMPORT_FORM = /(?:^|[^\w$.])(?:from|import|require)\s*\(?\s*(["'])(node:[^"']+)\1/g;
-
-/**
- * The distinct bare `node:` specifiers `code` still imports, minus the
+ * The distinct bare `node:` specifiers `chunks` statically import, minus the
  * allowlist. Sorted, so the error message and any test are stable.
  */
 export function findDisallowedNodeImports(
-    code: string,
+    chunks: readonly GuardedChunk[],
     allowed: readonly string[] = GJS_ALLOWED_NODE_IMPORTS,
 ): string[] {
     const found = new Set<string>();
-    // `matchAll` needs the /g flag reset between calls — the regex is module
-    // scoped, so copy it rather than relying on `lastIndex` housekeeping.
-    for (const m of code.matchAll(new RegExp(IMPORT_FORM.source, 'g'))) {
-        const specifier = m[2];
-        if (!allowed.includes(specifier)) found.add(specifier);
+    for (const chunk of chunks) {
+        for (const specifier of chunk.imports ?? []) {
+            if (!specifier.startsWith('node:')) continue;
+            if (allowed.includes(specifier)) continue;
+            found.add(specifier);
+        }
     }
     return [...found].sort();
 }
 
 /**
- * Throw when a built `--app gjs` bundle still imports Node builtins.
+ * Throw when a built `--app gjs` bundle statically imports Node builtins.
  *
- * @param code     the emitted bundle source
+ * @param chunks   the emitted chunks, as reported by the bundler
  * @param outfile  path of the bundle, for the error message
  */
-export function assertGjsBundleLoadable(code: string, outfile: string): void {
-    const offenders = findDisallowedNodeImports(code);
+export function assertGjsBundleLoadable(chunks: readonly GuardedChunk[], outfile: string): void {
+    const offenders = findDisallowedNodeImports(chunks);
     if (offenders.length === 0) return;
     throw new Error(
         `gjsify build --app gjs: ${outfile} still imports ${offenders.length} bare \`node:\` module(s), ` +

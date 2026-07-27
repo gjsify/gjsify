@@ -311,35 +311,18 @@ export class BuildAction {
 
     /**
      * Post-bundle gate for `--app gjs`: throw when the emitted bundle still
-     * imports Node builtins, which stock GJS cannot resolve (see
+     * STATICALLY imports Node builtins, which stock GJS cannot resolve (see
      * `utils/gjs-bundle-guard.ts` for the full rationale).
      *
-     * Reads the bytes back from DISK rather than inspecting the bundler's
-     * in-memory result, so it is engine-agnostic (npm `rolldown` and
-     * `@gjsify/rolldown-native` return different output shapes) and checks
-     * exactly what shipped, shebang included.
+     * The oracle is the bundler's own module graph — each chunk's `imports`
+     * list — not the emitted text. Both engines report it (npm `rolldown`
+     * natively, `@gjsify/rolldown-native` via `synthRolldownOutput`), and it
+     * cannot be fooled by a `node:` specifier quoted inside a string, which a
+     * text scan cannot tell from a statement.
      */
-    private async assertGjsOutputLoadable(outfile: string | undefined, outdir: string | undefined): Promise<void> {
-        const files: string[] = [];
-        if (outfile) {
-            files.push(outfile);
-        } else if (outdir) {
-            // Multi-chunk build: check every emitted JS chunk at the top level
-            // of the output dir. A missing/unreadable dir is not this guard's
-            // failure to report — the bundler would already have thrown.
-            try {
-                const { readdir } = await import('node:fs/promises');
-                for (const name of await readdir(outdir)) {
-                    if (/\.(m?js)$/.test(name)) files.push(join(outdir, name));
-                }
-            } catch {
-                return;
-            }
-        }
-
-        for (const file of files) {
-            assertGjsBundleLoadable(await readFile(file, 'utf-8'), file);
-        }
+    private assertGjsOutputLoadable(result: RolldownOutput, outfile: string | undefined, outdir: string | undefined) {
+        const chunks = (result.output ?? []).filter((item) => item.type === 'chunk');
+        assertGjsBundleLoadable(chunks, outfile ?? outdir ?? 'the GJS bundle');
     }
 
     /**
@@ -726,9 +709,8 @@ export class BuildAction {
         }
 
         // Refuse to hand back a `--app gjs` bundle stock GJS cannot even load.
-        // AFTER the shebang hook so we check exactly the bytes that shipped.
         if (app === 'gjs') {
-            await this.assertGjsOutputLoadable(outfile, outdir);
+            this.assertGjsOutputLoadable(writeResult, outfile, outdir);
         }
 
         // Browser HTML entry: emit the processed `index.html` beside the bundle
@@ -788,16 +770,12 @@ export class BuildAction {
                         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
                             await this.applyShebang(app, outfile, verbose);
                         }
-                        // Same gate as the one-shot path, but REPORTED rather
-                        // than thrown: a watcher must survive a bad rebuild and
-                        // pick up the fix on the next change.
-                        if (app === 'gjs') {
-                            try {
-                                await this.assertGjsOutputLoadable(outfile, finalOpts.output?.dir);
-                            } catch (err) {
-                                console.error(`[gjsify build --watch] ${(err as Error).message}`);
-                            }
-                        }
+                        // No `--app gjs` loadability gate here: the watcher's
+                        // BUNDLE_END carries the bundle, not the generated
+                        // output, and re-running `generate()` just to read the
+                        // chunk graph would double every rebuild. The one-shot
+                        // build is the gate that CI and the pre-commit hook go
+                        // through; `--watch` is a dev loop.
                     } finally {
                         await event.result.close();
                     }
