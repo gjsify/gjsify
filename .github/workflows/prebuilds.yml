@@ -77,6 +77,7 @@ on:
       - 'packages/infra/rolldown-native/src/**'
       - 'packages/infra/rolldown-native/meson.build'
       - '.github/workflows/prebuilds.yml'
+      - '.github/prebuild-toolchain/**'
 
   # Repeated VERBATIM from `push` above — GitHub Actions supports no YAML
   # anchors, and the two lists MUST stay identical: a path that can change a
@@ -107,6 +108,7 @@ on:
       - 'packages/infra/rolldown-native/src/**'
       - 'packages/infra/rolldown-native/meson.build'
       - '.github/workflows/prebuilds.yml'
+      - '.github/prebuild-toolchain/**'
 
 # Least privilege at the workflow level; each job adds only what it needs. This
 # is what keeps the new PR trigger from ever handing a write-capable token to a
