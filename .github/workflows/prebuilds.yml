@@ -1699,4 +1699,7 @@ jobs:
             else
               echo '**Every prebuild leg in this workflow ran.**'
             fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          # `tee`, not `>>`: the coverage note belongs in the JOB LOG as well as
+          # the run summary. The summary is the readable artefact; the log is
+          # what a `gh run view --log` (or a bug report pasting one) carries.
+          } | tee -a "$GITHUB_STEP_SUMMARY"
