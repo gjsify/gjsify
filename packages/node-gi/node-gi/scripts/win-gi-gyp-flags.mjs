@@ -143,9 +143,9 @@ if (mode === '--includes') {
         if (t.startsWith('-L')) searchDirs.push(stripQuotes(t.slice(2)));
     }
     const resolved = [];
-    for (const name of [...new Set(DIRECT_LIBS)]) {
+    for (const name of new Set(DIRECT_LIBS)) {
         let found = null;
-        for (const dir of [...new Set(searchDirs)]) {
+        for (const dir of new Set(searchDirs)) {
             for (const cand of [`${name}.lib`, `lib${name}.lib`]) {
                 const p = join(dir, cand);
                 if (existsSync(p)) {

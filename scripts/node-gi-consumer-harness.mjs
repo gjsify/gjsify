@@ -340,6 +340,7 @@ const REASON_RULES = [
     ],
 ];
 
+// oxlint-disable-next-line eslint/no-control-regex -- matching the ESC control character IS the point: this strips ANSI SGR colour codes from a runtime's captured output
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
 // `@gjsify/unit`'s SUMMARY line also starts with ❌ (`❌ [rt] N of M tests
@@ -409,7 +410,7 @@ function classify(failures) {
 
 // Parse the @gjsify/unit summary line for pass/fail counts.
 function parseSummary(out) {
-    const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
+    const clean = stripAnsi(out);
     let m = clean.match(/❌\s*(?:\[[^\]]*\]\s*)?(\d+)\s+of\s+(\d+)\s+tests failed/);
     if (m) {
         // `failed` can EXCEED `total` when @gjsify/unit also counts assertions that

@@ -97,8 +97,10 @@ export default async () => {
             const view = new FakeStoryView(meta);
             let count = 0;
             view.onArgsChanged(() => count++);
-            view.args = view.args; // same reference
+            const same = view.args;
+            view.args = same; // identical reference — the setter must short-circuit
             expect(count).toBe(0);
+            expect(view.args).toBe(same);
         });
 
         await it('unsubscribe stops further notifications', () => {

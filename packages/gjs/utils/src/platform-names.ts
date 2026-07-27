@@ -104,7 +104,7 @@ export function mapMachine(machine: string): ProcessArch | undefined {
         // 64-bit MIPS, so returning undefined is the honest answer.
         default:
             // armv6l / armv7l / armv8l and friends.
-            if (/^arm/.test(m)) return 'arm';
+            if (m.startsWith('arm')) return 'arm';
             return undefined;
     }
 }
