@@ -30,6 +30,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, copyFileSync, rmSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
+import { checkPrebuildDir } from './check-prebuild-loader-path.mjs';
 
 /** Extensions that make up a shipped prebuild. */
 const ARTIFACT_EXT = ['.so', '.dylib', '.dll', '.gir', '.typelib'];
@@ -119,6 +120,19 @@ function main() {
     for (const file of artifacts) copyFileSync(join(buildDir, file), join(outDir, file));
 
     console.log(`[stage-prebuild] ${pkg.name} → ${basename(outDir)}/ (${artifacts.sort().join(', ')})`);
+
+    // Staging and verifying belong together: a set that is copied but does not
+    // resolve its own siblings is exactly the artifact that builds green and
+    // dies at `dlopen` on a user's machine. Matching by extension already means
+    // both halves of a Vala+Rust pair are picked up — this asserts it, and
+    // asserts the self-relative rpath that makes the pair loadable without any
+    // library-path environment variable.
+    const problems = checkPrebuildDir(outDir);
+    if (problems.length > 0) {
+        console.error(`[stage-prebuild] ${pkg.name}: the staged set is not self-contained:`);
+        for (const p of problems) console.error(`  ✗ ${p}`);
+        process.exit(1);
+    }
 }
 
 // Only run when invoked directly, so the pure helper stays unit-testable.
