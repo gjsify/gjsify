@@ -67,6 +67,13 @@
             "browser": "native",
             "nativescript": "none"
         },
+        "headless": [
+            "Gdk",
+            "GdkPixbuf",
+            "Gsk",
+            "Gtk",
+            "Adw"
+        ],
         "tier": 1
     },
     "license": "MIT",

@@ -34,6 +34,13 @@ jobs:
       # every `browser:"polyfill"` package that ships a standard `src/test.{mts,ts}`
       # must also ship a `src/test.browser.{mts,ts}` entry for the `tests/browser/`
       # Playwright suite. Meta/asset packages with no standard test are exempt.
+      # Every `--check` run ALSO holds the tier (ADR 0003/0005), platform
+      # (OS axis), reachability (ADR 0014) and headless (ADR 0015) contracts.
+      # The last one is the only check on intra-GJS LAYERING: a package that
+      # declares `gjsify.headless` must not reach the typelibs it promised not
+      # to from its ROOT entry — the axis every runtime-slot check is blind to,
+      # and how the "headless, NO GTK dependency" `@gjsify/canvas2d-core` came
+      # to import `gi://Gdk` (= libgtk-4.so) for its entire life.
       - name: Check declared vs detected runtime triplets (strict)
         run: node scripts/audit-runtimes.mjs --check --strict
 

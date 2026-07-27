@@ -441,11 +441,10 @@
       },
       "runtimes": {
         "node": {
-          "status": "fail",
-          "reason": "runtime-typeerror-or-unimpl",
-          "samples": [
-            "should be executed without error — Failed to create file “/home/jumplink/Projekte/werkstatt/gjsify/gjsify/packages/node/fs/dist/test/watch.js.VXVDT3”: No such file or directory"
-          ]
+          "status": "pass",
+          "total": 657,
+          "failed": 0,
+          "passed": 657
         },
         "bun": {
           "status": "ran-no-summary",
@@ -1084,14 +1083,16 @@
       "@gjsify/dns",
       "@gjsify/net"
     ],
-    "runtime-typeerror-or-unimpl": [
-      "@gjsify/fs"
-    ],
     "other": [
       "@gjsify/http",
       "@gjsify/v8",
       "@gjsify/webrtc",
       "@gjsify/zlib"
+    ],
+    "no-unit-summary": [
+      "@gjsify/fs",
+      "@gjsify/webaudio",
+      "@gjsify/worker_threads"
     ],
     "needs-gjs-imports-runtime": [
       "@gjsify/module"
@@ -1101,10 +1102,6 @@
     ],
     "assertion-mismatch": [
       "@gjsify/tty"
-    ],
-    "no-unit-summary": [
-      "@gjsify/webaudio",
-      "@gjsify/worker_threads"
     ]
   }
 }
