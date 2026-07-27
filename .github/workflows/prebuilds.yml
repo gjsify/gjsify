@@ -1,7 +1,52 @@
 name: Build Native Prebuilds
 
-# Run on push to main and on tags, or manually.
-# Artifacts are uploaded and can be downloaded to commit into the repo before npm publish.
+# Two halves with different audiences — the same split `deploy-docs.yml` uses:
+#
+#   BUILD legs   — an ordinary check. They compile the Vala/meson sources and the
+#                  Rust crates the `*-native` bridges link, and they run on
+#                  `pull_request` TOO, so a change that cannot compile is caught
+#                  before the merge instead of after it. main went red exactly
+#                  that way: a Rust dependency-resolution break in
+#                  @gjsify/oxfmt-native (a duplicate `oxc_allocator` crate
+#                  identity, fixed in #827) appeared in NO PR check, and the fix
+#                  PR could not prove itself either — its legs had to be
+#                  dispatched by hand with `gh workflow run --ref`.
+#   commit-prebuilds — main-only, by definition. It commits binaries back into
+#                  the repository, which is a main-branch act and must never be
+#                  reachable from a PR. Guarded twice over; see the job.
+#
+# WHICH legs run on a PR: every Linux one — native x64 + arm64 and the three
+# QEMU legs. Only `build-prebuilds-macos` is held back (10x billing, a scarce
+# shared concurrency pool, and the slowest leg here), with main.yml's `ci:macos`
+# label as the opt-in. That is wider than the "native x86_64, Vala-only" shape
+# STATUS.md once proposed, for two measured reasons:
+#   • A Vala-only leg would have been GREEN on the very break that motivated
+#     this — #827 was a Rust dependency-resolution failure in oxfmt-native. A PR
+#     check that would not have caught its own motivating incident is worse than
+#     none, so the Rust bridges are in.
+#   • The emulated legs are not the expensive half. Measured here: ppc64 3m00s,
+#     s390x 3m13s, riscv64 3m07s against 8-15 min for a native leg — the
+#     `run-on-arch` base image is cached in GHCR so only the compile is
+#     emulated, and every leg runs in parallel, so excluding them would have
+#     saved no PR latency at all. A cost control that saves nothing is just a
+#     coverage hole.
+# The `prebuilds-summary` job prints what a given run did NOT cover, derived
+# from each job's own result, so a run that skips a leg never reads like one
+# that did not.
+#
+# `pull_request`, NOT `pull_request_target`. `pull_request_target` runs the BASE
+# branch's workflow definition with a read/write token and repository secrets
+# while checking out the PR's head code — precisely the combination that must
+# not exist in a workflow that contains a job which pushes commits. Plain
+# `pull_request` runs with a token GitHub forces to read-only for fork PRs, and
+# the build legs need nothing more: they pull the PUBLIC `fedora:43` image, so
+# unlike main.yml's private `ghcr.io/gjsify/ci-fedora` they also work on a fork
+# PR. Least privilege backs that up rather than relying on it — see
+# `permissions` below.
+#
+# Artifacts are uploaded and can be downloaded to commit into the repo before
+# npm publish; on a PR they are the only CI-built copy of a binary that exists
+# to compare a committed prebuild against, so they are NOT gated off there.
 on:
   workflow_dispatch:
   push:
@@ -31,7 +76,52 @@ on:
       - 'packages/infra/rolldown-native/meson.build'
       - '.github/workflows/prebuilds.yml'
 
+  # Repeated VERBATIM from `push` above — GitHub Actions supports no YAML
+  # anchors, and the two lists MUST stay identical: a path that can change a
+  # prebuild on main is a path that has to be able to prove itself on a PR.
+  # `deploy-docs.yml` is the model.
+  pull_request:
+    paths:
+      - 'packages/framework/webgl/src/vala/**'
+      - 'packages/framework/webgl/src/vapi/**'
+      - 'packages/framework/webgl/meson.build'
+      - 'packages/web/webrtc-native/src/vala/**'
+      - 'packages/web/webrtc-native/meson.build'
+      - 'packages/node/http-soup-bridge/src/vala/**'
+      - 'packages/node/http-soup-bridge/meson.build'
+      - 'packages/node/http2-native/src/vala/**'
+      - 'packages/node/http2-native/meson.build'
+      - 'packages/node/sab-native/src/vala/**'
+      - 'packages/node/sab-native/meson.build'
+      - 'packages/node/tls-native/src/vala/**'
+      - 'packages/node/tls-native/src/c/**'
+      - 'packages/node/tls-native/meson.build'
+      - 'packages/node/terminal-native/src/vala/**'
+      - 'packages/node/terminal-native/meson.build'
+      - 'packages/infra/lightningcss-native/src/**'
+      - 'packages/infra/lightningcss-native/meson.build'
+      - 'packages/infra/oxfmt-native/src/**'
+      - 'packages/infra/oxfmt-native/meson.build'
+      - 'packages/infra/rolldown-native/src/**'
+      - 'packages/infra/rolldown-native/meson.build'
+      - '.github/workflows/prebuilds.yml'
 
+# Least privilege at the workflow level; each job adds only what it needs. This
+# is what keeps the new PR trigger from ever handing a write-capable token to a
+# job that builds head code: only `commit-prebuilds` widens to `contents: write`,
+# and it cannot run on a `pull_request` event.
+permissions:
+  contents: read
+
+# A PR that is pushed twice must not pay for two full Rust builds, so PR runs
+# get a per-ref group that cancels itself. Non-PR runs keep exactly today's
+# behaviour — their own group per run, never cancelled — because a main run
+# commits prebuilds back and must be allowed to finish. (Keying the non-PR
+# group by `run_id` is what keeps a dispatched verification run from cancelling
+# an in-flight main run, and vice versa.)
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('prebuilds-pr-{0}', github.ref) || format('prebuilds-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ----------------------------------------------------------------
@@ -43,6 +133,22 @@ jobs:
   # `package.json#gjsify.platforms` declares it, `scripts/stage-prebuild.mjs`
   # creates it, the CLI's `detectNativePackages()` resolves it without
   # translating, and `scripts/audit-runtimes.mjs --check` rejects anything else.
+  #
+  # The matrix stays a STATIC `include:` and both legs run on every event,
+  # including `pull_request`. Two reasons, and the second is the load-bearing
+  # one:
+  #   • Cost — the legs run in PARALLEL, so dropping arm64 saves no PR latency
+  #     at all; measured, the whole leg (7 Vala packages + the lightningcss,
+  #     oxfmt and rolldown Rust builds) took 8m30s-15m05s across observed
+  #     runs.
+  #   • `scripts/audit-runtimes.mjs --check` READS THIS BLOCK. It learns which
+  #     `<os>-<arch>` targets CI produces by scanning each job for `runs-on` and
+  #     `arch:` matrix entries, and fails any package whose `gjsify.platforms`
+  #     declares a target no job builds. An expression-driven matrix
+  #     (`include: ${{ fromJSON(…) }}`) hides the arch tokens from that parser,
+  #     which turns the declared-vs-built symmetry into a false failure on all
+  #     ten native packages. If this ever has to become dynamic, teach
+  #     `parseCiPlatforms()` the new shape in the SAME change.
   # ----------------------------------------------------------------
   build-prebuilds:
     name: Build prebuilds (${{ matrix.arch }})
@@ -394,9 +500,24 @@ jobs:
   #   s390x          → process.arch 's390x'  → prebuilds/linux-s390x/
   #   riscv64        → process.arch 'riscv64'→ prebuilds/linux-riscv64/
   # ----------------------------------------------------------------
+  # These run on `pull_request` too. The received wisdom — the one this
+  # workflow was left main-only on, and the one STATUS.md recorded — is that the
+  # emulated legs are the expensive half. MEASURED on this workflow today, they
+  # are the CHEAP half: ~3 min each (ppc64 3m00s, s390x 3m13s, riscv64 3m07s)
+  # versus 8-15 min for a native leg, because `uraimo/run-on-arch-action` caches
+  # the installed base image in GHCR so only the compile is emulated, and these
+  # legs build lightningcss but not rolldown or oxfmt. They also run in
+  # parallel, so they add no PR latency whatever. A cost control that saves
+  # nothing is not a cost control, it is a coverage hole — so they stay on.
   build-prebuilds-qemu:
     name: Build prebuilds (${{ matrix.arch }}) [QEMU]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # `uraimo/run-on-arch-action` caches the emulated container image in GHCR
+      # via `githubToken` below. The workflow-level token is `contents: read`,
+      # so that capability has to be granted back explicitly here.
+      packages: write
 
     strategy:
       fail-fast: false
@@ -685,6 +806,16 @@ jobs:
   # ----------------------------------------------------------------
   build-prebuilds-macos:
     name: Build prebuilds (darwin-arm64)
+    # THE one cost control on a PR, and the only leg a green PR does not cover.
+    # macOS runners bill at 10x and come from a small concurrency pool this repo
+    # already shares between main.yml and napi.yml, and this is the slowest leg
+    # in the workflow (a whole Homebrew closure before anything compiles).
+    # Same shape and same escape hatch as main.yml's macOS job: label a PR
+    # `ci:macos` to opt it in — do that for anything touching a per-platform
+    # path (`meson.build` darwin branches, the Homebrew closure, a `.dylib`
+    # leaf). The `prebuilds-summary` job names this leg as NOT covered on every
+    # run that skips it, so a green PR cannot read as full coverage.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci:macos')
     runs-on: macos-latest
     timeout-minutes: 90
     env:
@@ -1145,8 +1276,27 @@ jobs:
           ls -lh "prebuilds/${PREBUILD}/"
 
   # ----------------------------------------------------------------
-  # Commit all prebuilds back to the repo
-  # (only on push to main, not on PRs)
+  # Commit all prebuilds back to the repo — main only, and never from a PR
+  #
+  # This job pushes binaries into the repository, so "a PR cannot reach it" must
+  # not depend on any single line:
+  #
+  #   1. `github.event_name != 'pull_request'` — the direct gate.
+  #   2. `github.ref == 'refs/heads/main'` — on a `pull_request` event the ref is
+  #      `refs/pull/<n>/merge`, never `refs/heads/main`, so this fails
+  #      independently. It also covers a push trigger on some other branch.
+  #   3. On an UNLABELLED PR there is a third, structural gate: `needs` includes
+  #      `build-prebuilds-macos`, which is skipped there, and a skipped `needs`
+  #      skips the dependent job (this `if:` has no `always()`/`!cancelled()`,
+  #      so the default all-needs-succeeded rule applies) — the same mechanism
+  #      the comment below relies on for the experimental macOS job. This one
+  #      does NOT hold on a `ci:macos`-labelled PR, where every needed job runs;
+  #      1 and 2 are what make that case safe, which is why they are two
+  #      independent conditions rather than one.
+  #
+  # And it is the only job that widens the token past the workflow-level
+  # `contents: read`, so even a mistake in all of the above would not hand write
+  # access to a job that builds PR head code.
   # ----------------------------------------------------------------
   commit-prebuilds:
     name: Commit prebuilds to repo
@@ -1155,6 +1305,8 @@ jobs:
     needs: [build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -1495,3 +1647,60 @@ jobs:
             git pull --rebase origin main
             git push
           fi
+
+  # ----------------------------------------------------------------
+  # Coverage summary — what this run actually built, and what it did not
+  #
+  # A run that skips a leg must not read like a run that did not, so every run
+  # states its own coverage. Everything here is DERIVED and nothing is restated:
+  # the per-job rows are `needs.<job>.result` — GitHub's own evaluation of each
+  # `if:` — so adding a job to `needs` is all it takes for that job to appear,
+  # and there is deliberately no hand-maintained "what we skip" list, which is
+  # the artefact that drifts and then lies (main.yml's `ci-summary` rule).
+  #
+  # Never gates: `if: always()` and its output is the summary, not its exit code.
+  # ----------------------------------------------------------------
+  prebuilds-summary:
+    name: Coverage summary
+    needs:
+      - build-prebuilds
+      - build-prebuilds-qemu
+      - build-prebuilds-macos
+      - build-prebuilds-macos-experimental
+      - commit-prebuilds
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Write what this run covered
+        env:
+          # `needs` carries a `result` for every job above, whatever its `if:`
+          # decided. This is the whole data source.
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          skipped="$(jq -r '[to_entries[] | select(.value.result == "skipped") | "`" + .key + "`"] | join(", ")' <<< "$NEEDS")"
+          {
+            echo '## Native prebuilds — coverage for this run'
+            echo
+            echo "- event: \`${GITHUB_EVENT_NAME}\` · ref: \`${GITHUB_REF}\`"
+            echo
+            echo '| job | result |'
+            echo '| --- | --- |'
+            jq -r 'to_entries[] | "| `\(.key)` | \(.value.result) |"' <<< "$NEEDS"
+            echo
+            if [ -n "$skipped" ]; then
+              echo "**NOT covered by this run: ${skipped}.**"
+              echo
+              echo 'A green result above therefore does not extend to those. On a pull request the'
+              echo 'skipped leg that matters is `build-prebuilds-macos` — every Linux target in'
+              echo '`package.json#gjsify.platforms` is built, `darwin-arm64` is not. Label the PR'
+              echo '`ci:macos` to add it. (`build-prebuilds-macos-experimental` is dispatch-only by'
+              echo 'design, and `commit-prebuilds` is main-only by design.)'
+            else
+              echo '**Every prebuild leg in this workflow ran.**'
+            fi
+          # `tee`, not `>>`: the coverage note belongs in the JOB LOG as well as
+          # the run summary. The summary is the readable artefact; the log is
+          # what a `gh run view --log` (or a bug report pasting one) carries.
+          } | tee -a "$GITHUB_STEP_SUMMARY"
