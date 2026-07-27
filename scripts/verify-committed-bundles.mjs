@@ -293,7 +293,9 @@ try {
             const r = spawnSync(gjsify.cmd, [...gjsify.args, 'workspace', workspace, script, ...flags], {
                 cwd: repoRoot,
                 stdio: 'inherit',
-                env: { ...process.env, ...(recipe.env ?? {}) },
+                // No `?? {}` — spreading `undefined` into an object literal is
+                // already a no-op (oxlint unicorn/no-useless-fallback-in-spread).
+                env: { ...process.env, ...recipe.env },
             });
             if (r.status !== 0) {
                 aborted = `${recipe.id}: \`gjsify ${label}\` failed (exit ${r.status}).`;
