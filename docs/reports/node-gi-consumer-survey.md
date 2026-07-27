@@ -49,7 +49,7 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (non-zero exit / 
 | `dns` | ok | ✅ 118/118 | 🟡 78/85 | 🟡 79/85 | bun/deno: mainloop-drain |
 | `dom-elements` | ok | ✅ 441/441 | ✅ 441/441 | ✅ 441/441 | |
 | `event-bridge` | ok | ✅ 0/0 | ✅ 0/0 | ✅ 0/0 | (vacuous — 0 runnable specs) |
-| `fs` | ok | ❌ fail | ▶ no-summary | ▶ no-summary | node: runtime-typeerror-or-unimpl; bun/deno: no-unit-summary |
+| `fs` | ok | ✅ 657/657 | ▶ no-summary | ▶ no-summary | bun/deno: no-unit-summary |
 | `http` | ok | ❌ fail | 🟡 845/874 | 🟡 845/874 | node: other; bun/deno: mainloop-drain |
 | `http2` | ok | ✅ 102/102 | ✅ 102/102 | ✅ 102/102 | |
 | `iframe` | ok | ✅ 275/275 | ✅ 275/275 | ✅ 275/275 | |
@@ -69,13 +69,15 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (non-zero exit / 
 | `ws` | ok | ✅ 19/19 | ✅ 19/19 | ✅ 19/19 | |
 | `zlib` | ok | ✅ 53376/53376 | ✅ 53376/53376 | 🟡 53374/53375 | deno: other |
 
-Every package **builds** `--app node`. 25 of 33 pass on node, 22 on bun, 21 on deno; ~57k tests pass per runtime (the bulk is `zlib`'s exhaustive matrix).
+Every package **builds** `--app node`. **25 of 33 pass on node, 20 on bun, 19 on deno** — counting a pass as a ✅ row that actually ran specs, so the two `0/0` non-runs (`event-bridge`, `tsc`, explained below) are excluded; ~57k tests pass per runtime (the bulk is `zlib`'s exhaustive matrix).
 
 ### Genuine passes
 
 **Green on all three runtimes (19, of which 17 have runnable specs):** `sqlite` (Gda), `http2` (Soup 3.0 + ALPN), `tls` (Gio/glib-networking), `ws` (Soup), `crypto` (GLib.Checksum/Hmac), `os` (GLib spawn + `imports.byteArray`), `dom-elements` (GdkPixbuf + the `'2d'` factory), `canvas2d-core` (cairo + PangoCairo + GdkPixbuf + Gdk — headless Canvas 2D incl. text metrics and `putImageData`), `canvas2d` (the GTK-bridge package), `iframe` (WebKit), and the pure-logic layers of `devtools`, `devtools-browser`, `devtools-cdp`, `devtools-mcp`, `devtools-protocol`, `storybook`, `adwaita-app`.
 
-**Green on node, runtime-specific residue elsewhere (6):** `child_process` (Gio.Subprocess), `dgram` (UDP via Gio.Socket), `dns` (Gio.Resolver), `worker_threads` (Gio.Subprocess workers + sab-native), `zlib` (Gio.ZlibCompressor), `tty`.
+**Green on node, runtime-specific residue elsewhere (8):** `child_process` (Gio.Subprocess), `dgram` (UDP via Gio.Socket), `dns` (Gio.Resolver), `fs` (Gio.File + Gio.FileMonitor), `node-globals` (GLib), `worker_threads` (Gio.Subprocess workers + sab-native), `zlib` (Gio.ZlibCompressor), `tty`.
+
+> The two lists add up to the node figure above: 17 runnable all-three + 8 node-only = 25.
 
 > `devtools`/`storybook`/`adwaita-app` build against `gi://Gtk`/`Adw` and pass **headless** because their unit specs exercise pure logic (`LoadToken`, the story registry, nav-model, mock widget-trees), not live widgets. Live-GTK-on-Node is separately proven by the `gtk-smoke` job. `event-bridge` and `tsc` report `0/0`: both suites live entirely inside `on('Gjs', …)`, which does not fire on the node-gi path, so nothing runs — a `0/0` is not a pass.
 
@@ -85,7 +87,7 @@ Each root cause is fixed once and unblocks all its consumers.
 
 ### 1. Process lifetime under the reverse bridge — node half RESOLVED, bun/deno half open
 
-**Affects:** `node-globals` (node: hang — FIXED here; bun/deno: early exit — still open), plus `fs` + `worker_threads` on bun/deno (same `ran-no-summary` shape, same cause).
+**Affects:** `node-globals` (node: hang — FIXED here; bun/deno: early exit — still open), plus `fs` + `worker_threads` on bun/deno (same `ran-no-summary` shape, same cause). For `fs` the shared cause is now more than an inference from shape: its node leg passes 657/657 since the gap-7 harness fix, so the bun/deno `ran-no-summary` cannot be about missing assets.
 
 The symptom was two-faced and turned out to be **two unrelated bugs**. The keep-alive hypothesis explains only the bun/deno half.
 
@@ -186,11 +188,23 @@ directly instead of calling `@gjsify/unit`'s `run()`, so no summary line is emit
 exit non-zero on the suite's ~20 pre-existing functional failures, so it is tracked
 separately rather than folded into this fix.
 
-### 7. `fs` — the harness stages only `fixtures/`, not the suite's `test/` dir
+### 7. `fs` — the harness staged only `fixtures/`, not the suite's `test/` dir — **FIXED**
 
-**Affects:** `fs` (node: hard fail; bun/deno: early exit with no summary).
+**Affected:** `fs` (node: hard fail; bun/deno: early exit with no summary). **Status: resolved on node**; the bun/deno residue survived and is gap 1, not this.
 
-`Failed to create file "…/packages/node/fs/dist/test/watch.js.2F2YS3": No such file or directory`. `sync.spec.ts` resolves its scratch file as `join(__dirname, 'test/watch.js')`, i.e. relative to the BUNDLE. The package's own test bundle lives at the package root (where `test/` exists); the harness builds into `dist/`, and `stageFixtures` bridges only `fixtures/` (`dist/fixtures → ../fixtures`), not `test/`. Fix in the harness — bridge the package's on-disk test dirs generally, or build the harness bundle at the package root — then re-measure `fs`; the bun/deno early exit may or may not survive that.
+`Failed to create file "…/packages/node/fs/dist/test/watch.js.2F2YS3": No such file or directory`. `sync.spec.ts` resolves its scratch file as `join(__dirname, 'test/watch.js')`, i.e. relative to the BUNDLE. The package's own test bundle lives at the package root (where `test/` exists); the harness builds into `dist/`, and `stageFixtures` bridged only `fixtures/` (`dist/fixtures → ../fixtures`), not `test/`. **This was never an `@gjsify/fs` defect and never a node-gi finding** — the suite was measured against a directory layout the harness itself created.
+
+**Fix (landed):** `stageFixtures` → `stageTestAssets`, driven by a `STAGED_ASSET_DIRS = ['fixtures', 'test']` list rather than one hard-coded name, so every on-disk asset dir a package ships is bridged the same way. Symlinks, not copies: these suites WRITE into the dirs (`writeFileSync(watchMe)` / `unlinkSync(watchMe)`), so a copy would diverge from the tree the package's own `test:gjs` run uses. Coverage: `tests/e2e/node-gi-consumer-harness/run.mjs` pins the SET of bridged dirs plus link-resolution and idempotence (the three cases fail if the list is reverted to `['fixtures']`).
+
+**Re-measured** (`node scripts/node-gi-consumer-harness.mjs @gjsify/fs --runtimes node`):
+
+| | before | after |
+|---|---|---|
+| status | `fail` | **`pass`** |
+| counts | — | **657/657** |
+| reason | `other` — `Failed to create file "…/packages/node/fs/dist/test/watch.js.UIV0S3": No such file or directory` | — |
+
+So `@gjsify/fs` runs its entire GJS suite unchanged on Node via the reverse bridge. **Residual:** bun and deno still `ran-no-summary` — the same early-exit shape as `node-globals`/`worker_threads` in gap 1, unchanged by this fix and tracked there.
 
 ### 8. Display/media-bound and bespoke entries
 
@@ -222,6 +236,6 @@ Prioritized by the gaps above:
 3. ~~**CLI alias-scoping for virtual gi modules** (gap 5)~~ — **done**; `module` now blocks on the rolldown `keepNames` helper-order bug instead (STATUS.md `Open TODOs`).
 4. **`@gjsify/http` request-header propagation + throw-in-callback fatality** (gap 4), and **`@gjsify/net`'s close/connect event ordering** (gap 3).
 5. ~~**`webrtc` data-channel double-free** (gap 6)~~ — RESOLVED: node-gi now copies a `(transfer full)` boxed IN arg (gap 6). Residual: give `@gjsify/webrtc`'s `test.mts` a `run()` summary so the harness can score it.
-6. **Harness fix:** stage the suite's on-disk `test/` dir alongside `fixtures/` (gap 7).
+6. ~~**Harness fix:** stage the suite's on-disk `test/` dir alongside `fixtures/` (gap 7).~~ — **done**; `fs` now passes 657/657 on node. Its bun/deno `ran-no-summary` survived the fix and belongs to gap 1.
 7. **Widen the proof set:** `canvas2d-core` once its suite can run without `Gdk` (or the container carries gtk4); the GTK-stack candidates once a sibling job carries gtk4/libadwaita/webkitgtk.
 8. **Full CI matrix:** run the whole survey (not just the proof set) as a non-gating `continue-on-error` job that publishes this table, so regressions and improvements surface per PR.
