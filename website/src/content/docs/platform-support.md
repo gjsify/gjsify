@@ -88,9 +88,15 @@ verified as far as the checking host allows — see
 | `@gjsify/webgl` | 1 | · | ✓ | ○ | ○ | ○ | ✓ | · |
 | `@gjsify/webrtc-native` | 1 | · | ✓ | ○ | ○ | ○ | ✓ | · |
 
-`✓` declared + built by CI · `○` declared + built, artifact not committed here ·
-`⚠` committed artifact, no CI job rebuilds it · `!` declared, nothing produces it ·
+`✓` declared, a CI job targets it, artifact committed ·
+`○` declared, a CI job targets it, artifact NOT committed here ·
+`⚠` committed artifact, no CI job targets it · `!` declared, no CI job targets it ·
 `?` produced, undeclared · `·` unsupported
+
+The marks are read out of the workflow YAML, so "a CI job targets it" is exactly
+what they claim — not that a green run of that job exists. `○` in particular says
+nothing about whether the job currently succeeds; each `○` entry carries its own
+reason, printed on every `--check` run.
 
 Every column above is a real directory name. Targets are spelled the one way a running
 process can compute about itself — `${process.platform}-${process.arch}` — so
@@ -110,13 +116,19 @@ run. The two current causes:
   it and uploads it as a workflow artifact for a release to ship. No job commits it
   back.
 - **The three emulated Linux targets** (`linux-ppc64`, `linux-s390x`,
-  `linux-riscv64`) — the QEMU prebuild legs were passing the target architecture in
-  an input that `uraimo/run-on-arch-action` ignores whenever a custom `base_image` is
-  given, so every "emulated" leg compiled on the runner and staged **x86-64**
-  binaries into those directories. The mis-staged artifacts have been removed and the
-  workflow now carries the platform in the image reference; the real binaries land on
-  the next `commit-prebuilds` run on `main`. Until then those targets are honestly
-  unshipped rather than dishonestly present.
+  `linux-riscv64`) — **no CI leg can currently produce them.** The QEMU prebuild legs
+  were passing the target architecture in an input that
+  `uraimo/run-on-arch-action` ignores whenever a custom `base_image` is given, so
+  every "emulated" leg compiled on the runner and staged **x86-64** binaries into
+  those directories. With the platform now carried by the image reference the legs
+  really do emulate — and fail: Fedora's package manager does not survive
+  `qemu-user` on either architecture (a `dnf` segfault on s390x, a failed RPM
+  transaction on ppc64), so the build dependencies never install. The mis-staged
+  x86-64 artifacts have been removed, so these targets are honestly unshipped rather
+  than dishonestly present, and a consumer there hits the guarded `imports.gi`
+  degrade instead of an unloadable library. Restoring them needs a build that
+  survives emulation (a different base image, or cross-compilation instead of
+  `qemu-user`) — or the declarations should come out.
 
 Check the matrix against reality at any time:
 
@@ -146,9 +158,9 @@ audit splits what it verifies and says which it did:
   is reported as not-load-tested, never as broken — that would be a fact about the
   runner, not the artifact.
 
-So a `✓` means "declared, built by CI, and committed with a structurally sound
-artifact"; it does not mean anyone has run that artifact on that architecture. The
-per-run summary states both numbers separately.
+So a `✓` means "declared, targeted by a CI job, and committed with a structurally
+sound artifact"; it does not mean anyone has run that artifact on that architecture.
+The per-run summary states both numbers separately.
 
 ## What a missing bridge actually costs you
 

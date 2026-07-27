@@ -28,9 +28,9 @@
             "darwin-arm64"
         ],
         "platformsUncommitted": {
-            "linux-ppc64": "the QEMU leg staged host x86-64 binaries until the `--platform=` fix in prebuilds.yml; the mis-staged artifact was removed and the real one lands on the next `commit-prebuilds` run on main",
-            "linux-s390x": "the QEMU leg staged host x86-64 binaries until the `--platform=` fix in prebuilds.yml; the mis-staged artifact was removed and the real one lands on the next `commit-prebuilds` run on main",
-            "linux-riscv64": "the QEMU leg staged host x86-64 binaries until the `--platform=` fix in prebuilds.yml; the mis-staged artifact was removed and the real one lands on the next `commit-prebuilds` run on main"
+            "linux-ppc64": "no CI leg can currently produce it: under real emulation the QEMU prebuild job cannot install its build dependencies (dnf segfaults on s390x, the RPM transaction fails on ppc64). The artifact previously committed here was a host x86-64 build and was removed",
+            "linux-s390x": "no CI leg can currently produce it: under real emulation the QEMU prebuild job cannot install its build dependencies (dnf segfaults on s390x, the RPM transaction fails on ppc64). The artifact previously committed here was a host x86-64 build and was removed",
+            "linux-riscv64": "no CI leg can currently produce it: under real emulation the QEMU prebuild job cannot install its build dependencies (dnf segfaults on s390x, the RPM transaction fails on ppc64). The artifact previously committed here was a host x86-64 build and was removed"
         },
         "prebuilds": "prebuilds",
         "runtimes": {

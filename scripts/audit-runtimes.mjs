@@ -2267,7 +2267,7 @@ function renderPrebuildSummary({ notes, stats }) {
     ];
     if (stats.uncommitted > 0) {
         lines.push(
-            `  ${stats.uncommitted} declared target(s) are exempt via \`gjsify.platformsUncommitted\` — declared and CI-built, artifact deliberately not committed here.`,
+            `  ${stats.uncommitted} declared target(s) are exempt via \`gjsify.platformsUncommitted\` — promised, but with no artifact committed here. Each states its own reason:`,
         );
     }
     for (const n of notes) lines.push(`  · ${n}`);
@@ -2303,11 +2303,15 @@ function renderPlatformMatrix(rows, { markdown = false } = {}) {
         if (shipped || built) return '?'; // produced, never promised
         return '·';
     };
+    // "a CI job targets it", not "a green build exists": this is parsed out of
+    // the workflow YAML, which knows nothing about run results. Saying "built"
+    // would claim more than the data supports — the failure mode this whole
+    // audit exists to remove.
     const legendParts = [
-        '✓ declared + built by CI',
-        '○ declared + built, artifact not committed here',
-        '⚠ committed artifact, no CI job rebuilds it',
-        '! declared, nothing produces it',
+        '✓ declared, a CI job targets it, artifact committed',
+        '○ declared, a CI job targets it, artifact NOT committed here',
+        '⚠ committed artifact, no CI job targets it',
+        '! declared, no CI job targets it',
         '? produced, undeclared',
         '· unsupported',
     ];
