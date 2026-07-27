@@ -1,7 +1,33 @@
 name: Build Native Prebuilds
 
-# Run on push to main and on tags, or manually.
-# Artifacts are uploaded and can be downloaded to commit into the repo before npm publish.
+# Two halves with different audiences — the same split `deploy-docs.yml` uses:
+#
+#   BUILD legs   — an ordinary check. They compile the Vala/meson sources and the
+#                  Rust crates the `*-native` bridges link, and they run on
+#                  `pull_request` TOO, so a change that cannot compile is caught
+#                  before the merge instead of after it. main went red exactly
+#                  that way: a Rust dependency-resolution break in
+#                  @gjsify/oxfmt-native (a duplicate `oxc_allocator` crate
+#                  identity, fixed in #827) appeared in NO PR check, and the fix
+#                  PR could not prove itself either — its legs had to be
+#                  dispatched by hand with `gh workflow run --ref`.
+#   commit-prebuilds — main-only, by definition. It commits binaries back into
+#                  the repository, which is a main-branch act and must never be
+#                  reachable from a PR. Guarded twice; see the job.
+#
+# `pull_request`, NOT `pull_request_target`. `pull_request_target` runs the BASE
+# branch's workflow definition with a read/write token and repository secrets
+# while checking out the PR's head code — precisely the combination that must
+# not exist in a workflow that contains a job which pushes commits. Plain
+# `pull_request` runs with a token GitHub forces to read-only for fork PRs, and
+# the build legs need nothing more: they pull the PUBLIC `fedora:43` image, so
+# unlike main.yml's private `ghcr.io/gjsify/ci-fedora` they also work on a fork
+# PR. Least privilege backs that up rather than relying on it — see
+# `permissions` below.
+#
+# Artifacts are uploaded and can be downloaded to commit into the repo before
+# npm publish; on a PR they are the only CI-built copy of a binary that exists
+# to compare a committed prebuild against, so they are NOT gated off there.
 on:
   workflow_dispatch:
   push:
@@ -31,9 +57,111 @@ on:
       - 'packages/infra/rolldown-native/meson.build'
       - '.github/workflows/prebuilds.yml'
 
+  # Repeated VERBATIM from `push` above — GitHub Actions supports no YAML
+  # anchors, and the two lists MUST stay identical: a path that can change a
+  # prebuild on main is a path that has to be able to prove itself on a PR.
+  # `deploy-docs.yml` is the model.
+  pull_request:
+    paths:
+      - 'packages/framework/webgl/src/vala/**'
+      - 'packages/framework/webgl/src/vapi/**'
+      - 'packages/framework/webgl/meson.build'
+      - 'packages/web/webrtc-native/src/vala/**'
+      - 'packages/web/webrtc-native/meson.build'
+      - 'packages/node/http-soup-bridge/src/vala/**'
+      - 'packages/node/http-soup-bridge/meson.build'
+      - 'packages/node/http2-native/src/vala/**'
+      - 'packages/node/http2-native/meson.build'
+      - 'packages/node/sab-native/src/vala/**'
+      - 'packages/node/sab-native/meson.build'
+      - 'packages/node/tls-native/src/vala/**'
+      - 'packages/node/tls-native/src/c/**'
+      - 'packages/node/tls-native/meson.build'
+      - 'packages/node/terminal-native/src/vala/**'
+      - 'packages/node/terminal-native/meson.build'
+      - 'packages/infra/lightningcss-native/src/**'
+      - 'packages/infra/lightningcss-native/meson.build'
+      - 'packages/infra/oxfmt-native/src/**'
+      - 'packages/infra/oxfmt-native/meson.build'
+      - 'packages/infra/rolldown-native/src/**'
+      - 'packages/infra/rolldown-native/meson.build'
+      - '.github/workflows/prebuilds.yml'
 
+# Least privilege at the workflow level; each job adds only what it needs. This
+# is what keeps the new PR trigger from ever handing a write-capable token to a
+# job that builds head code: only `commit-prebuilds` widens to `contents: write`,
+# and it cannot run on a `pull_request` event.
+permissions:
+  contents: read
+
+# A PR that is pushed twice must not pay for two full Rust builds, so PR runs
+# get a per-ref group that cancels itself. Non-PR runs keep exactly today's
+# behaviour — their own group per run, never cancelled — because a main run
+# commits prebuilds back and must be allowed to finish.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('prebuilds-pr-{0}', github.ref) || format('prebuilds-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # ----------------------------------------------------------------
+  # Which legs run — decided ONCE, here
+  #
+  # The gate and its explanation are outputs of the SAME job (main.yml's
+  # `setup`/`macos-enabled`+`macos-reason` pattern), so the matrix the native job
+  # consumes and the sentence the summary prints cannot desync. Nothing
+  # downstream re-derives "is this a PR" for itself.
+  #
+  # PR selection is the WHOLE native linux-x64 leg — Vala AND the three Rust
+  # bridges (lightningcss / oxfmt / rolldown). That is a deliberate disagreement
+  # with the cheaper proposal recorded in STATUS.md ("a native x86_64 Vala-only
+  # leg as the cheap 80% solution, QEMU + Rust stay on main"): a Vala-only leg
+  # would have been GREEN on the change that took main down, because that break
+  # was in @gjsify/oxfmt-native's Rust dependency graph (#827). A PR check that
+  # would not have caught the incident which motivated it is worse than none.
+  #
+  # What stays main-only is a COST CONTROL, and the summary job says so out loud
+  # rather than letting a partial run read like a full one:
+  #   • linux-arm64 — a second complete run of the heaviest job, Rust included.
+  #   • ppc64 / s390x / riscv64 — QEMU emulation, tens of minutes each; the
+  #     riscv64 leg emulates a cargo build of lightningcss.
+  #   • darwin-arm64 — macOS runners bill at 10x.
+  # A Vala or Rust COMPILE error is architecture-independent, so the x64 leg
+  # fails identically to the legs that did not run. What those legs uniquely
+  # cover is per-architecture packaging — a distro package name that differs on
+  # ubuntu:26.04/riscv64, a Homebrew formula on macOS — and that is genuinely
+  # not covered per-PR.
+  # ----------------------------------------------------------------
+  setup:
+    name: Select prebuild legs
+    runs-on: ubuntu-latest
+    outputs:
+      native-matrix: ${{ steps.select.outputs.native-matrix }}
+      emulated: ${{ steps.select.outputs.emulated }}
+      macos: ${{ steps.select.outputs.macos }}
+      reason: ${{ steps.select.outputs.reason }}
+    steps:
+      - name: Select the legs for this event
+        id: select
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_PR" = 'true' ]; then
+            {
+              echo 'native-matrix=[{"arch":"x64","runner":"ubuntu-latest"}]'
+              echo 'emulated=false'
+              echo 'macos=false'
+              echo 'reason=pull_request — native linux-x64 only (Vala + Rust). linux-arm64, the ppc64/s390x/riscv64 QEMU legs and darwin-arm64 run on push to main.'
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo 'native-matrix=[{"arch":"x64","runner":"ubuntu-latest"},{"arch":"arm64","runner":"ubuntu-24.04-arm"}]'
+              echo 'emulated=true'
+              echo 'macos=true'
+              echo "reason=${GITHUB_EVENT_NAME} — every non-experimental leg runs: linux-x64, linux-arm64, ppc64/s390x/riscv64 under QEMU, darwin-arm64."
+            } >> "$GITHUB_OUTPUT"
+          fi
+
   # ----------------------------------------------------------------
   # Native runners — x64 and arm64
   #
@@ -43,9 +171,15 @@ jobs:
   # `package.json#gjsify.platforms` declares it, `scripts/stage-prebuild.mjs`
   # creates it, the CLI's `detectNativePackages()` resolves it without
   # translating, and `scripts/audit-runtimes.mjs --check` rejects anything else.
+  #
+  # The matrix is an OBJECT axis emitted as JSON by `setup` and `fromJSON`ed —
+  # NOT a static `include:` plus an `if:`. A job-level `if:` cannot skip ONE leg
+  # of a matrix, and a step-level one would spawn a leg that reports green
+  # without building anything. Same shape as main.yml's macOS axis.
   # ----------------------------------------------------------------
   build-prebuilds:
     name: Build prebuilds (${{ matrix.arch }})
+    needs: setup
     runs-on: ${{ matrix.runner }}
     container:
       image: fedora:43
@@ -53,13 +187,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - arch: x64
-            runner: ubuntu-latest
-          - arch: arm64
-            runner: ubuntu-24.04-arm
+        include: ${{ fromJSON(needs.setup.outputs.native-matrix) }}
 
     steps:
+      # Put the leg selection in the JOB log too, not only in the run summary —
+      # someone reading a green x64 leg on a PR has to see, right there, that it
+      # is not the whole matrix. Derived from `setup`, never restated.
+      - name: Report the leg selection for this run
+        env:
+          REASON: ${{ needs.setup.outputs.reason }}
+        run: echo "$REASON"
+
       - name: Install prerequisites
         # gstreamer*-devel packages provide the .pc files for gstreamer-sdp-1.0
         # and gstreamer-webrtc-1.0 that @gjsify/webrtc-native needs at Vala build time.
@@ -396,7 +534,17 @@ jobs:
   # ----------------------------------------------------------------
   build-prebuilds-qemu:
     name: Build prebuilds (${{ matrix.arch }}) [QEMU]
+    needs: setup
+    # Emulated legs are the expensive half of this workflow — main + dispatch
+    # only. See the cost note on `setup`.
+    if: needs.setup.outputs.emulated == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # `uraimo/run-on-arch-action` caches the emulated container image in GHCR
+      # via `githubToken` below. The workflow-level token is `contents: read`,
+      # so that capability has to be granted back explicitly here.
+      packages: write
 
     strategy:
       fail-fast: false
@@ -685,6 +833,10 @@ jobs:
   # ----------------------------------------------------------------
   build-prebuilds-macos:
     name: Build prebuilds (darwin-arm64)
+    needs: setup
+    # macOS runners bill at 10x — main + dispatch only, the same posture
+    # main.yml's macOS job takes. See the cost note on `setup`.
+    if: needs.setup.outputs.macos == 'true'
     runs-on: macos-latest
     timeout-minutes: 90
     env:
@@ -1145,8 +1297,24 @@ jobs:
           ls -lh "prebuilds/${PREBUILD}/"
 
   # ----------------------------------------------------------------
-  # Commit all prebuilds back to the repo
-  # (only on push to main, not on PRs)
+  # Commit all prebuilds back to the repo — main only, THREE independent ways
+  #
+  # This job pushes binaries into the repository, so "a PR cannot reach it" has
+  # to hold without depending on any single line:
+  #
+  #   1. `github.event_name != 'pull_request'` — the direct gate.
+  #   2. `github.ref == 'refs/heads/main'` — on a `pull_request` event the ref is
+  #      `refs/pull/<n>/merge`, never `refs/heads/main`, so this fails too. It
+  #      also covers a hypothetical push trigger on some other branch.
+  #   3. `needs` — `build-prebuilds-qemu` and `build-prebuilds-macos` are SKIPPED
+  #      on a PR, and a skipped `needs` skips the dependent job (this `if:` has
+  #      no `always()`/`!cancelled()`, so the default all-needs-succeeded rule
+  #      applies). This is the same mechanism the comment below relies on for the
+  #      experimental macOS job.
+  #
+  # And it is the only job that widens the token past the workflow-level
+  # `contents: read`, so even a mistake in all three gates would not hand write
+  # access to a build leg.
   # ----------------------------------------------------------------
   commit-prebuilds:
     name: Commit prebuilds to repo
@@ -1155,6 +1323,8 @@ jobs:
     needs: [build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -1495,3 +1665,64 @@ jobs:
             git pull --rebase origin main
             git push
           fi
+
+  # ----------------------------------------------------------------
+  # Coverage summary — what this run actually built, and what it did not
+  #
+  # A reduced matrix that reads like a full one is worse than no check at all,
+  # so every run states its own coverage. Everything here is DERIVED and nothing
+  # is restated: the per-job rows are `needs.<job>.result` (GitHub's own
+  # evaluation of each `if:`), and the leg selection is `setup`'s own output
+  # printed verbatim. Adding a job to `needs` is all it takes for that job to
+  # appear — there is deliberately no hand-maintained "what we skip" list, which
+  # is the artefact that drifts and then lies (main.yml's `ci-summary` rule).
+  #
+  # Never gates: `if: always()` and its output is the summary, not its exit code.
+  # ----------------------------------------------------------------
+  prebuilds-summary:
+    name: Coverage summary
+    needs:
+      - setup
+      - build-prebuilds
+      - build-prebuilds-qemu
+      - build-prebuilds-macos
+      - build-prebuilds-macos-experimental
+      - commit-prebuilds
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Write what this run covered
+        env:
+          # `needs` carries a `result` for every job above, whatever its `if:`
+          # decided. This is the whole data source.
+          NEEDS: ${{ toJSON(needs) }}
+          REASON: ${{ needs.setup.outputs.reason }}
+          NATIVE_MATRIX: ${{ needs.setup.outputs.native-matrix }}
+        run: |
+          set -euo pipefail
+          skipped="$(jq -r '[to_entries[] | select(.value.result == "skipped") | "`" + .key + "`"] | join(", ")' <<< "$NEEDS")"
+          {
+            echo '## Native prebuilds — coverage for this run'
+            echo
+            echo "- event: \`${GITHUB_EVENT_NAME}\` · ref: \`${GITHUB_REF}\`"
+            echo "- leg selection: ${REASON:-(setup did not run)}"
+            echo "- native matrix built: \`${NATIVE_MATRIX:-(none)}\`"
+            echo
+            echo '| job | result |'
+            echo '| --- | --- |'
+            jq -r 'to_entries[] | "| `\(.key)` | \(.value.result) |"' <<< "$NEEDS"
+            echo
+            if [ -n "$skipped" ]; then
+              echo "**NOT covered by this run: ${skipped}.**"
+              echo
+              echo 'A green result above therefore does NOT mean every target declared in'
+              echo '`package.json#gjsify.platforms` still builds. A Vala or Rust COMPILE error is'
+              echo 'architecture-independent, so the native linux-x64 leg catches it wherever it'
+              echo 'lands; what only the skipped legs prove is per-architecture packaging — distro'
+              echo 'package names under QEMU, Homebrew formulae on macOS — and the commit-back of'
+              echo 'the binaries themselves.'
+            else
+              echo '**Every prebuild leg in this workflow ran.**'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
