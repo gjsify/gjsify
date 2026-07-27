@@ -18,6 +18,7 @@ import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
+import { assertGjsBundleLoadable } from '../utils/gjs-bundle-guard.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
 
@@ -306,6 +307,39 @@ export class BuildAction {
         }
         await chmod(outfile, 0o755);
         if (verbose) console.debug(`[gjsify] --shebang: wrote ${line} + chmod 0o755 to ${outfile}`);
+    }
+
+    /**
+     * Post-bundle gate for `--app gjs`: throw when the emitted bundle still
+     * imports Node builtins, which stock GJS cannot resolve (see
+     * `utils/gjs-bundle-guard.ts` for the full rationale).
+     *
+     * Reads the bytes back from DISK rather than inspecting the bundler's
+     * in-memory result, so it is engine-agnostic (npm `rolldown` and
+     * `@gjsify/rolldown-native` return different output shapes) and checks
+     * exactly what shipped, shebang included.
+     */
+    private async assertGjsOutputLoadable(outfile: string | undefined, outdir: string | undefined): Promise<void> {
+        const files: string[] = [];
+        if (outfile) {
+            files.push(outfile);
+        } else if (outdir) {
+            // Multi-chunk build: check every emitted JS chunk at the top level
+            // of the output dir. A missing/unreadable dir is not this guard's
+            // failure to report — the bundler would already have thrown.
+            try {
+                const { readdir } = await import('node:fs/promises');
+                for (const name of await readdir(outdir)) {
+                    if (/\.(m?js)$/.test(name)) files.push(join(outdir, name));
+                }
+            } catch {
+                return;
+            }
+        }
+
+        for (const file of files) {
+            assertGjsBundleLoadable(await readFile(file, 'utf-8'), file);
+        }
     }
 
     /**
@@ -691,6 +725,12 @@ export class BuildAction {
             await this.applyShebang(app, outfile, verbose);
         }
 
+        // Refuse to hand back a `--app gjs` bundle stock GJS cannot even load.
+        // AFTER the shebang hook so we check exactly the bytes that shipped.
+        if (app === 'gjs') {
+            await this.assertGjsOutputLoadable(outfile, outdir);
+        }
+
         // Browser HTML entry: emit the processed `index.html` beside the bundle
         // (engine-portable post-step — the native rolldown engine has no
         // `emitFile`, so this can't live in a plugin). `outfile` is guaranteed
@@ -747,6 +787,16 @@ export class BuildAction {
                     try {
                         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
                             await this.applyShebang(app, outfile, verbose);
+                        }
+                        // Same gate as the one-shot path, but REPORTED rather
+                        // than thrown: a watcher must survive a bad rebuild and
+                        // pick up the fix on the next change.
+                        if (app === 'gjs') {
+                            try {
+                                await this.assertGjsOutputLoadable(outfile, finalOpts.output?.dir);
+                            } catch (err) {
+                                console.error(`[gjsify build --watch] ${(err as Error).message}`);
+                            }
                         }
                     } finally {
                         await event.result.close();
