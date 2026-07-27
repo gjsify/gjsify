@@ -28,6 +28,11 @@
             "linux-riscv64",
             "darwin-arm64"
         ],
+        "platformsUncommitted": {
+            "linux-ppc64": "the QEMU leg staged host x86-64 binaries until the `--platform=` fix in prebuilds.yml; the mis-staged artifact was removed and the real one lands on the next `commit-prebuilds` run on main",
+            "linux-s390x": "the QEMU leg staged host x86-64 binaries until the `--platform=` fix in prebuilds.yml; the mis-staged artifact was removed and the real one lands on the next `commit-prebuilds` run on main",
+            "linux-riscv64": "the QEMU leg staged host x86-64 binaries until the `--platform=` fix in prebuilds.yml; the mis-staged artifact was removed and the real one lands on the next `commit-prebuilds` run on main"
+        },
         "prebuilds": "prebuilds",
         "tier": 1
     },

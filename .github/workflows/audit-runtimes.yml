@@ -35,7 +35,20 @@ jobs:
       # must also ship a `src/test.browser.{mts,ts}` entry for the `tests/browser/`
       # Playwright suite. Meta/asset packages with no standard test are exempt.
       # Every `--check` run ALSO holds the tier (ADR 0003/0005), platform
-      # (OS axis), reachability (ADR 0014) and headless (ADR 0015) contracts.
+      # (OS axis), prebuild-artifact, reachability (ADR 0014) and headless
+      # (ADR 0015) contracts.
+      # The prebuild-artifact half is why this workflow deliberately carries NO
+      # `paths` filter: the things that break it are a `gjsify.platforms` edit,
+      # a `prebuilds/**` binary and `prebuilds.yml`'s own matrix, which no
+      # per-package path list would cover together. It checks that every
+      # declared target of a package naming a committed `gjsify.prebuilds`
+      # directory HAS that directory with a structurally loadable library +
+      # typelib in it — the machine matching the directory, every `libgjsify*`
+      # sibling staged and reachable via `$ORIGIN`/`@loader_path`, and every
+      # leaf the typelib names present. On this runner's own target it goes
+      # further and really `dlopen`s them with the library-path variables
+      # stripped; a cross-arch prebuild cannot be loaded here and the audit
+      # reports that boundary rather than papering over it.
       # The last one is the only check on intra-GJS LAYERING: a package that
       # declares `gjsify.headless` must not reach the typelibs it promised not
       # to from its ROOT entry — the axis every runtime-slot check is blind to,

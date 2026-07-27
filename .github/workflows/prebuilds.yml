@@ -24,12 +24,14 @@ name: Build Native Prebuilds
 #     this — #827 was a Rust dependency-resolution failure in oxfmt-native. A PR
 #     check that would not have caught its own motivating incident is worse than
 #     none, so the Rust bridges are in.
-#   • The emulated legs are not the expensive half. Measured here: ppc64 3m00s,
-#     s390x 3m13s, riscv64 3m07s against 8-15 min for a native leg — the
-#     `run-on-arch` base image is cached in GHCR so only the compile is
-#     emulated, and every leg runs in parallel, so excluding them would have
-#     saved no PR latency at all. A cost control that saves nothing is just a
-#     coverage hole.
+#   • The emulated legs are kept because coverage of an architecture nobody can
+#     otherwise test is worth more than PR latency, and they run in parallel
+#     with the 8-15 min native legs. The "ppc64 3m00s / s390x 3m13s / riscv64
+#     3m07s" figures once recorded here were not a measurement of emulation:
+#     the legs were building x86-64 on the runner (see `build-prebuilds-qemu`),
+#     so they timed nothing. Under real emulation expect the QEMU legs to
+#     become the critical path — the lightningcss Rust compile alone is the
+#     tens-of-minutes step the job's own notes predict.
 # The `prebuilds-summary` job prints what a given run did NOT cover, derived
 # from each job's own result, so a run that skips a leg never reads like one
 # that did not.
@@ -500,15 +502,14 @@ jobs:
   #   s390x          → process.arch 's390x'  → prebuilds/linux-s390x/
   #   riscv64        → process.arch 'riscv64'→ prebuilds/linux-riscv64/
   # ----------------------------------------------------------------
-  # These run on `pull_request` too. The received wisdom — the one this
-  # workflow was left main-only on, and the one STATUS.md recorded — is that the
-  # emulated legs are the expensive half. MEASURED on this workflow today, they
-  # are the CHEAP half: ~3 min each (ppc64 3m00s, s390x 3m13s, riscv64 3m07s)
-  # versus 8-15 min for a native leg, because `uraimo/run-on-arch-action` caches
-  # the installed base image in GHCR so only the compile is emulated, and these
-  # legs build lightningcss but not rolldown or oxfmt. They also run in
-  # parallel, so they add no PR latency whatever. A cost control that saves
-  # nothing is not a cost control, it is a coverage hole — so they stay on.
+  # These run on `pull_request` too, and stay on: an architecture nobody on the
+  # team owns hardware for is exactly the one whose build must be checked before
+  # merge, not after. (The "~3 min per emulated leg" figure this comment used to
+  # carry was an artifact of the platform bug fixed below — the legs were
+  # compiling x86-64 on the runner, so they measured no emulation at all. Under
+  # real emulation the lightningcss Rust build is the tens-of-minutes step the
+  # note further down already predicts, and these legs become the critical path.
+  # They run in parallel with everything else, so that is latency, not spend.)
   build-prebuilds-qemu:
     name: Build prebuilds (${{ matrix.arch }}) [QEMU]
     runs-on: ubuntu-latest
@@ -525,28 +526,44 @@ jobs:
         include:
           # IBM POWER9/10 workstations and servers (e.g. Raptor Computing Talos II)
           - arch: ppc64
-            qemu_arch: ppc64le
-            base_image: fedora:43
+            base_image: --platform=linux/ppc64le fedora:43
 
           # IBM Z mainframes — enterprise Linux servers
           - arch: s390x
-            qemu_arch: s390x
-            base_image: fedora:43
+            base_image: --platform=linux/s390x fedora:43
 
           # RISC-V boards (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …)
           # ubuntu:26.04 is used because fedora:43 has no official riscv64 image.
           - arch: riscv64
-            qemu_arch: riscv64
-            base_image: ubuntu:26.04
+            base_image: --platform=linux/riscv64 ubuntu:26.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # THE TARGET PLATFORM LIVES IN `base_image`, NOT IN `arch`.
+      #
+      # `uraimo/run-on-arch-action` uses `arch` + `distro` to pick one of its
+      # OWN images. Supply a custom `base_image` and both are ignored — its
+      # README says so ("Specify a custom base image, `arch` and `distro`
+      # should be set to `none` in this case") and shows the platform carried
+      # by the image reference itself:
+      #     base_image: --platform=linux/riscv64 riscv64/ubuntu:24.04
+      #
+      # This job passed `arch: ${{ matrix.qemu_arch }}` alongside a bare
+      # `base_image: fedora:43`, so the arch input was discarded and docker
+      # ran the image for the RUNNER's platform. Every leg compiled x86-64 and
+      # staged it into `prebuilds/linux-{ppc64,s390x,riscv64}/`: the committed
+      # ppc64 and s390x artifacts were byte-identical (same GNU build-id), and
+      # the "measured ~3 min" emulated legs recorded above were three minutes
+      # because nothing was ever emulated. Nothing downstream could see it —
+      # the directory existed, the typelib was beside it, and no check opened
+      # the file. `scripts/audit-runtimes.mjs --check` now reads each image's
+      # own machine and rejects a mismatch with its directory.
       - name: Build all prebuilds on ${{ matrix.arch }} via QEMU
         uses: uraimo/run-on-arch-action@v2
         with:
-          arch: ${{ matrix.qemu_arch }}
+          arch: none
           distro: none
           base_image: ${{ matrix.base_image }}
           githubToken: ${{ github.token }}

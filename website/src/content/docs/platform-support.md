@@ -60,41 +60,95 @@ Everything else in the toolchain (`@gjsify/lightningcss-native`,
 ## Native bridge matrix
 
 Native bridges are the packages that ship a compiled artifact. Each declares the
-`<os>-<arch>` targets it promises in `package.json#gjsify.platforms`, and CI is
-held to that declaration in both directions — a promised target that nothing builds
-and a built target that nothing promises are both hard failures.
+`<os>-<arch>` targets it promises in `package.json#gjsify.platforms`, and CI is held
+to that declaration in both directions — a promised target that nothing builds and a
+built target that nothing promises are both hard failures.
+
+A declaration is not enough on its own, so `scripts/audit-runtimes.mjs --check` also
+holds the promise to a **body**: every declared target of a package that names a
+committed `prebuilds/` directory must have that directory, holding a shared library
+in that OS's format plus the GI typelib that names it. Those artifacts are then
+verified as far as the checking host allows — see
+[What the checks actually prove](#what-the-checks-actually-prove) below.
 
 <!-- Regenerate with: node scripts/audit-runtimes.mjs --platforms --markdown -->
 
 | package | tier | darwin-arm64 | linux-arm64 | linux-ppc64 | linux-riscv64 | linux-s390x | linux-x64 | win32-x64 |
 |---|---|---|---|---|---|---|---|---|
-| `@gjsify/http-soup-bridge` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/http2-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/lightningcss-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/napi` | 3 | ✓ | · | · | · | · | ✓ | · |
+| `@gjsify/http-soup-bridge` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
+| `@gjsify/http2-native` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
+| `@gjsify/lightningcss-native` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
+| `@gjsify/napi` | 3 | ○ | · | · | · | · | ✓ | · |
 | `@gjsify/node-gi` | 2 | ✓ | ✓ | · | · | · | ✓ | ✓ |
 | `@gjsify/oxfmt-native` | 1 | ✓ | ✓ | · | · | · | ✓ | · |
 | `@gjsify/rolldown-native` | 1 | · | ✓ | · | · | · | ✓ | · |
-| `@gjsify/sab-native` | 1 | · | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/terminal-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/tls-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/webgl` | 1 | · | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/webrtc-native` | 1 | · | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+| `@gjsify/sab-native` | 1 | · | ✓ | ○ | ○ | ○ | ✓ | · |
+| `@gjsify/terminal-native` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
+| `@gjsify/tls-native` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
+| `@gjsify/webgl` | 1 | · | ✓ | ○ | ○ | ○ | ✓ | · |
+| `@gjsify/webrtc-native` | 1 | · | ✓ | ○ | ○ | ○ | ✓ | · |
 
-`✓` declared + built by CI · `·` not supported
+`✓` declared + built by CI · `○` declared + built, artifact not committed here ·
+`⚠` committed artifact, no CI job rebuilds it · `!` declared, nothing produces it ·
+`?` produced, undeclared · `·` unsupported
 
 Every column above is a real directory name. Targets are spelled the one way a running
 process can compute about itself — `${process.platform}-${process.arch}` — so
 `gjsify.platforms`, the committed `prebuilds/<target>/`, the CI job that builds it and
 the resolver that loads it all use the same string, with nothing to translate between them.
 
+### `○` — declared and built, artifact not in this repository
+
+`○` is the one state that needs reading carefully: CI produces the artifact, but
+this repository does not carry it, so a `git clone` has nothing to load and an
+`npm install` gets whatever the last publish shipped. It is never implicit — the
+package has to name the target and the reason in
+`package.json#gjsify.platformsUncommitted`, and the audit prints that reason on every
+run. The two current causes:
+
+- **`@gjsify/napi` on darwin-arm64** — `napi.yml`'s macOS job builds it, load-tests
+  it and uploads it as a workflow artifact for a release to ship. No job commits it
+  back.
+- **The three emulated Linux targets** (`linux-ppc64`, `linux-s390x`,
+  `linux-riscv64`) — the QEMU prebuild legs were passing the target architecture in
+  an input that `uraimo/run-on-arch-action` ignores whenever a custom `base_image` is
+  given, so every "emulated" leg compiled on the runner and staged **x86-64**
+  binaries into those directories. The mis-staged artifacts have been removed and the
+  workflow now carries the platform in the image reference; the real binaries land on
+  the next `commit-prebuilds` run on `main`. Until then those targets are honestly
+  unshipped rather than dishonestly present.
+
 Check the matrix against reality at any time:
 
 ```bash
 node scripts/audit-runtimes.mjs --platforms            # human-readable
 node scripts/audit-runtimes.mjs --platforms --markdown # this table
-node scripts/audit-runtimes.mjs --check                # CI gate, all three audits
+node scripts/audit-runtimes.mjs --check                # CI gate, every audit
 ```
+
+### What the checks actually prove
+
+The audit runs wherever CI runs it — today an `ubuntu-latest` x64 Node runner — and a
+prebuild for another architecture cannot be loaded there. Rather than skip those, the
+audit splits what it verifies and says which it did:
+
+- **Structurally, on every committed artifact regardless of target.** The image's own
+  machine must match the directory it sits in (an ELF/Mach-O/PE header read, no
+  `readelf`/`otool`); every `libgjsify*` sibling it records must be staged beside it
+  and reachable through `$ORIGIN`/`@loader_path`; and every library leaf the typelib
+  records must be present, because that leaf is what GObject-Introspection hands to
+  the loader the moment a consumer resolves a class. This is the half that caught both
+  the missing macOS sibling cdylib and the x86-64-as-ppc64 staging above.
+- **Functionally, only for the checking host's own target.** The library is
+  `dlopen`ed with every library-path environment variable stripped, which proves the
+  self-relative sibling hop for real instead of inferring it from the headers. A
+  bridge whose *system* dependencies the runner lacks (libsoup, GStreamer, libgda)
+  is reported as not-load-tested, never as broken — that would be a fact about the
+  runner, not the artifact.
+
+So a `✓` means "declared, built by CI, and committed with a structurally sound
+artifact"; it does not mean anyone has run that artifact on that architecture. The
+per-run summary states both numbers separately.
 
 ## What a missing bridge actually costs you
 
