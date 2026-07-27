@@ -55,7 +55,7 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (non-zero exit / 
 | `iframe` | ok | ✅ 275/275 | ✅ 275/275 | ✅ 275/275 | |
 | `module` | ok | ❌ fail | ❌ fail | ❌ fail | node: needs-gjs-imports-runtime; bun/deno: runtime-typeerror-or-unimpl |
 | `net` | ok | ❌ fail | 🟡 241/284 | 🟡 241/284 | node/bun/deno: mainloop-drain |
-| `node-globals` | ok | ⏱ 221/221 then hang | ▶ no-summary | ▶ no-summary | node: no-exit-after-pass; bun/deno: no-unit-summary |
+| `node-globals` | ok | ✅ 221/221 | ▶ no-summary | ▶ no-summary | bun/deno: the still-open half of gap 1 |
 | `os` | ok | ✅ 276/276 | ✅ 276/276 | ✅ 276/276 | |
 | `sqlite` | ok | ✅ 105/105 | ✅ 105/105 | ✅ 105/105 | |
 | `storybook` | ok | ✅ 9/9 | ✅ 9/9 | ✅ 9/9 | |
@@ -83,27 +83,21 @@ Every package **builds** `--app node`. 25 of 33 pass on node, 22 on bun, 21 on d
 
 Each root cause is fixed once and unblocks all its consumers.
 
-### 1. Process lifetime under the reverse bridge — `node-globals` never exits (blocks the CI gate)
+### 1. Process lifetime under the reverse bridge — node half RESOLVED, bun/deno half open
 
-**Affects:** `node-globals` (node: hang; bun/deno: early exit), and possibly `fs` + `worker_threads` on bun/deno (same `ran-no-summary` shape).
+**Affects:** `node-globals` (node: hang — FIXED here; bun/deno: early exit — still open), plus `fs` + `worker_threads` on bun/deno (same `ran-no-summary` shape, same cause).
 
-`@gjsify/node-globals` runs its suite correctly under node-gi and then refuses to die:
+The symptom was two-faced and turned out to be **two unrelated bugs**. The keep-alive hypothesis explains only the bun/deno half.
 
-```
-$ node packages/node/globals/dist/test.node-gi.harness.node-globals.mjs
-…
-✔ [Node.js 24.15.0] 221 completed  (36.7ms)
-   <no exit; killed after 90 s in a manual repro, after 180 s by the harness → recorded `fail`>
-```
+**Node — an infinite `System.exit` ⇄ `process.exit` recursion. FIXED.** A CPU profile of the hung process gives the whole loop: a GLib idle callback → node-gi's `system.exit` → `globalThis.process.exit` → `@gjsify/process`'s `exitProcess` → `ensureMainLoop()` + `GLib.idle_add(…)` → repeat. `@gjsify/node-globals/register` replaces `globalThis.process` with the gjsify polyfill *unconditionally*, and that polyfill's `exit()` takes its GJS path — deferring the real exit through a GLib idle — whenever `imports.system.exit` exists. node-gi's `system.exit` in turn read `globalThis.process.exit`, i.e. the polyfill. The cycle closed, each turn armed a fresh idle source, and the process spun at 100 % CPU instead of terminating. Nothing to do with keep-alive.
 
-All 221 tests pass, the summary prints in 36 ms, and the process then holds the loop open indefinitely. The same bundle on **bun and deno exits 0 after 16 test markers**, mid-suite (last marker: the `clearImmediate` spec), never reaching the summary — the mirror-image lifetime bug, and why both show `ran-no-summary`.
+GJS's `System.exit` is the `exit()` syscall — terminal, uninterceptable — so the bridge must reach the RUNTIME's own process exit, never whatever `globalThis.process` currently is. `system.js` now binds it once at module evaluation, preferring `process.getBuiltinModule('node:process')`. Regression cover: conformance `system-exit-lifetime`, whose exit behaviour is byte-compared against `gjs -m` on node/bun/deno.
 
-Ruled out so far:
+With that alone the whole `--require-pass` proof set is green on node, `node-globals` included (221/221, exits in 0.09 s).
 
-- **Not** the webgl/canvas2d work — the bundle contains no webgl register and requires exactly one namespace, `requireGi('GLib','2.0')`.
-- **Not** a repeating GLib timeout holding the process alive (the documented `setInterval`-semantics keep-alive of the uv auto-pump): the globals specs only assert `typeof setInterval === 'function'` and never arm one.
+**Bun/Deno — the early exit. STILL OPEN.** `startMainContextPump` is opt-in (nothing calls it) and its timer is permanently `unref`'d, so an armed GLib source neither dispatches nor holds the process. `@gjsify/node-globals/register` swaps `globalThis.setTimeout` for `GLib.timeout_add` whenever `imports.gi.GLib` resolves — which it does under the bridge — so the first spec awaiting a `setTimeout` (`clearImmediate › should cancel a pending setImmediate`) waits on a source nobody will ever dispatch, the runtime loop runs empty, and the process exits 0 with the suite half-run.
 
-Cause still unknown. This is the top priority because **`node-globals` is one of the nine packages in the `--require-pass` `consumer-suites` gate**, so as long as it hangs, that gate cannot be green on a host that reproduces this. `fs` and `worker_threads` show the same bun/deno symptom and may share the cause; that is unverified.
+Auto-arming the pump with keep-alive accounting fixes it (measured: `node-globals` 218/221 on bun, 221/221 on deno; `fs` 656/657 on bun; `worker_threads` 278/280 on bun, 282/282 on deno — every `ran-no-summary` gone), but it is **not landed yet**: keying the hold on "the context has any scheduled source" makes a finished GTK program immortal (GDK leaves a ~1 s repeating timeout armed), and switching the hold to JS-armed GLib work only — which fixes that, and the matching pre-existing Node hang in `node --test test/gtk-smoke.test.mjs` — leaves Deno dying in the documented #47 N-API teardown race instead. See the follow-ups.
 
 ### 2. No auto-pump on bun/deno — async Gio suites time out where node passes
 
@@ -176,7 +170,7 @@ The `consumer-suites` job in [`node-gi.yml`](../../.github/workflows/node-gi.yml
 
 Two current consequences:
 
-- **`node-globals` is in the gate and hangs on this desktop** (gap 1). Until that is understood, the gate's green depends on the container not reproducing the hang.
+- **`node-globals` used to be in the gate and hang on this desktop** (gap 1) — that latent red is closed: it now passes 221/221 and exits in 0.09 s on node, and the whole nine-package `--require-pass` set is green.
 - **`canvas2d-core` is 599/599 on all three runtimes, and the headless core itself is Gdk-free** — the only `gi://Gdk` file is `src/gdk-pixel-bridge.ts`, exposed as the side-effect subpath `@gjsify/canvas2d-core/gdk`, so nothing in the package's ROOT entry graph pulls Gdk. What is *not* true is that its SUITE runs without Gdk: `src/test.mts` imports `./gdk-pixel-bridge.js` on purpose (so the core's pixel specs run standalone), and the built harness bundle consequently requires `Gdk 4.0`, `GdkPixbuf`, `Pango`, `PangoCairo` plus bare `cairo`. Promoting it into the gate therefore needs one of: a committed `src/test.node-gi.mts` that exercises the headless core without the GDK pixel bridge, or `gtk4` in the container (which pulls graphene/vulkan-loader into a 20-minute job).
 
 Still-green candidates not wired (deps too heavy for the container): `devtools`/`devtools-browser`/`devtools-cdp`/`devtools-mcp`/`devtools-protocol`/`storybook`/`adwaita-app`/`iframe` (gtk4/libadwaita/webkitgtk stack), `os` (spawns `ps`/`renice`), `worker_threads` (sab-native host surface), `canvas2d` (GTK).
@@ -185,7 +179,7 @@ Still-green candidates not wired (deps too heavy for the container): `devtools`/
 
 Prioritized by the gaps above:
 
-1. **`node-globals` process lifetime** — the node non-exit + the bun/deno early exit (gap 1). Highest leverage: it is the one open item that sits inside the CI gate. Repro: `node packages/node/globals/dist/test.node-gi.harness.node-globals.mjs`.
+1. **Bun/Deno process lifetime** — the node non-exit half of gap 1 is fixed; the bun/deno early exit needs the auto-armed portable pump, whose keep-alive must count JS-armed GLib work only (a "any scheduled source" rule immortalizes a finished GTK program) and which still trips Deno's #47 teardown race on the GTK smoke files.
 2. **bun/deno main-context pump parity** (gap 2) — unblocks the bun/deno columns of `child_process`, `dns`, `dgram`, `net`, `http` in one change.
 3. **CLI alias-scoping for virtual gi modules** (gap 5) — unblocks `module`; the fix is in `rolldown-plugin-gjsify`, not the engine or the harness.
 4. **`@gjsify/http` request-header propagation + throw-in-callback fatality** (gap 4), and **`@gjsify/net`'s close/connect event ordering** (gap 3).

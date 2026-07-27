@@ -20,25 +20,61 @@
 // returning the same shape GJS does — they exist so GJS source that calls them
 // keeps running unmodified, not to reproduce SpiderMonkey internals.
 
+// The RUNTIME's own `process`, bound ONCE at module evaluation.
+//
+// `globalThis.process` is NOT a safe source for this module: a GJS program run
+// through the reverse bridge routinely installs the gjsify `@gjsify/process`
+// polyfill over it (`@gjsify/node-globals/register` defines it unconditionally),
+// and that polyfill's `exit()` takes its GJS path whenever `imports.system.exit`
+// exists — i.e. it delegates back into THIS module. Reading `globalThis.process`
+// in `exit()` closes that loop into an infinite, GLib-idle-driven recursion
+// (exit → polyfill → system.exit → polyfill → …) that spins at 100 % CPU and
+// never terminates. `getBuiltinModule('node:process')` (Node ≥ 22.3 / Bun /
+// Deno 2) returns the real builtin regardless of what the global currently is;
+// the module-evaluation capture is the fallback for hosts without it — this
+// module is loaded from `@gjsify/node-gi/globals`, before any bundle body (and
+// therefore before any register side effect) runs.
+const runtimeProcess = (() => {
+  const hostProcess = typeof process !== 'undefined' ? process : undefined;
+  try {
+    const builtin = hostProcess?.getBuiltinModule?.('node:process');
+    if (builtin && typeof builtin.exit === 'function') return builtin;
+  } catch {
+    // getBuiltinModule missing or refusing the specifier — use the captured one.
+  }
+  return hostProcess;
+})();
+
+const runtimeExit = typeof runtimeProcess?.exit === 'function' ? runtimeProcess.exit.bind(runtimeProcess) : undefined;
+
 // `programArgs` mirrors GJS's ARGV: the script arguments, excluding the
 // interpreter (argv[0]) and the script path (argv[1]).
 function readProgramArgs() {
-  return typeof process !== 'undefined' && Array.isArray(process.argv) ? process.argv.slice(2) : [];
+  return Array.isArray(runtimeProcess?.argv) ? runtimeProcess.argv.slice(2) : [];
 }
 
 // `programInvocationName` / `programPath` track the running script — Node's
 // `process.argv[1]`.
 function readProgramInvocationName() {
-  return (typeof process !== 'undefined' && process.argv[1]) || '';
+  return runtimeProcess?.argv?.[1] || '';
 }
 
 function readProgramPath() {
-  return (typeof process !== 'undefined' && process.argv[1]) || null;
+  return runtimeProcess?.argv?.[1] || null;
 }
 
-/** Exit the process (GJS `System.exit`). */
+/**
+ * Exit the process (GJS `System.exit`).
+ *
+ * Terminal by contract: under gjs this is the `exit()` syscall — it never
+ * returns and nothing a program installs can intercept it. The Node/Bun/Deno
+ * equivalent is the RUNTIME's own `process.exit`, resolved above; routing
+ * through `globalThis.process` instead is what produced the never-exiting
+ * reverse-bridge process (see the `runtimeProcess` note and
+ * `conformance/programs/system-exit-lifetime.conf.mjs`).
+ */
 export function exit(code) {
-  if (typeof process !== 'undefined') process.exit(code ?? 0);
+  if (runtimeExit !== undefined) runtimeExit(code ?? 0);
 }
 
 /** Trigger a garbage collection if the host exposed `globalThis.gc` (`--expose-gc`). */
