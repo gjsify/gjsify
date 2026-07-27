@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.24.0](https://github.com/gjsify/gjsify/compare/v0.23.0...v0.24.0) (2026-07-27)
+
+### Features
+
+* **audit:** check the headless package contract ([10562d3](https://github.com/gjsify/gjsify/commit/10562d3d9ea1779405187f7a5c4abf07ae5e8cf2)), closes [#821](https://github.com/gjsify/gjsify/issues/821)
+* **cli:** refuse a --app gjs bundle with bare node: imports ([429fbcd](https://github.com/gjsify/gjsify/commit/429fbcd8f6bc0b60fff6f3c0401aad964ce1f4c4))
+
+### Bug Fixes
+
+* **cli:** default showcase runtime to gjs ([e35f53a](https://github.com/gjsify/gjsify/commit/e35f53a632755aba7fd0267dfc186a403d90f309))
+* **cli:** read the module graph, not the text, in the gjs guard ([6601e13](https://github.com/gjsify/gjsify/commit/6601e13c5eed14372634c769756b7753cacdf39a))
+* **cli:** rebuild the GJS bundle with the polyfills resolved ([470d5c3](https://github.com/gjsify/gjsify/commit/470d5c31653d83dc43792d7135d2633a8e8599a5))
+* **lint:** clear the 23 oxlint errors ([3cc1db7](https://github.com/gjsify/gjsify/commit/3cc1db7ff28ded39ac1aeaa0bbdb25f1b3e4ce6f))
+* **lint:** drop the useless spread fallback ([3993568](https://github.com/gjsify/gjsify/commit/39935684a9fad56ebb7dc4ca57a1ad51eff1646a)), closes [#829](https://github.com/gjsify/gjsify/issues/829)
+* **napi:** gate the P0.0 teardown probes ([0a05763](https://github.com/gjsify/gjsify/commit/0a05763ba9545730f4a829f40ce8440d28257886))
+* **napi:** sharpen the tsfn teardown join warning ([e65ade3](https://github.com/gjsify/gjsify/commit/e65ade31d9f792af6732952b4d623e7f6a658e0c)), closes [pre-#809](https://github.com/gjsify/pre-/issues/809) [#809](https://github.com/gjsify/gjsify/issues/809)
+* never alias gjsify's own virtual modules ([ca18773](https://github.com/gjsify/gjsify/commit/ca18773e1ba179eb2cf5eade3738a1de86977b02))
+* **node-gi:** copy a transfer-full boxed IN arg ([9574f8e](https://github.com/gjsify/gjsify/commit/9574f8e05e3b44081c809dd6f26e2e03fd69b6ef))
+* **node-gi:** make System.exit terminal again ([cbf7d42](https://github.com/gjsify/gjsify/commit/cbf7d4234b2fb2261e5975fb4007de3176f1d0ec))
+* **node-gi:** read a G_TYPE_STRV property as string[] ([5dd4c67](https://github.com/gjsify/gjsify/commit/5dd4c671a0abb2c9ebbfa0854b448fab49b0060c))
+* **node-gi:** stage a suite's test/ assets, not only fixtures/ ([9d88436](https://github.com/gjsify/gjsify/commit/9d88436a2c0ebcff3905605e08e6eb8cdd724fd4)), closes [#819](https://github.com/gjsify/gjsify/issues/819)
+* **oxfmt-native:** patch oxc_allocator to the refs copy ([#827](https://github.com/gjsify/gjsify/issues/827)) ([95b2702](https://github.com/gjsify/gjsify/commit/95b2702fe602d9251ac66702a7dd293bfcafb722))
+* **prebuilds:** stage + load-test the macOS sibling cdylib ([a56baca](https://github.com/gjsify/gjsify/commit/a56bacacbec083c6cf7a530d22d008af256e3f60)), closes [#812](https://github.com/gjsify/gjsify/issues/812)
+* **release:** bootstrap the bundler facade before building napi ([748e722](https://github.com/gjsify/gjsify/commit/748e722e99e1c2ed5a5a261f4da56f1e48d841b9))
+* **resolve-npm:** route partial browser aliases to the platform entry ([d2d9883](https://github.com/gjsify/gjsify/commit/d2d9883ae384b036c9e6143ff12c7cb9438a2c24))
+* **showcases:** declare runtimes that match artifacts ([65cbf3e](https://github.com/gjsify/gjsify/commit/65cbf3e286724b95ee0b561d8bedf6bae158c437))
+* **website:** build adwaita-web's workspace deps for the docs site ([7fe6225](https://github.com/gjsify/gjsify/commit/7fe6225e3c607461bc7fd071376340c9a5c51b2e)), closes [#812](https://github.com/gjsify/gjsify/issues/812) [#812](https://github.com/gjsify/gjsify/issues/812)
+
+### Performance Improvements
+
+* **lightningcss-native:** reuse one Engine ([743ec82](https://github.com/gjsify/gjsify/commit/743ec820269ea87af709a977f84af1f577d260b0))
+
+### Documentation
+
+* **agents:** record the enforced lint contract ([4277ffa](https://github.com/gjsify/gjsify/commit/4277ffa1002ebe3753d54190ff0d20d872395902))
+* **ci:** widen the quoted native-leg timing ([68b664f](https://github.com/gjsify/gjsify/commit/68b664fbc7a2870c548cf8bc49f08ad1fa4a839b))
+* record the PR coverage parity rules ([b3c4108](https://github.com/gjsify/gjsify/commit/b3c41081cd0c6b251b91c03d51ff7ee03aecaab5))
+* record the prebuilds PR leg ([17d2f38](https://github.com/gjsify/gjsify/commit/17d2f388da42e26f98839092a5fc80a791c52153))
+* record why ten browser slots stay partial ([ac7487f](https://github.com/gjsify/gjsify/commit/ac7487fae8813cf375e4ccf1f737e7429ef01ccc))
+* **status:** track the unpromoted darwin rolldown leg ([b23c7ab](https://github.com/gjsify/gjsify/commit/b23c7ab730cfc6b9459ade37786266308c68d9db))
+* the slot-routing second pass is composition ([8c2a0c7](https://github.com/gjsify/gjsify/commit/8c2a0c7429f57dd4f346b924ff687111dca5ab13))
+
+### Code Refactoring
+
+* **prebuilds:** use one <os>-<arch> spelling ([4b43fed](https://github.com/gjsify/gjsify/commit/4b43fed6cb9da09183ba290abf592421374641b9))
+
+### Build System
+
+* **cli:** rebuild bundles for the browser alias fix ([a338000](https://github.com/gjsify/gjsify/commit/a338000a90c3d0a584008664e7c85fead1870818)), closes [#821](https://github.com/gjsify/gjsify/issues/821)
+* **hooks:** rebuild CLI bundle on plugin edits ([b4a2a5a](https://github.com/gjsify/gjsify/commit/b4a2a5afa60a382bf31fdf251a766d3d817269ee))
+* rebuild the committed GJS bundles ([b01f5bc](https://github.com/gjsify/gjsify/commit/b01f5bcd0c983b4891ee9122f488796a4b89f760))
+* **tsc:** rebuild the bundle for the lint fix ([dfcf6b4](https://github.com/gjsify/gjsify/commit/dfcf6b4483bd6f2765a3c9b8f93d42286b9e0dc0)), closes [#829](https://github.com/gjsify/gjsify/issues/829) [#828](https://github.com/gjsify/gjsify/issues/828)
+
+### Continuous Integration
+
+* build the CI Fedora image on pull requests ([4c8d95e](https://github.com/gjsify/gjsify/commit/4c8d95e9aef8e24f9119d9b25293191d360ed58a))
+* **cli:** gate binshim unconditionally ([9107c5b](https://github.com/gjsify/gjsify/commit/9107c5b0c904f5e2df1bf82eac347573fe21f9c1))
+* **docs:** build the docs site on pull requests ([7cf9765](https://github.com/gjsify/gjsify/commit/7cf9765b966185b500888638c845fd6de9645c95)), closes [#812](https://github.com/gjsify/gjsify/issues/812) [#812](https://github.com/gjsify/gjsify/issues/812)
+* echo the prebuild coverage note to the job log ([379bf31](https://github.com/gjsify/gjsify/commit/379bf313770f85ec1ff7672a5b2b3a45d5b27d85))
+* gate gjsify lint on errors in the check job ([858da58](https://github.com/gjsify/gjsify/commit/858da580cad5d523b0b61854fec8a1cca30df9dc))
+* give the docs job the nofile ulimit setup needs ([247e4b5](https://github.com/gjsify/gjsify/commit/247e4b5e787595837ef8bebc9c2bf8995770f36e))
+* **napi:** survive the window between bump and publish ([bd9f040](https://github.com/gjsify/gjsify/commit/bd9f04079653bae5a8bc69c1150f4f35f7321c51))
+* **node-gi:** the headless-core Gdk violation is fixed ([3cf90e6](https://github.com/gjsify/gjsify/commit/3cf90e6708c194e1728a6e277c70e4edbaada0cd))
+* run prebuild build legs on pull requests ([5b5635e](https://github.com/gjsify/gjsify/commit/5b5635e2ae0874de3d96e17b204290882d7934ba))
+* summarise what a run did and did not check ([0664a93](https://github.com/gjsify/gjsify/commit/0664a93080b7ebb50e93c8b176d05f3935ef2a8a))
+* verify committed bundles against source ([28c9166](https://github.com/gjsify/gjsify/commit/28c9166b8d3d9a769c72a1e5d9118d15b09be621)), closes [#825](https://github.com/gjsify/gjsify/issues/825) [#821](https://github.com/gjsify/gjsify/issues/821)
+* widen the PR leg to every Linux target ([4323f28](https://github.com/gjsify/gjsify/commit/4323f28976a209075944fe74577f5b9c43af9f9f))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([a790171](https://github.com/gjsify/gjsify/commit/a79017118c237bb3a65a054ef1814b0f03e84a9a))
+* update native prebuilds [skip ci] ([56719b2](https://github.com/gjsify/gjsify/commit/56719b21e02e0323dcd8e0ddf1aad89ad5605302))
+* update native prebuilds [skip ci] ([dfdf0e7](https://github.com/gjsify/gjsify/commit/dfdf0e7af2a054c651e15cd83e112bf9ecca1f1e))
+* update native prebuilds [skip ci] ([6120dcd](https://github.com/gjsify/gjsify/commit/6120dcdfc26c53e6144115ff17e956fbad2fac22))
+
+### Tests
+
+* **e2e:** pin the prebuild sibling-resolution guard ([26a0b5d](https://github.com/gjsify/gjsify/commit/26a0b5da9f728e71078e94d8616748a71eb2b70d))
+
 ## [0.23.0](https://github.com/gjsify/gjsify/compare/v0.22.0...v0.23.0) (2026-07-26)
 
 ### Features
