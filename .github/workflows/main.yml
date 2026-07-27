@@ -313,6 +313,32 @@ jobs:
             fi
           '"
 
+      # A build that exits 0 is not evidence that it WROTE anything. `gjsify
+      # tsc` on a `composite`/`incremental` project whose `.tsbuildinfo`
+      # outlived its output tree considers the project up to date, emits
+      # nothing, and exits 0 (#67, reproduced in `@gjsify/adwaita-core`: with a
+      # stale `tmp/.tsbuildinfo` present `lib/types/` was never created; deleting
+      # the build info made the same command emit it). The package then publishes
+      # a `types` entry point that does not exist and consumers hit TS7016.
+      #
+      # Nothing else in the pipeline can see that: `check` type-checks SOURCES
+      # and never looks at `lib/`; the build cache restores per output unit, so
+      # a tree missing a unit is a HIT; and `gjsify pack`'s type-shipping guard
+      # (#655) deliberately does NOT fire on an ABSENT declaration, because an
+      # unbuilt dev tree must still pack.
+      #
+      # WHY HERE: this is a POST-condition on a built tree, and `build` is the
+      # only job that has one. It runs right after `Build` — before `Verify
+      # committed bundles`, which rebuilds parts of the tree and restores
+      # artifacts around itself. Cheap (stat-only, no rebuild), so no job that
+      # merely restores the build cache needs to repeat it.
+      #
+      # Both build paths above leave a complete tree: FULL builds everything,
+      # and the selective path only runs when the cache probe found a warm
+      # baseline for the unchanged forward-deps.
+      - name: Verify declared package outputs exist
+        run: su testuser -c 'node scripts/verify-package-outputs.mjs'
+
       # The committed GJS bundles must match their SOURCE, not just report the
       # expected version string. gjsify-setup's version check runs the bundle
       # and compares `--version` — a bundle built from OLD source passes that,

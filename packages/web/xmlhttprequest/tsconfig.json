@@ -7,6 +7,19 @@
     "experimentalDecorators": true,
     "outDir": "lib",
     "rootDir": "src",
+    // `build:gjsify` (rolldown) owns `lib/esm`, `build:types` (tsc) owns
+    // `lib/types` — the layout this package's `types` / `exports[*].types`
+    // have always declared, and the one ~100 sibling packages emit. Without
+    // `declarationDir` tsc wrote `lib/index.d.ts` + `lib/register.d.ts`
+    // instead, so `lib/types/index.d.ts` was never produced for ANYONE:
+    // @gjsify/xmlhttprequest@0.23.0 ships that dangling `types` pointer and
+    // every TypeScript consumer gets TS7016. Without `emitDeclarationOnly`
+    // tsc ALSO emitted `lib/index.js` next to rolldown's `lib/esm/index.js`
+    // — two JS trees for one entry, the "which one wins depends on
+    // tsbuildinfo state" hazard packages/infra/workspace already documents.
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationDir": "lib/types",
     "composite": true,
     "skipLibCheck": true,
     "allowJs": true,
