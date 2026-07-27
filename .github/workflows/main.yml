@@ -133,6 +133,11 @@ jobs:
       fedora-matrix: ${{ steps.plan.outputs.fedora-matrix }}
       macos-matrix: ${{ steps.plan.outputs.macos-matrix }}
       macos-enabled: ${{ steps.plan.outputs.macos-enabled }}
+      # Human-readable twin of `macos-enabled`, emitted by the SAME branch that
+      # decides it. The `ci-summary` job prints it verbatim so the reason a leg
+      # was skipped lives in exactly one place — next to the decision — instead
+      # of being restated (and eventually contradicted) by the reporter.
+      macos-reason: ${{ steps.plan.outputs.macos-reason }}
     steps:
       - id: plan
         env:
@@ -162,9 +167,11 @@ jobs:
           # in (for a change that touches a per-platform module).
           if [ "$EVENT" = "pull_request" ] && [ "$MACOS_LABEL" != "true" ]; then
             echo 'macos-enabled=false' >> "$GITHUB_OUTPUT"
+            echo 'macos-reason=pull_request without the `ci:macos` label (macOS runners bill at 10x) — add the label to opt this PR in' >> "$GITHUB_OUTPUT"
             echo "[ci] macOS leg: skipped (pull_request without the ci:macos label)"
           else
             echo 'macos-enabled=true' >> "$GITHUB_OUTPUT"
+            echo "macos-reason=enabled for event '$EVENT'" >> "$GITHUB_OUTPUT"
             echo "[ci] macOS leg: enabled ($EVENT)"
           fi
 
@@ -995,6 +1002,145 @@ jobs:
             tests/browser/test-results
           retention-days: 7
           if-no-files-found: ignore
+
+  # ── Coverage summary ────────────────────────────────────────────────
+  # Answers the question a green PR does NOT answer on its own: what did this
+  # run actually check, and what did it deliberately NOT check?
+  #
+  # This workflow is full of deliberate PR cost controls — the affected
+  # classifier, the `ci:macos` label gate, the per-tier `if:` gates — and every
+  # one of them turns a job into a silent no-show. Read naively, "all checks
+  # passed" then means "everything we run passed", not "everything passed", and
+  # the difference is where a post-merge red comes from.
+  #
+  # Everything printed here is DERIVED, never restated:
+  #   - the per-job rows are `needs.<job>.result`, i.e. GitHub's own evaluation
+  #     of each job's `if:`. A gate that changes cannot desync from this.
+  #   - the "why" values are the gating jobs' OWN outputs (`changes.outputs.*`
+  #     from the classifier, `setup.outputs.macos-*` from the matrix planner),
+  #     printed verbatim.
+  #   - the cross-workflow table is the repo's active workflow list minus the
+  #     workflows GitHub actually created a run for at this commit.
+  # There is deliberately no hand-maintained "things we skip" list anywhere in
+  # this job; such a list is exactly the artefact that drifts and then lies.
+  #
+  # Never gates. Its output is the step summary, not its exit code.
+  ci-summary:
+    name: CI coverage summary
+    needs: [setup, changes, build, check, test, cross-runtime, macos, e2e, examples, browser]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # For the cross-workflow coverage query below.
+      actions: read
+    timeout-minutes: 10
+    steps:
+      - name: Summarise what ran and what did not
+        shell: bash
+        env:
+          # Every value is passed through the environment and quoted at use.
+          # `include-args` in particular is built from workspace package names,
+          # which on a fork PR are attacker-authored text.
+          EVENT: ${{ github.event_name }}
+          R_SETUP: ${{ needs.setup.result }}
+          R_CHANGES: ${{ needs.changes.result }}
+          R_BUILD: ${{ needs.build.result }}
+          R_CHECK: ${{ needs.check.result }}
+          R_TEST: ${{ needs.test.result }}
+          R_CROSS: ${{ needs.cross-runtime.result }}
+          R_MACOS: ${{ needs.macos.result }}
+          R_E2E: ${{ needs.e2e.result }}
+          R_EXAMPLES: ${{ needs.examples.result }}
+          R_BROWSER: ${{ needs.browser.result }}
+          C_SKIP_ALL: ${{ needs.changes.outputs.skip-all }}
+          C_GLOBAL: ${{ needs.changes.outputs.global }}
+          C_INCLUDE: ${{ needs.changes.outputs.include-args }}
+          C_INTEGRATION: ${{ needs.changes.outputs.run-integration }}
+          C_E2E: ${{ needs.changes.outputs.run-e2e }}
+          C_REASON: ${{ needs.changes.outputs.reason }}
+          M_ENABLED: ${{ needs.setup.outputs.macos-enabled }}
+          M_REASON: ${{ needs.setup.outputs.macos-reason }}
+        run: |
+          set -u
+          {
+            echo "## What this run checked"
+            echo
+            echo "\`skipped\` is not \`passed\`. Each one is a deliberate cost control firing;"
+            echo "the values under **Why** are what decided it."
+            echo
+            echo "| Job | Result |"
+            echo "| --- | --- |"
+            printf '| Matrix planner (setup) | `%s` |\n'        "$R_SETUP"
+            printf '| Affected classifier (changes) | `%s` |\n' "$R_CHANGES"
+            printf '| Build + examples | `%s` |\n'              "$R_BUILD"
+            printf '| Type-check | `%s` |\n'                    "$R_CHECK"
+            printf '| Unit tests (GJS, 4 shards) | `%s` |\n'    "$R_TEST"
+            printf '| Cross-runtime (node+bun+deno) | `%s` |\n' "$R_CROSS"
+            printf '| macOS GJS suite | `%s` |\n'               "$R_MACOS"
+            printf '| E2E (4 shards) | `%s` |\n'                "$R_E2E"
+            printf '| Examples | `%s` |\n'                      "$R_EXAMPLES"
+            printf '| Browser (Playwright/Firefox) | `%s` |\n'  "$R_BROWSER"
+            echo
+            echo "### Why"
+            echo
+            printf -- '- event: `%s`\n' "$EVENT"
+            printf -- '- classifier: `skip-all=%s` `global=%s` `run-e2e=%s` `run-integration=%s`\n' \
+              "${C_SKIP_ALL:-<unset>}" "${C_GLOBAL:-<unset>}" "${C_E2E:-<unset>}" "${C_INTEGRATION:-<unset>}"
+            printf -- '- classifier reason: `%s`\n' "${C_REASON:-<unset — classifier did not run or crashed; jobs fall back to a full run>}"
+            printf -- '- affected closure: `%s`\n' "${C_INCLUDE:-<empty — treated as a full run>}"
+            printf -- '- macOS leg: `enabled=%s` — %s\n' "${M_ENABLED:-<unset>}" "${M_REASON:-<unset>}"
+            echo "- integration suites (\`tests/integration/**\`) are not wired into any"
+            echo "  workflow yet — they run on no event, PR or main. Tracked in STATUS.md."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Cross-workflow coverage: which of this repo's workflows produced NO run
+      # for this commit? Derived from GitHub's own trigger evaluation, so a new
+      # main-only workflow shows up here the day it is added — no list to keep.
+      #
+      # A row is not automatically a bug: `release.yml` is post-merge by
+      # definition. It is the place to notice the ones that are not.
+      - name: Report workflows with no run for this commit
+        shell: bash
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          # For `pull_request` the run's head_sha may be recorded as either the
+          # merge commit or the PR head, depending on the triggering event, so
+          # both are queried and the results unioned.
+          SHA_A: ${{ github.sha }}
+          SHA_B: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          all=$(mktemp); ran=$(mktemp)
+          if ! gh api "repos/$REPO/actions/workflows" --paginate \
+                 --jq '.workflows[] | select(.state == "active") | [.path, .name] | @tsv' \
+                 | sort -u > "$all"; then
+            echo "> Could not list workflows (\`actions: read\` unavailable?) — cross-workflow coverage not reported." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          : > "$ran"
+          for sha in "$SHA_A" "$SHA_B"; do
+            [ -n "$sha" ] || continue
+            gh api "repos/$REPO/actions/runs?head_sha=$sha&per_page=100" \
+              --jq '.workflow_runs[].path' >> "$ran" 2>/dev/null || true
+          done
+          sort -u -o "$ran" "$ran"
+          {
+            echo "### Workflows with no run for this commit"
+            echo
+            echo "| Workflow | File |"
+            echo "| --- | --- |"
+            awk -F'\t' 'NR==FNR { seen[$0]=1; next } !($1 in seen) { printf("| %s | `%s` |\n", $2, $1) }' \
+              "$ran" "$all"
+            echo
+            echo "_Derived by comparing the repo's active workflows against the runs GitHub"
+            echo "created for this commit — not a maintained list._"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Integration tests are NOT wired into CI yet (opt-in; suites have
   # CI-incompatible preconditions). The classifier still emits run-integration
