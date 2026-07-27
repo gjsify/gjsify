@@ -10,6 +10,14 @@ description: >
   the repo (incl. this file) is on disk.
 
 
+  The calling job must NOT declare `container.credentials`. The
+  `ghcr.io/gjsify/ci-fedora` image is public and is pulled anonymously, which
+  is what gives fork pull requests any CI at all: a fork's `GITHUB_TOKEN`
+  cannot authenticate against the org's package registry, so a `credentials:`
+  block makes every container job fail before its first step for exactly the
+  contributors who most need the feedback.
+
+
   The calling job MUST ALSO declare `container.options: --ulimit
   nofile=1048576:1048576`. "Create non-root user" below raises testuser's
   `nofile` in `/etc/security/limits.conf`, and `pam_limits` refuses to open a
