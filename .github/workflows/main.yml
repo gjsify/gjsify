@@ -312,6 +312,36 @@ jobs:
             fi
           '"
 
+      # The committed GJS bundles must match their SOURCE, not just report the
+      # expected version string. gjsify-setup's version check runs the bundle
+      # and compares `--version` — a bundle built from OLD source passes that,
+      # which is exactly how the browser-alias fix merged with a stale
+      # `dist/cli.gjs.mjs` (fix present in `lib/index.mjs`, absent from the
+      # bundle) while CI stayed green; #825 had to rebuild it afterwards.
+      #
+      # WHY HERE, and only here:
+      #   • ONE job. The rebuild is the expensive part; doing it in test/e2e/
+      #     check too would buy nothing. `build` is the only job that already
+      #     has a built workspace, which the bundle build resolves its deps
+      #     from — so this is the cheapest place that can do it at all.
+      #   • AFTER `Build`, so the deps' `lib/` is current. It does NOT depend on
+      #     `Build` having produced the bundles: the script rebuilds every one
+      #     of them itself, because the selective path (`gjsify foreach build
+      #     $INCLUDE_ARGS`) never runs `build:gjs-bundle` at all.
+      #   • The expected bytes come from `git show HEAD:<path>`, not the working
+      #     tree — `gjsify run build` ends in `build:gjs-bundle` and rewrites
+      #     those files in place, so a working-tree comparison would compare a
+      #     fresh build against itself and pass without checking anything. That
+      #     also makes it immune to the build-output cache shadowing a tracked
+      #     artifact (the failure mode the "Re-assert committed sources" step in
+      #     gjsify-setup exists for, and which the version check — running
+      #     BEFORE that restore — structurally cannot see).
+      # The script restores the artifacts to their pre-run bytes afterwards, so
+      # the build-output cache saved below is unaffected either way.
+      - name: Verify committed bundles rebuild from source
+        timeout-minutes: 30
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/verify-committed-bundles.mjs'
+
       # Build examples (+ check below) only when an example/showcase is in the
       # closure, e2e will run (its lint-engines suite asserts example dist), or
       # a full run. --jobs 1: native rolldown's --globals auto multi-pass is
