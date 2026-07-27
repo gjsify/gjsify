@@ -148,6 +148,16 @@ jobs:
         working-directory: packages/napi/napi
         run: npm run test:gate:p1
 
+      # Per-claim owner attribution at env teardown. MEASURES the teardown cost
+      # of each claim-owner shape (the case script prints CLOCK_MONOTONIC at its
+      # last statement; the driver reads the same clock at child exit), so a
+      # regression shows up as a number, not a hang: a claim nothing can hand
+      # back must NOT cost the 2 s join, while a claim a foreign thread really
+      # holds must still be waited for and still warn.
+      - name: Gate — tsfn env-teardown claim attribution
+        working-directory: packages/napi/napi
+        run: npm run test:gate:tsfn-teardown
+
       # Golden-diff conformance oracle: each UNMODIFIED Node N-API test addon
       # (node-gyp) runs on Node (golden REFERENCE) and on GJS-under-shim; stdout
       # must be byte-identical. Strict ledger — an unlisted GJS failure fails the
@@ -554,6 +564,14 @@ jobs:
       - name: Gate P1 — threadsafe functions (tsfn)
         working-directory: packages/napi/napi
         run: GI_TYPELIB_PATH="$PWD/build" DYLD_LIBRARY_PATH="$PWD/build" gjs test/p1-tsfn-gate.js
+
+      # The env-teardown claim-attribution gate belongs on macOS in particular:
+      # this is where freeing a tsfn under a live claim stopped being benign, and
+      # the teardown path now hands the struct to its last claimant instead of
+      # force-freeing it. The driver picks DYLD_LIBRARY_PATH itself on darwin.
+      - name: Gate — tsfn env-teardown claim attribution
+        working-directory: packages/napi/napi
+        run: npm run test:gate:tsfn-teardown
 
       # Upload the staged darwin-arm64 prebuild (.dylib + .gir + .typelib) so a
       # release can ship prebuilds/darwin-arm64/ alongside linux-x64/.

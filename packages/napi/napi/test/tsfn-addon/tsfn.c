@@ -9,12 +9,18 @@
 // pushing (the closing push consumes the caller's claim — Node semantics).
 // Every queued item is malloc'd and freed in call_js (including the
 // env==NULL teardown drain), so valgrind proves the queue never leaks.
+//
+// It also exports three ENV-TEARDOWN shapes (holdSelf / holdForeign /
+// holdDraining) that deliberately leave claims outstanding at env teardown, one
+// per claim-owner class — the fixtures for test/tsfn-teardown-gate.mjs.
 
 #include <node_api.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdatomic.h>
 #include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
 static atomic_long g_delivered = 0;  // call_js with a live env
 static atomic_long g_dropped = 0;    // call_js with env == NULL (abort drain)
@@ -242,6 +248,106 @@ static napi_value CallPair(napi_env env, napi_callback_info info) {
   return result;
 }
 
+// ---- teardown-shape entry points (test/tsfn-teardown-gate.mjs) ----
+//
+// Three tsfns that are STILL ALIVE when the env tears down, one per claim-owner
+// shape. They deliberately violate the "release every claim before teardown"
+// rule — that is the whole point: the shim has to tell the shapes apart.
+
+// A worker that proves it owns a claim (one push) and then parks forever
+// without ever releasing it: a foreign claim that can never be handed back.
+static void* ParkWorker(void* arg) {
+  WorkerArgs* w = arg;
+  int* item = malloc(sizeof(int));
+  *item = 0;
+  if (napi_call_threadsafe_function(w->tsfn, item, napi_tsfn_nonblocking) !=
+      napi_ok) {
+    free(item);
+  }
+  free(w);
+  for (;;) sleep(3600);
+  return NULL;
+}
+
+// A worker in the canonical Node shutdown shape (refs/node/test/node-api/
+// test_threadsafe_function_shutdown): push in a loop until the env closes the
+// tsfn under it — the napi_closing return consumes the claim, so it drains.
+static void* DrainWorker(void* arg) {
+  WorkerArgs* w = arg;
+  for (;;) {
+    int* item = malloc(sizeof(int));
+    *item = 0;
+    napi_status st =
+        napi_call_threadsafe_function(w->tsfn, item, napi_tsfn_nonblocking);
+    if (st != napi_ok) {
+      free(item);
+      if (st == napi_closing) break;
+    }
+    struct timespec ts = {0, 1000000};  // 1 ms
+    nanosleep(&ts, NULL);
+  }
+  free(w);
+  return NULL;
+}
+
+// holdSelf(cb, push) — ONE initial claim that stays on the JS thread and is
+// never released. `push` makes the JS thread call once first, which PROVES it
+// owns the claim (js_claims); without it the claim stays unattributed. Neither
+// can ever be handed back from inside the env-teardown join.
+static napi_value HoldSelf(napi_env env, napi_callback_info info) {
+  size_t argc = 2;
+  napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  bool push = false;
+  if (argc > 1) napi_get_value_bool(env, argv[1], &push);
+  napi_threadsafe_function tsfn = MakeTsfn(env, argv[0], 0, 1, NULL);
+  if (tsfn == NULL) {
+    napi_throw_error(env, NULL, "create_threadsafe_function failed");
+    return NULL;
+  }
+  if (push) {
+    int* item = malloc(sizeof(int));
+    *item = 0;
+    if (napi_call_threadsafe_function(tsfn, item, napi_tsfn_nonblocking) !=
+        napi_ok) {
+      free(item);
+    }
+  }
+  return NULL;
+}
+
+// holdForeign(cb) — ONE initial claim handed to a worker that pushes once and
+// then parks forever: an ATTRIBUTED foreign claim that never comes back.
+static napi_value HoldForeign(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  napi_threadsafe_function tsfn = MakeTsfn(env, argv[0], 0, 1, NULL);
+  if (tsfn == NULL) {
+    napi_throw_error(env, NULL, "create_threadsafe_function failed");
+    return NULL;
+  }
+  SpawnDetached(ParkWorker, tsfn, 0);
+  return NULL;
+}
+
+// holdDraining(cb, nThreads) — nThreads initial claims, one per worker, each
+// pushing until the teardown close hands its claim back.
+static napi_value HoldDraining(napi_env env, napi_callback_info info) {
+  size_t argc = 2;
+  napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  long threads = GetLongArg(env, argv[1]);
+  napi_threadsafe_function tsfn =
+      MakeTsfn(env, argv[0], 0, (size_t)threads, NULL);
+  if (tsfn == NULL) {
+    napi_throw_error(env, NULL, "create_threadsafe_function failed");
+    return NULL;
+  }
+  for (long i = 0; i < threads; i++) SpawnDetached(DrainWorker, tsfn, 0);
+  return NULL;
+}
+
 // stats() → [delivered, dropped, floodFinalized, spinFinalized]
 static napi_value Stats(napi_env env, napi_callback_info info) {
   (void)info;
@@ -282,6 +388,9 @@ static napi_value Init(napi_env env, napi_value exports) {
   EXPORT("startSpin", StartSpin);
   EXPORT("abortSpin", AbortSpin);
   EXPORT("callPair", CallPair);
+  EXPORT("holdSelf", HoldSelf);
+  EXPORT("holdForeign", HoldForeign);
+  EXPORT("holdDraining", HoldDraining);
   EXPORT("stats", Stats);
   EXPORT("resetStats", ResetStats);
 #undef EXPORT
