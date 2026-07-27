@@ -167,6 +167,8 @@ gjsify run test:gate             # smoke: load a minimal addon under gjs
 gjsify run test:gate:p01         # env + value model + scopes
 gjsify run test:gate:p02         # js_native_api core
 gjsify run test:gate:p03         # wrap + lifetime
+gjsify run test:gate:p1          # threadsafe functions from real foreign pthreads
+gjsify run test:gate:tsfn-teardown  # tsfn env-teardown claim attribution (measured)
 gjsify run test:mem              # valgrind leak/UAF leg for the gates
 
 gjsify run test:conformance      # golden-diff vs Node over node's js-native-api addons
@@ -211,30 +213,51 @@ Anything the shim reports **unconditionally** is a real problem, not a trace: a
 `g_warning`, or the `napi_fatal_error` / unhandled-exception reports. Do not
 silence those.
 
-### `threadsafe-function teardown join timed out`
+### Threadsafe functions still holding claims at env teardown
 
-The one warning an addon can provoke. At env teardown the shim closes every
-still-registered threadsafe function and **joins** it — waits for every
-outstanding claim to be handed back — before freeing it, because freeing under a
-live claim is the use-after-free that crashed macOS at exit (#809). The warning
-fires only when that join hits its 2 s deadline and the shim force-frees anyway,
-i.e. it announces that the UAF window was reopened.
+The warnings an addon can provoke. Both come from `finalize_env_tsfns`
+(`src/cc/tsfn.cc`) and both mean the same contract violation — **a claim that was
+never handed back** — differing only in what the shim could establish about who
+holds it.
 
-It means a claim was never handed back. Either a foreign thread holds one and
-neither calls again (a `napi_closing` return consumes the claim) nor releases,
-or the tsfn was created with an initial claim for the JS thread that nothing
-ever released — and that one can never drain, since the JS thread is the thread
-blocked in the join. **Release every claim before teardown** (an
+At env teardown the shim closes every still-registered threadsafe function, runs
+its JS-side finalization (thread finalizer, `env == NULL` queue drain, function
+ref) and then frees it — but **only if no claim is outstanding**. It never frees
+under a live claim: that is the use-after-free that crashed macOS at exit (#809).
+When claims remain it does what Node's own `MaybeDelete()` does — releases what
+it can and hands the control block to whichever thread returns the last claim,
+which then frees it. If no thread ever does, the control block (a few hundred
+bytes) leaks for the process lifetime. Node behaves identically.
+
+To decide what is worth waiting for, each claim is attributed to an owner from
+facts the shim can observe (`napi_acquire_threadsafe_function` takes a claim on a
+known thread; a `napi_call_threadsafe_function` proves — per the ABI contract —
+that its caller holds one). `initial_thread_count` claims start unattributed,
+because the addon hands them out through memory the shim never sees.
+
+* **`teardown join timed out after 2s with N claim(s) still held by foreign
+  thread(s)`** — a thread other than the JS thread demonstrably holds a claim and
+  then neither called again (a `napi_closing` return consumes the claim) nor
+  released for a full 2 s.
+* **`closed at env teardown with N claim(s) outstanding that nothing can hand
+  back`** — the remainder: claims held by the JS thread itself (which is the
+  thread running the teardown, so they cannot drop) plus claims no thread was
+  ever observed to hold. The message reports the two counts separately rather
+  than guessing; an unattributed claim is named as unattributed.
+
+**Release every claim before teardown** and neither fires (an
 `napi_add_env_cleanup_hook` that calls `napi_release_threadsafe_function(…,
 napi_tsfn_abort)` is the standard shape; it is what `@gjsify/node-gi` does, and
 why it never trips this).
 
-The deadline is not the problem: a genuinely slow drain — eight producer threads
-each dropping their claim on the next push — measures **10–47 µs**, four orders
-of magnitude inside it. An undrainable claim, by contrast, always burns the full
-2 s. Numbers and method are in the comment above `finalize_env_tsfns`
-(`src/cc/tsfn.cc`); `G_MESSAGES_DEBUG=all` prints the measured join time on every
-teardown that waits at all.
+The 2 s deadline is not the problem, and only the first case can reach it: a
+genuinely slow drain — eight producer threads each dropping their claim on the
+next push — measures **tens of µs**, four orders of magnitude inside it. A claim
+nothing can hand back is not joined at all, so it costs nothing.
+`test/tsfn-teardown-gate.mjs` (`gjsify run test:gate:tsfn-teardown`) measures the
+teardown of every claim-owner shape on each run and is the regression guard for
+exactly that; `G_MESSAGES_DEBUG=all` prints the measured join time and the
+disposition on every teardown that had claims to deal with.
 
 ## The mozjs-140 pin
 
