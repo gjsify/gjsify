@@ -93,13 +93,15 @@ Your published package needs:
   `@gjsify/cli`'s install backend walks those automatically and bakes the
   directories it finds into the bin launcher's environment.
 
-  The walk resolves `prebuilds/<os>-<arch>/` for the running host, accepting
-  both spellings in use — uname-style (`linux-x86_64`, what the Vala bridges
-  stage) and node-style (`darwin-arm64`, `win32-x64`, what `@gjsify/node-gi`
-  and `@gjsify/napi` stage) — preferring whatever the package declares in
-  `gjsify.platforms`. The launcher exports `GI_TYPELIB_PATH` plus the
-  library-search variable the host loader reads: `LD_LIBRARY_PATH` on Linux,
-  `DYLD_LIBRARY_PATH` on macOS, `PATH` on Windows.
+  The walk resolves `prebuilds/<os>-<arch>/` for the running host. There is one
+  spelling — `${process.platform}-${process.arch}` (`linux-x64`, `linux-arm64`,
+  `darwin-arm64`, `win32-x64`) — which is exactly what a running process can
+  compute about itself, so nothing has to be translated. A package's own
+  `gjsify.platforms` entry is still probed first, and the retired uname
+  spelling (`linux-x86_64`) is accepted as a fallback so tarballs published
+  before the rename keep loading. The launcher exports `GI_TYPELIB_PATH` plus
+  the library-search variable the host loader reads: `LD_LIBRARY_PATH` on
+  Linux, `DYLD_LIBRARY_PATH` on macOS, `PATH` on Windows.
 
   So the *resolution* is cross-platform. Whether your app runs off Linux still
   depends on whether its native dependencies actually publish an artifact for

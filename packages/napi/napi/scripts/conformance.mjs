@@ -50,7 +50,7 @@ const REFS_SUITES = {
     'js-native-api': join(ROOT, 'refs', 'node', 'test', 'js-native-api'),
     'node-api': join(ROOT, 'refs', 'node', 'test', 'node-api'),
 };
-const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x86_64');
+const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
 
 // A node-api addon that #includes <uv.h> links against libuv threading
 // symbols (uv_thread_create / uv_hrtime), which Node provides from its own

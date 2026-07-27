@@ -111,9 +111,9 @@ const childEnv = { ...process.env, NODE_GI_NATIVE: process.env.NODE_GI_NATIVE ??
 // node-gi's JS).
 const repoRoot = join(pkgRoot, '..', '..', '..'); // packages/node-gi/node-gi → gjsify repo root
 const napiPkg = join(repoRoot, 'packages', 'napi', 'napi');
-// The @gjsify/napi shim prebuild dir uses the `linux-x86_64` uname-style triple
-// (build:prebuilds hardcodes it), NOT Node's `${platform}-${arch}` (`linux-x64`).
-const shimTriple = process.platform === 'linux' && process.arch === 'x64' ? 'linux-x86_64' : `${process.platform}-${process.arch}`;
+// The @gjsify/napi shim prebuild dir is `${platform}-${arch}` on every OS —
+// the single `<os>-<arch>` spelling the whole repo stages and declares.
+const shimTriple = `${process.platform}-${process.arch}`;
 const shimPrebuildDir = join(napiPkg, 'prebuilds', shimTriple);
 const cliEntry = process.env.GJSIFY_CLI_ENTRY || join(repoRoot, 'packages', 'infra', 'cli', 'lib', 'index.js');
 

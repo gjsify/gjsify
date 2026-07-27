@@ -25,8 +25,8 @@ GLib / Gio / Soup 3) that:
 > `@gjsify/oxfmt-native`. The CLI locates prebuilds for whatever host it runs on
 > (and exports `DYLD_LIBRARY_PATH` on macOS / `PATH` on Windows rather than
 > Linux's `LD_LIBRARY_PATH`), but `@gjsify/rolldown-native` — the only bundler
-> engine `gjsify build` has under GJS — currently publishes `linux-x86_64` and
-> `linux-aarch64` only. A **Node-free** GJSify toolchain is therefore still
+> engine `gjsify build` has under GJS — currently publishes `linux-x64` and
+> `linux-arm64` only. A **Node-free** GJSify toolchain is therefore still
 > Linux-only. On macOS and Windows GJSify works with Node installed, using the
 > npm `rolldown` / `lightningcss` / `oxfmt` packages instead. See
 > [Platform Support](/gjsify/platform-support/) for the per-package matrix and

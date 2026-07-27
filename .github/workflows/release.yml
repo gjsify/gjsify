@@ -593,7 +593,7 @@ jobs:
   #
   # WHY NOT `merge-multiple: true` LIKE node-gi: node-gi's two artifacts are
   # disjoint triples under one gitignored `prebuilds/` dir, so flattening them is
-  # safe. Here `prebuilds/linux-x86_64/` is COMMITTED, so the macOS runner's
+  # safe. Here `prebuilds/linux-x64/` is COMMITTED, so the macOS runner's
   # checkout also carries a (possibly stale) copy of it — a merged download could
   # non-deterministically overwrite the freshly built linux .so with the
   # committed one. Each leg therefore uploads only its OWN triple dir and
@@ -606,7 +606,7 @@ jobs:
   # `--exclude '@gjsify/napi'` to the `npm:publish` script's `gjsify foreach` so
   # the ubuntu job keeps skipping it.
   napi-prebuild-linux:
-    name: Build @gjsify/napi linux-x86_64 prebuild
+    name: Build @gjsify/napi linux-x64 prebuild
     needs: publish
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
     runs-on: ubuntu-latest
@@ -642,14 +642,14 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/
-          echo "staged: $(ls -1 prebuilds/linux-x86_64)"
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x64/
+          echo "staged: $(ls -1 prebuilds/linux-x64)"
 
-      - name: Upload the linux-x86_64 prebuild artifact
+      - name: Upload the linux-x64 prebuild artifact
         uses: actions/upload-artifact@v4
         with:
-          name: napi-prebuild-linux-x86_64
-          path: packages/napi/napi/prebuilds/linux-x86_64
+          name: napi-prebuild-linux-x64
+          path: packages/napi/napi/prebuilds/linux-x64
           if-no-files-found: error
 
   # macOS arm64 leg. Homebrew ships the SAME gjs 1.88.x <-> spidermonkey
@@ -758,11 +758,11 @@ jobs:
       # plain-dir entry recursively — so every triple present on disk ships).
       # Downloaded first so a missing artifact fails before the multi-minute
       # workspace install below.
-      - name: Download the linux-x86_64 prebuild
+      - name: Download the linux-x64 prebuild
         uses: actions/download-artifact@v4
         with:
-          name: napi-prebuild-linux-x86_64
-          path: packages/napi/napi/prebuilds/linux-x86_64
+          name: napi-prebuild-linux-x64
+          path: packages/napi/napi/prebuilds/linux-x64
 
       - name: Download the darwin-arm64 prebuild
         uses: actions/download-artifact@v4
@@ -773,9 +773,9 @@ jobs:
       - name: Confirm both prebuilds are staged
         run: |
           set -eu
-          ls -la packages/napi/napi/prebuilds/linux-x86_64 packages/napi/napi/prebuilds/darwin-arm64
-          test -f packages/napi/napi/prebuilds/linux-x86_64/libgjsifynapi.so
-          test -f packages/napi/napi/prebuilds/linux-x86_64/GjsifyNapi-1.0.typelib
+          ls -la packages/napi/napi/prebuilds/linux-x64 packages/napi/napi/prebuilds/darwin-arm64
+          test -f packages/napi/napi/prebuilds/linux-x64/libgjsifynapi.so
+          test -f packages/napi/napi/prebuilds/linux-x64/GjsifyNapi-1.0.typelib
           test -f packages/napi/napi/prebuilds/darwin-arm64/libgjsifynapi.dylib
           test -f packages/napi/napi/prebuilds/darwin-arm64/GjsifyNapi-1.0.typelib
 

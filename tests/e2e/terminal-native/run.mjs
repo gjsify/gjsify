@@ -18,7 +18,7 @@ import { resolve, dirname } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GJS_BUNDLE = resolve(__dirname, 'dist/probe.gjs.mjs');
-const PREBUILD_DIR = resolve(__dirname, '../../../packages/node/terminal-native/prebuilds/linux-x86_64');
+const PREBUILD_DIR = resolve(__dirname, '../../../packages/node/terminal-native/prebuilds/linux-x64');
 
 function runProbe(withCore) {
     const env = { ...process.env };

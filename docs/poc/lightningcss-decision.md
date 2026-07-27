@@ -76,7 +76,7 @@ Three real-world cases keep WASM in tree as a fallback:
 ## Open follow-ups
 
 - [ ] Wire selection logic into `packages/infra/rolldown-plugin-gjsify/src/plugins/css-as-string.ts` — `try { native } catch { wasm } catch { npm lightningcss }`.
-- [ ] Extend `.github/workflows/prebuilds.yml` to build `@gjsify/lightningcss-native` for all five arches the other native packages cover (linux-{x86_64,aarch64,ppc64,s390x,riscv64}).
+- [ ] Extend `.github/workflows/prebuilds.yml` to build `@gjsify/lightningcss-native` for all five arches the other native packages cover (linux-{x64,arm64,ppc64,s390x,riscv64}).
 - [ ] Add `tests/integration/lightningcss/` running both backends against the same fixture set, asserting byte-identical output (regression-protect the byte-equality property the decision rests on).
 - [ ] Phase B: CSS modules + `analyzeDependencies` + `pseudoClasses` rewrites — both backends today only expose the warm-up subset.
 

@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 # 1) Ensure the addons are built (node-gyp) — idempotent/cached.
 node scripts/conformance.mjs --build-only >/dev/null
 
-PRE=prebuilds/linux-x86_64
+PRE=prebuilds/linux-x64
 VG="valgrind --tool=memcheck --leak-check=no --error-exitcode=42 --errors-for-leak-kinds=none"
 LOG=/tmp/conformance-mem.vg.log
 

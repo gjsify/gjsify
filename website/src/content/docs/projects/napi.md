@@ -47,7 +47,7 @@ The full synchronous N-API surface is implemented, plus the async / threadsafe-f
 
 ### Platforms
 
-Prebuilt and CI-validated on **Linux (x86_64)** and **macOS (arm64)** — the same GJS + mozjs-140 pairing on both, with the full load / value-model / threadsafe-function gates green. Both prebuilds are rebuilt from the released source on every release and ship inside the npm tarball (`prebuilds/linux-x86_64/`, `prebuilds/darwin-arm64/` — each a `.so`/`.dylib` plus its `.gir` and `.typelib`). **Windows** is groundwork-only: the loader and build wiring exist behind a manual CI job, but it is blocked upstream — no prebuilt `libgjs` for Windows exists yet (the shim links GJS's SpiderMonkey, so it needs a Windows `libgjs` the ecosystem doesn't ship). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the platform matrix.
+Prebuilt and CI-validated on **Linux (x86_64)** and **macOS (arm64)** — the same GJS + mozjs-140 pairing on both, with the full load / value-model / threadsafe-function gates green. Both prebuilds are rebuilt from the released source on every release and ship inside the npm tarball (`prebuilds/linux-x64/`, `prebuilds/darwin-arm64/` — each a `.so`/`.dylib` plus its `.gir` and `.typelib`). **Windows** is groundwork-only: the loader and build wiring exist behind a manual CI job, but it is blocked upstream — no prebuilt `libgjs` for Windows exists yet (the shim links GJS's SpiderMonkey, so it needs a Windows `libgjs` the ecosystem doesn't ship). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) for the platform matrix.
 
 ## Not a replacement for `gi://`
 

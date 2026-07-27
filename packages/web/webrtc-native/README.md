@@ -19,8 +19,8 @@ The `@gjsify/webrtc-native` prebuild (`.so` + `.typelib`) is loaded automaticall
 
 | Platform | Prebuild | Built by |
 |---|---|---|
-| `linux-x86_64` | ✅ `.so` + `.typelib` | native runner |
-| `linux-aarch64` | ✅ | native runner |
+| `linux-x64` | ✅ `.so` + `.typelib` | native runner |
+| `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
 | macOS (`darwin-arm64` / `darwin-x64`) | ❌ | **unverified, see below** |
 | Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |

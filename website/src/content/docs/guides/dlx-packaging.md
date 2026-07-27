@@ -102,10 +102,10 @@ Layout:
 
 ```
 prebuilds/
-  linux-x86_64/
+  linux-x64/
     libfoo.so
     Foo-1.0.typelib
-  linux-aarch64/
+  linux-arm64/
     libfoo.so
     Foo-1.0.typelib
 ```

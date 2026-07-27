@@ -30,12 +30,16 @@ npx @gjsify/cli info dist/index.js
 ## Native prebuilds
 
 Packages that ship compiled artifacts declare them with
-`"gjsify": { "prebuilds": "prebuilds", "platforms": ["linux-x86_64", "darwin-arm64", …] }`
+`"gjsify": { "prebuilds": "prebuilds", "platforms": ["linux-x64", "darwin-arm64", …] }`
 and stage them under `prebuilds/<os>-<arch>/`. `run`, `info`, `tsc` and the bin launchers
-`install` writes all resolve that directory for the running host, accepting both spellings
-in use — uname-style (`linux-x86_64`, staged by the Vala/meson bridges) and node-style
-(`linux-x64`, `darwin-arm64`, `win32-x64`, staged by `@gjsify/node-gi` and `@gjsify/napi`) —
-and prefer whatever the package declares in `gjsify.platforms`.
+`install` writes all resolve that directory for the running host.
+
+There is ONE `<os>-<arch>` spelling: `${process.platform}-${process.arch}` — `linux-x64`,
+`linux-arm64`, `darwin-arm64`, `win32-x64`. It is what a running process can compute about
+itself, so resolution needs no translation. (`ppc64`, `s390x` and `riscv64` are spelled the
+same in every vocabulary.) The resolver still probes a package's own `gjsify.platforms`
+entry first, and falls back to the retired uname spelling (`linux-x86_64`), so a tarball
+published before the rename keeps loading.
 
 The environment they export is `GI_TYPELIB_PATH` plus the library-search variable the host's
 dynamic loader actually reads:

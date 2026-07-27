@@ -1369,19 +1369,30 @@ function auditTiers(published) {
 // `gjsify.runtimes`, and the checks below keep the promise, the committed
 // artifacts and the CI that produces them from drifting apart.
 
-const PLATFORM_RE = /^(linux|darwin|win32)-(x86_64|x64|aarch64|arm64|ppc64|s390x|riscv64)$/;
+// There is exactly ONE spelling for a target: `${process.platform}-${process.arch}`.
+// A declaration in the old uname style (`linux-x86_64`, `linux-aarch64`) is
+// REJECTED here rather than silently canonicalised, so the invariant fails on
+// the package.json that is wrong instead of hours later as a "typelib not
+// found" at some consumer's runtime.
+const PLATFORM_RE = /^(linux|darwin|win32)-(x64|arm64|ppc64|s390x|riscv64)$/;
 
-/** Arch spellings that mean the same target (uname-style vs node-style). */
-const ARCH_ALIASES = { x64: 'x86_64', amd64: 'x86_64', arm64: 'aarch64' };
+/**
+ * Legacy uname-style arch spellings folded onto the node one. Kept ONLY so a
+ * workflow that still says `arch: x86_64` and a pre-rename tarball's shipped
+ * directory both compare equal to the canonical declaration. Mirrors
+ * `ARCH_ALIASES` in `packages/infra/cli/src/utils/detect-native-packages.ts`;
+ * a divergence would let a package pass the audit while the CLI misses its dir.
+ */
+const ARCH_ALIASES = { x86_64: 'x64', amd64: 'x64', aarch64: 'arm64' };
 
-/** Canonical form so `linux-x64` and `linux-x86_64` compare equal. */
+/** Canonical (node-spelling) form so `linux-x86_64` and `linux-x64` compare equal. */
 function canonicalPlatform(token) {
     const [os, arch] = String(token).split('-');
     return `${os}-${ARCH_ALIASES[arch] ?? arch}`;
 }
 
 /** Default arch a bare runner label implies, keyed by the OS it maps to. */
-const RUNNER_DEFAULT_ARCH = { linux: 'x86_64', darwin: 'aarch64', win32: 'x86_64' };
+const RUNNER_DEFAULT_ARCH = { linux: 'x64', darwin: 'arm64', win32: 'x64' };
 
 function osFromRunner(runsOn) {
     if (/macos/i.test(runsOn)) return 'darwin';
@@ -1507,7 +1518,7 @@ async function parseCiPlatforms(nativePkgs, workflowFiles = ['prebuilds.yml', 'n
             const os = osFromRunner(job.runsOn);
             // `ubuntu-24.04-arm` and friends carry the arch in the label.
             const labelArm = /-arm\b|-arm64\b/.test(job.runsOn);
-            const archs = job.archs.size > 0 ? [...job.archs] : [labelArm ? 'aarch64' : RUNNER_DEFAULT_ARCH[os]];
+            const archs = job.archs.size > 0 ? [...job.archs] : [labelArm ? 'arm64' : RUNNER_DEFAULT_ARCH[os]];
             // Attribute per STEP, not per line: a step's package identity and
             // its production verb usually sit on different lines (`- name:
             // Build native addon` + `working-directory: packages/…`).
@@ -1546,7 +1557,7 @@ function auditPlatforms(nativePkgs, ciPlatforms) {
         const bad = pkg.declared.filter((p) => !PLATFORM_RE.test(p));
         if (bad.length > 0) {
             failures.push(
-                `${pkg.name} (${pkg.path}): invalid \`gjsify.platforms\` entr${bad.length === 1 ? 'y' : 'ies'} ${bad.join(', ')} — expected \`<os>-<arch>\` with os ∈ {linux, darwin, win32}.`,
+                `${pkg.name} (${pkg.path}): invalid \`gjsify.platforms\` entr${bad.length === 1 ? 'y' : 'ies'} ${bad.join(', ')} — expected \`\${process.platform}-\${process.arch}\`, i.e. os ∈ {linux, darwin, win32} and arch ∈ {x64, arm64, ppc64, s390x, riscv64}. The uname spelling (\`linux-x86_64\`, \`linux-aarch64\`) is no longer accepted: one spelling, and it is the one a running process can compute about itself.`,
             );
             continue;
         }

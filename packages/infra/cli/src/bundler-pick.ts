@@ -62,7 +62,7 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
                 'must be set BEFORE the process starts — the CLI cannot repair it from the inside. ' +
                 'Run through the `gjsify` bin instead (`node_modules/.bin/gjsify …`, or the globally installed shim), ' +
                 'or export the env yourself:\n' +
-                '  P=<repo>/packages/infra/rolldown-native/prebuilds/linux-x86_64\n' +
+                '  P=<repo>/packages/infra/rolldown-native/prebuilds/linux-x64\n' +
                 '  GI_TYPELIB_PATH=$P LD_LIBRARY_PATH=$P gjs -m …/cli.gjs.mjs build …\n' +
                 'Other causes: the JS facade `lib/` is not built (`gjsify workspace @gjsify/rolldown-native build` ' +
                 'under Node), or no prebuild exists for this architecture. Running the build under Node also works.',

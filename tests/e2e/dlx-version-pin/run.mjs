@@ -129,8 +129,7 @@ function runChild(cmd, args, { cwd, env, timeoutMs = 60_000 } = {}) {
 // Linux arch label used in `prebuilds/linux-<arch>/` dirs.
 // ---------------------------------------------------------------------------
 
-const ARCH_MAP = { x64: 'x86_64', arm64: 'aarch64', arm: 'armv7', ia32: 'i686' };
-const linuxArch = ARCH_MAP[process.arch] ?? process.arch;
+const linuxArch = process.arch;
 
 // ---------------------------------------------------------------------------
 

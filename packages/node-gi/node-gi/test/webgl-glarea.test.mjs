@@ -49,14 +49,13 @@ const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 
 // The committed gwebgl Vala prebuild (typelib + .so) @gjsify/webgl ships —
 // puts Gwebgl-0.1 on GI_TYPELIB_PATH/LD_LIBRARY_PATH for BOTH runtimes.
-const PREBUILD_ARCH = { x64: 'x86_64', arm64: 'aarch64' };
 const gwebglDir = join(
     repoRoot,
     'packages',
     'framework',
     'webgl',
     'prebuilds',
-    `linux-${PREBUILD_ARCH[process.arch] ?? process.arch}`,
+    `linux-${process.arch}`,
 );
 const haveGwebgl = existsSync(join(gwebglDir, 'Gwebgl-0.1.typelib'));
 

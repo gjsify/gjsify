@@ -21,8 +21,8 @@
     ],
     "gjsify": {
         "platforms": [
-            "linux-x86_64",
-            "linux-aarch64"
+            "linux-x64",
+            "linux-arm64"
         ],
         "prebuilds": "prebuilds",
         "refsLockstep": {

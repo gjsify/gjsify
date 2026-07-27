@@ -20,12 +20,16 @@
 //      automatically.
 //
 // The second describe() block covers the OS-axis follow-up: the walker used to
-// interpolate a literal `linux-` prefix, so it could only ever find the
-// uname-style directories the Vala/meson bridges stage — never the node-style
-// `${process.platform}-${process.arch}` ones `@gjsify/node-gi` and
-// `@gjsify/napi` stage, and never a `darwin-arm64` artifact at all. Both
-// spellings must resolve, and the emitted environment must name the variable
-// the HOST's loader reads.
+// interpolate a literal `linux-` prefix, so it could only ever find a
+// uname-style directory — never a `darwin-arm64` artifact at all.
+//
+// Every package in the release train now stages the ONE canonical spelling,
+// `${process.platform}-${process.arch}` (`linux-x64`, `linux-arm64`,
+// `darwin-arm64`, `win32-x64`). The uname spelling (`linux-x86_64`) survives
+// only as a READ-side compat probe, so a tarball published before the rename —
+// which ships that directory and may predate `gjsify.platforms` entirely —
+// still loads. Both must resolve, and the emitted environment must name the
+// variable the HOST's loader reads.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -137,7 +141,7 @@ describe('CLI dlx / native-prebuild env injection E2E', { timeout: 10 * 60 * 100
 });
 
 describe('CLI native-prebuild resolution across naming conventions E2E', { timeout: 10 * 60 * 1000 }, () => {
-    /** uname-style arch token, matching what the meson jobs name their dirs. */
+    /** Legacy uname-style arch token — what pre-rename tarballs shipped. */
     const UNAME_ARCH = { x64: 'x86_64', arm64: 'aarch64', arm: 'armv7', ia32: 'i686' }[process.arch] ?? process.arch;
     /** Environment variable the host's dynamic loader actually consults. */
     const LIB_VAR =
@@ -169,9 +173,10 @@ describe('CLI native-prebuild resolution across naming conventions E2E', { timeo
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-prebuild-naming-'));
         writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'naming-consumer', private: true }));
 
-        // uname-style — how every Vala/meson bridge stages (`prebuilds/linux-x86_64`).
+        // Legacy uname-style — a tarball published before the rename
+        // (`prebuilds/linux-x86_64`), with no `gjsify.platforms` to probe.
         seed('@test/uname-style', [`${process.platform}-${UNAME_ARCH}`]);
-        // node-style — how @gjsify/node-gi and @gjsify/napi stage
+        // The canonical spelling every current package stages + declares
         // (`prebuilds/${process.platform}-${process.arch}`).
         seed('@test/node-style', [`${process.platform}-${process.arch}`]);
         // Declares its own spelling AND ships only a foreign platform: must be
@@ -188,7 +193,7 @@ describe('CLI native-prebuild resolution across naming conventions E2E', { timeo
         if (root) rmSync(root, { recursive: true, force: true });
     });
 
-    it('resolves BOTH the uname-style and node-style prebuild directories', async () => {
+    it('resolves the canonical spelling AND a pre-rename uname-style directory', async () => {
         const cliReq = createRequire(import.meta.url);
         const { computeNativeEnvForBundle } = await import(
             pathToFileURL(cliReq.resolve('@gjsify/cli/lib/utils/run-gjs.js')).href

@@ -182,7 +182,7 @@ describe('Library multi-build E2E (ESM + CJS, separate outdirs)', { timeout: 10 
         // @gjsify/rolldown-native; skipped when gjs or the prebuild are
         // not present (e.g. non-Fedora dev boxes without the typelib).
         const gjsBundle = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
-        const archDir = process.arch === 'arm64' ? 'linux-aarch64' : 'linux-x86_64';
+        const archDir = process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64';
         const prebuildDir = join(
             MONOREPO_ROOT,
             'node_modules',

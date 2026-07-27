@@ -4,7 +4,7 @@
  *
  * Replaces eleven copies of a hand-written one-liner that all looked like
  *
- *     mkdir -p prebuilds/linux-x86_64 && cp build/libfoo.so build/Foo-1.0.gir … prebuilds/linux-x86_64/
+ *     mkdir -p prebuilds/linux-x64 && cp build/libfoo.so build/Foo-1.0.gir … prebuilds/linux-x64/
  *
  * and were therefore wrong in two ways off Linux/x86_64: the target directory
  * was hard-coded, and so was the `.so` suffix — a macOS build produces
@@ -35,30 +35,21 @@ import { basename, join, resolve } from 'node:path';
 const ARTIFACT_EXT = ['.so', '.dylib', '.dll', '.gir', '.typelib'];
 
 /**
- * Alias table for the two spellings the repo uses for the same target.
- *
- * gjsify names Linux targets with the `uname -m` machine (`linux-x86_64`) but
- * Darwin targets with Node's arch (`darwin-arm64`). Both spellings resolve at
- * runtime (`resolvePrebuildDirName` probes a candidate list), so this is
- * cosmetic rather than broken — but it does mean a name cannot be computed
- * from `process.arch` alone, which is exactly why we read the declaration
- * instead. Unifying on the Node spelling is tracked in STATUS.md.
- *
- * @type {Record<string, string[]>}
- */
-const ARCH_SPELLINGS = {
-    x64: ['x64', 'x86_64', 'amd64'],
-    arm64: ['arm64', 'aarch64'],
-    ia32: ['ia32', 'i686', 'i386'],
-    arm: ['arm', 'armv7l', 'armv6l'],
-    ppc64: ['ppc64', 'ppc64le'],
-    s390x: ['s390x'],
-    riscv64: ['riscv64'],
-    loong64: ['loong64', 'loongarch64'],
-};
-
-/**
  * Pick the declared target that describes this host.
+ *
+ * There is exactly ONE spelling for a target: `${process.platform}-${process.arch}`
+ * (`linux-x64`, `linux-arm64`, `darwin-arm64`, `win32-x64`). The repo used to
+ * carry a second, uname-style one (`linux-x86_64`) because the meson jobs named
+ * the directory after `uname -m`, and this function then had to accept an alias
+ * table to bridge the two. It does not any more: the node spelling is what a
+ * running process can compute about itself, so it needs no translation in the
+ * resolver's hot path, and a plain equality check here is what keeps a local
+ * build from inventing a name CI does not reproduce.
+ *
+ * A declaration in the old spelling therefore no longer matches — deliberately.
+ * `scripts/audit-runtimes.mjs --check` rejects it at the declaration site with
+ * a pointed message, so the failure lands on the `package.json` that is wrong
+ * rather than on a "typelib not found" hours later.
  *
  * @param {readonly string[]} declared `gjsify.platforms`
  * @param {string} platform `process.platform`
@@ -66,14 +57,8 @@ const ARCH_SPELLINGS = {
  * @returns {string | null}
  */
 export function pickDeclaredTarget(declared, platform, arch) {
-    const spellings = ARCH_SPELLINGS[arch] ?? [arch];
-    for (const target of declared) {
-        const sep = target.indexOf('-');
-        if (sep < 0) continue;
-        if (target.slice(0, sep) !== platform) continue;
-        if (spellings.includes(target.slice(sep + 1))) return target;
-    }
-    return null;
+    const host = `${platform}-${arch}`;
+    return declared.includes(host) ? host : null;
 }
 
 function main() {

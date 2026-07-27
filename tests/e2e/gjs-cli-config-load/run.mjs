@@ -45,8 +45,8 @@ const WS_MODULES = join(REPO_ROOT, 'node_modules');
 const LINK_PKGS = ['@gjsify', '@girs', 'rolldown', '@rolldown'];
 
 function archDir() {
-    if (process.arch === 'x64') return 'linux-x86_64';
-    if (process.arch === 'arm64') return 'linux-aarch64';
+    if (process.arch === 'x64') return 'linux-x64';
+    if (process.arch === 'arm64') return 'linux-arm64';
     return null;
 }
 

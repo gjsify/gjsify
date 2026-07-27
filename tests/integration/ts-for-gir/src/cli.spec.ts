@@ -54,9 +54,9 @@ function gjsEnv(): Record<string, string> {
     // need webgl/webrtc-native here but include them for symmetry with what
     // `gjsify run` sets, so anything else added later picks up automatically.
     const paths = [
-        join(REPO_ROOT, 'node_modules', '@gjsify', 'http-soup-bridge', 'prebuilds', 'linux-x86_64'),
-        join(REPO_ROOT, 'node_modules', '@gjsify', 'webgl', 'prebuilds', 'linux-x86_64'),
-        join(REPO_ROOT, 'node_modules', '@gjsify', 'webrtc-native', 'prebuilds', 'linux-x86_64'),
+        join(REPO_ROOT, 'node_modules', '@gjsify', 'http-soup-bridge', 'prebuilds', 'linux-x64'),
+        join(REPO_ROOT, 'node_modules', '@gjsify', 'webgl', 'prebuilds', 'linux-x64'),
+        join(REPO_ROOT, 'node_modules', '@gjsify', 'webrtc-native', 'prebuilds', 'linux-x64'),
     ].join(':');
     return { LD_LIBRARY_PATH: paths, GI_TYPELIB_PATH: paths };
 }

@@ -35,7 +35,14 @@ on:
 
 jobs:
   # ----------------------------------------------------------------
-  # Native runners — x86_64 and aarch64
+  # Native runners — x64 and arm64
+  #
+  # `matrix.arch` IS the prebuild directory suffix, so it is spelled the way
+  # `process.arch` spells it (`x64`/`arm64`, not `uname -m`'s
+  # `x86_64`/`aarch64`). That is the single `<os>-<arch>` vocabulary:
+  # `package.json#gjsify.platforms` declares it, `scripts/stage-prebuild.mjs`
+  # creates it, the CLI's `detectNativePackages()` resolves it without
+  # translating, and `scripts/audit-runtimes.mjs --check` rejects anything else.
   # ----------------------------------------------------------------
   build-prebuilds:
     name: Build prebuilds (${{ matrix.arch }})
@@ -47,9 +54,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: x86_64
+          - arch: x64
             runner: ubuntu-latest
-          - arch: aarch64
+          - arch: arm64
             runner: ubuntu-24.04-arm
 
     steps:
@@ -244,8 +251,8 @@ jobs:
       # Plain POSIX (isatty / ioctl TIOCGWINSZ / termios) + GLib — no external
       # libraries, so this is the cheapest bridge in the matrix (~30 s). It backs
       # @gjsify/tty + @gjsify/process, yet used to be absent from this workflow
-      # entirely: its prebuilds/ held a hand-built linux-x86_64 drop and nothing
-      # else, so aarch64 (and every QEMU arch) silently had no native TTY support.
+      # entirely: its prebuilds/ held a hand-built x64-only drop and nothing
+      # else, so arm64 (and every QEMU arch) silently had no native TTY support.
       - name: Build @gjsify/terminal-native Vala library
         working-directory: packages/node/terminal-native
         run: |
@@ -300,7 +307,7 @@ jobs:
       # -------- @gjsify/oxfmt-native (GjsifyOxfmt) --------
       # The third member of the GJS engine set `installGjsEnginePackages()`
       # lays down (with rolldown-native + lightningcss-native), but it was never
-      # built here — its prebuilds/ held a hand-built linux-x86_64 drop only.
+      # built here — its prebuilds/ held a hand-built x64-only drop.
       # Like rolldown-native it path-deps into a submodule (refs/oxc, pinned to
       # the oxfmt_v* tag matching the workspace's npm `oxfmt`), because oxc's
       # formatter crates are not consumable from crates.io.
@@ -669,13 +676,12 @@ jobs:
   #     `build-prebuilds-macos-experimental` job below.
   #
   # NAMING: `darwin-arm64` — the `${process.platform}-${process.arch}` convention
-  # already used by packages/napi (napi.yml stages prebuilds/darwin-arm64) and by
-  # packages/node-gi. The CLI's loader resolves it: `detectNativePackages()`
-  # (packages/infra/cli/src/utils/detect-native-packages.ts) accepts BOTH this
-  # node-style spelling and the uname-style one the Vala/meson jobs stage
-  # (`linux-x86_64`), preferring whatever `package.json#gjsify.platforms`
-  # declares, and `buildNativeEnv()` emits the loader variable the host actually
-  # reads (`DYLD_LIBRARY_PATH` on darwin — dyld ignores the ELF one).
+  # every job in this workflow now uses, on every OS (`linux-x64`, `linux-arm64`,
+  # `darwin-arm64`). The CLI's loader resolves it without translating, because it
+  # is exactly what a running process computes about itself; `buildNativeEnv()`
+  # then emits the loader variable the host actually reads (`DYLD_LIBRARY_PATH`
+  # on darwin — dyld ignores the ELF one). See
+  # packages/infra/cli/src/utils/detect-native-packages.ts.
   # ----------------------------------------------------------------
   build-prebuilds-macos:
     name: Build prebuilds (darwin-arm64)
@@ -1040,17 +1046,17 @@ jobs:
         uses: actions/checkout@v6
 
       # -------- @gjsify/webgl --------
-      - name: Download webgl x86_64 prebuilds
+      - name: Download webgl x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: webgl-prebuilds-linux-x86_64
-          path: packages/framework/webgl/prebuilds/linux-x86_64/
+          name: webgl-prebuilds-linux-x64
+          path: packages/framework/webgl/prebuilds/linux-x64/
 
-      - name: Download webgl aarch64 prebuilds
+      - name: Download webgl arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: webgl-prebuilds-linux-aarch64
-          path: packages/framework/webgl/prebuilds/linux-aarch64/
+          name: webgl-prebuilds-linux-arm64
+          path: packages/framework/webgl/prebuilds/linux-arm64/
 
       - name: Download webgl ppc64 prebuilds
         uses: actions/download-artifact@v8
@@ -1071,17 +1077,17 @@ jobs:
           path: packages/framework/webgl/prebuilds/linux-riscv64/
 
       # -------- @gjsify/webrtc-native --------
-      - name: Download webrtc-native x86_64 prebuilds
+      - name: Download webrtc-native x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: webrtc-native-prebuilds-linux-x86_64
-          path: packages/web/webrtc-native/prebuilds/linux-x86_64/
+          name: webrtc-native-prebuilds-linux-x64
+          path: packages/web/webrtc-native/prebuilds/linux-x64/
 
-      - name: Download webrtc-native aarch64 prebuilds
+      - name: Download webrtc-native arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: webrtc-native-prebuilds-linux-aarch64
-          path: packages/web/webrtc-native/prebuilds/linux-aarch64/
+          name: webrtc-native-prebuilds-linux-arm64
+          path: packages/web/webrtc-native/prebuilds/linux-arm64/
 
       - name: Download webrtc-native ppc64 prebuilds
         uses: actions/download-artifact@v8
@@ -1102,17 +1108,17 @@ jobs:
           path: packages/web/webrtc-native/prebuilds/linux-riscv64/
 
       # -------- @gjsify/http-soup-bridge --------
-      - name: Download http-soup-bridge x86_64 prebuilds
+      - name: Download http-soup-bridge x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: http-soup-bridge-prebuilds-linux-x86_64
-          path: packages/node/http-soup-bridge/prebuilds/linux-x86_64/
+          name: http-soup-bridge-prebuilds-linux-x64
+          path: packages/node/http-soup-bridge/prebuilds/linux-x64/
 
-      - name: Download http-soup-bridge aarch64 prebuilds
+      - name: Download http-soup-bridge arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: http-soup-bridge-prebuilds-linux-aarch64
-          path: packages/node/http-soup-bridge/prebuilds/linux-aarch64/
+          name: http-soup-bridge-prebuilds-linux-arm64
+          path: packages/node/http-soup-bridge/prebuilds/linux-arm64/
 
       - name: Download http-soup-bridge ppc64 prebuilds
         uses: actions/download-artifact@v8
@@ -1133,17 +1139,17 @@ jobs:
           path: packages/node/http-soup-bridge/prebuilds/linux-riscv64/
 
       # -------- @gjsify/http2-native --------
-      - name: Download http2-native x86_64 prebuilds
+      - name: Download http2-native x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: http2-native-prebuilds-linux-x86_64
-          path: packages/node/http2-native/prebuilds/linux-x86_64/
+          name: http2-native-prebuilds-linux-x64
+          path: packages/node/http2-native/prebuilds/linux-x64/
 
-      - name: Download http2-native aarch64 prebuilds
+      - name: Download http2-native arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: http2-native-prebuilds-linux-aarch64
-          path: packages/node/http2-native/prebuilds/linux-aarch64/
+          name: http2-native-prebuilds-linux-arm64
+          path: packages/node/http2-native/prebuilds/linux-arm64/
 
       - name: Download http2-native ppc64 prebuilds
         uses: actions/download-artifact@v8
@@ -1164,17 +1170,17 @@ jobs:
           path: packages/node/http2-native/prebuilds/linux-riscv64/
 
       # -------- @gjsify/sab-native --------
-      - name: Download sab-native x86_64 prebuilds
+      - name: Download sab-native x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: sab-native-prebuilds-linux-x86_64
-          path: packages/node/sab-native/prebuilds/linux-x86_64/
+          name: sab-native-prebuilds-linux-x64
+          path: packages/node/sab-native/prebuilds/linux-x64/
 
-      - name: Download sab-native aarch64 prebuilds
+      - name: Download sab-native arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: sab-native-prebuilds-linux-aarch64
-          path: packages/node/sab-native/prebuilds/linux-aarch64/
+          name: sab-native-prebuilds-linux-arm64
+          path: packages/node/sab-native/prebuilds/linux-arm64/
 
       - name: Download sab-native ppc64 prebuilds
         uses: actions/download-artifact@v8
@@ -1195,17 +1201,17 @@ jobs:
           path: packages/node/sab-native/prebuilds/linux-riscv64/
 
       # -------- @gjsify/tls-native --------
-      - name: Download tls-native x86_64 prebuilds
+      - name: Download tls-native x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: tls-native-prebuilds-linux-x86_64
-          path: packages/node/tls-native/prebuilds/linux-x86_64/
+          name: tls-native-prebuilds-linux-x64
+          path: packages/node/tls-native/prebuilds/linux-x64/
 
-      - name: Download tls-native aarch64 prebuilds
+      - name: Download tls-native arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: tls-native-prebuilds-linux-aarch64
-          path: packages/node/tls-native/prebuilds/linux-aarch64/
+          name: tls-native-prebuilds-linux-arm64
+          path: packages/node/tls-native/prebuilds/linux-arm64/
 
       - name: Download tls-native ppc64 prebuilds
         uses: actions/download-artifact@v8
@@ -1226,17 +1232,17 @@ jobs:
           path: packages/node/tls-native/prebuilds/linux-riscv64/
 
       # -------- @gjsify/lightningcss-native --------
-      - name: Download lightningcss-native x86_64 prebuilds
+      - name: Download lightningcss-native x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: lightningcss-native-prebuilds-linux-x86_64
-          path: packages/infra/lightningcss-native/prebuilds/linux-x86_64/
+          name: lightningcss-native-prebuilds-linux-x64
+          path: packages/infra/lightningcss-native/prebuilds/linux-x64/
 
-      - name: Download lightningcss-native aarch64 prebuilds
+      - name: Download lightningcss-native arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: lightningcss-native-prebuilds-linux-aarch64
-          path: packages/infra/lightningcss-native/prebuilds/linux-aarch64/
+          name: lightningcss-native-prebuilds-linux-arm64
+          path: packages/infra/lightningcss-native/prebuilds/linux-arm64/
 
       - name: Download lightningcss-native ppc64 prebuilds
         uses: actions/download-artifact@v8
@@ -1257,17 +1263,17 @@ jobs:
           path: packages/infra/lightningcss-native/prebuilds/linux-riscv64/
 
       # -------- @gjsify/terminal-native --------
-      - name: Download terminal-native x86_64 prebuilds
+      - name: Download terminal-native x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: terminal-native-prebuilds-linux-x86_64
-          path: packages/node/terminal-native/prebuilds/linux-x86_64/
+          name: terminal-native-prebuilds-linux-x64
+          path: packages/node/terminal-native/prebuilds/linux-x64/
 
-      - name: Download terminal-native aarch64 prebuilds
+      - name: Download terminal-native arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: terminal-native-prebuilds-linux-aarch64
-          path: packages/node/terminal-native/prebuilds/linux-aarch64/
+          name: terminal-native-prebuilds-linux-arm64
+          path: packages/node/terminal-native/prebuilds/linux-arm64/
 
       - name: Download terminal-native ppc64 prebuilds
         uses: actions/download-artifact@v8
@@ -1288,30 +1294,30 @@ jobs:
           path: packages/node/terminal-native/prebuilds/linux-riscv64/
 
       # -------- @gjsify/oxfmt-native (native runners only) --------
-      - name: Download oxfmt-native x86_64 prebuilds
+      - name: Download oxfmt-native x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: oxfmt-native-prebuilds-linux-x86_64
-          path: packages/infra/oxfmt-native/prebuilds/linux-x86_64/
+          name: oxfmt-native-prebuilds-linux-x64
+          path: packages/infra/oxfmt-native/prebuilds/linux-x64/
 
-      - name: Download oxfmt-native aarch64 prebuilds
+      - name: Download oxfmt-native arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: oxfmt-native-prebuilds-linux-aarch64
-          path: packages/infra/oxfmt-native/prebuilds/linux-aarch64/
+          name: oxfmt-native-prebuilds-linux-arm64
+          path: packages/infra/oxfmt-native/prebuilds/linux-arm64/
 
       # -------- @gjsify/rolldown-native (native runners only) --------
-      - name: Download rolldown-native x86_64 prebuilds
+      - name: Download rolldown-native x64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: rolldown-native-prebuilds-linux-x86_64
-          path: packages/infra/rolldown-native/prebuilds/linux-x86_64/
+          name: rolldown-native-prebuilds-linux-x64
+          path: packages/infra/rolldown-native/prebuilds/linux-x64/
 
-      - name: Download rolldown-native aarch64 prebuilds
+      - name: Download rolldown-native arm64 prebuilds
         uses: actions/download-artifact@v8
         with:
-          name: rolldown-native-prebuilds-linux-aarch64
-          path: packages/infra/rolldown-native/prebuilds/linux-aarch64/
+          name: rolldown-native-prebuilds-linux-arm64
+          path: packages/infra/rolldown-native/prebuilds/linux-arm64/
 
       # -------- darwin-arm64 (macOS, Apple silicon) --------
       # rolldown-native, sab-native, webgl and webrtc-native have no darwin

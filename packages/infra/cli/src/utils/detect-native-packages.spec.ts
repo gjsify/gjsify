@@ -46,29 +46,34 @@ function seedPackage(root: string, name: string, opts: { prebuildDirs: string[];
 
 export default async () => {
     await describe('canonicalPlatformToken', async () => {
-        await it('normalises node-style arch onto the uname spelling', async () => {
+        await it('folds the legacy uname arch onto the node spelling', async () => {
             // Must stay in lockstep with `ARCH_ALIASES` in
             // scripts/audit-runtimes.mjs — the platform-support audit
             // canonicalises `gjsify.platforms` the same way, and a divergence
             // would let a package pass the audit while the CLI misses its dir.
-            expect(canonicalPlatformToken('linux-x64')).toBe('linux-x86_64');
-            expect(canonicalPlatformToken('linux-x86_64')).toBe('linux-x86_64');
-            expect(canonicalPlatformToken('darwin-arm64')).toBe('darwin-aarch64');
-            expect(canonicalPlatformToken('win32-x64')).toBe('win32-x86_64');
+            expect(canonicalPlatformToken('linux-x86_64')).toBe('linux-x64');
+            expect(canonicalPlatformToken('linux-x64')).toBe('linux-x64');
+            expect(canonicalPlatformToken('linux-aarch64')).toBe('linux-arm64');
+            expect(canonicalPlatformToken('darwin-arm64')).toBe('darwin-arm64');
+            expect(canonicalPlatformToken('win32-x64')).toBe('win32-x64');
             expect(canonicalPlatformToken('linux-riscv64')).toBe('linux-riscv64');
         });
     });
 
     await describe('prebuildDirCandidates', async () => {
-        await it('probes uname-style first on Linux, then the node spelling', async () => {
-            expect(prebuildDirCandidates('linux', 'x64')).toStrictEqual(['linux-x86_64', 'linux-x64']);
-            expect(prebuildDirCandidates('linux', 'arm64')).toStrictEqual(['linux-aarch64', 'linux-arm64']);
+        await it('probes the canonical node spelling first on Linux', async () => {
+            // `${process.platform}-${process.arch}` — no translation needed.
+            // The uname spelling stays as a trailing compat probe for tarballs
+            // published before the rename.
+            expect(prebuildDirCandidates('linux', 'x64')).toStrictEqual(['linux-x64', 'linux-x86_64']);
+            expect(prebuildDirCandidates('linux', 'arm64')).toStrictEqual(['linux-arm64', 'linux-aarch64']);
         });
 
         await it('collapses to one candidate when the spellings agree', async () => {
             // ppc64/s390x/riscv64 are spelled identically by node and uname.
             expect(prebuildDirCandidates('linux', 'ppc64')).toStrictEqual(['linux-ppc64']);
             expect(prebuildDirCandidates('linux', 's390x')).toStrictEqual(['linux-s390x']);
+            expect(prebuildDirCandidates('linux', 'riscv64')).toStrictEqual(['linux-riscv64']);
         });
 
         await it('probes node-style first on darwin (what CI actually stages)', async () => {
@@ -81,22 +86,24 @@ export default async () => {
             expect(prebuildDirCandidates('win32', 'x64')).toStrictEqual(['win32-x64', 'win32-x86_64']);
         });
 
-        await it('puts the package’s OWN declared spelling ahead of the guesses', async () => {
-            // `gjsify.platforms` tells us the exact directory name the package
-            // stages, whatever convention it picked — strictly better than
-            // guessing, and it is why both conventions can coexist.
-            expect(prebuildDirCandidates('linux', 'x64', ['linux-x64', 'darwin-arm64'])).toStrictEqual([
-                'linux-x64',
+        await it('puts a pre-rename package’s OWN declared spelling ahead of the canonical name', async () => {
+            // A tarball published before the rename declares AND ships
+            // `linux-x86_64`; probing its declaration first loads it without
+            // the CLI having to guess.
+            expect(prebuildDirCandidates('linux', 'x64', ['linux-x86_64', 'darwin-arm64'])).toStrictEqual([
                 'linux-x86_64',
+                'linux-x64',
             ]);
-            expect(prebuildDirCandidates('darwin', 'arm64', ['darwin-aarch64'])).toStrictEqual([
-                'darwin-aarch64',
-                'darwin-arm64',
+            // A current declaration is already canonical — one candidate, plus
+            // the legacy compat probe behind it.
+            expect(prebuildDirCandidates('linux', 'arm64', ['linux-x64', 'linux-arm64'])).toStrictEqual([
+                'linux-arm64',
+                'linux-aarch64',
             ]);
         });
 
         await it('ignores declared entries for other hosts', async () => {
-            expect(prebuildDirCandidates('darwin', 'arm64', ['linux-x86_64', 'win32-x64'])).toStrictEqual([
+            expect(prebuildDirCandidates('darwin', 'arm64', ['linux-x64', 'win32-x64'])).toStrictEqual([
                 'darwin-arm64',
                 'darwin-aarch64',
             ]);
@@ -104,17 +111,15 @@ export default async () => {
     });
 
     await describe('resolvePrebuildDirName', async () => {
-        await it('finds the uname-style dir the Vala bridges stage (linux)', async () => {
+        await it('finds the canonical node-style dir every bridge now stages (linux)', async () => {
             expect(
                 resolvePrebuildDirName({
                     platform: 'linux',
                     arch: 'x64',
-                    existingDirs: ['linux-x86_64', 'linux-aarch64', 'darwin-arm64'],
+                    declaredPlatforms: ['linux-x64', 'linux-arm64', 'darwin-arm64'],
+                    existingDirs: ['linux-x64', 'linux-arm64', 'darwin-arm64'],
                 }),
-            ).toBe('linux-x86_64');
-        });
-
-        await it('finds the node-style dir @gjsify/node-gi stages (linux)', async () => {
+            ).toBe('linux-x64');
             expect(
                 resolvePrebuildDirName({
                     platform: 'linux',
@@ -124,13 +129,25 @@ export default async () => {
             ).toBe('linux-arm64');
         });
 
+        await it('still finds a pre-rename uname-style dir (undeclared tarball)', async () => {
+            // The compat probe: a tarball published before `gjsify.platforms`
+            // existed ships `linux-x86_64` and declares nothing.
+            expect(
+                resolvePrebuildDirName({
+                    platform: 'linux',
+                    arch: 'x64',
+                    existingDirs: ['linux-x86_64', 'linux-aarch64', 'darwin-arm64'],
+                }),
+            ).toBe('linux-x86_64');
+        });
+
         await it('finds darwin-arm64 — the case the hardcoded `linux-` prefix made impossible', async () => {
             expect(
                 resolvePrebuildDirName({
                     platform: 'darwin',
                     arch: 'arm64',
-                    declaredPlatforms: ['linux-x86_64', 'linux-aarch64', 'darwin-arm64'],
-                    existingDirs: ['linux-x86_64', 'linux-aarch64', 'darwin-arm64'],
+                    declaredPlatforms: ['linux-x64', 'linux-arm64', 'darwin-arm64'],
+                    existingDirs: ['linux-x64', 'linux-arm64', 'darwin-arm64'],
                 }),
             ).toBe('darwin-arm64');
         });
@@ -153,8 +170,8 @@ export default async () => {
                 resolvePrebuildDirName({
                     platform: 'darwin',
                     arch: 'arm64',
-                    declaredPlatforms: ['linux-x86_64', 'linux-aarch64'],
-                    existingDirs: ['linux-x86_64', 'linux-aarch64'],
+                    declaredPlatforms: ['linux-x64', 'linux-arm64'],
+                    existingDirs: ['linux-x64', 'linux-arm64'],
                 }),
             ).toBe(null);
         });
@@ -224,36 +241,45 @@ export default async () => {
     await describe('detectNativePackages (foreign platform injected)', async () => {
         const root = mkdtempSync(join(tmpdir(), 'gjsify-detect-native-'));
         try {
-            // Mirrors the real tree: Vala bridges stage uname-style + darwin,
-            // node-gi stages node-style everywhere, sab-native is Linux-only.
+            // Mirrors the real tree: every bridge in the release train stages
+            // the node spelling, sab-native is Linux-only (ADR 0013), and
+            // `@gjsify/legacy-native` stands in for a tarball published before
+            // the rename — uname-style dirs, no `gjsify.platforms` at all.
             seedPackage(root, '@gjsify/tls-native', {
-                prebuildDirs: ['linux-x86_64', 'linux-aarch64', 'darwin-arm64'],
-                platforms: ['linux-x86_64', 'linux-aarch64', 'darwin-arm64'],
+                prebuildDirs: ['linux-x64', 'linux-arm64', 'darwin-arm64'],
+                platforms: ['linux-x64', 'linux-arm64', 'darwin-arm64'],
             });
             seedPackage(root, '@gjsify/node-gi', {
                 prebuildDirs: ['linux-x64', 'linux-arm64', 'darwin-arm64', 'win32-x64'],
                 platforms: ['linux-x64', 'linux-arm64', 'darwin-arm64', 'win32-x64'],
             });
             seedPackage(root, '@gjsify/sab-native', {
-                prebuildDirs: ['linux-x86_64'],
-                platforms: ['linux-x86_64'],
+                prebuildDirs: ['linux-x64'],
+                platforms: ['linux-x64'],
+            });
+            seedPackage(root, '@gjsify/legacy-native', {
+                prebuildDirs: ['linux-x86_64', 'linux-aarch64'],
             });
 
             const byName = (pkgs: Array<{ name: string; prebuildsDir: string }>) =>
                 Object.fromEntries(pkgs.map((p) => [p.name, p.prebuildsDir]));
 
-            await it('resolves BOTH naming conventions from one walk (linux/x64)', async () => {
+            await it('resolves the canonical spelling — and a legacy one — from one walk (linux/x64)', async () => {
                 const found = byName(detectNativePackages(root, { platform: 'linux', arch: 'x64' }));
                 expect(found['@gjsify/tls-native']).toBe(
-                    join(root, 'node_modules/@gjsify/tls-native/prebuilds/linux-x86_64'),
+                    join(root, 'node_modules/@gjsify/tls-native/prebuilds/linux-x64'),
                 );
                 expect(found['@gjsify/node-gi']).toBe(join(root, 'node_modules/@gjsify/node-gi/prebuilds/linux-x64'));
                 expect(found['@gjsify/sab-native']).toBe(
-                    join(root, 'node_modules/@gjsify/sab-native/prebuilds/linux-x86_64'),
+                    join(root, 'node_modules/@gjsify/sab-native/prebuilds/linux-x64'),
+                );
+                // Backward compatibility with tarballs already on npm.
+                expect(found['@gjsify/legacy-native']).toBe(
+                    join(root, 'node_modules/@gjsify/legacy-native/prebuilds/linux-x86_64'),
                 );
             });
 
-            await it('resolves darwin-arm64 for both conventions, and skips the Linux-only package', async () => {
+            await it('resolves darwin-arm64 and skips the Linux-only packages', async () => {
                 const found = byName(detectNativePackages(root, { platform: 'darwin', arch: 'arm64' }));
                 expect(found['@gjsify/tls-native']).toBe(
                     join(root, 'node_modules/@gjsify/tls-native/prebuilds/darwin-arm64'),
@@ -263,6 +289,7 @@ export default async () => {
                 );
                 // Linux-only by design — must be absent, not mis-resolved.
                 expect(found['@gjsify/sab-native']).toBeUndefined();
+                expect(found['@gjsify/legacy-native']).toBeUndefined();
             });
 
             await it('resolves win32-x64 and skips packages without a Windows artifact', async () => {
@@ -270,6 +297,13 @@ export default async () => {
                 expect(found['@gjsify/node-gi']).toBe(join(root, 'node_modules/@gjsify/node-gi/prebuilds/win32-x64'));
                 expect(found['@gjsify/tls-native']).toBeUndefined();
                 expect(found['@gjsify/sab-native']).toBeUndefined();
+            });
+
+            await it('resolves the legacy uname spelling on linux/arm64 too', async () => {
+                const found = byName(detectNativePackages(root, { platform: 'linux', arch: 'arm64' }));
+                expect(found['@gjsify/legacy-native']).toBe(
+                    join(root, 'node_modules/@gjsify/legacy-native/prebuilds/linux-aarch64'),
+                );
             });
 
             await it('finds nothing for a host no package ships for', async () => {

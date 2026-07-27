@@ -38,8 +38,8 @@ const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const CLI_BUNDLE = join(REPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
 
 function archDir() {
-    if (process.arch === 'x64') return 'linux-x86_64';
-    if (process.arch === 'arm64') return 'linux-aarch64';
+    if (process.arch === 'x64') return 'linux-x64';
+    if (process.arch === 'arm64') return 'linux-arm64';
     return null;
 }
 
