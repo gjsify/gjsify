@@ -43,6 +43,7 @@ export function setAdwaitaColorScheme(scheme: AdwColorScheme): void {
     if (next === currentScheme) return;
     currentScheme = next;
     // Snapshot so a listener that unsubscribes mid-iteration can't skip another.
+    // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so an unsubscribe mid-fan-out would skip the next listener
     for (const listener of [...listeners]) {
         try {
             listener();

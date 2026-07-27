@@ -184,6 +184,7 @@ const denoTeardownCarveout = runtime === 'deno';
 // announced test ran and none failed (so a non-zero exit is the post-pass teardown
 // abort), false on any FAILED line or a short run (crash before all tests reported).
 function classifyDenoOutput(out) {
+  // oxlint-disable-next-line eslint/no-control-regex -- matching the ESC control character IS the point: this strips Deno's ANSI SGR colour codes before parsing its output
   const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
   let expected = 0;
   for (const m of clean.matchAll(/running (\d+) tests from /g)) expected += Number(m[1]);

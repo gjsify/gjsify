@@ -51,6 +51,11 @@
   },
   "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-loopback#readme",
   "gjsify": {
-    "tier": 2
+    "tier": 2,
+    "example": {
+      "runtimes": [
+        "gjs"
+      ]
+    }
   }
 }

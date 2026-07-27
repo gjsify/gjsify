@@ -3,6 +3,7 @@
 // validation used by `gjsify run/showcase --runtime` and the node-gi example.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import {
     EXAMPLE_RUNTIMES,
     RUNTIMES,
@@ -10,6 +11,8 @@ import {
     buildAppForRuntime,
     readDeclaredRuntimes,
     checkRuntimeSupported,
+    defaultExampleRuntime,
+    isRuntimeAvailable,
 } from './runtimes.js';
 
 export default async () => {
@@ -53,6 +56,27 @@ export default async () => {
             expect(isExampleRuntime('deno')).toBe(true);
             expect(isExampleRuntime('python')).toBe(false);
             expect(isExampleRuntime('')).toBe(false);
+        });
+    });
+
+    await describe('runtimes: defaultExampleRuntime', async () => {
+        await it('prefers gjs whenever gjs is runnable here', () => {
+            // The regression this guards: a plain `hostRuntime()` default made
+            // `npx @gjsify/cli showcase <name>` ask for the `--app node` bundle
+            // on a Node host that has gjs installed, so the documented
+            // first-run command failed on a missing file.
+            const expected = isRuntimeAvailable('gjs') ? 'gjs' : hostRuntime();
+            expect(defaultExampleRuntime()).toBe(expected);
+        });
+
+        await it('returns one of the four known runtimes', () => {
+            expect(isExampleRuntime(defaultExampleRuntime())).toBe(true);
+        });
+
+        await it('is gjs when the CLI itself runs on gjs', async () => {
+            // The host runtime is always "available" without a PATH probe, so
+            // under gjs the answer is gjs by construction.
+            if (hostRuntime() === 'gjs') expect(defaultExampleRuntime()).toBe('gjs');
         });
     });
 

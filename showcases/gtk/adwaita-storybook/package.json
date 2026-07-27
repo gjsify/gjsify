@@ -33,7 +33,12 @@
       "stories": "src",
       "globals": "auto"
     },
-    "tier": 2
+    "tier": 2,
+    "example": {
+      "runtimes": [
+        "gjs"
+      ]
+    }
   },
   "devDependencies": {
     "@girs/adw-1": "^4.1.0",

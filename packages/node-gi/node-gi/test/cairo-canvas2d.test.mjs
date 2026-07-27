@@ -318,6 +318,7 @@ test('scene invariants: repeated tile + dash gap pixels (AA-independent)', () =>
   const s = drawScene(cairo);
   const data = s.getData();
   const stride = s.getStride();
+  // oxlint-disable-next-line unicorn/no-useless-spread -- `data` is a Uint8Array, so .slice() returns a Uint8Array; the spread CONVERTS to a plain Array (the assert.deepEqual calls below compare against array literals)
   const px = (x, y) => [...data.slice(y * stride + x * 4, y * stride + x * 4 + 4)];
   // Checker tile (pattern origin = surface origin; dark squares at tile-mod
   // (0..3,0..3)+(4..7,4..7)): dark interior is exactly rgb(0.1,0.1,0.1) -> 25

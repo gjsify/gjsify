@@ -18,6 +18,7 @@ import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
+import { assertGjsBundleLoadable } from '../utils/gjs-bundle-guard.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
 
@@ -306,6 +307,22 @@ export class BuildAction {
         }
         await chmod(outfile, 0o755);
         if (verbose) console.debug(`[gjsify] --shebang: wrote ${line} + chmod 0o755 to ${outfile}`);
+    }
+
+    /**
+     * Post-bundle gate for `--app gjs`: throw when the emitted bundle still
+     * STATICALLY imports Node builtins, which stock GJS cannot resolve (see
+     * `utils/gjs-bundle-guard.ts` for the full rationale).
+     *
+     * The oracle is the bundler's own module graph — each chunk's `imports`
+     * list — not the emitted text. Both engines report it (npm `rolldown`
+     * natively, `@gjsify/rolldown-native` via `synthRolldownOutput`), and it
+     * cannot be fooled by a `node:` specifier quoted inside a string, which a
+     * text scan cannot tell from a statement.
+     */
+    private assertGjsOutputLoadable(result: RolldownOutput, outfile: string | undefined, outdir: string | undefined) {
+        const chunks = (result.output ?? []).filter((item) => item.type === 'chunk');
+        assertGjsBundleLoadable(chunks, outfile ?? outdir ?? 'the GJS bundle');
     }
 
     /**
@@ -691,6 +708,11 @@ export class BuildAction {
             await this.applyShebang(app, outfile, verbose);
         }
 
+        // Refuse to hand back a `--app gjs` bundle stock GJS cannot even load.
+        if (app === 'gjs') {
+            this.assertGjsOutputLoadable(writeResult, outfile, outdir);
+        }
+
         // Browser HTML entry: emit the processed `index.html` beside the bundle
         // (engine-portable post-step — the native rolldown engine has no
         // `emitFile`, so this can't live in a plugin). `outfile` is guaranteed
@@ -748,6 +770,12 @@ export class BuildAction {
                         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
                             await this.applyShebang(app, outfile, verbose);
                         }
+                        // No `--app gjs` loadability gate here: the watcher's
+                        // BUNDLE_END carries the bundle, not the generated
+                        // output, and re-running `generate()` just to read the
+                        // chunk graph would double every rebuild. The one-shot
+                        // build is the gate that CI and the pre-commit hook go
+                        // through; `--watch` is a dev loop.
                     } finally {
                         await event.result.close();
                     }

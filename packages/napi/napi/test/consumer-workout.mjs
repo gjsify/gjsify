@@ -64,7 +64,11 @@ log('blob3 utf8', Buffer.from(blobBack3).toString('utf8'));
 db.prepare('INSERT INTO t (id, name, qty, price) VALUES (?, ?, ?, ?)').run(
     4,
     'big',
-    9007199254740993, // 2^53 + 1 as a JS number literal is lossy; bind as bigint below instead
+    // 2^53 + 1 as a JS NUMBER literal is deliberately lossy — this seed row is the
+    // contrast the exact-BigInt bind + read-back below is measured against, and the
+    // workout's transcript is golden-diffed against Node, so the value must not change.
+    // oxlint-disable-next-line eslint/no-loss-of-precision -- the lossy literal is the fixture
+    9007199254740993,
     0.0,
 );
 // bind an exact BigInt beyond 2^53 and read it back losslessly

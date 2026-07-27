@@ -62,7 +62,7 @@ const abs = (p) => (p ? resolve(ADDONS_DIR, p) : null);
 let addonPath = abs(cfg.addon);
 if (!addonPath && cfg.binding === 'napi-rs') {
     const pkgDir = resolve(ADDONS_DIR, dirname(cfg.index));
-    const hit = existsSync(pkgDir) && readdirSync(pkgDir).find((f) => /\.node$/.test(f));
+    const hit = existsSync(pkgDir) && readdirSync(pkgDir).find((f) => f.endsWith('.node'));
     if (hit) addonPath = join(pkgDir, hit);
 }
 const indexJs = abs(cfg.index);

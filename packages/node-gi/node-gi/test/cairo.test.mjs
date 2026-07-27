@@ -87,6 +87,7 @@ test('filling a red rectangle yields the exact ARGB32 pixel bytes', () => {
   assert.ok(data instanceof Uint8Array, 'getData() is a Uint8Array');
   assert.equal(data.length, 64); // stride(16) * height(4)
   // Opaque red on little-endian ARGB32 (premultiplied) = B,G,R,A = 0,0,255,255.
+  // oxlint-disable-next-line unicorn/no-useless-spread -- `data` is a Uint8Array, so .slice() returns a Uint8Array; the spread CONVERTS to a plain Array (assert.deepEqual fails across the two types)
   assert.deepEqual([...data.slice(0, 4)], [0, 0, 255, 255]);
   let sum = 0;
   for (const b of data) sum = (sum + b) >>> 0;

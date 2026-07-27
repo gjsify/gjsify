@@ -303,6 +303,8 @@ export class Worker {
     private _emit(event: string, ...args: unknown[]): void {
         const set = this._listeners.get(event);
         if (!set) return;
+        // Snapshot so a handler that calls off()/removeListener() mid-fan-out can't skip another.
+        // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so a removal mid-fan-out would skip the next handler
         for (const fn of [...set]) fn(...args);
     }
 

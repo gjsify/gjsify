@@ -93,7 +93,7 @@ export interface GObjectNamespace extends GiNamespace {
   ParamSpec: ParamSpecFactories;
   /**
    * The FULL introspected `GParamFlags` bitfield (READABLE/WRITABLE/READWRITE/
-   * CONSTRUCT/CONSTRUCT_ONLY/LAX_VALIDATION/STATIC_*/EXPLICIT_NOTIFY/DEPRECATED/
+   * CONSTRUCT/CONSTRUCT_ONLY/LAX_VALIDATION/STATIC_.../EXPLICIT_NOTIFY/DEPRECATED/
    * …) — the named members below are the common convenience bits; the index
    * signature covers the remaining introspected members.
    */
