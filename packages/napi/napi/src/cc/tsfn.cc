@@ -28,9 +28,9 @@
 //     thread toggles that need this same mutex — the node-gi drain-lock
 //     lesson, toggle.cc DrainTsfnCb).
 //
-// Lifetime: the struct is freed on the JS thread only, and NEVER while a
-// foreign thread still holds a claim — the dispatch finalizes only once
-// thread_count has reached 0 (a natural close, OR an abort whose remaining
+// Lifetime: the struct is freed by the LAST claimant and NEVER while a claim is
+// still outstanding. On the JS thread that means the dispatch finalizes only
+// once thread_count has reached 0 (a natural close, OR an abort whose remaining
 // claimants have each drained their claim via a claim-consuming napi_closing
 // push/release, every one of which re-arms the dispatch as it drops the last
 // claim). This is the tsfn analog of async_work's join-before-free
@@ -43,14 +43,44 @@
 // but macOS's pthread + allocator + exit-time dylib unload turn into a crash.
 // The remaining fallback is env teardown (finalize_env_tsfns: a release(abort)
 // issued by an env cleanup hook schedules a dispatch that would never run, the
-// main context stops iterating once GjsContext dispose began). ABI contract, as
-// in Node: a thread must hold a claim (initial_thread_count / napi_acquire)
-// while calling, and must make no call after its release — a claimless call
-// racing the final free is UB in every host.
+// main context stops iterating once GjsContext dispose began) — there the JS
+// thread runs the finalization itself and then DETACHES, handing ownership of
+// the struct to whichever claimant drops the last claim (Node's MaybeDelete;
+// see the comment above finalize_env_tsfns). ABI contract, as in Node: a thread
+// must hold a claim (initial_thread_count / napi_acquire) while calling, and
+// must make no call after its release — a claimless call racing the final free
+// is UB in every host.
+//
+// CLAIM ATTRIBUTION — who holds the outstanding claims?
+// `thread_count` is the ABI-visible count; on its own it cannot answer "can any
+// of these still be handed back?", which is exactly the question env teardown
+// has to decide. So the count is also carried as a PARTITION by owner:
+//   js_claims + foreign_claims + unattributed_claims == thread_count
+// maintained under the same mutex, from facts the shim can observe rather than
+// guess:
+//   • napi_acquire_threadsafe_function — the calling thread demonstrably takes a
+//     claim: exact attribution (js vs foreign by GThread identity).
+//   • napi_call_threadsafe_function — per the ABI contract the caller MUST hold
+//     a claim, so a call from thread T proves T owns one. The first call from
+//     each distinct thread therefore credits ONE initial (unattributed) claim to
+//     T; `attributed_threads` keeps that one-per-thread (crediting per call
+//     would over-attribute a single claim many times over).
+//   • napi_release_threadsafe_function / a claim-consuming napi_closing push —
+//     retires one claim from the owner's bucket.
+// initial_thread_count claims start UNATTRIBUTED: they are handed out by the
+// addon through memory the shim never sees, so nothing is assumed about them
+// until a thread proves ownership by using the function. Guessing here is what
+// #833 deliberately refused to do, and the partition keeps that honesty — an
+// unattributed claim is reported as unattributed, never as "ours".
+// Cost: `attribute_claim_locked` early-outs on `unattributed_claims == 0`
+// (which is the steady state after every participating thread's first call), so
+// the hot push path pays one predicted-not-taken branch on a word in the same
+// cache line as thread_count — no g_thread_self(), no scan, no allocation.
 
 #include "common.h"
 
 #include <deque>
+#include <vector>
 
 // ---- the tsfn object ----
 //
@@ -66,12 +96,25 @@ struct napi_threadsafe_function__ {
     napi_finalize finalize_cb = nullptr;
     void* finalize_data = nullptr;
     size_t max_queue_size = 0;     // 0 = unbounded
+    // The thread that created this tsfn — the JS thread, and therefore the
+    // thread that will later run finalize_env_tsfns. A claim owned by it cannot
+    // be handed back from inside that teardown, by construction.
+    GThread* js_thread = nullptr;
 
     // Mutable state — guarded by mutex (any thread):
     GMutex mutex;
     GCond cond;                    // blocking-push space + waiter drain
     std::deque<void*> queue;
     size_t thread_count = 0;
+    // Owner partition of thread_count (see "CLAIM ATTRIBUTION" in the header):
+    // js_claims + foreign_claims + unattributed_claims == thread_count.
+    size_t js_claims = 0;
+    size_t foreign_claims = 0;
+    size_t unattributed_claims = 0;
+    // Threads already credited with one of the initial claims. Bounded by
+    // initial_thread_count (each entry costs one unattributed claim) and
+    // released the moment the last one is credited.
+    std::vector<GThread*> attributed_threads;
     size_t waiters = 0;            // threads inside the blocking-push wait
     // No new pushes accepted: release(abort), the dispatch's natural-close
     // decision, or env teardown. Node's `is_closing`.
@@ -80,6 +123,14 @@ struct napi_threadsafe_function__ {
     // guard — at most ONE pending wake, exactly uv_async semantics.
     GSource* dispatch_source = nullptr;
     bool referenced = true;        // napi_unref bookkeeping (see note below)
+    // finalize_env_tsfns is running this tsfn's JS-side finalization; a
+    // dispatch that somehow reaches the loop meanwhile must not free under it.
+    bool finalizing = false;
+    // Env teardown finished the JS-side finalization while claims were still
+    // outstanding and handed ownership of this struct to the last claimant
+    // (Node's MaybeDelete). The env and the main context are gone: whoever
+    // drops the last claim deletes directly instead of arming a dispatch.
+    bool detached = false;
 
     napi_threadsafe_function__() {
         g_mutex_init(&mutex);
@@ -116,6 +167,87 @@ void schedule_dispatch_locked(napi_threadsafe_function tsfn) {
     g_source_set_callback(src, dispatch_cb, tsfn, nullptr);
     tsfn->dispatch_source = src;  // keep our creation ref until dispatch/teardown
     g_source_attach(src, tsfn->main_context);
+}
+
+// ---- claim attribution (see "CLAIM ATTRIBUTION" in the file header) ----
+//
+// All three run under tsfn->mutex and only move counters between the buckets of
+// the owner partition; they never touch thread_count itself, so they cannot
+// perturb the ABI-visible claim count.
+
+// A call from `self` PROVES (ABI contract) that `self` holds a claim. Credit it
+// one of the still-unattributed initial claims — once per thread, or a single
+// claim would be attributed to every thread that ever pushes.
+//
+// Hot path: this is called on every napi_call_threadsafe_function, so the
+// early-out is the point — once every participating thread has pushed once,
+// `unattributed_claims` is 0 forever after and the whole function is one branch.
+inline void attribute_claim_locked(napi_threadsafe_function tsfn) {
+    if (tsfn->unattributed_claims == 0) {
+        return;
+    }
+    GThread* self = g_thread_self();
+    for (GThread* seen : tsfn->attributed_threads) {
+        if (seen == self) {
+            return;
+        }
+    }
+    tsfn->attributed_threads.push_back(self);
+    tsfn->unattributed_claims--;
+    if (self == tsfn->js_thread) {
+        tsfn->js_claims++;
+    } else {
+        tsfn->foreign_claims++;
+    }
+    if (tsfn->unattributed_claims == 0) {
+        // Nothing left to credit — drop the bookkeeping and the branch above
+        // becomes the only cost for the rest of this tsfn's life.
+        tsfn->attributed_threads.clear();
+        tsfn->attributed_threads.shrink_to_fit();
+    }
+}
+
+// napi_acquire_threadsafe_function: the calling thread takes a NEW claim, so
+// this attribution is exact rather than inferred. Caller already did
+// thread_count++.
+inline void take_claim_locked(napi_threadsafe_function tsfn) {
+    if (g_thread_self() == tsfn->js_thread) {
+        tsfn->js_claims++;
+    } else {
+        tsfn->foreign_claims++;
+    }
+}
+
+// A release, or a claim-consuming napi_closing push, retires one claim. Caller
+// already did thread_count--; this keeps the partition summing to it. Prefer the
+// caller's own bucket, then the unattributed pool (the caller proved it held a
+// claim, so an unattributed one was its), then whatever is left — the partition
+// must never drift from thread_count even if an addon violates the contract.
+inline void retire_claim_locked(napi_threadsafe_function tsfn) {
+    if (tsfn->js_claims == 0 && tsfn->unattributed_claims == 0) {
+        // Steady state for a fully-attributed foreign fan-out: no need to ask
+        // which thread we are.
+        if (tsfn->foreign_claims > 0) {
+            tsfn->foreign_claims--;
+        }
+        return;
+    }
+    if (g_thread_self() == tsfn->js_thread) {
+        if (tsfn->js_claims > 0) {
+            tsfn->js_claims--;
+            return;
+        }
+    } else if (tsfn->foreign_claims > 0) {
+        tsfn->foreign_claims--;
+        return;
+    }
+    if (tsfn->unattributed_claims > 0) {
+        tsfn->unattributed_claims--;
+    } else if (tsfn->js_claims > 0) {
+        tsfn->js_claims--;
+    } else if (tsfn->foreign_claims > 0) {
+        tsfn->foreign_claims--;
+    }
 }
 
 // Node CallJs (node_api.cc): the default call_js when the creator passed none.
@@ -158,12 +290,14 @@ void invoke_call_js(napi_threadsafe_function tsfn, void* item) {
     napi_close_handle_scope(env, scope);
 }
 
-// JS-thread finalization (Node CloseHandlesAndMaybeDelete → Finalize →
-// EmptyQueueAndDelete): run the thread finalizer with JS available, drain
-// leftover queue items with env == NULL so their data can be freed, drop the
-// function ref, unregister from the env, free the struct. Caller must have
-// set `closing` and destroyed any pending dispatch source under the lock.
-void finalize_tsfn(napi_threadsafe_function tsfn) {
+// JS-thread finalization WITHOUT the free (Node Finalize → EmptyQueue +
+// finalize_cb + ReleaseResources): run the thread finalizer with JS available,
+// drain leftover queue items with env == NULL so their data can be freed, drop
+// the function ref, unregister from the env. Caller must have set `closing` and
+// destroyed any pending dispatch source under the lock. Everything that needs a
+// live env happens here; what remains afterwards is only GLib-owned memory,
+// which is why the struct itself can outlive the env (see finalize_env_tsfns).
+void finalize_tsfn_resources(napi_threadsafe_function tsfn) {
     napi_env env = tsfn->env;
     const bool can_call =
         env != nullptr && env->can_call_into_js && !env->torn_down;
@@ -204,6 +338,12 @@ void finalize_tsfn(napi_threadsafe_function tsfn) {
             }
         }
     }
+}
+
+// The full JS-thread finalization (Node CloseHandlesAndMaybeDelete → Finalize →
+// EmptyQueueAndDelete). ONLY legal with thread_count == 0 — see the file header.
+void finalize_tsfn(napi_threadsafe_function tsfn) {
+    finalize_tsfn_resources(tsfn);
     delete tsfn;
 }
 
@@ -221,6 +361,14 @@ gboolean dispatch_cb(gpointer data) {
         // Drop our creation ref; the context's ref dies with SOURCE_REMOVE.
         g_source_unref(tsfn->dispatch_source);
         tsfn->dispatch_source = nullptr;
+    }
+    // Env teardown owns this tsfn: it is either mid-finalization on this very
+    // thread (a nested loop iteration from inside finalize_cb would otherwise
+    // free the struct under it) or already detached to its last claimant.
+    // Either way this dispatch has nothing left to do.
+    if (tsfn->finalizing || tsfn->detached) {
+        g_mutex_unlock(&tsfn->mutex);
+        return G_SOURCE_REMOVE;
     }
     unsigned iterations_left = kMaxDispatchIterations;
     for (;;) {
@@ -274,96 +422,158 @@ gboolean dispatch_cb(gpointer data) {
 
 }  // namespace
 
-// Env teardown step 1b (env.cc): finalize every tsfn still registered. The
-// release(abort) node-gi issues from its env cleanup hook schedules a
-// dispatch that can never run — GjsContext dispose has begun, the main
-// context will not be iterated again — so the deferred finalize is executed
-// HERE, synchronously, while JS is still fully callable (§5e steps 1-4
-// discipline). A tsfn whose claims were never released (the shutdown
-// conformance test's 32 producers loop napi_call_threadsafe_function until
-// napi_closing, then exit — no release ever) is JOINED before it is freed:
-// set `closing`, then wait for thread_count to reach 0 — every claimant drains
-// its claim (its next call returns napi_closing) before the free, so no foreign
-// thread touches freed memory. This is the teardown-path arm of the same
-// thread_count==0 join-before-free the dispatch uses (async_work realizes it
-// with g_thread_pool_free wait=TRUE; tsfn cannot join threads it does not own,
-// so it waits for the voluntary drain). Without it, a producer's next
-// napi_closing push would lock a g_mutex_clear'd mutex and re-arm a dispatch on
-// a freed GMainContext — the abort-path UAF, reached here. A deadline caps a
-// claimant that never drains (a claim-contract violation — UB in Node too),
-// falling back to the pre-fix force-free rather than hanging teardown.
+// Env teardown step 1b (env.cc): close every tsfn still registered. The
+// release(abort) node-gi issues from its env cleanup hook schedules a dispatch
+// that can never run — GjsContext dispose has begun, the main context will not
+// be iterated again — so the deferred finalization is executed HERE,
+// synchronously, while JS is still fully callable (§5e steps 1-4 discipline).
 //
-// THE TIMEOUT WARNING IS NOT NOISE — DO NOT GATE OR REMOVE IT. It marks the one
-// path on which this function knowingly does the unsafe thing: the force-free it
-// falls back to is EXACTLY the pre-#809 behaviour whose use-after-free was benign
-// on Linux/glibc and a hard crash on macOS. A fired warning therefore says "a UAF
-// window was just opened here", which is never something to silence.
+// Three steps, in this order:
 //
-// Measured (linux-x64, gjs 1.88, the tsfn-addon driven into env teardown with
-// claims outstanding — 3 runs each):
-//   • every claim owned by a FOREIGN thread that drains on its next
-//     napi_closing push (the shutdown-conformance shape, 8 producers):
-//     join completes in 10 / 47 / 14 us. Against a 2 s deadline that is four
-//     orders of magnitude of headroom — the deadline is NOT too tight, and
-//     widening it would buy nothing.
-//   • a claim NOT owned by a foreign thread — a released-nowhere claim, incl.
-//     the JS thread's OWN initial claim: it can never drop while this join runs
-//     (the JS thread is the thread blocked here), so the wait always runs the
-//     full deadline: 2048 / 2090 / 2137 ms wall, then warn + force-free, with
-//     exactly the undrainable claim still counted.
-// So the warning discriminates correctly: a legitimately slow drain never
-// reaches it, and reaching it always means a claim nobody will hand back. What
-// the shim CANNOT do is tell those two owners apart — `thread_count` is a
-// count, not a set of owning threads, and initial_thread_count claims are handed
-// out by the addon, so a fix that skips "our own" claim would be a guess. Hence:
-// deadline unchanged, message worded to name both owners, and the g_debug below
-// reports the measured wait so "how close was it?" is answerable from a run
-// rather than guessed (`G_MESSAGES_DEBUG=all`).
+//   1. JOIN the claims that CAN still be handed back. `foreign_claims` is the
+//      subset of thread_count that some OTHER thread has demonstrably taken
+//      (§CLAIM ATTRIBUTION in the file header) — each of those drains on its
+//      owner's next napi_closing push or release, so waiting for it is what lets
+//      the struct be freed here instead of leaked. Claims held by THIS thread,
+//      and claims no thread has ever been observed to hold, are NOT waited on:
+//      the first cannot drop while this thread is blocked in the wait, and for
+//      the second there is no evidence any thread will ever come back for it.
+//      That distinction is the whole point — before it, an unreturnable claim
+//      cost a deterministic full-deadline stall on a legal (if sloppy) shape.
+//   2. Run the JS-side finalization (thread finalizer, env==NULL queue drain,
+//      function ref, env deregistration) — everything that needs a live env.
+//   3. Free the struct if no claim is left; otherwise DETACH it.
+//
+// DETACH is Node's own posture, not an invention here: node_api.cc's
+// `MaybeDelete()` bails out with `if (thread_count > 0) { ReleaseResources();
+// return; }` — "we need to keep it alive for other threads that still have
+// pointers to it until they release them" — and the last claimant's Release()/
+// Push() runs `delete this` instead. So Node force-CLOSES at env teardown but
+// never force-FREES under a live claim, and neither do we: `detached` tells the
+// last claimant to delete directly rather than arm a dispatch on a main context
+// that is gone. The consequence for a claim nobody ever hands back is a leaked
+// control block at process exit — again exactly Node's, and strictly better than
+// the force-free it replaces, which reopened the pre-#809 use-after-free window
+// (benign on Linux/glibc, a hard crash at exit on macOS).
+//
+// THE WARNINGS ARE NOT NOISE — DO NOT GATE OR REMOVE THEM. They mark a real
+// contract violation with a real consequence, and they are what keeps the
+// attribution honest: a claim this function cannot attribute is REPORTED as
+// unattributed, never quietly assumed to be ours.
+//   • join timed out → a foreign thread proved it holds a claim and then neither
+//     called again nor released for a full 2 s.
+//   • claims left that nothing can hand back → the JS thread's own claims plus
+//     any never-attributed initial claim; the struct leaks.
+// A clean teardown (every claim released, or every foreign claim drained inside
+// the deadline) says nothing at all.
+//
+// Measured (linux-x64, gjs 1.88, tsfn-addon driven into env teardown with claims
+// outstanding — 3 runs each, wall time of the whole gjs process):
+//   • every claim owned by a FOREIGN thread that drains on its next napi_closing
+//     push (the shutdown-conformance shape): the join completes in tens of µs,
+//     four orders of magnitude inside the 2 s deadline — the deadline is NOT too
+//     tight and widening it would buy nothing.
+//   • a claim nothing hands back (the creating thread's own initial claim, or an
+//     unattributed one): BEFORE, a deterministic 2048 / 2090 / 2137 ms stall,
+//     then warn + force-free. AFTER, it is not joined at all — see
+//     test/tsfn-teardown-gate.mjs, which measures both shapes on every run.
 void finalize_env_tsfns(napi_env env) {
     while (!env->tsfns.empty()) {
         napi_threadsafe_function tsfn = env->tsfns.back();
+
         g_mutex_lock(&tsfn->mutex);
         // Stop accepting pushes + wake blocking pushers so they observe it.
         tsfn->closing = true;
+        tsfn->finalizing = true;
         g_cond_broadcast(&tsfn->cond);
-        // Join: wait for every outstanding claim to drain (each claim-consuming
-        // napi_closing push/release drops thread_count and broadcasts at 0).
-        const size_t claims_at_entry = tsfn->thread_count;
+        // A dispatch armed before dispose can no longer run — drop it now so it
+        // cannot fire into the finalization below.
+        if (tsfn->dispatch_source != nullptr) {
+            g_source_destroy(tsfn->dispatch_source);
+            g_source_unref(tsfn->dispatch_source);
+            tsfn->dispatch_source = nullptr;
+        }
+        // Step 1 — join only the claims a foreign thread demonstrably holds.
+        const size_t foreign_at_entry = tsfn->foreign_claims;
         const gint64 join_started = g_get_monotonic_time();
         const gint64 deadline = join_started + 2 * G_TIME_SPAN_SECOND;
         bool joined = true;
-        while (tsfn->thread_count > 0) {
+        while (tsfn->foreign_claims > 0) {
             if (!g_cond_wait_until(&tsfn->cond, &tsfn->mutex, deadline)) {
                 joined = false;
                 break;
             }
         }
         const gint64 join_us = g_get_monotonic_time() - join_started;
+        const size_t stuck_foreign = tsfn->foreign_claims;
+        g_mutex_unlock(&tsfn->mutex);
+
         if (!joined) {
             g_warning("gjsify-napi: threadsafe-function teardown join timed out "
-                      "after 2s with %zu claim(s) still outstanding; freeing "
-                      "anyway — this reopens the use-after-free window the "
-                      "join exists to close. A claim was never handed back: "
-                      "either a foreign thread holds one without calling again "
-                      "or releasing, or the tsfn was created with an initial "
-                      "claim for the JS thread that no napi_release_threadsafe_"
-                      "function ever dropped (that one cannot drain from inside "
-                      "this join). Release every claim before env teardown",
-                      tsfn->thread_count);
-        } else if (claims_at_entry > 0) {
+                      "after 2s with %zu claim(s) still held by foreign "
+                      "thread(s) that neither called nor released; the function "
+                      "is closed and its JS resources are freed, but its control "
+                      "block is handed to whichever thread hands the last claim "
+                      "back — and leaks if none ever does. Release every claim "
+                      "before env teardown (an napi_add_env_cleanup_hook calling "
+                      "napi_release_threadsafe_function(…, napi_tsfn_abort) is "
+                      "the standard shape)",
+                      stuck_foreign);
+        } else if (foreign_at_entry > 0) {
             g_debug("gjsify-napi: threadsafe-function teardown joined %zu "
-                    "claim(s) in %" G_GINT64_FORMAT " us (deadline 2000000 us)",
-                    claims_at_entry, join_us);
+                    "foreign claim(s) in %" G_GINT64_FORMAT " us "
+                    "(deadline 2000000 us)",
+                    foreign_at_entry, join_us);
         }
-        // A claimant that reached 0 may have armed a dispatch that can no longer
-        // run (dispose has begun) — destroy it before the free.
+
+        // Step 2 — everything that needs a live env. Runs JS (the thread
+        // finalizer), so it must NOT hold the lock, and `detached` must not be
+        // set yet: a claimant that drops the last claim meanwhile has to leave
+        // the struct alone until we are done with it.
+        finalize_tsfn_resources(tsfn);  // removes it from env->tsfns
+
+        // Step 3 — free, or detach to the last claimant.
+        g_mutex_lock(&tsfn->mutex);
+        tsfn->finalizing = false;
+        // A claimant that reached 0 during step 2 may have armed a dispatch that
+        // can no longer run (dispose has begun) — destroy it before the free.
         if (tsfn->dispatch_source != nullptr) {
             g_source_destroy(tsfn->dispatch_source);
             g_source_unref(tsfn->dispatch_source);
             tsfn->dispatch_source = nullptr;
         }
+        if (tsfn->thread_count == 0) {
+            g_mutex_unlock(&tsfn->mutex);
+            delete tsfn;
+            continue;
+        }
+        const size_t own = tsfn->js_claims;
+        const size_t unattributed = tsfn->unattributed_claims;
+        const size_t outstanding = tsfn->thread_count;
+        tsfn->detached = true;
+        tsfn->env = nullptr;  // the env is about to stop being callable
         g_mutex_unlock(&tsfn->mutex);
-        finalize_tsfn(tsfn);  // removes it from env->tsfns
+
+        if (own > 0 || unattributed > 0) {
+            g_warning("gjsify-napi: threadsafe-function closed at env teardown "
+                      "with %zu of %zu outstanding claim(s) that nothing can "
+                      "hand back: %zu held by the thread running this teardown, "
+                      "%zu never attributed to any thread (typically an "
+                      "initial_thread_count claim the creating thread never "
+                      "released). The function is closed and its JS resources "
+                      "are freed; its control block is handed to the last "
+                      "claimant and therefore leaks for the process lifetime. "
+                      "Release every claim before env teardown (an "
+                      "napi_add_env_cleanup_hook calling "
+                      "napi_release_threadsafe_function(…, napi_tsfn_abort) is "
+                      "the standard shape)",
+                      own + unattributed, outstanding, own, unattributed);
+        } else {
+            g_debug("gjsify-napi: threadsafe-function detached at env teardown "
+                    "with %zu foreign claim(s) outstanding; the last claimant "
+                    "frees it",
+                    outstanding);
+        }
     }
 }
 
@@ -414,6 +624,10 @@ napi_status NAPI_CDECL napi_create_threadsafe_function(
     tsfn->finalize_data = thread_finalize_data;
     tsfn->max_queue_size = max_queue_size;
     tsfn->thread_count = initial_thread_count;
+    // The addon hands the initial claims out through memory the shim never
+    // sees, so none of them is attributed until a thread proves it holds one.
+    tsfn->unattributed_claims = initial_thread_count;
+    tsfn->js_thread = g_thread_self();
     env->tsfns.push_back(tsfn);
 
     *result = tsfn;
@@ -430,6 +644,10 @@ napi_status NAPI_CDECL napi_call_threadsafe_function(
         return napi_invalid_arg;
     }
     g_mutex_lock(&func->mutex);
+    // This call PROVES the caller holds a claim (ABI contract) — credit it one
+    // of the still-unattributed initial claims. Early-outs to a single branch
+    // once every participating thread has been seen; see the file header.
+    gjsify_napi::attribute_claim_locked(func);
     while (func->max_queue_size > 0 &&
            func->queue.size() >= func->max_queue_size && !func->closing) {
         if (is_blocking == napi_tsfn_nonblocking) {
@@ -450,13 +668,24 @@ napi_status NAPI_CDECL napi_call_threadsafe_function(
             return napi_invalid_arg;
         }
         func->thread_count--;
-        // This closing push just consumed the caller's claim; if it was the
-        // LAST one, arm the JS-thread dispatch so the deferred finalize runs now
-        // that no thread can re-enter (the free half of the abort-path fix —
-        // dispatch_cb frees only at thread_count == 0; coalesces if pending) AND
-        // wake a teardown JOIN (finalize_env_tsfns) waiting on the last claim.
+        gjsify_napi::retire_claim_locked(func);
+        // This closing push just consumed the caller's claim. If it was the LAST
+        // one AND env teardown already detached the struct, we own it now: free
+        // directly (no dispatch — the main context is gone). Otherwise arm the
+        // JS-thread dispatch so the deferred finalize runs now that no thread can
+        // re-enter (the free half of the abort-path fix — dispatch_cb frees only
+        // at thread_count == 0; coalesces if pending).
+        if (func->thread_count == 0 && func->detached) {
+            g_mutex_unlock(&func->mutex);
+            delete func;
+            return napi_closing;
+        }
         if (func->thread_count == 0) {
             gjsify_napi::schedule_dispatch_locked(func);
+        }
+        // Wake a teardown join (finalize_env_tsfns): it waits on the FOREIGN
+        // claims, which can reach 0 well before thread_count does.
+        if (func->thread_count == 0 || func->foreign_claims == 0) {
             g_cond_broadcast(&func->cond);
         }
         g_mutex_unlock(&func->mutex);
@@ -482,9 +711,18 @@ napi_status NAPI_CDECL napi_release_threadsafe_function(
         return napi_invalid_arg;
     }
     func->thread_count--;
+    gjsify_napi::retire_claim_locked(func);
     if (mode == napi_tsfn_abort && !func->closing) {
         func->closing = true;
         g_cond_broadcast(&func->cond);  // wake blocking pushers
+    }
+    // Env teardown already ran the finalization and handed the struct to its
+    // last claimant — that is us, so free it directly (the main context is gone,
+    // so a dispatch would never run).
+    if (func->thread_count == 0 && func->detached) {
+        g_mutex_unlock(&func->mutex);
+        delete func;
+        return napi_ok;
     }
     // Arm the JS-thread dispatch when this drops the last claim (natural close,
     // OR the deferred abort-path finalize once every claimant has drained) or
@@ -494,8 +732,9 @@ napi_status NAPI_CDECL napi_release_threadsafe_function(
     if (func->thread_count == 0 || mode == napi_tsfn_abort) {
         gjsify_napi::schedule_dispatch_locked(func);
     }
-    if (func->thread_count == 0) {
-        // Wake a teardown JOIN (finalize_env_tsfns) waiting on the last claim.
+    // Wake a teardown join (finalize_env_tsfns): it waits on the FOREIGN claims,
+    // which can reach 0 well before thread_count does.
+    if (func->thread_count == 0 || func->foreign_claims == 0) {
         g_cond_broadcast(&func->cond);
     }
     g_mutex_unlock(&func->mutex);
@@ -566,6 +805,8 @@ napi_status NAPI_CDECL napi_acquire_threadsafe_function(
         return napi_closing;
     }
     func->thread_count++;
+    // The one claim whose owner is known exactly rather than inferred.
+    gjsify_napi::take_claim_locked(func);
     g_mutex_unlock(&func->mutex);
     return napi_ok;
 }
