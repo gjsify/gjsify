@@ -1826,12 +1826,13 @@ async function parseCiPlatforms(
             const runsOn = /^\s*runs-on:\s*(.+?)\s*$/.exec(line);
             if (runsOn) current.runsOn = runsOn[1];
             const arch = /^\s*-?\s*arch:\s*['"]?([\w]+)['"]?\s*$/.exec(line);
-            // Only tokens that NAME a CPU count. `arch:` is not exclusively a
-            // matrix key — it is also an input of `uraimo/run-on-arch-action`,
-            // where the documented value for a custom `base_image` is the
-            // literal `none`. Without this filter that `none` would be read as
-            // a target, and every package the emulated job builds would fail
-            // the declared-vs-built contract on a phantom `linux-none`.
+            // Only tokens that NAME a CPU count. `arch:` is a matrix key here,
+            // but it is also a common ACTION INPUT (it was one on the emulated
+            // legs until they stopped using `uraimo/run-on-arch-action`, whose
+            // documented value alongside a custom `base_image` is the literal
+            // `none`). An unfiltered read turns any such value into a phantom
+            // target — `linux-none` — and fails the declared-vs-built contract
+            // for every package the job builds.
             if (arch && KNOWN_ARCH_TOKENS.has(arch[1])) current.archs.add(arch[1]);
             if (/^\s*if:\s*github\.event_name\s*==\s*'workflow_dispatch'/.test(line)) current.manualOnly = true;
         }

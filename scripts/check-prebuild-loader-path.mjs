@@ -314,6 +314,8 @@ const TYPELIB_MAGIC = 'GOBJ\nMETADATA\r\n\x1a';
  * shared_library u32 at 52. Stable across typelib major versions 2–4.
  */
 const TYPELIB_SHARED_LIBRARY_OFFSET = 52;
+/** Byte offset of the header's `size` field — the whole blob's length. */
+const TYPELIB_SIZE_OFFSET = 40;
 
 /**
  * The library leaf names a GI typelib records.
@@ -325,6 +327,17 @@ const TYPELIB_SHARED_LIBRARY_OFFSET = 52;
  * directory; a rename in `meson.build` that the staging step follows but the
  * typelib does not is invisible to every other check.
  *
+ * A typelib is written in the byte order of the machine that COMPILED it, and
+ * its header carries no endianness flag — GI mmaps the blob and reads it
+ * natively, so the question never arises on the target. It arises here,
+ * because this check reads a `linux-s390x` typelib from an x86-64 host. The
+ * `size` field is the discriminator: it holds the blob's own length, so the
+ * byte order in which it equals the file size is the one the file is in. That
+ * is a self-validating probe rather than a guess, and it is not academic —
+ * reading a big-endian header little-endian yields an out-of-range offset,
+ * which silently reports "this namespace records no library" and skips the
+ * whole staged-leaf check on the ONE architecture where it is big-endian.
+ *
  * @param {string} file
  * @returns {string[] | null} null when the file is not a typelib
  */
@@ -332,7 +345,12 @@ export function readTypelibSharedLibraries(file) {
     const data = readFileSync(file);
     if (data.length < TYPELIB_SHARED_LIBRARY_OFFSET + 4) return null;
     if (data.subarray(0, TYPELIB_MAGIC.length).toString('latin1') !== TYPELIB_MAGIC) return null;
-    const off = data.readUInt32LE(TYPELIB_SHARED_LIBRARY_OFFSET);
+    const bigEndian =
+        data.readUInt32BE(TYPELIB_SIZE_OFFSET) === data.length &&
+        data.readUInt32LE(TYPELIB_SIZE_OFFSET) !== data.length;
+    const off = bigEndian
+        ? data.readUInt32BE(TYPELIB_SHARED_LIBRARY_OFFSET)
+        : data.readUInt32LE(TYPELIB_SHARED_LIBRARY_OFFSET);
     if (off === 0 || off >= data.length) return [];
     const end = data.indexOf(0, off);
     return data

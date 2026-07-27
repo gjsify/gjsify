@@ -23,7 +23,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +33,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CHECKER = join(MONOREPO_ROOT, 'scripts', 'check-prebuild-loader-path.mjs');
 
-const { checkPrebuildDir, readLibrary } = await import(`file://${CHECKER}`);
+const { checkPrebuildDir, readLibrary, readTypelibSharedLibraries } = await import(`file://${CHECKER}`);
 
 /** @param {string[]} parts */
 const pkgDir = (...parts) => join(MONOREPO_ROOT, 'packages', ...parts);
@@ -134,6 +134,47 @@ describe('check-prebuild-loader-path: failure modes', () => {
             mkdirSync(dir, { recursive: true });
             writeFileSync(join(dir, 'gjsifyfoo.dll'), 'MZ not really a PE image');
             assert.deepEqual(checkPrebuildDir(dir), []);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('typelib shared-library records', () => {
+    const TERMINAL_LE = pkgDir('node', 'terminal-native', 'prebuilds', 'linux-x64', 'GjsifyTerminal-1.0.typelib');
+
+    it('reads the library a little-endian typelib names', () => {
+        assert.deepEqual(readTypelibSharedLibraries(TERMINAL_LE), ['libgjsifyterminal.so']);
+    });
+
+    it('reads a BIG-endian typelib — the s390x case', () => {
+        // A typelib is written in the byte order of the machine that compiled
+        // it and carries no endianness flag, so a `linux-s390x` one read from
+        // an x86-64 host is byte-swapped. Read little-endian it yields an
+        // out-of-range offset, which looks exactly like "this namespace names
+        // no library" — silently skipping the staged-leaf check on the one
+        // architecture we ship that is big-endian. Found against a real
+        // emulated s390x build; reproduced here by swapping the committed
+        // one's header so the suite needs no second binary fixture.
+        const src = readFileSync(TERMINAL_LE);
+        const swapped = Buffer.from(src);
+        for (const offset of [40, 52]) swapped.writeUInt32BE(src.readUInt32LE(offset), offset);
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-typelib-'));
+        try {
+            const file = join(dir, 'GjsifyTerminal-1.0.typelib');
+            writeFileSync(file, swapped);
+            assert.deepEqual(readTypelibSharedLibraries(file), ['libgjsifyterminal.so']);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('returns null for a file that is not a typelib', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-typelib-'));
+        try {
+            const file = join(dir, 'Fake-1.0.typelib');
+            writeFileSync(file, 'x'.repeat(256));
+            assert.equal(readTypelibSharedLibraries(file), null);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

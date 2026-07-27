@@ -116,19 +116,16 @@ run. The two current causes:
   it and uploads it as a workflow artifact for a release to ship. No job commits it
   back.
 - **The three emulated Linux targets** (`linux-ppc64`, `linux-s390x`,
-  `linux-riscv64`) — **no CI leg can currently produce them.** The QEMU prebuild legs
-  were passing the target architecture in an input that
-  `uraimo/run-on-arch-action` ignores whenever a custom `base_image` is given, so
-  every "emulated" leg compiled on the runner and staged **x86-64** binaries into
-  those directories. With the platform now carried by the image reference the legs
-  really do emulate — and fail: Fedora's package manager does not survive
-  `qemu-user` on either architecture (a `dnf` segfault on s390x, a failed RPM
-  transaction on ppc64), so the build dependencies never install. The mis-staged
-  x86-64 artifacts have been removed, so these targets are honestly unshipped rather
-  than dishonestly present, and a consumer there hits the guarded `imports.gi`
-  degrade instead of an unloadable library. Restoring them needs a build that
-  survives emulation (a different base image, or cross-compilation instead of
-  `qemu-user`) — or the declarations should come out.
+  `linux-riscv64`) — the build works again, the artifacts land on the next
+  `commit-prebuilds` run on `main`. Two defects had stacked in the emulated
+  prebuild legs: the target architecture was passed in an input
+  `uraimo/run-on-arch-action` ignores whenever a custom `base_image` is given (so
+  every "emulated" leg compiled on the runner and staged **x86-64** into those
+  directories), and the action also reset the emulator to a qemu old enough that
+  Fedora's package manager could not run under it. The legs now register a pinned
+  current qemu and build in the target-arch image; the mis-staged x86-64 artifacts
+  were removed in the meantime, so a consumer on those architectures hits the
+  guarded `imports.gi` degrade rather than an unloadable library.
 
 Check the matrix against reality at any time:
 
