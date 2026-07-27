@@ -9,6 +9,14 @@ description: >
   `actions/checkout` first — a local composite action can only be resolved once
   the repo (incl. this file) is on disk.
 
+
+  The calling job MUST ALSO declare `container.options: --ulimit
+  nofile=1048576:1048576`. "Create non-root user" below raises testuser's
+  `nofile` in `/etc/security/limits.conf`, and `pam_limits` refuses to open a
+  session asking for more than the container's HARD limit — every later
+  `su testuser -c` then fails with the opaque `su: cannot open session:
+  Permission denied` before running a single command.
+
 inputs:
   fedora-version:
     description: Fedora major (43/44) — scopes the per-major build-output cache.

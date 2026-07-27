@@ -75,6 +75,14 @@ jobs:
       # `node: error while loading shared libraries: libatomic.so.1`.
       # Using the image also skips the 3-5 min `dnf install` at job start.
       image: ghcr.io/gjsify/ci-fedora:44
+      # REQUIRED by `gjsify-setup`, not optional tuning: the composite raises
+      # testuser's `nofile` via `/etc/security/limits.conf`, and `pam_limits`
+      # refuses to open a session whose limit exceeds the container's HARD
+      # limit — `su testuser -c` then dies with the opaque `su: cannot open
+      # session: Permission denied` before running anything. Every other job
+      # that uses the composite passes this; leaving it off is what made the
+      # first run of this job red.
+      options: --ulimit nofile=1048576:1048576
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
