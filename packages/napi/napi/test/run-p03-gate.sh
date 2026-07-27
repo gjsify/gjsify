@@ -5,10 +5,16 @@
 # (cleanup-hook LIFO, exactly-once finalization, removed hook absent).
 #
 #   cd packages/napi/napi && sh test/run-p03-gate.sh
+#
+# G_MESSAGES_DEBUG=all is REQUIRED: the shim's P0.0 teardown probe lines
+# ("<n> env(s) torn down before JS_DestroyContext", asserted below) are
+# g_debug() diagnostics, off unless the debug channel is enabled — a plain
+# addon load must not print them. This runner is the debug consumer.
 set -eu
 cd "$(dirname "$0")/.."
 
-OUT=$(GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build timeout 30 gjs test/p03-gate.js 2>&1)
+OUT=$(GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build G_MESSAGES_DEBUG=all \
+    timeout 30 gjs test/p03-gate.js 2>&1)
 printf '%s\n' "$OUT"
 
 fail() { echo "RUN-P03-GATE FAIL: $1" >&2; exit 1; }

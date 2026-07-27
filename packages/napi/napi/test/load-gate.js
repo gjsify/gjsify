@@ -10,7 +10,9 @@
 // Success criterion: the node-gyp-built hello.node loads through the shim,
 // exports.hello() === 'hi', printed as `P0.0 LOAD GATE: PASS`. The §3d
 // teardown probe then fires at GjsContext dispose (after this script ends) —
-// look for the `[gjsify-napi] P0.0 TEARDOWN PROBE` lines on stderr.
+// re-run with `G_MESSAGES_DEBUG=all` to see the `[gjsify-napi] P0.0 TEARDOWN
+// PROBE` lines on stderr (they are g_debug diagnostics, silent by default so a
+// plain addon load emits nothing).
 
 'use strict';
 

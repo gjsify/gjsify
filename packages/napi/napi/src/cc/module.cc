@@ -200,15 +200,22 @@ bool throw_load_error(JSContext* cx, const std::string& message) {
 // §3d env-teardown seam + P0.0 probe. Fires while the JSContext is still
 // alive (before the final GC + JS_DestroyContext) — exactly when Node-style
 // env teardown must run (§5e).
+//
+// The two P0.0 probe lines are DIAGNOSTICS, not events a consumer must see:
+// merely loading an addon must leave stderr clean. They therefore go through
+// g_debug() — the same gated channel the rest of this file's non-error
+// diagnostics already use (the symbol-promotion notes below) — so GLib's
+// standard `G_MESSAGES_DEBUG=all` (or the log domain) turns them back on for
+// the gates that assert the teardown ordering. Real problems keep using
+// g_warning and stay unconditional.
 void on_gjs_context_dispose(gpointer data, GObject* /* where_the_object_was */) {
     auto* cx = static_cast<JSContext*>(data);
     // Probe: JSRuntime-level and context-state calls must still succeed here.
     JSRuntime* rt = JS_GetRuntime(cx);
     const bool pending = JS_IsExceptionPending(cx);
-    fprintf(stderr,
-            "[gjsify-napi] P0.0 TEARDOWN PROBE: GjsContext weak notify fired; "
+    g_debug("[gjsify-napi] P0.0 TEARDOWN PROBE: GjsContext weak notify fired; "
             "JS_GetRuntime=%p exception_pending=%d — JSContext alive at the "
-            "env-teardown seam\n",
+            "env-teardown seam",
             static_cast<void*>(rt), pending ? 1 : 0);
     size_t count = all_envs().size();
     // Teardown may run finalizers that trigger GC — the weak sweep callback
@@ -228,9 +235,8 @@ void on_gjs_context_dispose(gpointer data, GObject* /* where_the_object_was */) 
     // JS_DestroyContext (refs/gjs/gjs/context.cpp:437,471).
     JS_RemoveWeakPointerZonesCallback(cx, gjsify_napi::weak_sweep_callback);
     loader_installed = false;
-    fprintf(stderr,
-            "[gjsify-napi] P0.0 TEARDOWN PROBE: %zu env(s) torn down before "
-            "JS_DestroyContext\n",
+    g_debug("[gjsify-napi] P0.0 TEARDOWN PROBE: %zu env(s) torn down before "
+            "JS_DestroyContext",
             count);
 }
 
