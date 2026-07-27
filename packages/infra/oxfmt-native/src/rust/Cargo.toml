@@ -32,6 +32,27 @@ oxc_formatter = { path = "../../../../../refs/oxc/crates/oxc_formatter" }
 oxc_span = { path = "../../../../../refs/oxc/crates/oxc_span" }
 oxfmt = { path = "../../../../../refs/oxc/apps/oxfmt", default-features = false }
 
+# `oxc_allocator` is dogfooded in-tree (the path deps above) AND published to
+# crates.io. Two of the formatter's leaf parsers are only ON crates.io — the
+# `oxc_formatter_{css,graphql}` wrappers live in refs/oxc, but the parsers they
+# call (`oxc-css-parser`, `oxc-graphql-parser`) do not, so they pull
+# `oxc_allocator` from the REGISTRY. Cargo treats registry and path copies as
+# separate crate instances even at the same version, so `&oxc_allocator::Allocator`
+# from the path copy cannot be passed to a parser typed against the registry one
+# (E0308 `there are multiple different versions of crate oxc_allocator`).
+#
+# refs/oxc solves this for its OWN workspace with the identical patch, but a
+# `[patch]` table is only honoured from the ROOT of the workspace being built —
+# path-depping INTO refs/oxc does not inherit it. `gjsify_oxfmt` is a standalone
+# package (no enclosing [workspace]), so it is its own root and must repeat it.
+#
+# Without this the resolution also floats: the parsers require
+# `oxc_allocator >=0.137.0`, so cargo re-picks the newest published version on
+# every build (0.141.0 today) with nothing pinning it. Patching to the path copy
+# collapses the duplicate class AND removes the float in one step.
+[patch.crates-io]
+oxc_allocator = { path = "../../../../../refs/oxc/crates/oxc_allocator" }
+
 [profile.release]
 lto = true
 codegen-units = 1
