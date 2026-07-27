@@ -25,7 +25,7 @@ name: Build Native Prebuilds
 #     check that would not have caught its own motivating incident is worse than
 #     none, so the Rust bridges are in.
 #   • The emulated legs are not the expensive half. Measured here: ppc64 3m00s,
-#     s390x 3m13s, riscv64 3m07s against ~9 min for a native leg — the
+#     s390x 3m13s, riscv64 3m07s against 8-15 min for a native leg — the
 #     `run-on-arch` base image is cached in GHCR so only the compile is
 #     emulated, and every leg runs in parallel, so excluding them would have
 #     saved no PR latency at all. A cost control that saves nothing is just a
@@ -139,7 +139,8 @@ jobs:
   # one:
   #   • Cost — the legs run in PARALLEL, so dropping arm64 saves no PR latency
   #     at all; measured, the whole leg (7 Vala packages + the lightningcss,
-  #     oxfmt and rolldown Rust builds) is ~9 min.
+  #     oxfmt and rolldown Rust builds) took 8m30s-15m05s across observed
+  #     runs.
   #   • `scripts/audit-runtimes.mjs --check` READS THIS BLOCK. It learns which
   #     `<os>-<arch>` targets CI produces by scanning each job for `runs-on` and
   #     `arch:` matrix entries, and fails any package whose `gjsify.platforms`
@@ -503,7 +504,7 @@ jobs:
   # workflow was left main-only on, and the one STATUS.md recorded — is that the
   # emulated legs are the expensive half. MEASURED on this workflow today, they
   # are the CHEAP half: ~3 min each (ppc64 3m00s, s390x 3m13s, riscv64 3m07s)
-  # versus ~9 min for a native leg, because `uraimo/run-on-arch-action` caches
+  # versus 8-15 min for a native leg, because `uraimo/run-on-arch-action` caches
   # the installed base image in GHCR so only the compile is emulated, and these
   # legs build lightningcss but not rolldown or oxfmt. They also run in
   # parallel, so they add no PR latency whatever. A cost control that saves
