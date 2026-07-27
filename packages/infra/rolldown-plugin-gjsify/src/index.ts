@@ -35,7 +35,9 @@ export {
     nodeGypBuildShim,
     bindingsShim,
     napiRsShim,
+    ADDON_FILTER_RE,
     isNapiRsPackageJson,
+    isNapiRsSibling,
     detectNapiRsEntry,
     AddonNotBuiltError,
 } from './plugins/napi-node-addon.js';

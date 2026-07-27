@@ -38,9 +38,12 @@
 // LOCATE the `.node` but cannot rescue that body. So when the entry of a napi-rs
 // package resolves, we replace the WHOLE module with
 // `module.exports = loadAddon('<abs platform .node>')` (the `napi-rs-entry`
-// kind) — the platform `.node` is the current-triple sibling package
-// (`@scope/pkg-<triple>`, only the host's optionalDependency is installed) or a
-// local `pkg.<triple>.node`. Detection is CONSERVATIVE (package.json signal +
+// kind) — the platform `.node` is the current-triple sibling package (only the
+// host's optionalDependency is installed) or a local `pkg.<triple>.node`. The
+// sibling is named `<self>-<triple>` OR `<napi.packageName>-<triple>`; both
+// schemes ship in the wild and `isNapiRsSibling` knows both, which is what
+// makes `rolldown`/`oxfmt`/`oxlint` (all `@<scope>/binding-<triple>`) reachable
+// and not just `lightningcss`/`@node-rs/*`. Detection is CONSERVATIVE (package.json signal +
 // the file must be the package's own native `main` entry + a real host `.node`
 // must resolve) so it never rewrites an unrelated package's entry; when no
 // current-platform `.node` resolves we fall through to normal resolution rather
@@ -90,8 +93,42 @@ const NAPI_BARE_SPECIFIER = '@gjsify/napi';
 const NAPI_RS_TRIPLE_RE =
     /-(?:linux|darwin|win32|freebsd|openbsd|sunos|android|aix)-(?:x64|arm64|arm|ia32|ppc64|s390x|riscv64|loong64)(?:-(?:gnu|musl|msvc|eabi|eabihf|androideabi|gnueabihf))?$/;
 
-/** Fast-path filter (superset of what `claimSpecifier` claims). Handler re-checks. */
-const ADDON_FILTER_RE = new RegExp(
+/**
+ * A BARE package specifier (`lightningcss`, `@rolldown/binding-…`) — no leading
+ * `.`/`/`/`\`, no protocol (`node:fs`, `gi://Gtk`, `data:…`, `C:\…`), not a
+ * `\0` virtual id.
+ *
+ * Needed because a napi-rs generated loader acquires its binary through a
+ * specifier the bundler CANNOT see: `require(`lightningcss-${parts.join('-')}`)`
+ * / `require(`../lightningcss.${parts.join('-')}.node`)` are template literals
+ * computed at runtime. So neither the sibling nor the direct-`.node`
+ * interception can fire, and the only lever is replacing the loader ENTRY —
+ * which the caller reaches by its BARE name. Matching only path-shaped ids (as
+ * before) meant `import { transform } from 'lightningcss'` was never even
+ * offered to the handler, and the addon gate had to hand-alias every bare
+ * specifier to its native entry to get coverage.
+ *
+ * PORTABILITY, and it is load-bearing: this source feeds `ADDON_FILTER_RE`,
+ * which `@gjsify/rolldown-native` hands to the Rust core as an `idFilter`
+ * STRING. Rust's `regex` crate has no lookaround and no `\0` escape, and it
+ * rejects the WHOLE combined filter rather than the offending branch — which
+ * silently disables every interception under the GJS engine while npm
+ * `rolldown` on Node keeps working. So: no `(?!…)`, and NUL is spelled `\x00`.
+ * The asymmetry is invisible to the addon gate, which drives the Node CLI
+ * entry, so only a real `--app gjs` build under `gjs` catches a regression here.
+ */
+// oxlint-disable-next-line no-control-regex -- the NUL is the point: it marks a bundler VIRTUAL id (`\0gjsify-…`), which is never a package specifier and must not be probed.
+const BARE_SPECIFIER_RE = /^[^.\\/:\s\x00][^:\s\x00]*$/;
+
+/**
+ * Fast-path filter (superset of what `claimSpecifier` claims). Handler re-checks.
+ *
+ * Exported so `napi-node-addon.spec.ts` can assert its Rust-compatibility (see
+ * {@link BARE_SPECIFIER_RE}) — a JS-only construct here disables the plugin
+ * entirely under `@gjsify/rolldown-native`, and no build-level test would see
+ * it, because every addon gate drives the Node CLI entry.
+ */
+export const ADDON_FILTER_RE = new RegExp(
     [
         /\.node$/.source, // direct .node
         /^node-gyp-build(?:\/index\.js)?$/.source, // node-gyp-build helper
@@ -102,6 +139,9 @@ const ADDON_FILTER_RE = new RegExp(
         // `index.*`, not every `.js`) — the handler's `detectNapiRsEntry` gate
         // (package.json signal + native-main match) is the load-bearing check.
         /[/\\]index\.[cm]?js$/.source,
+        // A bare specifier, so the handler can resolve it and test the RESOLVED
+        // file. Broad by design; the handler's fast rejects keep it cheap.
+        BARE_SPECIFIER_RE.source,
     ].join('|'),
 );
 
@@ -428,6 +468,8 @@ export function classifySpecifier(
 export interface AddonPackageJson {
     name?: string;
     main?: string;
+    module?: string;
+    exports?: unknown;
     browser?: string;
     napi?: unknown;
     optionalDependencies?: Record<string, string>;
@@ -440,11 +482,13 @@ export interface AddonPackageJson {
  *   (a) a top-level `napi` config OBJECT (`{ binaryName, targets, … }`) — the
  *       napi-rs CLI's own build block. An ordinary npm package never declares a
  *       `napi` object at the manifest root.
- *   (b) at least one `optionalDependencies` entry named `<self>-<triple>` — the
- *       napi-rs prebuilt-binary convention (`@node-rs/argon2` ships
- *       `@node-rs/argon2-linux-x64-gnu`, …). The key MUST start with the
- *       package's own name plus `-` AND end in a platform triple, so a normal
- *       optional dep (`fsevents`) can't match.
+ *   (b) at least one `optionalDependencies` entry that is a platform SIBLING
+ *       (see {@link isNapiRsSibling}) — the napi-rs prebuilt-binary convention,
+ *       under either naming scheme: `<self>-<triple>` (`@node-rs/argon2` ships
+ *       `@node-rs/argon2-linux-x64-gnu`) or `<napi.packageName>-<triple>`
+ *       (`rolldown` ships `@rolldown/binding-linux-x64-gnu`). The key MUST
+ *       carry a known prefix AND end in a platform triple, so a normal optional
+ *       dep (`fsevents`) can't match.
  *
  * Neither fires on a normal package, so pairing this with the "resolved file IS
  * the package's own native main entry" check (see {@link detectNapiRsEntry})
@@ -452,11 +496,10 @@ export interface AddonPackageJson {
  */
 export function isNapiRsPackageJson(pkg: AddonPackageJson): boolean {
     if (pkg && typeof pkg.napi === 'object' && pkg.napi !== null) return true;
-    const self = pkg?.name;
     const opt = pkg?.optionalDependencies;
-    if (self && opt) {
+    if (opt) {
         for (const dep of Object.keys(opt)) {
-            if (dep.startsWith(`${self}-`) && NAPI_RS_TRIPLE_RE.test(dep)) return true;
+            if (isNapiRsSibling(pkg, dep)) return true;
         }
     }
     return false;
@@ -484,11 +527,73 @@ export function detectNapiRsEntry(entryFile: string): { pkgRoot: string; pkg: Ad
     if (pkgRoot === null) return null;
     const pkg = readPackageJsonSafe(pkgRoot);
     if (pkg === null || !isNapiRsPackageJson(pkg)) return null;
-    // The resolved file must be the package's OWN native main entry — reject a
-    // `browser`/wasm fallback or any deep module inside the package.
-    const mainEntry = resolve(pkgRoot, pkg.main ?? 'index.js');
-    if (resolve(entryFile) !== mainEntry) return null;
+    // The resolved file must be one of the package's OWN native entry points —
+    // reject a `browser`/wasm fallback or any deep module inside the package.
+    const target = stripJsExt(resolve(entryFile));
+    const isNativeEntry = nativeEntrySpecs(pkg).some((spec) => stripJsExt(resolve(pkgRoot, spec)) === target);
+    if (!isNativeEntry) return null;
     return { pkgRoot, pkg };
+}
+
+/** Drop a trailing `.js` / `.mjs` / `.cjs` — see {@link nativeEntrySpecs}. */
+function stripJsExt(p: string): string {
+    return p.replace(/\.[cm]?js$/, '');
+}
+
+/**
+ * Every path a napi-rs manifest names as its NATIVE entry — `main`, `module`,
+ * and the `exports["."]` target(s) — with the `browser` condition deliberately
+ * excluded (that is the wasm / pure-JS fallback, which must keep resolving
+ * normally: it needs no addon and works on GJS as-is).
+ *
+ * Both halves of this matter, and each was a real miss:
+ *
+ *   - `main` ALONE is not enough. A dual package declares the CJS twin in
+ *     `main` while a bundler resolves the ESM one — `lightningcss` says
+ *     `main: "node/index.js"` and ships `node/index.mjs` beside it, which is
+ *     what `--app gjs` actually loads. Comparing only against `main` rejected
+ *     the very file being bundled, so the rewrite silently never happened and
+ *     the generated loader's runtime `require(\`lightningcss-${…}\`)` shipped
+ *     into the bundle.
+ *   - Matching is therefore extension-INSENSITIVE (`stripJsExt`): the `.js` /
+ *     `.mjs` / `.cjs` twins of a declared entry are the same generated loader.
+ *     It stays narrow because the path itself must still be one the manifest
+ *     names — a deep module inside the package never matches.
+ *
+ * Defaults to `index.js` (node's own default `main`) when the manifest names
+ * nothing at all.
+ */
+function nativeEntrySpecs(pkg: AddonPackageJson): string[] {
+    const specs: string[] = [];
+    const add = (v: unknown): void => {
+        if (typeof v === 'string' && v && !specs.includes(v)) specs.push(v);
+    };
+    add(pkg.main);
+    add(pkg.module);
+    // `exports["."]` is a string, or a condition object whose values are
+    // strings / nested condition objects. Walk it, skipping `browser`.
+    const walk = (node: unknown, depth: number): void => {
+        if (typeof node === 'string') return add(node);
+        if (depth > 4 || node === null || typeof node !== 'object' || Array.isArray(node)) return;
+        for (const [condition, value] of Object.entries(node as Record<string, unknown>)) {
+            if (condition === 'browser' || condition === 'types') continue;
+            walk(value, depth + 1);
+        }
+    };
+    const exportsField = pkg.exports;
+    if (typeof exportsField === 'string') {
+        add(exportsField);
+    } else if (exportsField !== null && typeof exportsField === 'object' && !Array.isArray(exportsField)) {
+        const map = exportsField as Record<string, unknown>;
+        // Two legal shapes: a SUBPATH map (keys start with `.`) — then only `.`
+        // is the package entry — or a bare CONDITION object, which IS the entry.
+        // Distinguishing them matters: walking a subpath map wholesale would
+        // make `./some-subpath` a candidate entry.
+        const isSubpathMap = Object.keys(map).some((k) => k.startsWith('.'));
+        walk(isSubpathMap ? map['.'] : map, 0);
+    }
+    if (specs.length === 0) specs.push('index.js');
+    return specs;
 }
 
 /** napi-rs binaryName (from `napi.binaryName`/`napi.name`, else the unscoped pkg name). */
@@ -504,12 +609,64 @@ function napiBinaryName(pkg: AddonPackageJson): string | null {
 }
 
 /**
+ * The name PREFIXES a napi-rs package's platform siblings can carry, most
+ * specific first. A sibling is always `<prefix>-<triple>`.
+ *
+ * Two conventions are in the wild, and only knowing both covers the toolchain
+ * this project builds on:
+ *
+ *   - `<self>-<triple>` — the sibling is named after the package itself
+ *     (`lightningcss` → `lightningcss-linux-x64-gnu`; `@node-rs/argon2` →
+ *     `@node-rs/argon2-linux-x64-gnu`). This was the only shape handled.
+ *   - `<napi.packageName>-<triple>` — napi-rs lets a package publish its
+ *     binaries under a SEPARATE scope, declared in the manifest's own napi
+ *     block. `rolldown` ships `@rolldown/binding-linux-x64-gnu`, `oxfmt`
+ *     ships `@oxfmt/binding-linux-x64-gnu`, `oxlint` ships
+ *     `@oxlint/binding-linux-x64-gnu` — none of which starts with the
+ *     package's own name, so the `<self>-` test missed every one of them.
+ *
+ * That gap is why the three packages at the centre of this build chain
+ * (bundler, formatter, linter) could not load transparently under GJS while
+ * `lightningcss` could: `isNapiRsPackageJson` recognises all four (they all
+ * carry a `napi` config object), so the ENTRY is detected — but with no
+ * sibling resolvable, `resolveNapiRsEntryAddon` returns null and the rewrite
+ * is skipped, leaving the generated loader's CJS body to ship into the bundle
+ * and throw. Conservative by construction either way: a prefix only matters
+ * when it also resolves to a real `.node`.
+ *
+ * `napi.packageName` is read defensively — an arbitrary manifest may put
+ * anything there, and a non-string must not poison the prefix list.
+ */
+function napiSiblingPrefixes(pkg: AddonPackageJson): string[] {
+    const prefixes: string[] = [];
+    const napi = pkg.napi;
+    if (napi && typeof napi === 'object') {
+        const { packageName } = napi as { packageName?: unknown };
+        if (typeof packageName === 'string' && packageName) prefixes.push(packageName);
+    }
+    if (typeof pkg.name === 'string' && pkg.name && !prefixes.includes(pkg.name)) prefixes.push(pkg.name);
+    return prefixes;
+}
+
+/**
+ * Is `dep` a platform sibling of `pkg` — `<prefix>-<triple>` for one of the
+ * prefixes above? Both halves must hold: a bare prefix match would claim an
+ * ordinary dependency, and a bare triple match would claim an unrelated
+ * package's binaries. Exported for the unit tests.
+ */
+export function isNapiRsSibling(pkg: AddonPackageJson, dep: string): boolean {
+    if (!NAPI_RS_TRIPLE_RE.test(dep)) return false;
+    return napiSiblingPrefixes(pkg).some((prefix) => dep.startsWith(`${prefix}-`));
+}
+
+/**
  * The napi-rs short platform triple for the CURRENT host (`linux-x64-gnu`,
  * `darwin-arm64`, `win32-x64-msvc`, …) — the tail napi-rs stamps into a sibling
  * package name (`@node-rs/argon2-linux-x64-gnu`) and a local binary
- * (`argon2.linux-x64-gnu.node`). Used ONLY for the deterministic local-file
- * fallback; the sibling path never needs it (npm installs only the matching
- * optionalDependency). Returns null for a host napi-rs doesn't name.
+ * (`argon2.linux-x64-gnu.node`). Selects BOTH the sibling package and the
+ * local-file fallback — see `resolveNapiRsEntryAddon` for why the sibling path
+ * cannot just take whatever resolves. Returns null for a host napi-rs doesn't
+ * name, and the caller then widens rather than guessing.
  */
 function hostNapiRsTriple(): string | null {
     const platform = process.platform;
@@ -566,21 +723,27 @@ async function resolveNapiRsEntryAddon(
     pkg: AddonPackageJson,
     importer: string,
 ): Promise<string | null> {
-    const self = pkg.name;
-    const opt = pkg.optionalDependencies ?? {};
-    if (self) {
-        for (const dep of Object.keys(opt)) {
-            if (!dep.startsWith(`${self}-`) || !NAPI_RS_TRIPLE_RE.test(dep)) continue;
-            const resolved = await ctx.resolve(dep, importer, { skipSelf: true });
-            if (!resolved) continue;
-            const abs = rawAddonPath(resolved.id);
-            if (abs.endsWith('.node') && existsSync(abs)) return abs;
-        }
+    const siblings = Object.keys(pkg.optionalDependencies ?? {}).filter((dep) => isNapiRsSibling(pkg, dep));
+    const triple = hostNapiRsTriple();
+    // HOST TRIPLE FIRST, and alone whenever we can name it. The older code took
+    // the first sibling that resolved, on the premise that "npm installs only
+    // the host's optionalDependency, so the one that resolves is the host's".
+    // That premise does not hold here: `gjsify install` materialises EVERY
+    // platform package, so `lightningcss`'s `darwin-x64` sibling resolves on a
+    // Linux box and won — baking a Mach-O `.dylib`-bearing `.node` into a linux
+    // GJS bundle, which `loadAddon` can only fail on at runtime. Selecting by
+    // the host triple is also what node-gyp-build and napi-rs' own generated
+    // loaders do, so this matches the binary Node would have loaded.
+    const ordered = triple === null ? siblings : siblings.filter((dep) => dep.endsWith(`-${triple}`));
+    for (const dep of ordered) {
+        const resolved = await ctx.resolve(dep, importer, { skipSelf: true });
+        if (!resolved) continue;
+        const abs = rawAddonPath(resolved.id);
+        if (abs.endsWith('.node') && existsSync(abs)) return abs;
     }
     // Local in-package binary (`<binaryName>.<host-triple>.node`) — deterministic
     // host-triple match so a wrong-platform local file is never picked.
     const binaryName = napiBinaryName(pkg);
-    const triple = hostNapiRsTriple();
     if (binaryName && triple) {
         const local = join(pkgRoot, `${binaryName}.${triple}.node`);
         if (existsSync(local)) return local;
@@ -650,6 +813,46 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
         return info;
     }
 
+    // Bare-specifier → entry-file resolution, memoized per (specifier, importer
+    // DIRECTORY) since that pair is what node resolution actually depends on.
+    // The widened filter offers every bare import here and almost none of them
+    // is a native addon, so this cache is what keeps the extra `ctx.resolve` to
+    // one per unique pair rather than one per import site.
+    const bareEntryCache = new Map<string, string | null>();
+
+    /**
+     * The FILE a specifier denotes, for napi-rs entry detection:
+     *   - absolute path  → itself (an already-resolved or hand-aliased entry).
+     *   - bare specifier → resolved through the full chain (so aliases and
+     *     export conditions apply — under `--app gjs` that is what picks a
+     *     package's `browser`/wasm fallback over its native entry, and
+     *     `detectNapiRsEntry` then correctly declines to rewrite it).
+     *   - anything else (relative paths) → null, unchanged from before.
+     */
+    async function entryFileFor(
+        ctx: AddonResolveContext,
+        source: string,
+        importer: string | undefined,
+    ): Promise<string | null> {
+        if (isAbsolute(source)) return source;
+        if (!BARE_SPECIFIER_RE.test(source)) return null;
+        // Never recurse through our own shims' import.
+        if (source === NAPI_BARE_SPECIFIER || source.startsWith(`${NAPI_BARE_SPECIFIER}/`)) return null;
+        const key = `${source}\0${importer === undefined ? '' : dirname(importer)}`;
+        const cached = bareEntryCache.get(key);
+        if (cached !== undefined) return cached;
+        let file: string | null = null;
+        try {
+            const resolved = await ctx.resolve(source, importer, { skipSelf: true });
+            // An external / virtual / unresolvable id is not a file on disk.
+            if (resolved && isAbsolute(resolved.id) && existsSync(resolved.id)) file = resolved.id;
+        } catch {
+            /* resolution failure is not our error to raise — fall through */
+        }
+        bareEntryCache.set(key, file);
+        return file;
+    }
+
     async function warnIfNapiMissing(ctx: AddonResolveContext, importer: string | undefined): Promise<void> {
         if (!warnOnMissingNapi || missingNapiChecked) return;
         missingNapiChecked = true; // check once per build — interception is rare
@@ -672,8 +875,17 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
         resolveId: {
             order: 'pre' as const,
             filter: { id: ADDON_FILTER_RE },
-            async handler(source, importer) {
+            async handler(source, rawImporter) {
                 const ctx = this as unknown as AddonResolveContext;
+                // The two engines disagree on "no importer": npm `rolldown`
+                // passes `undefined`, `@gjsify/rolldown-native` passes `null`
+                // (its hook payload round-trips through JSON, which has no
+                // `undefined`). Every guard below is written `=== undefined`,
+                // and `null` passes all of them — `dirname(null)` then threw
+                // `The "path" argument must be of type string. Received type
+                // object` and took the whole GJS build down as an
+                // UNHANDLEABLE_ERROR. Normalise once, at the boundary.
+                const importer = typeof rawImporter === 'string' ? rawImporter : undefined;
                 const cls = classifySpecifier(source);
 
                 if (cls !== null) {
@@ -707,9 +919,17 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                 // of a napi-rs package (package.json signal) AND a current-platform
                 // `.node` resolves. Otherwise fall through (never a shim over a
                 // missing file, never an unrelated package's entry rewritten).
-                const entry = detectNapiRsEntryCached(source);
+                // The specifier may be the entry PATH (an internal import, or a
+                // caller that already aliased it) or the package's BARE name —
+                // the ordinary `import { transform } from 'lightningcss'`. For
+                // the bare form the entry file is only known after resolution,
+                // so resolve first and test the resolved id. `entryFileFor`
+                // memoizes both the resolve and the rejection.
+                const entryFile = await entryFileFor(ctx, source, importer);
+                if (entryFile === null) return null;
+                const entry = detectNapiRsEntryCached(entryFile);
                 if (entry !== null) {
-                    const addonPath = await resolveNapiRsEntryAddon(ctx, entry.pkgRoot, entry.pkg, source);
+                    const addonPath = await resolveNapiRsEntryAddon(ctx, entry.pkgRoot, entry.pkg, entryFile);
                     if (addonPath !== null) {
                         await warnIfNapiMissing(ctx, importer);
                         return { id: encodeVirtual('napi-rs-entry', addonPath) };

@@ -20,7 +20,9 @@ import {
     nodeGypBuildShim,
     bindingsShim,
     napiRsShim,
+    ADDON_FILTER_RE,
     isNapiRsPackageJson,
+    isNapiRsSibling,
     detectNapiRsEntry,
     AddonNotBuiltError,
 } from '@gjsify/rolldown-plugin-gjsify';
@@ -316,6 +318,95 @@ export default async () => {
         });
     });
 
+    // The prefixes + siblings below are copied VERBATIM from the real manifests
+    // (`node_modules/<pkg>/package.json#napi` + `#optionalDependencies`) of the
+    // four napi-rs packages this build chain runs on. They are the reason the
+    // helper exists: three of the four publish their binaries under a scope that
+    // has nothing to do with their own package name.
+    await describe('napi-node-addon: filter portability (Rust regex / native engine)', async () => {
+        await it('uses no lookaround and no \\0 escape', () => {
+            // `@gjsify/rolldown-native` hands this pattern to the Rust core as
+            // an `idFilter` STRING. Rust's `regex` crate supports neither
+            // lookaround nor `\0`, and it rejects the WHOLE pattern rather than
+            // the offending branch — so one JS-only construct here silently
+            // disables EVERY interception under the GJS engine while npm
+            // `rolldown` on Node keeps working. Nothing else catches that: the
+            // addon gates all drive the Node CLI entry, so they never exercise
+            // the native engine. Assert the constraint on the pattern itself.
+            const src = ADDON_FILTER_RE.source;
+            expect(src.includes('(?=')).toBe(false);
+            expect(src.includes('(?!')).toBe(false);
+            expect(src.includes('(?<')).toBe(false);
+            // `\0` (NUL escape) — but NOT a back-reference-looking `\01`.
+            expect(/\\0(?![0-9])/.test(src)).toBe(false);
+        });
+        await it('still matches the specifier shapes the handler claims', () => {
+            for (const id of [
+                'lightningcss', // bare specifier (the entry-replacement path)
+                'rolldown',
+                '@rolldown/binding-linux-x64-gnu', // napi-rs platform sibling
+                'node-gyp-build',
+                'bindings',
+                '/abs/pkg/build/Release/x.node', // direct .node
+                '/abs/pkg/dist/index.mjs', // generated-loader entry by path
+            ]) {
+                expect(ADDON_FILTER_RE.test(id)).toBe(true);
+            }
+            // Protocol-bearing and virtual ids must NOT reach the handler.
+            for (const id of ['node:fs', 'gi://Gtk?version=4.0', 'data:text/js,1', './rel.js', '../up.js']) {
+                expect(ADDON_FILTER_RE.test(id)).toBe(false);
+            }
+        });
+    });
+
+    await describe('napi-node-addon: isNapiRsSibling (both naming schemes)', async () => {
+        await it('claims a `<self>-<triple>` sibling', () => {
+            // lightningcss: napi.name only, no packageName — siblings are self-named.
+            const lightningcss = { name: 'lightningcss', napi: { name: 'lightningcss' } };
+            expect(isNapiRsSibling(lightningcss, 'lightningcss-linux-x64-gnu')).toBe(true);
+            expect(isNapiRsSibling(lightningcss, 'lightningcss-darwin-arm64')).toBe(true);
+            const argon2 = { name: '@node-rs/argon2', napi: { binaryName: 'argon2' } };
+            expect(isNapiRsSibling(argon2, '@node-rs/argon2-linux-x64-gnu')).toBe(true);
+        });
+        await it('claims a `<napi.packageName>-<triple>` sibling under a FOREIGN scope', () => {
+            // The regression: none of these siblings starts with the package's own
+            // name, so the `<self>-` test alone found nothing and the entry was
+            // left unrewritten.
+            const rolldown = { name: 'rolldown', napi: { binaryName: 'rolldown-binding', packageName: '@rolldown/binding' } };
+            expect(isNapiRsSibling(rolldown, '@rolldown/binding-linux-x64-gnu')).toBe(true);
+            expect(isNapiRsSibling(rolldown, '@rolldown/binding-win32-x64-msvc')).toBe(true);
+            const oxfmt = { name: 'oxfmt', napi: { binaryName: 'oxfmt', packageName: '@oxfmt/binding' } };
+            expect(isNapiRsSibling(oxfmt, '@oxfmt/binding-linux-x64-gnu')).toBe(true);
+            const oxlint = { name: 'oxlint', napi: { binaryName: 'oxlint', packageName: '@oxlint/binding' } };
+            expect(isNapiRsSibling(oxlint, '@oxlint/binding-darwin-arm64')).toBe(true);
+        });
+        await it('requires BOTH a known prefix AND a platform triple', () => {
+            const rolldown = { name: 'rolldown', napi: { packageName: '@rolldown/binding' } };
+            // Right prefix, no triple.
+            expect(isNapiRsSibling(rolldown, '@rolldown/pluginutils')).toBe(false);
+            // Right triple, foreign prefix.
+            expect(isNapiRsSibling(rolldown, '@swc/core-linux-x64-gnu')).toBe(false);
+            // Neither.
+            expect(isNapiRsSibling(rolldown, 'picomatch')).toBe(false);
+        });
+        await it('ignores a non-string napi.packageName instead of claiming everything', () => {
+            const bogus = { name: 'weird', napi: { packageName: 42 } } as never;
+            // Falls back to the `<self>-` prefix only — `weird-linux-x64-gnu` still
+            // matches, an unrelated scope does not.
+            expect(isNapiRsSibling(bogus, 'weird-linux-x64-gnu')).toBe(true);
+            expect(isNapiRsSibling(bogus, '@other/binding-linux-x64-gnu')).toBe(false);
+        });
+        await it('feeds the package-level signal too (rolldown has no `<self>-` sibling at all)', () => {
+            expect(
+                isNapiRsPackageJson({
+                    name: 'rolldown',
+                    optionalDependencies: { '@rolldown/binding-linux-x64-gnu': '1.1.4' },
+                    napi: { packageName: '@rolldown/binding' },
+                }),
+            ).toBe(true);
+        });
+    });
+
     await describe('napi-node-addon: detectNapiRsEntry (native-main confirmation)', async () => {
         /** A napi-rs generated-loader fixture: package.json signal + index.js + browser.js. */
         function makeNapiRsFixture(pkg: Record<string, unknown>): string {
@@ -353,6 +444,41 @@ export default async () => {
         });
         await it('rejects a relative / non-absolute entry path', () => {
             expect(detectNapiRsEntry('./index.js')).toBe(null);
+        });
+        await it('accepts the ESM twin of a CJS `main` (the lightningcss shape)', () => {
+            // lightningcss declares ONLY `main: "node/index.js"` and ships
+            // `node/index.mjs` beside it. `--app gjs` resolves the `.mjs`, so a
+            // `main`-only comparison rejected the very file being bundled and
+            // the rewrite silently never happened.
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-napi-rs-twin-'));
+            writeFileSync(
+                join(root, 'package.json'),
+                JSON.stringify({ name: 'lightningcss', main: 'node/index.js', napi: { name: 'lightningcss' } }),
+            );
+            mkdirSync(join(root, 'node'), { recursive: true });
+            writeFileSync(join(root, 'node', 'index.js'), '// cjs');
+            writeFileSync(join(root, 'node', 'index.mjs'), '// esm');
+            expect(detectNapiRsEntry(join(root, 'node', 'index.mjs'))?.pkgRoot).toBe(root);
+            expect(detectNapiRsEntry(join(root, 'node', 'index.js'))?.pkgRoot).toBe(root);
+            rmSync(root, { recursive: true, force: true });
+        });
+        await it('accepts an `exports`-declared entry and still rejects a deep module', () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-napi-rs-exports-'));
+            writeFileSync(
+                join(root, 'package.json'),
+                JSON.stringify({
+                    name: 'oxfmt',
+                    main: 'dist/index.js',
+                    exports: { types: './dist/index.d.ts', default: './dist/index.js' },
+                    napi: { binaryName: 'oxfmt', packageName: '@oxfmt/binding' },
+                }),
+            );
+            mkdirSync(join(root, 'dist'), { recursive: true });
+            writeFileSync(join(root, 'dist', 'index.js'), '// entry');
+            writeFileSync(join(root, 'dist', 'internal.js'), '// deep module');
+            expect(detectNapiRsEntry(join(root, 'dist', 'index.js'))?.pkgRoot).toBe(root);
+            expect(detectNapiRsEntry(join(root, 'dist', 'internal.js'))).toBe(null);
+            rmSync(root, { recursive: true, force: true });
         });
     });
 
@@ -405,6 +531,51 @@ export default async () => {
             const res = await handler.call(mockCtx(), entry, undefined);
             expect(res).toBe(null);
             rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('replaces the loader when the sibling lives under napi.packageName scope', async () => {
+            // The `rolldown` shape verbatim: package `rolldown`, binaries under
+            // `@rolldown/binding-<triple>`. Before `isNapiRsSibling` learned
+            // `napi.packageName`, `detectNapiRsEntry` recognised the entry (the
+            // `napi` object is signal (a)) but no sibling resolved, so the rewrite
+            // was skipped and the generated loader's CJS body — `require =
+            // createRequire(...)` — shipped into the bundle and threw at load.
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-napi-rs-scope-'));
+            const sibling = '@rolldown/binding-linux-x64-gnu';
+            writeFileSync(
+                join(root, 'package.json'),
+                JSON.stringify({
+                    name: 'rolldown',
+                    main: './dist/index.mjs',
+                    napi: { binaryName: 'rolldown-binding', packageName: '@rolldown/binding' },
+                    optionalDependencies: { [sibling]: '1.1.4', '@rolldown/binding-darwin-arm64': '1.1.4' },
+                }),
+            );
+            mkdirSync(join(root, 'dist'), { recursive: true });
+            const entry = join(root, 'dist', 'index.mjs');
+            writeFileSync(entry, '/* auto-generated by NAPI-RS */');
+            const siblingNode = touch(join(root, 'node_modules', sibling), 'rolldown-binding.linux-x64-gnu.node');
+
+            const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
+            const res = await handlerOf(plugin).call(mockCtx({ [sibling]: siblingNode }), entry, undefined);
+            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:napi-rs-entry:${siblingNode}` });
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('tolerates a null importer (the native engine passes null, not undefined)', async () => {
+            // `@gjsify/rolldown-native` round-trips the hook payload through
+            // JSON, so "no importer" arrives as `null`. Every guard here is
+            // written `=== undefined`; `null` passed them all and reached
+            // `dirname(null)`, which threw and took the whole `--app gjs` build
+            // down as an UNHANDLEABLE_ERROR. npm rolldown never showed it.
+            const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
+            const handler = handlerOf(plugin) as unknown as (
+                this: unknown,
+                s: string,
+                i: string | null,
+            ) => Promise<{ id: string } | null>;
+            expect(await handler.call(mockCtx(), 'lodash', null)).toBe(null);
+            expect(await handler.call(mockCtx(), './rel/index.js', null)).toBe(null);
         });
 
         await it('does NOT touch an ordinary package index.js', async () => {
