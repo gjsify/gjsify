@@ -854,10 +854,24 @@ async function runProbes(rows) {
 //                           MISSING_EXPORT. FATAL. Type-only exports are
 //                           ignored: the `types` condition still points at the
 //                           root `.d.ts`, so they are unaffected by routing.
+//   4. `curated-alias-routing`
+//                         — a curated bare-specifier alias in
+//                           `ALIASES_NODE_FOR_BROWSER` may not resolve to the
+//                           ROOT of a package that ships a `./browser` entry.
+//                           `partial` is not rewritten by the derived layer, so
+//                           such a value hands the bundler the GJS body and
+//                           `partial` silently means "crashes at first use"
+//                           instead of "degrades at call time". FATAL. Full
+//                           rationale at `auditCuratedAliasRouting`.
 //
 // Unrouted-but-exported platform entries (today: the ten `partial` packages)
-// are listed as an informational line on every run — they are the promotion
-// path from `partial` to `polyfill`, and check 3 is what gates that promotion.
+// are listed as an informational line on every run. Check 3 gates the
+// `partial` → `polyfill` promotion, but it is NECESSARY, NOT SUFFICIENT: eight
+// of those ten already pass it while remaining un-promotable because a named
+// export is unavailable on the browser platform itself (each package's row in
+// AGENTS.md names it). A green parity check is permission to look, not a
+// mandate to promote — a routed entry must also have no unconditionally
+// throwing value export.
 
 /** Targets that can carry a per-runtime platform entry. `gjs` never can. */
 const REACH_TARGETS = ['browser', 'nativescript', 'node'];
@@ -1077,10 +1091,12 @@ async function collectValueExports(file, seen = new Set()) {
 /**
  * Run the reachability audit across the workspace.
  *
- * @returns {Promise<{failures:string[], warnings:string[], unrouted:string[], checked:number}>}
+ * @returns {Promise<{failures:string[], warnings:string[], unrouted:string[],
+ *                    aliasFailures:string[], checked:number}>}
  */
 async function auditReachability() {
     const meta = await collectReachMeta();
+    const aliasFailures = await auditCuratedAliasRouting(meta);
     const failures = [];
     const warnings = [];
     const unrouted = [];
@@ -1173,7 +1189,62 @@ async function auditReachability() {
             else warnings.push(`${line} (gjs-only-reach, ${why})`);
         }
     }
-    return { failures, warnings, unrouted, checked };
+    return { failures, warnings, unrouted, aliasFailures, checked };
+}
+
+// ─── Curated-alias routing (the `partial`-slot crash gap) ───────────────────
+//
+// `withDerivedSlotRouting` only rewrites a curated alias VALUE when the target
+// package's slot is `polyfill` (ADR 0014). A `partial` package therefore keeps
+// whatever the curated table names — and if that is the package ROOT, the
+// bundler is handed the GJS body, whose `@girs/*` imports `gjsImportsEmptyPlugin`
+// replaces with `{}`. The result is the silent `GLib.Checksum is not a
+// constructor` failure mode, i.e. `partial` means "crashes at first use" rather
+// than "degrades at call time". That is not a weaker promise, it is a false one.
+//
+// Invariant: no curated bare-specifier alias may resolve to the ROOT of a
+// package that ships a `./<target>` platform entry. Either the slot is
+// `polyfill` (and the derived layer rewrites it for you) or the curated value
+// names the subpath explicitly. FATAL — this is a shipping-bug class, not a
+// style preference.
+//
+// `browser` only today: it is the one target whose curated table is composed
+// through `withDerivedSlotRouting` (see the `ALIASES_NODE_FOR_NATIVESCRIPT`
+// note in resolve-npm — composing the NS table is blocked on the `native`-slot
+// vocabulary decision, so auditing it here would report a gap whose fix is not
+// available yet).
+
+/**
+ * @returns {Promise<string[]>} one failure line per offending alias entry.
+ */
+async function auditCuratedAliasRouting(meta) {
+    /** @type {Record<string,string>} */
+    let table;
+    try {
+        ({ ALIASES_NODE_FOR_BROWSER: table } = await import(
+            '../packages/infra/resolve-npm/lib/index.mjs'
+        ));
+    } catch (err) {
+        return [
+            `curated-alias-routing: could not load @gjsify/resolve-npm's browser alias table (${err?.message ?? err}).`,
+        ];
+    }
+    const failures = [];
+    for (const [bare, value] of Object.entries(table)) {
+        if (typeof value !== 'string' || !value.startsWith('@gjsify/')) continue;
+        // Already a subpath (`@gjsify/path/posix`, `@gjsify/os/browser`, …) —
+        // the curated value has made its routing explicit, nothing to check.
+        if (value.split('/').length > 2) continue;
+        const rec = meta.get(value);
+        if (!rec || !rec.exportKeys.has('./browser')) continue;
+        failures.push(
+            `'${bare}' → ${value}: ${value} declares runtimes.browser="${rec.runtimes?.browser ?? 'undeclared'}" and ships a "./browser" ` +
+                `platform entry, but the curated alias names the package ROOT — a --app browser bundle gets the GJS body with ` +
+                `@girs/* emptied to {} (curated-alias-routing). Point the value at '${value}/browser', or promote the slot to ` +
+                `"polyfill" so ADR-0014 routing does it.`,
+        );
+    }
+    return failures;
 }
 
 /**
@@ -1832,7 +1903,8 @@ if (CHECK) {
         probeFailures.length === 0 &&
         tierFailures.length === 0 &&
         platformFailures.length === 0 &&
-        reach.failures.length === 0;
+        reach.failures.length === 0 &&
+        reach.aliasFailures.length === 0;
     if (ok) {
         const suffix = STRICT
             ? ` (functional probes passed on every declared slot)`
@@ -1848,7 +1920,7 @@ if (CHECK) {
             `platform audit: OK. ${platformRows.length} native package(s) declare \`gjsify.platforms\`; committed prebuilds and CI-produced targets agree with every declaration${unverified > 0 ? ` (${unverified} package(s) had no CI job the parser recognised — reported, not enforced)` : ''}.`,
         );
         console.log(
-            `reachability audit (ADR 0014): OK. ${reach.checked} polyfill/partial slot(s) checked; no "polyfill" slot resolves to GLib/Gio-reaching code.`,
+            `reachability audit (ADR 0014): OK. ${reach.checked} polyfill/partial slot(s) checked; no "polyfill" slot resolves to GLib/Gio-reaching code, and no curated browser alias resolves to the root of a package that ships a "./browser" entry.`,
         );
         renderReachabilityNotes(reach);
         process.exit(0);
@@ -1918,6 +1990,15 @@ if (CHECK) {
                 '(b) ship a `src/<target>.ts` platform entry + a `"./<target>"` export subpath so the slot routes there (ADR 0014); ' +
                 '(c) downgrade the slot to `partial`/`none` if the package genuinely cannot keep the `polyfill` promise on that runtime.',
         );
+        console.error('');
+    }
+    if (reach.aliasFailures.length > 0) {
+        console.error(
+            `CURATED-ALIAS ROUTING FAILURES on ${reach.aliasFailures.length} alias entr(y|ies):`,
+        );
+        for (const line of reach.aliasFailures) {
+            console.error(`  - ${line}`);
+        }
         console.error('');
     }
     renderReachabilityNotes(reach);
