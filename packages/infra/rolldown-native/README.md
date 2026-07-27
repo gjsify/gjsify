@@ -34,8 +34,8 @@ Under normal usage `@gjsify/rolldown-native` is consumed automatically by the gj
 
 | Platform | Prebuild | Built by |
 |---|---|---|
-| `linux-x86_64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
-| `linux-aarch64` | ✅ | native runner |
+| `linux-x64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
+| `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ❌ | not built — the rolldown crate graph is too slow under QEMU |
 | macOS (`darwin-arm64`) | ⏳ source-ready, no prebuild yet | pending a green `prebuilds.yml` macOS leg |
 | macOS (`darwin-x64`) | ❌ | — |

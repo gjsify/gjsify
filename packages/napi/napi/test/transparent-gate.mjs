@@ -70,7 +70,7 @@ const CLI = resolveCli();
 const runGjsify = (args, opts) => execFileSync(process.execPath, [CLI, ...args], opts);
 const ADDONS_DIR = join(HERE, 'addons');
 const NAPI_LIB = join(PKG, 'lib', 'esm', 'index.js');
-const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x86_64');
+const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
 
 const name = process.argv[2];
 const cfg = ADDONS[name];

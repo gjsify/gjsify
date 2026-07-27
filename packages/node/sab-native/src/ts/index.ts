@@ -13,7 +13,7 @@
 // Platform scope (ADR 0013, docs/adr/0013-sab-native-platform-scope.md):
 // the native backend is **Linux-only** today — it is built on memfd_create(2),
 // the non-private SYS_futex flavour and SCM_RIGHTS, and prebuilds ship for
-// linux-{x86_64,aarch64,ppc64,s390x,riscv64} only. macOS is a decided but
+// linux-{x64,arm64,ppc64,s390x,riscv64} only. macOS is a decided but
 // not-yet-implemented port (shm_open + os_sync_wait_on_address, macOS 14.4+);
 // Windows is blocked (no GJS host, and no cross-process address-keyed wait
 // primitive exists there).
@@ -153,7 +153,7 @@ export function hasNativeSab(): boolean {
 export const NATIVE_SAB_UNAVAILABLE =
     '@gjsify/sab-native: the native backend is not available on this platform. ' +
     'Cross-process SharedBuffer is currently Linux-only (memfd_create + futex + SCM_RIGHTS); ' +
-    'prebuilds ship for linux-{x86_64,aarch64,ppc64,s390x,riscv64} only — ' +
+    'prebuilds ship for linux-{x64,arm64,ppc64,s390x,riscv64} only — ' +
     'macOS support is planned and Windows is unsupported (see docs/adr/0013-sab-native-platform-scope.md). ' +
     'Guard with hasNativeSab() before using SharedBuffer. ' +
     'On Linux, a missing prebuild can be built locally with `gjsify workspace @gjsify/sab-native build:prebuilds`.';

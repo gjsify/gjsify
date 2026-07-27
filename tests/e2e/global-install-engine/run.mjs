@@ -46,13 +46,9 @@ const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
 const INSTALL_GLOBAL_JS = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'install-global.js');
 
-// Map process.arch → the convention used in prebuilds/ directories
-// (mirror of detect-native-packages.ts nodeArchToLinuxArch).
-function linuxArch() {
-    const map = { x64: 'x86_64', arm64: 'aarch64', arm: 'armv7', ia32: 'i686' };
-    return map[process.arch] ?? process.arch;
-}
-const ARCH = linuxArch();
+// A prebuild directory is named `${process.platform}-${process.arch}` — one
+// spelling, computed from the running process (detect-native-packages.ts).
+const ARCH = process.arch;
 const PREBUILD_REL = `prebuilds/linux-${ARCH}`;
 
 // ── ustar tar builder supporting multiple files (incl. a prebuild file) ──────

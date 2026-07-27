@@ -69,15 +69,15 @@ yarn workspace @gjsify/http-soup-bridge run build:meson
 yarn workspace @gjsify/http-soup-bridge run build:prebuilds
 ```
 
-This produces `prebuilds/linux-x86_64/{libgjsifyhttpsoupbridge.so,
+This produces `prebuilds/linux-x64/{libgjsifyhttpsoupbridge.so,
 GjsifyHttpSoupBridge-1.0.gir, GjsifyHttpSoupBridge-1.0.typelib}`. The
 `@gjsify/cli` runtime injects `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` from
 the `gjsify.prebuilds` field at startup, so consumers don't need to install
 the bridge into a system path.
 
 The CI workflow at `.github/workflows/prebuilds.yml` builds prebuilds for
-linux-x86_64, linux-aarch64, linux-ppc64, linux-s390x, linux-riscv64 and
-darwin-arm64, and auto-commits them to the repo. linux x86_64/aarch64 and
+linux-x64, linux-arm64, linux-ppc64, linux-s390x, linux-riscv64 and
+darwin-arm64, and auto-commits them to the repo. linux x64/arm64 and
 darwin-arm64 use native GitHub runners; ppc64, s390x, and riscv64 use QEMU
 via `uraimo/run-on-arch-action`. The macOS artifact is named
 `libgjsifyhttpsoupbridge.dylib` and its typelib records that leaf — see
@@ -102,8 +102,8 @@ already references `@girs/gjsifyhttpsoupbridge-1.0`.
 
 | Platform | Prebuild | Built by |
 |---|---|---|
-| `linux-x86_64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
-| `linux-aarch64` | ✅ | native runner |
+| `linux-x64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
+| `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
 | `darwin-arm64` (macOS, Apple silicon) | ✅ `.dylib` + `.gir` + `.typelib` | `macos-latest` runner |
 | `darwin-x64` (macOS, Intel) | ❌ | — no runner leg yet |

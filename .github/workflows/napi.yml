@@ -100,8 +100,8 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/
-          echo "staged: $(ls -1 prebuilds/linux-x86_64)"
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x64/
+          echo "staged: $(ls -1 prebuilds/linux-x64)"
 
       # Assert the checked-in stubs.cc is in sync with the sources (a function
       # implemented but still stubbed would fail the meson link; a regeneration
@@ -191,7 +191,7 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x64/
 
       # Build better-sqlite3 from source (the real npm native addon the gate
       # proves runs unmodified on GJS). --force_build so it never uses a shipped
@@ -338,7 +338,7 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x64/
 
       # Build @gjsify/node-gi from source (node-gyp) → build/Release/node_gi.node,
       # the addon both gates load through the shim. Its `install` script IS
@@ -556,7 +556,7 @@ jobs:
         run: GI_TYPELIB_PATH="$PWD/build" DYLD_LIBRARY_PATH="$PWD/build" gjs test/p1-tsfn-gate.js
 
       # Upload the staged darwin-arm64 prebuild (.dylib + .gir + .typelib) so a
-      # release can ship prebuilds/darwin-arm64/ alongside linux-x86_64/.
+      # release can ship prebuilds/darwin-arm64/ alongside linux-x64/.
       - name: Upload darwin-arm64 prebuild artifact
         uses: actions/upload-artifact@v4
         with:

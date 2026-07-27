@@ -3,7 +3,7 @@
 // Regression guard for the OS/arch axis. Eleven packages used to stage their
 // prebuild with a hand-written one-liner:
 //
-//     mkdir -p prebuilds/linux-x86_64 && cp build/libfoo.so … prebuilds/linux-x86_64/
+//     mkdir -p prebuilds/linux-x64 && cp build/libfoo.so … prebuilds/linux-x64/
 //
 // which is wrong twice off Linux/x86_64: the target directory is hard-coded,
 // and so is the `.so` suffix — a macOS build emits `.dylib`, so `cp` fails and
@@ -51,17 +51,28 @@ function runStager(dir) {
 }
 
 describe('stage-prebuild: target selection', () => {
-    it('resolves both spellings of the same architecture', () => {
-        // gjsify names Linux targets with the `uname -m` machine but Darwin
-        // targets with Node's arch. Both must resolve from one host identity.
-        const declared = ['linux-x86_64', 'linux-aarch64', 'darwin-arm64'];
-        assert.equal(pickDeclaredTarget(declared, 'linux', 'x64'), 'linux-x86_64');
-        assert.equal(pickDeclaredTarget(declared, 'linux', 'arm64'), 'linux-aarch64');
+    it('matches the host on the ONE `${platform}-${arch}` spelling', () => {
+        const declared = ['linux-x64', 'linux-arm64', 'darwin-arm64', 'win32-x64'];
+        assert.equal(pickDeclaredTarget(declared, 'linux', 'x64'), 'linux-x64');
+        assert.equal(pickDeclaredTarget(declared, 'linux', 'arm64'), 'linux-arm64');
         assert.equal(pickDeclaredTarget(declared, 'darwin', 'arm64'), 'darwin-arm64');
+        assert.equal(pickDeclaredTarget(declared, 'win32', 'x64'), 'win32-x64');
+        // Identical in both vocabularies — nothing to translate.
+        assert.equal(pickDeclaredTarget(['linux-riscv64'], 'linux', 'riscv64'), 'linux-riscv64');
+    });
+
+    it('does NOT accept the retired uname spelling', () => {
+        // The stager is a WRITE path: accepting `linux-x86_64` here is how a
+        // second spelling would creep back onto disk. A declaration in the old
+        // vocabulary fails the audit (`scripts/audit-runtimes.mjs --check`) and
+        // fails here too, with the actionable "not in `gjsify.platforms`"
+        // message — never by silently staging into an undeclared directory.
+        assert.equal(pickDeclaredTarget(['linux-x86_64'], 'linux', 'x64'), null);
+        assert.equal(pickDeclaredTarget(['linux-aarch64'], 'linux', 'arm64'), null);
     });
 
     it('returns null for a host the package does not declare', () => {
-        const declared = ['linux-x86_64'];
+        const declared = ['linux-x64'];
         assert.equal(pickDeclaredTarget(declared, 'win32', 'x64'), null);
         assert.equal(pickDeclaredTarget(declared, 'darwin', 'arm64'), null);
         assert.equal(pickDeclaredTarget(declared, 'linux', 'riscv64'), null);
@@ -74,7 +85,7 @@ describe('stage-prebuild: target selection', () => {
 
 describe('stage-prebuild: staging', () => {
     it('copies every artifact extension, including .dylib', () => {
-        const dir = fixture([`${process.platform}-${process.arch}`, 'linux-x86_64', 'darwin-arm64'], [
+        const dir = fixture([`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'], [
             'libfoo.so',
             'libfoo.dylib',
             'Foo-1.0.gir',
@@ -84,7 +95,7 @@ describe('stage-prebuild: staging', () => {
         try {
             runStager(dir);
             const target = pickDeclaredTarget(
-                [`${process.platform}-${process.arch}`, 'linux-x86_64', 'darwin-arm64'],
+                [`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'],
                 process.platform,
                 process.arch,
             );
@@ -96,7 +107,7 @@ describe('stage-prebuild: staging', () => {
     });
 
     it('replaces a stale artifact set rather than merging into it', () => {
-        const platforms = [`${process.platform}-${process.arch}`, 'linux-x86_64', 'darwin-arm64'];
+        const platforms = [`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'];
         const dir = fixture(platforms, ['libold.so']);
         try {
             runStager(dir);
@@ -114,7 +125,7 @@ describe('stage-prebuild: staging', () => {
 
     it('fails loudly on a host the package does not declare', () => {
         // Declare only a target this host cannot be.
-        const other = process.platform === 'linux' ? 'darwin-arm64' : 'linux-x86_64';
+        const other = process.platform === 'linux' ? 'darwin-arm64' : 'linux-x64';
         const dir = fixture([other], ['libfoo.so']);
         try {
             assert.throws(() => runStager(dir), /not in/i);
@@ -124,7 +135,7 @@ describe('stage-prebuild: staging', () => {
     });
 
     it('fails loudly when the build produced no artifact', () => {
-        const dir = fixture([`${process.platform}-${process.arch}`, 'linux-x86_64', 'darwin-arm64'], ['meson-logs.txt']);
+        const dir = fixture([`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'], ['meson-logs.txt']);
         try {
             assert.throws(() => runStager(dir), /none of/i);
         } finally {

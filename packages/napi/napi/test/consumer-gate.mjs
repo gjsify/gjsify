@@ -38,7 +38,7 @@ const BSQ_PREBUILDS = join(BSQ, 'prebuilds');
 const WORKOUT = join(HERE, 'consumer-workout.mjs');
 const RESOLVER = join(HERE, 'consumer-node-resolver.mjs');
 const NAPI_LIB = join(PKG, 'lib', 'esm', 'index.js');
-const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x86_64');
+const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
 
 const die = (msg) => {
     console.error(`CONSUMER GATE: FAIL — ${msg}`);

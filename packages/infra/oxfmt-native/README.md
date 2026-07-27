@@ -44,8 +44,8 @@ gjsify workspace @gjsify/oxfmt-native build:prebuilds   # needs meson + vala + c
 
 | Platform | Prebuild | Built by |
 |---|---|---|
-| `linux-x86_64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
-| `linux-aarch64` | ✅ | native runner |
+| `linux-x64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
+| `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ❌ | not built — the `refs/oxc` crate graph is too slow under QEMU |
 | `darwin-arm64` (macOS, Apple silicon) | ✅ `.dylib` + `.gir` + `.typelib` | `macos-latest` runner |
 | `darwin-x64` (macOS, Intel) | ❌ | — no runner leg yet |

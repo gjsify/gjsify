@@ -28,8 +28,11 @@ Mounted at `/usr/lib/sdk/gjsify`:
 
 The native prebuilds (typelibs + `.so`) are shipped per-architecture via
 `only-arches`-tagged sources — currently `x86_64` and `aarch64` (whichever the
-build is for is the only one fetched). The JS payload (CLI bundle, shims, tsc
-libs, native JS wrappers) is architecture-independent.
+build is for is the only one fetched). Those two names are *flatpak's* arch
+vocabulary and are unrelated to the `<os>-<arch>` prebuild directory they point
+at, which is spelled the way `process.arch` spells it
+(`prebuilds/linux-x64/`, `prebuilds/linux-arm64/`). The JS payload (CLI bundle,
+shims, tsc libs, native JS wrappers) is architecture-independent.
 
 **GJS itself is NOT bundled** — it is provided by the consuming SDK
 (`org.gnome.Sdk`), exactly as `node24` relies on its base `org.freedesktop.Sdk`.

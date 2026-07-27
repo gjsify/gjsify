@@ -66,7 +66,7 @@ and a built target that nothing promises are both hard failures.
 
 <!-- Regenerate with: node scripts/audit-runtimes.mjs --platforms --markdown -->
 
-| package | tier | darwin-aarch64 | linux-aarch64 | linux-ppc64 | linux-riscv64 | linux-s390x | linux-x86_64 | win32-x86_64 |
+| package | tier | darwin-arm64 | linux-arm64 | linux-ppc64 | linux-riscv64 | linux-s390x | linux-x64 | win32-x64 |
 |---|---|---|---|---|---|---|---|---|
 | `@gjsify/http-soup-bridge` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
 | `@gjsify/http2-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
@@ -82,6 +82,11 @@ and a built target that nothing promises are both hard failures.
 | `@gjsify/webrtc-native` | 1 | · | ✓ | ✓ | ✓ | ✓ | ✓ | · |
 
 `✓` declared + built by CI · `·` not supported
+
+Every column above is a real directory name. Targets are spelled the one way a running
+process can compute about itself — `${process.platform}-${process.arch}` — so
+`gjsify.platforms`, the committed `prebuilds/<target>/`, the CI job that builds it and
+the resolver that loads it all use the same string, with nothing to translate between them.
 
 Check the matrix against reality at any time:
 

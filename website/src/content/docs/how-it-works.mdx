@@ -160,19 +160,19 @@ If `X` is not in the table, it is not yet implemented in GJSify — check the [P
 
 ## Native prebuilds and `gjsify run`
 
-Some GJSify packages need native code. For example, `@gjsify/webgl` ships a Vala-built shared library + GIR typelib to bridge WebGL calls to OpenGL ES through `libepoxy`. These packages publish their binaries under `prebuilds/<os>-<arch>/`, declare the directory via `"gjsify": { "prebuilds": "prebuilds" }` and the targets they promise via `"gjsify": { "platforms": ["linux-x86_64", "darwin-arm64", …] }` in their `package.json`.
+Some GJSify packages need native code. For example, `@gjsify/webgl` ships a Vala-built shared library + GIR typelib to bridge WebGL calls to OpenGL ES through `libepoxy`. These packages publish their binaries under `prebuilds/<os>-<arch>/`, declare the directory via `"gjsify": { "prebuilds": "prebuilds" }` and the targets they promise via `"gjsify": { "platforms": ["linux-x64", "darwin-arm64", …] }` in their `package.json`.
 
 ### How a prebuild directory is located
 
-Two `<os>-<arch>` spellings are in use, and both resolve:
+There is one `<os>-<arch>` spelling: <code>&#36;&#123;process.platform&#125;-&#36;&#123;process.arch&#125;</code> — `linux-x64`,
+`linux-arm64`, `darwin-arm64`, `win32-x64`. (`linux-ppc64`, `linux-s390x` and `linux-riscv64`
+are spelled the same in every vocabulary.) It is what a running process can compute about
+itself, so locating the directory needs no translation step.
 
-- **uname-style** — `prebuilds/linux-x86_64/`, `prebuilds/linux-aarch64/`. What every
-  Vala/meson bridge stages, because its CI job names the directory after `uname -m`.
-- **node-style** — <code>prebuilds/&#36;&#123;process.platform&#125;-&#36;&#123;process.arch&#125;/</code>, i.e. `linux-x64`,
-  `darwin-arm64`, `win32-x64`. What `@gjsify/node-gi` and `@gjsify/napi` stage.
-
-The CLI probes the package's own declared spelling from `gjsify.platforms` first, then both
-generic spellings for the running host. A package that ships nothing for your platform is
+The CLI probes the package's own declared spelling from `gjsify.platforms` first, then that
+canonical name, then — for backward compatibility only — the retired uname spelling
+(`prebuilds/linux-x86_64/`) that the Vala/meson bridges staged before the rename, so a
+tarball published back then still loads. A package that ships nothing for your platform is
 skipped silently — every native bridge is optional at runtime.
 
 ### The environment it sets
@@ -189,7 +189,7 @@ actually reads**:
 
 :::caution[Which prebuilds exist is a separate question]
 Resolution is cross-platform; the *artifacts* are not yet. Every native bridge ships
-`linux-x86_64` and `linux-aarch64`; most also ship `linux-ppc64`, `linux-s390x` and
+`linux-x64` and `linux-arm64`; most also ship `linux-ppc64`, `linux-s390x` and
 `linux-riscv64`. `darwin-arm64` is built for `lightningcss-native`, `oxfmt-native`,
 `terminal-native`, `tls-native`, `http-soup-bridge` and `http2-native`.
 

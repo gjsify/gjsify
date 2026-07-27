@@ -63,14 +63,13 @@ const fixture = join(pkgRoot, 'fixtures', 'excalibur-webgl-app.ts');
 const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 
 // The committed gwebgl Vala prebuild (typelib + .so) @gjsify/webgl ships.
-const PREBUILD_ARCH = { x64: 'x86_64', arm64: 'aarch64' };
 const gwebglDir = join(
     repoRoot,
     'packages',
     'framework',
     'webgl',
     'prebuilds',
-    `linux-${PREBUILD_ARCH[process.arch] ?? process.arch}`,
+    `linux-${process.arch}`,
 );
 const haveGwebgl = existsSync(join(gwebglDir, 'Gwebgl-0.1.typelib'));
 

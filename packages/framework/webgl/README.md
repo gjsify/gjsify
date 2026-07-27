@@ -70,8 +70,8 @@ This package ships prebuilt native libraries for the platforms listed under
 
 ```
 prebuilds/
-  linux-x86_64/   libgwebgl.so + Gwebgl-0.1.typelib
-  linux-aarch64/  libgwebgl.so + Gwebgl-0.1.typelib
+  linux-x64/   libgwebgl.so + Gwebgl-0.1.typelib
+  linux-arm64/  libgwebgl.so + Gwebgl-0.1.typelib
   linux-ppc64/    libgwebgl.so + Gwebgl-0.1.typelib
   linux-s390x/    libgwebgl.so + Gwebgl-0.1.typelib
   linux-riscv64/  libgwebgl.so + Gwebgl-0.1.typelib
@@ -113,7 +113,7 @@ yarn build:prebuilds
 
 ## Prebuilt binaries
 
-Prebuilds for `linux-x86_64`, `linux-aarch64`, `linux-ppc64`, `linux-s390x`, and `linux-riscv64` are built automatically by CI
+Prebuilds for `linux-x64`, `linux-arm64`, `linux-ppc64`, `linux-s390x`, and `linux-riscv64` are built automatically by CI
 (`.github/workflows/prebuilds.yml`) when the Vala source changes and committed back
 to the repository. They are included in the npm package via the `files` field.
 
@@ -127,8 +127,8 @@ to the repository. They are included in the npm package via the `files` field.
 
 | Platform | Prebuild | Built by |
 |---|---|---|
-| `linux-x86_64` | ✅ `libgwebgl.so` + `Gwebgl-0.1.typelib` | native runner |
-| `linux-aarch64` | ✅ | native runner |
+| `linux-x64` | ✅ `libgwebgl.so` + `Gwebgl-0.1.typelib` | native runner |
+| `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
 | macOS (`darwin-arm64` / `darwin-x64`) | ❌ | **unverified, see below** |
 | Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |

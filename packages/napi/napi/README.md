@@ -42,7 +42,7 @@ gjsify install @gjsify/napi
 
 Published on the `@gjsify/*` release train. The tarball ships the shim
 **prebuilt** for the platforms in [Platforms](#platforms) below —
-`prebuilds/linux-x86_64/` and `prebuilds/darwin-arm64/`, each a `.so`/`.dylib`
+`prebuilds/linux-x64/` and `prebuilds/darwin-arm64/`, each a `.so`/`.dylib`
 plus its `.gir` and `.typelib`, rebuilt from the released source by the
 `napi-prebuild-*` jobs in `.github/workflows/release.yml` — so an install brings
 the shim itself, not just a build recipe. Installing through the `gjsify` CLI
@@ -120,7 +120,7 @@ both:
 
 | Platform | Prebuild dir | Status |
 | --- | --- | --- |
-| Linux x86_64 | `prebuilds/linux-x86_64/` | Supported (full gate + conformance + consumer CI) |
+| Linux x64 | `prebuilds/linux-x64/` | Supported (full gate + conformance + consumer CI) |
 | macOS arm64 | `prebuilds/darwin-arm64/` | Supported (build + load + P0.x value-model + **P1 tsfn** gates); the earlier tsfn exit-segfault (a UAF — the tsfn was freed while foreign claimants still held claims) is **fixed** (join-before-free, both abort + teardown paths); conformance/consumer/valgrind widening deferred |
 | Windows x64 | — | **Attempted, blocked at gjs-on-Windows** (shim-side portability done; see below) |
 
@@ -151,7 +151,7 @@ meson setup build .              # or: gjsify run init:meson
 meson compile -C build           # builds libgjsifynapi.so + GjsifyNapi-1.0.{gir,typelib}
 
 # stage the prebuild the loader/gates resolve from:
-gjsify run build:prebuilds       # meson build + copy into prebuilds/linux-x86_64/
+gjsify run build:prebuilds       # meson build + copy into prebuilds/linux-x64/
 ```
 
 ## Test

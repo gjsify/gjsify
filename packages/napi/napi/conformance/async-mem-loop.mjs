@@ -26,7 +26,7 @@
 // is exercised too.
 //
 // Run standalone (no valgrind):
-//   GI_TYPELIB_PATH=prebuilds/linux-x86_64 LD_LIBRARY_PATH=prebuilds/linux-x86_64 \
+//   GI_TYPELIB_PATH=prebuilds/linux-x64 LD_LIBRARY_PATH=prebuilds/linux-x64 \
 //     LD_PRELOAD=/usr/lib64/libuv.so.1 gjs -m conformance/async-mem-loop.mjs
 import GjsifyNapi from 'gi://GjsifyNapi?version=1.0';
 import GLib from 'gi://GLib?version=2.0';

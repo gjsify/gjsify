@@ -22,7 +22,7 @@
     ],
     "gjsify": {
         "platforms": [
-            "linux-x86_64",
+            "linux-x64",
             "darwin-arm64"
         ],
         "prebuilds": "prebuilds",

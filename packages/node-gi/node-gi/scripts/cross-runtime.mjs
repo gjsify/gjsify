@@ -127,7 +127,7 @@ const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 // exits non-zero once the last subtest reported `ok`. It is NONDETERMINISTIC in two
 // ways: it lands on a DIFFERENT file run-to-run (struct-construct one run, out-params
 // the next, gobject the next) AND on a DIFFERENT platform run-to-run (macos-arm64 one
-// run, linux-aarch64 the next).
+// run, linux-arm64 the next).
 //
 // ROOT CAUSE (#47, diagnosed against deno 2.9.3, glibc/gobject, exit 139 = SIGSEGV):
 // a segfault inside libgobject g_type_fundamental, called from the boxed-handle

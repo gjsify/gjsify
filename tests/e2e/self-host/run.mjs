@@ -45,12 +45,21 @@ const OUT_DIR = join(__dirname, 'out');
 function collectPrebuildDirs() {
     // The bundled GJS-CLI uses `@gjsify/rolldown-native` at runtime; its
     // shared library + typelib live under
-    // `node_modules/<pkg>/prebuilds/linux-<arch>/`. Walk the monorepo's
+    // `node_modules/<pkg>/prebuilds/<os>-<arch>/`. Walk the monorepo's
     // root `node_modules/@gjsify/` and pick every package that ships
-    // a `prebuilds/<arch>/` dir so both LD_LIBRARY_PATH (for the .so)
+    // a `prebuilds/<target>/` dir so both LD_LIBRARY_PATH (for the .so)
     // and GI_TYPELIB_PATH (for the .typelib) are populated.
-    const arch = process.arch === 'x64' ? 'x86_64' : process.arch;
-    const platformArch = `linux-${arch}`;
+    //
+    // The target is `${process.platform}-${process.arch}` verbatim — the one
+    // spelling every package declares in `gjsify.platforms`, that
+    // `scripts/stage-prebuild.mjs` creates and that the CLI's
+    // `resolvePrebuildDirName()` resolves. Do NOT translate `process.arch`
+    // into the `uname -m` machine here: this used to read
+    // `process.arch === 'x64' ? 'x86_64' : process.arch`, which composed a
+    // directory name that no longer exists, so every prebuild silently
+    // dropped out of the environment and the GJS legs failed much later with
+    // "no usable bundler engine under GJS".
+    const platformArch = `${process.platform}-${process.arch}`;
     const root = join(MONOREPO_ROOT, 'node_modules', '@gjsify');
     if (!existsSync(root)) return [];
     const out = [];

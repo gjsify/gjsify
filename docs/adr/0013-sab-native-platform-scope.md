@@ -34,7 +34,7 @@ on three Linux-specific mechanisms:
 | Cross-process wait/notify | `syscall(SYS_futex, FUTEX_WAIT / FUTEX_WAKE)` — deliberately **not** `*_PRIVATE`, so the kernel keys on the physical page and matches across processes that mapped the region at different virtual addresses |
 | Descriptor transfer | `AF_UNIX` `SOCK_SEQPACKET` socketpair + `sendmsg`/`recvmsg` with `SCM_RIGHTS` |
 
-It ships `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/` and nothing else. On
+It ships `prebuilds/linux-{x64,arm64,ppc64,s390x,riscv64}/` and nothing else. On
 macOS and Windows the typelib is simply absent, so `@gjsify/worker_threads`'
 cross-process `SharedBuffer` support silently does not exist — and until this ADR no
 document said so. The package is **Tier 1**, which makes an undocumented

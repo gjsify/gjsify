@@ -63,7 +63,7 @@ if (hasNativeSab()) {
 }
 ```
 
-Ships as a prebuilt `.so` + `.typelib` for `linux-{x86_64,aarch64,ppc64,s390x,riscv64}`.
+Ships as a prebuilt `.so` + `.typelib` for `linux-{x64,arm64,ppc64,s390x,riscv64}`.
 
 ## License
 

@@ -26,7 +26,7 @@ import { readPackageJson } from './pkg-json.js';
 export interface NativePackage {
     /** npm package name, e.g. "@gjsify/webgl" */
     name: string;
-    /** Absolute path to the arch-specific prebuilds dir, e.g. "/…/@gjsify/webgl/prebuilds/linux-x86_64" */
+    /** Absolute path to the arch-specific prebuilds dir, e.g. "/…/@gjsify/webgl/prebuilds/linux-x64" */
     prebuildsDir: string;
 }
 
@@ -59,11 +59,16 @@ export interface NativeEnv {
 }
 
 /**
- * Map a Node `process.arch` value to the uname-style spelling used by the
- * Vala/meson bridges, which stage into `prebuilds/linux-x86_64/` (the output
- * of `uname -m` on the build host).
+ * Map a Node `process.arch` value to the uname-style spelling the Vala/meson
+ * bridges used to stage into (`prebuilds/linux-x86_64/`, the output of
+ * `uname -m` on the build host).
+ *
+ * LEGACY. Every `@gjsify/*` package now declares and stages the node spelling
+ * (`linux-x64`); this table exists only so the CLI can still load a prebuild
+ * out of a tarball published before the rename. See
+ * {@link prebuildDirCandidates}.
  */
-const NODE_ARCH_TO_UNAME: Record<string, string> = {
+const NODE_ARCH_TO_LEGACY_UNAME: Record<string, string> = {
     x64: 'x86_64',
     arm64: 'aarch64',
     arm: 'armv7',
@@ -71,23 +76,27 @@ const NODE_ARCH_TO_UNAME: Record<string, string> = {
 };
 
 /**
- * Arch spellings that name the same target. Mirrors `ARCH_ALIASES` in
- * `scripts/audit-runtimes.mjs` — that script canonicalises
- * `package.json#gjsify.platforms` the same way for the platform-support
- * matrix, and the two MUST agree or a package could pass the audit while the
- * CLI fails to find its artifact.
+ * Arch spellings that name the same target, folded onto the NODE spelling.
+ * Mirrors `ARCH_ALIASES` in `scripts/audit-runtimes.mjs` — that script
+ * canonicalises `package.json#gjsify.platforms` the same way for the
+ * platform-support matrix, and the two MUST agree or a package could pass the
+ * audit while the CLI fails to find its artifact.
+ *
+ * The direction matters: `${process.platform}-${process.arch}` is what a
+ * running process can compute about itself, so folding *onto* it means the
+ * host identity never has to be translated in the hot path.
  */
 const ARCH_ALIASES: Record<string, string> = {
-    x64: 'x86_64',
-    amd64: 'x86_64',
-    arm64: 'aarch64',
+    x86_64: 'x64',
+    amd64: 'x64',
+    aarch64: 'arm64',
 };
 
 /**
- * Canonical `<os>-<arch>` form so `linux-x64` and `linux-x86_64` — or
- * `darwin-arm64` and `darwin-aarch64` — compare equal. Only the *arch* half is
- * normalised; the OS half is always a `process.platform` token
- * (`linux`/`darwin`/`win32`), which has no competing spelling.
+ * Canonical `<os>-<arch>` form — the node spelling — so `linux-x86_64` and
+ * `linux-x64` compare equal. Only the *arch* half is normalised; the OS half
+ * is always a `process.platform` token (`linux`/`darwin`/`win32`), which has
+ * no competing spelling.
  */
 export function canonicalPlatformToken(token: string): string {
     const dash = token.indexOf('-');
@@ -100,25 +109,30 @@ export function canonicalPlatformToken(token: string): string {
 /**
  * The prebuild directory names to probe for a host, most-specific first.
  *
- * There are two live spellings in this repo and neither can be declared the
- * winner:
+ * The canonical name is `${process.platform}-${process.arch}` — `linux-x64`,
+ * `linux-arm64`, `darwin-arm64`, `win32-x64`. Every package in the release
+ * train declares it (`gjsify.platforms`), `scripts/stage-prebuild.mjs` is the
+ * only thing that creates it, and `scripts/audit-runtimes.mjs --check` rejects
+ * any other spelling, so the three can no longer drift.
  *
- *   * the Vala/meson bridges stage `prebuilds/linux-x86_64/` — uname-style,
- *     because the meson jobs name the directory after `uname -m`;
- *   * `@gjsify/node-gi` (and `@gjsify/napi`'s prebuild staging) use
- *     `prebuilds/${process.platform}-${process.arch}/` — node-style
- *     (`linux-x64`, `darwin-arm64`, `win32-x64`).
+ * Two probes remain BEHIND that canonical name, and both are backward
+ * compatibility with tarballs already on npm — not a second convention:
  *
- * So we probe both, and — when the package declares `gjsify.platforms` — we
- * probe the package's OWN spelling first. That is strictly better than
- * guessing: a package that declares `darwin-arm64` tells us the exact
- * directory name it stages, whatever convention it picked.
+ *   1. **The package's own declared spelling.** A tarball published before the
+ *      rename declares (and ships) `linux-x86_64`; probing its declaration
+ *      first loads it without the CLI having to guess. This is also what makes
+ *      the rename work in the OTHER direction — an older CLI resolving a newer
+ *      package — because `canonicalPlatformToken` folds both spellings onto
+ *      one form at both ends.
+ *   2. **The legacy uname spelling.** Only reachable for a package that ships
+ *      a prebuild dir and declares NO `gjsify.platforms` at all — i.e. a
+ *      tarball predating the OS-axis audit, or a third-party package using
+ *      `gjsify.prebuilds` without the declaration. Inside this repo the audit
+ *      makes that state impossible.
  *
- * Ordering of the generic fallbacks is per-OS rather than fixed, so the first
- * probe is the spelling that platform's toolchain actually produces:
- * uname-style on Linux (`linux-x86_64`), node-style on macOS/Windows
- * (`darwin-arm64`, `win32-x64` — on Apple silicon `uname -m` also reports
- * `arm64`, so there node-style *is* the native spelling).
+ * Both are pure array entries matched against an already-read directory
+ * listing — no extra I/O — so tolerance on the READ side costs nothing, while
+ * the single spelling is enforced everywhere a name is WRITTEN.
  *
  * @param platform `process.platform` value.
  * @param arch `process.arch` value.
@@ -129,12 +143,8 @@ export function prebuildDirCandidates(
     arch: string,
     declaredPlatforms?: readonly string[] | undefined,
 ): string[] {
-    const unameArch = NODE_ARCH_TO_UNAME[arch] ?? arch;
-    const preferred = platform === 'linux' ? unameArch : arch;
-    const alternate = platform === 'linux' ? arch : unameArch;
-
-    const generic = [`${platform}-${preferred}`, `${platform}-${alternate}`];
-    const hostCanonical = canonicalPlatformToken(generic[0] as string);
+    const canonical = `${platform}-${arch}`;
+    const legacyArch = NODE_ARCH_TO_LEGACY_UNAME[arch] ?? arch;
 
     const out: string[] = [];
     const push = (name: string) => {
@@ -144,10 +154,12 @@ export function prebuildDirCandidates(
     // 1. The package's own declared spelling for THIS host, if it declares one.
     for (const declared of declaredPlatforms ?? []) {
         if (typeof declared !== 'string') continue;
-        if (canonicalPlatformToken(declared) === hostCanonical) push(declared);
+        if (canonicalPlatformToken(declared) === canonical) push(declared);
     }
-    // 2. The two generic spellings.
-    for (const name of generic) push(name);
+    // 2. The canonical node spelling — what everything in the train stages.
+    push(canonical);
+    // 3. The legacy uname spelling, for undeclared pre-rename tarballs.
+    push(`${platform}-${legacyArch}`);
 
     return out;
 }
