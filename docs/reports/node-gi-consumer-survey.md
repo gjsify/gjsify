@@ -53,7 +53,7 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (non-zero exit / 
 | `http` | ok | ❌ fail | 🟡 845/874 | 🟡 845/874 | node: other; bun/deno: mainloop-drain |
 | `http2` | ok | ✅ 102/102 | ✅ 102/102 | ✅ 102/102 | |
 | `iframe` | ok | ✅ 275/275 | ✅ 275/275 | ✅ 275/275 | |
-| `module` | ok | ❌ fail | ❌ fail | ❌ fail | node: needs-gjs-imports-runtime; bun/deno: runtime-typeerror-or-unimpl |
+| `module` | ok | ❌ fail | ❌ fail | ❌ fail | alias leak FIXED (gap 5); now blocked on the rolldown `keepNames` helper-order bug (`__name is not a function`) |
 | `net` | ok | ❌ fail | 🟡 241/284 | 🟡 241/284 | node/bun/deno: mainloop-drain |
 | `node-globals` | ok | ⏱ 221/221 then hang | ▶ no-summary | ▶ no-summary | node: no-exit-after-pass; bun/deno: no-unit-summary |
 | `os` | ok | ✅ 276/276 | ✅ 276/276 | ✅ 276/276 | |
@@ -133,13 +133,15 @@ Error:       Expected values to match using ===
 
 Two distinct problems: a **fidelity bug** (a request header set by the client does not reach the handler — `no header`), and the fact that a throw from a listener dispatched off a GLib source is fatal under Node while it is merely logged under gjs, so the process dies before `@gjsify/unit` can print anything. bun/deno get past it (the same assertion is counted, not fatal) and finish at 845/874.
 
-### 5. `module` — user `--alias` leaks into the CLI's virtual gi modules
+### 5. `module` — user `--alias` leaked into the CLI's virtual gi modules — **FIXED**
 
-**Affects:** `module` (all three runtimes).
+**Affected:** `module` (all three runtimes). **Status: resolved** in `rolldown-plugin-gjsify`.
 
-`TypeError: Cannot read properties of undefined (reading 'filename_from_uri')` (bun: `undefined is not an object (evaluating 'o.filename_from_uri')`). The harness's `--alias node:module=@gjsify/module` retarget is applied IMPORTER-BLIND, so the `\0gjsify-gi-node:*` virtual modules the CLI's `gjsGiNodePlugin` emits — whose source is `import { createRequire } from 'node:module'` ([`plugins/gjs-gi-node.ts`](../../packages/infra/rolldown-plugin-gjsify/src/plugins/gjs-gi-node.ts)) — get their `node:module` import rewritten onto the polyfill UNDER TEST. The bundle then calls `@gjsify/module`'s own `createRequire` at top level, before the polyfill's lazy GLib namespace proxy is initialized; and even past that, the polyfill's Gio-based CJS loader cannot bootstrap `@gjsify/node-gi/gi` (it needs GLib, which needs the loader — a genuine cycle). The virtual gi modules MUST always get the RUNTIME's real `createRequire`.
+`TypeError: Cannot read properties of undefined (reading 'filename_from_uri')` (bun: `undefined is not an object (evaluating 'o.filename_from_uri')`). The harness's `--alias node:module=@gjsify/module` retarget was applied IMPORTER-BLIND, so the `\0gjsify-gi-node:*` virtual modules the CLI's `gjsGiNodePlugin` emits — whose source is `import { createRequire } from 'node:module'` ([`plugins/gjs-gi-node.ts`](../../packages/infra/rolldown-plugin-gjsify/src/plugins/gjs-gi-node.ts)) — got their `node:module` import rewritten onto the polyfill UNDER TEST. The bundle then called `@gjsify/module`'s own `createRequire` at top level, before the polyfill's lazy GLib namespace proxy was initialized; and even past that, the polyfill's Gio-based CJS loader cannot bootstrap `@gjsify/node-gi/gi` (it needs GLib, which needs the loader — a genuine cycle).
 
-**Fix belongs in the CLI**, not the harness or the engine: either skip user-alias rewriting when the importer is a gjsify virtual module (`importer?.startsWith('\0gjsify-')` in the alias plugin's `resolveId`), or have `gjs-gi-node.ts` obtain `createRequire` alias-proof via `process.getBuiltinModule('node:module')` (Node ≥ 22.3 / Bun / Deno 2). Re-measure `module` afterwards; its remaining failures, if any, are expected to be ordinary suite-level ones.
+**Fix (landed):** `aliasPlugin` skips the alias tables entirely when the IMPORTER is a gjsify-generated virtual module (`isGjsifyVirtualModuleId`, i.e. any `\0gjsify-*` id — entry wrapper, gi-node, napi-addon, gjs-imports-empty). The importer-scoped guard was chosen over the alternative (`process.getBuiltinModule('node:module')` inside `gjs-gi-node.ts`) because it protects EVERY generated module rather than one specifier in one plugin, and it depends on no runtime API. `process.getBuiltinModule` does exist on all three runtimes as installed here (node 24.15.0, bun 1.3.14, deno 2.9.3 — measured), but it is a Node ≥ 22.3 API and the `--app node` bundle imposes no such floor of its own, so pinning the fix to it would trade a build-layer guarantee for a runtime-version assumption. All four virtual-id prefixes are now derived from one `GJSIFY_VIRTUAL_PREFIX` constant so a future virtual module inherits the protection. Coverage: `packages/infra/cli/src/alias-plugin.spec.ts` (10 specs) + a two-sided e2e in `tests/e2e/node-gi-build` (the generated module keeps `node:module`; the user's own source is still aliased).
+
+**Re-measured** (`node scripts/node-gi-consumer-harness.mjs @gjsify/module --runtimes node`): the bundle now emits `import { createRequire } from "node:module"` and the `filename_from_uri` TypeError is gone. `module` still fails, with a DIFFERENT and pre-existing error — `TypeError: __name is not a function` — which reproduces identically with the guard disabled and disappears under `--minify false`: rolldown 1.1.4 emits the `output.keepNames` helper (`var __name = …`) ~9 kB into the chunk while the gi virtual module calls it at byte ~200. Tracked in STATUS.md `Open TODOs` as an upstream rolldown issue; it is not an alias-layer problem.
 
 ### 6. `webrtc` — native abort in the data-channel path
 
@@ -187,7 +189,7 @@ Prioritized by the gaps above:
 
 1. **`node-globals` process lifetime** — the node non-exit + the bun/deno early exit (gap 1). Highest leverage: it is the one open item that sits inside the CI gate. Repro: `node packages/node/globals/dist/test.node-gi.harness.node-globals.mjs`.
 2. **bun/deno main-context pump parity** (gap 2) — unblocks the bun/deno columns of `child_process`, `dns`, `dgram`, `net`, `http` in one change.
-3. **CLI alias-scoping for virtual gi modules** (gap 5) — unblocks `module`; the fix is in `rolldown-plugin-gjsify`, not the engine or the harness.
+3. ~~**CLI alias-scoping for virtual gi modules** (gap 5)~~ — **done**; `module` now blocks on the rolldown `keepNames` helper-order bug instead (STATUS.md `Open TODOs`).
 4. **`@gjsify/http` request-header propagation + throw-in-callback fatality** (gap 4), and **`@gjsify/net`'s close/connect event ordering** (gap 3).
 5. **`webrtc` data-channel double-free** (gap 6) — a native-side ownership audit of the GStreamer webrtcbin path.
 6. **Harness fix:** stage the suite's on-disk `test/` dir alongside `fixtures/` (gap 7).

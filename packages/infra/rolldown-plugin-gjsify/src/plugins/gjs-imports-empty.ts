@@ -34,7 +34,9 @@
 
 import type { Plugin } from 'rolldown';
 
-const GJSIMPORTS_VIRTUAL_ID = '\0gjsify-empty-gjs-import';
+import { GJSIFY_VIRTUAL_PREFIX } from '../utils/virtual-module-id.js';
+
+const GJSIMPORTS_VIRTUAL_ID = `${GJSIFY_VIRTUAL_PREFIX}empty-gjs-import`;
 
 export interface GjsImportsEmptyOptions {
     /**

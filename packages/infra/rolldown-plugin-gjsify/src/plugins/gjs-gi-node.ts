@@ -30,7 +30,12 @@
 
 import type { Plugin } from 'rolldown';
 
-const GI_NODE_VIRTUAL_PREFIX = '\0gjsify-gi-node:';
+import { GJSIFY_VIRTUAL_PREFIX } from '../utils/virtual-module-id.js';
+
+// Derived from the shared prefix so `isGjsifyVirtualModuleId` recognises these
+// ids — that is what keeps the `node:module` import below bound to the RUNTIME's
+// `createRequire` even when the build carries a user `--alias node:module=…`.
+const GI_NODE_VIRTUAL_PREFIX = `${GJSIFY_VIRTUAL_PREFIX}gi-node:`;
 
 /** Parse a `gi://Ns?version=X` specifier into its namespace + optional version. */
 export function parseGiSpecifier(source: string): { namespace: string; version?: string } | null {

@@ -10,6 +10,8 @@
 
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
+import { GJSIFY_VIRTUAL_PREFIX } from './virtual-module-id.js';
+
 export interface VirtualEntriesResult {
     input: RolldownOptions['input'];
     plugin: RolldownPluginOption | null;
@@ -35,7 +37,7 @@ export function wrapInputWithSideEffects(
     }
 
     const userEntries = new Map<string, string>(); // virtualId → realPath
-    const PREFIX = '\0gjsify-entry:';
+    const PREFIX = `${GJSIFY_VIRTUAL_PREFIX}entry:`;
 
     function wrap(realPath: string): string {
         const id = PREFIX + realPath;

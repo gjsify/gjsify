@@ -32,6 +32,7 @@ import htmlEntrySuite from './utils/html-entry.spec.js';
 // a dependency. The predicate itself is re-exported from the plugin's
 // public API.
 import autoGlobalsSuite from './auto-globals.spec.js';
+import aliasPluginSuite from './alias-plugin.spec.js';
 import napiNodeAddonSuite from './napi-node-addon.spec.js';
 import nodeGiExternalsSuite from './node-gi-externals.spec.js';
 import nodeReverseRegistersSuite from './node-reverse-registers.spec.js';
@@ -76,6 +77,7 @@ run({
     buildCacheSuite,
     htmlEntrySuite,
     autoGlobalsSuite,
+    aliasPluginSuite,
     napiNodeAddonSuite,
     nodeGiExternalsSuite,
     nodeReverseRegistersSuite,

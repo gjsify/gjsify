@@ -69,7 +69,9 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { Plugin } from 'rolldown';
 
-const NAPI_ADDON_VIRTUAL_PREFIX = '\0gjsify-napi-addon:';
+import { GJSIFY_VIRTUAL_PREFIX } from '../utils/virtual-module-id.js';
+
+const NAPI_ADDON_VIRTUAL_PREFIX = `${GJSIFY_VIRTUAL_PREFIX}napi-addon:`;
 
 /** The kinds of interception, encoded into the virtual-module id. */
 type AddonShimKind = 'direct' | 'node-gyp-build' | 'bindings' | 'napi-rs' | 'napi-rs-entry';

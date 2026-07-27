@@ -21,6 +21,8 @@ export { textLoaderPlugin } from './plugins/text-loader.js';
 export type { TextLoaderPluginOptions, LoaderKind } from './plugins/text-loader.js';
 export { shebangPlugin, GJS_SHEBANG, NODE_SHEBANG, expandEnvTemplate, resolveShebangLine } from './plugins/shebang.js';
 export type { ShebangPluginOptions } from './plugins/shebang.js';
+export { aliasPlugin } from './plugins/alias.js';
+export type { AliasPluginOptions } from './plugins/alias.js';
 export { gjsImportsEmptyPlugin } from './plugins/gjs-imports-empty.js';
 export { externalsPlugin } from './plugins/externals.js';
 export type { ExternalsPredicate, ExternalsPluginOptions } from './plugins/externals.js';
