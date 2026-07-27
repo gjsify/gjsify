@@ -273,15 +273,28 @@ export const ALIASES_NODE_FOR_GJS = {
  * runtime layer — bare `fs` / `net` / ... do NOT start with `@gjsify/` and
  * therefore never enter `getDerivedAliasesSync`. This table is the bridge.
  *
- * NOTE — UNWIRED IN THIS PR. The browser-app orchestrator
- * (`packages/infra/rolldown-plugin-gjsify/src/app/browser.ts`) does NOT
- * consume this map yet. PR-D (T-Plan Sektion 2b-ii + 2b-iii, Welle 3) flips
- * `browser.ts` to spread `ALIASES_NODE_FOR_BROWSER` (+ generated `node:*`
- * prefix-map) into its `aliasMap` UNDER `browserPolyfillAliases` and the user
- * aliases. Decoupled here so the table is exportable / reviewable in
- * isolation, while consumer wiring waits on the R1 wave delivering browser-
- * baubable `@gjsify/{process,buffer,stream,...}` builds. Adopt only when the
- * per-package browser slots are R1-validated.
+ * A `partial`-slot package names its `./browser` PLATFORM ENTRY here, not its
+ * package root. `withDerivedSlotRouting` only rewrites a value when the slot is
+ * `polyfill` (ADR 0014), so a curated value of `@gjsify/<X>` for a `partial`
+ * package would hand the bundler the GJS root body — whose `@girs/*` imports
+ * `gjsImportsEmptyPlugin` replaces with `{}`, producing the silent
+ * `GLib.Checksum is not a constructor` failure ADR 0014 exists to eliminate.
+ * `partial` must mean "degrades at call time", never "crashes at first use".
+ * Naming the subpath is safe precisely where the platform entry is already at
+ * VALUE-export parity with the root (else routing would trade a call-time
+ * degradation for a build-time MISSING_EXPORT) — which is why this is a
+ * per-package curated decision and NOT a blanket change to `resolveSlot`'s
+ * `partial` case. Machine-checked by `scripts/audit-runtimes.mjs`'
+ * `curated-alias-routing` invariant.
+ *
+ * WIRED. The browser-app orchestrator
+ * (`packages/infra/rolldown-plugin-gjsify/src/app/browser.ts`) spreads this map
+ * — plus a generated `node:*` prefix variant of every key — into its `aliasMap`
+ * between the derived slot routing and the per-target / user aliases. So every
+ * value here is a resolve target a `--app browser` build actually takes; a
+ * mistake in this table is a shipping bug, not a staged proposal. (The former
+ * "UNWIRED IN THIS PR" note dated from before that wiring landed and is what
+ * made the `crypto` / `zlib` root-body routing read as latent.)
  */
 const ALIASES_NODE_FOR_BROWSER_TABLE = {
     'assert':              '@gjsify/assert',
@@ -292,7 +305,7 @@ const ALIASES_NODE_FOR_BROWSER_TABLE = {
     'cluster':             '@gjsify/empty',
     'console':             '@gjsify/console',
     'constants':           '@gjsify/constants',
-    'crypto':              '@gjsify/crypto',
+    'crypto':              '@gjsify/crypto/browser',   // partial slot — name the platform entry
     'dgram':               '@gjsify/empty',
     'diagnostics_channel': '@gjsify/diagnostics_channel',
     'dns':                 '@gjsify/empty',
@@ -336,7 +349,7 @@ const ALIASES_NODE_FOR_BROWSER_TABLE = {
     'wasi':                '@gjsify/empty',
     'sqlite':              '@gjsify/empty',
     'worker_threads':      '@gjsify/empty',
-    'zlib':                '@gjsify/zlib',
+    'zlib':                '@gjsify/zlib/browser',     // partial slot — name the platform entry
 
     // Third-party
     'node-fetch':          '@gjsify/empty',        // browser native fetch
