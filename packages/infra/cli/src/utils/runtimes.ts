@@ -89,6 +89,30 @@ export function availableRuntimes(): ExampleRuntime[] {
     return EXAMPLE_RUNTIMES.filter((rt) => isRuntimeAvailable(rt));
 }
 
+/**
+ * The default `--runtime` for running a prebuilt EXAMPLE/SHOWCASE: `gjs`
+ * whenever gjs is runnable here, else the host runtime.
+ *
+ * This is deliberately NOT a plain `hostRuntime()`. A showcase's canonical
+ * artifact is its `--app gjs` bundle (`gjsify.main`) — that is what every
+ * showcase ships, what the `gjs` path installs via `gjsify dlx`, and what the
+ * docs call the default. Following the host instead means `npx @gjsify/cli
+ * showcase <name>` (host = node) silently asks for the `--app node` bundle,
+ * which most showcases do not ship and which additionally needs
+ * `@gjsify/node-gi` in the consumer's project — so the FIRST-RUN experience of
+ * the primary documented entry point failed on a missing file.
+ *
+ * Same rule `gjsify run` already applies in its bare-file path, where a
+ * `--app gjs` bundle stays on gjs regardless of host (`isLikelyGjsBundle`);
+ * here the "is it a gjs artifact" question is answered by the command instead
+ * of by sniffing the file. `--runtime` still overrides explicitly, and a host
+ * WITHOUT gjs (a plain Node/bun/deno box) keeps following the host so the
+ * node-capable showcases stay runnable there.
+ */
+export function defaultExampleRuntime(): ExampleRuntime {
+    return isRuntimeAvailable('gjs') ? 'gjs' : hostRuntime();
+}
+
 // --- Per-example runtime declaration ---------------------------------------
 //
 // An example/showcase MAY declare which runtimes it supports:

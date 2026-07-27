@@ -51,6 +51,7 @@ import libraryOutputSuite from './utils/library-output.spec.js';
 import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
+import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
 
 run({
     bundlerPickSuite,
@@ -96,4 +97,5 @@ run({
     suggestSuite,
     runtimesSuite,
     spawnSuite,
+    gjsBundleGuardSuite,
 });

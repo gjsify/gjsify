@@ -125,3 +125,41 @@ describe('gjsify run --runtime', { timeout: 120_000 }, () => {
         assert.match(r.stdout, /ran-on:node/);
     });
 });
+
+// The `gjsify showcase --runtime` half. Offline + display-free: the workspace
+// showcases resolve locally (`resolveShowcaseDir` is local-first, so no `dlx`
+// download), and a GJS-only showcase is rejected by its declaration BEFORE any
+// bundle is touched — so nothing launches a GUI.
+describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
+    // The CLI pre-flights system deps (gjs, gtk4) before the runtime check; a
+    // host without them can't reach the assertion, so self-skip there rather
+    // than reporting an unrelated failure.
+    function skipIfMissingSystemDeps(t, r) {
+        if (/Missing system dependencies/.test(r.stderr)) {
+            t.diagnostic('system deps (gjs/gtk4) missing — skipped');
+            return true;
+        }
+        return false;
+    }
+
+    it('rejects --runtime node for a showcase declaring only gjs', async (t) => {
+        const r = await runCli(['showcase', 'webrtc-loopback', '--runtime', 'node']);
+        if (skipIfMissingSystemDeps(t, r)) return;
+        assert.equal(r.status, 1, r.stderr);
+        // The ACTIONABLE message ("this showcase is GJS-only"), not the
+        // file-missing one ("declared node entry not found"), which reads like
+        // a broken package.
+        assert.match(r.stderr, /does not support --runtime node/);
+        assert.match(r.stderr, /Declared runtimes: gjs/);
+        assert.doesNotMatch(r.stderr, /node entry not found/);
+        assert.doesNotMatch(r.stderr, /has no `--app node` bundle/);
+    });
+
+    it('rejects --runtime bun for a showcase declaring only gjs', async (t) => {
+        const r = await runCli(['showcase', 'minimalist-browser', '--runtime', 'bun']);
+        if (skipIfMissingSystemDeps(t, r)) return;
+        assert.equal(r.status, 1, r.stderr);
+        assert.match(r.stderr, /does not support --runtime bun/);
+        assert.match(r.stderr, /--runtime gjs/);
+    });
+});
