@@ -419,6 +419,16 @@ export function startMainLoop(): void;
 export function iterateMainContext(mayBlock?: boolean): boolean;
 
 /**
+ * Whether the default GLib main context holds work a *pumping* runtime must stay
+ * alive for: a scheduled source (an armed timeout/idle) or an in-flight
+ * scope=async GI callback. Pure GLib — the query half of the keep-alive contract
+ * the L1 `startMainContextPump` uses on Bun/Deno to decide whether its timer
+ * holds the runtime's event loop open. Node reads the same facts inline in the
+ * uv auto-pump.
+ */
+export function mainContextHasPending(): boolean;
+
+/**
  * Drain ready GLib sources + re-arm the auto-pump's libuv wake-ups now (no-op
  * unless {@link startMainLoop} armed the pump on this env). The L1 layer wires
  * this to `process.on('beforeExit')` to bootstrap an otherwise-empty libuv loop;
@@ -548,6 +558,7 @@ declare const native: {
   isVariantHandle: typeof isVariantHandle;
   startMainLoop: typeof startMainLoop;
   iterateMainContext: typeof iterateMainContext;
+  mainContextHasPending: typeof mainContextHasPending;
   pumpKick: typeof pumpKick;
   setMicrotaskDrain: typeof setMicrotaskDrain;
   connectSignal: typeof connectSignal;

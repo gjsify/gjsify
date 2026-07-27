@@ -55,7 +55,7 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (non-zero exit / 
 | `iframe` | ok | ✅ 275/275 | ✅ 275/275 | ✅ 275/275 | |
 | `module` | ok | ❌ fail | ❌ fail | ❌ fail | node: needs-gjs-imports-runtime; bun/deno: runtime-typeerror-or-unimpl |
 | `net` | ok | ❌ fail | 🟡 241/284 | 🟡 241/284 | node/bun/deno: mainloop-drain |
-| `node-globals` | ok | ✅ 221/221 | ▶ no-summary | ▶ no-summary | bun/deno: the still-open half of gap 1 |
+| `node-globals` | ok | ✅ 221/221 | 🟡 218/221 | ✅ 221/221 | bun: 3 fidelity gaps in Bun's own native `structuredClone` |
 | `os` | ok | ✅ 276/276 | ✅ 276/276 | ✅ 276/276 | |
 | `sqlite` | ok | ✅ 105/105 | ✅ 105/105 | ✅ 105/105 | |
 | `storybook` | ok | ✅ 9/9 | ✅ 9/9 | ✅ 9/9 | |
@@ -97,7 +97,7 @@ With that alone the whole `--require-pass` proof set is green on node, `node-glo
 
 **Bun/Deno — the early exit. STILL OPEN.** `startMainContextPump` is opt-in (nothing calls it) and its timer is permanently `unref`'d, so an armed GLib source neither dispatches nor holds the process. `@gjsify/node-globals/register` swaps `globalThis.setTimeout` for `GLib.timeout_add` whenever `imports.gi.GLib` resolves — which it does under the bridge — so the first spec awaiting a `setTimeout` (`clearImmediate › should cancel a pending setImmediate`) waits on a source nobody will ever dispatch, the runtime loop runs empty, and the process exits 0 with the suite half-run.
 
-Auto-arming the pump with keep-alive accounting fixes it (measured: `node-globals` 218/221 on bun, 221/221 on deno; `fs` 656/657 on bun; `worker_threads` 278/280 on bun, 282/282 on deno — every `ran-no-summary` gone), but it is **not landed yet**: keying the hold on "the context has any scheduled source" makes a finished GTK program immortal (GDK leaves a ~1 s repeating timeout armed), and switching the hold to JS-armed GLib work only — which fixes that, and the matching pre-existing Node hang in `node --test test/gtk-smoke.test.mjs` — leaves Deno dying in the documented #47 N-API teardown race instead. See the follow-ups.
+Auto-arming the pump with keep-alive accounting fixes it (measured: `node-globals` 218/221 on bun, 221/221 on deno; `fs` 656/657 on bun; `worker_threads` 278/280 on bun, 282/282 on deno — every `ran-no-summary` gone), which is what THIS branch does: keying the hold on "the context has any scheduled source" makes a finished GTK program immortal (GDK leaves a ~1 s repeating timeout armed), and switching the hold to JS-armed GLib work only — which fixes that, and the matching pre-existing Node hang in `node --test test/gtk-smoke.test.mjs` — leaves Deno dying in the documented #47 N-API teardown race instead. See the follow-ups.
 
 ### 2. No auto-pump on bun/deno — async Gio suites time out where node passes
 

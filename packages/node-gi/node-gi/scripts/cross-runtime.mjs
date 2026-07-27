@@ -129,6 +129,17 @@ const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 // the next, gobject the next) AND on a DIFFERENT platform run-to-run (macos-arm64 one
 // run, linux-aarch64 the next).
 //
+// Its FREQUENCY tracks how much boxed-handle churn a file leaves behind at teardown,
+// so it grew when `requireGi` started auto-arming the portable main-context pump on
+// Bun/Deno (the process-lifetime fix): the pump dispatches GLib sources a Deno program
+// previously left undispatched, which creates and frees more boxed handles. Measured on
+// one Fedora 44 desktop WITH a session bus: 0/37 files before, 2–5/37 after — all of
+// them "every announced test passed, then SIGSEGV". It is the same race, more often, not
+// a new one: it also reproduces with an explicit `startMainContextPump()` call on the
+// pre-fix engine, the crashing thread carries only deno/V8 JIT frames (GLib's own
+// threads are idle), and a plain `deno run <bundle>` of the same work exits 0. Bun is
+// unaffected (37/37 with the pump armed).
+//
 // ROOT CAUSE (#47, diagnosed against deno 2.9.3, glibc/gobject, exit 139 = SIGSEGV):
 // a segfault inside libgobject g_type_fundamental, called from the boxed-handle
 // External finalizer (marshal.cc FreeBoxedHandleRecord -> g_boxed_free) with a
@@ -186,7 +197,11 @@ const denoTeardownCarveout = runtime === 'deno';
 function classifyDenoOutput(out) {
   const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
   let expected = 0;
-  for (const m of clean.matchAll(/running (\d+) tests from /g)) expected += Number(m[1]);
+  // `tests?` — Deno prints "running 1 test from …" (singular) for a one-test file.
+  // Matching only the plural left `expected` at 0 there, which made the carve-out's
+  // `expected > 0` guard fail and hard-gated a file whose single test had PASSED
+  // (dbus-async, on a host that actually has a session bus).
+  for (const m of clean.matchAll(/running (\d+) tests? from /g)) expected += Number(m[1]);
   const passed = (clean.match(/ \.\.\. ok \(/g) || []).length;
   const ignored = (clean.match(/ \.\.\. ignored/g) || []).length;
   const failed = (clean.match(/ \.\.\. FAILED/g) || []).length;

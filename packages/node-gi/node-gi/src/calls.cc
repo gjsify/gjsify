@@ -28,10 +28,23 @@ struct NodeGiCallback {
   ffi_closure* closure;  // from gi_callable_info_create_closure
   gpointer native;       // executable trampoline address
   GIScopeType scope;
-  // scope=async only: counted in the auto-pump's in-flight keep-alive (the
-  // pending completion keeps the Node process alive, like in-flight Node I/O).
-  // Released exactly once — at the trampoline's single invocation, or at free
-  // if the callback never fired (an error path).
+  // Counted in the auto-pump's in-flight keep-alive — the process stays alive
+  // while JS-armed GLib work is outstanding, like in-flight Node I/O.
+  //   • scope=async    — a one-shot completion (GAsyncReadyCallback), released
+  //     at the trampoline's single invocation.
+  //   • scope=notified — a callback GLib owns until its GDestroyNotify fires:
+  //     `GLib.timeout_add` / `GLib.idle_add` and friends. Released by
+  //     NodeGiCallbackFree, i.e. exactly when GLib drops the source (the
+  //     callback returned SOURCE_REMOVE, or `GLib.Source.remove` killed it).
+  // Either way released exactly once, also at free if it never fired.
+  //
+  // Counting the JS-ARMED sources is the point: a source armed from JS is
+  // program work the process must survive for, while a source armed inside C —
+  // GDK's frame clock, GIO's portal/a11y retries — is library plumbing that
+  // `gjs -m` would never stay alive for either. Keying the keep-alive on "the
+  // context has ANY scheduled source" instead made a finished GTK program
+  // immortal: GDK leaves a ~1 s repeating timeout armed, so the context reports
+  // work forever while nothing is ever ready to dispatch.
   bool pumpCounted = false;
 };
 
@@ -301,10 +314,14 @@ static NodeGiCallback* CreateCallback(Napi::Env env, Napi::Function fn, GICallab
   cb->env = env;
   cb->info = reinterpret_cast<GICallableInfo*>(gi_base_info_ref(callbackInfo));
   cb->scope = scope;
-  // An async-scope callback is a one-shot in-flight operation (GAsyncReadyCallback
-  // et al): count it in the auto-pump keep-alive so the Node process stays alive
-  // until the completion dispatches (no-op off-Node / on non-owner envs).
-  if (scope == GI_SCOPE_TYPE_ASYNC) cb->pumpCounted = NodeGiPumpAsyncBegin(env);
+  // Count the JS-armed GLib work in the auto-pump keep-alive so the process
+  // stays alive until it completes: a one-shot in-flight operation
+  // (GAsyncReadyCallback et al, scope=async) or a source GLib owns until its
+  // destroy-notify (`GLib.timeout_add`/`idle_add`, scope=notified). See the
+  // `pumpCounted` note above for why JS-armed is the right unit.
+  if (scope == GI_SCOPE_TYPE_ASYNC || scope == GI_SCOPE_TYPE_NOTIFIED) {
+    cb->pumpCounted = NodeGiPumpAsyncBegin(env);
+  }
   napi_create_reference(env, fn, 1, &cb->jsFn);
   cb->closure = gi_callable_info_create_closure(callbackInfo, &cb->cif, NodeGiCallbackTrampoline, cb);
   cb->native = gi_callable_info_get_closure_native_address(callbackInfo, cb->closure);

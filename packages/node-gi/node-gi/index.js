@@ -641,6 +641,18 @@ export const startMainLoop = native.startMainLoop;
 export const iterateMainContext = native.iterateMainContext;
 
 /**
+ * Whether the default GLib main context holds work a *pumping* runtime must stay
+ * alive for: a scheduled source (an armed timeout/idle — the prepare/query
+ * timeout hint is >= 0) or an in-flight scope=async GI callback. Pure GLib —
+ * the companion of {@link iterateMainContext} and the query half of the
+ * keep-alive contract the L1 `startMainContextPump` applies on Bun/Deno (Node
+ * reads the same facts inline in the uv auto-pump). A `false` answer is what
+ * lets a sync-only program exit immediately.
+ * @returns {boolean}
+ */
+export const mainContextHasPending = native.mainContextHasPending;
+
+/**
  * Drain ready GLib sources + re-arm the auto-pump's libuv wake-ups NOW (no-op
  * unless {@link startMainLoop} armed the pump, i.e. Node's main env). The L1
  * layer wires this to `process.on('beforeExit')`: with only unref'd handles
