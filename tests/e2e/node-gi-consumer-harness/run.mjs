@@ -28,6 +28,8 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,7 +38,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const HARNESS = join(MONOREPO_ROOT, 'scripts', 'node-gi-consumer-harness.mjs');
 
-const { classify, collectFailures, formatFailure, parseSummary, REASON_RULES } = await import(`file://${HARNESS}`);
+const { classify, collectFailures, formatFailure, parseSummary, stageTestAssets, REASON_RULES, STAGED_ASSET_DIRS } =
+    await import(`file://${HARNESS}`);
 
 /** Bucket a raw captured run, exactly as the harness does. */
 const bucketOf = (stdout) => classify(collectFailures(stdout));
@@ -193,5 +196,59 @@ describe('node-gi consumer harness: rule precedence', () => {
             classify([{ name: 'x', message: 'Timeout: "expect toBe eventually" exceeded 5000ms' }]),
             'mainloop-drain',
         );
+    });
+});
+
+// A suite resolves its on-disk assets RELATIVE TO THE BUNDLE. The package's own
+// test bundle sits at the package root; the harness builds into `dist/`, so
+// every such path is off by one directory unless the harness bridges it. When
+// it does not, the suite fails for a HARNESS reason and lands in the survey as
+// if it were a node-gi finding — `@gjsify/fs` was recorded as a hard fail for
+// exactly this (`join(__dirname, 'test/watch.js')`, survey gap 7), so what is
+// pinned here is the SET of bridged dirs, not just that bridging happens.
+describe('node-gi consumer harness: test-asset staging', () => {
+    it('bridges every on-disk asset dir the suite may resolve from the bundle', () => {
+        assert.ok(STAGED_ASSET_DIRS.includes('fixtures'), 'fixtures/ must stay bridged');
+        assert.ok(
+            STAGED_ASSET_DIRS.includes('test'),
+            'test/ must be bridged — @gjsify/fs writes join(__dirname, "test/watch.js") (survey gap 7)',
+        );
+    });
+
+    it('links each present dir to its package-root original, and skips absent ones', () => {
+        const pkgDir = mkdtempSync(join(tmpdir(), 'gjsify-harness-assets-'));
+        const distDir = join(pkgDir, 'dist');
+        mkdirSync(distDir);
+        // `fixtures/` and `test/` present, a third name absent.
+        mkdirSync(join(pkgDir, 'fixtures'));
+        mkdirSync(join(pkgDir, 'test'));
+        writeFileSync(join(pkgDir, 'test', 'file.txt'), 'asset\n');
+        writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: 'probe' }));
+
+        stageTestAssets(pkgDir, distDir, 'gjsify-not-invoked', 1000);
+
+        for (const name of STAGED_ASSET_DIRS) {
+            assert.equal(readlinkSync(join(distDir, name)), `../${name}`, `${name} must link to the package root`);
+        }
+        // The link RESOLVES — the whole point is that the bundle's own relative
+        // path lands on the real asset, not merely that a symlink exists.
+        assert.equal(readFileSync(join(distDir, 'test', 'file.txt'), 'utf-8'), 'asset\n');
+        assert.ok(!existsSync(join(distDir, 'absent')), 'a dir the package does not have must not be invented');
+
+        rmSync(pkgDir, { recursive: true, force: true });
+    });
+
+    it('is idempotent — a second stage over an existing link is a no-op', () => {
+        const pkgDir = mkdtempSync(join(tmpdir(), 'gjsify-harness-assets-'));
+        const distDir = join(pkgDir, 'dist');
+        mkdirSync(distDir);
+        mkdirSync(join(pkgDir, 'test'));
+        writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: 'probe' }));
+
+        stageTestAssets(pkgDir, distDir, 'gjsify-not-invoked', 1000);
+        stageTestAssets(pkgDir, distDir, 'gjsify-not-invoked', 1000);
+
+        assert.equal(readlinkSync(join(distDir, 'test')), '../test');
+        rmSync(pkgDir, { recursive: true, force: true });
     });
 });

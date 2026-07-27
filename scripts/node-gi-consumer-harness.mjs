@@ -233,25 +233,40 @@ function collectForcedPolyfillAliases(startDir) {
     return aliases;
 }
 
-// ── test fixtures ────────────────────────────────────────────────────────────
-// Packages with on-disk worker/data fixtures (e.g. worker_threads'
-// `fixtures/echo-worker.mjs`) stage them via a `prebuild:test:fixtures` script
-// into `<pkg>/fixtures/` and resolve them RELATIVE TO THE BUNDLE
-// (`new URL('./fixtures/…', import.meta.url)`). The package's own test bundles
-// live at the package root, this harness's live in `dist/` — so stage the
-// fixtures and bridge `dist/fixtures` → `../fixtures` with a symlink.
-function stageFixtures(dir, distDir, gjsify, timeout) {
+// ── test assets ──────────────────────────────────────────────────────────────
+// A suite that touches on-disk assets resolves them RELATIVE TO THE BUNDLE —
+// `new URL('./fixtures/…', import.meta.url)` or `join(__dirname, 'test/…')`.
+// The package's own test bundle lives at the PACKAGE ROOT, so those paths land
+// on `<pkg>/fixtures` / `<pkg>/test`; this harness builds into `<pkg>/dist`, so
+// the same paths land on `<pkg>/dist/…` and the asset is simply not there.
+//
+// That is a HARNESS artifact, never a defect in the package under test, and it
+// has produced at least one false negative in the committed survey: `@gjsify/fs`
+// was recorded as a hard fail purely because `sync.spec.ts` writes its watch
+// scratch file to `join(__dirname, 'test/watch.js')` and only `fixtures/` was
+// bridged (survey gap 7). So bridge every on-disk asset dir the same way,
+// rather than one name at a time — a suite is not a node-gi finding until its
+// assets are where the bundle expects them.
+//
+// Bridged as symlinks (not copies): the suites WRITE into these dirs
+// (`writeFileSync(watchMe)`, `unlinkSync(watchMe)`), so a copy would diverge
+// from the tree the package's own `test:gjs` run uses and could leave the two
+// runs disagreeing about what is on disk.
+const STAGED_ASSET_DIRS = ['fixtures', 'test'];
+
+function stageTestAssets(dir, distDir, gjsify, timeout) {
     const pkg = readPkgJson(dir);
     if (pkg?.scripts?.['prebuild:test:fixtures']) {
         exec(gjsify, ['run', 'prebuild:test:fixtures'], { cwd: dir, timeout });
     }
-    const fixtures = join(dir, 'fixtures');
-    const distFixtures = join(distDir, 'fixtures');
-    if (existsSync(fixtures) && !existsSync(distFixtures)) {
+    for (const name of STAGED_ASSET_DIRS) {
+        const source = join(dir, name);
+        const staged = join(distDir, name);
+        if (!existsSync(source) || existsSync(staged)) continue;
         try {
-            symlinkSync('../fixtures', distFixtures, 'dir');
+            symlinkSync(`../${name}`, staged, 'dir');
         } catch {
-            /* best-effort — a broken link surfaces as the fixture-load failure it bridges */
+            /* best-effort — a broken link surfaces as the asset-load failure it bridges */
         }
     }
 }
@@ -505,7 +520,7 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
             return result;
         }
         result.build = { ok: true };
-        stageFixtures(dir, distDir, gjsify, timeout);
+        stageTestAssets(dir, distDir, gjsify, timeout);
 
         // 3+4. run on each requested runtime, capture + classify
         for (const rt of runtimes) {
@@ -677,4 +692,4 @@ function main() {
 // (`tests/e2e/node-gi-consumer-harness/run.mjs` imports them).
 if (process.argv[1] && resolve(process.argv[1]).endsWith('node-gi-consumer-harness.mjs')) main();
 
-export { REASON_RULES, classify, collectFailures, formatFailure, parseSummary };
+export { REASON_RULES, STAGED_ASSET_DIRS, classify, collectFailures, formatFailure, parseSummary, stageTestAssets };
