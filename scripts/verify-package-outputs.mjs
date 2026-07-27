@@ -288,18 +288,24 @@ if (totalMissing === 0 && broken.length === 0) {
 }
 
 if (allowUnbuilt) {
-    console.error(
-        `\n${totalMissing} declared path(s) missing across ${broken.length} package(s) — ` +
-            'tolerated (--allow-unbuilt). Run a full build and re-check.',
-    );
+    if (!asJson) {
+        console.error(
+            `\n${totalMissing} declared path(s) missing across ${broken.length} package(s) — ` +
+                'tolerated (--allow-unbuilt). Run a full build and re-check.',
+        );
+    }
     process.exit(0);
 }
 
-fail(
-    `${totalMissing} declared path(s) missing across ${broken.length} package(s). ` +
-        'A build that leaves a declared entry point unwritten still exits 0 — most often a ' +
-        '`.tsbuildinfo` that outlived its output tree, which makes `gjsify tsc` a silent no-op. ' +
-        "Delete the package's build info (its `clear` script does) and rebuild, then fix the " +
-        'declaration or the build script so it cannot recur.',
-);
+// `--json` stays machine-parseable even when redirected with 2>&1: the verdict
+// is already in the payload (`totalMissing`) and in the exit code.
+if (!asJson) {
+    fail(
+        `${totalMissing} declared path(s) missing across ${broken.length} package(s). ` +
+            'A build that leaves a declared entry point unwritten still exits 0 — most often a ' +
+            '`.tsbuildinfo` that outlived its output tree, which makes `gjsify tsc` a silent no-op. ' +
+            "Delete the package's build info (its `clear` script does) and rebuild, then fix the " +
+            'declaration or the build script so it cannot recur.',
+    );
+}
 process.exit(1);
