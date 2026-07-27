@@ -1,0 +1,11 @@
+start
+tick a
+awaited a
+tick b
+awaited b
+tick c
+awaited c
+removed a pending source
+tick d
+awaited d
+done

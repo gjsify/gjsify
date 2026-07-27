@@ -113,6 +113,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("isVariantHandle", Napi::Function::New(env, IsVariantHandle));
   exports.Set("startMainLoop", Napi::Function::New(env, StartMainLoop));
   exports.Set("iterateMainContext", Napi::Function::New(env, IterateMainContext));
+  exports.Set("mainContextHasPending", Napi::Function::New(env, MainContextHasPending));
   exports.Set("pumpKick", Napi::Function::New(env, PumpKick));
   exports.Set("setMicrotaskDrain", Napi::Function::New(env, SetMicrotaskDrain));
   exports.Set("connectSignal", Napi::Function::New(env, ConnectSignal));

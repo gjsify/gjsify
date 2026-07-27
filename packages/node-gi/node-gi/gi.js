@@ -19,7 +19,18 @@ import * as native from './index.js';
 // setImmediate is a Node global but NOT a Deno global (Deno requires the explicit
 // node:timers import; Bun/Node re-export it there too), so import it for the
 // macrotask-deferred runAsync to work on all three runtimes.
-import { setImmediate } from 'node:timers';
+//
+// setInterval/clearInterval come from here for a second, load-bearing reason:
+// the RUNTIME's timers, never `globalThis.setInterval`. A GJS source running
+// through the bridge routinely replaces the global timers with GLib-backed ones
+// (`@gjsify/node-globals/register` swaps them for `GLib.timeout_add` wrappers) —
+// driving the GLib pump off a GLib timeout is a deadlock: the timer that is
+// supposed to dispatch GLib sources is itself a GLib source nobody dispatches.
+import { setImmediate, setInterval, clearInterval } from 'node:timers';
+// Same reasoning for `process`: `globalThis.process` may be the `@gjsify/process`
+// polyfill, whose EventEmitter never emits the runtime's 'beforeExit'. The
+// loop-liveness hooks below must attach to the real one or they silently never fire.
+import runtimeProcess from 'node:process';
 // The GJS Gio DBus surface (Gio.DBus.session/system, own_name/watch_name,
 // Gio.DBusProxy.makeProxyWrapper, Gio.DBusExportedObject) — ported to the L1 model.
 import { createGioDBus } from './overrides/gio-dbus.js';
@@ -977,11 +988,51 @@ function applicationRunAsync(handle) {
 // concurrent runAsync calls share one timer.
 let pumpTimer = null;
 let pumpRefCount = 0;
+// Whether the pump timer currently HOLDS the runtime's event loop open (ref'd).
+let pumpHoldsRuntime = false;
+
+/** Dispatch every currently-ready GLib source, then return. */
+function drainReadySources() {
+  let guard = 0;
+  while (native.iterateMainContext(false) && guard++ < 100000) {
+    /* drain ready sources */
+  }
+}
+
+/**
+ * Keep-alive accounting — the portable twin of the uv auto-pump's ref/unref
+ * policy (`src/loop.cc`): scheduled GLib work (an armed timeout/idle) or an
+ * in-flight scope=async GI callback holds the runtime's event loop open;
+ * anything else lets it drain.
+ *
+ * Both halves are load-bearing. Permanently UNREF'd (the pre-fix behaviour) a
+ * program whose only pending work lives in GLib dies mid-flight — a bare
+ * `await` on a GLib timeout never settles and the runtime exits 0 with the
+ * program half-run. Permanently REF'd, a sync-only program would never exit.
+ *
+ * Consequence, identical to Node's auto-pump: a REPEATING GLib timeout has
+ * `setInterval` semantics and keeps the process alive, where `gjs -m` exits once
+ * the module settles. That is the one deliberate lifetime divergence from gjs,
+ * and it is now the SAME on node, bun and deno rather than node-only.
+ */
+function syncPumpKeepAlive() {
+  if (pumpTimer === null) return;
+  const hold = native.mainContextHasPending() === true;
+  if (hold === pumpHoldsRuntime) return;
+  if (hold) pumpTimer.ref?.();
+  else pumpTimer.unref?.();
+  pumpHoldsRuntime = hold;
+}
 
 /**
  * Start co-pumping the default GLib main context from a runtime timer (Bun/Deno).
  * No-op on Node, where the libuv↔GLib bridge already co-pumps. Reference-counted;
  * returns a disposer that decrements the count (clearing the timer at zero).
+ *
+ * `requireGi` arms this automatically on Bun/Deno (the Node twin of
+ * `native.startMainLoop()`), so a plain `bun bundle.mjs` / `deno run bundle.mjs`
+ * dispatches GLib sources with no explicit loop — calling it by hand is only
+ * needed to hold the pump across a scope that must not depend on that.
  * @returns {() => void}
  */
 export function startMainContextPump() {
@@ -993,16 +1044,16 @@ export function startMainContextPump() {
   if (pumpTimer === null) {
     // ~4 ms cadence: low latency without busy-spinning. Each tick drains every
     // currently-ready source (iterateMainContext(false) returns false when none
-    // remain, bounding the inner loop), then yields to the runtime loop.
+    // remain, bounding the inner loop), then re-evaluates the keep-alive hold.
     pumpTimer = setInterval(() => {
-      let guard = 0;
-      while (native.iterateMainContext(false) && guard++ < 100000) {
-        /* drain ready sources */
-      }
+      drainReadySources();
+      syncPumpKeepAlive();
     }, 4);
-    // Don't let the pump alone keep the process alive where the runtime allows it
-    // (Node/Bun expose Timeout.unref; Deno's numeric handle has none).
-    if (typeof pumpTimer.unref === 'function') pumpTimer.unref();
+    // Start UNREF'd: the pump alone must never keep a finished program alive.
+    // syncPumpKeepAlive() refs it for exactly as long as GLib has work.
+    pumpTimer.unref?.();
+    pumpHoldsRuntime = false;
+    syncPumpKeepAlive();
   }
   let disposed = false;
   return () => {
@@ -1019,6 +1070,7 @@ export function stopMainContextPump() {
   if (pumpRefCount === 0 && pumpTimer !== null) {
     clearInterval(pumpTimer);
     pumpTimer = null;
+    pumpHoldsRuntime = false;
   }
 }
 
@@ -2309,7 +2361,24 @@ export function requireGi(namespace, version) {
       // 'beforeExit' fires exactly when the loop runs empty: drain what is
       // ready and re-arm — if GLib still has scheduled work, the armed (ref'd)
       // uv timer revives the loop; otherwise the process exits normally.
-      process.on('beforeExit', () => native.pumpKick());
+      runtimeProcess.on('beforeExit', () => native.pumpKick());
+    } else if (native.RUNTIME !== 'gjs') {
+      // Bun/Deno: no libuv to hook, so the portable timer pump IS the auto-pump.
+      // Armed HERE, not left to the caller, so that `bun bundle.mjs` /
+      // `deno run bundle.mjs` behaves like `node bundle.mjs` and `gjs -m`:
+      // GLib sources dispatch with no explicit loop anywhere, and the pump's
+      // keep-alive accounting decides when the process may exit. Leaving it
+      // opt-in is what made the same bundle exit 0 MID-suite on bun/deno while
+      // node ran it to completion.
+      startMainContextPump(); // permanent +1 — the auto-pump is never disposed
+      // The portable analogue of the Node pump's beforeExit kick. The runtime's
+      // loop just ran empty, which is exactly the moment an unref'd pump would
+      // let the process die with GLib work still outstanding: drain what is
+      // ready, then re-evaluate the hold — re-ref'ing here revives the loop.
+      runtimeProcess.on('beforeExit', () => {
+        drainReadySources();
+        syncPumpKeepAlive();
+      });
     }
     loopAttached = true;
   }
