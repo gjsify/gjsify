@@ -511,6 +511,19 @@ jobs:
             fi
           '"
 
+      # Rides the existing static-analysis job: the workspace + node_modules are
+      # already restored here and oxlint takes seconds, so this costs no new
+      # container. Always the WHOLE repo (never selective) — "lint is clean" is a
+      # repo-wide claim and a per-file run cannot verify it.
+      #
+      # Gates on ERRORS ONLY, and that is oxlint's own exit semantics, not a flag:
+      # warnings never affect the exit code unless you opt in with
+      # --max-warnings/--deny-warnings, which this deliberately does NOT pass. The
+      # 59 open warnings (mostly consistent-type-imports / no-unused-vars) stay
+      # visible in the log without failing the build.
+      - name: Lint (oxlint, errors only)
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify lint'
+
   # ── Unit tests (sharded) ────────────────────────────────────────────
   # Restores the build job's output and runs the workspace test suite split
   # across 4 parallel shards (gjsify foreach --shard). WebGL conformance rides
