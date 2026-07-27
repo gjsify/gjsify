@@ -177,7 +177,8 @@ const DYNAMIC_GI_RE = /import\s*\(\s*['"](?:gi:\/\/|@girs\/)/;
 // the rest of the line doesn't begin with a comment marker. Imperfect but
 // catches the canonical `const x = imports.byteArray` / `imports.gi.Foo`
 // pattern without hand-rolling a TS parser.
-const IMPORTS_LEGACY_RE = /(?<!\/\/.*)(?<!\*.*)\bimports\.(?:byteArray|gi|system|signals|cairo|gettext|format|misc|jsUnit|searchPath)/;
+const IMPORTS_LEGACY_RE =
+    /(?<!\/\/.*)(?<!\*.*)\bimports\.(?:byteArray|gi|system|signals|cairo|gettext|format|misc|jsUnit|searchPath)/;
 // `<obj>.imports?.gi` / `<obj>.imports.gi` — the "safe" access pattern used
 // by `@gjsify/{terminal-native,tls-native,sab-native}` and similar Vala
 // bridges. Reads `imports` via a typed view of a runtime host (`globalThis`,
@@ -202,11 +203,11 @@ async function scanSourceTree(pkgDir) {
         // that a package's behavior is exercised by `@gjsify/unit` across
         // runtimes. Distinguishes headless behavior CONTRACTS from design-ASSET
         // packages on the design-identity axis (see `suggestRuntimes`).
-        has_test_entry:
-            existsSync(join(srcDir, 'test.mts')) || existsSync(join(srcDir, 'test.ts')),
+        has_test_entry: existsSync(join(srcDir, 'test.mts')) || existsSync(join(srcDir, 'test.ts')),
         has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
         browser_src_is_partial: false,
-        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),        globals_mjs_browser_safe: false,
+        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
+        globals_mjs_browser_safe: false,
         file_count: 0,
     };
     if (signals.has_browser_polyfill) {
@@ -332,13 +333,7 @@ const NODE_API_NO_BROWSER_SENSE = new Set([
  * `browser:"none"` even though they may have a `.imports?.gi` guard the
  * scanner picks up — the prebuild is the impl, not a polyfill.
  */
-const NODE_API_GJS_ONLY = new Set([
-    'tls-native',
-    'sab-native',
-    'terminal-native',
-    'http2-native',
-    'http-soup-bridge',
-]);
+const NODE_API_GJS_ONLY = new Set(['tls-native', 'sab-native', 'terminal-native', 'http2-native', 'http-soup-bridge']);
 
 /**
  * Pre-existing declared `node:"none"` packages that the heuristic would
@@ -363,10 +358,7 @@ const NODE_API_LEGACY_NONE = new Set([
  * `globals.mjs` keep `browser: "polyfill"` because globals.mjs there is
  * the Node-native `node:<pkg>` re-export (no browser equivalent).
  */
-const NODE_API_BROWSER_NATIVE = new Set([
-    'url',
-    'perf_hooks',
-]);
+const NODE_API_BROWSER_NATIVE = new Set(['url', 'perf_hooks']);
 
 /**
  * Web-API packages whose impl is GJS-bound AND has NO Node-native pendant
@@ -375,12 +367,7 @@ const NODE_API_BROWSER_NATIVE = new Set([
  * native-delegation; Node-target stays `none` since there is no `node:`
  * equivalent to re-export.
  */
-const WEB_API_NODE_NONE = new Set([
-    'webaudio',
-    'webrtc',
-    'xmlhttprequest',
-    'gamepad',
-]);
+const WEB_API_NODE_NONE = new Set(['webaudio', 'webrtc', 'xmlhttprequest', 'gamepad']);
 
 /**
  * Pure-TS Web-API packages with a globals.mjs AND a Node-native pendant
@@ -403,8 +390,7 @@ const WEB_API_NODE_NATIVE = new Set([
 
 /** Suggest a default {gjs, node, browser} triplet from the signals + axis. */
 function suggestRuntimes(axis, signals, pkgSubpath) {
-    const gjsBound =
-        signals.girs_value || signals.gi_url || signals.imports_legacy || signals.gjs_imports_guard;
+    const gjsBound = signals.girs_value || signals.gi_url || signals.imports_legacy || signals.gjs_imports_guard;
     // Dynamic-only GJS binding: package is portable, GJS path supplies the
     // real impl, other runtimes get a degraded no-op fallback. Slot = partial.
     const gjsDynamicOnly = !gjsBound && signals.dynamic_gi;
@@ -493,12 +479,7 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
             }
             // path / perf_hooks etc.: gjs_imports_guard only (no static gi:// /
             // @girs/* value-import / legacy imports.X). Pure-TS portable.
-            if (
-                signals.gjs_imports_guard &&
-                !signals.girs_value &&
-                !signals.gi_url &&
-                !signals.imports_legacy
-            ) {
+            if (signals.gjs_imports_guard && !signals.girs_value && !signals.gi_url && !signals.imports_legacy) {
                 const nativeMember = NODE_API_BROWSER_NATIVE.has(pkgSubpath);
                 // A `globals.mjs` re-exporting the runtime-native value upgrades
                 // the node slot to `native` — same logic the post-PR-#392 audit
@@ -521,7 +502,8 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         if (signals.has_browser_polyfill && !signals.has_globals_mjs) {
             browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
         }
-        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };    }
+        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
+    }
 
     // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
     // surface has a same-named browser global (most do; the slot is 'native'
@@ -548,18 +530,14 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         const nodeSlot = gjsDynamicOnly
             ? 'partial'
             : signals.has_globals_mjs && nodeNativeEligible
-                ? 'native'
-                : 'polyfill';
+              ? 'native'
+              : 'polyfill';
         // Browser: gjsDynamicOnly means the package falls back to a graceful
         // no-op when its GJS backend is missing. If it ships a globals.mjs
         // pointing at a native browser value (gamepad → Gamepad/GamepadEvent),
         // the browser-slot upgrades to `native` per R2 §5.2 — the dynamic
         // backend simply never loads in a browser bundle.
-        const browserSlot = gjsDynamicOnly
-            ? signals.has_globals_mjs
-                ? 'native'
-                : 'partial'
-            : 'native';
+        const browserSlot = gjsDynamicOnly ? (signals.has_globals_mjs ? 'native' : 'partial') : 'native';
         return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
     }
     if (axis === 'node-api') {
@@ -628,7 +606,8 @@ function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
         // Server-only modules → none
         if (NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)) return 'none';
         // If browser slot is polyfill/partial/native, we likely have a portable shape
-        if (suggested.browser === 'polyfill' || suggested.browser === 'partial' || suggested.browser === 'native') return 'polyfill';
+        if (suggested.browser === 'polyfill' || suggested.browser === 'partial' || suggested.browser === 'native')
+            return 'polyfill';
     }
     return 'none';
 }
@@ -691,9 +670,7 @@ async function probeGlobalsExports(pkgDir, target) {
     } catch (err) {
         return { ok: false, reason: `globals.mjs unreadable: ${err.message}` };
     }
-    const reExports = [...src.matchAll(/export\s*(?:\*|\{[^}]*\})\s*from\s*['"]([^'"]+)['"]/g)].map(
-        (m) => m[1],
-    );
+    const reExports = [...src.matchAll(/export\s*(?:\*|\{[^}]*\})\s*from\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
     for (const spec of reExports) {
         // `@gjsify/<X>/globals` self-delegation is always OK on either target —
         // the chain terminates at a package that has its own probe applied.
@@ -729,14 +706,10 @@ async function probeBrowserBuildable(pkgDir) {
     // Components, no `@gjsify/unit` test harness). Without this, flipping the
     // default `--check` to strict would gate every CI run on test entries that
     // cannot meaningfully exist.
-    const hasStandardTest =
-        existsSync(join(pkgDir, 'src', 'test.mts')) || existsSync(join(pkgDir, 'src', 'test.ts'));
+    const hasStandardTest = existsSync(join(pkgDir, 'src', 'test.mts')) || existsSync(join(pkgDir, 'src', 'test.ts'));
     if (!hasStandardTest) return { ok: true };
 
-    const candidates = [
-        join(pkgDir, 'src', 'test.browser.mts'),
-        join(pkgDir, 'src', 'test.browser.ts'),
-    ];
+    const candidates = [join(pkgDir, 'src', 'test.browser.mts'), join(pkgDir, 'src', 'test.browser.ts')];
     for (const candidate of candidates) {
         if (existsSync(candidate)) return { ok: true };
     }
@@ -974,11 +947,7 @@ function slotOfSpecifier(spec, target, meta) {
 
 /** Source files that never ship in a target bundle. */
 function isNonShippingSource(fileName) {
-    return (
-        /\.spec\.(ts|mts)$/.test(fileName) ||
-        /^test(\..*)?\.(ts|mts)$/.test(fileName) ||
-        fileName.endsWith('.d.ts')
-    );
+    return /\.spec\.(ts|mts)$/.test(fileName) || /^test(\..*)?\.(ts|mts)$/.test(fileName) || fileName.endsWith('.d.ts');
 }
 
 /** Every `.ts`/`.mts` file under `dir`, recursively (skips node_modules). */
@@ -1168,9 +1137,7 @@ async function auditReachability(meta) {
             // A non-routing package must not be judged on OTHER targets' entries.
             const scanFiles = routes
                 ? entryFiles
-                : entryFiles.filter(
-                      (f) => !REACH_TARGETS.some((t) => t !== target && f === join(srcDir, `${t}.ts`)),
-                  );
+                : entryFiles.filter((f) => !REACH_TARGETS.some((t) => t !== target && f === join(srcDir, `${t}.ts`)));
             const { bare, direct } = await walkEntryGraph(scanFiles);
             checked++;
 
@@ -1239,9 +1206,7 @@ async function auditCuratedAliasRouting(meta) {
     /** @type {Record<string,string>} */
     let table;
     try {
-        ({ ALIASES_NODE_FOR_BROWSER: table } = await import(
-            '../packages/infra/resolve-npm/lib/index.mjs'
-        ));
+        ({ ALIASES_NODE_FOR_BROWSER: table } = await import('../packages/infra/resolve-npm/lib/index.mjs'));
     } catch (err) {
         return [
             `curated-alias-routing: could not load @gjsify/resolve-npm's browser alias table (${err?.message ?? err}).`,
@@ -1799,7 +1764,10 @@ function splitSteps(lines) {
  * as unverified rather than failed, so a build wired up in a workflow shape
  * this parser does not understand can never produce a false CI failure.
  */
-async function parseCiPlatforms(nativePkgs, workflowFiles = ['prebuilds.yml', 'napi.yml', 'node-gi.yml', 'release.yml']) {
+async function parseCiPlatforms(
+    nativePkgs,
+    workflowFiles = ['prebuilds.yml', 'napi.yml', 'node-gi.yml', 'release.yml'],
+) {
     const byPackage = new Map();
     // A step identifies its package either by npm name or by the workspace
     // path it builds in (`working-directory: packages/node-gi/node-gi`) — the
@@ -2051,11 +2019,7 @@ function renderMarkdown(rows) {
     const lines = ['| package | axis | gjs | node | browser | declared | src |', '|---|---|---|---|---|---|---|'];
     for (const r of rows) {
         const sg = r.suggested ?? { gjs: '—', node: '—', browser: '—' };
-        const declared = r.declared
-            ? '✓'
-            : r.suggested
-              ? '—'
-              : 'n/a';
+        const declared = r.declared ? '✓' : r.suggested ? '—' : 'n/a';
         lines.push(
             `| \`${r.name ?? r.path}\` | ${r.axis} | ${sg.gjs} | ${sg.node} | ${sg.browser} | ${declared} | ${r.signals.file_count}${r.gjs_bound ? ' +gjs' : ''} |`,
         );
@@ -2100,8 +2064,7 @@ function diffDeclared(rows) {
         //     the standard cross-runtime test harness (`src/test.mts`), which
         //     the design-ASSET packages (fonts/icons/web components) never ship.
         const isPureTsContract =
-            (r.axis === 'framework-gjs' ||
-                (r.axis === 'design-identity' && r.signals.has_test_entry)) &&
+            (r.axis === 'framework-gjs' || (r.axis === 'design-identity' && r.signals.has_test_entry)) &&
             !r.signals.gjs_imports_guard &&
             !r.signals.girs_value &&
             !r.signals.gi_url &&
@@ -2201,7 +2164,9 @@ if (PLATFORMS) {
 
 if (APPLY) {
     const { updated, skipped } = await apply(rows);
-    console.log(`audit-runtimes: applied ${updated} package(s), skipped ${skipped} (already-declared / infra / unknown).`);
+    console.log(
+        `audit-runtimes: applied ${updated} package(s), skipped ${skipped} (already-declared / infra / unknown).`,
+    );
     process.exit(0);
 }
 
@@ -2251,9 +2216,7 @@ if (CHECK) {
         reach.aliasFailures.length === 0 &&
         headless.failures.length === 0;
     if (ok) {
-        const suffix = STRICT
-            ? ` (functional probes passed on every declared slot)`
-            : '';
+        const suffix = STRICT ? ` (functional probes passed on every declared slot)` : '';
         console.log(
             `audit-runtimes --check${STRICT ? ' --strict' : ''}: OK. ${declarable} declarable package(s) match the signal-based suggestion (${rows.length - declarable} infra/unknown skipped).${suffix}`,
         );
@@ -2295,9 +2258,7 @@ if (CHECK) {
         console.error('');
     }
     if (probeFailures.length > 0) {
-        console.error(
-            `FUNCTIONAL PROBE FAILURES on ${probeFailures.length} package(s):`,
-        );
+        console.error(`FUNCTIONAL PROBE FAILURES on ${probeFailures.length} package(s):`);
         for (const { row: r, failures } of probeFailures) {
             console.error(`  - ${r.name ?? r.path}  (path: packages/${r.path})`);
             console.error(`      declared:  ${fmtTriplet(r.declared)}`);
@@ -2326,9 +2287,7 @@ if (CHECK) {
         console.error('');
     }
     if (reach.failures.length > 0) {
-        console.error(
-            `CROSS-RUNTIME REACHABILITY FAILURES (ADR 0014) on ${reach.failures.length} slot(s):`,
-        );
+        console.error(`CROSS-RUNTIME REACHABILITY FAILURES (ADR 0014) on ${reach.failures.length} slot(s):`);
         for (const line of reach.failures) {
             console.error(`  - ${line}`);
         }
@@ -2341,9 +2300,7 @@ if (CHECK) {
         console.error('');
     }
     if (reach.aliasFailures.length > 0) {
-        console.error(
-            `CURATED-ALIAS ROUTING FAILURES on ${reach.aliasFailures.length} alias entr(y|ies):`,
-        );
+        console.error(`CURATED-ALIAS ROUTING FAILURES on ${reach.aliasFailures.length} alias entr(y|ies):`);
         for (const line of reach.aliasFailures) {
             console.error(`  - ${line}`);
         }
@@ -2367,7 +2324,7 @@ if (CHECK) {
     }
     renderReachabilityNotes(reach);
     console.error(
-        'Either update the package\'s source-code signals (the GJS-binding shape changed) or update its package.json#gjsify.runtimes to match the new reality. See AGENTS.md `## Strategic direction — cross-runtime portability` for the slot model. For tier-contract failures see docs/adr/0003-package-tiering.md + docs/adr/0005-node-gi-scope.md. For reachability failures see docs/adr/0014-utils-core-subpath-and-platform-entry-routing.md. For headless-contract failures see docs/adr/0015-headless-package-contract.md.',
+        "Either update the package's source-code signals (the GJS-binding shape changed) or update its package.json#gjsify.runtimes to match the new reality. See AGENTS.md `## Strategic direction — cross-runtime portability` for the slot model. For tier-contract failures see docs/adr/0003-package-tiering.md + docs/adr/0005-node-gi-scope.md. For reachability failures see docs/adr/0014-utils-core-subpath-and-platform-entry-routing.md. For headless-contract failures see docs/adr/0015-headless-package-contract.md.",
     );
     process.exit(1);
 }
@@ -2385,5 +2342,7 @@ if (FORMAT === 'json') {
     console.log('\nAxis counts:', counts);
     const declaredCount = rows.filter((r) => r.declared).length;
     const declarableCount = rows.filter((r) => r.suggested).length;
-    console.log(`Declared: ${declaredCount} / ${declarableCount} declarable (${rows.length - declarableCount} infra/unknown).`);
+    console.log(
+        `Declared: ${declaredCount} / ${declarableCount} declarable (${rows.length - declarableCount} infra/unknown).`,
+    );
 }
