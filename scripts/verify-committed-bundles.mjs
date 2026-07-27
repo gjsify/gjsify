@@ -57,6 +57,17 @@
  *   node scripts/verify-committed-bundles.mjs            # rebuild + compare
  *   node scripts/verify-committed-bundles.mjs --list     # print the plan only
  *   node scripts/verify-committed-bundles.mjs --keep     # leave the rebuild in place
+ *   node scripts/verify-committed-bundles.mjs --rebuild  # PRODUCE the artifacts, no compare
+ *
+ * `--rebuild` is what `.release-it.json`'s `after:bump` hook runs. A release
+ * bumps the version, so the artifacts MUST differ from HEAD — comparing would
+ * fail by definition. Sharing this file rather than re-spelling the commands in
+ * the hook is the point: the release then produces exactly the artifacts CI
+ * verifies, using the same workspace CLI and the same `--with-dependencies`
+ * input pinning, and a newly-committed bundle is picked up by both at once.
+ * (The alternative — a second copy of the recipe in JSON — is what let the
+ * v0.24.0 release ship three bundles built by a THREE-RELEASE-OLD global
+ * `gjsify` with no dependency closure and only one of them `git add`ed.)
  */
 
 import { spawnSync, execFileSync } from 'node:child_process';
@@ -241,7 +252,10 @@ function fail(msg) {
 
 const args = new Set(process.argv.slice(2));
 const listOnly = args.has('--list');
-const keep = args.has('--keep');
+// `--rebuild` PRODUCES the artifacts (release hook); it implies `--keep`, since
+// restoring the pre-run bytes would undo exactly what it was asked to do.
+const rebuildOnly = args.has('--rebuild');
+const keep = args.has('--keep') || rebuildOnly;
 
 const claimed = new Set(RECIPES.flatMap((r) => r.groups.filter((g) => g.kind === 'file').map((g) => g.path)));
 const discovered = discoverCommittedBundles();
@@ -303,6 +317,15 @@ try {
             }
         }
         if (aborted) continue;
+        if (rebuildOnly) {
+            for (const p of recipe.groups.flatMap(groupFilesOnDisk)) {
+                if (recipe.groups.some((g) => g.kind === 'file' && g.path === p)) {
+                    console.log(`  → wrote ${p} (${readFileSync(join(repoRoot, p)).length} B)`);
+                }
+            }
+            console.log(`[verify-bundles] ${recipe.id} rebuilt in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+            continue;
+        }
 
         for (const group of recipe.groups) {
             const expectedPaths = groupFilesAtHead(group);
@@ -364,4 +387,8 @@ if (failures > 0) {
     process.exit(1);
 }
 
-console.log('\nAll committed bundles reproduce byte-identically from the source at HEAD.');
+if (rebuildOnly) {
+    console.log('\nAll committed bundles rebuilt from source. Commit them.');
+} else {
+    console.log('\nAll committed bundles reproduce byte-identically from the source at HEAD.');
+}

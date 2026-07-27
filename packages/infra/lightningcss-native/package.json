@@ -33,7 +33,7 @@
     },
     "scripts": {
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs || exit 0",
-        "check": "gjsify tsc --noEmit",
+        "check": "gjsify tsc --noEmit && gjsify tsc --noEmit -p tsconfig.spec.json",
         "init:meson": "meson setup build .",
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build": "gjsify run build:gjsify && gjsify run build:types",
