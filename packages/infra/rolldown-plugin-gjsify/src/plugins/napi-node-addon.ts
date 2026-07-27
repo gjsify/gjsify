@@ -853,21 +853,51 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
         return file;
     }
 
-    async function warnIfNapiMissing(ctx: AddonResolveContext, importer: string | undefined): Promise<void> {
-        if (!warnOnMissingNapi || missingNapiChecked) return;
-        missingNapiChecked = true; // check once per build — interception is rare
+    /**
+     * Is `@gjsify/napi` resolvable from the consumer graph? This is the GATE on
+     * every rewrite, not a diagnostic — installing it (`gjsify install
+     * @gjsify/napi`) is what a project uses to opt into napi routing.
+     *
+     * It used to only WARN, and the warning said the quiet part out loud: "the
+     * bundle will fail at load". Emitting a knowingly-unloadable artifact is
+     * never better than declining to rewrite — the untouched module at least
+     * gets the default resolution, and a package with a JS/wasm fallback then
+     * works. Two concrete failures made this a gate rather than a nicety:
+     *
+     *   - The CLI's own `--app gjs` bundle reaches npm `lightningcss` through
+     *     `css-as-string`'s Node fallback branch (under GJS it deliberately
+     *     prefers `@gjsify/lightningcss-native`). Rewriting that branch put a
+     *     `require('@gjsify/napi')` into a bundle whose package does not depend
+     *     on `@gjsify/napi` at all.
+     *   - Worse, it made the COMMITTED bundle environment-dependent: with the
+     *     package present the shim inlines, without it the import goes external,
+     *     and the two module graphs minify to different variable names. That is
+     *     a `verify-committed-bundles` failure — the artifact stops reproducing
+     *     from its own source.
+     *
+     * Probed once per build (interception is rare) and cached, so the extra
+     * resolve costs nothing on the common path.
+     */
+    let napiAvailable: boolean | null = null;
+    async function ensureNapiAvailable(ctx: AddonResolveContext, importer: string | undefined): Promise<boolean> {
+        if (napiAvailable !== null) return napiAvailable;
+        let found = false;
         try {
-            const found = await ctx.resolve(NAPI_BARE_SPECIFIER, importer, { skipSelf: true });
-            if (!found) {
-                warnSafe(
-                    ctx,
-                    `[gjsify-napi-addon] a native .node addon was intercepted but '${NAPI_BARE_SPECIFIER}' ` +
-                        `is not resolvable — the bundle will fail at load. Install it: gjsify install ${NAPI_BARE_SPECIFIER}`,
-                );
-            }
+            found = Boolean(await ctx.resolve(NAPI_BARE_SPECIFIER, importer, { skipSelf: true }));
         } catch {
-            /* best-effort probe */
+            /* best-effort probe — treat a resolver throw as "not available" */
         }
+        napiAvailable = found;
+        if (!found && warnOnMissingNapi && !missingNapiChecked) {
+            missingNapiChecked = true;
+            warnSafe(
+                ctx,
+                `[gjsify-napi-addon] a native .node addon was found but '${NAPI_BARE_SPECIFIER}' is not ` +
+                    `resolvable — leaving it to normal resolution. Install it to route the addon through ` +
+                    `N-API on GJS: gjsify install ${NAPI_BARE_SPECIFIER}`,
+            );
+        }
+        return found;
     }
 
     return {
@@ -893,7 +923,7 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                     if (cls.kind === 'direct-node') {
                         const abs = await resolveNodeFile(ctx, source, importer);
                         if (abs === null) return null; // unresolvable — let the default chain error
-                        await warnIfNapiMissing(ctx, importer);
+                        if (!(await ensureNapiAvailable(ctx, importer))) return null;
                         return { id: encodeVirtual('direct', abs) };
                     }
 
@@ -901,7 +931,7 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                     if (cls.kind === 'napi-rs-candidate') {
                         const resolved = await ctx.resolve(source, importer, { skipSelf: true });
                         if (!resolved || !resolved.id.endsWith('.node')) return null; // not a native sibling
-                        await warnIfNapiMissing(ctx, importer);
+                        if (!(await ensureNapiAvailable(ctx, importer))) return null;
                         return { id: encodeVirtual('napi-rs', resolved.id) };
                     }
 
@@ -909,8 +939,8 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                     if (importer === undefined) return null;
                     const pkgRoot = nearestPackageRoot(importer);
                     if (pkgRoot === null) return null;
+                    if (!(await ensureNapiAvailable(ctx, importer))) return null;
                     const addonPath = resolveAddonPath(pkgRoot, { warn: (m) => warnSafe(ctx, m) }); // throws → build error
-                    await warnIfNapiMissing(ctx, importer);
                     return { id: encodeVirtual(cls.kind, addonPath) };
                 }
 
@@ -931,7 +961,7 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                 if (entry !== null) {
                     const addonPath = await resolveNapiRsEntryAddon(ctx, entry.pkgRoot, entry.pkg, entryFile);
                     if (addonPath !== null) {
-                        await warnIfNapiMissing(ctx, importer);
+                        if (!(await ensureNapiAvailable(ctx, importer))) return null;
                         return { id: encodeVirtual('napi-rs-entry', addonPath) };
                     }
                 }
