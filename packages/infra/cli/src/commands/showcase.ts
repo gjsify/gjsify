@@ -8,12 +8,12 @@ import { ensurePkgDir } from './dlx.js';
 import { parseSpec } from '../utils/parse-spec.js';
 import { resolveNodeEntry } from '../utils/resolve-gjs-entry.js';
 import { runRuntimeBundle } from '../utils/run-node.js';
-import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import {
     EXAMPLE_RUNTIMES,
     isExampleRuntime,
     readDeclaredRuntimes,
     checkRuntimeSupported,
+    defaultExampleRuntime,
     type ExampleRuntime,
 } from '../utils/runtimes.js';
 
@@ -54,19 +54,24 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
                 default: false,
             })
             .option('runtime', {
-                // Runtime selector, mirroring `gjsify storybook --runtime`. The
-                // default FOLLOWS the host runtime the CLI executes in (gjs under
-                // gjs, node under node/bun/deno). gjs runs the showcase's GJS
-                // bundle via `gjsify dlx`; node/bun/deno run its `--app node`
-                // bundle on that runtime. Validated against the showcase's
-                // declared `gjsify.example.runtimes` — a GTK-only showcase
-                // requested under node fails with a clear message, not a crash.
+                // Runtime selector, mirroring `gjsify storybook --runtime`. gjs
+                // runs the showcase's GJS bundle via `gjsify dlx`; node/bun/deno
+                // run its `--app node` bundle on that runtime. Validated against
+                // the showcase's declared `gjsify.example.runtimes` — a GTK-only
+                // showcase requested under node fails with a clear message, not
+                // a crash.
+                //
+                // NO eager yargs `default:` — it is resolved in the handler via
+                // `defaultExampleRuntime()` (gjs when gjs is installed, else the
+                // host runtime). Two reasons: yargs evaluates a `default:` while
+                // BUILDING the command, before we know a showcase was even
+                // named, and resolving it probes PATH — work that must not
+                // happen for `gjsify showcase` in list mode.
                 type: 'string',
                 choices: EXAMPLE_RUNTIMES,
-                default: hostRuntime(),
-                defaultDescription: 'host runtime (gjs on gjs, else node/bun/deno)',
+                defaultDescription: 'gjs when gjs is installed, else the host runtime',
                 description:
-                    'Runtime to run the showcase on: gjs | node | bun | deno (default: the host runtime). node/bun/deno run its `--app node` bundle.',
+                    'Runtime to run the showcase on: gjs | node | bun | deno (default: gjs when installed, else the host runtime). node/bun/deno run its `--app node` bundle.',
             }),
     handler: async (args) => {
         // List mode: no name given, or --list flag
@@ -143,7 +148,7 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
             return process.exit(1);
         }
 
-        const runtime = (args.runtime ?? hostRuntime()) as string;
+        const runtime = (args.runtime ?? defaultExampleRuntime()) as string;
         if (!isExampleRuntime(runtime)) {
             console.error(`Unknown --runtime "${runtime}" (expected: ${EXAMPLE_RUNTIMES.join(', ')}).`);
             // `return` — bare `process.exit` falls through under GJS (see above).
