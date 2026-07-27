@@ -54,6 +54,7 @@
             "browser": "polyfill",
             "nativescript": "polyfill"
         },
+        "headless": true,
         "tier": 2
     },
     "license": "MIT",
