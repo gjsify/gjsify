@@ -292,6 +292,33 @@ gboolean dispatch_cb(gpointer data) {
 // a freed GMainContext — the abort-path UAF, reached here. A deadline caps a
 // claimant that never drains (a claim-contract violation — UB in Node too),
 // falling back to the pre-fix force-free rather than hanging teardown.
+//
+// THE TIMEOUT WARNING IS NOT NOISE — DO NOT GATE OR REMOVE IT. It marks the one
+// path on which this function knowingly does the unsafe thing: the force-free it
+// falls back to is EXACTLY the pre-#809 behaviour whose use-after-free was benign
+// on Linux/glibc and a hard crash on macOS. A fired warning therefore says "a UAF
+// window was just opened here", which is never something to silence.
+//
+// Measured (linux-x64, gjs 1.88, the tsfn-addon driven into env teardown with
+// claims outstanding — 3 runs each):
+//   • every claim owned by a FOREIGN thread that drains on its next
+//     napi_closing push (the shutdown-conformance shape, 8 producers):
+//     join completes in 10 / 47 / 14 us. Against a 2 s deadline that is four
+//     orders of magnitude of headroom — the deadline is NOT too tight, and
+//     widening it would buy nothing.
+//   • a claim NOT owned by a foreign thread — a released-nowhere claim, incl.
+//     the JS thread's OWN initial claim: it can never drop while this join runs
+//     (the JS thread is the thread blocked here), so the wait always runs the
+//     full deadline: 2048 / 2090 / 2137 ms wall, then warn + force-free, with
+//     exactly the undrainable claim still counted.
+// So the warning discriminates correctly: a legitimately slow drain never
+// reaches it, and reaching it always means a claim nobody will hand back. What
+// the shim CANNOT do is tell those two owners apart — `thread_count` is a
+// count, not a set of owning threads, and initial_thread_count claims are handed
+// out by the addon, so a fix that skips "our own" claim would be a guess. Hence:
+// deadline unchanged, message worded to name both owners, and the g_debug below
+// reports the measured wait so "how close was it?" is answerable from a run
+// rather than guessed (`G_MESSAGES_DEBUG=all`).
 void finalize_env_tsfns(napi_env env) {
     while (!env->tsfns.empty()) {
         napi_threadsafe_function tsfn = env->tsfns.back();
@@ -301,8 +328,9 @@ void finalize_env_tsfns(napi_env env) {
         g_cond_broadcast(&tsfn->cond);
         // Join: wait for every outstanding claim to drain (each claim-consuming
         // napi_closing push/release drops thread_count and broadcasts at 0).
-        const gint64 deadline =
-            g_get_monotonic_time() + 2 * G_TIME_SPAN_SECOND;
+        const size_t claims_at_entry = tsfn->thread_count;
+        const gint64 join_started = g_get_monotonic_time();
+        const gint64 deadline = join_started + 2 * G_TIME_SPAN_SECOND;
         bool joined = true;
         while (tsfn->thread_count > 0) {
             if (!g_cond_wait_until(&tsfn->cond, &tsfn->mutex, deadline)) {
@@ -310,11 +338,22 @@ void finalize_env_tsfns(napi_env env) {
                 break;
             }
         }
+        const gint64 join_us = g_get_monotonic_time() - join_started;
         if (!joined) {
             g_warning("gjsify-napi: threadsafe-function teardown join timed out "
-                      "with %zu claim(s) still outstanding; freeing anyway (a "
-                      "foreign thread holds a tsfn claim without draining it)",
+                      "after 2s with %zu claim(s) still outstanding; freeing "
+                      "anyway — this reopens the use-after-free window the "
+                      "join exists to close. A claim was never handed back: "
+                      "either a foreign thread holds one without calling again "
+                      "or releasing, or the tsfn was created with an initial "
+                      "claim for the JS thread that no napi_release_threadsafe_"
+                      "function ever dropped (that one cannot drain from inside "
+                      "this join). Release every claim before env teardown",
                       tsfn->thread_count);
+        } else if (claims_at_entry > 0) {
+            g_debug("gjsify-napi: threadsafe-function teardown joined %zu "
+                    "claim(s) in %" G_GINT64_FORMAT " us (deadline 2000000 us)",
+                    claims_at_entry, join_us);
         }
         // A claimant that reached 0 may have armed a dispatch that can no longer
         // run (dispose has begun) — destroy it before the free.

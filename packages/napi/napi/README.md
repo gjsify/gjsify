@@ -211,6 +211,31 @@ Anything the shim reports **unconditionally** is a real problem, not a trace: a
 `g_warning`, or the `napi_fatal_error` / unhandled-exception reports. Do not
 silence those.
 
+### `threadsafe-function teardown join timed out`
+
+The one warning an addon can provoke. At env teardown the shim closes every
+still-registered threadsafe function and **joins** it — waits for every
+outstanding claim to be handed back — before freeing it, because freeing under a
+live claim is the use-after-free that crashed macOS at exit (#809). The warning
+fires only when that join hits its 2 s deadline and the shim force-frees anyway,
+i.e. it announces that the UAF window was reopened.
+
+It means a claim was never handed back. Either a foreign thread holds one and
+neither calls again (a `napi_closing` return consumes the claim) nor releases,
+or the tsfn was created with an initial claim for the JS thread that nothing
+ever released — and that one can never drain, since the JS thread is the thread
+blocked in the join. **Release every claim before teardown** (an
+`napi_add_env_cleanup_hook` that calls `napi_release_threadsafe_function(…,
+napi_tsfn_abort)` is the standard shape; it is what `@gjsify/node-gi` does, and
+why it never trips this).
+
+The deadline is not the problem: a genuinely slow drain — eight producer threads
+each dropping their claim on the next push — measures **10–47 µs**, four orders
+of magnitude inside it. An undrainable claim, by contrast, always burns the full
+2 s. Numbers and method are in the comment above `finalize_env_tsfns`
+(`src/cc/tsfn.cc`); `G_MESSAGES_DEBUG=all` prints the measured join time on every
+teardown that waits at all.
+
 ## The mozjs-140 pin
 
 The pin is intrinsic and by design: the **shim** links GJS's SpiderMonkey (built
