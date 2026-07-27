@@ -1,0 +1,24 @@
+{
+  // Type-checks the spec files that `tsconfig.json` has to exclude so the
+  // release bootstrap can compile this package before `@gjsify/unit` is built
+  // (see the comment there). Deliberately NOT `extends` — the emit config sets
+  // `declarationDir` + `composite`, and those cannot be switched off by an
+  // override (`declarationDir` without `declaration`/`composite` is TS5069).
+  // A check-only config must also never be `composite`: it would write a
+  // buildinfo, and a stale one turns the real declaration emit into a silent
+  // no-op that exits 0 with nothing written.
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node", "@girs/gjs", "@girs/glib-2.0", "@girs/gobject-2.0"],
+    "experimentalDecorators": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false
+  },
+  "include": ["src/ts/**/*.ts"]
+}

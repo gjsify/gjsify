@@ -30,5 +30,15 @@
     "checkJs": false,
     "strict": false
   },
-  "include": ["src/ts/**/*.ts"]
+  "include": ["src/ts/**/*.ts"],
+  // Specs are excluded from THIS config because it is the one
+  // `scripts/bootstrap-native-facades.mjs` compiles, and that runs before the
+  // workspace is built: `@gjsify/unit` is linked but has no `lib/`, so a spec
+  // importing it fails with TS2307 and takes the whole release build with it.
+  // Sibling bridges (tls-native, http2-native, sab-native, webgl) keep their
+  // specs in `src/ts/` too, but none of them is bootstrap-built, so only this
+  // package and `rolldown-native` are subject to the constraint. Declaration
+  // emit never wants test files anyway. Spec type-checking is restored by
+  // `tsconfig.spec.json` below, which `check` runs as a second pass.
+  "exclude": ["src/ts/**/*.spec.ts"]
 }
