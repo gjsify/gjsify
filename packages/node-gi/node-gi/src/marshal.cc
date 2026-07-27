@@ -153,6 +153,43 @@ BoxedHandle* TryGetBoxedHandle(Napi::Value v) {
   return ext.Data();
 }
 
+// The pointer to hand a callee for a boxed/struct IN argument, honouring the
+// arg's TRANSFER annotation.
+//
+// A transfer-full (or -container) IN arg is ADOPTED by the callee: it will free
+// the pointer. Handing over the very block this handle still owns makes both
+// sides free it — the finalizer's g_boxed_free then hits already-released
+// memory (`free(): invalid pointer`, SIGABRT). The canonical case is
+// `GstWebRTC.WebRTCSessionDescription.new(type, sdp)`, whose `sdp` param is
+// `(transfer full)`: the fresh `GstSDPMessage` from
+// `GstSdp.SDPMessage.new_from_text()` (an OUT `(transfer full)`, so our handle
+// owns it) got freed once by `gst_webrtc_session_description_free` and again by
+// its own finalizer.
+//
+// gjs solves this by COPYING on transfer — refs/gjs/gi/wrapperutils.h
+// `GIWrapperBase::transfer_to_gi_argument` (`GI_DIRECTION_IN &&
+// transfer != GI_TRANSFER_NOTHING` → `Instance::copy_ptr`), with
+// refs/gjs/gi/struct.h `StructInstance::copy_ptr` = `g_variant_ref` for
+// GVariant else refs/gjs/gi/boxed.h `BoxedInstance::copy_ptr` = `g_boxed_copy`.
+// Mirror that: the callee owns an independent instance, the handle keeps (and
+// still owns) its own. Transfer-NOTHING is a plain borrow — unchanged.
+//
+// A handle with no copy function (a plain, non-boxed C struct — G_TYPE_INVALID,
+// or a `rawOwned` caller-allocates OUT block) cannot be duplicated. gjs throws
+// there; we instead RELINQUISH ownership so the finalizer stays out of the
+// callee's way — a leak-free hand-over is impossible either way, and not
+// double-freeing is strictly safer than the alternative.
+gpointer TransferBoxedIn(BoxedHandle* h, GITransfer transfer) {
+  if (h == nullptr) return nullptr;
+  if (transfer == GI_TRANSFER_NOTHING || h->ptr == nullptr) return h->ptr;
+  if (h->gtype == G_TYPE_VARIANT) return g_variant_ref(static_cast<GVariant*>(h->ptr));
+  if (h->gtype != G_TYPE_INVALID && G_TYPE_IS_BOXED(h->gtype))
+    return g_boxed_copy(h->gtype, h->ptr);
+  h->owns = false;
+  h->rawOwned = false;
+  return h->ptr;
+}
+
 // Read a boxed handle's pointer if `v` is one (tag-checked; no deref of ptr).
 bool TryGetBoxedPtr(Napi::Value v, gpointer* out) {
   if (!v.IsExternal()) return false;
@@ -440,7 +477,7 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     .ThrowAsJavaScriptException();
                 return false;
               }
-              out->v_pointer = h->ptr;
+              out->v_pointer = TransferBoxedIn(h, transfer);
               handled = true;
             }
           }
