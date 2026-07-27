@@ -266,10 +266,11 @@ jobs:
       packages: read
     timeout-minutes: 180
     container:
+      # No `credentials:` — the image is public and pulled anonymously, which
+      # is what gives fork PRs any CI at all (a fork's GITHUB_TOKEN cannot
+      # authenticate against the org registry). Same for every container job
+      # below; see .github/actions/gjsify-setup/action.yml.
       image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
       options: --ulimit nofile=1048576:1048576
     steps:
       - uses: actions/checkout@v6
@@ -514,9 +515,6 @@ jobs:
     timeout-minutes: 60
     container:
       image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
       options: --ulimit nofile=1048576:1048576
     steps:
       - uses: actions/checkout@v6
@@ -575,9 +573,6 @@ jobs:
     timeout-minutes: 90
     container:
       image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
       options: --ulimit nofile=1048576:1048576
     steps:
       - uses: actions/checkout@v6
@@ -644,9 +639,6 @@ jobs:
     timeout-minutes: 45
     container:
       image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
       options: --ulimit nofile=1048576:1048576
     steps:
       - uses: actions/checkout@v6
@@ -862,9 +854,6 @@ jobs:
     timeout-minutes: 60
     container:
       image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
       options: --ulimit nofile=1048576:1048576
     steps:
       - uses: actions/checkout@v6
@@ -904,9 +893,6 @@ jobs:
     timeout-minutes: 60
     container:
       image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
       options: --ulimit nofile=1048576:1048576
     steps:
       - uses: actions/checkout@v6
