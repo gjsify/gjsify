@@ -109,7 +109,11 @@ function runShape(shape) {
 }
 
 // The shim's own lines out of a child's stderr — everything else is GJS noise.
-const napiLines = (stderr) => stderr.trim().split('\n').filter((l) => l.includes('gjsify-napi'));
+const napiLines = (stderr) =>
+    stderr
+        .trim()
+        .split('\n')
+        .filter((l) => l.includes('gjsify-napi'));
 
 let failures = 0;
 const check = (name, cond, detail = '') => {

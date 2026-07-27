@@ -74,8 +74,7 @@ switch (shape) {
     case 'self-used':
         addon.resetStats();
         addon.holdSelf(cb, true);
-        if (!drainUntil(() => addon.stats()[0] >= 1))
-            throw new Error('self-used: the JS-thread push never landed');
+        if (!drainUntil(() => addon.stats()[0] >= 1)) throw new Error('self-used: the JS-thread push never landed');
         break;
 
     case 'foreign':
@@ -83,8 +82,7 @@ switch (shape) {
         addon.holdForeign(cb);
         // The worker must have pushed once before teardown, or its claim would
         // still be unattributed and the shape would not be what it says.
-        if (!drainUntil(() => addon.stats()[0] >= 1))
-            throw new Error('foreign: the worker push never landed');
+        if (!drainUntil(() => addon.stats()[0] >= 1)) throw new Error('foreign: the worker push never landed');
         break;
 
     case 'draining':
@@ -92,8 +90,7 @@ switch (shape) {
         addon.holdDraining(cb, DRAIN_THREADS);
         // Wait until every worker has pushed at least once, so all N claims are
         // attributed foreign when teardown starts.
-        if (!drainUntil(() => addon.stats()[0] >= DRAIN_THREADS))
-            throw new Error('draining: workers never got going');
+        if (!drainUntil(() => addon.stats()[0] >= DRAIN_THREADS)) throw new Error('draining: workers never got going');
         break;
 
     default:
