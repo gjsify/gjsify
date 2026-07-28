@@ -332,23 +332,32 @@ jobs:
         working-directory: packages/napi/napi
         run: sh test/addons/setup.sh
 
-      # NOTE — the GJS-engine leg is NOT wired here yet, on purpose.
-      # `transparent-gate.mjs` supports it (`GJSIFY_GATE_ENGINE=gjs`, green
-      # locally on all four addons), but driving the COMMITTED dist/cli.gjs.mjs
-      # in this container fails on something unrelated to what it tests: the
-      # `--app gjs` build resolves `packages/infra/cli/shims/console-gjs.js`,
-      # which is a build output of @gjsify/cli and is neither tracked nor
-      # produced by this job (which deliberately avoids the in-repo workspace
-      # build). Wiring it needs that resolved first — and the fact that a
-      # committed bundle needs an untracked sibling to build `--app gjs` is
-      # worth understanding on its own, not papering over from inside a CI PR.
-      # Node engine (npm `rolldown`). This is the coverage that was missing
-      # entirely; the GJS leg is the follow-up above.
-      - name: Transparent addon matrix
+      # Driven by the COMMITTED dist/cli.gjs.mjs, NOT the published CLI the
+      # consumer gate above uses — and that distinction is the whole point.
+      # The published CLI carries the LAST RELEASE's plugin, so a PR changing
+      # `napiNodeAddonPlugin` would test nothing at all; the committed bundle
+      # carries THIS commit's plugin (the pre-commit hook rebuilds it, and
+      # main.yml's verify-committed-bundles proves it reproduces from that
+      # source). It also runs the build on `@gjsify/rolldown-native` — the
+      # engine where two of the six #840 defects lived (a `null` importer
+      # across the JSON hook boundary, and a Rust-`regex`-incompatible filter
+      # that silently disabled every interception). A Node-driven build cannot
+      # see either.
+      #
+      # There is deliberately no second leg on the published CLI: it can only
+      # ever report on code that already shipped.
+      #
+      # `@gjsify/napi` must be resolvable by BARE specifier for the emitted
+      # shims, exactly as in a real consumer — the `gjsify install @gjsify/napi`
+      # stand-in, since packages/napi is not a workspace member.
+      - name: Transparent addon matrix (GJS engine, committed CLI bundle)
         working-directory: packages/napi/napi
         env:
-          GJSIFY_CLI_ENTRY: /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js
-        run: sh test/run-transparent-matrix.sh
+          GJSIFY_GATE_ENGINE: gjs
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/node_modules/@gjsify"
+          ln -sfn "$GITHUB_WORKSPACE/packages/napi/napi" "$GITHUB_WORKSPACE/node_modules/@gjsify/napi"
+          sh test/run-transparent-matrix.sh
 
   # Phase-1 N-API fidelity oracle: @gjsify/node-gi (a REAL native N-API addon —
   # the reverse GObject-Introspection engine) runs UNDER the @gjsify/napi shim on
