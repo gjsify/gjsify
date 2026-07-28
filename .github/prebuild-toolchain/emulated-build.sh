@@ -48,8 +48,13 @@ should_build() {
     esac
 }
 
-# Does this leg build anything that needs cargo? Only the Rust bridges do, and
-# under emulation the rustup install is a real minute, so it follows them.
+# Does this leg build anything that needs cargo? Under emulation the rustup
+# install is a real minute, so it follows the packages that use it.
+#
+# `lightningcss-native` is the ONLY Rust bridge this script builds — oxfmt- and
+# rolldown-native are deliberately excluded from the emulated legs (see the
+# notes at the bottom of this file). If either is ever added here, add it to
+# this test in the same change, or its build will run without a toolchain.
 needs_rust() {
     should_build packages/infra/lightningcss-native
 }
