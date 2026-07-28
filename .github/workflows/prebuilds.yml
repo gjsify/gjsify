@@ -100,9 +100,17 @@ on:
       # artifact lands in), the pin check, the loader-path verifier. A change
       # to one can change every artifact, so they trigger a run AND rebuild
       # every package (see the `changes` job's shared-input rule).
+      #
+      # `scripts/manifest-conformance/**` is here for the same reason and is
+      # NOT optional: since #847 the three scripts above are thin CLI entry
+      # points and the checks themselves live in that registry. Listing only
+      # the entry points would mean editing what a build VERIFIES while
+      # nothing rebuilds — the precise shape of silent staleness this gate
+      # exists to prevent.
       - 'scripts/stage-prebuild.mjs'
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
+      - 'scripts/manifest-conformance/**'
 
   # Repeated VERBATIM from `push` above — GitHub Actions supports no YAML
   # anchors, and the two lists MUST stay identical: a path that can change a
@@ -139,6 +147,7 @@ on:
       - 'scripts/stage-prebuild.mjs'
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
+      - 'scripts/manifest-conformance/**'
 
 # Least privilege at the workflow level; each job adds only what it needs. This
 # is what keeps the new PR trigger from ever handing a write-capable token to a

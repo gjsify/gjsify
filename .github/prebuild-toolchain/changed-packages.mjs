@@ -38,7 +38,16 @@
  *          (`rolldown-native` has one).
  *        • the Cargo `path = "…/refs/<x>/…"` dependencies of
  *          `<pkg>/src/rust/Cargo.toml` — the LINKED relation, the same
- *          derivation `scripts/check-refs-pin.mjs` uses.
+ *          derivation the `refs-pin` conformance rule uses
+ *          (`scripts/manifest-conformance/rules/refs-pin.mjs#linkedRefsSubmodules`,
+ *          moved there by #847). It is reimplemented in six lines below rather
+ *          than imported ON PURPOSE: this classifier runs in a `changes` job
+ *          that has nothing but `actions/checkout` and the runner's node, and
+ *          gating must not acquire a module graph that can fail to load there.
+ *          The duplication is held to the original by a test —
+ *          `tests/e2e/prebuild-change-gate/` asserts the two agree for every
+ *          native package, so a change to the rule reds a 1-second test
+ *          instead of silently skipping a build.
  *      `oxfmt-native` declares NO `refsLockstep` (tracked separately as task
  *      #59). The union is what stops that absence from quietly meaning "this
  *      package never rebuilds": its Cargo path deps into `refs/oxc` are found
@@ -95,6 +104,11 @@ const SHARED_SCRIPTS = [
     'scripts/stage-prebuild.mjs',
     'scripts/check-refs-pin.mjs',
     'scripts/check-prebuild-loader-path.mjs',
+    // Since #847 the three entries above are thin CLI wrappers and the checks
+    // live in the conformance registry. A rule change alters what every build
+    // verifies, so the registry is a shared input in its own right — naming
+    // only the wrappers would let the substance move out from under the gate.
+    'scripts/manifest-conformance/**',
 ];
 
 // ─── argv ──────────────────────────────────────────────────────────────────
@@ -119,37 +133,50 @@ function parseArgs(argv) {
 // ─── the workflow's own `paths:` filter is the source of truth ──────────────
 
 /**
- * Every distinct entry of `prebuilds.yml`'s `on:` `paths:` lists.
+ * `prebuilds.yml`'s `on:` `paths:` lists, ONE ARRAY PER LIST.
  *
- * A structural read rather than a YAML parse, matching how
- * `scripts/audit-runtimes.mjs` reads the same file: take the `paths:` blocks
- * under `on:` and collect their `- '<glob>'` items. The push and pull_request
- * lists are required to be identical by that file's own comment, so a union is
- * the same set either way — and if they ever diverge, the union is the
- * conservative side.
+ * A structural read rather than a YAML parse, matching how the `platforms-ci`
+ * conformance rule reads the same file.
  *
- * @returns {string[]}
+ * PER LIST, NOT UNIONED, and that is the whole point. `prebuilds.yml` has two
+ * `paths:` blocks (push + pull_request) and its own comment requires them to be
+ * identical — "a path that can change a prebuild on main is a path that has to
+ * be able to prove itself on a PR". Nothing checked that. A union cannot: with
+ * `refs/oxc` deleted from ONE list the union still contains it, so the
+ * gate-vs-trigger assertion passed while a pin bump could no longer start the
+ * workflow on that event. Verified by deleting exactly that line — the check
+ * stayed green until this became per-list.
+ *
+ * @returns {string[][]} one entry array per `paths:` block, in file order
  */
-function workflowPathFilters(text) {
+function workflowPathFilterLists(text) {
     const lines = text.split('\n');
-    const entries = new Set();
-    let inPaths = false;
+    /** @type {string[][]} */
+    const lists = [];
+    /** @type {string[] | null} */
+    let current = null;
     for (const line of lines) {
         if (/^jobs:\s*$/.test(line)) break; // `on:` is above `jobs:`; stop there.
         if (/^\s*paths:\s*$/.test(line)) {
-            inPaths = true;
+            current = [];
+            lists.push(current);
             continue;
         }
-        if (!inPaths) continue;
+        if (!current) continue;
         const item = /^\s*-\s*'([^']+)'\s*$/.exec(line) ?? /^\s*-\s*"([^"]+)"\s*$/.exec(line);
         if (item) {
-            entries.add(item[1]);
+            current.push(item[1]);
             continue;
         }
         if (line.trim() === '' || /^\s*#/.test(line)) continue;
-        inPaths = false;
+        current = null;
     }
-    return [...entries];
+    return lists;
+}
+
+/** The union of every `paths:` list — what a file has to match to be an input at all. */
+function unionPathFilters(lists) {
+    return [...new Set(lists.flat())];
 }
 
 /**
@@ -280,10 +307,37 @@ function buildSharedMatchers(pathFilters, packageDirs) {
  * bump changes the artifact and the workflow does not even run. Both are
  * silent-staleness bugs, so they are hard errors here rather than comments.
  *
+ * Every check runs against EACH `paths:` list separately, so a trigger present
+ * on `push` but missing on `pull_request` (or vice versa) fails — that is the
+ * "repeated VERBATIM" rule prebuilds.yml states in a comment and nothing
+ * enforced.
+ *
+ * @param {PackageInputs[]} table
+ * @param {string[][]} pathFilterLists one array per `paths:` block
  * @returns {string[]} problems (empty = ok)
  */
-function selfCheck(table, pathFilters) {
+function selfCheck(table, pathFilterLists) {
     const problems = [];
+    if (pathFilterLists.length < 2) {
+        problems.push(
+            `prebuilds.yml: found ${pathFilterLists.length} \`on: paths:\` list(s), expected at least 2 (push + pull_request). Either the trigger shape changed or this parser no longer understands it — refusing to gate on a filter it cannot read.`,
+        );
+        return problems;
+    }
+    // The lists must be identical; report the difference once rather than
+    // per-package, which would bury the cause under ten symptoms.
+    const [first, ...rest] = pathFilterLists;
+    for (const [i, other] of rest.entries()) {
+        const missing = first.filter((p) => !other.includes(p));
+        const extra = other.filter((p) => !first.includes(p));
+        if (missing.length || extra.length) {
+            problems.push(
+                `prebuilds.yml: \`on: paths:\` list #${i + 2} differs from list #1 — the two MUST be identical (a path that can change a prebuild on main has to be able to prove itself on a PR).` +
+                    (missing.length ? ` Missing from #${i + 2}: ${missing.join(', ')}.` : '') +
+                    (extra.length ? ` Only in #${i + 2}: ${extra.join(', ')}.` : ''),
+            );
+        }
+    }
     for (const pkg of table) {
         if (!existsSync(join(ROOT, pkg.dir, 'package.json'))) {
             problems.push(
@@ -296,9 +350,14 @@ function selfCheck(table, pathFilters) {
             );
         }
         for (const ref of pkg.refs) {
-            if (!pathFilters.includes(ref)) {
+            // EVERY list, not the union — a pin listed on `push` only would let
+            // a bump reach main without a PR ever building it.
+            const missingFrom = pathFilterLists
+                .map((list, i) => (list.includes(ref) ? null : `#${i + 1}`))
+                .filter(Boolean);
+            if (missingFrom.length > 0) {
                 problems.push(
-                    `${pkg.key}: links ${ref} by Cargo path dependency (or declares it in gjsify.refsLockstep), but \`${ref}\` is not in prebuilds.yml's \`on: paths:\` filter — bumping that submodule pin changes the binary and would not even run this workflow. Add \`${ref}\` to BOTH paths lists.`,
+                    `${pkg.key}: links ${ref} by Cargo path dependency (or declares it in gjsify.refsLockstep), but \`${ref}\` is missing from prebuilds.yml \`on: paths:\` list(s) ${missingFrom.join(', ')} — bumping that submodule pin changes the binary and would not even run this workflow on that event. Add \`${ref}\` to BOTH paths lists.`,
                 );
             }
         }
@@ -403,7 +462,11 @@ function emit(format, table, result) {
 function main() {
     const args = parseArgs(process.argv.slice(2));
     const text = readFileSync(WORKFLOW, 'utf8');
-    const pathFilters = workflowPathFilters(text);
+    const pathFilterLists = workflowPathFilterLists(text);
+    // MATCHING uses the union (a file that appears in any list can start a run
+    // and is therefore an input); the SELF-CHECK below holds each list on its
+    // own, because that is where a divergence hides.
+    const pathFilters = unionPathFilters(pathFilterLists);
     const packageDirs = workflowPackageDirs(text);
     if (packageDirs.length === 0) {
         throw new Error(
@@ -413,7 +476,7 @@ function main() {
     const table = buildPackageTable(pathFilters, packageDirs);
     const shared = buildSharedMatchers(pathFilters, packageDirs);
 
-    const problems = selfCheck(table, pathFilters);
+    const problems = selfCheck(table, pathFilterLists);
     if (problems.length > 0) {
         for (const p of problems) console.error(`::error::${p}`);
         throw new Error(`${problems.length} gate/trigger disagreement(s) — see above.`);

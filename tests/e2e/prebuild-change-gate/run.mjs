@@ -12,7 +12,18 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    symlinkSync,
+    writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -47,6 +58,39 @@ describe('prebuild change gate — package discovery', () => {
         assert.deepEqual(build, [], 'an empty change set builds nothing');
     });
 
+    it('FAILS when the two `on: paths:` lists diverge', (t) => {
+        // The check that a UNION cannot make. prebuilds.yml carries two
+        // identical `paths:` blocks (push + pull_request) and says in a comment
+        // that they must stay identical; deleting `refs/oxc` from ONE of them
+        // left the union intact, so the gate-vs-trigger assertion passed while a
+        // pin bump could no longer start the workflow on that event.
+        //
+        // Driven on a COPY of the repo layout so the real workflow is never
+        // mutated — the script resolves the workflow relative to its own file,
+        // so the copy needs the same two-level structure.
+        const tmp = mkdtempSync(join(tmpdir(), 'prebuild-gate-'));
+        t.after(() => rmSync(tmp, { recursive: true, force: true }));
+        mkdirSync(join(tmp, '.github', 'workflows'), { recursive: true });
+        mkdirSync(join(tmp, '.github', 'prebuild-toolchain'), { recursive: true });
+        copyFileSync(script, join(tmp, '.github', 'prebuild-toolchain', 'changed-packages.mjs'));
+
+        const text = readFileSync(workflow, 'utf8');
+        const broken = text.replace("      - 'refs/oxc'\n", '');
+        assert.notEqual(broken, text, 'the fixture must actually remove a line');
+        writeFileSync(join(tmp, '.github', 'workflows', 'prebuilds.yml'), broken);
+        // The package/refs derivation reads real package dirs, so symlink them in.
+        symlinkSync(join(repoRoot, 'packages'), join(tmp, 'packages'), 'dir');
+
+        const r = spawnSync(
+            process.execPath,
+            [join(tmp, '.github', 'prebuild-toolchain', 'changed-packages.mjs'), '--all', '--format=json'],
+            { cwd: tmp, encoding: 'utf8' },
+        );
+        assert.notEqual(r.status, 0, 'a diverged paths list must FAIL the classifier');
+        assert.match(r.stderr, /lists?\s*#2 differs from list #1|MUST be identical/);
+        assert.match(r.stderr, /refs\/oxc/);
+    });
+
     it('holds every package to a trigger under its own directory', () => {
         // The invariant the script's own `selfCheck` enforces at CI time, and
         // the reason a gate cannot silently outlive its trigger: a package with
@@ -75,6 +119,43 @@ describe('prebuild change gate — what counts as changed', () => {
         assert.equal(skip.length + build.length, 10);
     });
 
+    it('derives the same refs/ set as the conformance rule that owns it', async () => {
+        // `changed-packages.mjs` reimplements `linkedRefsSubmodules` in six
+        // lines instead of importing it, ON PURPOSE: the `changes` job runs with
+        // nothing but `actions/checkout` + the runner's node, and gating must
+        // not acquire a module graph that can fail to load there. The
+        // duplication is therefore held to the original HERE — if #847's rule
+        // changes its derivation, this reds a 1-second test instead of silently
+        // skipping a build.
+        const { linkedRefsSubmodules } = await import(
+            new URL('../../../scripts/manifest-conformance/rules/refs-pin.mjs', import.meta.url)
+        );
+        const dirs = [
+            ...new Set(
+                [
+                    ...readFileSync(workflow, 'utf8').matchAll(
+                        /^\s*path:\s*(packages\/[^\s/]+\/[^\s/]+)\/prebuilds\//gm,
+                    ),
+                ].map((m) => m[1]),
+            ),
+        ];
+        assert.ok(dirs.length >= 10);
+        for (const dir of dirs) {
+            const theirs = linkedRefsSubmodules(join(repoRoot, dir));
+            const mine = classify([`${dir}/meson.build`]); // forces the table to be built
+            assert.ok(mine.report.length > 0);
+            // Every submodule the rule finds must make the package rebuild.
+            for (const ref of theirs) {
+                const key = dir.split('/').pop();
+                assert.deepEqual(
+                    classify([ref]).build.includes(key),
+                    true,
+                    `${key}: the rule links ${ref} but a change to it does not rebuild the package`,
+                );
+            }
+        }
+    });
+
     it('builds a package when its refs/ submodule PIN moves', () => {
         // A gitlink change appears in a diff as the submodule path. Both
         // relations must be honoured: rolldown-native DECLARES the lockstep,
@@ -92,6 +173,14 @@ describe('prebuild change gate — what counts as changed', () => {
             'scripts/stage-prebuild.mjs',
             'scripts/check-refs-pin.mjs',
             'scripts/check-prebuild-loader-path.mjs',
+            // #847 moved the SUBSTANCE of the three scripts above into the
+            // conformance registry, leaving them as thin CLI entry points. A
+            // rule change alters what every build verifies, so the registry has
+            // to rebuild everything too — naming only the wrappers would let
+            // the check move out from under the gate.
+            'scripts/manifest-conformance/rules/refs-pin.mjs',
+            'scripts/manifest-conformance/rules/platforms-ci.mjs',
+            'scripts/manifest-conformance/unchecked-fields.mjs',
         ]) {
             const { build, skip } = classify([shared]);
             assert.deepEqual(skip, [], `${shared} must rebuild everything`);

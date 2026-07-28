@@ -54,6 +54,26 @@ jobs:
       # to from its ROOT entry — the axis every runtime-slot check is blind to,
       # and how the "headless, NO GTK dependency" `@gjsify/canvas2d-core` came
       # to import `gi://Gdk` (= libgtk-4.so) for its entire life.
+      # Since the manifest-conformance consolidation this step runs a RULE
+      # REGISTRY (`@gjsify/manifest-conformance` + `scripts/manifest-conformance/`),
+      # not a hand-wired list of audits. Its last rule, `field-coverage`, derives
+      # the set of `gjsify.*` declaration kinds the tree actually uses and FAILS
+      # on any key no rule claims — so a new declaration cannot be added without
+      # a check, which is the failure mode every other rule here exists because
+      # of. A key that genuinely cannot be checked yet is declared, with a
+      # written reason, in `scripts/manifest-conformance/unchecked-fields.mjs`;
+      # every such deferral is printed on every run.
+      #
+      # This stays `node scripts/…` and must NOT become `gjsify <command>`. The
+      # job deliberately does no install and no build (see the note above), so a
+      # CLI route would have to boot the COMMITTED `dist/cli.gjs.mjs` — which
+      # reintroduces exactly the staleness circularity
+      # `scripts/verify-committed-bundles.mjs` exists to break: a rule added in
+      # source but not rebuilt into the bundle would silently not run, and #821
+      # proved bundles do merge stale.
+      #
+      # `node scripts/audit-runtimes.mjs --rules` prints the registry: every
+      # rule, its scope (portable / repo) and the manifest fields it governs.
       - name: Check declared vs detected runtime triplets (strict)
         run: node scripts/audit-runtimes.mjs --check --strict
 

@@ -1,0 +1,319 @@
+/**
+ * Rule `platforms-ci` — REPO-SCOPED half of the OS axis.
+ *
+ * `gjsify.runtimes` declares the RUNTIME reach of a package (gjs × node ×
+ * browser × nativescript). It says nothing about OPERATING SYSTEMS — so a
+ * package could declare `gjs: "polyfill"` and still have no loadable artifact
+ * on macOS or Windows, because the native bridge it needs only ever built on
+ * Linux. That blind spot is exactly how the whole native-bridge set stayed
+ * Linux-only while the project described itself as platform-independent.
+ *
+ * `package.json#gjsify.platforms` closes it: the list of `<os>-<arch>` targets
+ * a native package PROMISES a prebuild for. It is the OS-axis sibling of
+ * `gjsify.runtimes`, and the checks below keep the promise, the committed
+ * artifacts and the CI that produces them from drifting apart.
+ *
+ * WHY REPO-SCOPED, and why this is split from `prebuild-artifacts`:
+ * the declared-vs-committed half is a fact about files and lives in the
+ * portable `prebuild-artifacts` rule. THIS half reads
+ * `.github/workflows/prebuilds.yml`'s matrix — this repository's own CI, by
+ * filename, with a parser tuned to its job shapes. There is nothing to port:
+ * a consumer's CI is not this one, and pretending to audit it would invent
+ * platform support that does not exist.
+ */
+
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import {
+    canonicalPlatform,
+    collectNativePackages,
+    defineRule,
+    KNOWN_ARCH_TOKENS,
+    PLATFORM_RE,
+} from '../../../packages/infra/manifest-conformance/lib/index.mjs';
+
+/** Default arch a bare runner label implies, keyed by the OS it maps to. */
+const RUNNER_DEFAULT_ARCH = { linux: 'x64', darwin: 'arm64', win32: 'x64' };
+
+export function osFromRunner(runsOn) {
+    if (/macos/i.test(runsOn)) return 'darwin';
+    if (/windows/i.test(runsOn)) return 'win32';
+    return 'linux';
+}
+
+/** Group a job's lines into step blocks (a step starts at `- name:`/`- uses:`/`- run:`). */
+export function splitSteps(lines) {
+    const steps = [];
+    let current = [];
+    for (const line of lines) {
+        if (/^\s*-\s+(name|uses|run):/.test(line) && current.length > 0) {
+            steps.push(current.join('\n'));
+            current = [];
+        }
+        current.push(line);
+    }
+    if (current.length > 0) steps.push(current.join('\n'));
+    return steps;
+}
+
+/**
+ * Which `<os>-<arch>` targets CI actually produces, per package name.
+ *
+ * Deliberately a lightweight structural read of the workflow files rather
+ * than a full YAML parse: split `jobs:` into its 2-space-indented job blocks,
+ * take each job's `runs-on` (→ OS) and any `arch:` matrix entries (→ arch),
+ * and attribute those targets to the packages that job actually PRODUCES an
+ * artifact for.
+ *
+ * "Produces" is deliberately narrow — a package name has to appear on a line
+ * that also carries a production verb (build / collect / stage / prebuild /
+ * upload). A bare mention does not count, because the workflows are full of
+ * explanatory comments naming packages they merely depend on ("…whose
+ * `gjsify build` needs `@gjsify/rolldown-native`"), and crediting those would
+ * manufacture platform support that does not exist. Comment lines are dropped
+ * outright for the same reason.
+ *
+ * Jobs gated on `github.event_name == 'workflow_dispatch'` are EXCLUDED: a
+ * manually-dispatched exploratory job (today: napi's blocked Windows attempt)
+ * is not a platform CI produces, and counting it would let a package declare
+ * a target no user will ever receive.
+ *
+ * The result is ADVISORY — a package the parser finds no job for is reported
+ * as unverified rather than failed, so a build wired up in a workflow shape
+ * this parser does not understand can never produce a false CI failure.
+ */
+export async function parseCiPlatforms(
+    root,
+    nativePkgs,
+    workflowFiles = ['prebuilds.yml', 'napi.yml', 'node-gi.yml', 'release.yml'],
+) {
+    const byPackage = new Map();
+    // A step identifies its package either by npm name or by the workspace
+    // path it builds in (`working-directory: packages/node-gi/node-gi`) — the
+    // macOS/arm64 jobs use the latter exclusively, so name-only matching would
+    // silently under-report their coverage.
+    const identifiers = nativePkgs.map((p) => ({ name: p.name, name_re: p.name, path_re: p.path }));
+    for (const file of workflowFiles) {
+        const abs = resolve(root, '.github', 'workflows', file);
+        if (!existsSync(abs)) continue;
+        const text = await readFile(abs, 'utf8');
+        const lines = text.split('\n');
+        let current = null;
+        const jobs = [];
+        let inJobs = false;
+        for (const line of lines) {
+            if (/^jobs:\s*$/.test(line)) {
+                inJobs = true;
+                continue;
+            }
+            if (!inJobs) continue;
+            const header = /^ {2}([A-Za-z0-9][\w-]*):\s*$/.exec(line);
+            if (header) {
+                current = { job: header[1], file, runsOn: '', archs: new Set(), body: [] };
+                jobs.push(current);
+                continue;
+            }
+            if (!current) continue;
+            if (/^\s*#/.test(line)) continue; // explanatory comment — never a production step
+            current.body.push(line);
+            const runsOn = /^\s*runs-on:\s*(.+?)\s*$/.exec(line);
+            if (runsOn) current.runsOn = runsOn[1];
+            const arch = /^\s*-?\s*arch:\s*['"]?([\w]+)['"]?\s*$/.exec(line);
+            // Only tokens that NAME a CPU count. `arch:` is a matrix key here,
+            // but it is also a common ACTION INPUT (it was one on the emulated
+            // legs until they stopped using `uraimo/run-on-arch-action`, whose
+            // documented value alongside a custom `base_image` is the literal
+            // `none`). An unfiltered read turns any such value into a phantom
+            // target — `linux-none` — and fails the declared-vs-built contract
+            // for every package the job builds.
+            if (arch && KNOWN_ARCH_TOKENS.has(arch[1])) current.archs.add(arch[1]);
+            if (/^\s*if:\s*github\.event_name\s*==\s*'workflow_dispatch'/.test(line)) current.manualOnly = true;
+        }
+        for (const job of jobs) {
+            if (job.manualOnly) continue;
+            const os = osFromRunner(job.runsOn);
+            // `ubuntu-24.04-arm` and friends carry the arch in the label.
+            const labelArm = /-arm\b|-arm64\b/.test(job.runsOn);
+            const archs = job.archs.size > 0 ? [...job.archs] : [labelArm ? 'arm64' : RUNNER_DEFAULT_ARCH[os]];
+            // Attribute per STEP, not per line: a step's package identity and
+            // its production verb usually sit on different lines (`- name:
+            // Build native addon` + `working-directory: packages/…`).
+            for (const step of splitSteps(job.body)) {
+                if (!/\b(build|collect|stage|prebuild|upload)/i.test(step)) continue;
+                for (const id of identifiers) {
+                    if (!step.includes(id.name_re) && !step.includes(id.path_re)) continue;
+                    const set = byPackage.get(id.name) ?? new Set();
+                    for (const arch of archs) set.add(canonicalPlatform(`${os}-${arch}`));
+                    byPackage.set(id.name, set);
+                }
+            }
+        }
+    }
+    return byPackage;
+}
+
+/**
+ * Keep promise, artifact and CI in sync. Returns human-readable failure lines
+ * (empty = ok) plus the per-package rows the reporters render.
+ */
+export function auditPlatforms(nativePkgs, ciPlatforms) {
+    const failures = [];
+    const rows = [];
+    for (const pkg of nativePkgs) {
+        const ci = ciPlatforms.get(pkg.name);
+        const ciList = ci ? [...ci].sort() : null;
+        rows.push({ ...pkg, ci: ciList });
+
+        if (!pkg.declared) {
+            failures.push(
+                `${pkg.name} (${pkg.path}): missing \`gjsify.platforms\` — every package with a native build system must declare the \`<os>-<arch>\` targets it ships a prebuild for. \`gjsify.runtimes\` covers runtimes, not operating systems; without this the package's OS reach is undocumented and unverifiable.`,
+            );
+            continue;
+        }
+        const bad = pkg.declared.filter((p) => !PLATFORM_RE.test(p));
+        if (bad.length > 0) {
+            failures.push(
+                `${pkg.name} (${pkg.path}): invalid \`gjsify.platforms\` entr${bad.length === 1 ? 'y' : 'ies'} ${bad.join(', ')} — expected \`\${process.platform}-\${process.arch}\`, i.e. os ∈ {linux, darwin, win32} and arch ∈ {x64, arm64, ppc64, s390x, riscv64}. The uname spelling (\`linux-x86_64\`, \`linux-aarch64\`) is no longer accepted: one spelling, and it is the one a running process can compute about itself.`,
+            );
+            continue;
+        }
+        const declaredCanon = new Set(pkg.declared.map(canonicalPlatform));
+
+        // A committed artifact nobody declared: either the declaration is
+        // stale or the artifact is. Both are silent-wrongness risks — a
+        // consumer resolving `prebuilds/<p>/` finds something the package
+        // does not promise to keep working.
+        for (const shipped of pkg.shipped) {
+            if (!declaredCanon.has(canonicalPlatform(shipped))) {
+                failures.push(
+                    `${pkg.name} (${pkg.path}): ships \`prebuilds/${shipped}/\` but does not declare it in \`gjsify.platforms\` (${pkg.declared.join(', ')}).`,
+                );
+            }
+        }
+
+        // The promise and the build must agree in BOTH directions, so that
+        // whoever changes one is forced to change the other:
+        //   declared ⊄ CI  → a platform users are promised but never receive
+        //   CI ⊄ declared  → a platform CI pays to build that nothing claims,
+        //                    and that no consumer-facing document mentions
+        // Only enforced when the parser found CI jobs for this package at all
+        // — see parseCiPlatforms' contract.
+        if (ci) {
+            for (const declared of pkg.declared) {
+                if (!ci.has(canonicalPlatform(declared))) {
+                    failures.push(
+                        `${pkg.name} (${pkg.path}): declares \`${declared}\` in \`gjsify.platforms\` but no CI job produces that target — a promised platform with no build is a prebuild consumers will never receive.`,
+                    );
+                }
+            }
+            for (const built of ci) {
+                if (!declaredCanon.has(built)) {
+                    failures.push(
+                        `${pkg.name} (${pkg.path}): CI builds \`${built}\` but \`gjsify.platforms\` (${pkg.declared.join(', ')}) does not declare it — an artifact the package does not promise is invisible to consumers and to every platform-support document generated from this field.`,
+                    );
+                }
+            }
+        } else if (pkg.shipped.length > 0) {
+            // Committed binaries that no workflow reproduces. They were built
+            // by hand once and drift silently from their sources forever after
+            // — nothing rebuilds them when the Vala/Rust changes, and nothing
+            // proves they still match. Wire the package into a prebuild
+            // workflow, or stop shipping the artifact.
+            failures.push(
+                `${pkg.name} (${pkg.path}): ships prebuilds (${pkg.shipped.join(', ')}) but no CI job produces any of them — a hand-built binary nothing reproduces. Wire it into .github/workflows/prebuilds.yml.`,
+            );
+        }
+    }
+    return { failures, rows };
+}
+
+/** The OS × package matrix — the honest answer to "where does this run?". */
+export function renderPlatformMatrix(rows, { markdown = false } = {}) {
+    const all = new Set();
+    for (const r of rows) {
+        for (const p of r.declared ?? []) all.add(canonicalPlatform(p));
+        for (const p of r.shipped) all.add(canonicalPlatform(p));
+        for (const p of r.ci ?? []) all.add(canonicalPlatform(p));
+    }
+    const platforms = [...all].sort();
+    const mark = (r, p) => {
+        const declared = (r.declared ?? []).some((d) => canonicalPlatform(d) === p);
+        const shipped = r.shipped.some((s) => canonicalPlatform(s) === p);
+        const built = (r.ci ?? []).some((c) => canonicalPlatform(c) === p);
+        // A declared target the package itself records as not-committed is a
+        // distinct state from "shipped" — the matrix is the document people
+        // read to answer "can I install this there?", and collapsing the two
+        // is how "declared" came to look like "delivered" in the first place.
+        const exempt =
+            r.prebuildsField != null &&
+            r.uncommitted != null &&
+            typeof r.uncommitted === 'object' &&
+            Object.keys(r.uncommitted).some((t) => canonicalPlatform(t) === p);
+        if (declared && exempt) return built ? '○' : '!';
+        if (declared && built) return '✓';
+        if (declared && shipped) return '⚠'; // committed once, nothing rebuilds it
+        if (declared) return '!'; // promised, nothing produces it at all
+        if (shipped || built) return '?'; // produced, never promised
+        return '·';
+    };
+    // "a CI job targets it", not "a green build exists": this is parsed out of
+    // the workflow YAML, which knows nothing about run results. Saying "built"
+    // would claim more than the data supports — the failure mode this whole
+    // audit exists to remove.
+    const legendParts = [
+        '✓ declared, a CI job targets it, artifact committed',
+        '○ declared, a CI job targets it, artifact NOT committed here',
+        '⚠ committed artifact, no CI job targets it',
+        '! declared, no CI job targets it',
+        '? produced, undeclared',
+        '· unsupported',
+    ];
+    if (markdown) {
+        const lines = [
+            `| package | tier | ${platforms.join(' | ')} |`,
+            `|---|---|${platforms.map(() => '---').join('|')}|`,
+        ];
+        for (const r of rows) {
+            lines.push(`| \`${r.name}\` | ${r.tier ?? '—'} | ${platforms.map((p) => mark(r, p)).join(' | ')} |`);
+        }
+        lines.push('');
+        lines.push(legendParts.map((l) => `\`${l.slice(0, 1)}\`${l.slice(1)}`).join(' · '));
+        return lines.join('\n');
+    }
+    const nameWidth = Math.max(...rows.map((r) => String(r.name).length), 'package'.length);
+    const head = `${'package'.padEnd(nameWidth)} │ ${platforms.map((p) => p.padEnd(14)).join(' │ ')}`;
+    const sep = `${'─'.repeat(nameWidth)}─┼─${platforms.map(() => '─'.repeat(14)).join('─┼─')}`;
+    const body = rows.map(
+        (r) => `${String(r.name).padEnd(nameWidth)} │ ${platforms.map((p) => mark(r, p).padEnd(14)).join(' │ ')}`,
+    );
+    return [head, sep, ...body, '', legendParts.join('   ')].join('\n');
+}
+
+/** Shared by the rule and by `--platforms`, so both see the same rows. */
+export async function platformRows(ctx) {
+    const nativePkgs = collectNativePackages(ctx);
+    const ciPlatforms = await parseCiPlatforms(ctx.root, nativePkgs);
+    return auditPlatforms(nativePkgs, ciPlatforms);
+}
+
+export const platformsCiRule = defineRule({
+    id: 'platforms-ci',
+    scope: 'repo',
+    fields: ['gjsify.platforms', 'gjsify.prebuilds'],
+    description: 'declared `<os>-<arch>` targets, committed prebuild dirs and the CI matrix that builds them agree',
+    async run(ctx) {
+        const { failures, rows } = await platformRows(ctx);
+        const unverified = rows.filter((r) => !r.ci).length;
+        return {
+            failures,
+            stats: { packages: rows.length, unverified },
+            rows,
+            summary:
+                `platform audit: OK. ${rows.length} native package(s) declare \`gjsify.platforms\`; ` +
+                'committed prebuilds and CI-produced targets agree with every declaration' +
+                `${unverified > 0 ? ` (${unverified} package(s) had no CI job the parser recognised — reported, not enforced)` : ''}.`,
+        };
+    },
+});
