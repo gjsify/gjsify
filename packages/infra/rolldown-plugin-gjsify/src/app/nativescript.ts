@@ -49,6 +49,7 @@ import {
     detectNativescriptPlatform,
     nativescriptPlatformDefines,
 } from '../plugins/platform-resolve.js';
+import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 
 export interface NativescriptBuildConfig {
     options: RolldownOptions;
@@ -146,18 +147,33 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         treeshake: true,
     };
 
+    // The substitution table exactly as `aliasPlugin` receives it — shared with
+    // the unresolved-workspace-import guard below so the guard reports the same
+    // promise the alias layer made.
+    const aliasEntries = flattenAliases(aliasMap);
+
     const plugins: RolldownPluginOption[] = [
         gjsImportsEmptyPlugin(),
         // Platform-specific source variants (`*.android` / `*.ios` /
         // `*.native`) win over the base file — resolved BEFORE the Node-builtin
         // alias routing so a platform fork of a portable module is honored.
         platformResolvePlugin({ platform }),
-        aliasPlugin({ entries: flattenAliases(aliasMap) }),
+        aliasPlugin({ entries: aliasEntries }),
         // NO blueprintPlugin — Blueprint is a GTK-specific UI DSL
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via
         // @nativescript/core; .css imports are handled by the consuming
         // @nativescript/webpack or @nativescript/vite build
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
+        // `order: 'post'` — see app/gjs.ts. Native-bridge identifiers
+        // (`java.*`, `NS*`, …) are ambient GLOBALS on this target, never
+        // imports, so they never reach this hook; only a `@gjsify/*` edge does,
+        // and on NS as everywhere else an unresolvable one is a broken bundle
+        // rather than something the runtime will provide.
+        unresolvedWorkspaceImportPlugin({
+            target: 'nativescript',
+            aliases: aliasEntries,
+            isExternal: (id) => external.includes(id),
+        }),
     ];
 
     return { options, plugins };

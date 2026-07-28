@@ -27,6 +27,21 @@ export { gjsImportsEmptyPlugin } from './plugins/gjs-imports-empty.js';
 export { externalsPlugin } from './plugins/externals.js';
 export type { ExternalsPredicate, ExternalsPluginOptions } from './plugins/externals.js';
 export {
+    unresolvedWorkspaceImportPlugin,
+    classifyImport,
+    isWorkspaceSpecifier,
+    formatUnresolvedWorkspaceImport,
+    buildReverseAliasIndex,
+    UnresolvedWorkspaceImportError,
+} from './plugins/unresolved-workspace-import.js';
+export type {
+    WorkspaceImportGuardOptions,
+    WorkspaceImportGuardTarget,
+    ImportVerdict,
+    ClassifyImportInput,
+    UnresolvedWorkspaceImportDetails,
+} from './plugins/unresolved-workspace-import.js';
+export {
     napiNodeAddonPlugin,
     resolveAddonPath,
     nearestPackageRoot,

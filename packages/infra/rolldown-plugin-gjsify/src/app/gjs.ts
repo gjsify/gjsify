@@ -17,6 +17,7 @@ import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import { aliasPlugin } from '../plugins/alias.js';
 import { externalsPlugin } from '../plugins/externals.js';
 import { napiNodeAddonPlugin } from '../plugins/napi-node-addon.js';
+import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
@@ -233,6 +234,14 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
 
     const bundleDir = getBundleDirFromOutput(input.output);
 
+    // The substitution table exactly as `aliasPlugin` receives it — shared with
+    // the unresolved-workspace-import guard below so the guard reports the same
+    // promise the alias layer made.
+    const aliasEntries = {
+        'random-access-file': 'random-access-file/index.js',
+        ...flattenAliases(aliasMap),
+    };
+
     const plugins: RolldownPluginOption[] = [
         // Virtual-entry plugin runs FIRST so its resolveId/load match the
         // synthetic input ids that `wrapInputWithSideEffects` produces.
@@ -246,12 +255,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // random-access-file's 'browser' field maps to a throwing stub; force
         // the fs-backed Node entry. Implemented via the gjsify alias plugin
         // as a direct entry-table override.
-        aliasPlugin({
-            entries: {
-                'random-access-file': 'random-access-file/index.js',
-                ...flattenAliases(aliasMap),
-            },
-        }),
+        aliasPlugin({ entries: aliasEntries }),
         // Transparent N-API `.node`-addon loader — the forward mirror of
         // `gjsGiNodePlugin`. Its `order:'pre'` resolveId claims a native-addon
         // acquisition (`bindings`/`node-gyp-build`/a direct `.node`/a napi-rs
@@ -284,6 +288,14 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
             const line = resolveShebangLine(input.shebang);
             return shebangPlugin({ enabled: line !== null, line: line ?? undefined });
         })(),
+        // LAST claim on an id nothing else wanted (`order: 'post'`): a
+        // `@gjsify/*` substitution that cannot be resolved is a build ERROR, not
+        // a silent external. Without it Rolldown externalises the ORIGINAL
+        // specifier, exits 0, and writes a bundle stock GJS aborts on at load
+        // (`ImportError: Unsupported URI scheme for importing: node`) — the
+        // failure `utils/gjs-bundle-guard.ts` catches at emit time, caught here
+        // at its source instead, with the importer and the cause named.
+        unresolvedWorkspaceImportPlugin({ target: 'gjs', aliases: aliasEntries, isExternal: external }),
     ];
 
     return { options, plugins };

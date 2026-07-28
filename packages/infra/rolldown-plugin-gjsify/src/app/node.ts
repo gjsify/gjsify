@@ -19,6 +19,7 @@ import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { gjsGiNodePlugin, gjsBuiltinModulesNodePlugin } from '../plugins/gjs-gi-node.js';
+import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
 
 /**
@@ -245,6 +246,11 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         ...input.userAliases,
     };
 
+    // The substitution table exactly as `aliasPlugin` receives it — shared with
+    // the unresolved-workspace-import guard below so the guard reports the same
+    // promise the alias layer made.
+    const aliasEntries = flattenAliases(aliasMap);
+
     const bundleDir = getBundleDirFromOutput(input.output);
 
     // Rolldown's CJS interop wraps bundled CJS via `__commonJSMin` and
@@ -346,7 +352,7 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // `requireGi`, exactly like the ambient-globals case. Same predicate as
         // the register-alias lift above — one question, one flag.
         gjsImportsEmptyPlugin({ emptyGirs: !gjsSourceBuild }),
-        aliasPlugin({ entries: flattenAliases(aliasMap) }),
+        aliasPlugin({ entries: aliasEntries }),
         // Blueprint (.blp → XML string): the reverse bridge runs REAL GTK on
         // Node, so a GJS app entry (composite-template windows) must build for
         // `--app node` too. Only claims `.blp` files — inert for plain-Node
@@ -363,6 +369,13 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // symptom). A plain-Node bundle (no node-gi) keeps the CSS pristine.
         cssAsStringPlugin(input.pluginOptions.nodeGiGlobalsInject ? { targets: { firefox: 60 << 16 } } : {}),
         nodeModulesPathRewritePlugin({ bundleDir }),
+        // `order: 'post'` — fires only for ids nothing above claimed, i.e. the
+        // ones headed for Rolldown's unresolved-import → external fallback. The
+        // node target has no `node:`-shaped symptom for the emit-time guard to
+        // detect (its `node:` builtins ARE external by policy), so this is the
+        // ONLY thing standing between an unbuilt `@gjsify/*` workspace edge and
+        // a bundle that re-imports the bare specifier at runtime.
+        unresolvedWorkspaceImportPlugin({ target: 'node', aliases: aliasEntries, isExternal: external }),
     ];
 
     return { options, plugins };

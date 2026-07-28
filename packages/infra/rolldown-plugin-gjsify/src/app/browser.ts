@@ -24,6 +24,7 @@ import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
+import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 
 export interface BrowserBuildConfig {
     options: RolldownOptions;
@@ -106,12 +107,27 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         treeshake: true,
     };
 
+    // The substitution table exactly as `aliasPlugin` receives it — shared with
+    // the unresolved-workspace-import guard below so the guard reports the same
+    // promise the alias layer made.
+    const aliasEntries = flattenAliases(aliasMap);
+
     const plugins: RolldownPluginOption[] = [
         gjsImportsEmptyPlugin(),
-        aliasPlugin({ entries: flattenAliases(aliasMap) }),
+        aliasPlugin({ entries: aliasEntries }),
         blueprintPlugin() as RolldownPluginOption,
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),
+        // `order: 'post'` — see app/gjs.ts. The browser target's whole job is to
+        // replace Node builtins with their `@gjsify/*` browser entries; when one
+        // of those cannot be resolved, Rolldown externalises the ORIGINAL bare
+        // specifier and a browser cannot resolve it at all. There is no
+        // `node:`-shaped emit-time symptom here, so this guard is the only signal.
+        unresolvedWorkspaceImportPlugin({
+            target: 'browser',
+            aliases: aliasEntries,
+            isExternal: (id) => external.includes(id),
+        }),
     ];
 
     return { options, plugins };
