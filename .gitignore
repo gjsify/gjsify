@@ -13,10 +13,11 @@ repo/
 
 # Native Vala/Rust bridge build artifacts. meson builds the cdylib into
 # build/cargo-target (covered by build/ ignores); a direct `cargo` run in
-# src/rust/ would otherwise leave target/ + a Cargo.lock — not committed,
-# same convention as lightningcss-native / rolldown-native.
+# src/rust/ would otherwise leave a target/ dir here.
+# `src/rust/Cargo.lock` is deliberately NOT ignored — every native bridge
+# commits its lock so the crates.io half of the graph is pinned the way
+# `check-refs-pin.mjs` pins the refs/ half. See each package's README.
 packages/infra/*/src/rust/target/
-packages/infra/*/src/rust/Cargo.lock
 
 *.tsbuildinfo
 

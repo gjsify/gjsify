@@ -40,6 +40,31 @@ git submodule update --init refs/oxc
 gjsify workspace @gjsify/oxfmt-native build:prebuilds   # needs meson + vala + cargo
 ```
 
+### Dependency lock
+
+`src/rust/Cargo.lock` is **committed**. It pins the crates.io half of the graph the way
+[`scripts/check-refs-pin.mjs`](../../../scripts/check-refs-pin.mjs) pins the `refs/` half, so the
+prebuild in this repository can be re-linked against the exact transitive set it was built from.
+CI builds with `--locked` (`${CI:+--locked}` on the `cargo build` in `meson.build`; every CI leg
+runs with `CI=true`), so a lock that no longer satisfies `Cargo.toml` fails the run instead of
+being silently rewritten. Local builds are unlocked, so editing `Cargo.toml` still just works —
+commit the resulting lock diff with the change.
+
+Updating a dependency is a deliberate act:
+
+```bash
+cd packages/infra/oxfmt-native/src/rust
+cargo update -p <crate>        # or plain `cargo update` for the whole registry side
+cargo tree -d                  # no crate may appear as BOTH a path and a registry entry
+cd -
+gjsify workspace @gjsify/oxfmt-native build:prebuilds
+```
+
+The `cargo tree -d` step is not optional here: `refs/oxc` publishes `oxc_allocator` to crates.io
+*and* path-deps it in-tree, so the `[patch.crates-io]` table in `src/rust/Cargo.toml` is what keeps
+the graph to a single crate identity. Bumping `refs/oxc` moves the path crates' own versions and
+therefore invalidates the lock — regenerate it in the same commit as the submodule pin.
+
 ## Platform coverage
 
 | Platform | Prebuild | Built by |
