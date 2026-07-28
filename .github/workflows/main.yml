@@ -310,11 +310,41 @@ jobs:
             echo "[ci] build cache cold — forcing full build/check"
           fi
 
+      # `$INCLUDE_ARGS` IS EXPANDED UNQUOTED ON PURPOSE, here and at the three
+      # other consumption sites below (browser bundles / check / test). The
+      # classifier emits it as space-separated, already-shell-safe tokens
+      # (`--include @gjsify/fs --include @gjsify/stream`) and word splitting is
+      # exactly what turns that back into argv. Do NOT quote it, and do NOT make
+      # the producer quote it either:
+      #
+      #   `gjsify affected` used to emit `--include '@gjsify/fs'`. The value is
+      #   spliced into the `su testuser -c "… sh -c '…'"` nesting below, and the
+      #   RESULT of a parameter expansion is never re-scanned for quoting — so
+      #   the apostrophes stayed in each glob, every pattern matched zero
+      #   workspaces, and `gjsify foreach` printed one line and exited 0. Every
+      #   selective PR run built NOTHING in 0.65 s while all later steps happily
+      #   inspected the cache-restored tree; `main` stayed green only because a
+      #   push to main takes the FULL branch, which passes no include args at
+      #   all. See the `include-args` contract in commands/affected.ts.
+      #
+      # The silence is now closed at the CLI: `gjsify foreach` FAILS when an
+      # `--include` pattern matches no workspace, so a future re-break of this
+      # transport reds the run instead of no-opping through it. That check is
+      # deliberately in the CLI rather than in an assertion here — it protects
+      # every caller (the root `test:examples`/`check:examples` scripts, the
+      # other three steps below, any consumer repo), and it can distinguish
+      # "the filter names nothing that exists" (always a bug) from "the
+      # selection narrowed to empty" (legitimate under --shard/--exclude).
       - name: Build
         env:
           # FULL is computed as a GitHub expression (cleaner than shell logic).
           # Note it SUPERSETS the examples gate below, so whenever build:examples
           # runs the build was full → it has the complete package tree.
+          #
+          # The `contains(include-args, …)` gates in this file substring-match
+          # this same value; they are unaffected by the token spelling (they
+          # matched the quoted form too — which is precisely why the gates kept
+          # working while the build itself did nothing).
           FULL: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args == '' || steps.buildwarm.outputs.warm != 'true' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
           INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
         run: |
@@ -493,6 +523,12 @@ jobs:
       # affected packages' bundles. A full run (or a change to `tests/browser/**`,
       # i.e. `@gjsify/tests-browser` in the closure — the harness itself, which
       # every bundle rides on) builds all of them.
+      #
+      # Unquoted expansion is intentional — same contract as the `Build` step
+      # above. NB this consumer is a plain node script, NOT `gjsify foreach`, and
+      # a closure holding no browser-capable package legitimately produces zero
+      # bundles (the upload step's `if-no-files-found: warn` says exactly that),
+      # so it deliberately does not inherit foreach's fatal zero-match rule.
       - name: Stage browser test bundles for the Playwright leg
         if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
         timeout-minutes: 30
@@ -567,6 +603,10 @@ jobs:
           # No warm-probe here: the build cache is always warm in this job
           # (needs: build just saved it), so selective is safe whenever there
           # is a closure; full otherwise.
+          #
+          # `$INCLUDE_ARGS` is expanded unquoted below — same contract as the
+          # `Build` step; the classifier emits shell-safe tokens and `gjsify
+          # foreach` now fails loudly if any of them matches no workspace.
           FULL: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args == '' }}
           INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
         run: |
@@ -624,6 +664,13 @@ jobs:
       # Full sharded sweep on global/main/schedule/empty; selective + sharded
       # otherwise. The full path inlines the root `test` script's filters so it
       # can take --shard. Integration tests stay opt-in.
+      #
+      # `$INCLUDE_ARGS` is expanded unquoted — same contract as the `Build`
+      # step. This is also the one site where an EMPTY final selection is
+      # routine: `--shard N/4` over a small closure leaves most shards with
+      # nothing to run. That is why the fatal rule in `gjsify foreach` is scoped
+      # to "an --include pattern matched no workspace" and not to "the selection
+      # came out empty" — the latter would red this job on every small PR.
       - name: Test
         env:
           GLOBAL: ${{ needs.changes.outputs.global }}

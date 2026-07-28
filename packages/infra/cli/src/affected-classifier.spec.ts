@@ -77,6 +77,53 @@ function makeMonorepo(): string {
     return root;
 }
 
+/** Run any argv and return the raw streams — used by the transport tests. */
+async function run(argv: string[], stdin?: string): Promise<{ code: number; stdout: string; stderr: string }> {
+    return new Promise((res, rej) => {
+        const child = spawn(process.execPath, argv, { stdio: ['pipe', 'pipe', 'pipe'] });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (d) => (stdout += String(d)));
+        child.stderr.on('data', (d) => (stderr += String(d)));
+        child.on('error', rej);
+        child.on('close', (code) => res({ code: code ?? -1, stdout, stderr }));
+        child.stdin.end(stdin ?? '');
+    });
+}
+
+/** Emit `--format=github-actions` and return the `include-args=` line's value. */
+async function includeArgsFor(cwd: string, changedFiles: string[]): Promise<string> {
+    const r = await run(
+        [CLI_ENTRY, 'affected', '--changed-from-stdin', '--format=github-actions', '--cwd', cwd],
+        changedFiles.join('\n') + '\n',
+    );
+    if (r.code !== 0) throw new Error(`affected exited ${r.code}: ${r.stderr}`);
+    const line = r.stdout.split('\n').find((l) => l.startsWith('include-args='));
+    if (line === undefined) throw new Error(`no include-args line in:\n${r.stdout}`);
+    return line.slice('include-args='.length);
+}
+
+/**
+ * Word-split `value` exactly as the CONSUMER does — an unquoted `$V` expansion
+ * in a real POSIX shell. This is the assertion that actually matters: a unit
+ * test comparing strings cannot tell a token from a token-with-quotes-attached,
+ * which is the whole of repo task #75.
+ */
+async function shellWordSplit(value: string): Promise<string[]> {
+    return new Promise((res, rej) => {
+        // The value rides in as a positional (`$1`), then is expanded UNQUOTED
+        // exactly like `$INCLUDE_ARGS` in main.yml. Positional rather than env
+        // so the test needs no env plumbing on either runtime.
+        const child = spawn('sh', ['-c', 'V="$1"; for a in $V; do printf "%s\\n" "$a"; done', 'sh', value], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let out = '';
+        child.stdout.on('data', (d) => (out += String(d)));
+        child.on('error', rej);
+        child.on('close', () => res(out.split('\n').filter((s) => s.length > 0)));
+    });
+}
+
 async function runClassify(cwd: string, changedFiles: string[]): Promise<ClassifyOutput> {
     return new Promise((res, rej) => {
         const child = spawn(
@@ -279,6 +326,51 @@ export default async (): Promise<void> => {
             // scripts/ is not in IGNORE and not in any workspace; classifier
             // bails out conservatively.
             expect(r.global).toBe(true);
+        });
+
+        // ── include-args transport (repo task #75) ──────────────────────
+        // `include-args` is consumed as an UNQUOTED `$INCLUDE_ARGS` expansion
+        // inside main.yml's `su … -c "… sh -c '…'"` nesting. It therefore must
+        // carry NO quoting of its own: an expansion result is never re-scanned
+        // for quotes, so a pre-quoted token arrives with the quotes glued on,
+        // matches zero workspaces, and `gjsify foreach` exits 0 — CI built
+        // nothing on every selective run for as long as that shipped.
+
+        await it('github-actions include-args carries NO quoting', async () => {
+            const value = await includeArgsFor(root, ['packages/node/fs/src/index.ts']);
+            expect(value.includes("'")).toBe(false);
+            expect(value.includes('"')).toBe(false);
+            // Sorted closure = @gjsify/A (prod dependent) + @gjsify/fs (seed).
+            expect(value).toBe('--include @gjsify/A --include @gjsify/fs');
+        });
+
+        await it('include-args word-splits into exactly the argv CI intends', async () => {
+            // The real proof: run the consumer's own expansion in a real shell.
+            const value = await includeArgsFor(root, ['packages/node/fs/src/index.ts']);
+            const argv = await shellWordSplit(value);
+            expect(argv.join('|')).toBe('--include|@gjsify/A|--include|@gjsify/fs');
+            // Belt and braces: no surviving token may carry a quote character.
+            // Pre-quoting produced `'@gjsify/fs'` here, which is what silently
+            // matched nothing.
+            expect(argv.some((a) => a.includes("'") || a.includes('"'))).toBe(false);
+        });
+
+        await it('global run emits an EMPTY include-args (the full-run signal)', async () => {
+            // main.yml keys FULL off `include-args == ''`, so a global
+            // classification must not smuggle tokens into the value.
+            const value = await includeArgsFor(root, ['gjsify-lock.json']);
+            expect(value).toBe('');
+        });
+
+        await it("include-args still satisfies the workflow's contains() gates", async () => {
+            // Thirteen `contains(needs.changes.outputs.include-args, '@gjsify/…')`
+            // expressions substring-match this value. They matched the quoted
+            // spelling too — which is exactly why the gates kept firing while
+            // the build did nothing — so this pins that unquoting them did not
+            // break the gates either.
+            const value = await includeArgsFor(root, ['packages/node/fs/src/index.ts']);
+            expect(value.includes('@gjsify/fs')).toBe(true);
+            expect(value.includes('@gjsify/example-')).toBe(false);
         });
 
         // Cleanup last so failing tests still surface the fixture state.
