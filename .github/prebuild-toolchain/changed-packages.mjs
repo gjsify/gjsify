@@ -182,8 +182,9 @@ function globToRegExp(glob) {
             if (glob[i + 1] === '*') {
                 re += '.*';
                 i++;
-                // `a/**` should also match `a` itself is NOT wanted here — a
-                // directory is never a changed FILE — so no extra handling.
+                // `a/**` deliberately does NOT also match the bare directory
+                // `a`: the inputs are changed FILES, and a directory is never
+                // one of those.
             } else {
                 re += '[^/]*';
             }
@@ -261,7 +262,7 @@ function buildSharedMatchers(pathFilters, packageDirs) {
         if (packageDirs.some((d) => p.startsWith(`${d}/`))) continue;
         // A `refs/<x>` entry is a PER-PACKAGE input (added to the trigger list
         // so a pin bump starts a run at all), never a shared one.
-        if (/^refs\//.test(p)) continue;
+        if (p.startsWith('refs/')) continue;
         out.push({ glob: p, re: globToRegExp(p) });
     }
     for (const s of SHARED_SCRIPTS) {
