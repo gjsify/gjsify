@@ -114,6 +114,17 @@ export interface InstallOptions {
      * warning falls back to the bare ranges.
      */
     specOrigins?: Map<string, string[]>;
+    /**
+     * Native backend only: the subset of `specs` (same `"<name>@<range>"`
+     * spelling) that the project declared under `optionalDependencies`.
+     *
+     * Only the host-platform gate consults this, and only to decide the
+     * severity of a mismatch: an optional package that cannot run here is
+     * skipped, a required one is an `EBADPLATFORM` error (npm's split). Omit it
+     * and every top-level spec is treated as required — the safe default, since
+     * it can only turn a silent drop into a loud failure.
+     */
+    optionalSpecs?: Set<string>;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';

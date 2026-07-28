@@ -305,6 +305,24 @@ gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/glo
 
 Resolver mirrors npm v3+ semantics: each `(requester → dep → range)` edge is checked against the ancestor `node_modules` chain; compatible placements are reused, conflicting ones are nested. Supports `npm`-style `overrides` and `yarn`-style `resolutions` in `package.json`. Lockfile schema is v2 (path-keyed `packages` map).
 
+### Platform-specific packages (`os` / `cpu` / `libc`)
+
+A package can declare which platforms it supports. Modern toolchains publish one prebuilt sibling per platform (`@img/sharp-linux-x64`, `@rolldown/binding-darwin-arm64`, …) and list them all under `optionalDependencies`, expecting the installer to place only the one that matches.
+
+`gjsify install` records `os`, `cpu` and `libc` for **every** platform in `gjsify-lock.json` and applies them when it materialises `node_modules/`. The lockfile therefore stays host-independent — one committed file works on a macOS laptop and a Linux CI runner — while each machine only unpacks what it can run.
+
+Matching follows npm exactly (`npm-install-checks`): a bare string counts as a one-element list, a lone `"any"` matches everything, `!` negates, and a package that declares `libc` on a host whose C library cannot be determined is treated as unsupported.
+
+- an **optional** dependency that does not match is skipped, quietly;
+- a **required** dependency that does not match is an `EBADPLATFORM` error, exactly as `npm install` reports it;
+- a lockfile written before this feature carries no platform data, so nothing is filtered out of it — run `gjsify install` once (without `--immutable`) to record the metadata in place. Versions are preserved; only the new fields are added.
+
+`--immutable` is unaffected: it still installs strictly from `gjsify-lock.json` and never rewrites it. Skipping a package this host cannot run is not lockfile drift.
+
+The gate decides what to **materialise**, not what to delete — an install never removes anything from an existing `node_modules/` (see ADR 0001). A tree populated before this feature keeps its foreign-platform packages until it is removed and reinstalled.
+
+Set `GJSIFY_INSTALL_PLATFORM_CHECK=0` to disable the check and materialise every entry — the analogue of `npm install --force`.
+
 ## `gjsify dlx`
 
 Run the GJS bundle of an npm-published package without persisting it in your project. Pattern follows `npx` / `yarn dlx` / `pnpm dlx`, but `dlx` here is strictly a **GJS-bundle runner**: it always invokes `gjs -m <bundle>` after resolving the package's GJS entry. Packages without a GJS entry fail loudly.

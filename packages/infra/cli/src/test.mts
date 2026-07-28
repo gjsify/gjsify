@@ -15,6 +15,7 @@ import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import installLockSuite from './utils/install-lock.spec.js';
+import installPlatformSuite from './utils/install-platform.spec.js';
 import installBackendNativeWarnSuite from './utils/install-backend-native-warn.spec.js';
 import detectNativePackagesSuite from './utils/detect-native-packages.spec.js';
 import binShimSuite from './utils/bin-shim.spec.js';
@@ -69,6 +70,7 @@ run({
     promptKeySuite,
     installCacheFsSuite,
     installLockSuite,
+    installPlatformSuite,
     installBackendNativeWarnSuite,
     detectNativePackagesSuite,
     binShimSuite,

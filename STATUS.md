@@ -929,6 +929,26 @@ Root-cause fix surfaced by this suite: **`@gjsify/buffer` constructed `TextEncod
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
+### Install platform gate — two deliberate gaps
+
+The `os`/`cpu`/`libc` host filter (`install-platform.ts`,
+`filterToHostPlatform`) drops packages that can never run on the installing
+host, and leaves two things on the table:
+
+1. **No hoisted-orphan pruning.** A node NESTED under a skipped package is
+   skipped with it, but one the skipped package had HOISTED to the root stays.
+   npm prunes those via whole-tree reachability (`optionalSet` in
+   `refs/npm-cli/workspaces/arborist/lib/optional-set.js`). Consequence: we
+   install a small number of packages npm would not. Over-installing is the
+   safe side of that trade — the fix is a reachability pass over the kept set.
+2. **`gjsify flatpak sources` still emits every lockfile entry.** The lockfile
+   deliberately pins ALL platforms, so the generated flatpak source manifest
+   fetches the foreign-platform tarballs too. Unchanged from before the gate,
+   but now visibly inconsistent with what an install materialises. Fixing it
+   means teaching `commands/flatpak/sources.ts` the same
+   `isPlatformSupported` predicate — and deciding which platform a flatpak
+   build is FOR (its own `--arch`, not the host running the generator).
+
 ### `verify-package-outputs` fails on every SELECTIVE build job
 
 **`@gjsify/xmlhttprequest` reds the `Verify declared package outputs exist` step

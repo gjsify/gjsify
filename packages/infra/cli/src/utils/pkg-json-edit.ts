@@ -88,6 +88,29 @@ export function projectSpecsFromPackageJson(pkg: PackageJson): string[] {
 }
 
 /**
+ * The subset of {@link projectSpecsFromPackageJson}'s output that came from
+ * `optionalDependencies` — same `name@range` spelling, so callers can test
+ * membership on the specs they already have.
+ *
+ * The install's host-platform gate uses this to grade a mismatch: a package the
+ * project declared OPTIONAL is skipped when it cannot run here, a required one
+ * is an error. Without it a root `optionalDependencies` entry for a foreign
+ * platform would hard-fail the install — the exact thing the field exists to
+ * prevent.
+ */
+export function projectOptionalSpecsFromPackageJson(pkg: PackageJson): Set<string> {
+    const out = new Set<string>();
+    const block = pkg.optionalDependencies;
+    if (!block) return out;
+    for (const [name, range] of Object.entries(block)) {
+        if (typeof range !== 'string') continue;
+        if (/^(workspace|link|file|portal|git\+|https?):/.test(range)) continue;
+        out.add(`${name}@${range}`);
+    }
+    return out;
+}
+
+/**
  * Add or update a dependency entry in `pkg`. If the spec didn't include
  * a range, callers fill in the installed version after resolution and
  * call this again with `installedVersion` set.

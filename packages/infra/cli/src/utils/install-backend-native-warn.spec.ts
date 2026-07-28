@@ -14,7 +14,17 @@ import { warnMissingNativeBuilds } from './install-backend-native.js';
 
 // Minimal ResolvedNode-shaped mock (structural — only name + installPath are read).
 function node(name: string, installPath: string) {
-    return { name, version: '1.0.0', tarballUrl: '', installPath, dependencies: {}, optionalDependencies: {} };
+    return {
+        name,
+        version: '1.0.0',
+        tarballUrl: '',
+        installPath,
+        dependencies: {},
+        optionalDependencies: {},
+        // Declares no os/cpu/libc — the host-platform gate is a separate
+        // concern (install-platform.spec.ts) and must not affect this warning.
+        platform: {},
+    };
 }
 
 // Capture logger: records [fmt, ...args] for each call.

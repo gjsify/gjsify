@@ -55,6 +55,7 @@ import {
     addDependencyEntry,
     defaultRangeFromVersion,
     parseSpec,
+    projectOptionalSpecsFromPackageJson,
     projectSpecsFromPackageJson,
     readPackageJson,
     writePackageJson,
@@ -515,6 +516,9 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
             lockfile: !args.immutable,
             frozen: args.immutable,
             refreshLockfile: args['refresh-lockfile'],
+            // A root `optionalDependencies` entry the host cannot run is a
+            // skip, not an install failure.
+            optionalSpecs: pkg ? projectOptionalSpecsFromPackageJson(pkg) : undefined,
             signal,
             progress,
         });
@@ -612,6 +616,13 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
     // workspace names. Feeds the resolver's version-conflict warning so it
     // can attribute both sides of a cross-workspace range conflict.
     const specOrigins = new Map<string, Set<string>>();
+    // Specs that EVERY declaring workspace listed as optional. A spec that any
+    // workspace declares as a required dependency is required for the whole
+    // aggregated install — the root slot is shared, so the strictest declarer
+    // wins (and "strict" here only ever converts a silent drop into a loud
+    // `EBADPLATFORM`).
+    const optionalOnlySpecs = new Set<string>();
+    const requiredSpecs = new Set<string>();
     interface SymlinkPlan {
         fromWorkspaceName: string;
         depName: string;
@@ -665,6 +676,8 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
                 if (/^(link|file|portal|git\+|https?):/.test(spec)) continue;
                 const specKey = `${depName}@${spec}`;
                 externalSpecs.add(specKey);
+                if (kind === 'optionalDependencies') optionalOnlySpecs.add(specKey);
+                else requiredSpecs.add(specKey);
                 let origins = specOrigins.get(specKey);
                 if (!origins) {
                     origins = new Set<string>();
@@ -835,6 +848,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
     // the root install completes, so the resolver in the root pass does NOT
     // see the conflicting versions.
     const wsLocalSpecs = new Map<string, Set<string>>(); // wsLocation → name@range set
+    const wsLocalOptionalSpecs = new Map<string, Set<string>>(); // same keys, the optionalDependencies subset
     const droppedFromExternal = new Set<string>();
     if (extracted && extracted.scoped.size > 0) {
         for (const ws of workspaces) {
@@ -854,6 +868,14 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
                         wsLocalSpecs.set(wsKey, bucket);
                     }
                     bucket.add(`${depName}@${targetRange}`);
+                    if (kind === 'optionalDependencies') {
+                        let optionalBucket = wsLocalOptionalSpecs.get(wsKey);
+                        if (!optionalBucket) {
+                            optionalBucket = new Set<string>();
+                            wsLocalOptionalSpecs.set(wsKey, optionalBucket);
+                        }
+                        optionalBucket.add(`${depName}@${targetRange}`);
+                    }
                     // Drop the un-overridden version from the root spec set:
                     // the workspace will see its scoped version via parent-walk
                     // resolution. Note we only drop the EXACT `name@spec` the
@@ -906,6 +928,10 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             // npm and is pinned transitively in the lockfile).
             workspaceNames: new Set(byName.keys()),
             specOrigins: new Map([...specOrigins].map(([k, v]) => [k, [...v]] as const)),
+            // A spec only ever declared as `optionalDependencies` may be
+            // skipped when it cannot run on this host; one that any workspace
+            // requires may not.
+            optionalSpecs: new Set([...optionalOnlySpecs].filter((s) => !requiredSpecs.has(s))),
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
@@ -933,6 +959,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             frozen: args.immutable,
             signal,
             workspaceNames: new Set(byName.keys()),
+            optionalSpecs: wsLocalOptionalSpecs.get(wsLocation),
         });
     }
 
