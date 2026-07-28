@@ -154,15 +154,34 @@ runs:
           !packages/infra/cli/dist/cli.gjs.mjs
           !packages/infra/cli/dist/affected.gjs.mjs
           !packages/infra/tsc/dist/tsc.gjs.mjs
-        # v3: cache now also covers packages/*/*/dist-templates (create-gjsify's
-        # processed templates — a build output the e2e create-app suite needs).
-        # The v2 fedora-only restore-key gives a warm lib/dist baseline during
-        # the transition so the first v3 run isn't a cold full build.
-        key: build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+        # v4 is an EVICTION, not a schema change — and that changes the rules
+        # for the restore-keys below.
+        #
+        # AN ENTRY UNDER A LIVE KEY IS IMMORTAL. `actions/cache` saves only when
+        # the PRIMARY key MISSED, so once a bad archive exists under a key that
+        # runs still compute, nothing can ever replace it: every run exact-hits
+        # it, restores it, and skips the save. Bumping the key is the only
+        # eviction mechanism the action offers. (Observed: a ~4 MB `build-v3-…`
+        # archive holding `packages/web/xmlhttprequest/lib/esm` but not its
+        # `lib/types` — small enough to be useless, alive enough to be
+        # permanent. Runs on that key restore 4 MB, fail the completeness probe,
+        # full-build, and cannot save the good tree they just produced.)
+        #
+        # Hence: NO `build-v3-`/`build-v2-` fallback tier. The v2→v3 bump kept
+        # one deliberately, "so the first v3 run isn't a cold full build" — a
+        # sensible nicety when the bump was a schema change and the old archives
+        # were fine. Here the old archives are the thing being thrown away, so a
+        # surviving v3 prefix would restore the very corpse this bump exists to
+        # bury and evict nothing at all. The one-time cold build is the price of
+        # eviction, and it is the point rather than a side effect.
+        #
+        # (v3 added packages/*/*/dist-templates — create-gjsify's processed
+        # templates, a build output the e2e create-app suite needs. v4 keeps
+        # that same path set.)
+        key: build-v4-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
         restore-keys: |
-          build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
-          build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
-          build-v2-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
+          build-v4-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
+          build-v4-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
 
     # @gjsify/resolve-npm is a no-build package; its lib/*.mjs are TRACKED SOURCE.
     # A restore-key fallback can extract an OLD archive whose stale resolve-npm/lib
