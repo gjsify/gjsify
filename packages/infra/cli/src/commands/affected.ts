@@ -86,6 +86,15 @@
 
 import type { Command } from '../types/index.js';
 import { spawnSync } from 'node:child_process';
+// STATIC import, never a lazy `require('node:fs')`. This package is ESM
+// (`"type": "module"`), so a bare `require` is a ReferenceError the moment the
+// line executes — and the only line that executes it sits behind
+// `if (process.env.GITHUB_OUTPUT)`, i.e. exclusively inside a GitHub Actions
+// step. That is why it survived from the command's first commit: every local
+// run and every spec took the stdout branch. There is no reason for laziness
+// here — the command already statically imports `node:child_process`, and the
+// classifier bundle resolves `node:fs` through `@gjsify/fs` like any other.
+import { appendFileSync } from 'node:fs';
 import { readStdinLines } from '../utils/stdin.js';
 
 import {
@@ -416,7 +425,6 @@ function emit(format: AffectedOptions['format'], r: ClassifyResult): void {
         ];
         if (out) {
             // GitHub Actions: append to $GITHUB_OUTPUT.
-            const { appendFileSync } = require('node:fs') as typeof import('node:fs');
             for (const l of lines) appendFileSync(out, `${l}\n`);
         } else {
             for (const l of lines) process.stdout.write(`${l}\n`);

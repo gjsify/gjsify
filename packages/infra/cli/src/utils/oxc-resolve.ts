@@ -47,8 +47,7 @@
 // Rust rule subset. Lint stays Node-spawned until that trade-off is decided
 // (tracked in STATUS.md Open TODOs).
 
-import { existsSync, readFileSync } from 'node:fs';
-import type * as NodeFs from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -90,7 +89,12 @@ function oxcBindingSuffix(): string {
         // glibc systems have `/lib/ld-linux-*`, musl has `/lib/ld-musl-*`.
         let libc = 'gnu';
         try {
-            const { readdirSync } = require('node:fs') as typeof NodeFs;
+            // `readdirSync` is imported STATICALLY at the top of this file. It
+            // used to be a lazy `require('node:fs')` inside this try — a bare
+            // `require` in an ESM module, so it threw ReferenceError, the catch
+            // below swallowed it, and `libc` silently stayed 'gnu': a musl host
+            // would be told to install the WRONG binding package. Same defect
+            // class as commands/affected.ts, and even quieter.
             const libEntries = readdirSync('/lib');
             if (libEntries.some((e) => e.startsWith('ld-musl-'))) {
                 libc = 'musl';
