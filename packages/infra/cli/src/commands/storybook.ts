@@ -227,9 +227,12 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
             // typelib env wired like `gjsify run`. All three need @gjsify/node-gi
             // (the storybook uses gi://), kept external by the bundler.
             const { computeNativeEnvForBundle } = await import('../utils/run-gjs.js');
-            const { resolveNodeGi, nodeBinary } = await import('../utils/run-node.js');
+            const { resolveNodeGiForBundle, nodeBinary } = await import('../utils/run-node.js');
             const { RUNTIMES } = await import('../utils/runtimes.js');
-            if (!resolveNodeGi(cwd)) {
+            // Same resolution base as `runRuntimeBundle`: the bundle's own dir
+            // first (that is where the runtime resolves the external specifier
+            // from), cwd as the fallback.
+            if (!resolveNodeGiForBundle(outPath, cwd)) {
                 throw new Error(
                     `Cannot run the storybook on ${runtime}: \`@gjsify/node-gi\` is not installed. ` +
                         `Add @gjsify/node-gi as a dependency to run the storybook on ${runtime}.`,

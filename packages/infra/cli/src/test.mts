@@ -39,6 +39,7 @@ import nodeReverseRegistersSuite from './node-reverse-registers.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
 import affectedClassifierSuite from './affected-classifier.spec.js';
 import runStdioSafeSuite from './run-stdio-safe.spec.js';
+import runNodeResolveSuite from './run-node-resolve.spec.js';
 import trustRegistrySuite from './utils/trust-registry.spec.js';
 import npmOtpSuite from './utils/npm-otp.spec.js';
 import npmOtpCacheSuite from './utils/npm-otp-cache.spec.js';
@@ -85,6 +86,7 @@ run({
     externalsPluginSuite,
     affectedClassifierSuite,
     runStdioSafeSuite,
+    runNodeResolveSuite,
     trustRegistrySuite,
     npmOtpSuite,
     npmOtpCacheSuite,
