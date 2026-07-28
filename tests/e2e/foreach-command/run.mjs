@@ -198,6 +198,61 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         assert.ok(!existsSync(join(root, 'marks', '@test-core.txt')), 'core mark should be skipped');
     });
 
+    // ── zero-match --include is FATAL (repo task #75) ───────────────────
+    // The CI classifier's filter used to arrive with its shell quotes glued
+    // to each package name, so every pattern matched nothing and foreach
+    // printed one line and exited 0 — a build that did nothing was
+    // indistinguishable from a build that succeeded, and that silence is why
+    // the quoting bug survived on every selective PR run.
+
+    it('foreach --include that matches nothing FAILS (never a silent 0)', async () => {
+        const r = await runCli(cliEntry, ['foreach', 'mark', '--include', '@test/nope'], { cwd: root });
+        assert.notEqual(r.status, 0, 'a filter matching zero workspaces must not exit 0');
+        assert.match(r.stdout + r.stderr, /--include matched no workspace/i);
+        assert.match(r.stdout + r.stderr, /@test\/nope/);
+    });
+
+    it('foreach --include with quotes IN the value fails and names the cause', async () => {
+        // Verbatim reproduction of the CI bug: `--include '@test/utils'` where
+        // the apostrophes are part of the argument, not shell syntax.
+        const r = await runCli(cliEntry, ['foreach', 'mark', '--include', "'@test/utils'"], { cwd: root });
+        assert.notEqual(r.status, 0, 'a quoted-in-value filter must not exit 0');
+        const out = r.stdout + r.stderr;
+        assert.match(out, /--include matched no workspace/i);
+        assert.match(out, /the QUOTES are part of the value/);
+    });
+
+    it('foreach --include failure names ALL bad patterns, even beside good ones', async () => {
+        const r = await runCli(
+            cliEntry,
+            ['foreach', 'mark', '--include', '@test/utils', '--include', '@test/ghost'],
+            { cwd: root },
+        );
+        assert.notEqual(r.status, 0, 'one bad pattern must fail the whole run');
+        assert.match(r.stdout + r.stderr, /@test\/ghost/);
+    });
+
+    it('foreach --include glob that matches is fine (no false positive)', async () => {
+        rmSync(join(root, 'marks'), { recursive: true, force: true });
+        mkdirSync(join(root, 'marks'), { recursive: true });
+        const r = await runCli(cliEntry, ['foreach', 'mark', '--include', '@test/*'], { cwd: root });
+        assert.equal(r.status, 0, `glob include should succeed: ${r.stderr}`);
+        assert.ok(existsSync(join(root, 'marks', '@test-utils.txt')));
+    });
+
+    it('an EMPTY final selection is still exit 0 (shard / exclude / no script)', async () => {
+        // The include matched; --exclude then removed everything. Legitimate —
+        // this is the case the fatal rule must NOT swallow, or every small
+        // sharded CI job would go red.
+        const r = await runCli(
+            cliEntry,
+            ['foreach', 'mark', '--include', '@test/utils', '--exclude', '@test/utils'],
+            { cwd: root },
+        );
+        assert.equal(r.status, 0, `narrowing to empty must stay a clean no-op: ${r.stderr}`);
+        assert.match(r.stdout + r.stderr, /no workspaces match/i);
+    });
+
     it('foreach --exclude removes matching workspaces', async () => {
         rmSync(join(root, 'marks'), { recursive: true, force: true });
         mkdirSync(join(root, 'marks'), { recursive: true });

@@ -45,6 +45,38 @@
 //   --format=globs                        one `@gjsify/<name>` per line
 //   --format=github-actions                $GITHUB_OUTPUT key=value lines
 //
+// `include-args` CONTRACT (github-actions format) — read this before changing
+// its shape. The value is a SPACE-SEPARATED list of ALREADY-SHELL-SAFE tokens:
+//
+//     include-args=--include @gjsify/fs --include @gjsify/stream
+//
+// and its only supported consumption is an UNQUOTED `$INCLUDE_ARGS` expansion
+// in a POSIX shell, where word splitting is exactly the intent. It carries NO
+// quoting of its own, deliberately:
+//
+//   * `main.yml` splices it into a `su testuser -c "… sh -c '…'"` nesting, and
+//     the result of a parameter expansion is NEVER re-scanned for quotes. When
+//     this emitted `--include '@gjsify/fs'`, the apostrophes became part of the
+//     glob, every pattern matched zero workspaces, and `foreach` exited 0 —
+//     CI "built" nothing on every selective PR run in 0.65 s (repo task #75).
+//     Pre-quoting a value for an unknown number of nesting levels cannot work;
+//     emitting tokens that need no quoting at any level can.
+//   * There are FIVE consumers of this one output — the build / browser-bundle
+//     / check / test steps splice it into a command line, and thirteen
+//     `contains(needs.changes.outputs.include-args, '@gjsify/…')` GitHub
+//     expressions substring-match it. A format that requires per-consumer
+//     unquoting would have to be repeated five times in the very nesting that
+//     produced the bug; `contains()` is unaffected either way (it matched the
+//     quoted spelling too, which is why the gates kept working while the build
+//     silently did nothing).
+//
+// Shell-safety is ENFORCED, not assumed: `assertShellSafeWorkspaceName` rejects
+// any workspace name outside `[A-Za-z0-9@._/-]` before it is emitted. npm names
+// cannot contain those characters, so this never fires in practice — and if it
+// somehow does, the command exits non-zero, the classify step's
+// `continue-on-error` leaves the outputs unset, and CI falls back to a FULL
+// run. Failing towards "run everything" is the safe direction.
+//
 // `--changed-from-stdin` skips `git diff` entirely and reads a newline-
 // separated list of paths from stdin. Useful for local debugging and
 // for the spec suite. Stdin is slurped via `utils/stdin.ts`, NOT
@@ -368,9 +400,11 @@ function emit(format: AffectedOptions['format'], r: ClassifyResult): void {
         return;
     }
     if (format === 'github-actions') {
+        // Unquoted, space-separated tokens — see the `include-args` CONTRACT
+        // block at the top of this file. Do NOT re-add quoting here.
         const includeArgs = r.global
             ? ''
-            : r.workspaces.map((n) => `--include '${escSingleQuote(n)}'`).join(' ');
+            : r.workspaces.map((n) => `--include ${assertShellSafeWorkspaceName(n)}`).join(' ');
         const out = process.env.GITHUB_OUTPUT;
         const lines = [
             `skip-all=${r.skipAll}`,
@@ -400,6 +434,24 @@ function emit(format: AffectedOptions['format'], r: ClassifyResult): void {
     for (const name of r.workspaces) process.stdout.write(`    - ${name}\n`);
 }
 
-function escSingleQuote(s: string): string {
-    return s.replace(/'/g, `'\\''`);
+// A workspace name that survives an UNQUOTED shell expansion unchanged: no
+// whitespace, no quote/escape characters, no glob metacharacters, no `$`, and
+// nothing the shell would treat as an operator. npm package names are a strict
+// subset of this, so the guard is a machine-checked restatement of the
+// `include-args` contract rather than a real runtime branch. Returns the name
+// so it can be used inline at the emit site.
+const SHELL_SAFE_WORKSPACE_NAME = /^[A-Za-z0-9@][A-Za-z0-9@._/-]*$/;
+
+function assertShellSafeWorkspaceName(name: string): string {
+    if (SHELL_SAFE_WORKSPACE_NAME.test(name)) return name;
+    process.stderr.write(
+        `gjsify affected: workspace name ${JSON.stringify(name)} is not shell-safe, so it cannot be emitted as an\n` +
+            `  \`include-args\` token (the value is consumed by an UNQUOTED $INCLUDE_ARGS expansion — see the\n` +
+            `  contract at the top of commands/affected.ts). Rename the workspace, or teach this command a\n` +
+            `  transport the consumers can unquote. Refusing to emit a filter that would silently mis-match.\n`,
+    );
+    process.exit(2);
+    // Unreachable — `process.exit` terminates. Present so this function has no
+    // fall-through path that could ever return an unsafe name.
+    throw new Error(`gjsify affected: unsafe workspace name ${name}`);
 }

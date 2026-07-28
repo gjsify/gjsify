@@ -232,7 +232,8 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 default: false,
             })
             .option('include', {
-                description: 'Glob pattern to include workspaces by name (repeatable).',
+                description:
+                    'Glob pattern to include workspaces by name (repeatable). A pattern that matches NO discovered workspace is a hard error — a filter selecting nothing is a typo or a caller-side quoting bug, never an intent.',
                 type: 'string',
                 array: true,
             })
@@ -329,6 +330,8 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
             }
         }
 
+        assertEveryIncludeMatches(allWorkspaces, args.include);
+
         let selected = filterWorkspaces(allWorkspaces, {
             include: args.include,
             exclude: args.exclude,
@@ -389,6 +392,12 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
         }
 
         if (selected.length === 0) {
+            // Reaching here means every --include pattern DID match something
+            // (assertEveryIncludeMatches above is fatal otherwise) and the set
+            // was then narrowed to nothing by --exclude, --no-private, the
+            // script-presence filter, or --shard. All four are legitimate, so
+            // this stays a clean exit-0 no-op — see the assert's doc comment
+            // for why the two cases are not the same condition.
             console.log(
                 `gjsify foreach: no workspaces match (${exec ? 'exec' : 'script'}="${cmd}", include=${JSON.stringify(args.include ?? [])}, exclude=${JSON.stringify(args.exclude ?? [])})`,
             );
@@ -468,6 +477,75 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
         process.exit(0);
     },
 };
+
+/**
+ * A `--include` pattern that matches ZERO of the discovered workspaces is a
+ * hard error. This is the load-bearing half of the fix for repo task #75: the
+ * CI classifier emitted its filter pre-quoted (`--include '@gjsify/fs'`), the
+ * workflow expanded it unquoted inside a `su … -c "… sh -c '…'"` nesting, the
+ * apostrophes became part of every glob, and this command matched nothing,
+ * printed one line, and exited 0. A build that did nothing was indistinguishable
+ * from a build that succeeded, so the bug lived through every selective PR run
+ * — the Build step took 0.65 s and every later step inspected whatever the
+ * cache had restored. The quoting was the defect; the SILENCE is why nobody saw
+ * it.
+ *
+ * Scope is deliberately "an include PATTERN matched no workspace", NOT "the
+ * final selection is empty". The final selection is legitimately empty in
+ * several supported situations and must stay exit-0:
+ *   * `--shard 3/4` over a 2-workspace closure — most shards run nothing;
+ *   * `--exclude '@gjsify/integration-*'` removing everything the include kept;
+ *   * script mode dropping workspaces that don't declare `<script>` (yarn does
+ *     this too, and it is why `foreach check` over a closure of script-less
+ *     packages is a no-op rather than a failure).
+ * All three describe a real, existing set being narrowed to nothing. A pattern
+ * that names something the workspace tree does not contain is different in
+ * kind: it is a typo, a stale package name, or a caller-side quoting bug, and
+ * it can never be what the caller meant. There is no opt-out flag — an escape
+ * hatch here would be re-arming exactly the silence this exists to remove.
+ */
+function assertEveryIncludeMatches(allWorkspaces: readonly Workspace[], include: readonly string[] | undefined): void {
+    if (!include || include.length === 0) return;
+    const unmatched = include.filter((pattern) => filterWorkspaces(allWorkspaces, { include: [pattern] }).length === 0);
+    if (unmatched.length === 0) return;
+
+    const lines: string[] = [
+        `gjsify foreach: --include matched no workspace (${unmatched.length} of ${include.length} pattern(s)):`,
+    ];
+    for (const pattern of unmatched) {
+        lines.push(`  ${JSON.stringify(pattern)}`);
+        // The task-#75 signature: the pattern only fails because the caller's
+        // shell quotes ended up INSIDE the value. Name it outright — that
+        // failure reads as "package not found" and sends people hunting in the
+        // wrong place.
+        const unquoted = stripSurroundingQuotes(pattern);
+        if (unquoted !== pattern && filterWorkspaces(allWorkspaces, { include: [unquoted] }).length > 0) {
+            lines.push(
+                `    → matches as ${JSON.stringify(unquoted)}: the QUOTES are part of the value. A shell expansion`,
+                `      is not re-scanned for quoting, so a pre-quoted filter spliced through \`sh -c\` arrives with`,
+                `      the quotes attached. Pass the bare name and let word splitting do the work.`,
+            );
+            continue;
+        }
+        const near = allWorkspaces
+            .map((w) => w.name)
+            .filter((name) => name.toLowerCase().includes(unquoted.replace(/\*/g, '').toLowerCase()))
+            .slice(0, 3);
+        if (near.length > 0) lines.push(`    → did you mean: ${near.join(', ')}?`);
+    }
+    lines.push(
+        `  ${allWorkspaces.length} workspace(s) discovered. Refusing to run: a filter that selects nothing would`,
+        `  otherwise exit 0 and look exactly like a successful run over the whole set.`,
+    );
+    console.error(lines.join('\n'));
+    process.exit(1);
+}
+
+/** Drop ONE matching pair of surrounding `'` or `"` — the quoting-bug probe. */
+function stripSurroundingQuotes(s: string): string {
+    if (s.length >= 2 && (s[0] === "'" || s[0] === '"') && s[s.length - 1] === s[0]) return s.slice(1, -1);
+    return s;
+}
 
 async function runSequential(
     workspaces: readonly Workspace[],
