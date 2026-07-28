@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -77,10 +77,27 @@ function makeMonorepo(): string {
     return root;
 }
 
-/** Run any argv and return the raw streams — used by the transport tests. */
-async function run(argv: string[], stdin?: string): Promise<{ code: number; stdout: string; stderr: string }> {
+/**
+ * Run any argv and return the raw streams.
+ *
+ * `githubOutput` PINS the child's `GITHUB_OUTPUT` — `null` deletes it, a string
+ * sets it. Never inherited, and that is the whole point: `emit()` branches on
+ * `process.env.GITHUB_OUTPUT`, GitHub Actions exports it into EVERY step, and a
+ * spawned child inherits it. So these tests took the stdout branch locally and
+ * the append-to-file branch in CI — the same input, two different code paths,
+ * decided by an env var no test mentioned. Pinning it makes the branch a
+ * PARAMETER of the test instead of a property of the machine.
+ */
+async function run(
+    argv: string[],
+    stdin?: string,
+    githubOutput?: string | null,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+    const env = { ...process.env } as Record<string, string>;
+    if (githubOutput === null || githubOutput === undefined) delete env.GITHUB_OUTPUT;
+    else env.GITHUB_OUTPUT = githubOutput;
     return new Promise((res, rej) => {
-        const child = spawn(process.execPath, argv, { stdio: ['pipe', 'pipe', 'pipe'] });
+        const child = spawn(process.execPath, argv, { stdio: ['pipe', 'pipe', 'pipe'], env });
         let stdout = '';
         let stderr = '';
         child.stdout.on('data', (d) => (stdout += String(d)));
@@ -91,16 +108,40 @@ async function run(argv: string[], stdin?: string): Promise<{ code: number; stdo
     });
 }
 
-/** Emit `--format=github-actions` and return the `include-args=` line's value. */
-async function includeArgsFor(cwd: string, changedFiles: string[]): Promise<string> {
-    const r = await run(
-        [CLI_ENTRY, 'affected', '--changed-from-stdin', '--format=github-actions', '--cwd', cwd],
-        changedFiles.join('\n') + '\n',
-    );
-    if (r.code !== 0) throw new Error(`affected exited ${r.code}: ${r.stderr}`);
-    const line = r.stdout.split('\n').find((l) => l.startsWith('include-args='));
-    if (line === undefined) throw new Error(`no include-args line in:\n${r.stdout}`);
+const AFFECTED_ARGV = (cwd: string): string[] => [
+    CLI_ENTRY,
+    'affected',
+    '--changed-from-stdin',
+    '--format=github-actions',
+    '--cwd',
+    cwd,
+];
+
+/** Pull the `include-args=` value out of a `key=value` block. */
+function pickIncludeArgs(block: string, whence: string): string {
+    const line = block.split('\n').find((l) => l.startsWith('include-args='));
+    if (line === undefined) throw new Error(`no include-args line in ${whence}:\n${block}`);
     return line.slice('include-args='.length);
+}
+
+/** Emit with GITHUB_OUTPUT UNSET → the stdout branch. */
+async function includeArgsFor(cwd: string, changedFiles: string[]): Promise<string> {
+    const r = await run(AFFECTED_ARGV(cwd), changedFiles.join('\n') + '\n', null);
+    if (r.code !== 0) throw new Error(`affected exited ${r.code}: ${r.stderr}`);
+    return pickIncludeArgs(r.stdout, 'stdout');
+}
+
+/**
+ * Emit with GITHUB_OUTPUT SET to a temp file → the `appendFileSync` branch,
+ * which is the one CI actually takes and the one nothing covered.
+ */
+async function emitToGithubOutput(
+    cwd: string,
+    changedFiles: string[],
+): Promise<{ code: number; stdout: string; stderr: string; file: string }> {
+    const file = join(mkdtempSync(join(tmpdir(), 'gjsify-gh-output-')), 'out.txt');
+    const r = await run(AFFECTED_ARGV(cwd), changedFiles.join('\n') + '\n', file);
+    return { ...r, file: r.code === 0 ? readFileSync(file, 'utf-8') : '' };
 }
 
 /**
@@ -360,6 +401,36 @@ export default async (): Promise<void> => {
             // classification must not smuggle tokens into the value.
             const value = await includeArgsFor(root, ['gjsify-lock.json']);
             expect(value).toBe('');
+        });
+
+        // The $GITHUB_OUTPUT branch — the one CI takes and the one that had
+        // never executed anywhere. `emit()` wrote it with a BARE `require`
+        // ('node:fs') in an ESM package: a ReferenceError, reachable only when
+        // GITHUB_OUTPUT is set, i.e. only inside a GitHub Actions step. Present
+        // since the command's first commit; it surfaced the moment a test
+        // exercised `--format=github-actions` under CI, because the runner
+        // exports GITHUB_OUTPUT into every step and the spawned CLI inherits it.
+
+        await it('writes key=value lines to $GITHUB_OUTPUT (not stdout)', async () => {
+            const r = await emitToGithubOutput(root, ['packages/node/fs/src/index.ts']);
+            expect(r.code).toBe(0);
+            // The ReferenceError killed the process here; assert on the code
+            // AND the message so a future regression is self-describing.
+            expect(r.stderr.includes('require is not defined')).toBe(false);
+            expect(r.file.includes('include-args=')).toBe(true);
+            expect(r.file.includes('skip-all=false')).toBe(true);
+            expect(r.file.includes('global=false')).toBe(true);
+            // Routed to the FILE, so stdout carries no key=value block.
+            expect(r.stdout.includes('include-args=')).toBe(false);
+        });
+
+        await it('$GITHUB_OUTPUT and stdout carry the SAME include-args', async () => {
+            // Both branches format one value; only the sink differs. A drift
+            // here would mean CI and every local `gjsify affected` disagree.
+            const viaFile = await emitToGithubOutput(root, ['packages/node/fs/src/index.ts']);
+            expect(viaFile.code).toBe(0);
+            const viaStdout = await includeArgsFor(root, ['packages/node/fs/src/index.ts']);
+            expect(pickIncludeArgs(viaFile.file, '$GITHUB_OUTPUT')).toBe(viaStdout);
         });
 
         await it("include-args still satisfies the workflow's contains() gates", async () => {
