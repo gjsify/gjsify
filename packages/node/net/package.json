@@ -13,6 +13,10 @@
         "./socket": {
             "types": "./lib/types/socket.d.ts",
             "default": "./lib/esm/socket.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
         }
     },
     "files": [

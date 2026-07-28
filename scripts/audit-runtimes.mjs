@@ -174,6 +174,7 @@ async function scanSourceTree(pkgDir) {
         has_test_entry: existsSync(join(srcDir, 'test.mts')) || existsSync(join(srcDir, 'test.ts')),
         has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
         browser_src_is_partial: false,
+        browser_src_is_unsupported: false,
         has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
         globals_mjs_browser_safe: false,
         file_count: 0,
@@ -194,6 +195,18 @@ async function scanSourceTree(pkgDir) {
             const slotDeclaredPartial = /Slot[^.\n]*partial/i.test(txt);
             const enotsupHits = (txt.match(/code\s*[:=]\s*['"]ENOTSUP['"]/g) ?? []).length;
             signals.browser_src_is_partial = slotDeclaredPartial || enotsupHits >= 2;
+            // A THIRD shape the two states above cannot express: a NAMED
+            // UNSUPPORTED STUB. The module has no browser pendant at all
+            // (`child_process`, `net`, `tls` — the `NODE_API_NO_BROWSER_SENSE`
+            // judgement), so its honest slot is `none`; the `src/browser.ts`
+            // exists only so the curated alias can redirect to a NAMED module
+            // that exports the real shape and throws with a message instead of
+            // to the shared anonymous `@gjsify/empty`. Without this the mere
+            // EXISTENCE of the file reads as a promotion to `polyfill` and the
+            // drift check fails on a declaration that is correct. Declared by
+            // the same `Slot: browser:"<slot>"` marker the `partial` entries
+            // already use, so a file states its own slot in ONE place.
+            signals.browser_src_is_unsupported = /Slot[^.\n]*none/i.test(txt);
         } catch {
             // unreadable — treat as full polyfill (conservative for upgrade path)
         }
@@ -466,8 +479,12 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         // GJS-bound default. The `browser_src_is_partial` heuristic distinguishes
         // a stub-shaped browser entry (ENOTSUP throws ≥2 OR `Slot ... partial`
         // comment) from a full polyfill.
+        // A NAMED UNSUPPORTED STUB is not an upgrade: the entry exists so the
+        // curated browser alias can name a module instead of the anonymous
+        // `@gjsify/empty`, and the module still has no browser pendant. Keep
+        // the conservative slot the package already declares.
         let browserSlot = nativeSlot;
-        if (signals.has_browser_polyfill && !signals.has_globals_mjs) {
+        if (signals.has_browser_polyfill && !signals.has_globals_mjs && !signals.browser_src_is_unsupported) {
             browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
         }
         return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };

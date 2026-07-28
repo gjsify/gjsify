@@ -268,10 +268,45 @@ export const ALIASES_NODE_FOR_GJS = {
  * the routing in a second pass (`@gjsify/<X>` → `@gjsify/<X>/globals` or
  * `@gjsify/empty` depending on the slot declaration).
  *
- * `none`-slot entries are deliberately hardcoded to `@gjsify/empty` here
- * (e.g. `child_process`, `fs`, `net`, ...) rather than relying on the dynamic
- * runtime layer — bare `fs` / `net` / ... do NOT start with `@gjsify/` and
- * therefore never enter `getDerivedAliasesSync`. This table is the bridge.
+ * `none`-slot entries are deliberately hardcoded here rather than relying on the
+ * dynamic runtime layer — bare `fs` / `net` / ... do NOT start with `@gjsify/`
+ * and therefore never enter `getDerivedAliasesSync`. This table is the bridge.
+ *
+ * ## `@gjsify/empty` is a LAST resort, and every remaining one is classified
+ *
+ * A value of `@gjsify/empty` is an ANONYMOUS redirect: a shared
+ * `export default {}` that a dozen unrelated specifiers also resolve to. That
+ * makes it indistinguishable, in an emitted bundle, from an ACCIDENTAL alias —
+ * which is how `@gjsify/canvas2d`'s build could start emitting a stray
+ * `@gjsify/empty` import without anything noticing. It is also export-less, so
+ * `import { spawn } from 'child_process'` binds `undefined` and dies later at
+ * `spawn is not a function`, naming neither the module nor the platform.
+ *
+ * So a redirect is NAMED wherever a name exists, and each entry still pointing
+ * at `@gjsify/empty` carries an inline classification so the remaining work is
+ * visible rather than implied:
+ *
+ *   (A)  wireable now — the package declares a browser slot and ships the entry;
+ *        the value names that entry. No `(A)` entries remain except
+ *        `dns/promises`, which needs a `./browser/promises` subpath first.
+ *   (A') native-available — the browser HAS the API (`fetch`, `WebSocket`); the
+ *        honest target is a `/globals` re-export, not an empty module.
+ *   (B)  simulatable but unbuilt — a real Web analogue exists (`cluster` over
+ *        Web Workers, `dgram` over WebRTC data channels, `v8.serialize` over
+ *        `structuredClone`, `readline` over any stream). `@gjsify/empty` until
+ *        someone builds it.
+ *   (C)  impossible — no Web API can ever back it. These get a NAMED throwing
+ *        stub at `@gjsify/<X>/browser` (today: `child_process`, `net`, `tls`).
+ *        `http2` / `inspector` are also `(C)` but not yet written; `repl` /
+ *        `wasi` are `(C)` with no owning `@gjsify/*` package to host a stub.
+ *
+ * A `(C)` stub keeps its package's `runtimes.browser: "none"` declaration: the
+ * MODULE genuinely is not usable on the runtime. The stub does not make it
+ * usable, it makes the unusability legible — it exports the module's real named
+ * shape (so linking succeeds) and throws a structured `ENOTSUP` naming the
+ * module, the runtime and the calling site. Exports whose answer IS
+ * platform-independent (`net.isIP`, `tls.checkServerIdentity`) stay real; a
+ * blanket thrower would replace one lie with another.
  *
  * A `partial`-slot package names its `./browser` PLATFORM ENTRY here, not its
  * package root. `withDerivedSlotRouting` only rewrites a value when the slot is
@@ -301,25 +336,25 @@ const ALIASES_NODE_FOR_BROWSER_TABLE = {
     'assert/strict':       '@gjsify/assert/strict',
     'async_hooks':         '@gjsify/async_hooks',
     'buffer':              '@gjsify/buffer',
-    'child_process':       '@gjsify/empty',        // none-slot — browser has no process model
-    'cluster':             '@gjsify/empty',
+    'child_process':       '@gjsify/child_process/browser', // none slot — NAMED throwing stub
+    'cluster':             '@gjsify/empty',        // (B) simulatable over Web Workers — unbuilt
     'console':             '@gjsify/console',
     'constants':           '@gjsify/constants',
     'crypto':              '@gjsify/crypto/browser',   // partial slot — name the platform entry
-    'dgram':               '@gjsify/empty',
+    'dgram':               '@gjsify/empty',        // (B) simulatable over WebRTC data channels — unbuilt
     'diagnostics_channel': '@gjsify/diagnostics_channel',
-    'dns':                 '@gjsify/empty',
-    'dns/promises':        '@gjsify/empty',
+    'dns':                 '@gjsify/dns/browser',      // partial slot — name the platform entry
+    'dns/promises':        '@gjsify/empty',        // (A) blocked: no ./browser/promises subpath yet
     'domain':              '@gjsify/domain',
     'events':              '@gjsify/events',
-    'fs':                  '@gjsify/empty',        // phase 1: stub; later @gjsify/fs/browser
-    'fs/promises':         '@gjsify/empty',
-    'http':                '@gjsify/empty',        // browser fetch covers most cases
-    'http2':               '@gjsify/empty',
-    'https':               '@gjsify/empty',
-    'inspector':           '@gjsify/empty',
-    'module':              '@gjsify/empty',
-    'net':                 '@gjsify/empty',
+    'fs':                  '@gjsify/fs/browser',       // partial slot — name the platform entry
+    'fs/promises':         '@gjsify/fs/browser/promises',
+    'http':                '@gjsify/http/browser',     // partial slot — name the platform entry
+    'http2':               '@gjsify/empty',        // (C) impossible — needs a named throwing stub
+    'https':               '@gjsify/https/browser',    // partial slot — name the platform entry
+    'inspector':           '@gjsify/empty',        // (C) impossible — needs a named throwing stub
+    'module':              '@gjsify/module/browser',   // partial slot — name the platform entry
+    'net':                 '@gjsify/net/browser',      // none slot — NAMED throwing stub
     'os':                  '@gjsify/os',
     'path':                '@gjsify/path',
     'path/posix':          '@gjsify/path/posix',
@@ -328,9 +363,9 @@ const ALIASES_NODE_FOR_BROWSER_TABLE = {
     'process':             '@gjsify/process',      // PR-D: flips today's `@gjsify/empty`
     'punycode':            '@gjsify/punycode',
     'querystring':         '@gjsify/querystring',
-    'readline':            '@gjsify/empty',
-    'readline/promises':   '@gjsify/empty',
-    'repl':                '@gjsify/empty',
+    'readline':            '@gjsify/empty',        // (B) stream-generic; simulatable — unbuilt
+    'readline/promises':   '@gjsify/empty',        // (B) stream-generic; simulatable — unbuilt
+    'repl':                '@gjsify/empty',        // (C) impossible, and no @gjsify/repl package exists
     'stream':              '@gjsify/stream',
     'stream/web':          '@gjsify/stream/web',
     'stream/consumers':    '@gjsify/stream/consumers',
@@ -339,22 +374,22 @@ const ALIASES_NODE_FOR_BROWSER_TABLE = {
     'sys':                 '@gjsify/sys',
     'timers':              '@gjsify/timers',
     'timers/promises':     '@gjsify/timers/promises',
-    'tls':                 '@gjsify/empty',
-    'tty':                 '@gjsify/empty',
+    'tls':                 '@gjsify/tls/browser',      // none slot — NAMED throwing stub
+    'tty':                 '@gjsify/empty',        // (B) isatty()===false is honest — unbuilt
     'url':                 '@gjsify/url',
     'util':                '@gjsify/util',
     'util/types':          '@gjsify/util/types',
-    'v8':                  '@gjsify/empty',
+    'v8':                  '@gjsify/empty',        // (B) serialize/deserialize over structuredClone — unbuilt
     'vm':                  '@gjsify/vm',
-    'wasi':                '@gjsify/empty',
-    'sqlite':              '@gjsify/empty',
-    'worker_threads':      '@gjsify/empty',
+    'wasi':                '@gjsify/empty',        // (C) impossible, and no @gjsify/wasi package exists
+    'sqlite':              '@gjsify/sqlite/browser',   // partial slot — name the platform entry
+    'worker_threads':      '@gjsify/worker_threads/browser', // partial slot — name the platform entry
     'zlib':                '@gjsify/zlib/browser',     // partial slot — name the platform entry
 
     // Third-party
-    'node-fetch':          '@gjsify/empty',        // browser native fetch
-    'ws':                  '@gjsify/empty',        // browser native WebSocket
-    'isomorphic-ws':       '@gjsify/empty',
+    'node-fetch':          '@gjsify/empty',        // (A') native-available: wants @gjsify/fetch/globals
+    'ws':                  '@gjsify/ws/browser',       // partial slot — name the platform entry
+    'isomorphic-ws':       '@gjsify/empty',        // (A') native-available: wants a WebSocket re-export
 }
 
 /**
