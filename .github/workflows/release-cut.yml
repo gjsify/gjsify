@@ -1,0 +1,149 @@
+name: Cut a release
+
+# CUT a release from CI — the version bump, changelog, release commit, tag and
+# GitHub release. PUBLISHING stays in `release.yml`, which fires on the
+# `release: published` event this workflow produces. Two workflows because they
+# are two acts: this one decides WHAT ships, that one ships it.
+#
+# WHY THIS EXISTS — it is a correctness fix, not a convenience.
+#
+# `release-it`'s `after:bump` hook runs `verify-committed-bundles.mjs --rebuild`,
+# which REBUILDS the committed GJS bundles and commits whatever it produced. So
+# the release ships bundles built by whatever machine ran the release. That is
+# only safe if that machine reproduces them byte-identically — and at least one
+# developer machine measurably does NOT: rebuilding `tsc.gjs.mjs` there yields a
+# 68-byte-larger file with a different module order (`mapSysname` where the
+# committed bundle has `makeCallable`), while the same commit reproduces
+# byte-identically in CI. Cause still unidentified; `gjsify install --immutable`,
+# a cache purge, a shim repair and a facade rebuild have all been ruled out.
+#
+# Cutting from CI removes the variable entirely: the bundles that ship are built
+# in the environment that verifies them. This is also what made the v0.24.0 cut
+# fail — a release produced from a tree whose state nobody could explain.
+#
+# PRE-FLIGHT (do this first, it is the whole point of having it):
+#   gh workflow run main.yml --ref main     # deliberate FULL sweep on the ref
+# `main.yml`'s selective gates mean a green PR does not imply a green release
+# commit; the dispatch is the one that runs everything on the exact ref.
+on:
+  workflow_dispatch:
+    inputs:
+      increment:
+        description: 'Version increment: patch | minor | major (or an exact version like 0.24.1)'
+        required: false
+        default: 'patch'
+      dry_run:
+        description: 'Dry run — resolve + print everything, write nothing. Leave ON until a run looks right.'
+        required: false
+        type: boolean
+        default: true
+
+# Cutting pushes a commit + tag to main and creates a release.
+permissions:
+  contents: write
+
+concurrency:
+  # Never two cuts at once — they would race on the same tag + main ref.
+  group: release-cut
+  cancel-in-progress: false
+
+jobs:
+  cut:
+    name: Cut ${{ inputs.increment }}${{ inputs.dry_run && ' (dry run)' || '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      # The SAME image release.yml publishes from — it carries gjs, GTK, the
+      # blueprint toolchain and everything the workspace build needs, so the
+      # bundles this job commits are built exactly where they are verified.
+      image: ghcr.io/gjsify/ci-fedora:44
+    steps:
+      # Full history + tags: the conventional-changelog plugin walks commits
+      # since the last tag, and release-it derives the next version from the
+      # tags. A shallow clone silently produces an empty changelog.
+      - name: Checkout main (full history + tags)
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          # Persist the token so the release commit + tag can be pushed back.
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '26.x'
+
+      # Node-free install via the committed GJS bundle — verbatim from
+      # release.yml's publish job.
+      - name: Install dependencies (gjsify install --immutable)
+        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+
+      # `verify-committed-bundles.mjs` (the after:bump hook) resolves each
+      # workspace dep's `lib/esm` — it must run AFTER a workspace build, which is
+      # documented in the script itself.
+      - name: Build packages
+        run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build
+
+      # Prove the tree reproduces BEFORE bumping anything. If this fails, the
+      # cut would ship bundles that do not match their source — exactly the
+      # condition this workflow exists to prevent — and it fails here, before a
+      # commit, a tag or a release record exists.
+      - name: Verify the committed bundles reproduce
+        run: PATH="$PWD/node_modules/.bin:$PATH" node scripts/verify-committed-bundles.mjs
+
+      - name: Configure the release author
+        run: |
+          git config --global user.name 'gjsify-bot'
+          git config --global user.email 'pascal@artandcode.studio'
+          git config --global --add safe.directory "$PWD"
+
+      # release-it does the rest: bump every package.json (the bumper globs),
+      # regenerate CHANGELOG.md from the conventional commits, run `after:bump`
+      # (docs version + bundle rebuild), commit, tag, push, and create the
+      # GitHub release — whose `published` event triggers release.yml.
+      #
+      # `--ci` keeps it non-interactive (no prompts on a runner). The dry run
+      # resolves and prints the whole plan without writing.
+      - name: release-it
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INCREMENT: ${{ inputs.increment }}
+          DRY: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          # `increment` reaches a shell command line, so ALLOWLIST it rather
+          # than interpolate whatever was typed. Only a keyword or a plain
+          # semver is accepted; anything else fails here instead of being
+          # word-split into the release command. (Dispatch is collaborator-only,
+          # but a release job holds `contents: write` — the one place not to
+          # rely on who is allowed to press the button.)
+          case "$INCREMENT" in
+            patch|minor|major) ;;
+            [0-9]*.[0-9]*.[0-9]*)
+              printf '%s' "$INCREMENT" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' \
+                || { echo "::error::invalid version '$INCREMENT'"; exit 1; } ;;
+            *) echo "::error::increment must be patch|minor|major or an exact semver, got '$INCREMENT'"; exit 1 ;;
+          esac
+          set -- --ci "$INCREMENT"
+          if [ "$DRY" = "true" ]; then set -- "$@" --dry-run; fi
+          echo "release-it $*"
+          PATH="$PWD/node_modules/.bin:$PATH" npx release-it "$@"
+
+      - name: Summary
+        if: always()
+        env:
+          DRY: ${{ inputs.dry_run }}
+          INC: ${{ inputs.increment }}
+        run: |
+          {
+            echo "## Release cut"
+            echo ""
+            echo "- increment: \`$INC\`"
+            echo "- dry run: \`$DRY\`"
+            if [ "$DRY" = "true" ]; then
+              echo ""
+              echo "Nothing was written. Re-run with **dry run off** to cut for real;"
+              echo "that publishes to npm via \`release.yml\` on the resulting release event."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
