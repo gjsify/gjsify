@@ -458,7 +458,12 @@ export async function detectAutoGlobals(
                 ) {
                     const path = `/tmp/gjsify-auto-globals-failed-chunk-${i}.mjs`;
                     try {
-                        // eslint-disable-next-line @typescript-eslint/no-require-imports
+                        // Dynamic `import()` on purpose: this is a debug-only
+                        // branch and the module graph should not carry
+                        // `node:fs` for it. (It is NOT a `require` — it never
+                        // was; the rule-disable comment that used to sit here
+                        // named a rule that cannot apply to an import
+                        // expression.)
                         const fs = await import('node:fs');
                         fs.writeFileSync(path, code);
                         console.error(

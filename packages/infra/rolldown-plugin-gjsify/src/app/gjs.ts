@@ -11,8 +11,8 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import type * as NodeFs from 'node:fs';
-import type * as NodeModule from 'node:module';
+import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import { aliasPlugin } from '../plugins/alias.js';
 import { externalsPlugin } from '../plugins/externals.js';
@@ -32,32 +32,39 @@ import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
 
 const _shimDir = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Resolve one of this package's bundled shims to an absolute path.
+ *
+ * `createRequire` is a NAMED IMPORT from `node:module`, never a bare
+ * `require(...)` — this source is ESM (see AGENTS.md "Our source is ESM —
+ * no bare `require`"). It is used here for its RESOLVER, which is
+ * `exports`-map aware, and only to answer "where does this subpath live";
+ * nothing is loaded through it.
+ */
 function resolveShim(shimName: string): string {
     // Preferred: relative to this module's directory. Works under the
     // normal Node consumer flow where `_shimDir` = `<pkg>/lib/app/`.
     const relative = resolve(_shimDir, `../shims/${shimName}.js`);
-    let fs: typeof NodeFs | null = null;
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        fs = require('node:fs') as typeof NodeFs;
-    } catch {
-        return relative;
-    }
-    if (fs.existsSync(relative)) return relative;
+    if (existsSync(relative)) return relative;
     // Fallback: when the orchestrator is bundled into a single .mjs
     // (GJS-CLI self-host loop) `_shimDir` collapses to the bundle's
-    // own directory and the relative lookup misses. createRequire's
-    // resolver is `exports`-map-aware (Phase C), so the published
-    // subpath export `./shims/<name>` works under both Node and GJS
-    // without further walking. Each shim MUST be a `./shims/<name>`
-    // subpath export in package.json for this fallback to resolve.
+    // own directory and the relative lookup misses. The published subpath
+    // export `./shims/<name>` resolves under both Node and GJS without
+    // further walking. Each shim MUST be a `./shims/<name>` subpath export
+    // in package.json for this fallback to resolve.
     try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const Module = require('node:module') as typeof NodeModule;
-        const require_ = Module.createRequire(import.meta.url);
-        return require_.resolve(`@gjsify/rolldown-plugin-gjsify/shims/${shimName}`);
-    } catch {
-        return relative;
+        return createRequire(import.meta.url).resolve(`@gjsify/rolldown-plugin-gjsify/shims/${shimName}`);
+    } catch (cause) {
+        // Both lookups failed — the shim is genuinely absent. Returning the
+        // unverified `relative` here would hand a non-existent path to the
+        // alias map, and the failure would resurface much later as an
+        // unrelated "could not resolve" naming a path nobody wrote. Name the
+        // actual problem, at the site that knows what it was looking for.
+        throw new Error(
+            `@gjsify/rolldown-plugin-gjsify: cannot locate the "${shimName}" shim. ` +
+                `Tried ${relative} and the "./shims/${shimName}" subpath export.`,
+            { cause },
+        );
     }
 }
 

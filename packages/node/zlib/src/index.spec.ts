@@ -1278,11 +1278,11 @@ export default async () => {
         });
 
         await it('pipeline: gzip → gunzip produces original bytes', async () => {
-            const { Readable } = await import('node:stream');
+            const { Readable, Writable } = await import('node:stream');
             const input = 'pipeline round trip via gzip';
             const result = await new Promise<string>((resolve, reject) => {
                 const chunks: Buffer[] = [];
-                const sink = new (require('node:stream').Writable)({
+                const sink = new Writable({
                     write(chunk: Buffer, _enc: string, cb: () => void) {
                         chunks.push(chunk);
                         cb();

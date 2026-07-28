@@ -2,7 +2,7 @@
 // Unit tests for the content-addressable tarball cache.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -258,7 +258,6 @@ export default async () => {
  * sharding scheme.
  */
 function findOnly(root: string): string {
-    const { readdirSync, statSync } = require('node:fs') as typeof import('node:fs');
     const queue: string[] = [root];
     while (queue.length > 0) {
         const cur = queue.shift() as string;

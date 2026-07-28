@@ -463,8 +463,19 @@ export class ClientHttp2Session extends Http2Session {
     private _setupNativeClient(authority: string, mode: 'auto' | 'force' | 'off'): void {
         // Lazy load to keep the module out of the Node bundle when only Soup is
         // used. Pulling node:http2 directly never instantiates the dispatcher.
-        const { Http2NativeClientDispatcher } =
-            require('./native-client-dispatcher.js') as typeof NativeClientDispatcherModule;
+        //
+        // KNOWN GAP, tracked in STATUS.md § Open TODOs. This is the
+        // bare-`require`-in-ESM class (AGENTS.md § CJS-ESM Interop): the call
+        // resolves inside a bundle and is a ReferenceError from the unbundled
+        // `lib/`. It cannot become a static import — `native-client-dispatcher`
+        // statically imports `gi://GLib`, `gi://Gio` and `@gjsify/http2-native`,
+        // so every http2 consumer would pull the optional typelib-backed native
+        // package. The ESM fix is `await import()`, which requires making this
+        // sync path (reached from `connect()`) async — a behavioural change to
+        // @gjsify/http2, not a lint fix.
+        // oxlint-disable-next-line typescript/no-require-imports -- see above
+        const mod = require('./native-client-dispatcher.js') as typeof NativeClientDispatcherModule;
+        const { Http2NativeClientDispatcher } = mod;
         if (!Http2NativeClientDispatcher.available()) {
             if (mode === 'force') {
                 throw new Error(
