@@ -166,6 +166,13 @@ export class Http2Server extends EventEmitter {
     private _startNativeListen(port: number, hostname: string): void {
         // Lazy import keeps the module out of the Node bundle for createServer
         // consumers who never opt into the native path.
+        //
+        // KNOWN GAP, tracked in STATUS.md § Open TODOs. Same class + same
+        // constraint as the client-side load in `client-session.ts`: a static
+        // import would drag `@gjsify/http2-native` into every consumer, and the
+        // ESM fix (`await import()`) means making `listen()` async, which Node's
+        // `listen()` contract does not allow. Fix belongs in @gjsify/http2.
+        // oxlint-disable-next-line typescript/no-require-imports -- see above
         const { Http2NativeDispatcher } = require('../native-dispatcher.js') as typeof NativeDispatcherModule;
         if (!Http2NativeDispatcher.available()) {
             throw new Error(

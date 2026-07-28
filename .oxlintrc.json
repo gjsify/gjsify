@@ -7,6 +7,13 @@
     "rules": {
         "typescript/consistent-type-imports": "warn",
         "typescript/no-explicit-any": "warn",
+        // Our source is ESM — a bare `require(...)` is a latent ReferenceError
+        // that only "works" inside a bundle (rolldown's CJS interop resolves
+        // the call at build time) and throws from the unbundled `lib/` we
+        // publish. NOT in the `correctness` category, so it must be listed
+        // here. Scoped to ESM by the `*.cjs` override below; a per-site
+        // disable needs a stated reason. See AGENTS.md § CJS-ESM Interop (GJS).
+        "typescript/no-require-imports": "error",
         "typescript/no-non-null-assertion": "off",
         "typescript/no-this-alias": [
             "error",
@@ -24,6 +31,20 @@
         ],
         "gjsify/register-class-order": "error"
     },
+    "overrides": [
+        {
+            // A `.cjs` file IS CommonJS — `require` is its only module syntax,
+            // not a mistake. These are the `cjs-compat.cjs` publishing shims
+            // (`@gjsify/{stream,events,assert}`, reached via `exports['.'].require`
+            // by an EXTERNAL CJS consumer) and the CJS regression fixtures that
+            // exist precisely to exercise a bundled `require('stream')`. Scoping
+            // the rule to ESM is the rule being correct, not an exemption.
+            "files": ["**/*.cjs", "**/*.cts"],
+            "rules": {
+                "typescript/no-require-imports": "off"
+            }
+        }
+    ],
     "ignorePatterns": [
         "**/node_modules",
         "**/dist",

@@ -929,6 +929,29 @@ Root-cause fix surfaced by this suite: **`@gjsify/buffer` constructed `TextEncod
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
+### `@gjsify/http2` lazy native-dispatcher loads still use a bare `require`
+
+Two sites load the optional native HTTP/2 dispatcher through a bare
+`require(...)` from ESM source — `src/client-session.ts` (`_setupNativeClient`,
+reached from `connect()`) and `src/server/http2-server.ts`
+(`_startNativeListen`, reached from `listen()`). This is the class documented in
+AGENTS.md § CJS-ESM Interop → "Our source is ESM": the call resolves at build
+time inside a bundle and is a `ReferenceError` from the unbundled `lib/` we
+publish. Neither obvious fix applies as-is:
+
+- a **static import** would pull `native-{client-,}dispatcher`'s static
+  `gi://GLib` / `gi://Gio` / `@gjsify/http2-native` imports into EVERY http2
+  consumer, defeating the optional-native-package design;
+- **`await import()`** (the ESM way to lazy-load) requires making both call
+  paths async, i.e. changing `connect()` / `listen()` — and Node's `listen()`
+  contract is synchronous.
+
+So it needs a real design decision inside `@gjsify/http2` (e.g. resolving the
+dispatcher during an already-async phase, or an explicit async opt-in), not a
+lint fix. Both sites carry an `oxlint-disable-next-line
+typescript/no-require-imports` with the reason inline; they are the only
+sanctioned disables of that rule in the tree.
+
 ### Manifest-conformance follow-ups
 
 The five standalone declaration-vs-reality scripts are now one rule registry
