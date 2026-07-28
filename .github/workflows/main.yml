@@ -299,15 +299,39 @@ jobs:
       # unchanged forward-deps (`gjsify foreach --include` only FILTERS). That
       # baseline exists only on a warm cache → probe a few foundational packages
       # and fall back to a FULL build when cold.
+      # The selective path rebuilds ONLY the affected closure and trusts the
+      # restored cache for every unchanged forward-dep, so "is the cache warm"
+      # really means "is the restored tree a COMPLETE baseline". Probing three
+      # directories did not answer that question — it answered "did the archive
+      # contain these three", which a badly incomplete archive also satisfies.
+      #
+      # Observed: a ~4 MB `build-v3-…` archive restored via the *prefix*
+      # restore-key ("Cache hit for restore-key", not an exact hit) contained
+      # `packages/web/xmlhttprequest/lib/esm` but NOT its `lib/types`. The three
+      # probe dirs were present, so the job went selective, never rebuilt
+      # xmlhttprequest (outside the closure), and then died in the post-build
+      # `Verify declared package outputs exist`. Every selective PR hit it.
+      # Such archives exist because during the #855 era a selective run built
+      # nothing and still saved its tree; the prefix restore-key happily serves
+      # them to later runs.
+      #
+      # So probe with the SAME whole-tree post-condition the build is checked
+      # against, and treat failure as COLD rather than as an error: an
+      # incomplete cache now means "do a full build" — which is what the
+      # fallback was always for — instead of a red PR. The post-build check
+      # keeps its teeth; this only decides which build path can be trusted.
+      # Stat-only, ~0.1 s, so it costs nothing.
       - name: Detect warm build cache
         id: buildwarm
         run: |
-          if [ -d packages/gjs/utils/lib ] && [ -d packages/node/stream/lib ] && [ -d packages/web/fetch/lib ]; then
+          if su testuser -c 'node scripts/verify-package-outputs.mjs' > /tmp/warmprobe.log 2>&1; then
             echo "warm=true" >> "$GITHUB_OUTPUT"
-            echo "[ci] build cache warm — selective build/check eligible"
+            echo "[ci] build cache warm (declared outputs all present) — selective build/check eligible"
           else
             echo "warm=false" >> "$GITHUB_OUTPUT"
-            echo "[ci] build cache cold — forcing full build/check"
+            echo "[ci] build cache cold or INCOMPLETE — forcing full build/check"
+            echo "[ci] probe said:"
+            sed -n '1,20p' /tmp/warmprobe.log
           fi
 
       # `$INCLUDE_ARGS` IS EXPANDED UNQUOTED ON PURPOSE, here and at the three
