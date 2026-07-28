@@ -39,7 +39,7 @@ export default async () => {
 
         await it('should return a function which throw the thrown error of the given function.', async () => {
             const f = spy(() => {
-                throw 666; //eslint-disable-line no-throw-literal
+                throw 666;
             });
             let error: unknown = undefined;
             try {
@@ -120,7 +120,7 @@ export default async () => {
         await it('should contain call information regardless returned or thrown.', async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -216,7 +216,7 @@ export default async () => {
         await it("should not contain call information that `call.type === 'throw'`.", async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -236,7 +236,7 @@ export default async () => {
         await it("should not contain call information that `call.type === 'throw'`. (2)", async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -279,7 +279,7 @@ export default async () => {
         await it("should be 'f.returnedCalls[0]' after calling the spy even if `f.calls[0]` was thrown.", async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -295,7 +295,7 @@ export default async () => {
         await it('should be null after calling the spy even if all calls were thrown.', async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -335,7 +335,7 @@ export default async () => {
         await it("should be 'f.returnedCalls[f.returnedCalls.length - 1]' after calling the spy even if `f.calls[f.calls.length - 1]` was thrown.", async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -351,7 +351,7 @@ export default async () => {
         await it('should be null after calling the spy even if all calls were thrown.', async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -415,7 +415,7 @@ export default async () => {
         await it("should not contain call information that `call.type === 'return'`.", async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -439,7 +439,7 @@ export default async () => {
         await it("should not contain call information that `call.type === 'return'`. (2)", async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -496,7 +496,7 @@ export default async () => {
         await it("should be 'f.thrownCalls[0]' after calling the spy even if `f.calls[0]` was returned.", async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });
@@ -557,7 +557,7 @@ export default async () => {
         await it("should be 'f.thrownCalls[f.thrownCalls.length - 1]' after calling the spy even if `f.calls[f.calls.length - 1]` was returned.", async () => {
             const f = spy((toThrow: boolean) => {
                 if (toThrow) {
-                    throw -1; //eslint-disable-line no-throw-literal
+                    throw -1;
                 }
                 return 1;
             });

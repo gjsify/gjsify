@@ -38,7 +38,6 @@ export function runInNewContext(
     // Build a function that receives sandbox values as parameters
     // and evaluates the code with those names in scope.
     // This is the standard way to implement vm.runInNewContext without V8 internals.
-    // eslint-disable-next-line no-new-func
     const fn = new Function(...keys, `return eval(${JSON.stringify(code)})`);
     return fn(...values);
 }
@@ -89,7 +88,6 @@ export function compileFunction(
     _options?: { parsingContext?: Record<string, unknown>; contextExtensions?: object[] },
 ): Function {
     const paramNames = params || [];
-    // eslint-disable-next-line no-new-func
     return new Function(...paramNames, code);
 }
 

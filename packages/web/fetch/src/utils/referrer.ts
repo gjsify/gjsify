@@ -21,7 +21,6 @@ import type Request from '../request.js';
 export function stripURLForUseAsAReferrer(url: null | URL | 'no-referrer', originOnly = false) {
     // 1. If url is null, return no referrer.
     if (url == null || url === 'no-referrer') {
-        // eslint-disable-line no-eq-null, eqeqeq
         return 'no-referrer';
     }
 

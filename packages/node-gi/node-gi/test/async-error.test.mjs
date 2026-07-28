@@ -44,7 +44,6 @@ async function settleViaLoop(GLib, promise) {
       return false; // G_SOURCE_REMOVE
     });
     loop.run();
-    // eslint-disable-next-line no-await-in-loop
     await Promise.resolve(); // drain the deferred `.then` (flips `settled`)
   }
 }

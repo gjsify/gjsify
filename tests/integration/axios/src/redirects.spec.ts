@@ -117,7 +117,6 @@ export default async () => {
                     try {
                         await axios.get(`http://127.0.0.1:${srv.port}/one`, {
                             maxRedirects: 3,
-                            // oxlint-disable-next-line typescript/no-explicit-any -- beforeRedirect is a follow-redirects hook not in axios type defs
                             beforeRedirect: (options: Record<string, unknown>, _responseDetails: unknown) => {
                                 if (options.path === '/foo') {
                                     throw new Error('path not allowed');

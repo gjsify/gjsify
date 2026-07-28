@@ -134,7 +134,6 @@ export const ErrorHandlerTest = async () => {
                 try {
                     const target = new EventTarget();
                     target.addEventListener('strthrow', () => {
-                        // eslint-disable-next-line no-throw-literal
                         throw 'just a string';
                     });
                     target.dispatchEvent(new Event('strthrow'));

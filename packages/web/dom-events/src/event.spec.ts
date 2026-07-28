@@ -14,7 +14,7 @@ export const EventTest = async () => {
         await it('should throw a TypeError if called as a function', async () => {
             expect(() => {
                 // @ts-expect-error
-                Event(''); // eslint-disable-line new-cap
+                Event('');
             }).toThrow();
         });
     });

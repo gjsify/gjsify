@@ -224,11 +224,7 @@ function innerDeepEqual(val1: unknown, val2: unknown, mode: number, memos: Memo 
     } else {
         // Loose mode
         if (val1 === null || typeof val1 !== 'object') {
-            return (
-                (val2 === null || typeof val2 !== 'object') &&
-                // eslint-disable-next-line eqeqeq
-                (val1 == val2 || (val1 !== val1 && val2 !== val2))
-            );
+            return (val2 === null || typeof val2 !== 'object') && (val1 == val2 || (val1 !== val1 && val2 !== val2));
         }
         if (val2 === null || typeof val2 !== 'object') {
             return false;

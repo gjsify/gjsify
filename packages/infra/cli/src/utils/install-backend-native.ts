@@ -706,7 +706,6 @@ function findVisible(
         candidates.push(`${requesterPath}/node_modules/${name}`);
         // Walk up: strip the last `/node_modules/<pkg>` segment and try again.
         let p = requesterPath;
-        // eslint-disable-next-line no-constant-condition
         while (true) {
             // Find the deepest `/node_modules/<pkg>` in `p`, strip it.
             const idx = p.lastIndexOf('/node_modules/');
