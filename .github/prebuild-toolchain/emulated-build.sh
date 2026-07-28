@@ -23,6 +23,37 @@ set -euxo pipefail
 
 : "${ARCH:?ARCH must be set to the prebuild-directory arch token}"
 
+# ONLY BUILD WHAT CHANGED.
+#
+# `PREBUILD_SKIP` is the `changes` job's decision, passed in verbatim as the
+# JSON array it publishes (e.g. `["lightningcss-native","oxfmt-native"]`). Every
+# `build_pkg` below consults it, so one emulated leg builds exactly the packages
+# a native leg does — the decision is made once, in CI, and this script only
+# obeys it.
+#
+# UNSET MEANS BUILD EVERYTHING, on purpose: run this by hand
+# (`podman run --platform linux/ppc64le … bash …/emulated-build.sh`) and you get
+# the full leg, which is what reproducing a CI failure needs. Every way of not
+# knowing therefore ends in a build, never in a skip.
+PREBUILD_SKIP="${PREBUILD_SKIP:-[]}"
+
+# Is <package-dir> in the skip list? Keyed on the directory's basename, the same
+# key `changed-packages.mjs` emits. The quotes are part of the match so
+# `"http2-native"` cannot be found inside `"http2-native-x"`.
+should_build() {
+    local key="${1##*/}"
+    case "$PREBUILD_SKIP" in
+        *"\"${key}\""*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# Does this leg build anything that needs cargo? Only the Rust bridges do, and
+# under emulation the rustup install is a real minute, so it follows them.
+needs_rust() {
+    should_build packages/infra/lightningcss-native
+}
+
 # Detect the package manager: dnf for Fedora (ppc64/s390x), apt for Ubuntu
 # (riscv64 — Fedora publishes no riscv64 image).
 if command -v dnf > /dev/null 2>&1; then
@@ -66,15 +97,23 @@ command -v g-ir-compiler > /dev/null 2>&1 || {
 
 # rustup (lightningcss-native, below). The distro cargo is usually older than
 # the rustc >= 1.85 that indexmap@2.14's edition2024 needs.
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
-    sh -s -- -y --default-toolchain stable --profile minimal
-export PATH="$HOME/.cargo/bin:$PATH"
+if needs_rust; then
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+        sh -s -- -y --default-toolchain stable --profile minimal
+    export PATH="$HOME/.cargo/bin:$PATH"
+else
+    echo "SKIP rustup — no Rust bridge is being built on this leg"
+fi
 
 # Build one meson package and stage the artifacts it names.
 #   build_pkg <package-dir> <artifact> [<artifact> …]
 build_pkg() {
     local dir="$1"
     shift
+    if ! should_build "$dir"; then
+        echo "SKIP ${dir} — unchanged (PREBUILD_SKIP=${PREBUILD_SKIP})"
+        return 0
+    fi
     (
         cd "$dir"
         meson setup build .

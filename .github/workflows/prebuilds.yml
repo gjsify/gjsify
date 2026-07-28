@@ -29,12 +29,22 @@ name: Build Native Prebuilds
 #     with the 8-15 min native legs. The "ppc64 3m00s / s390x 3m13s / riscv64
 #     3m07s" figures once recorded here were not a measurement of emulation:
 #     the legs were building x86-64 on the runner (see `build-prebuilds-qemu`),
-#     so they timed nothing. Under real emulation expect the QEMU legs to
-#     become the critical path — the lightningcss Rust compile alone is the
-#     tens-of-minutes step the job's own notes predict.
-# The `prebuilds-summary` job prints what a given run did NOT cover, derived
-# from each job's own result, so a run that skips a leg never reads like one
-# that did not.
+#     so they timed nothing. The first fully-emulated run (#838, run
+#     30310941686) measured them: ppc64 41m38s, s390x 38m54s, riscv64 96m47s.
+#     They ARE the critical path, and one package is nearly all of it — see
+#     the `changes` job.
+#
+# ONLY WHAT CHANGED IS BUILT. Every leg gates every package on the `changes`
+# job below: a package is built when something it depends on changed, and
+# otherwise its build AND its upload are skipped. The same rule on a pull
+# request, on a push to main and on a dispatch — no event-based special-casing.
+# `commit-prebuilds` gates its downloads on the identical decision, which is
+# what keeps a skipped package's committed prebuild untouched rather than
+# deleted (a missing artifact would otherwise FAIL the download step).
+#
+# The `prebuilds-summary` job prints what a given run did NOT cover — both the
+# legs it skipped and the packages it skipped, with the reason — so a run that
+# builds two of ten packages never reads like a full verification.
 #
 # `pull_request`, NOT `pull_request_target`. `pull_request_target` runs the BASE
 # branch's workflow definition with a read/write token and repository secrets
@@ -76,8 +86,23 @@ on:
       - 'packages/infra/oxfmt-native/meson.build'
       - 'packages/infra/rolldown-native/src/**'
       - 'packages/infra/rolldown-native/meson.build'
+      # The `refs/` submodule PINS the Rust bridges link by Cargo path
+      # dependency. A gitlink change appears in a diff as the submodule path,
+      # so these entries are what let a pin bump — which changes the binary
+      # without touching one byte of the package — start this workflow at all.
+      # Their absence was a silent never-rebuild; the `changes` job's
+      # self-check fails if either list stops covering a linked submodule.
+      - 'refs/oxc'
+      - 'refs/rolldown'
       - '.github/workflows/prebuilds.yml'
       - '.github/prebuild-toolchain/**'
+      # Shared scripts every build runs: staging (which target directory an
+      # artifact lands in), the pin check, the loader-path verifier. A change
+      # to one can change every artifact, so they trigger a run AND rebuild
+      # every package (see the `changes` job's shared-input rule).
+      - 'scripts/stage-prebuild.mjs'
+      - 'scripts/check-refs-pin.mjs'
+      - 'scripts/check-prebuild-loader-path.mjs'
 
   # Repeated VERBATIM from `push` above — GitHub Actions supports no YAML
   # anchors, and the two lists MUST stay identical: a path that can change a
@@ -107,8 +132,13 @@ on:
       - 'packages/infra/oxfmt-native/meson.build'
       - 'packages/infra/rolldown-native/src/**'
       - 'packages/infra/rolldown-native/meson.build'
+      - 'refs/oxc'
+      - 'refs/rolldown'
       - '.github/workflows/prebuilds.yml'
       - '.github/prebuild-toolchain/**'
+      - 'scripts/stage-prebuild.mjs'
+      - 'scripts/check-refs-pin.mjs'
+      - 'scripts/check-prebuild-loader-path.mjs'
 
 # Least privilege at the workflow level; each job adds only what it needs. This
 # is what keeps the new PR trigger from ever handing a write-capable token to a
@@ -128,6 +158,123 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # ----------------------------------------------------------------
+  # Which packages does this change set actually affect?
+  #
+  # Decided ONCE, here, and consumed by every leg and by `commit-prebuilds`, so
+  # a build and the commit that ships it can never disagree about what was
+  # produced. The rule is uniform across events — pull request, push to main,
+  # dispatch: a package is built when something it depends on changed.
+  #
+  # WHY NOT `gjsify affected` (packages/infra/cli/dist/affected.gjs.mjs), the
+  # classifier `main.yml` already runs. It was the first thing checked, and it
+  # does not fit — for two independent reasons, either of which alone is fatal:
+  #
+  #   • It cannot see a submodule pin. `refs/**` is the FIRST entry of its
+  #     IGNORE table (dropped before every other rule), and it ignores every
+  #     workflow file except `main.yml` — including this one. Both of those are
+  #     inputs to a prebuild, so the one classifier we have is structurally
+  #     blind to two of the three things this gate exists to notice.
+  #   • Its graph is the wrong graph. It walks the npm workspace's
+  #     production-dependency edges to answer "whose TESTS must re-run". A
+  #     native prebuild's inputs are Vala/C/Rust sources, `meson.build` and a
+  #     pinned submodule — none of which that graph models. It would be wrong
+  #     in both directions: an edit to a package `@gjsify/lightningcss-native`
+  #     depends on would put it in the closure and rebuild a 32-minute cdylib
+  #     whose sources did not change, while a `refs/rolldown` bump would leave
+  #     `@gjsify/rolldown-native` out of it entirely.
+  #
+  # So this uses path matching — but it does not hand-write a second copy of
+  # the path table: `changed-packages.mjs` DERIVES the package set from this
+  # workflow's own `path: packages/…/prebuilds/…` steps and each package's
+  # source globs from this workflow's own `on: paths:` filter, then adds the
+  # `refs/` submodules from `gjsify.refsLockstep` + the package's Cargo path
+  # dependencies. It fails loudly if the gate and the trigger ever disagree.
+  # Full rationale, and what it deliberately cannot see, in that file's header.
+  # ----------------------------------------------------------------
+  changes:
+    name: Detect affected prebuild packages
+    runs-on: ubuntu-latest
+    outputs:
+      # A JSON array of the package keys NOT to build, e.g. `["oxfmt-native"]`.
+      #
+      # SKIP, not build, and matched with `contains()` on the raw string rather
+      # than `fromJSON(...)`, because the failure mode has to be BUILD. An
+      # unset output (job failed, output renamed, key missing) is the empty
+      # string; `contains('', '"webgl"')` is false, so `!contains(...)` is true
+      # and the package builds. The inverse — gating on a build list — would
+      # turn every one of those into a silent skip, which is the one outcome
+      # worse than the problem being solved. The keys are quoted inside the
+      # JSON, so `'"http2-native"'` cannot match `"http2-native-x"`.
+      skip: ${{ steps.detect.outputs.skip }}
+      build: ${{ steps.detect.outputs.build }}
+      reason: ${{ steps.detect.outputs.reason }}
+      report: ${{ steps.detect.outputs.report }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # The diff base has to be a commit this checkout actually has.
+          fetch-depth: 0
+
+      - name: Resolve diff base
+        id: base
+        env:
+          # Via `env:`, never interpolated into the script body — these are
+          # event-controlled values.
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            pull_request) base="$PR_BASE" ;;
+            push)         base="$PUSH_BEFORE" ;;
+            # A dispatch has no "previous state" to diff against, so it builds
+            # everything — which also makes it the documented escape hatch for
+            # rebuilding a package whose floating crates.io dependencies moved
+            # without anything in this repository changing.
+            *)            base="" ;;
+          esac
+          # An all-zero SHA is what a branch's first push reports, and a
+          # force-push can leave a base this checkout does not contain.
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            base=""
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Classify
+        id: detect
+        env:
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          set -uo pipefail
+          if [ -n "$BASE" ]; then
+            set -- --base "$BASE" --head "$GITHUB_SHA"
+          else
+            set -- --all
+          fi
+          if ! node .github/prebuild-toolchain/changed-packages.mjs "$@" --format=github-actions; then
+            # FAIL OPEN, loudly. A classifier that cannot decide must not be
+            # able to skip anything — the cost of being wrong here is a stale
+            # committed binary, not a slow run.
+            echo "::warning::changed-packages.mjs failed — building every package."
+            {
+              echo 'skip=[]'
+              echo 'build=[]'
+              echo 'reason=classifier failed; building everything'
+              echo 'report=[]'
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restate the decision in the job log
+        env:
+          REASON: ${{ steps.detect.outputs.reason }}
+          SKIP: ${{ steps.detect.outputs.skip }}
+        run: |
+          echo "reason: $REASON"
+          echo "skipped: $SKIP"
+
   # ----------------------------------------------------------------
   # Native runners — x64 and arm64
   #
@@ -156,6 +303,7 @@ jobs:
   # ----------------------------------------------------------------
   build-prebuilds:
     name: Build prebuilds (${{ matrix.arch }})
+    needs: [changes]
     runs-on: ${{ matrix.runner }}
     container:
       image: fedora:43
@@ -195,6 +343,13 @@ jobs:
           json-glib-devel
 
       - name: Install Rust toolchain (rustup, stable)
+        # Only the three Rust bridges need it, so it follows the same gate they
+        # do: a run that rebuilds only Vala bridges pays nothing for a toolchain
+        # nothing will invoke.
+        if: >-
+          ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"')
+          || !contains(needs.changes.outputs.skip, '"oxfmt-native"')
+          || !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         # Fedora 43's `dnf install cargo` ships rustc ~1.79 — too old for
         # the lightningcss/rolldown crate trees that pull `indexmap@2.14`
         # which requires `edition2024` (rustc ≥ 1.85). Install rustup
@@ -208,12 +363,14 @@ jobs:
 
       # -------- @gjsify/webgl (gwebgl) --------
       - name: Build @gjsify/webgl Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/webgl prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
         env:
           ARCH: ${{ matrix.arch }}
@@ -224,6 +381,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/webgl prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/upload-artifact@v7
         with:
           name: webgl-prebuilds-linux-${{ matrix.arch }}
@@ -232,12 +390,14 @@ jobs:
 
       # -------- @gjsify/webrtc-native (GjsifyWebrtc) --------
       - name: Build @gjsify/webrtc-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         working-directory: packages/web/webrtc-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/webrtc-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         working-directory: packages/web/webrtc-native
         env:
           ARCH: ${{ matrix.arch }}
@@ -248,6 +408,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/webrtc-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: webrtc-native-prebuilds-linux-${{ matrix.arch }}
@@ -256,12 +417,14 @@ jobs:
 
       # -------- @gjsify/http-soup-bridge (GjsifyHttpSoupBridge) --------
       - name: Build @gjsify/http-soup-bridge Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         working-directory: packages/node/http-soup-bridge
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/http-soup-bridge prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         working-directory: packages/node/http-soup-bridge
         env:
           ARCH: ${{ matrix.arch }}
@@ -272,6 +435,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/http-soup-bridge prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/upload-artifact@v7
         with:
           name: http-soup-bridge-prebuilds-linux-${{ matrix.arch }}
@@ -280,12 +444,14 @@ jobs:
 
       # -------- @gjsify/http2-native (GjsifyHttp2) --------
       - name: Build @gjsify/http2-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         working-directory: packages/node/http2-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/http2-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         working-directory: packages/node/http2-native
         env:
           ARCH: ${{ matrix.arch }}
@@ -296,6 +462,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/http2-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: http2-native-prebuilds-linux-${{ matrix.arch }}
@@ -307,12 +474,14 @@ jobs:
       # external libraries. Backs cross-process SharedBuffer for
       # @gjsify/worker_threads.
       - name: Build @gjsify/sab-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         working-directory: packages/node/sab-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/sab-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         working-directory: packages/node/sab-native
         env:
           ARCH: ${{ matrix.arch }}
@@ -323,6 +492,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/sab-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: sab-native-prebuilds-linux-${{ matrix.arch }}
@@ -335,12 +505,14 @@ jobs:
       # gnutls-devel provides the .pc + headers; the sibling vapi
       # (`src/vala/gnutls-ocsp.vapi`) wires the missing declarations.
       - name: Build @gjsify/tls-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         working-directory: packages/node/tls-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/tls-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         working-directory: packages/node/tls-native
         env:
           ARCH: ${{ matrix.arch }}
@@ -351,6 +523,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/tls-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: tls-native-prebuilds-linux-${{ matrix.arch }}
@@ -364,12 +537,14 @@ jobs:
       # entirely: its prebuilds/ held a hand-built x64-only drop and nothing
       # else, so arm64 (and every QEMU arch) silently had no native TTY support.
       - name: Build @gjsify/terminal-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         working-directory: packages/node/terminal-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/terminal-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         working-directory: packages/node/terminal-native
         env:
           ARCH: ${{ matrix.arch }}
@@ -380,6 +555,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/terminal-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: terminal-native-prebuilds-linux-${{ matrix.arch }}
@@ -392,12 +568,14 @@ jobs:
       # graph (~7 min cold on a fresh runner), then meson links the Vala
       # bridge against the resulting cdylib.
       - name: Build @gjsify/lightningcss-native (Rust cdylib + Vala bridge)
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         working-directory: packages/infra/lightningcss-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/lightningcss-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         working-directory: packages/infra/lightningcss-native
         env:
           ARCH: ${{ matrix.arch }}
@@ -408,6 +586,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/lightningcss-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: lightningcss-native-prebuilds-linux-${{ matrix.arch }}
@@ -422,17 +601,20 @@ jobs:
       # the oxfmt_v* tag matching the workspace's npm `oxfmt`), because oxc's
       # formatter crates are not consumable from crates.io.
       - name: Init refs/oxc submodule (oxfmt-native source dep)
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git submodule update --init --recursive refs/oxc
 
       - name: Build @gjsify/oxfmt-native (Rust cdylib + Vala bridge)
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         working-directory: packages/infra/oxfmt-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/oxfmt-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         working-directory: packages/infra/oxfmt-native
         env:
           ARCH: ${{ matrix.arch }}
@@ -443,6 +625,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/oxfmt-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: oxfmt-native-prebuilds-linux-${{ matrix.arch }}
@@ -456,6 +639,8 @@ jobs:
       # cold cargo build is ~5 min CPU on x86_64. Submodule init alone
       # downloads several hundred MB.
       - name: Init refs/rolldown submodule (rolldown-native source dep)
+        # Several hundred MB of clone, so it is gated like the build it feeds.
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         # GitHub-Actions Fedora containers run as root while the
         # repo is bind-mounted as a different uid → git refuses with
         # "dubious ownership" unless the dir is whitelisted. Mirror
@@ -466,12 +651,14 @@ jobs:
           git submodule update --init --recursive refs/rolldown
 
       - name: Build @gjsify/rolldown-native (Rust cdylib + Vala bridge)
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         working-directory: packages/infra/rolldown-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/rolldown-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         working-directory: packages/infra/rolldown-native
         env:
           ARCH: ${{ matrix.arch }}
@@ -482,6 +669,7 @@ jobs:
           ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/rolldown-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: rolldown-native-prebuilds-linux-${{ matrix.arch }}
@@ -521,6 +709,7 @@ jobs:
   # the part the architecture actually changes, and it is the cheap part.
   build-prebuilds-qemu:
     name: Build prebuilds (${{ matrix.arch }}) [QEMU]
+    needs: [changes]
     runs-on: ubuntu-latest
     # No `packages: write` — nothing here pushes to GHCR any more. The image
     # cache the removed action kept there was also the reason all three legs
@@ -582,16 +771,30 @@ jobs:
       # THIS file via the per-package upload steps below — that is what
       # `audit-runtimes`' `parseCiPlatforms()` reads to learn which targets
       # this job produces, and it must keep seeing them here.
+      #
+      # GATING inside one step, not around it: the emulated build is a SINGLE
+      # step covering every package, so the per-package decision has to travel
+      # INTO the container. `PREBUILD_SKIP` carries the `changes` job's JSON
+      # array verbatim and `emulated-build.sh` filters `build_pkg` against it —
+      # including the dependency install, whose Rust half is only fetched when
+      # a Rust bridge is actually in the list.
+      #
+      # The step still runs when everything is skipped. That is deliberate: the
+      # ~20 s it costs buys back the invariant that `commit-prebuilds` depends
+      # on this JOB succeeding, and a job that skipped itself would take the
+      # commit down with it (see the `needs` comment there).
       - name: Build all prebuilds on ${{ matrix.arch }} via QEMU
         env:
           ARCH: ${{ matrix.arch }}
           PLATFORM: ${{ matrix.platform }}
           BASE_IMAGE: ${{ matrix.base_image }}
+          PREBUILD_SKIP: ${{ needs.changes.outputs.skip }}
         run: |
           set -euo pipefail
           docker run --rm --platform "$PLATFORM" \
             -v "$PWD:/workspace" -w /workspace \
             -e ARCH="$ARCH" \
+            -e PREBUILD_SKIP="$PREBUILD_SKIP" \
             "$BASE_IMAGE" \
             bash .github/prebuild-toolchain/emulated-build.sh
 
@@ -603,6 +806,7 @@ jobs:
         run: sudo chown -R "$(id -u):$(id -g)" packages || true
 
       - name: Upload @gjsify/webgl prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/upload-artifact@v7
         with:
           name: webgl-prebuilds-linux-${{ matrix.arch }}
@@ -610,6 +814,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/webrtc-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: webrtc-native-prebuilds-linux-${{ matrix.arch }}
@@ -617,6 +822,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/http-soup-bridge prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/upload-artifact@v7
         with:
           name: http-soup-bridge-prebuilds-linux-${{ matrix.arch }}
@@ -624,6 +830,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/http2-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: http2-native-prebuilds-linux-${{ matrix.arch }}
@@ -631,6 +838,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/sab-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: sab-native-prebuilds-linux-${{ matrix.arch }}
@@ -638,6 +846,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/tls-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: tls-native-prebuilds-linux-${{ matrix.arch }}
@@ -645,6 +854,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/lightningcss-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: lightningcss-native-prebuilds-linux-${{ matrix.arch }}
@@ -652,6 +862,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/terminal-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: terminal-native-prebuilds-linux-${{ matrix.arch }}
@@ -719,6 +930,7 @@ jobs:
     # leaf). The `prebuilds-summary` job names this leg as NOT covered on every
     # run that skips it, so a green PR cannot read as full coverage.
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci:macos')
+    needs: [changes]
     runs-on: macos-latest
     timeout-minutes: 90
     env:
@@ -726,6 +938,14 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
       # process.platform-process.arch for an Apple-silicon runner.
       PREBUILD: darwin-arm64
+      # The `changes` job's decision, for the VERIFY steps below. They walk a
+      # list of package directories rather than a single `working-directory`,
+      # so they cannot carry a step-level `if:` — each one filters its own list
+      # instead. Filtering is not cosmetic: the committed `prebuilds/darwin-arm64/`
+      # of a skipped package is present in the checkout, so an unfiltered loop
+      # would happily load-test a binary this run did not build and report it as
+      # this run's coverage.
+      PREBUILD_SKIP: ${{ needs.changes.outputs.skip }}
 
     steps:
       - name: Install GI toolchain + per-bridge libraries (Homebrew)
@@ -754,6 +974,9 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Ensure a current Rust toolchain
+        if: >-
+          ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"')
+          || !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         # lightningcss-native / oxfmt-native need rustc >= 1.85 (edition2024 in
         # the transitive graph). macOS runners preinstall rustup, so re-running
         # rustup-init would fail; install/refresh the stable toolchain instead
@@ -783,12 +1006,14 @@ jobs:
       # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
       # Pure crates.io deps (no submodule) — the easiest Rust bridge to port.
       - name: Build @gjsify/lightningcss-native (Rust cdylib + Vala bridge)
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         working-directory: packages/infra/lightningcss-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/lightningcss-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         working-directory: packages/infra/lightningcss-native
         run: |
           mkdir -p "prebuilds/${PREBUILD}"
@@ -798,15 +1023,18 @@ jobs:
 
       # -------- @gjsify/oxfmt-native (GjsifyOxfmt) --------
       - name: Init refs/oxc submodule (oxfmt-native source dep)
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         run: git submodule update --init --recursive refs/oxc
 
       - name: Build @gjsify/oxfmt-native (Rust cdylib + Vala bridge)
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         working-directory: packages/infra/oxfmt-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/oxfmt-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         working-directory: packages/infra/oxfmt-native
         run: |
           mkdir -p "prebuilds/${PREBUILD}"
@@ -819,12 +1047,14 @@ jobs:
       # (`Linux.winsize` / `Linux.Termios.TIOCGWINSZ`), now replaced by the
       # portable sibling src/vala/terminal-compat.vapi.
       - name: Build @gjsify/terminal-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         working-directory: packages/node/terminal-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/terminal-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         working-directory: packages/node/terminal-native
         run: |
           mkdir -p "prebuilds/${PREBUILD}"
@@ -838,12 +1068,14 @@ jobs:
       # degrades to the documented undefined/false/no-op contract — so a macOS
       # prebuild is still correct, it just may expose Phase 1 (OCSP) only.
       - name: Build @gjsify/tls-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         working-directory: packages/node/tls-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/tls-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         working-directory: packages/node/tls-native
         run: |
           mkdir -p "prebuilds/${PREBUILD}"
@@ -852,12 +1084,14 @@ jobs:
 
       # -------- @gjsify/http-soup-bridge (GjsifyHttpSoupBridge) --------
       - name: Build @gjsify/http-soup-bridge Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         working-directory: packages/node/http-soup-bridge
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/http-soup-bridge prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         working-directory: packages/node/http-soup-bridge
         run: |
           mkdir -p "prebuilds/${PREBUILD}"
@@ -867,12 +1101,14 @@ jobs:
 
       # -------- @gjsify/http2-native (GjsifyHttp2) --------
       - name: Build @gjsify/http2-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         working-directory: packages/node/http2-native
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/http2-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         working-directory: packages/node/http2-native
         run: |
           mkdir -p "prebuilds/${PREBUILD}"
@@ -886,25 +1122,34 @@ jobs:
       - name: Verify every typelib records a .dylib leaf
         run: |
           set -euo pipefail
+          # Shared by every verify step in this job: did THIS run build it?
+          # Keyed on the directory basename, the key `changed-packages.mjs`
+          # emits, quoted so `"http2-native"` cannot match `"http2-native-x"`.
+          # An unset/empty PREBUILD_SKIP verifies everything, which is the same
+          # fail-open direction the `if:` gates take.
+          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
           # `rc`, not `status`: `status` is a read-only special variable in zsh,
           # so the same snippet stays copy-pasteable outside the bash CI shell.
           rc=0
-          for gir in \
-            packages/infra/lightningcss-native/prebuilds/${PREBUILD}/*.gir \
-            packages/infra/oxfmt-native/prebuilds/${PREBUILD}/*.gir \
-            packages/node/terminal-native/prebuilds/${PREBUILD}/*.gir \
-            packages/node/tls-native/prebuilds/${PREBUILD}/*.gir \
-            packages/node/http-soup-bridge/prebuilds/${PREBUILD}/*.gir \
-            packages/node/http2-native/prebuilds/${PREBUILD}/*.gir
+          for dir in \
+            packages/infra/lightningcss-native \
+            packages/infra/oxfmt-native \
+            packages/node/terminal-native \
+            packages/node/tls-native \
+            packages/node/http-soup-bridge \
+            packages/node/http2-native
           do
-            # -m1 rather than `| head -1`: under `set -o pipefail` a closed pipe
-            # would surface as a spurious failure of the grep itself.
-            leaf="$(grep -m1 -o 'shared-library="[^"]*"' "$gir")"
-            echo "$gir -> $leaf"
-            case "$leaf" in
-              *.dylib\") ;;
-              *) echo "::error file=$gir::expected a .dylib shared-library leaf, got: $leaf"; rc=1 ;;
-            esac
+            built "$dir" || { echo "--- $dir: not built by this run, not verified"; continue; }
+            for gir in "$dir/prebuilds/${PREBUILD}"/*.gir; do
+              # -m1 rather than `| head -1`: under `set -o pipefail` a closed pipe
+              # would surface as a spurious failure of the grep itself.
+              leaf="$(grep -m1 -o 'shared-library="[^"]*"' "$gir")"
+              echo "$gir -> $leaf"
+              case "$leaf" in
+                *.dylib\") ;;
+                *) echo "::error file=$gir::expected a .dylib shared-library leaf, got: $leaf"; rc=1 ;;
+              esac
+            done
           done
           exit $rc
 
@@ -920,13 +1165,23 @@ jobs:
       - name: Verify every prebuild resolves its own siblings
         run: |
           set -euo pipefail
-          node scripts/check-prebuild-loader-path.mjs \
-            "packages/infra/lightningcss-native/prebuilds/${PREBUILD}" \
-            "packages/infra/oxfmt-native/prebuilds/${PREBUILD}" \
-            "packages/node/terminal-native/prebuilds/${PREBUILD}" \
-            "packages/node/tls-native/prebuilds/${PREBUILD}" \
-            "packages/node/http-soup-bridge/prebuilds/${PREBUILD}" \
-            "packages/node/http2-native/prebuilds/${PREBUILD}"
+          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
+          dirs=()
+          for dir in \
+            packages/infra/lightningcss-native \
+            packages/infra/oxfmt-native \
+            packages/node/terminal-native \
+            packages/node/tls-native \
+            packages/node/http-soup-bridge \
+            packages/node/http2-native
+          do
+            built "$dir" && dirs+=("$dir/prebuilds/${PREBUILD}")
+          done
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "no bridge was rebuilt on this run — nothing to verify"
+            exit 0
+          fi
+          node scripts/check-prebuild-loader-path.mjs "${dirs[@]}"
 
       # THE gate this job was missing. Until now it built six darwin-arm64
       # bridges, copied them, and uploaded them for `commit-prebuilds` to commit
@@ -943,9 +1198,11 @@ jobs:
         run: |
           set -euo pipefail
           brew install gjs
+          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
           rc=0
           while IFS='|' read -r dir ns sym; do
             [ -n "$dir" ] || continue
+            built "$dir" || { echo "--- ${ns}: not built by this run, not load-tested"; continue; }
             abs="$PWD/${dir}/prebuilds/${PREBUILD}"
             echo "--- ${ns}.${sym} from ${abs}"
             # GI_TYPELIB_PATH locates the typelib; DYLD_LIBRARY_PATH is what lets
@@ -986,11 +1243,14 @@ jobs:
       - name: Prove the sibling cdylib resolves with no environment variable
         run: |
           set -euo pipefail
+          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
           rc=0
           for lib in \
             "packages/infra/lightningcss-native/prebuilds/${PREBUILD}/libgjsifylightningcss.dylib" \
             "packages/infra/oxfmt-native/prebuilds/${PREBUILD}/libgjsifyoxfmt.dylib"
           do
+            pkg="${lib%%/prebuilds/*}"
+            built "$pkg" || { echo "--- $pkg: not built by this run, not dlopened"; continue; }
             echo "--- dlopen $lib with no DYLD_* set"
             if env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH /usr/bin/python3 -c \
                  'import ctypes, sys; ctypes.CDLL(sys.argv[1]); print("loaded", sys.argv[1])' "$PWD/$lib"
@@ -1002,6 +1262,7 @@ jobs:
           exit $rc
 
       - name: Upload @gjsify/lightningcss-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: lightningcss-native-prebuilds-darwin-arm64
@@ -1010,6 +1271,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/oxfmt-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: oxfmt-native-prebuilds-darwin-arm64
@@ -1018,6 +1280,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/terminal-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: terminal-native-prebuilds-darwin-arm64
@@ -1026,6 +1289,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/tls-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: tls-native-prebuilds-darwin-arm64
@@ -1034,6 +1298,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/http-soup-bridge prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/upload-artifact@v7
         with:
           name: http-soup-bridge-prebuilds-darwin-arm64
@@ -1042,6 +1307,7 @@ jobs:
           retention-days: 30
 
       - name: Upload @gjsify/http2-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/upload-artifact@v7
         with:
           name: http2-native-prebuilds-darwin-arm64
@@ -1071,6 +1337,7 @@ jobs:
   # ----------------------------------------------------------------
   build-prebuilds-macos-experimental:
     name: Build prebuilds (darwin-arm64) [experimental — rolldown + webgl + webrtc]
+    needs: [changes]
     runs-on: macos-latest
     if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 60
@@ -1117,6 +1384,7 @@ jobs:
         run: git submodule update --init --depth 1 refs/rolldown
 
       - name: Build @gjsify/rolldown-native (Rust cdylib + Vala GI bridge)
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         working-directory: packages/infra/rolldown-native
         run: |
           set -euo pipefail
@@ -1137,6 +1405,7 @@ jobs:
         run: node scripts/check-prebuild-loader-path.mjs "packages/infra/rolldown-native/prebuilds/${PREBUILD}"
 
       - name: Load-test the rolldown typelib under Homebrew gjs
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         # A prebuild that builds but does not LOAD is the failure mode this whole
         # platform axis exists to catch (a typelib recording the wrong shared-library
         # leaf is found via GI_TYPELIB_PATH and then silently never loads).
@@ -1149,6 +1418,7 @@ jobs:
             gjs -c 'const { Bundler } = imports.gi.GjsifyRolldown; if (!Bundler) { throw new Error("GjsifyRolldown.Bundler missing"); } print("rolldown typelib loaded OK");'
 
       - name: Prove rolldown's sibling cdylib resolves with no environment variable
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         # DYLD_LIBRARY_PATH above only has to find the leaf the typelib names.
         # The Vala→Rust hop must need nothing at all: dlopen by absolute path
         # with the loader variables unset leaves @loader_path as the only way the
@@ -1161,6 +1431,7 @@ jobs:
             "$PWD/prebuilds/${PREBUILD}/libgjsifyrolldown.dylib"
 
       - name: Build @gjsify/webgl Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
         run: |
           meson setup build .
@@ -1170,6 +1441,7 @@ jobs:
           ls -lh "prebuilds/${PREBUILD}/"
 
       - name: Build @gjsify/webrtc-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         working-directory: packages/web/webrtc-native
         run: |
           meson setup build .
@@ -1200,12 +1472,53 @@ jobs:
   # And it is the only job that widens the token past the workflow-level
   # `contents: read`, so even a mistake in all of the above would not hand write
   # access to a job that builds PR head code.
+  #
+  # A SKIPPED PACKAGE HAS NO ARTIFACT, and this job is the place that fact can
+  # do damage, so it is handled explicitly rather than hoped about.
+  #
+  #   What `actions/download-artifact` does with a name that does not exist:
+  #   it FAILS. `src/download-artifact.ts` throws `Artifact '<name>' not found`,
+  #   which reaches the top-level catch and `core.setFailed`s the step. There is
+  #   no `if-no-artifact-found` input — the download action has no counterpart
+  #   to upload's `if-no-files-found`. So an ungated download of a skipped
+  #   package would red this job on every run that built less than everything.
+  #   That failure is at least SAFE (a failed job commits nothing), but it would
+  #   also block every package that DID rebuild, so each download carries the
+  #   same `if:` its build did.
+  #
+  #   What that leaves on disk: nothing was downloaded for the skipped package,
+  #   so its `prebuilds/` directory is exactly what `actions/checkout` wrote —
+  #   the committed bytes. `git add` on an unchanged tree stages nothing, the
+  #   existing `git diff --cached --quiet` short-circuit sees no change, and the
+  #   committed prebuild is left untouched. Not deleted, not emptied.
+  #
+  #   Why there is a guard anyway: `git add <dir>` has staged DELETIONS since
+  #   git 2.0, so anything that removed a file under `prebuilds/` — a download
+  #   action that starts clearing its destination, a `path:` typo landing an
+  #   artifact somewhere else, a future clean step — would be committed as a
+  #   deletion and silently unship a binary. `Refuse to delete a committed
+  #   prebuild` below asserts that no staged change under a `prebuilds/`
+  #   directory is a deletion, and fails the job if one is. (An empty directory
+  #   cannot be committed at all: git does not track directories, so "never
+  #   commit an empty directory" is free — the reachable failure is the
+  #   deletion, and that is what is checked.)
   # ----------------------------------------------------------------
   commit-prebuilds:
     name: Commit prebuilds to repo
     # build-prebuilds-macos-experimental is deliberately absent: it is
     # workflow_dispatch-only, and a skipped job in `needs` would skip this one too.
-    needs: [build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos]
+    #
+    # `changes` is here because every download step below is gated on ITS
+    # decision — the same decision the build legs used. Deciding once and
+    # reading it in both places is what makes "a package was not built" and "no
+    # artifact is downloaded for it" the same fact rather than two guesses.
+    #
+    # NOTE the corollary for the gates above: no build leg may be skipped as a
+    # WHOLE job, only step by step. A skipped job in `needs` skips this one
+    # (there is no `always()` here — deliberately; see gate 3 in the comment
+    # above), so a leg that skipped itself because it had nothing to build
+    # would silently suppress committing everything the OTHER legs produced.
+    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
@@ -1217,30 +1530,35 @@ jobs:
 
       # -------- @gjsify/webgl --------
       - name: Download webgl x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-x64
           path: packages/framework/webgl/prebuilds/linux-x64/
 
       - name: Download webgl arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-arm64
           path: packages/framework/webgl/prebuilds/linux-arm64/
 
       - name: Download webgl ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-ppc64
           path: packages/framework/webgl/prebuilds/linux-ppc64/
 
       - name: Download webgl s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-s390x
           path: packages/framework/webgl/prebuilds/linux-s390x/
 
       - name: Download webgl riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-riscv64
@@ -1248,30 +1566,35 @@ jobs:
 
       # -------- @gjsify/webrtc-native --------
       - name: Download webrtc-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-x64
           path: packages/web/webrtc-native/prebuilds/linux-x64/
 
       - name: Download webrtc-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-arm64
           path: packages/web/webrtc-native/prebuilds/linux-arm64/
 
       - name: Download webrtc-native ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-ppc64
           path: packages/web/webrtc-native/prebuilds/linux-ppc64/
 
       - name: Download webrtc-native s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-s390x
           path: packages/web/webrtc-native/prebuilds/linux-s390x/
 
       - name: Download webrtc-native riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-riscv64
@@ -1279,30 +1602,35 @@ jobs:
 
       # -------- @gjsify/http-soup-bridge --------
       - name: Download http-soup-bridge x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-x64
           path: packages/node/http-soup-bridge/prebuilds/linux-x64/
 
       - name: Download http-soup-bridge arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-arm64
           path: packages/node/http-soup-bridge/prebuilds/linux-arm64/
 
       - name: Download http-soup-bridge ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-ppc64
           path: packages/node/http-soup-bridge/prebuilds/linux-ppc64/
 
       - name: Download http-soup-bridge s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-s390x
           path: packages/node/http-soup-bridge/prebuilds/linux-s390x/
 
       - name: Download http-soup-bridge riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-riscv64
@@ -1310,30 +1638,35 @@ jobs:
 
       # -------- @gjsify/http2-native --------
       - name: Download http2-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-x64
           path: packages/node/http2-native/prebuilds/linux-x64/
 
       - name: Download http2-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-arm64
           path: packages/node/http2-native/prebuilds/linux-arm64/
 
       - name: Download http2-native ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-ppc64
           path: packages/node/http2-native/prebuilds/linux-ppc64/
 
       - name: Download http2-native s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-s390x
           path: packages/node/http2-native/prebuilds/linux-s390x/
 
       - name: Download http2-native riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-riscv64
@@ -1341,30 +1674,35 @@ jobs:
 
       # -------- @gjsify/sab-native --------
       - name: Download sab-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-x64
           path: packages/node/sab-native/prebuilds/linux-x64/
 
       - name: Download sab-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-arm64
           path: packages/node/sab-native/prebuilds/linux-arm64/
 
       - name: Download sab-native ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-ppc64
           path: packages/node/sab-native/prebuilds/linux-ppc64/
 
       - name: Download sab-native s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-s390x
           path: packages/node/sab-native/prebuilds/linux-s390x/
 
       - name: Download sab-native riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-riscv64
@@ -1372,30 +1710,35 @@ jobs:
 
       # -------- @gjsify/tls-native --------
       - name: Download tls-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-x64
           path: packages/node/tls-native/prebuilds/linux-x64/
 
       - name: Download tls-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-arm64
           path: packages/node/tls-native/prebuilds/linux-arm64/
 
       - name: Download tls-native ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-ppc64
           path: packages/node/tls-native/prebuilds/linux-ppc64/
 
       - name: Download tls-native s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-s390x
           path: packages/node/tls-native/prebuilds/linux-s390x/
 
       - name: Download tls-native riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-riscv64
@@ -1403,30 +1746,35 @@ jobs:
 
       # -------- @gjsify/lightningcss-native --------
       - name: Download lightningcss-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-x64
           path: packages/infra/lightningcss-native/prebuilds/linux-x64/
 
       - name: Download lightningcss-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-arm64
           path: packages/infra/lightningcss-native/prebuilds/linux-arm64/
 
       - name: Download lightningcss-native ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-ppc64
           path: packages/infra/lightningcss-native/prebuilds/linux-ppc64/
 
       - name: Download lightningcss-native s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-s390x
           path: packages/infra/lightningcss-native/prebuilds/linux-s390x/
 
       - name: Download lightningcss-native riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-riscv64
@@ -1434,30 +1782,35 @@ jobs:
 
       # -------- @gjsify/terminal-native --------
       - name: Download terminal-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-x64
           path: packages/node/terminal-native/prebuilds/linux-x64/
 
       - name: Download terminal-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-arm64
           path: packages/node/terminal-native/prebuilds/linux-arm64/
 
       - name: Download terminal-native ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-ppc64
           path: packages/node/terminal-native/prebuilds/linux-ppc64/
 
       - name: Download terminal-native s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-s390x
           path: packages/node/terminal-native/prebuilds/linux-s390x/
 
       - name: Download terminal-native riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-riscv64
@@ -1465,12 +1818,14 @@ jobs:
 
       # -------- @gjsify/oxfmt-native (native runners only) --------
       - name: Download oxfmt-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: oxfmt-native-prebuilds-linux-x64
           path: packages/infra/oxfmt-native/prebuilds/linux-x64/
 
       - name: Download oxfmt-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: oxfmt-native-prebuilds-linux-arm64
@@ -1478,12 +1833,14 @@ jobs:
 
       # -------- @gjsify/rolldown-native (native runners only) --------
       - name: Download rolldown-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: rolldown-native-prebuilds-linux-x64
           path: packages/infra/rolldown-native/prebuilds/linux-x64/
 
       - name: Download rolldown-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: rolldown-native-prebuilds-linux-arm64
@@ -1493,43 +1850,50 @@ jobs:
       # rolldown-native, sab-native, webgl and webrtc-native have no darwin
       # artifact — see the rationale in build-prebuilds-macos above.
       - name: Download lightningcss-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-darwin-arm64
           path: packages/infra/lightningcss-native/prebuilds/darwin-arm64/
 
       - name: Download oxfmt-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: oxfmt-native-prebuilds-darwin-arm64
           path: packages/infra/oxfmt-native/prebuilds/darwin-arm64/
 
       - name: Download terminal-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-darwin-arm64
           path: packages/node/terminal-native/prebuilds/darwin-arm64/
 
       - name: Download tls-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-darwin-arm64
           path: packages/node/tls-native/prebuilds/darwin-arm64/
 
       - name: Download http-soup-bridge darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-darwin-arm64
           path: packages/node/http-soup-bridge/prebuilds/darwin-arm64/
 
       - name: Download http2-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-darwin-arm64
           path: packages/node/http2-native/prebuilds/darwin-arm64/
 
-      - name: Commit prebuilds
+      - name: Stage prebuilds
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add \
@@ -1543,6 +1907,30 @@ jobs:
             packages/infra/lightningcss-native/prebuilds/ \
             packages/infra/oxfmt-native/prebuilds/ \
             packages/infra/rolldown-native/prebuilds/
+          git diff --cached --stat | cat
+
+      # THE guard. A package this run skipped contributed no artifact, so its
+      # committed prebuild must come through untouched — and "untouched" has to
+      # be asserted, not assumed, because the one way this job can destroy a
+      # binary is by staging its REMOVAL (`git add <dir>` stages deletions).
+      # Nothing here should ever delete a prebuild: this job only downloads
+      # into those directories. If something did, that is a bug whose symptom
+      # is a silently unshipped binary — the exact class of failure the OS axis
+      # exists to prevent — so it stops the run instead.
+      - name: Refuse to delete a committed prebuild
+        run: |
+          set -euo pipefail
+          deleted="$(git diff --cached --diff-filter=D --name-only -- '*prebuilds/*')"
+          if [ -n "$deleted" ]; then
+            echo "::error::this run would DELETE committed prebuild file(s); refusing to commit:"
+            printf '::error::  %s\n' $deleted
+            exit 1
+          fi
+          echo "no committed prebuild would be deleted."
+
+      - name: Commit prebuilds
+        run: |
+          set -euo pipefail
           if git diff --cached --quiet; then
             echo "No prebuild changes to commit."
           else
@@ -1561,11 +1949,18 @@ jobs:
   # and there is deliberately no hand-maintained "what we skip" list, which is
   # the artefact that drifts and then lies (main.yml's `ci-summary` rule).
   #
+  # Since the legs became per-package, "which legs ran" is no longer the whole
+  # answer: a run can have every leg green and still have compiled two of ten
+  # packages. So the PACKAGE table is printed too, straight from the `changes`
+  # job's own `report` output — same source the gates read, so the summary
+  # cannot describe a decision other than the one that was acted on.
+  #
   # Never gates: `if: always()` and its output is the summary, not its exit code.
   # ----------------------------------------------------------------
   prebuilds-summary:
     name: Coverage summary
     needs:
+      - changes
       - build-prebuilds
       - build-prebuilds-qemu
       - build-prebuilds-macos
@@ -1580,6 +1975,8 @@ jobs:
           # `needs` carries a `result` for every job above, whatever its `if:`
           # decided. This is the whole data source.
           NEEDS: ${{ toJSON(needs) }}
+          REPORT: ${{ needs.changes.outputs.report }}
+          REASON: ${{ needs.changes.outputs.reason }}
         run: |
           set -euo pipefail
           skipped="$(jq -r '[to_entries[] | select(.value.result == "skipped") | "`" + .key + "`"] | join(", ")' <<< "$NEEDS")"
@@ -1592,8 +1989,40 @@ jobs:
             echo '| --- | --- |'
             jq -r 'to_entries[] | "| `\(.key)` | \(.value.result) |"' <<< "$NEEDS"
             echo
+            echo '### Packages'
+            echo
+            # An empty/absent report means the `changes` job never produced one
+            # (it failed, or was cancelled). Say that rather than print an empty
+            # table that reads like "nothing needed building".
+            if [ -z "${REPORT:-}" ] || [ "$REPORT" = '[]' ]; then
+              echo 'The `changes` job produced no package report, so this run built **every**'
+              echo 'package (that is the fail-open path — an undecidable classification never'
+              echo 'skips). Nothing below is a claim about individual packages.'
+            else
+              echo "Decision: \`${REASON}\`. A package is built when something it depends on"
+              echo 'changed — its own sources per this workflow'"'"'s `on: paths:` filter, its'
+              echo '`refs/` submodule pin, or a shared input (this file, the emulated build'
+              echo 'script, the staging/verification scripts) which rebuilds all of them.'
+              echo
+              echo '| package | built | why |'
+              echo '| --- | --- | --- |'
+              jq -r '.[] | "| `\(.key)` | \(if .build then "yes" else "**NO**" end) | \(.why) |"' <<< "$REPORT"
+              echo
+              nb="$(jq -r '[.[] | select(.build | not) | "`" + .key + "`"] | join(", ")' <<< "$REPORT")"
+              if [ -n "$nb" ]; then
+                echo "**NOT built by this run: ${nb}.**"
+                echo
+                echo 'Green legs above therefore say nothing about those packages: they were not'
+                echo 'compiled, not staged and not uploaded on ANY leg, and on main their'
+                echo 'committed prebuilds were left exactly as they were. Force a full rebuild'
+                echo 'with a `workflow_dispatch` run of this workflow.'
+              else
+                echo '**Every package this workflow owns was built.**'
+              fi
+            fi
+            echo
             if [ -n "$skipped" ]; then
-              echo "**NOT covered by this run: ${skipped}.**"
+              echo "**Legs NOT covered by this run: ${skipped}.**"
               echo
               echo 'A green result above therefore does not extend to those. On a pull request the'
               echo 'skipped leg that matters is `build-prebuilds-macos` — every Linux target in'
