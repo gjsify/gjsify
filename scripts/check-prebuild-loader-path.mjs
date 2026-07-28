@@ -35,6 +35,18 @@
  * macOS prebuild it cannot run — which is the only way a committed darwin
  * artifact gets checked at all today.
  *
+ * This file is also the ONE place binary prebuild artifacts are parsed. It
+ * additionally exposes what `scripts/audit-runtimes.mjs` needs to hold the
+ * declaration invariant (see its `Prebuild-artifact audit` section):
+ *   • `readLibrary()` reports the image's `os` + `arch`, so a library staged
+ *     into the wrong `prebuilds/<os>-<arch>/` directory is caught from any
+ *     host — the failure a cross-arch prebuild can never reveal by loading.
+ *   • `readTypelibSharedLibraries()` reports the leaf names a GI typelib
+ *     records, which are exactly what the loader is asked for once
+ *     `GI_TYPELIB_PATH` resolves the namespace. A typelib naming a leaf the
+ *     directory does not hold is a prebuild that cannot work, and no amount
+ *     of rpath correctness saves it.
+ *
  * Usage: node scripts/check-prebuild-loader-path.mjs <dir> [<dir> …]
  *        node scripts/check-prebuild-loader-path.mjs packages/infra/oxfmt-native/prebuilds/darwin-arm64
  */
@@ -62,9 +74,52 @@ const DT_STRTAB = 5;
 const DT_RPATH = 15;
 const DT_RUNPATH = 29;
 
+/** PE/COFF `IMAGE_DOS_HEADER.e_magic` ("MZ") and `IMAGE_NT_SIGNATURE` ("PE\0\0"). */
+const PE_DOS_MAGIC = 0x5a4d;
+const PE_NT_SIGNATURE = 0x00004550;
+
+/**
+ * `e_machine` → the `process.arch` token that names the same CPU.
+ *
+ * Deliberately the NODE spelling, not the ELF one: `gjsify.platforms` and the
+ * `prebuilds/<os>-<arch>/` directory names are `${process.platform}-${process.arch}`,
+ * so translating here is what lets a caller compare an artifact against the
+ * directory it sits in without a second vocabulary.
+ */
+const ELF_MACHINE_ARCH = {
+    3: 'ia32', // EM_386
+    20: 'ppc', // EM_PPC
+    21: 'ppc64', // EM_PPC64 (both big- and little-endian; node spells both `ppc64`)
+    22: 's390x', // EM_S390
+    40: 'arm', // EM_ARM
+    62: 'x64', // EM_X86_64
+    183: 'arm64', // EM_AARCH64
+    243: 'riscv64', // EM_RISCV (64-bit class only — 32-bit RISC-V is not a node arch we ship)
+};
+
+/** Mach-O `cputype` → `process.arch` token. */
+const MACHO_CPUTYPE_ARCH = {
+    7: 'ia32', // CPU_TYPE_X86
+    12: 'arm', // CPU_TYPE_ARM
+    0x01000007: 'x64', // CPU_TYPE_X86_64
+    0x0100000c: 'arm64', // CPU_TYPE_ARM64
+};
+
+/** PE/COFF `IMAGE_FILE_HEADER.Machine` → `process.arch` token. */
+const PE_MACHINE_ARCH = {
+    0x014c: 'ia32', // IMAGE_FILE_MACHINE_I386
+    0x8664: 'x64', // IMAGE_FILE_MACHINE_AMD64
+    0xaa64: 'arm64', // IMAGE_FILE_MACHINE_ARM64
+};
+
 /**
  * @typedef {object} LibInfo
- * @property {'macho'|'elf'} format
+ * @property {'macho'|'elf'|'pe'} format
+ * @property {'linux'|'darwin'|'win32'} os the `process.platform` token the format implies
+ * @property {string|null} arch the `process.arch` token the image is built for
+ * @property {boolean} inspectable false when the format is recognised but its
+ *   dependency records are NOT parsed (PE) — `needed`/`searchPaths` are then
+ *   empty because nothing read them, not because the image records none
  * @property {string[]} needed dependency strings exactly as recorded
  * @property {string[]} searchPaths rpath/runpath entries exactly as recorded
  */
@@ -90,6 +145,7 @@ function readMachO(data) {
     /** @param {number} off */
     const u32 = (off) => (le ? data.readUInt32LE(off) : data.readUInt32BE(off));
 
+    const cputype = u32(4);
     const ncmds = u32(16);
     /** @type {string[]} */ const needed = [];
     /** @type {string[]} */ const searchPaths = [];
@@ -107,7 +163,14 @@ function readMachO(data) {
         }
         off += cmdsize;
     }
-    return { format: 'macho', needed, searchPaths };
+    return {
+        format: 'macho',
+        os: 'darwin',
+        arch: MACHO_CPUTYPE_ARCH[cputype] ?? null,
+        inspectable: true,
+        needed,
+        searchPaths,
+    };
 }
 
 /**
@@ -128,6 +191,7 @@ function readElf(data) {
     /** @param {number} off */
     const u64 = (off) => Number(le ? data.readBigUInt64LE(off) : data.readBigUInt64BE(off));
 
+    const machine = u16(0x12);
     const phoff = u64(0x20);
     const phentsize = u16(0x36);
     const phnum = u16(0x38);
@@ -182,7 +246,43 @@ function readElf(data) {
         // just "did the linker record a self-relative lookup" — keep both.
         else if (e.tag === DT_RUNPATH || e.tag === DT_RPATH) searchPaths.push(...str(e.val).split(':').filter(Boolean));
     }
-    return { format: 'elf', needed, searchPaths };
+    return {
+        format: 'elf',
+        os: 'linux',
+        arch: ELF_MACHINE_ARCH[machine] ?? null,
+        inspectable: true,
+        needed,
+        searchPaths,
+    };
+}
+
+/**
+ * Read only the machine of a PE/COFF image.
+ *
+ * The import table is deliberately NOT parsed: no `win32-*` prebuild is
+ * committed today, and a half-read dependency list would let the sibling
+ * check report "no sibling recorded" on a DLL that records several. Reporting
+ * `inspectable: false` keeps that distinction explicit — the caller can still
+ * hold the machine-vs-directory invariant, and knows the loader-path half was
+ * not evaluated.
+ *
+ * @param {Buffer} data
+ * @returns {LibInfo}
+ */
+function readPe(data) {
+    const peOff = data.readUInt32LE(0x3c);
+    if (peOff + 6 > data.length || data.readUInt32LE(peOff) !== PE_NT_SIGNATURE) {
+        throw new Error('not a PE image (missing PE\\0\\0 signature)');
+    }
+    const machine = data.readUInt16LE(peOff + 4);
+    return {
+        format: 'pe',
+        os: 'win32',
+        arch: PE_MACHINE_ARCH[machine] ?? null,
+        inspectable: false,
+        needed: [],
+        searchPaths: [],
+    };
 }
 
 /**
@@ -197,7 +297,68 @@ export function readLibrary(file) {
         return readMachO(data);
     }
     if (data.readUInt32BE(0) === 0x7f454c46) return readElf(data);
+    if (data.readUInt16LE(0) === PE_DOS_MAGIC) return readPe(data);
     return null;
+}
+
+/** GI typelib header magic — `GOBJ\nMETADATA\r\n\x1a`. */
+const TYPELIB_MAGIC = 'GOBJ\nMETADATA\r\n\x1a';
+/**
+ * Byte offset of the `shared_library` field in the typelib header (a u32
+ * offset into the file at which a NUL-terminated, comma-separated list of
+ * library names begins; 0 = the namespace names no library).
+ *
+ * Layout up to it: magic[16] · major u8 · minor u8 · reserved u16 · n_entries
+ * u16 · n_local_entries u16 · directory u32 · n_attributes u32 · attributes
+ * u32 · dependencies u32 · size u32 · namespace u32 · nsversion u32 →
+ * shared_library u32 at 52. Stable across typelib major versions 2–4.
+ */
+const TYPELIB_SHARED_LIBRARY_OFFSET = 52;
+/** Byte offset of the header's `size` field — the whole blob's length. */
+const TYPELIB_SIZE_OFFSET = 40;
+
+/**
+ * The library leaf names a GI typelib records.
+ *
+ * This is what GI hands to `dlopen` the moment a consumer resolves a class in
+ * the namespace, and it is resolved through the loader's normal search path —
+ * i.e. through the `LD_LIBRARY_PATH`/`DYLD_LIBRARY_PATH` entry `buildNativeEnv()`
+ * points at the prebuild directory. So every leaf here must be present in that
+ * directory; a rename in `meson.build` that the staging step follows but the
+ * typelib does not is invisible to every other check.
+ *
+ * A typelib is written in the byte order of the machine that COMPILED it, and
+ * its header carries no endianness flag — GI mmaps the blob and reads it
+ * natively, so the question never arises on the target. It arises here,
+ * because this check reads a `linux-s390x` typelib from an x86-64 host. The
+ * `size` field is the discriminator: it holds the blob's own length, so the
+ * byte order in which it equals the file size is the one the file is in. That
+ * is a self-validating probe rather than a guess, and it is not academic —
+ * reading a big-endian header little-endian yields an out-of-range offset,
+ * which silently reports "this namespace records no library" and skips the
+ * whole staged-leaf check on the ONE architecture where it is big-endian.
+ *
+ * @param {string} file
+ * @returns {string[] | null} null when the file is not a typelib
+ */
+export function readTypelibSharedLibraries(file) {
+    const data = readFileSync(file);
+    if (data.length < TYPELIB_SHARED_LIBRARY_OFFSET + 4) return null;
+    if (data.subarray(0, TYPELIB_MAGIC.length).toString('latin1') !== TYPELIB_MAGIC) return null;
+    const bigEndian =
+        data.readUInt32BE(TYPELIB_SIZE_OFFSET) === data.length &&
+        data.readUInt32LE(TYPELIB_SIZE_OFFSET) !== data.length;
+    const off = bigEndian
+        ? data.readUInt32BE(TYPELIB_SHARED_LIBRARY_OFFSET)
+        : data.readUInt32LE(TYPELIB_SHARED_LIBRARY_OFFSET);
+    if (off === 0 || off >= data.length) return [];
+    const end = data.indexOf(0, off);
+    return data
+        .subarray(off, end === -1 ? data.length : end)
+        .toString('utf8')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
 }
 
 /**
@@ -216,10 +377,15 @@ function hasSelfRelativeSearchPath(info) {
  * Verify one staged prebuild directory.
  *
  * @param {string} dir
+ * @param {{verbose?: boolean}} [options] `verbose: false` suppresses the
+ *   per-library inventory line. The standalone CLI wants it (it is the whole
+ *   output); `audit-runtimes --check` calls this across ~50 directories and
+ *   wants only the problems.
  * @returns {string[]} problems, empty when the directory is sound
  */
-export function checkPrebuildDir(dir) {
+export function checkPrebuildDir(dir, { verbose = true } = {}) {
     /** @type {string[]} */ const problems = [];
+    const note = verbose ? console.log : () => {};
     if (!existsSync(dir) || !statSync(dir).isDirectory()) return [`${dir}: not a directory`];
 
     const files = readdirSync(dir);
@@ -236,14 +402,17 @@ export function checkPrebuildDir(dir) {
         } catch (err) {
             reason = err instanceof Error ? err.message : String(err);
         }
-        if (!info) {
-            // A format this check cannot read is SKIPPED, not failed: PE/COFF
-            // (a future win32-x64 `.dll`) is a legitimate artifact whose import
-            // table this parser does not speak, and treating "I cannot read it"
-            // as "it is broken" would make the guard lie about a platform it
-            // never inspected. The skip is printed so it is never silent, and
-            // the job's load test remains the functional backstop.
-            console.log(`  ${lib} — skipped (${reason ?? 'not ELF or Mach-O'})`);
+        if (!info || !info.inspectable) {
+            // A format whose dependency records this check cannot read is
+            // SKIPPED, not failed: PE/COFF (a future win32-x64 `.dll`) is a
+            // legitimate artifact whose import table this parser does not
+            // speak, and treating "I cannot read it" as "it is broken" would
+            // make the guard lie about a platform it never inspected. The skip
+            // is printed so it is never silent, and the job's load test remains
+            // the functional backstop. (`audit-runtimes` still holds the
+            // machine-vs-directory invariant on such an image — `readLibrary`
+            // reports `os`/`arch` for every format it recognises.)
+            note(`  ${lib} — skipped (${reason ?? info?.format?.toUpperCase() ?? 'not ELF or Mach-O'})`);
             continue;
         }
 
@@ -252,8 +421,8 @@ export function checkPrebuildDir(dir) {
         // soname on purpose.
         const siblings = info.needed.filter((n) => basename(n).startsWith(OWN_LIB_PREFIX));
         const token = info.format === 'macho' ? '@loader_path' : '$ORIGIN';
-        console.log(
-            `  ${lib} [${info.format}] needs ${siblings.length ? siblings.join(', ') : '(no sibling)'}` +
+        note(
+            `  ${lib} [${info.format}/${info.arch ?? 'unknown-arch'}] needs ${siblings.length ? siblings.join(', ') : '(no sibling)'}` +
                 ` | search: ${info.searchPaths.join(', ') || '(none)'}`,
         );
 

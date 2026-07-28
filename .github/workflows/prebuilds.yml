@@ -24,12 +24,14 @@ name: Build Native Prebuilds
 #     this — #827 was a Rust dependency-resolution failure in oxfmt-native. A PR
 #     check that would not have caught its own motivating incident is worse than
 #     none, so the Rust bridges are in.
-#   • The emulated legs are not the expensive half. Measured here: ppc64 3m00s,
-#     s390x 3m13s, riscv64 3m07s against 8-15 min for a native leg — the
-#     `run-on-arch` base image is cached in GHCR so only the compile is
-#     emulated, and every leg runs in parallel, so excluding them would have
-#     saved no PR latency at all. A cost control that saves nothing is just a
-#     coverage hole.
+#   • The emulated legs are kept because coverage of an architecture nobody can
+#     otherwise test is worth more than PR latency, and they run in parallel
+#     with the 8-15 min native legs. The "ppc64 3m00s / s390x 3m13s / riscv64
+#     3m07s" figures once recorded here were not a measurement of emulation:
+#     the legs were building x86-64 on the runner (see `build-prebuilds-qemu`),
+#     so they timed nothing. Under real emulation expect the QEMU legs to
+#     become the critical path — the lightningcss Rust compile alone is the
+#     tens-of-minutes step the job's own notes predict.
 # The `prebuilds-summary` job prints what a given run did NOT cover, derived
 # from each job's own result, so a run that skips a leg never reads like one
 # that did not.
@@ -75,6 +77,7 @@ on:
       - 'packages/infra/rolldown-native/src/**'
       - 'packages/infra/rolldown-native/meson.build'
       - '.github/workflows/prebuilds.yml'
+      - '.github/prebuild-toolchain/**'
 
   # Repeated VERBATIM from `push` above — GitHub Actions supports no YAML
   # anchors, and the two lists MUST stay identical: a path that can change a
@@ -105,6 +108,7 @@ on:
       - 'packages/infra/rolldown-native/src/**'
       - 'packages/infra/rolldown-native/meson.build'
       - '.github/workflows/prebuilds.yml'
+      - '.github/prebuild-toolchain/**'
 
 # Least privilege at the workflow level; each job adds only what it needs. This
 # is what keeps the new PR trigger from ever handing a write-capable token to a
@@ -487,12 +491,13 @@ jobs:
   # ----------------------------------------------------------------
   # QEMU-emulated builds — ppc64, s390x, riscv64
   #
-  # All three run on ubuntu-latest host runners using QEMU binary
-  # format emulation via uraimo/run-on-arch-action.
+  # All three run on ubuntu-latest host runners under qemu-user binfmt
+  # emulation, registered at a PINNED version (see the step below) and driven
+  # by a plain `docker run --platform`.
   #
   # ppc64 + s390x: fedora:43 has official images for both → same dnf
   #   package names as the native job above.
-  # riscv64: fedora:43 has no riscv64 image → ubuntu:24.04 is used
+  # riscv64: fedora:43 has no riscv64 image → ubuntu:26.04 is used
   #   instead (package names differ; auto-detected via command -v dnf).
   #
   # Node.js process.arch values used as the prebuilds/ dir suffix:
@@ -500,24 +505,28 @@ jobs:
   #   s390x          → process.arch 's390x'  → prebuilds/linux-s390x/
   #   riscv64        → process.arch 'riscv64'→ prebuilds/linux-riscv64/
   # ----------------------------------------------------------------
-  # These run on `pull_request` too. The received wisdom — the one this
-  # workflow was left main-only on, and the one STATUS.md recorded — is that the
-  # emulated legs are the expensive half. MEASURED on this workflow today, they
-  # are the CHEAP half: ~3 min each (ppc64 3m00s, s390x 3m13s, riscv64 3m07s)
-  # versus 8-15 min for a native leg, because `uraimo/run-on-arch-action` caches
-  # the installed base image in GHCR so only the compile is emulated, and these
-  # legs build lightningcss but not rolldown or oxfmt. They also run in
-  # parallel, so they add no PR latency whatever. A cost control that saves
-  # nothing is not a cost control, it is a coverage hole — so they stay on.
+  # These run on `pull_request` too, and stay on: an architecture nobody on the
+  # team owns hardware for is exactly the one whose build must be checked before
+  # merge, not after.
+  #
+  # COST, measured rather than assumed. The "~3 min per emulated leg" this
+  # comment used to carry was an artifact of the platform bug fixed below — the
+  # legs compiled x86-64 on the runner, so they timed no emulation at all. Under
+  # real qemu-user (measured locally, ppc64le, qemu 10.2.2): the dependency
+  # install is ~6 min and the seven Vala/GI packages are minutes; the
+  # lightningcss Rust cdylib is the one expensive step. If a leg's total makes
+  # it the PR critical path, the lever is to drop THAT package from the
+  # emulated legs (its crate graph is portable and every PR already compiles it
+  # on x64 + arm64) rather than to drop the architecture — the Vala/GI half is
+  # the part the architecture actually changes, and it is the cheap part.
   build-prebuilds-qemu:
     name: Build prebuilds (${{ matrix.arch }}) [QEMU]
     runs-on: ubuntu-latest
+    # No `packages: write` — nothing here pushes to GHCR any more. The image
+    # cache the removed action kept there was also the reason all three legs
+    # collided on one `…-none-none` tag once the platform was set explicitly.
     permissions:
       contents: read
-      # `uraimo/run-on-arch-action` caches the emulated container image in GHCR
-      # via `githubToken` below. The workflow-level token is `contents: read`,
-      # so that capability has to be granted back explicitly here.
-      packages: write
 
     strategy:
       fail-fast: false
@@ -525,179 +534,73 @@ jobs:
         include:
           # IBM POWER9/10 workstations and servers (e.g. Raptor Computing Talos II)
           - arch: ppc64
-            qemu_arch: ppc64le
+            platform: linux/ppc64le
             base_image: fedora:43
 
           # IBM Z mainframes — enterprise Linux servers
           - arch: s390x
-            qemu_arch: s390x
+            platform: linux/s390x
             base_image: fedora:43
 
           # RISC-V boards (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …)
-          # ubuntu:26.04 is used because fedora:43 has no official riscv64 image.
+          # ubuntu:26.04 because Fedora publishes no riscv64 image.
           - arch: riscv64
-            qemu_arch: riscv64
+            platform: linux/riscv64
             base_image: ubuntu:26.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Build all prebuilds on ${{ matrix.arch }} via QEMU
-        uses: uraimo/run-on-arch-action@v2
+      # THE EMULATOR VERSION IS PART OF THE BUILD, SO IT IS PINNED.
+      #
+      # This job used `uraimo/run-on-arch-action`, which ignores its own `arch`
+      # input whenever a custom `base_image` is supplied (its README says so) —
+      # so every "emulated" leg ran the image for the RUNNER's platform and
+      # compiled x86-64 into `prebuilds/linux-{ppc64,s390x,riscv64}/`. That is
+      # the defect `audit-runtimes --check`'s machine-vs-directory invariant
+      # now rejects.
+      #
+      # Supplying the platform explicitly exposed the second half: the action
+      # ALSO resets binfmt to `multiarch/qemu-user-static` (qemu 7.2,
+      # effectively unmaintained) before it builds, and under THAT emulator
+      # Fedora's package manager does not survive — `dnf` segfaults on s390x
+      # and the RPM transaction fails on ppc64. Both build cleanly under a
+      # current qemu (verified locally against qemu 10.2.2: a real
+      # `ELF 64-bit MSB … IBM S/390` library out of the s390x container), so
+      # the emulator is pinned here like any other toolchain component and the
+      # action is gone.
+      - name: Register QEMU for ${{ matrix.platform }}
+        uses: docker/setup-qemu-action@v3
         with:
-          arch: ${{ matrix.qemu_arch }}
-          distro: none
-          base_image: ${{ matrix.base_image }}
-          githubToken: ${{ github.token }}
+          image: tonistiigi/binfmt:qemu-v10.2.3
+          platforms: ${{ matrix.platform }}
 
-          # Detect package manager: dnf for Fedora (ppc64/s390x), apt-get for Ubuntu (riscv64).
-          # `curl` is needed for rustup-init below; `cargo` is the distro
-          # package — usually too old for the lightningcss-native build
-          # (needs rustc ≥ 1.85 for indexmap@2.14's edition2024). We
-          # install rustup separately in `run:`.
-          install: |
-            if command -v dnf > /dev/null 2>&1; then
-              dnf install -y \
-                git tar xz findutils curl \
-                meson vala gcc pkgconf \
-                glib2-devel gobject-introspection-devel \
-                gtk4-devel gdk-pixbuf2-devel \
-                libepoxy-devel \
-                gstreamer1-devel \
-                gstreamer1-plugins-base-devel \
-                gstreamer1-plugins-bad-free-devel \
-                libsoup3-devel \
-                libnghttp2-devel \
-                gnutls-devel \
-                json-glib-devel
-            else
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                git tar xz-utils findutils curl \
-                meson valac gcc pkg-config \
-                libglib2.0-dev gobject-introspection libgirepository1.0-dev \
-                libgtk-4-dev libgdk-pixbuf-2.0-dev \
-                libepoxy-dev \
-                libgstreamer1.0-dev \
-                libgstreamer-plugins-base1.0-dev \
-                libgstreamer-plugins-bad1.0-dev \
-                libsoup-3.0-dev \
-                libnghttp2-dev \
-                libgnutls28-dev \
-                libjson-glib-dev
-            fi
+      # One `docker run` in the target-arch image. The script is a real file so
+      # a failure reproduces by hand with `podman run --platform …`, which is
+      # how the qemu-version root cause above was found. Package names stay in
+      # THIS file via the per-package upload steps below — that is what
+      # `audit-runtimes`' `parseCiPlatforms()` reads to learn which targets
+      # this job produces, and it must keep seeing them here.
+      - name: Build all prebuilds on ${{ matrix.arch }} via QEMU
+        env:
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+          BASE_IMAGE: ${{ matrix.base_image }}
+        run: |
+          set -euo pipefail
+          docker run --rm --platform "$PLATFORM" \
+            -v "$PWD:/workspace" -w /workspace \
+            -e ARCH="$ARCH" \
+            "$BASE_IMAGE" \
+            bash .github/prebuild-toolchain/emulated-build.sh
 
-          run: |
-            set -e
-            ARCH="${{ matrix.arch }}"
-
-            # rustup install (used by lightningcss-native further down)
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-            export PATH="$HOME/.cargo/bin:$PATH"
-
-            # -------- @gjsify/webgl --------
-            cd packages/framework/webgl
-            meson setup build .
-            meson compile -C build
-            mkdir -p "prebuilds/linux-${ARCH}"
-            cp build/libgwebgl.so build/Gwebgl-0.1.typelib "prebuilds/linux-${ARCH}/"
-            echo "@gjsify/webgl prebuilds for linux-${ARCH}:"
-            ls -lh "prebuilds/linux-${ARCH}/"
-            cd ../../..
-
-            # -------- @gjsify/webrtc-native --------
-            cd packages/web/webrtc-native
-            meson setup build .
-            meson compile -C build
-            mkdir -p "prebuilds/linux-${ARCH}"
-            cp build/libgjsifywebrtc.so build/GjsifyWebrtc-0.1.typelib "prebuilds/linux-${ARCH}/"
-            echo "@gjsify/webrtc-native prebuilds for linux-${ARCH}:"
-            ls -lh "prebuilds/linux-${ARCH}/"
-            cd ../../..
-
-            # -------- @gjsify/http-soup-bridge --------
-            cd packages/node/http-soup-bridge
-            meson setup build .
-            meson compile -C build
-            mkdir -p "prebuilds/linux-${ARCH}"
-            cp build/libgjsifyhttpsoupbridge.so build/GjsifyHttpSoupBridge-1.0.gir build/GjsifyHttpSoupBridge-1.0.typelib "prebuilds/linux-${ARCH}/"
-            echo "@gjsify/http-soup-bridge prebuilds for linux-${ARCH}:"
-            ls -lh "prebuilds/linux-${ARCH}/"
-            cd ../../..
-
-            # -------- @gjsify/http2-native --------
-            cd packages/node/http2-native
-            meson setup build .
-            meson compile -C build
-            mkdir -p "prebuilds/linux-${ARCH}"
-            cp build/libgjsifyhttp2.so build/GjsifyHttp2-1.0.gir build/GjsifyHttp2-1.0.typelib "prebuilds/linux-${ARCH}/"
-            echo "@gjsify/http2-native prebuilds for linux-${ARCH}:"
-            ls -lh "prebuilds/linux-${ARCH}/"
-            cd ../../..
-
-            # -------- @gjsify/sab-native --------
-            cd packages/node/sab-native
-            meson setup build .
-            meson compile -C build
-            mkdir -p "prebuilds/linux-${ARCH}"
-            cp build/libgjsifysabnative.so build/GjsifySabNative-1.0.gir build/GjsifySabNative-1.0.typelib "prebuilds/linux-${ARCH}/"
-            echo "@gjsify/sab-native prebuilds for linux-${ARCH}:"
-            ls -lh "prebuilds/linux-${ARCH}/"
-            cd ../../..
-
-            # -------- @gjsify/tls-native --------
-            # GnuTLS OCSP-response parser. Pure C lib link via gnutls.pc;
-            # no Rust deps, so QEMU emulation cost stays in the meson +
-            # valac compile budget (single-arch cold build ≈ 30 s).
-            cd packages/node/tls-native
-            meson setup build .
-            meson compile -C build
-            mkdir -p "prebuilds/linux-${ARCH}"
-            cp build/libgjsifytls.so build/GjsifyTls-1.0.gir build/GjsifyTls-1.0.typelib "prebuilds/linux-${ARCH}/"
-            echo "@gjsify/tls-native prebuilds for linux-${ARCH}:"
-            ls -lh "prebuilds/linux-${ARCH}/"
-            cd ../../..
-
-            # -------- @gjsify/terminal-native --------
-            # POSIX only (isatty / ioctl TIOCGWINSZ / termios) + GLib; no
-            # external libraries, so it is the cheapest build in the QEMU leg.
-            cd packages/node/terminal-native
-            meson setup build .
-            meson compile -C build
-            mkdir -p "prebuilds/linux-${ARCH}"
-            cp build/libgjsifyterminal.so build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib "prebuilds/linux-${ARCH}/"
-            echo "@gjsify/terminal-native prebuilds for linux-${ARCH}:"
-            ls -lh "prebuilds/linux-${ARCH}/"
-            cd ../../..
-
-            # -------- @gjsify/lightningcss-native --------
-            # Pure crates.io deps (no submodule). Cargo download + compile
-            # under QEMU is the slow step here — single-arch cold build
-            # takes ~20-30 min on emulated ppc64/s390x/riscv64. Worth it:
-            # this is exactly the path that lets `gjsify build` run on
-            # exotic-arch GJS hosts without the WASM fallback's overhead.
-            cd packages/infra/lightningcss-native
-            meson setup build .
-            meson compile -C build
-            mkdir -p "prebuilds/linux-${ARCH}"
-            cp build/libgjsifylightningcss.so build/libgjsify_lightningcss.so build/GjsifyLightningcss-1.0.gir build/GjsifyLightningcss-1.0.typelib "prebuilds/linux-${ARCH}/"
-            echo "@gjsify/lightningcss-native prebuilds for linux-${ARCH}:"
-            ls -lh "prebuilds/linux-${ARCH}/"
-
-            # NOTE: @gjsify/oxfmt-native is intentionally NOT built in the QEMU
-            # matrix either — it path-deps into the refs/oxc submodule and its
-            # crate graph is the same order of magnitude as rolldown's, so the
-            # same emulation-cost argument applies verbatim.
-            #
-            # NOTE: @gjsify/rolldown-native is intentionally NOT built in
-            # the QEMU matrix. The rolldown crate graph (tokio + oxc + ~250
-            # transitive crates) compiles in ~5 min on native x86_64; under
-            # QEMU emulation that easily blows the 6-hour job timeout.
-            # Multi-arch rolldown prebuilds wait for either (a) a coherent
-            # crates.io publish so the cargo build doesn't pull the whole
-            # rolldown workspace, or (b) cross-compilation via `cross`
-            # rather than QEMU userspace. Tracked in STATUS.md "Open TODOs".
+      # The build ran as root inside the container, so the staged files are
+      # root-owned on the runner. Hand them back before anything else reads
+      # them.
+      - name: Restore workspace ownership
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" packages || true
 
       - name: Upload @gjsify/webgl prebuilds artifact
         uses: actions/upload-artifact@v7
