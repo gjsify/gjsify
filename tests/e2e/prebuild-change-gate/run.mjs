@@ -168,6 +168,30 @@ describe('prebuild change gate — fail open', () => {
             assert.ok(keys.has(key), `workflow gates on "${key}", which changed-packages.mjs never emits`);
         }
     });
+
+    it('gates every artifact step on its OWN package', () => {
+        // The asymmetry that would break `commit-prebuilds`: an upload gated on
+        // one decision and the matching download on another (or on none). A
+        // download with no artifact is a HARD FAILURE of that job —
+        // `download-artifact` throws `Artifact '<name>' not found` and has no
+        // `if-no-artifact-found` input — so upload and download must turn on and
+        // off together, per package, everywhere.
+        const text = readFileSync(workflow, 'utf8');
+        const steps = text.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1);
+        let checked = 0;
+        for (const step of steps) {
+            if (!/actions\/(up|down)load-artifact/.test(step)) continue;
+            const artifact = /\n\s*name:\s*([\w-]+)-prebuilds-/.exec(step);
+            if (!artifact) continue;
+            const key = artifact[1];
+            checked++;
+            assert.ok(
+                step.includes(`'"${key}"'`),
+                `an artifact step for "${key}" is not gated on its own package:\n${step.slice(0, 200)}`,
+            );
+        }
+        assert.ok(checked >= 60, `expected every artifact step to be checked, saw ${checked}`);
+    });
 });
 
 describe('prebuild change gate — the emulated leg obeys the same decision', () => {
