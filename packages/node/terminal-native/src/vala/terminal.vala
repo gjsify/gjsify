@@ -1,6 +1,9 @@
 /*
  * GjsifyTerminal — POSIX terminal primitives for GJS.
  *
+ * (VERIFICATION-ONLY comment for PR #843's per-package prebuild gate — this
+ * branch touches nothing but this file. Do not merge.)
+ *
  * Exposes POSIX syscalls that have no GLib equivalent:
  *   • Posix.isatty()      — reliable TTY detection
  *   • ioctl(TIOCGWINSZ)   — actual terminal dimensions
