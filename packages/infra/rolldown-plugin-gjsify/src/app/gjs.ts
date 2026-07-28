@@ -107,7 +107,12 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     //
     // `exactExternal` filters out register subpaths so a user external
     // entry can never override the force-inline carve-out below.
-    const exactExternal = ['cairo', 'gettext', 'system', ...userExternal.filter((id) => !isRegisterSubpath(id))];
+    const exactExternal = [
+        'cairo',
+        'gettext',
+        'system',
+        ...userExternal.filter((id) => !isRegisterSubpath(id) && !isGjsifyShim(id)),
+    ];
     const external = createGjsExternalsPredicate(userExternal);
     const format = input.pluginOptions.format ?? 'esm';
 
@@ -316,11 +321,41 @@ function flattenAliases(map: Record<string, string>): Record<string, string> {
 export function createGjsExternalsPredicate(userExternal: string[] = []): (id: string) => boolean {
     const exact = ['cairo', 'gettext', 'system', ...userExternal];
     return (id: string): boolean => {
-        if (isRegisterSubpath(id)) return false;
+        if (isRegisterSubpath(id) || isGjsifyShim(id)) return false;
         if (id.startsWith('gi://')) return true;
         if (exact.includes(id)) return true;
         return false;
     };
+}
+
+/**
+ * Recognize the shims this plugin INJECTS into a `--app gjs` bundle
+ * (`shims/module-resolve`, `shims/console-gjs`, `shims/unicorn-magic`, …), in
+ * both bare-specifier and resolved-disk-path form.
+ *
+ * They must be force-inlined for exactly the reason `/register` subpaths are,
+ * and the failure is the same one: GJS has no `require` and its ESM loader has
+ * neither a node_modules walker nor `exports`-map support, so an EXTERNALIZED
+ * shim aborts the program at load:
+ *
+ *   Error: Calling `require` for
+ *   "@gjsify/rolldown-plugin-gjsify/shims/module-resolve" in an environment
+ *   that doesn't expose the `require` function
+ *
+ * The shim is not optional — the bundler injected it because the bundle needs
+ * it — so externalizing it can only ever produce an unloadable artifact. The
+ * carve-out short-circuits BEFORE the user-external check so `bundler.external`
+ * cannot override it, and it matches by SHAPE rather than an explicit list, so
+ * a shim added later is covered without touching this predicate.
+ *
+ * Scope is deliberately narrow: only OUR shim directory. A consumer package
+ * that happens to have a `shims/` folder is unaffected.
+ */
+export function isGjsifyShim(id: string): boolean {
+    // Bare/fully-qualified: `@gjsify/rolldown-plugin-gjsify/shims/<name>`.
+    if (/@gjsify\/rolldown-plugin-gjsify\/shims\/[^?]+$/.test(id)) return true;
+    // Resolved disk path: `…/rolldown-plugin-gjsify/{lib,src}/shims/<name>.js`.
+    return /[\\/]rolldown-plugin-gjsify[\\/](?:lib|src)[\\/]shims[\\/]/.test(id);
 }
 
 /**

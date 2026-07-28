@@ -23,7 +23,7 @@
 // already declares the plugin as a dependency.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { isRegisterSubpath, createGjsExternalsPredicate } from '@gjsify/rolldown-plugin-gjsify';
+import { isRegisterSubpath, isGjsifyShim, createGjsExternalsPredicate } from '@gjsify/rolldown-plugin-gjsify';
 import {
     detectAutoGlobals,
     detectFreeGlobals,
@@ -36,6 +36,43 @@ import { join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 export default async () => {
+    await describe('gjs externals: injected shims are force-inlined', async () => {
+        // GJS has no `require`, and its ESM loader has neither a node_modules
+        // walker nor `exports`-map support — so an EXTERNALIZED shim aborts the
+        // program at load with rolldown's
+        //   Calling `require` for "@gjsify/rolldown-plugin-gjsify/shims/…" in an
+        //   environment that doesn't expose the `require` function
+        // The bundler injected the shim because the bundle NEEDS it, so leaving
+        // it external can only produce an unloadable artifact. Same reasoning,
+        // and same carve-out, as the `/register` subpaths above.
+        const SHIM = '@gjsify/rolldown-plugin-gjsify/shims/module-resolve';
+
+        await it('recognises the bare and resolved-disk-path shapes', () => {
+            expect(isGjsifyShim(SHIM)).toBe(true);
+            expect(isGjsifyShim('@gjsify/rolldown-plugin-gjsify/shims/console-gjs')).toBe(true);
+            expect(
+                isGjsifyShim('/x/node_modules/@gjsify/rolldown-plugin-gjsify/lib/shims/console-gjs.js'),
+            ).toBe(true);
+            expect(isGjsifyShim('/x/packages/infra/rolldown-plugin-gjsify/src/shims/module-resolve.ts')).toBe(true);
+        });
+
+        await it('does not claim an unrelated package that happens to have shims/', () => {
+            expect(isGjsifyShim('some-pkg/shims/foo')).toBe(false);
+            expect(isGjsifyShim('@scope/pkg/shims/bar')).toBe(false);
+        });
+
+        await it('stays inlined even when the user externalises it', () => {
+            // bundler.external must not be able to break the bundle.
+            expect(createGjsExternalsPredicate([SHIM])(SHIM)).toBe(false);
+        });
+
+        await it('leaves the genuine externals alone', () => {
+            const p = createGjsExternalsPredicate();
+            expect(p('gi://Gtk?version=4.0')).toBe(true);
+            expect(p('cairo')).toBe(true);
+        });
+    });
+
     await describe('--app gjs externals: /register subpath invariant', async () => {
         await it('recognizes the bare-specifier register form', () => {
             expect(isRegisterSubpath('fetch/register')).toBe(true);
