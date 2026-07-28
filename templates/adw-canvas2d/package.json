@@ -6,9 +6,9 @@
     "private": true,
     "scripts": {
         "check": "gjsify tsc --noEmit",
-        "build": "gjsify build src/index.ts --outfile dist/index.js",
+        "build": "gjsify build src/index.ts --outfile dist/index.js --globals auto,dom",
         "start": "gjsify run dist/index.js",
-        "dev": "gjsify build src/index.ts --outfile dist/index.js && gjsify run dist/index.js"
+        "dev": "gjsify build src/index.ts --outfile dist/index.js --globals auto,dom && gjsify run dist/index.js"
     },
     "devDependencies": {
         "@girs/adw-1": "^4.1.0",

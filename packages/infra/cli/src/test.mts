@@ -53,6 +53,7 @@ import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
+import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 
 run({
     bundlerPickSuite,
@@ -100,4 +101,5 @@ run({
     runtimesSuite,
     spawnSuite,
     gjsBundleGuardSuite,
+    unresolvedWorkspaceImportSuite,
 });
