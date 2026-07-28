@@ -50,8 +50,11 @@
  * (`packages/infra/cli/lib/`) is left rebuilt — it is regenerated from the same
  * sources the job already built, so it is byte-equivalent either way.
  *
- * Run it AFTER a workspace build: the bundle build resolves its workspace deps
- * from their `lib/`.
+ * It runs on a COLD tree (fresh clone + `gjsify install`, nothing built) as
+ * well as a warm one — see `ensureBuildableWorkspace()` below. That is a
+ * requirement, not a convenience: `--rebuild` is the release path, and moving
+ * releases into CI means running it on a tree that by definition has no build
+ * output.
  *
  * Usage:
  *   node scripts/verify-committed-bundles.mjs            # rebuild + compare
@@ -248,6 +251,64 @@ function fail(msg) {
     console.error(inActions ? `::error::${msg}` : `ERROR: ${msg}`);
 }
 
+/** The Node entry of `@gjsify/cli` — plain-tsc output, the bootstrap's only host. */
+const CLI_NODE_ENTRY = join(repoRoot, 'packages', 'infra', 'cli', 'lib', 'index.js');
+
+/**
+ * Bring the workspace to the point where `gjsify build` can run AT ALL, so
+ * this check works on a cold tree.
+ *
+ * On a fresh clone every recipe here dies at its first step with
+ *
+ *     gjsify build: no usable bundler engine under GJS —
+ *     `@gjsify/rolldown-native` is not loadable …
+ *
+ * because under GJS the only bundler engine is `@gjsify/rolldown-native`, and
+ * that engine's JS facade (`packages/infra/{rolldown,lightningcss}-native/lib/`)
+ * is a BUILD OUTPUT `gjsify install` does not produce.
+ * `scripts/bootstrap-native-facades.mjs` is what produces it. Nothing used to
+ * call it from here — in CI the failure is invisible because `gjsify run build`
+ * → `build:infra` runs the bootstrap long before this step.
+ *
+ * We call it rather than documenting it as a precondition: a script whose
+ * documented precondition is "run this other thing first" gets that
+ * precondition forgotten, which is exactly how the release path (`--rebuild`
+ * from `.release-it.json`'s `after:bump`) ends up unable to run on the cold
+ * tree a CI release always has.
+ *
+ * Two entry points, because the bootstrap has a precondition of its own — it
+ * drives the CLI's NODE entry (`packages/infra/cli/lib/index.js`, the one
+ * emitter that needs no bundler), which is itself a build output:
+ *
+ *   - Node entry present (warm, and the CI ordering) → run the bootstrap
+ *     directly. It is mtime-idempotent: already-built facades are skipped in
+ *     milliseconds, so a warm run pays a few stat sweeps.
+ *   - Node entry absent (cold clone) → run root `build:infra`, which is the
+ *     documented tsc chain that produces that entry AND ends in the very same
+ *     bootstrap. Re-spelling its prefix here would be a second copy of a
+ *     recipe that already exists — the same reason `--rebuild` lives in this
+ *     file instead of in `.release-it.json`.
+ *
+ * @returns {string|null} an abort reason, or null on success.
+ */
+function ensureBuildableWorkspace(gjsify) {
+    const cold = !existsSync(CLI_NODE_ENTRY);
+    const bootstrap = join(repoRoot, 'scripts', 'bootstrap-native-facades.mjs');
+    const cmd = cold ? gjsify.cmd : process.execPath;
+    const cmdArgs = cold ? [...gjsify.args, 'run', 'build:infra'] : [bootstrap];
+    const label = cold ? 'gjsify run build:infra' : 'node scripts/bootstrap-native-facades.mjs';
+    const why = cold ? 'cold tree — no packages/infra/cli/lib/index.js' : 'warm tree';
+
+    console.log(`\n[verify-bundles] preflight (${why}): ${label}`);
+    const r = spawnSync(cmd, cmdArgs, { cwd: repoRoot, stdio: 'inherit', env: process.env });
+    if (r.status === 0) return null;
+    return (
+        `preflight: \`${label}\` failed (exit ${r.status}). Without it the GJS bundler engine ` +
+        '(`@gjsify/rolldown-native`) has no built JS facade and every rebuild below fails with ' +
+        '"no usable bundler engine under GJS". Fix that build first, then re-run this check.'
+    );
+}
+
 // ── plan ────────────────────────────────────────────────────────────────
 
 const args = new Set(process.argv.slice(2));
@@ -298,6 +359,11 @@ const allGroups = RECIPES.flatMap((r) => r.groups);
 const pristine = snapshotDisk(allGroups.flatMap(groupFilesOnDisk));
 
 try {
+    // Cold-tree preflight. Inside the `try` so a failure still unwinds through
+    // the restore below, and BEFORE the loop so no recipe ever runs against a
+    // workspace that cannot bundle.
+    aborted = ensureBuildableWorkspace(gjsify);
+
     for (const recipe of RECIPES) {
         if (aborted) break;
         const t0 = Date.now();
@@ -353,10 +419,10 @@ try {
                 }
                 failures++;
                 const off = firstDiffOffset(expected, actual);
+                fail(`${p} is STALE — rebuilding it from the source at HEAD does not reproduce the committed file.`);
                 fail(
-                    `${p} is STALE — rebuilding it from the source at HEAD does not reproduce the committed file.`,
+                    `  committed: ${expected.length} B · rebuilt: ${actual.length} B · first difference at byte ${off}`,
                 );
-                fail(`  committed: ${expected.length} B · rebuilt: ${actual.length} B · first difference at byte ${off}`);
                 console.error(`  committed …${excerpt(expected, off)}…`);
                 console.error(`  rebuilt   …${excerpt(actual, off)}…`);
                 fail(`  Refresh locally: ${recipe.hint}, then commit it.`);
