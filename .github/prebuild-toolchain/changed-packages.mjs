@@ -449,8 +449,30 @@ function emit(format, table, result) {
             `reason=${result.reason}`,
             `report=${JSON.stringify(report)}`,
         ].join('\n');
-        if (out) appendFileSync(out, `${lines}\n`);
+        // Stdout FIRST, so the decision is in the log even if publishing fails
+        // — that is the difference between a diagnosable failure and a mystery.
         console.log(lines);
+        if (out) {
+            try {
+                appendFileSync(out, `${lines}\n`);
+            } catch (cause) {
+                // LOUD, never silent. `GITHUB_OUTPUT` set but unwritable means
+                // the outputs are never published: every gate then reads the
+                // empty string, `contains('', …)` is false, and all ten
+                // packages build. That is SAFE — but it is a dead gate wearing
+                // a green tick, and nothing would ever say so. A hard failure
+                // is still fail-open (the `changes` job's wrapper catches a
+                // non-zero exit, writes the all-build fallback and warns), it
+                // just refuses to be quiet about it.
+                console.error(
+                    `::error::cannot publish outputs to GITHUB_OUTPUT=${out}: ${cause.message}\n` +
+                        '::error::The gate cannot skip anything without them, so this fails rather than ' +
+                        'continuing silently. If you are running this outside a GitHub runner, unset ' +
+                        'GITHUB_OUTPUT or use --format=json / --format=text.',
+                );
+                throw new Error(`failed to write GITHUB_OUTPUT (${out})`, { cause });
+            }
+        }
         return;
     }
     console.log(`reason: ${result.reason}`);

@@ -5,10 +5,12 @@
 // through `@gjsify/node-gi` (the Axis-5 reverse bridge). Two things have to be
 // true at runtime:
 //
-//   1. `@gjsify/node-gi` must resolve from the project — it is kept EXTERNAL by
-//      the bundler (a native addon), so it has to physically exist in the
-//      consumer's node_modules. We verify this up front and emit a clear hint
-//      instead of letting Node throw `ERR_MODULE_NOT_FOUND` deep in the bundle.
+//   1. `@gjsify/node-gi` must resolve FROM THE BUNDLE — it is kept EXTERNAL by
+//      the bundler (a native addon), so it has to physically exist in a
+//      node_modules the bundle's own directory can reach (that is where Node
+//      will look), with the CWD as a fallback. We verify this up front and emit
+//      a clear hint instead of letting Node throw `ERR_MODULE_NOT_FOUND` deep in
+//      the bundle. See `resolveNodeGiForBundle`.
 //   2. `gi://Gtk` / `gi://Adw` etc. must resolve. System typelibs come from the
 //      default GI search path, but any `@gjsify/*` Vala bridge a story pulls in
 //      ships its typelib in `prebuilds/` — so we reuse the SAME
@@ -22,7 +24,7 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { computeNativeEnvForBundle } from './run-gjs.js';
 import { RUNTIMES, type ExampleRuntime } from './runtimes.js';
@@ -42,6 +44,26 @@ export function resolveNodeGi(startDir: string): string | null {
         if (parent === dir) return null;
         dir = parent;
     }
+}
+
+/**
+ * Resolve `@gjsify/node-gi` for a bundle we are about to launch: from the
+ * BUNDLE's own directory first, then from `cwd`.
+ *
+ * The bundle's directory is the correct base and cwd is the fallback, for the
+ * same reason {@link computeNativeEnvForBundle} walks both: `@gjsify/node-gi` is
+ * kept EXTERNAL, so what has to be satisfiable is the RUNTIME's resolution of a
+ * bare specifier from inside the bundle — which Node performs relative to the
+ * importing file, never relative to cwd. A dlx-cache layout
+ * (`~/.cache/gjsify/dlx/<sha>/node_modules/<pkg>/dist/bundle.mjs`) has node-gi
+ * sitting right beside the bundle and nothing at all under the user's cwd, so a
+ * cwd-only probe rejected a run that would have worked. The cwd probe is kept
+ * because a project-local `node_modules` legitimately satisfies a bundle built
+ * into a `dist/` outside it (a `--outfile /tmp/…` build from a project root).
+ */
+export function resolveNodeGiForBundle(bundlePath: string, cwd: string): string | null {
+    const resolvedBundle = resolve(bundlePath);
+    return resolveNodeGi(dirname(resolvedBundle)) ?? resolveNodeGi(cwd);
 }
 
 /** Pick the node executable: the current one when on Node, else PATH `node`. */
@@ -66,7 +88,7 @@ export async function runNodeBundle(
     options: RunNodeBundleOptions = {},
 ): Promise<void> {
     const cwd = process.cwd();
-    if (!resolveNodeGi(cwd)) {
+    if (!resolveNodeGiForBundle(bundlePath, cwd)) {
         throw new Error(
             'Cannot run the storybook on Node: `@gjsify/node-gi` is not installed.\n' +
                 'Add @gjsify/node-gi as a dependency to run the storybook on Node, e.g.:\n' +
@@ -135,7 +157,7 @@ export async function runRuntimeBundle(
     const cwd = process.cwd();
     const resolvedBundle = resolve(bundlePath);
 
-    if (bundleRequiresNodeGi(resolvedBundle) && !resolveNodeGi(cwd)) {
+    if (bundleRequiresNodeGi(resolvedBundle) && !resolveNodeGiForBundle(resolvedBundle, cwd)) {
         throw new Error(
             `Cannot run this bundle on ${runtime}: it uses gi:// via \`@gjsify/node-gi\`, which is not installed.\n` +
                 'Add @gjsify/node-gi as a dependency to run gi:// code off GJS, e.g.:\n' +

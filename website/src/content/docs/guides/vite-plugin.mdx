@@ -3,16 +3,36 @@ title: Vite Plugin
 description: Use GJSify's browser and NativeScript transforms directly in a Vite config — with or without the gjsify CLI — so a dual-target app develops under Vite exactly as it builds for production
 ---
 
+import CommandTabs from '../../../components/CommandTabs.astro';
+
 `@gjsify/vite-plugin-gjsify` brings GJSify's build transforms to **Vite**. It exists because a dual-target app has two build paths that must agree: it ships for production via `gjsify build --app browser`, but it *develops* under Vite (dev server, HMR). The preset is what makes the two produce the same thing.
 
 **You do not need the `gjsify` CLI to use it.** The plugin is an ordinary npm package with `vite` as its only peer dependency. Install it with npm/yarn/pnpm, spread it into `vite.config.ts`, and run plain `vite` / `vite build`. This is covered by an end-to-end test whose fixture project depends on the plugin and *not* on `@gjsify/cli`.
 
 ## Install
 
-```bash
-npm install -D @gjsify/vite-plugin-gjsify vite
-# or: yarn add -D … / pnpm add -D … / gjsify install @gjsify/vite-plugin-gjsify
-```
+<CommandTabs title="Install" group="pm">
+  <Fragment slot="npm">
+    ```bash
+    npm install -D @gjsify/vite-plugin-gjsify vite
+    ```
+  </Fragment>
+  <Fragment slot="yarn">
+    ```bash
+    yarn add -D @gjsify/vite-plugin-gjsify vite
+    ```
+  </Fragment>
+  <Fragment slot="pnpm">
+    ```bash
+    pnpm add -D @gjsify/vite-plugin-gjsify vite
+    ```
+  </Fragment>
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify install @gjsify/vite-plugin-gjsify vite
+    ```
+  </Fragment>
+</CommandTabs>
 
 ## Browser target
 
@@ -76,23 +96,6 @@ This is the low-level form. For a NativeScript app, prefer the one-file composer
 // vite.config.ts
 import { defineNativescriptConfig } from '@gjsify/nativescript-vite';
 export default defineNativescriptConfig();
-```
-
-## Version alignment — track Vite, not "latest"
-
-GJSify's build chain is derived from Vite's, and staying compatible with Vite means matching **what Vite pins**, which is not the same as the newest release on npm:
-
-| Package | What Vite 8.1.5 pins |
-|---|---|
-| `rolldown` | `~1.1.5` |
-| `lightningcss` | `^1.32.0` |
-
-Upgrading `rolldown` to its newest release (1.2.x) moves *away* from Vite, not with it — Vite 8.1.x will still resolve its own `~1.1.5`, so you end up running two bundler versions and lose the parity the preset exists to provide. When you bump, bump to the version in the table above.
-
-Check what your installed Vite actually pins rather than trusting this page:
-
-```bash
-npm view vite@$(npm view vite version) dependencies
 ```
 
 ## When you still want the CLI

@@ -35,18 +35,45 @@ import { Code } from '@astrojs/starlight/components';
 interface Props {
     /** Window title shown centered in the headerbar. */
     title?: string;
-    /** Programmatic tabs (alternative to MDX slots) — one command per runtime. */
-    commands?: { runtime: 'gjsify' | 'npm' | 'bun' | 'deno'; code: string }[];
+    /**
+     * Which set of tabs this window offers, and which preference it shares.
+     *
+     *   `runtime` (default) — WHICH RUNTIME executes the command.
+     *   `pm`               — WHICH PACKAGE MANAGER installs it.
+     *
+     * They are deliberately separate groups rather than one list. The two
+     * questions are independent (a Node project may install with pnpm), and the
+     * selection is persisted + mirrored across the site — so mixing them would
+     * mean picking "Deno" in one window silently hunting for a nonexistent
+     * "deno" tab in a package-manager window, and picking "pnpm" dragging every
+     * runtime window somewhere arbitrary. Each group keeps its own
+     * localStorage key and only syncs with its own kind.
+     */
+    group?: 'runtime' | 'pm';
+    /** Programmatic tabs (alternative to MDX slots) — one command per tab. */
+    commands?: { runtime: 'gjsify' | 'npm' | 'bun' | 'deno' | 'yarn' | 'pnpm'; code: string }[];
 }
 
-const { title = 'Terminal', commands } = Astro.props;
+const { title = 'Terminal', group = 'runtime', commands } = Astro.props;
 
-const RUNTIMES = [
-    { slot: 'gjsify', label: 'GJS' },
-    { slot: 'npm', label: 'Node' },
-    { slot: 'bun', label: 'Bun' },
-    { slot: 'deno', label: 'Deno' },
-];
+const TAB_SETS: Record<string, { slot: string; label: string }[]> = {
+    runtime: [
+        { slot: 'gjsify', label: 'GJS' },
+        { slot: 'npm', label: 'Node' },
+        { slot: 'bun', label: 'Bun' },
+        { slot: 'deno', label: 'Deno' },
+    ],
+    // npm first: it is what a reader lands on with no stored preference, and
+    // the one every ecosystem tool documents. `gjsify` last — it is ours, and
+    // putting it first would read as steering.
+    pm: [
+        { slot: 'npm', label: 'npm' },
+        { slot: 'yarn', label: 'Yarn' },
+        { slot: 'pnpm', label: 'pnpm' },
+        { slot: 'gjsify', label: 'GJSify' },
+    ],
+};
+const RUNTIMES = TAB_SETS[group] ?? TAB_SETS.runtime;
 const LABELS: Record<string, string> = Object.fromEntries(RUNTIMES.map((r) => [r.slot, r.label]));
 
 // A present tab either carries pre-rendered slot `html` OR raw `code` to feed
@@ -70,7 +97,7 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
 {/* `not-content` opts the window chrome out of Starlight's content-flow
     spacing — its `* + *` rule otherwise puts a 1rem margin-top on the
     <adw-tab-view> (a visible gap between headerbar and tab bar). */}
-<div class="command-tabs not-content" data-command-tabs data-runtimes={runtimesAttr}>
+<div class="command-tabs not-content" data-command-tabs data-tab-group={group} data-runtimes={runtimesAttr}>
     <div class="command-tabs-headerbar">
         <span class="command-tabs-headerbar-start"></span>
         <span class="command-tabs-headerbar-title">{title}</span>
@@ -96,11 +123,19 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
 <script>
     import '@gjsify/adwaita-web';
 
-    const KEY = 'gjsify-preferred-runtime';
+    // One key per tab GROUP. `runtime` keeps the original key so an existing
+    // visitor's stored choice survives; other groups get their own namespace.
+    // A shared key would be actively wrong, not just untidy — the groups have
+    // disjoint tab ids, so one group's stored value never matches the other's
+    // tabs, and cross-applying it would move windows arbitrarily.
+    const keyFor = (group: string) =>
+        group === 'runtime' ? 'gjsify-preferred-runtime' : `gjsify-preferred-${group}`;
+    const groupOf = (el: HTMLElement) => el.dataset.tabGroup ?? 'runtime';
 
-    const applyPreference = (runtime: string | null, skip?: Element) => {
+    const applyPreference = (group: string, runtime: string | null, skip?: Element) => {
         if (!runtime) return;
         for (const el of document.querySelectorAll<HTMLElement>('[data-command-tabs]')) {
+            if (groupOf(el) !== group) continue;
             const view = el.querySelector('adw-tab-view');
             if (!view || view === skip) continue;
             const runtimes = (el.dataset.runtimes ?? '').split(',');
@@ -117,12 +152,13 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
         const runtimes = (host.dataset.runtimes ?? '').split(',');
         const runtime = runtimes[(event as CustomEvent).detail?.selected ?? 0];
         if (!runtime) return;
+        const group = groupOf(host);
         try {
-            localStorage.setItem(KEY, runtime);
+            localStorage.setItem(keyFor(group), runtime);
         } catch {
             // Private mode — selection just won't persist.
         }
-        applyPreference(runtime, view);
+        applyPreference(group, runtime, view);
     });
 
     // Headerbar copy button → forward to the ACTIVE page's hidden Expressive
@@ -142,10 +178,16 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
 
     // Initial: restore the remembered runtime once the element is defined.
     customElements.whenDefined('adw-tab-view').then(() => {
-        try {
-            applyPreference(localStorage.getItem(KEY));
-        } catch {
-            // ignore
+        // Restore each group independently — a page can hold both kinds.
+        const groups = new Set(
+            [...document.querySelectorAll<HTMLElement>('[data-command-tabs]')].map(groupOf),
+        );
+        for (const group of groups) {
+            try {
+                applyPreference(group, localStorage.getItem(keyFor(group)));
+            } catch {
+                // ignore
+            }
         }
     });
 </script>

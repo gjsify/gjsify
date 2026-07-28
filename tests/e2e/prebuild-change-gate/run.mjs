@@ -9,9 +9,9 @@
 // Everything here drives the REAL script against the REAL workflow file with
 // `--changed-from-stdin`, so a change to either that breaks the contract fails
 // here rather than on a 96-minute emulated leg.
-import { describe, it } from 'node:test';
+import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import {
     copyFileSync,
     existsSync,
@@ -31,14 +31,62 @@ const script = fileURLToPath(new URL('../../../.github/prebuild-toolchain/change
 const workflow = fileURLToPath(new URL('../../../.github/workflows/prebuilds.yml', import.meta.url));
 const emulated = fileURLToPath(new URL('../../../.github/prebuild-toolchain/emulated-build.sh', import.meta.url));
 
+// A scratch dir this suite owns, for the per-run GITHUB_OUTPUT files below.
+const scratch = mkdtempSync(join(tmpdir(), 'prebuild-gate-out-'));
+after(() => rmSync(scratch, { recursive: true, force: true }));
+let outputSeq = 0;
+
+/**
+ * Spawn the classifier with a `GITHUB_OUTPUT` THIS TEST OWNS.
+ *
+ * Never inherit the runner's. `--format=github-actions` appends to whatever
+ * `GITHUB_OUTPUT` names, and under `node --test` inside the CI container that
+ * is the real `/__w/_temp/_runner_file_commands/set_output_*` file, which the
+ * test user cannot write: `EACCES`, and ONLY in CI — locally the variable is
+ * unset, so the branch is never taken and the suite passes on every machine
+ * that is not the one that matters. Pointing it at our own file fixes the
+ * cause AND makes the emitted key/value pairs assertable, which is stronger
+ * than the stdout-only check this used to do.
+ *
+ * @returns {{stdout: string, stderr: string, status: number, outputFile: string}}
+ */
+function runScript(args, { cwd = repoRoot, input, exe = script } = {}) {
+    const outputFile = join(scratch, `out-${outputSeq++}.txt`);
+    writeFileSync(outputFile, '');
+    const r = spawnSync(process.execPath, [exe, ...args], {
+        cwd,
+        input,
+        encoding: 'utf8',
+        env: { ...process.env, GITHUB_OUTPUT: outputFile },
+    });
+    return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status ?? 1, outputFile };
+}
+
+/** Parse a `$GITHUB_OUTPUT` file into a plain key → value map. */
+function readOutputs(file) {
+    /** @type {Record<string, string>} */
+    const out = {};
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+        const eq = line.indexOf('=');
+        if (eq > 0) out[line.slice(0, eq)] = line.slice(eq + 1);
+    }
+    return out;
+}
+
+/** The forced-everything report — the full package key set. Returns raw JSON text. */
+function runAll() {
+    const r = runScript(['--all', '--format=json']);
+    assert.equal(r.status, 0, `classifier failed:\n${r.stderr}`);
+    return r.stdout;
+}
+
 /** Run the classifier over an explicit file list; returns its JSON report. */
 function classify(files) {
-    const out = execFileSync(process.execPath, [script, '--changed-from-stdin', '--format=json'], {
-        cwd: repoRoot,
-        input: `${files.join('\n')}\n`,
-        encoding: 'utf8',
-    });
-    return JSON.parse(out);
+    // `--format=json` — this helper needs no GitHub outputs, so it does not ask
+    // for them (the isolated GITHUB_OUTPUT above is belt and braces).
+    const r = runScript(['--changed-from-stdin', '--format=json'], { input: `${files.join('\n')}\n` });
+    assert.equal(r.status, 0, `classifier failed:\n${r.stderr}`);
+    return JSON.parse(r.stdout);
 }
 
 describe('prebuild change gate — package discovery', () => {
@@ -50,9 +98,7 @@ describe('prebuild change gate — package discovery', () => {
         const { build } = classify([]);
         // An empty change set with no base is "nothing affected", so ask the
         // forced path for the full key set instead.
-        const all = JSON.parse(
-            execFileSync(process.execPath, [script, '--all', '--format=json'], { cwd: repoRoot, encoding: 'utf8' }),
-        );
+        const all = JSON.parse(runAll());
         assert.deepEqual(new Set(all.build), fromWorkflow);
         assert.ok(all.build.length >= 10, 'the workflow owns ten native packages today');
         assert.deepEqual(build, [], 'an empty change set builds nothing');
@@ -81,11 +127,15 @@ describe('prebuild change gate — package discovery', () => {
         // The package/refs derivation reads real package dirs, so symlink them in.
         symlinkSync(join(repoRoot, 'packages'), join(tmp, 'packages'), 'dir');
 
-        const r = spawnSync(
-            process.execPath,
-            [join(tmp, '.github', 'prebuild-toolchain', 'changed-packages.mjs'), '--all', '--format=json'],
-            { cwd: tmp, encoding: 'utf8' },
-        );
+        // Through `runScript` so this spawn also gets its OWN GITHUB_OUTPUT —
+        // the format is json here, but a case that asserts "the classifier
+        // FAILED" must not be satisfiable by an unrelated EACCES on the
+        // runner's output file. Isolating the env keeps the non-zero exit
+        // attributable to the divergence and nothing else.
+        const r = runScript(['--all', '--format=json'], {
+            cwd: tmp,
+            exe: join(tmp, '.github', 'prebuild-toolchain', 'changed-packages.mjs'),
+        });
         assert.notEqual(r.status, 0, 'a diverged paths list must FAIL the classifier');
         assert.match(r.stderr, /lists?\s*#2 differs from list #1|MUST be identical/);
         assert.match(r.stderr, /refs\/oxc/);
@@ -98,9 +148,7 @@ describe('prebuild change gate — package discovery', () => {
         // workflow from its own sources, so gating it would turn a latent bug
         // into an invisible one.
         const text = readFileSync(workflow, 'utf8');
-        for (const key of JSON.parse(
-            execFileSync(process.execPath, [script, '--all', '--format=json'], { cwd: repoRoot, encoding: 'utf8' }),
-        ).build) {
+        for (const key of JSON.parse(runAll()).build) {
             const dirs = [...text.matchAll(/^\s*path:\s*(packages\/[^\s/]+\/[^\s/]+)\/prebuilds\//gm)]
                 .map((m) => m[1])
                 .filter((d) => d.endsWith(`/${key}`));
@@ -204,38 +252,92 @@ describe('prebuild change gate — what counts as changed', () => {
     it('builds nothing for a change no package owns', () => {
         assert.deepEqual(classify(['packages/node/fs/src/index.ts', 'README.md']).build, []);
     });
+
+    it('treats a committed Cargo.lock as a change to its bridge', () => {
+        // #852 commits `src/rust/Cargo.lock` for all three Rust bridges and adds
+        // it to meson's `rust_sources` — a lock bump then changes the binary, so
+        // it MUST rebuild that package. It already does: the per-package globs
+        // are derived from this workflow's `on: paths:` filter, and all three
+        // bridges are listed there as `<pkg>/src/**` rather than a narrower
+        // `src/vala/**`. Asserted rather than assumed, because narrowing any of
+        // those three entries would silently reopen exactly the registry-drift
+        // hole the lockfile is being committed to close.
+        for (const pkg of ['lightningcss-native', 'oxfmt-native', 'rolldown-native']) {
+            const { build } = classify([`packages/infra/${pkg}/src/rust/Cargo.lock`]);
+            assert.deepEqual(build, [pkg], `${pkg}: a Cargo.lock change must rebuild it`);
+        }
+    });
 });
 
 describe('prebuild change gate — fail open', () => {
     it('builds everything when the diff base cannot be resolved', () => {
-        const out = execFileSync(
-            process.execPath,
-            [script, '--base', 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', '--format=json'],
-            { cwd: repoRoot, encoding: 'utf8' },
-        );
-        const { build, skip, reason } = JSON.parse(out);
+        const r = runScript(['--base', 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', '--format=json']);
+        assert.equal(r.status, 0, r.stderr);
+        const { build, skip, reason } = JSON.parse(r.stdout);
         assert.deepEqual(skip, []);
         assert.equal(build.length, 10);
         assert.match(reason, /not a commit/);
     });
 
-    it('emits a skip list the workflow gates can match without parsing', () => {
+    it('PUBLISHES the decision to $GITHUB_OUTPUT, not just stdout', () => {
+        // The `changes` job reads the FILE, so the file is what this asserts —
+        // stdout alone would pass even if the append were dropped entirely.
+        const r = runScript(['--changed-from-stdin', '--format=github-actions'], {
+            input: 'packages/node/terminal-native/src/vala/terminal.vala\n',
+        });
+        assert.equal(r.status, 0, r.stderr);
+
+        const outputs = readOutputs(r.outputFile);
+        assert.deepEqual(Object.keys(outputs).sort(), ['build', 'reason', 'report', 'skip']);
+        assert.deepEqual(JSON.parse(outputs.build), ['terminal-native']);
+        assert.equal(JSON.parse(outputs.skip).length, 9);
+        assert.match(outputs.reason, /1 of 10/);
+        // `report` is what `prebuilds-summary` renders — it must be one line of
+        // parseable JSON covering every package with a per-package reason.
+        const report = JSON.parse(outputs.report);
+        assert.equal(report.length, 10);
+        assert.ok(report.every((e) => typeof e.key === 'string' && typeof e.why === 'string'));
+        assert.equal(report.find((e) => e.key === 'terminal-native').build, true);
+        assert.equal(report.find((e) => e.key === 'lightningcss-native').build, false);
+        // Every value is a SINGLE line — a `key=value` file has no multi-line
+        // form without a heredoc delimiter, so an embedded newline would
+        // silently truncate the output GitHub records.
+        for (const [k, v] of Object.entries(outputs)) {
+            assert.ok(!v.includes('\n'), `${k} must be single-line`);
+        }
+
         // The gates are `!contains(needs.changes.outputs.skip, '"<key>"')` on
         // the RAW string: an unset output is '', contains is false, and the
-        // package builds. That only holds if the keys are quoted in the output
-        // — and the quoting is also what stops `"http2-native"` matching
+        // package builds. That only holds if the keys are QUOTED in the output
+        // — the quoting is also what stops `"http2-native"` matching
         // `"http2-native-x"`.
-        const out = execFileSync(process.execPath, [script, '--changed-from-stdin', '--format=github-actions'], {
+        assert.ok(outputs.skip.includes('"lightningcss-native"'));
+        assert.ok(!outputs.skip.includes('"terminal-native"'));
+
+        // stdout mirrors the file, so a failed publish is still diagnosable.
+        assert.ok(r.stdout.includes(`skip=${outputs.skip}`));
+    });
+
+    it('FAILS LOUDLY when $GITHUB_OUTPUT is set but unwritable', () => {
+        // Silently continuing would leave every gate reading '' — which BUILDS
+        // everything, so it is safe, but it is a dead gate wearing a green
+        // tick and nothing would ever say so. A hard failure is still fail-open
+        // (the `changes` job's wrapper catches a non-zero exit and writes the
+        // all-build fallback), it just refuses to be quiet.
+        const dir = mkdtempSync(join(tmpdir(), 'prebuild-gate-ro-'));
+        const r = spawnSync(process.execPath, [script, '--all', '--format=github-actions'], {
             cwd: repoRoot,
-            input: 'packages/node/terminal-native/src/vala/terminal.vala\n',
             encoding: 'utf8',
+            // A DIRECTORY can never be opened for append — portable across
+            // platforms and CI users, unlike chmod (root ignores mode bits).
+            env: { ...process.env, GITHUB_OUTPUT: dir },
         });
-        const line = out.split('\n').find((l) => l.startsWith('skip='));
-        assert.ok(line, 'a skip= line must be emitted');
-        const json = line.slice('skip='.length);
-        assert.ok(json.includes('"lightningcss-native"'));
-        assert.ok(!json.includes('"terminal-native"'));
-        assert.deepEqual(JSON.parse(json).length, 9);
+        rmSync(dir, { recursive: true, force: true });
+        assert.notEqual(r.status, 0, 'an unpublishable decision must fail the step');
+        assert.match(r.stderr, /cannot publish outputs to GITHUB_OUTPUT/);
+        // The decision still reached stdout, so the log says what it WOULD have
+        // published — that is the difference between diagnosable and a mystery.
+        assert.match(r.stdout, /^skip=/m);
     });
 
     it('every workflow gate names a key the classifier actually emits', () => {
@@ -243,14 +345,7 @@ describe('prebuild change gate — fail open', () => {
         // but it is dead, and a TYPO would read exactly like a deliberate
         // always-build. Both are worth catching.
         const text = readFileSync(workflow, 'utf8');
-        const keys = new Set(
-            JSON.parse(
-                execFileSync(process.execPath, [script, '--all', '--format=json'], {
-                    cwd: repoRoot,
-                    encoding: 'utf8',
-                }),
-            ).build,
-        );
+        const keys = new Set(JSON.parse(runAll()).build);
         const gated = [...text.matchAll(/!contains\(needs\.changes\.outputs\.skip, '"([^"]+)"'\)/g)].map((m) => m[1]);
         assert.ok(gated.length > 50, 'the legs must actually be gated');
         for (const key of new Set(gated)) {
