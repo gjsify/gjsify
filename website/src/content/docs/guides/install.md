@@ -87,7 +87,31 @@ default to `gjs`; `npm install -g @gjsify/cli` runs on Node, so those default
 to `node`; invoking the CLI via `bunx @gjsify/cli` or `deno run
 npm:@gjsify/cli` defaults to `bun`/`deno` respectively (all three consume the
 same `--app node` bundle). Override explicitly with `--app`/`--runtime` — see
-[Runtimes](/gjsify/runtimes/).
+[Runtimes](/gjsify/runtimes/). (`gjsify showcase` is the exception: a showcase's
+canonical artifact is its `--app gjs` bundle, so it defaults to `gjs` whenever
+`gjs` is installed, whatever the host.)
+
+### Which VERSION does `npx` / `bunx` / `deno run` give you?
+
+Not necessarily the latest one, and the difference is not visible in the output
+of the command that fails because of it. All three runners reuse a **cached**
+copy of an unpinned bin, so the same `npx @gjsify/cli …` can keep serving a
+release from months ago. Pin the tag to force a resolve:
+
+```bash
+npx @gjsify/cli@latest showcase excalibur-jelly-jumper
+bunx @gjsify/cli@latest showcase excalibur-jelly-jumper
+deno run -A --reload npm:@gjsify/cli@latest showcase excalibur-jelly-jumper
+```
+
+Deno adds a second rule: `minimumDependencyAge` (24 h by default) refuses a
+version published more recently than that — so a same-day release is skipped in
+favour of an older one until it ages in. Deno says so explicitly when you pin
+the version; when you don't, it quietly resolves to the older one. Pass
+`--min-dep-age=0` (or set `"minimumDependencyAge"` in `deno.json`) to opt out.
+
+`gjsify showcase` prints the CLI version it is running as (`[gjsify 0.24.1]`),
+so if a showcase misbehaves, check that line first.
 
 ## Prerequisites
 
