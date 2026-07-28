@@ -56,16 +56,7 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
         throw new Error(
             'gjsify build: no usable bundler engine under GJS — `@gjsify/rolldown-native` is not loadable, ' +
                 'and the npm `rolldown` engine is a Rust napi crate that cannot run under GJS.\n' +
-                'Most likely cause: the CLI bundle was invoked DIRECTLY (`gjs -m …/cli.gjs.mjs` or by executing ' +
-                'dist/cli.gjs.mjs), which bypasses the `gjsify` launcher that exports GI_TYPELIB_PATH / ' +
-                'LD_LIBRARY_PATH for the prebuilds. The typelib lookup happens inside the GJS runtime, so those ' +
-                'must be set BEFORE the process starts — the CLI cannot repair it from the inside. ' +
-                'Run through the `gjsify` bin instead (`node_modules/.bin/gjsify …`, or the globally installed shim), ' +
-                'or export the env yourself:\n' +
-                '  P=<repo>/packages/infra/rolldown-native/prebuilds/linux-x64\n' +
-                '  GI_TYPELIB_PATH=$P LD_LIBRARY_PATH=$P gjs -m …/cli.gjs.mjs build …\n' +
-                'Other causes: the JS facade `lib/` is not built (`gjsify workspace @gjsify/rolldown-native build` ' +
-                'under Node), or no prebuild exists for this architecture. Running the build under Node also works.',
+                diagnoseNativeEngine(),
         );
     }
     // Indirect specifier so Rolldown's static-analysis doesn't try to
@@ -74,6 +65,67 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
     const target = resolveImportTargetForGjs(specifier);
     const mod = (await import(/* @vite-ignore */ target)) as typeof Rolldown;
     return mod.rolldown;
+}
+
+/**
+ * Say WHY the native engine could not be loaded, read off disk rather than
+ * guessed.
+ *
+ * The three causes need three different fixes, and this message used to assert
+ * the rarest of them ("the CLI bundle was invoked DIRECTLY … bypasses the
+ * `gjsify` launcher") as the "most likely cause". On the by-far most common
+ * one — a freshly cloned + freshly installed tree, where the engine's JS facade
+ * has simply never been built — that reading is not merely unhelpful, it points
+ * at a launcher that was in fact used correctly, so the reader goes looking for
+ * an env-var problem that does not exist. `scripts/verify-committed-bundles.mjs`
+ * hit exactly that and it blocked releases.
+ *
+ * The probe is `existsSync`-only (no import, no resolution) so it cannot itself
+ * throw or recurse into the failure being explained.
+ */
+function diagnoseNativeEngine(): string {
+    let pkgDir: string | null = null;
+    try {
+        const bundleDir = path.dirname(new URL(import.meta.url).pathname);
+        pkgDir = findRolldownNativeDir(process.cwd(), bundleDir);
+    } catch {
+        pkgDir = null;
+    }
+
+    if (pkgDir === null) {
+        return (
+            '`@gjsify/rolldown-native` is NOT INSTALLED — no node_modules/@gjsify/rolldown-native was found ' +
+            `walking up from ${process.cwd()} or from the CLI bundle's own directory.\n` +
+            'Install it: `gjsify install @gjsify/rolldown-native` (in the gjsify repo: `gjsify install`). ' +
+            'Running the build under Node also works — there the npm `rolldown` crate is used instead.'
+        );
+    }
+
+    const facade = path.join(pkgDir, 'lib', 'esm', 'index.js');
+    if (!existsSync(facade)) {
+        return (
+            `The engine's JS facade is NOT BUILT: ${facade} does not exist.\n` +
+            'It is a BUILD OUTPUT, not something `gjsify install` produces — so a freshly cloned or freshly ' +
+            'installed tree never has it, and every `gjsify build` under GJS fails here until it is built once. ' +
+            'Building it needs a bundler, which is why it cannot bootstrap itself under GJS; the Node CLI entry ' +
+            'does it instead. From the gjsify repo root:\n' +
+            '  gjsify run build:infra                          # the full cold-tree chain (recommended)\n' +
+            '  node scripts/bootstrap-native-facades.mjs       # just the facades, if the rest is already built\n' +
+            'Both are idempotent and skip already-built facades in seconds.'
+        );
+    }
+
+    return (
+        'The JS facade is built, so this is the typelib/prebuild lookup failing. Most likely the CLI bundle was ' +
+        'invoked DIRECTLY (`gjs -m …/cli.gjs.mjs`, or by executing dist/cli.gjs.mjs), which bypasses the `gjsify` ' +
+        'launcher that exports GI_TYPELIB_PATH / LD_LIBRARY_PATH for the prebuilds. The typelib lookup happens ' +
+        'inside the GJS runtime, so those must be set BEFORE the process starts — the CLI cannot repair it from ' +
+        'the inside. Run through the `gjsify` bin instead (`node_modules/.bin/gjsify …`, or the globally installed ' +
+        'shim), or export the env yourself:\n' +
+        `  P=${path.join(pkgDir, 'prebuilds', `${process.platform ?? 'linux'}-${process.arch ?? 'x64'}`)}\n` +
+        '  GI_TYPELIB_PATH=$P LD_LIBRARY_PATH=$P gjs -m …/cli.gjs.mjs build …\n' +
+        'Otherwise: no prebuild exists for this architecture. Running the build under Node also works.'
+    );
 }
 
 /**
@@ -358,9 +410,7 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
                 // limitations and `findWorkspaceRoot`'s dependency on
                 // `discoverWorkspaces`, both of which can fail to map a
                 // sub-package dir up to the hoisted workspace root.
-                const bundleDir = path.dirname(
-                    new URL(import.meta.url).pathname,
-                );
+                const bundleDir = path.dirname(new URL(import.meta.url).pathname);
                 const resolvedFromNpm = resolveNpmPackage(specifier, { bundleUrl: import.meta.url });
                 const resolvedFromFs = resolvedFromNpm
                     ? null
@@ -378,10 +428,7 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
                               return null;
                           }
                       })();
-                const resolved =
-                    resolvedFromNpm ??
-                    resolvedFromFs ??
-                    createRequire(import.meta.url).resolve(specifier);
+                const resolved = resolvedFromNpm ?? resolvedFromFs ?? createRequire(import.meta.url).resolve(specifier);
                 target = pathToFileURL(resolved).href;
             }
             const mod = (await import(/* @vite-ignore */ target)) as NativeRolldownSurface;
