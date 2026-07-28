@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
         }
     },
     "files": [
