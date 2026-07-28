@@ -929,25 +929,6 @@ Root-cause fix surfaced by this suite: **`@gjsify/buffer` constructed `TextEncod
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-### `verify-package-outputs` fails on every SELECTIVE build job
-
-**`@gjsify/xmlhttprequest` reds the `Verify declared package outputs exist` step
-on every selective PR run** — it declares `lib/types/{index,register}.d.ts` and
-the restored `build-v3-…` archive does not carry them. The package is outside a
-typical closure, so the selective path never rebuilds it; the FULL path
-regenerates everything and passes, which is why `main` is green and only PRs
-red. Confirmed on both sides of the task-#75 fix (PR #852's pre-fix run and the
-post-fix proof run fail identically), so it is a build-cache COMPLETENESS
-problem, not a source defect and not something the include-args fix introduced.
-
-It is the first thing a maintainer will hit now that the selective build
-actually builds. Fixing it means deciding where the post-condition belongs: the
-check is a whole-tree assertion while the selective path only guarantees the
-closure, so either the cache save must be proven complete, or the check must be
-scoped to what the job was responsible for building. Scoping it is the lesser
-option — a per-job carve-out is the artefact that drifts and then lies, which is
-the failure mode `verify-package-outputs.mjs` exists to remove.
-
 ### Manifest-conformance follow-ups
 
 The five standalone declaration-vs-reality scripts are now one rule registry
