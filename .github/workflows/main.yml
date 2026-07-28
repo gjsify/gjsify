@@ -289,7 +289,11 @@ jobs:
       options: --ulimit nofile=1048576:1048576
     steps:
       - uses: actions/checkout@v6
+      # `id` so the explicit build-output cache SAVE at the end of this job can
+      # read the key + path set the composite restored with. This is the ONLY
+      # job that writes that cache — see the save step for why.
       - uses: ./.github/actions/gjsify-setup
+        id: setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
           node-version: ${{ matrix.node-version }}
@@ -406,7 +410,36 @@ jobs:
       # and the selective path only runs when the cache probe found a warm
       # baseline for the unchanged forward-deps.
       - name: Verify declared package outputs exist
+        id: verifyoutputs
         run: su testuser -c 'node scripts/verify-package-outputs.mjs'
+
+      # THE build-output cache's only writer. `gjsify-setup` deliberately only
+      # RESTORES, because `actions/cache`'s automatic post-job save fires in
+      # every job that uses the action — and `deploy-docs.yml`, which builds the
+      # website and finishes in ~2 min, won the reservation against this ~22 min
+      # job every single time. The result: the cache has essentially never held
+      # a full build, only a website-shaped ~4.5 MB tree. That is what left
+      # `@gjsify/xmlhttprequest`'s `lib/types` out of it, what makes the
+      # completeness probe above fire, and what gave selective builds a junk
+      # baseline. Single writer = the race cannot happen.
+      #
+      # Placed AFTER the completeness post-condition on purpose, and gated on
+      # that step's own OUTCOME rather than on `success()`: the automatic save
+      # runs even when a job FAILS, so a half-built tree would be published
+      # under a fresh key. `outcome == 'success'` is also the correct spelling
+      # against a SKIPPED verification (a skip is not a pass) — `success()`
+      # alone would be true for a step that never ran.
+      #
+      # Skipped on an exact key hit: `cache/save` cannot overwrite an existing
+      # key, and a hit means the tree it would write is already there.
+      - name: Save build output cache
+        if: ${{ steps.verifyoutputs.outcome == 'success' && steps.setup.outputs.build-cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          # Same list the composite restored with — one source of truth, so the
+          # two cannot drift.
+          path: ${{ steps.setup.outputs.build-cache-paths }}
+          key: ${{ steps.setup.outputs.build-cache-key }}
 
       # The committed GJS bundles must match their SOURCE, not just report the
       # expected version string. gjsify-setup's version check runs the bundle

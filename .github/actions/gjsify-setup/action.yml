@@ -34,6 +34,24 @@ inputs:
     required: false
     default: 26.x
 
+outputs:
+  build-cache-key:
+    description: >
+      The build-output cache's PRIMARY key. The `build` job needs it to SAVE the
+      cache itself — this action only RESTORES (see the restore step's comment).
+    value: ${{ steps.build-cache.outputs.cache-primary-key }}
+  build-cache-hit:
+    description: >
+      'true' when the primary key matched EXACTLY. The saver must skip on a
+      true here: `actions/cache/save` cannot overwrite an existing key.
+    value: ${{ steps.build-cache.outputs.cache-hit }}
+  build-cache-paths:
+    description: >
+      The cached path list, so the `build` job's save step uses the SAME set
+      without a second copy of it. `cache/save` requires its own `path` input
+      and two literal copies WOULD drift; this output is the one source.
+    value: ${{ steps.build-cache-paths.outputs.paths }}
+
 runs:
   using: composite
   steps:
@@ -136,24 +154,58 @@ runs:
         fi
         echo "@gjsify/tsc bundle OK — reports v$ACTUAL matching TYPESCRIPT_VERSION."
 
-    # Restore previously-built lib/ + tsbuildinfo + dist. The build job populates
-    # this; downstream test/e2e/examples jobs restore it (needs: build guarantees
-    # the build job's post-save completed first). NEVER cache git-committed,
-    # version-locked artifacts (the `!` excludes keep them = the checkout).
-    - name: Cache build output (lib/ + tsbuildinfo)
-      uses: actions/cache@v6
+    # The cached path set, defined ONCE. The `build` job's explicit save step
+    # needs the identical list and `actions/cache/save` takes its own `path`
+    # input, so a second literal copy would silently drift the day one side is
+    # edited. Emitting it as a step output makes the restore and the save read
+    # the same value.
+    - name: Resolve build-output cache paths
+      id: build-cache-paths
+      shell: bash
+      run: |
+        {
+          echo 'paths<<GJSIFY_CACHE_PATHS_EOF'
+          cat <<'PATHS'
+        packages/*/*/lib
+        !packages/infra/tsc/lib
+        !packages/infra/resolve-npm/lib
+        packages/*/*/tsconfig.tsbuildinfo
+        packages/*/*/tsconfig.*.tsbuildinfo
+        packages/*/*/dist
+        packages/*/*/dist-templates
+        !packages/infra/cli/dist/cli.gjs.mjs
+        !packages/infra/cli/dist/affected.gjs.mjs
+        !packages/infra/tsc/dist/tsc.gjs.mjs
+        PATHS
+          echo 'GJSIFY_CACHE_PATHS_EOF'
+        } >> "$GITHUB_OUTPUT"
+
+    # RESTORE ONLY — this action must never SAVE the build-output cache.
+    #
+    # `actions/cache` registers a post-job save in EVERY job that uses it, and
+    # this composite is used by six of them plus `deploy-docs.yml`. Whichever
+    # finishes first wins the reservation, and the rest get "Unable to reserve
+    # cache … another job may be creating this cache". `deploy-docs` builds only
+    # the website and finishes in ~2 min, so it beat the ~22 min `build` job
+    # EVERY time: the build-output cache has essentially never contained a full
+    # build. It held a website-shaped tree of ~4.5 MB — which is why
+    # `@gjsify/xmlhttprequest`'s `lib/types` was missing from it, why the
+    # completeness probe fires, and why selective builds ran on a junk baseline.
+    #
+    # So exactly ONE job writes this cache: `build`, via an explicit
+    # `actions/cache/save` placed AFTER `Verify declared package outputs exist`.
+    # That gives two properties a post-job save cannot: only the job that has a
+    # complete tree can write, and it only writes a tree it has PROVEN complete
+    # (the automatic save runs even when the job FAILED, so a half-built tree
+    # would otherwise be published under a fresh key).
+    #
+    # NEVER cache git-committed, version-locked artifacts (the `!` excludes keep
+    # them = the checkout).
+    - name: Restore build output (lib/ + tsbuildinfo)
+      id: build-cache
+      uses: actions/cache/restore@v6
       with:
-        path: |
-          packages/*/*/lib
-          !packages/infra/tsc/lib
-          !packages/infra/resolve-npm/lib
-          packages/*/*/tsconfig.tsbuildinfo
-          packages/*/*/tsconfig.*.tsbuildinfo
-          packages/*/*/dist
-          packages/*/*/dist-templates
-          !packages/infra/cli/dist/cli.gjs.mjs
-          !packages/infra/cli/dist/affected.gjs.mjs
-          !packages/infra/tsc/dist/tsc.gjs.mjs
+        path: ${{ steps.build-cache-paths.outputs.paths }}
         # v3: cache now also covers packages/*/*/dist-templates (create-gjsify's
         # processed templates — a build output the e2e create-app suite needs).
         # The v2 fedora-only restore-key gives a warm lib/dist baseline during
