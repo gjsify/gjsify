@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Reimplemented for @gjsify browser target — inspired by CoderPuppy/os-browserify (MIT).
 //
+// NOTE: importing `./constants.js` here is deliberate — it is a pure data
+// table (plain integers, no Node/GI imports), so it costs the browser bundle
+// nothing but the numbers themselves.
+//
 // Reference: refs/node/lib/os.js (surface mirror)
 // Inspiration: os-browserify, Copyright (c) CoderPuppy. MIT.
 //
@@ -9,6 +13,8 @@
 // cpus, no mem). Mirrors what `node-stdlib-browser` exposes plus a few extras
 // (`availableParallelism`, `machine`, `version`) so npm packages probing
 // recent Node APIs don't trip.
+
+import osConstants from './constants.js';
 
 export const EOL = '\n';
 export const devNull = '/dev/null';
@@ -89,8 +95,19 @@ export const setPriority = (_pidOrPriority: number, _priority?: number): void =>
 
 export const constants = {
     UV_UDP_REUSEADDR: 4,
-    errno: {},
-    signals: {},
+    // errno + signal numbers are PLATFORM DATA, not a runtime capability —
+    // they are the same integers in a browser tab as anywhere else, and
+    // `constants-browserify` (the ecosystem's reference browser shim) ships
+    // them in full. They were `{}` here, which is why `@gjsify/constants`
+    // — whose whole job is to flatten `os.constants` — resolved `ENOENT`,
+    // `SIGINT` and friends to `undefined` in the browser build.
+    //
+    // Reuse the single source of truth in `./constants.js` rather than
+    // duplicating the tables; a second copy is a table that drifts.
+    errno: osConstants.errno,
+    signals: osConstants.signals,
+    // `dlopen` stays empty on purpose: unlike errno/signals it describes a
+    // dynamic linker, which a browser genuinely does not have.
     priority: {
         PRIORITY_LOW: 19,
         PRIORITY_BELOW_NORMAL: 10,

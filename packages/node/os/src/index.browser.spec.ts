@@ -147,6 +147,26 @@ export default async () => {
             expect(typeof os.constants.errno).toBe('object');
         });
 
+        // `typeof … === 'object'` above is satisfied by `{}`, which is exactly
+        // what these were: empty. `@gjsify/constants` flattens `os.constants`,
+        // so every errno/signal it re-exports resolved to `undefined` in the
+        // browser build and its suite failed the moment that bundle actually
+        // got built. Assert the VALUES, not just the shape.
+        await it('constants.errno carries the POSIX numbers, not an empty object', async () => {
+            expect(os.constants.errno.ENOENT).toBe(2);
+            expect(os.constants.errno.EACCES).toBe(13);
+            expect(os.constants.errno.EEXIST).toBe(17);
+            expect(os.constants.errno.EPERM).toBe(1);
+            expect(typeof os.constants.errno.ECONNREFUSED).toBe('number');
+        });
+
+        await it('constants.signals carries the POSIX numbers, not an empty object', async () => {
+            expect(os.constants.signals.SIGINT).toBe(2);
+            expect(os.constants.signals.SIGKILL).toBe(9);
+            expect(os.constants.signals.SIGTERM).toBe(15);
+            expect(typeof os.constants.signals.SIGHUP).toBe('number');
+        });
+
         await it('constants.UV_UDP_REUSEADDR should be a number', async () => {
             expect(typeof os.constants.UV_UDP_REUSEADDR).toBe('number');
         });
