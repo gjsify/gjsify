@@ -929,6 +929,44 @@ Root-cause fix surfaced by this suite: **`@gjsify/buffer` constructed `TextEncod
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
+### Manifest-conformance follow-ups
+
+The five standalone declaration-vs-reality scripts are now one rule registry
+(`@gjsify/manifest-conformance` + `scripts/manifest-conformance/`). Three
+things were deliberately left out of that refactor so it stayed a refactor.
+
+- **`gjsify manifest-check` is designed but not shipped.** The portable rules
+  (`package-outputs`, `prebuild-artifacts`, `headless`, `field-coverage`) are
+  already extracted into a package with a hand-written `lib/index.d.ts`, so the
+  command is a thin wrapper over `selectRules({ scope: 'portable' })`. It was
+  held back because it carries two costs a refactor must not smuggle in: the
+  package has to flip from `private` to published, which needs the manual
+  first-publish + Trusted-Publisher bootstrap BEFORE the next release train, and
+  adding a command rebuilds `dist/{cli,affected}.gjs.mjs`, coupling the change to
+  the committed-bundle gate. The name is settled: `manifest-check` — a sibling of
+  `system-check` (machine has what the project needs) and distinct from `check`
+  (types compile). Evidence it is worth doing: downstream consumers already
+  declare `gjsify.storybook` (buchhaltung, pixel-rpg/map-editor) and
+  `gjsify.prebuilds` (buchhaltung's ERiC package, which declares a prebuilds
+  directory with NO `gjsify.platforms` — a hard failure in this repo, unchecked
+  in theirs).
+- **Seven `gjsify.*` declaration kinds have no rule** and are deferred with a
+  written reason in `scripts/manifest-conformance/unchecked-fields.mjs`, printed
+  on every audit run. Four are judged unverifiable-by-construction
+  (`defineFromPackageJson`, `flatpak`, `buildCache`, and `nativescriptPlatforms`
+  until there is a per-platform artifact to compare against); three are genuine
+  FINDINGS surfaced by the new coverage guard and want their own change:
+  `gjsify.example` (a declared-but-unbuilt node entry reads to a user as a broken
+  package — AGENTS.md already records two showcases that shipped that way),
+  `gjsify.main` (the GJS-first twin of `gjsify.bin`, which `package-outputs`
+  already checks — the omission looks accidental), and `gjsify.storybook` (a
+  typo in `stories` produces an empty component browser, not an error).
+- **The affected classifier does not know the new rule paths.**
+  `scripts/audit-runtimes.mjs` is a `GLOBAL_TRIGGER`; `scripts/manifest-conformance/**`
+  and `packages/infra/manifest-conformance/**` are not. No coverage is lost today
+  because `audit-runtimes.yml` carries no `paths` filter and runs on every PR, but
+  the trigger list and the rule locations should be brought back into agreement.
+
 ### Toolchain hygiene follow-ups
 
 - **No `*-native` package commits a `Cargo.lock`, so the crates.io half of every native bridge re-resolves on each build.** `scripts/check-refs-pin.mjs` pins the `refs/` submodule; nothing below it is pinned, and root `.gitignore` ignores `packages/infra/*/src/rust/Cargo.lock` by convention. `@gjsify/oxfmt-native` hit the sharp edge of this (a newly published `oxc_allocator 0.141.0` arriving through the crates.io-only `oxc-css-parser`/`oxc-graphql-parser`, colliding with the in-tree path copy) and is fixed STRUCTURALLY with a `[patch.crates-io]`, which is the right fix for a duplicate crate-identity and needs no lockfile. **`@gjsify/rolldown-native` and `@gjsify/lightningcss-native` still float.** Neither can hit the same duplicate class today — `refs/rolldown` carries no `[patch]` section and publishes nothing that its own path deps also pull from the registry, and `lightningcss-native` has no path deps at all (pure crates.io: `lightningcss`, `parcel_sourcemap`, `browserslist-rs`) — so this is a REPRODUCIBILITY gap, not a correctness one: a committed prebuild cannot be re-linked against the same transitive set it was originally built from, and a semver-compatible upstream release can turn the build red with no local change. Decide deliberately whether to commit a `Cargo.lock` per native package (and drop the `.gitignore` line), or to accept the float and rely on `[patch]`+`check-refs-pin` for the parts that actually matter. Pairs with the "nothing byte-compares a committed prebuild against a CI-built one" item below — a lockfile is what would make that comparison meaningful.

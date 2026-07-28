@@ -1,0 +1,49 @@
+{
+    "name": "@gjsify/manifest-conformance",
+    "version": "0.24.0",
+    "description": "Check that what a package.json DECLARES matches what the package actually ships",
+    "private": true,
+    "type": "module",
+    "main": "lib/index.mjs",
+    "module": "lib/index.mjs",
+    "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.mjs"
+        },
+        "./registry": "./lib/registry.mjs",
+        "./context": "./lib/context.mjs",
+        "./binary": "./lib/binary.mjs",
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "true",
+        "test": "echo 'nothing to do'",
+        "build": "echo 'nothing to do'"
+    },
+    "keywords": [
+        "gjs",
+        "package.json",
+        "manifest",
+        "conformance",
+        "prebuilds"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/manifest-conformance"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/manifest-conformance#readme",
+    "gjsify": {
+        "tier": 1
+    }
+}

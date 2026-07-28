@@ -1,23 +1,44 @@
 #!/usr/bin/env node
-// Audit script — classify every `packages/**/package.json` against the
-// five-axis cross-runtime model declared in AGENTS.md `## Strategic direction`.
+// The workspace manifest-conformance gate.
 //
-// For each package the script determines:
-//   - axis       : 1 (node-api), 2 (web-api), 3 (dom), 4 (design-identity),
-//                  5 (platform-bridge), or "infra" (build tooling, not a
-//                  user-facing runtime polyfill).
-//   - gjs_bound  : whether the impl pulls a GJS-only value-dep (`@girs/*`
-//                  value-import, `gi://*` direct import, or a legacy
-//                  `imports.X` global reference). Type-imports are ignored.
-//   - native_hint: presence of a `globals.mjs` file (the Node-side native
-//                  re-export pattern documented in AGENTS.md).
-//   - browser    : presence of a `test.browser.mts` entry under `src/`
-//                  (today's browser-shipping signal).
+// This file used to BE the audit — eight independent checks in one 2 800-line
+// script, next to four other standalone scripts that each answered the same
+// shape of question ("does this declaration match reality") for a different
+// declaration. That collection grew one incident at a time and was never
+// designed; nothing connected "we added a field to the manifest contract" to
+// "therefore something must verify it".
 //
-// From those signals it suggests a default `gjsify.runtimes` triplet
-// (`gjs` × `node` × `browser`, each slot ∈ {polyfill, native, partial, none}),
-// and compares it to whatever `gjsify.runtimes` is declared in package.json
-// today.
+// It is now the ENTRY POINT for the registry in
+// `@gjsify/manifest-conformance` (`packages/infra/manifest-conformance/`).
+// Rules register themselves, declare which manifest FIELDS they govern, and the
+// `field-coverage` rule fails the run on any `gjsify.*` declaration kind no rule
+// claims — so a new declaration is no longer addable without a check.
+//
+// WHAT LIVES WHERE, and the axis that decides it:
+//
+//   PORTABLE rules (`packages/infra/manifest-conformance/lib/rules/`) read only
+//   the manifest, files on disk and binaries: `package-outputs`,
+//   `prebuild-artifacts`, `headless`, `field-coverage`. They are correct in any
+//   npm package, which is why they live in a package rather than in `scripts/`.
+//
+//   REPO-SCOPED rules (`scripts/manifest-conformance/rules/` and the three
+//   defined at the bottom of this file) know about THIS repository: its
+//   directory layout as an axis taxonomy, curated `@gjsify/*` package-name
+//   allowlists, `prebuilds.yml`'s matrix, `@gjsify/resolve-npm`'s alias table,
+//   `refs/` submodules. Correct here, actively misleading anywhere else.
+//
+// WHY THE GATE IS A SCRIPT AND NOT A CLI COMMAND: `.github/workflows/
+// audit-runtimes.yml` runs on a bare ubuntu runner with `setup-node` and NO
+// install and NO build — this file is pure Node plus relative imports of
+// committed, unbuilt `lib/*.mjs`. Routing the gate through the CLI would need
+// either a full `gjsify install` or the COMMITTED `dist/cli.gjs.mjs`, and the
+// second reintroduces exactly the staleness circularity `verify-committed-
+// bundles.mjs` exists to break: a rule added in source but not rebuilt into the
+// bundle would silently not run. #821 proved bundles do merge stale.
+//
+// The checks this file still implements are the three that are inseparable from
+// the source-signal model: the runtime-slot DRIFT check, the ADR-0014
+// cross-runtime REACHABILITY check, and the curated-alias routing check.
 //
 // Usage:
 //   node scripts/audit-runtimes.mjs               # human-readable table
@@ -30,7 +51,9 @@
 //   node scripts/audit-runtimes.mjs --check       # exit 1 if any declared
 //                                                 # triplet drifts from what
 //                                                 # the signal-based detection
-//                                                 # would suggest (CI guard)
+//                                                 # would suggest (CI guard),
+//                                                 # plus every other
+//                                                 # registered rule
 //   node scripts/audit-runtimes.mjs --check --strict
 //                                                 # functional probes:
 //                                                 # statically validate that
@@ -53,85 +76,63 @@
 //                                                 # and actually gets built
 //                                                 # for in CI. Combine with
 //                                                 # --markdown / --json.
+//   node scripts/audit-runtimes.mjs --rules       # list every registered rule,
+//                                                 # its scope and the manifest
+//                                                 # fields it governs
 //   node scripts/audit-runtimes.mjs --check --quick
 //                                                 # explicit forward-
 //                                                 # compatible opt-out for
 //                                                 # the functional probes.
-//                                                 # Today `--check` and
-//                                                 # `--check --quick` are
-//                                                 # behaviorally identical
-//                                                 # (probes opt-in); when the
-//                                                 # default flips to strict
-//                                                 # (PR-B follow-up, T-Plan
-//                                                 # section 1d step 3) `--
-//                                                 # quick` becomes the way to
-//                                                 # pin the legacy "drift +
-//                                                 # missing only" behavior.
-//
-// PR-B (T-Plan section 1d step 3) had planned to flip the `--check` default
-// to strict mode in this PR. The flip is currently NOT performed because 26
-// packages on the integration base (`feat/tooling-foundation-wave2-t` + the
-// staged browser-polyfill PRs #392–#396) declare `browser:"polyfill"` but
-// lack the required `src/test.browser.{mts,ts}` entry the probes look for.
-// The flip is parked behind a follow-up PR; the unblock work is per-package
-// `src/test.browser.mts` skeletons in the R1 wave. The `--quick` flag is
-// wired today so callers already pinning the legacy behavior can switch to
-// the forward-compatible spelling now; the constant is harmless until the
-// default flips (it merely shadows `--strict` when both are present).
 //
 // Pure read-only by default. `--apply` only fills in missing declarations;
 // existing `gjsify.runtimes` values are NEVER overwritten — the human stays
 // in charge of every non-default decision. `--check` is read-only; it never
 // edits package.json — it only reports drift.
-//
-// Tier audit (ADR 0003 + ADR 0005) — always part of `--check` (both quick
-// and strict): every PUBLISHED workspace package (packages/** + showcases/**
-// + any other workspace root, `private: true` exempt) must declare
-// `gjsify.tier` ∈ {1,2,3}; walking `dependencies` + `optionalDependencies`
-// (NOT devDependencies / peerDependencies — optional peers are the
-// sanctioned looseness), every `@gjsify/*` workspace edge A→B must satisfy
-// tier(B) <= tier(A) (a stability-promised package must not inherit an
-// experiment's breakage); and per ADR 0005 no Tier-1/2 package may take a
-// hard dependency on `@gjsify/node-gi` (devDependency is the sanctioned
-// seam).
-//
-// Platform audit (OS axis) — also always part of `--check`. `gjsify.runtimes`
-// declares which RUNTIMES a package reaches; it is silent about OPERATING
-// SYSTEMS, which is how the entire native-bridge set stayed Linux-only while
-// the project described itself as platform-independent. Every package with a
-// native build system (meson / node-gyp) or a prebuild directory must declare
-// `gjsify.platforms` — the `<os>-<arch>` targets it promises a prebuild for —
-// and the audit holds three invariants: a committed `prebuilds/<target>/` is
-// declared; a declared target is actually produced by a CI job; and a package
-// that ships prebuilds has at least one workflow that reproduces them (a
-// hand-built binary nothing rebuilds drifts from its sources in silence).
-// `--platforms` renders the same data as a matrix for documentation.
-//
-// Headless audit (ADR 0015) — also always part of `--check`. Everything above
-// models CROSS-RUNTIME reach; this is the one check on intra-GJS LAYERING.
-// `package.json#gjsify.headless` (either `true` = "the root entry reaches no
-// typelib at all", or a list of typelib namespaces it promises not to reach)
-// is verified against the ROOT import graph — from `exports["."]`, across
-// relative imports and `@gjsify/*` workspace edges. Root-entry-only is the
-// point: a side-effect SUBPATH may legitimately reach the forbidden typelibs
-// (`@gjsify/canvas2d-core/gdk`), which is precisely why scanning `src/**`
-// would be wrong here.
 
-import { spawnSync } from 'node:child_process';
-import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
-import { existsSync, readdirSync } from 'node:fs';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// The ONE binary-artifact parser (Mach-O / ELF / PE / GI typelib). Reused
-// rather than reimplemented: a second parser is a second thing to keep
-// correct, and the whole reason a Linux host can verify a darwin prebuild at
-// all is that this one reads the formats directly instead of shelling out to
-// `otool`/`readelf`.
-import { checkPrebuildDir, readLibrary, readTypelibSharedLibraries } from './check-prebuild-loader-path.mjs';
+// The shared registry + the PORTABLE rule set. Importing the barrel registers
+// `package-outputs`, `prebuild-artifacts`, `headless` and `field-coverage`;
+// importing the repo-rule modules below registers `tier`, `platforms-ci` and
+// `refs-pin`. Registration IS the wiring — there is no second list to keep in
+// sync, which is the whole point.
+import {
+    auditPrebuildArtifacts,
+    collectNativePackages,
+    collectValueExports,
+    createContext,
+    defineRule,
+    DYNAMIC_GI_RE,
+    GI_URL_RE,
+    GIRS_VALUE_RE,
+    GJS_IMPORTS_GUARD_RE,
+    IMPORTS_LEGACY_RE,
+    listSourceFiles,
+    packagesUnder,
+    renderPrebuildSummary,
+    runRules,
+    selectRules,
+    walkEntryGraph,
+} from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { UNCHECKED_FIELDS } from './manifest-conformance/unchecked-fields.mjs';
+import { platformRows, renderPlatformMatrix } from './manifest-conformance/rules/platforms-ci.mjs';
+import './manifest-conformance/rules/tier.mjs';
+import './manifest-conformance/rules/refs-pin.mjs';
+
+// `tests/e2e/prebuild-declaration-invariant` drives the prebuild invariant
+// against SYNTHETIC packages, because proving that a MISSING prebuild directory
+// fails means removing one and the e2e suites share a checkout. Re-exported
+// here so that suite keeps importing the same path it always has.
+export { auditPrebuildArtifacts, collectNativePackages, renderPrebuildSummary };
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const PACKAGES_DIR = resolve(ROOT, 'packages');
+
+/** Recursively find every package.json under a root, returning [absDir]. */
+const findPackages = (dir) => packagesUnder(dir);
 
 const args = new Set(process.argv.slice(2));
 const FORMAT = args.has('--json') ? 'json' : args.has('--markdown') ? 'markdown' : 'table';
@@ -151,52 +152,11 @@ const PLATFORMS = args.has('--platforms');
 // the integration base today). `--quick` wins on conflict to keep the
 // caller's opt-out intent unambiguous.
 const STRICT = args.has('--strict') && !QUICK;
-
-// ─── Discovery ──────────────────────────────────────────────────────────────
-
-/** Recursively find every package.json under packages/**, returning [absDir]. */
-async function findPackages(dir, out = []) {
-    const entries = await readdir(dir, { withFileTypes: true });
-    // A directory containing package.json IS a package — don't descend further.
-    if (entries.some((e) => e.isFile() && e.name === 'package.json')) {
-        out.push(dir);
-        return out;
-    }
-    for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        if (entry.name === 'node_modules' || entry.name === 'lib' || entry.name === 'dist') continue;
-        await findPackages(join(dir, entry.name), out);
-    }
-    return out;
-}
+/** `--rules` lists the registry instead of running anything. */
+const RULES_LIST = args.has('--rules');
 
 // ─── Source-tree probes ─────────────────────────────────────────────────────
 
-const GIRS_VALUE_RE = /^\s*import\s+(?!type\b)[^;]*from\s+['"]@girs\//m;
-const GI_URL_RE = /from\s+['"]gi:\/\//;
-// Dynamic `await import('gi://X')` / `import('@girs/X')` — the gamepad /
-// terminal-native / sab-native graceful-degradation pattern. The package
-// stays loadable everywhere; on non-GJS the await throws and the catch
-// branch supplies a no-op fallback. Treated as `partial` slot for
-// node/browser when no static GJS-binding exists, otherwise the static
-// binding dominates.
-const DYNAMIC_GI_RE = /import\s*\(\s*['"](?:gi:\/\/|@girs\/)/;
-// `imports.X` reads — exclude common comment-context appearances by checking
-// the rest of the line doesn't begin with a comment marker. Imperfect but
-// catches the canonical `const x = imports.byteArray` / `imports.gi.Foo`
-// pattern without hand-rolling a TS parser.
-const IMPORTS_LEGACY_RE =
-    /(?<!\/\/.*)(?<!\*.*)\bimports\.(?:byteArray|gi|system|signals|cairo|gettext|format|misc|jsUnit|searchPath)/;
-// `<obj>.imports?.gi` / `<obj>.imports.gi` — the "safe" access pattern used
-// by `@gjsify/{terminal-native,tls-native,sab-native}` and similar Vala
-// bridges. Reads `imports` via a typed view of a runtime host (`globalThis`,
-// `_runtime`, etc.) and short-circuits to `undefined` on Node where the
-// global doesn't exist. Package is *loadable* everywhere but the
-// GJS-binding is the entire impl — outside GJS the surface returns null /
-// false / undefined. Treated as `none` slot on non-GJS (functionally
-// indistinguishable from a hard GJS-bound package: every call goes through
-// the unavailable bridge).
-const GJS_IMPORTS_GUARD_RE = /\.imports\??\.gi\b/;
 
 async function scanSourceTree(pkgDir) {
     const srcDir = join(pkgDir, 'src');
@@ -953,132 +913,6 @@ function slotOfSpecifier(spec, target, meta) {
     return { slot: rec.runtimes?.[target], via: pkgName, hardGjs: rec.hardGjs };
 }
 
-/** Source files that never ship in a target bundle. */
-function isNonShippingSource(fileName) {
-    return /\.spec\.(ts|mts)$/.test(fileName) || /^test(\..*)?\.(ts|mts)$/.test(fileName) || fileName.endsWith('.d.ts');
-}
-
-/** Every `.ts`/`.mts` file under `dir`, recursively (skips node_modules). */
-async function listSourceFiles(dir, out = []) {
-    let entries;
-    try {
-        entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-        return out;
-    }
-    for (const ent of entries) {
-        const full = join(dir, ent.name);
-        if (ent.isDirectory()) {
-            if (ent.name === 'node_modules') continue;
-            await listSourceFiles(full, out);
-            continue;
-        }
-        if (!ent.isFile() || !/\.(ts|mts)$/.test(ent.name)) continue;
-        if (isNonShippingSource(ent.name)) continue;
-        out.push(full);
-    }
-    return out;
-}
-
-/** Resolve a relative ESM specifier (`./x.js`) to an on-disk TS source. */
-function resolveLocalSource(fromFile, spec) {
-    const base = resolve(fromFile, '..', spec).replace(/\.(js|mjs)$/, '');
-    for (const cand of [`${base}.ts`, `${base}.mts`, join(base, 'index.ts'), join(base, 'index.mts')]) {
-        if (existsSync(cand)) return cand;
-    }
-    return null;
-}
-
-const REACH_IMPORT_RE = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?[^;'"]*?from\s*['"]([^'"]+)['"]/g;
-const REACH_SIDE_EFFECT_RE = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
-/** `import type … from` / `export type { … } from` erase at compile time. */
-const REACH_TYPE_ONLY_RE = /(?:^|\n)\s*(?:import|export)\s+type\s/;
-
-/**
- * Walk the module graph rooted at `entryFiles`, following RELATIVE imports
- * inside the package only, and collect every bare specifier reached plus any
- * direct GJS binding.
- */
-async function walkEntryGraph(entryFiles) {
-    const seen = new Set();
-    /** @type {Array<{spec:string, file:string}>} */
-    const bare = [];
-    /** @type {Array<{kind:string, file:string}>} */
-    const direct = [];
-    const queue = [...entryFiles];
-    while (queue.length) {
-        const file = queue.shift();
-        if (!file || seen.has(file)) continue;
-        seen.add(file);
-        let text;
-        try {
-            text = await readFile(file, 'utf8');
-        } catch {
-            continue;
-        }
-        if (GIRS_VALUE_RE.test(text)) direct.push({ kind: '@girs/* value import', file });
-        if (GI_URL_RE.test(text)) direct.push({ kind: 'gi:// import', file });
-        if (IMPORTS_LEGACY_RE.test(text) && !GJS_IMPORTS_GUARD_RE.test(text)) {
-            direct.push({ kind: 'unguarded `imports.*` read', file });
-        }
-        for (const re of [REACH_IMPORT_RE, REACH_SIDE_EFFECT_RE]) {
-            re.lastIndex = 0;
-            let m;
-            while ((m = re.exec(text)) !== null) {
-                const spec = m[1];
-                if (spec.startsWith('.')) {
-                    const local = resolveLocalSource(file, spec);
-                    if (local) queue.push(local);
-                    continue;
-                }
-                // Skip pure type imports — they erase before the bundler runs.
-                if (re === REACH_IMPORT_RE && REACH_TYPE_ONLY_RE.test(m[0])) continue;
-                bare.push({ spec, file });
-            }
-        }
-    }
-    return { bare, direct, files: seen };
-}
-
-/** Extract VALUE export names from a TS entry, following local `export *`. */
-async function collectValueExports(file, seen = new Set()) {
-    const out = new Set();
-    if (!file || seen.has(file) || !existsSync(file)) return out;
-    seen.add(file);
-    let text;
-    try {
-        text = await readFile(file, 'utf8');
-    } catch {
-        return out;
-    }
-    // `export const|function|class|enum X` — `type`/`interface` deliberately excluded.
-    for (const m of text.matchAll(
-        /^export\s+(?:declare\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?|const|let|var|abstract\s+class|class|enum)\s+([A-Za-z_$][\w$]*)/gm,
-    )) {
-        out.add(m[1]);
-    }
-    // `export { a, b as c }` (optionally `from '…'`) — drop `type` members.
-    // Comments must be stripped BEFORE splitting on `,`: a multi-line export
-    // block that groups its members under `// Sync API`-style headings would
-    // otherwise yield the heading glued to the next name as a phantom export
-    // (`@gjsify/fs` alone produced five). That only surfaces once a slot is
-    // flipped to `polyfill` — i.e. exactly when someone reads the list.
-    for (const m of text.matchAll(/^export\s*\{([^}]*)\}\s*(?:from\s*['"][^'"]+['"]\s*)?;?/gm)) {
-        const members = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-        for (const raw of members.split(',')) {
-            const t = raw.trim();
-            if (!t || /^type\s/.test(t)) continue;
-            const parts = t.split(/\s+as\s+/);
-            out.add((parts[1] ?? parts[0]).trim().replace(/^['"]|['"]$/g, ''));
-        }
-    }
-    if (/^export\s+default\s/m.test(text)) out.add('default');
-    for (const m of text.matchAll(/^export\s*\*\s*from\s*['"](\.[^'"]+)['"]/gm)) {
-        const local = resolveLocalSource(file, m[1]);
-        for (const e of await collectValueExports(local, seen)) out.add(e);
-    }
-    return out;
-}
 
 /**
  * Run the reachability audit across the workspace.
@@ -1263,1081 +1097,6 @@ function renderReachabilityNotes(reach) {
         for (const line of reach.unrouted) console.error(`  · ${line}`);
     }
 }
-
-// ─── Headless-contract audit (intra-GJS layering, ADR 0015) ─────────────────
-//
-// Everything above models CROSS-RUNTIME portability: which of gjs × node ×
-// browser × nativescript a package reaches, and whether the code a slot
-// resolves to can keep that promise. None of it says anything about layering
-// WITHIN the GJS runtime — headless vs toolkit-bound — and that is a real,
-// documented contract that had no machine check at all:
-//
-//   `@gjsify/canvas2d-core` documents itself as "**Headless** … NO GTK
-//   dependency in the ROOT entry", which is the entire reason it was split out
-//   of `@gjsify/canvas2d` (breaking the dom-elements↔canvas2d cycle). It
-//   nevertheless imported `gi://Gdk` from five call sites, and in GTK4 GDK
-//   lives inside `libgtk-4.so` — so the "headless" core dlopened the whole GTK
-//   stack on import.
-//
-// The existing audits structurally COULD NOT catch that:
-//
-//   · The drift check feeds `gi_url` into `suggestRuntimes()` as an INPUT, so
-//     the Gdk import made the declaration agree BETTER, not worse. It produced
-//     agreement, not drift.
-//   · The ADR-0014 reachability pass is gated on `slot === 'polyfill' ||
-//     slot === 'partial'` over `REACH_TARGETS`. canvas2d-core's non-GJS slots
-//     are node:"none" / browser:"native" / nativescript:"none", so every slot
-//     was skipped and `src/**` was never examined.
-//
-// So the contract lived only in prose, and prose does not fail a build.
-//
-// ── The declaration ──
-//
-// `package.json#gjsify.headless` — an EXPLICIT declaration, never a heuristic.
-// A name heuristic (`*-core`) is guessable but wrong by construction:
-// `@gjsify/adwaita-core` and `@gjsify/storybook-core` are headless for entirely
-// different reasons, `@gjsify/webrtc-native` is a `-native` package that is the
-// most toolkit-bound thing in the tree, and a future `-core` may be headless in
-// neither sense. A declaration is honest (the package states its own promise),
-// greppable, and reviewable in the diff that introduces it.
-//
-// Two spellings, because there are two genuinely different promises:
-//
-//   "headless": true                       — the CLOSED promise: the root entry
-//                                            reaches NO typelib at all (no
-//                                            `gi://`, no `@girs/*` value
-//                                            import, no bare `cairo`/`system`/
-//                                            `gettext`, no legacy `imports.*`).
-//                                            This is `@gjsify/adwaita-core`'s
-//                                            "pure TS, NO platform imports".
-//   "headless": ["Gdk", "Gtk"]             — the SCOPED promise: the root entry
-//                                            reaches none of the LISTED
-//                                            typelibs; others are fine. This is
-//                                            `@gjsify/canvas2d-core`, which is
-//                                            headless of GTK while legitimately
-//                                            binding Cairo + PangoCairo.
-//
-// A boolean-only field would force canvas2d-core — the package the invariant
-// exists for — to either lie or opt out. A list-only field would force
-// adwaita-core to enumerate an open-world set ("every typelib that exists"),
-// which is unmaintainable and silently under-specifies. The field therefore
-// carries the SHAPE of the promise, and the check reads it literally.
-//
-// ── What is checked ──
-//
-// For each declaring package, the ROOT import graph — starting at the source
-// behind `exports["."]`, following relative imports inside the package AND
-// crossing into the root/subpath entry of every `@gjsify/*` workspace import —
-// must not reach a forbidden typelib.
-//
-// ROOT-ENTRY-ONLY IS THE POINT, and it is the subtlety that made the original
-// bug invisible in the first place. A side-effect SUBPATH may legitimately
-// reach the forbidden typelibs: the fix for canvas2d-core was to move the GDK
-// code behind `@gjsify/canvas2d-core/gdk`, which `@gjsify/dom-elements/register
-// /canvas` and `@gjsify/canvas2d` import EXPLICITLY. Scanning `src/**` (what
-// the reachability pass does for a non-routing slot) would flag that subpath
-// and make the fixed tree red; scanning only what the root entry pulls in is
-// exactly the promise the prose makes.
-//
-// Failure to RESOLVE the root entry is itself a failure — a check that silently
-// passes when it cannot find what it is supposed to inspect is decorative.
-
-/** GJS bare built-in specifiers that are typelib-backed bindings, not npm packages. */
-const GJS_BARE_BINDINGS = new Set(['cairo', 'system', 'gettext']);
-
-/** Compare namespaces case-insensitively: `@girs/gdkpixbuf-2.0` ≡ `GdkPixbuf`. */
-function normalizeTypelib(ns) {
-    return String(ns).trim().toLowerCase();
-}
-
-/**
- * The typelib namespace a bare specifier binds, or `null` when the specifier
- * is not a GI binding at all.
- *
- * `@girs/*` is the TYPE package for a namespace, but a VALUE import of it
- * resolves to a body that re-exports the `gi://` default — so it binds the
- * typelib just as directly. (The caller filters `import type` first.)
- */
-function typelibOfSpecifier(spec) {
-    let m = /^gi:\/\/([^?/]+)/.exec(spec);
-    if (m) return { ns: m[1], form: `gi://${m[1]}` };
-    // `@girs/gdk-4.0`, `@girs/gjs`, and any future `@girs/<ns>-<ver>/<subpath>`
-    // — the namespace is what binds, the subpath does not change that.
-    m = /^@girs\/([A-Za-z0-9_]+)(?:-[\d.]+)?(?:\/|$)/.exec(spec);
-    if (m) return { ns: m[1], form: spec };
-    if (GJS_BARE_BINDINGS.has(spec)) return { ns: spec, form: `bare '${spec}'` };
-    return null;
-}
-
-/** The `default` (or single-string) target an `exports` subpath resolves to. */
-function exportTarget(exportsObj, subpath) {
-    const entry = exportsObj?.[subpath];
-    if (typeof entry === 'string') return entry;
-    if (entry && typeof entry === 'object') return entry.default ?? entry.import ?? entry.node ?? null;
-    return null;
-}
-
-/** Map a package-relative BUILT path (`./lib/esm/x.js`) back to its TS source. */
-function sourceForBuiltPath(pkgDir, rel) {
-    if (typeof rel !== 'string') return null;
-    const stripped = rel
-        .replace(/^\.\//, '')
-        .replace(/^(?:lib\/esm|lib\/types|lib|dist)\//, '')
-        .replace(/\.d\.ts$/, '')
-        .replace(/\.(js|mjs)$/, '');
-    for (const cand of [`${stripped}.ts`, `${stripped}.mts`, join(stripped, 'index.ts')]) {
-        const abs = join(pkgDir, 'src', cand);
-        if (existsSync(abs)) return abs;
-    }
-    return null;
-}
-
-/** The source file behind a package's `exports["."]` (the ROOT entry). */
-function rootEntrySource(rec) {
-    const declared = exportTarget(rec.exports, '.');
-    const fromExports = declared ? sourceForBuiltPath(rec.pkgDir, declared) : null;
-    if (fromExports) return fromExports;
-    const fallback = join(rec.pkgDir, 'src', 'index.ts');
-    return existsSync(fallback) ? fallback : null;
-}
-
-/** The source a `@gjsify/<pkg>[/<subpath>]` specifier resolves to, or `null`. */
-function workspaceEntrySource(spec, meta) {
-    const parts = spec.split('/');
-    const rec = meta.get(`${parts[0]}/${parts[1]}`);
-    if (!rec) return null;
-    if (parts.length === 2) return rootEntrySource(rec);
-    const rest = parts.slice(2).join('/');
-    const declared = exportTarget(rec.exports, `./${rest}`);
-    const fromExports = declared ? sourceForBuiltPath(rec.pkgDir, declared) : null;
-    if (fromExports) return fromExports;
-    // Undeclared subpath (or one whose target is not a TS-backed file): fall
-    // back to the conventional source layout rather than losing the edge.
-    return sourceForBuiltPath(rec.pkgDir, rest);
-}
-
-/**
- * Walk the ROOT import graph and collect every GI binding it reaches.
- *
- * Follows relative imports within a package and crosses `@gjsify/*` workspace
- * edges into the entry the specifier actually resolves to — a headless root
- * that reaches GTK through a sibling package is no less GTK-bound than one that
- * imports `gi://Gtk` itself.
- *
- * Two deliberate limits, both shared with the ADR-0014 reachability walk: only
- * STATIC ESM imports are followed (a `await import('gi://Gtk')` behind a
- * runtime branch is the sanctioned graceful-degradation shape, not a leak), and
- * a `@gjsify/*` edge whose entry has no TS source behind it (`@gjsify/empty`,
- * a `.mjs`-only subpath) is dropped rather than guessed at.
- */
-async function walkHeadlessGraph(entryFile, meta) {
-    const seen = new Set([entryFile]);
-    /** child file → the file that imported it, for rendering the reach path. */
-    const parents = new Map();
-    const hits = [];
-    const queue = [entryFile];
-    while (queue.length) {
-        const file = queue.shift();
-        let text;
-        try {
-            text = await readFile(file, 'utf8');
-        } catch {
-            continue;
-        }
-        if (IMPORTS_LEGACY_RE.test(text) && !GJS_IMPORTS_GUARD_RE.test(text)) {
-            hits.push({ ns: 'imports', form: 'legacy `imports.*` read', file });
-        }
-        for (const re of [REACH_IMPORT_RE, REACH_SIDE_EFFECT_RE]) {
-            re.lastIndex = 0;
-            let m;
-            while ((m = re.exec(text)) !== null) {
-                // `import type` / `export type … from` erase before the bundler runs.
-                if (re === REACH_IMPORT_RE && REACH_TYPE_ONLY_RE.test(m[0])) continue;
-                const spec = m[1];
-                const next = spec.startsWith('.')
-                    ? resolveLocalSource(file, spec)
-                    : spec.startsWith('@gjsify/')
-                      ? workspaceEntrySource(spec, meta)
-                      : null;
-                if (next) {
-                    if (seen.has(next)) continue;
-                    seen.add(next);
-                    parents.set(next, file);
-                    queue.push(next);
-                    continue;
-                }
-                if (spec.startsWith('.')) continue;
-                const binding = typelibOfSpecifier(spec);
-                if (binding) hits.push({ ...binding, file });
-            }
-        }
-    }
-    return { hits, parents };
-}
-
-/**
- * `src/index.ts → src/context/text-rendering.ts` — how the root reaches `file`.
- *
- * Files inside the declaring package render package-relative; a file the graph
- * reached across a workspace edge renders repo-relative, so a cross-package
- * leak reads as one at a glance instead of as a `../../` puzzle.
- */
-function renderReachPath(entryFile, file, parents, pkgDir) {
-    const chain = [file];
-    let cur = file;
-    while (parents.has(cur) && chain.length < 12) {
-        cur = parents.get(cur);
-        chain.push(cur);
-    }
-    if (chain[chain.length - 1] !== entryFile) chain.push(entryFile);
-    return chain
-        .reverse()
-        .map((f) => (f.startsWith(`${pkgDir}/`) ? relative(pkgDir, f) : relative(ROOT, f)))
-        .join(' → ');
-}
-
-/**
- * Run the headless-contract audit across the workspace.
- *
- * `checked` counts declarations whose root entry actually got walked; a
- * declaration that did not (bad shape, unresolvable entry) is a failure, so on
- * the OK path `checked` IS the number of declaring packages.
- *
- * @param {Awaited<ReturnType<typeof collectReachMeta>>} meta — shared with the
- *        reachability audit (see its note); the headless walk also needs it to
- *        follow a `@gjsify/*` import into the entry that specifier resolves to.
- * @returns {Promise<{failures:string[], checked:number}>}
- */
-async function auditHeadless(meta) {
-    const failures = [];
-    let checked = 0;
-
-    for (const rec of [...meta.values()].sort((a, b) => a.rel.localeCompare(b.rel))) {
-        if (rec.headless === undefined) continue;
-
-        // Declaration shape. An unreadable declaration must fail loudly rather
-        // than degrade to "nothing forbidden", which would pass on anything.
-        /** @type {Set<string>|null} `null` = the closed promise (no typelib at all). */
-        let forbidden;
-        if (rec.headless === true) {
-            forbidden = null;
-        } else if (
-            Array.isArray(rec.headless) &&
-            rec.headless.length > 0 &&
-            rec.headless.every((n) => typeof n === 'string' && n.trim().length > 0)
-        ) {
-            forbidden = new Set(rec.headless.map(normalizeTypelib));
-        } else {
-            failures.push(
-                `${rec.name}: invalid \`gjsify.headless\` — expected \`true\` (the root entry reaches NO typelib) or a ` +
-                    `non-empty array of typelib namespaces it promises not to reach (e.g. ["Gdk","Gtk"]). ` +
-                    `Got ${JSON.stringify(rec.headless)} (headless-declaration-invalid).`,
-            );
-            continue;
-        }
-
-        const entryFile = rootEntrySource(rec);
-        if (!entryFile) {
-            failures.push(
-                `${rec.name}: declares \`gjsify.headless\` but its root entry source could not be resolved from ` +
-                    `package.json#exports["."] (${JSON.stringify(exportTarget(rec.exports, '.'))}) and no src/index.ts exists — ` +
-                    `nothing to check, so the promise is unverifiable (headless-entry-unresolvable).`,
-            );
-            continue;
-        }
-        checked++;
-
-        const { hits, parents } = await walkHeadlessGraph(entryFile, meta);
-        const reported = new Set();
-        for (const hit of hits) {
-            if (forbidden !== null && !forbidden.has(normalizeTypelib(hit.ns))) continue;
-            const key = `${hit.form}|${hit.file}`;
-            if (reported.has(key)) continue;
-            reported.add(key);
-            const promise =
-                forbidden === null
-                    ? 'gjsify.headless=true (the root entry must reach NO typelib)'
-                    : `gjsify.headless=[${rec.headless.join(', ')}]`;
-            failures.push(
-                `${rec.name}: ${promise} but the ROOT entry graph reaches ${hit.form} — ` +
-                    `via ${renderReachPath(entryFile, hit.file, parents, rec.pkgDir)} ` +
-                    `(headless-contract-violated).`,
-            );
-        }
-    }
-    return { failures, checked };
-}
-
-// ─── Tier audit (ADR 0003 + ADR 0005) ───────────────────────────────────────
-//
-// Independent from the runtimes-triplet checks above: the tier contract
-// covers EVERY published workspace package (showcases included, not just
-// `packages/**`), and its rules are declaration-driven (`gjsify.tier`), not
-// signal-driven. Three checks, all hard failures under `--check`:
-//
-//   1. tier-missing   : a published package lacks `gjsify.tier` ∈ {1,2,3}.
-//   2. tier-direction : a dep edge A→B (deps/optionalDeps, both @gjsify
-//                       workspace packages) where tier(B) > tier(A) — a
-//                       stability-promised package must not inherit a less
-//                       stable package's breakage (ADR 0003 rule 1).
-//                       devDependencies and (optional) peerDependencies are
-//                       exempt by design — they encode exactly this looseness.
-//   3. node-gi-isolation: ADR 0005 names `@gjsify/node-gi` explicitly — no
-//                       Tier-1/2 package may take a hard dependency on it.
-//                       (Subsumed by 2 while node-gi is Tier 3, but asserted
-//                       by name so the invariant survives a tier edit.)
-
-const VALID_TIERS = new Set([1, 2, 3]);
-/** Workspace roots that may contain published packages (root package.json
- * `workspaces` globs). templates/examples/tests are all-private today, but
- * walking them is cheap and catches a future accidentally-published one. */
-const TIER_AUDIT_ROOTS = ['packages', 'showcases', 'templates', 'examples', 'tests', 'website'];
-
-/** Collect every PUBLISHED workspace package with its tier + @gjsify/* edges. */
-async function collectPublishedPackages() {
-    const dirs = [];
-    for (const root of TIER_AUDIT_ROOTS) {
-        const abs = resolve(ROOT, root);
-        if (existsSync(abs)) await findPackages(abs, dirs);
-    }
-    const published = new Map();
-    for (const dir of dirs) {
-        const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
-        if (pkg.private || !pkg.name) continue;
-        const edges = [];
-        for (const field of ['dependencies', 'optionalDependencies']) {
-            for (const dep of Object.keys(pkg[field] ?? {})) {
-                if (dep.startsWith('@gjsify/')) edges.push({ dep, field });
-            }
-        }
-        published.set(pkg.name, { path: relative(ROOT, dir), tier: pkg.gjsify?.tier, edges });
-    }
-    return published;
-}
-
-/** Run the three tier checks; returns human-readable failure lines (empty = ok). */
-function auditTiers(published) {
-    const failures = [];
-    for (const [name, info] of published) {
-        if (!VALID_TIERS.has(info.tier)) {
-            failures.push(
-                `${name} (${info.path}): missing or invalid \`gjsify.tier\` — every published package must declare a tier ∈ {1,2,3} (ADR 0003).`,
-            );
-        }
-    }
-    for (const [name, info] of published) {
-        if (!VALID_TIERS.has(info.tier)) continue; // already reported above
-        for (const { dep, field } of info.edges) {
-            const target = published.get(dep);
-            // Not a published workspace package (private example or external
-            // @gjsify/* pkg) — out of tier-contract scope. A published package
-            // depending on a private one is a publish-tooling failure, not a
-            // tier failure.
-            if (!target || !VALID_TIERS.has(target.tier)) continue;
-            if (dep === '@gjsify/node-gi' && info.tier < 3) {
-                failures.push(
-                    `${name} (Tier ${info.tier}) → @gjsify/node-gi via ${field}: forbidden by ADR 0005 — node-gi is experimental (Tier 3) and dependency-isolated; the sanctioned seams are a devDependency (\`--runtime node\` dev flows) and the conditional \`--app node\` build injection.`,
-                );
-                continue;
-            }
-            if (target.tier > info.tier) {
-                failures.push(
-                    `dependency-direction violation: ${name} (Tier ${info.tier}) → ${dep} (Tier ${target.tier}) via ${field} — a package must not hard-depend on a higher (less stable) tier (ADR 0003 rule 1; optional peers / devDeps are the sanctioned seams).`,
-                );
-            }
-        }
-    }
-    return failures;
-}
-
-// ─── Platform audit (native prebuilds) ──────────────────────────────────────
-
-// `gjsify.runtimes` declares the RUNTIME reach of a package (gjs × node ×
-// browser × nativescript). It says nothing about OPERATING SYSTEMS — so a
-// package could declare `gjs: "polyfill"` and still have no loadable artifact
-// on macOS or Windows, because the native bridge it needs only ever built on
-// Linux. That blind spot is exactly how the whole native-bridge set stayed
-// Linux-only while the project described itself as platform-independent.
-//
-// `package.json#gjsify.platforms` closes it: the list of `<os>-<arch>` targets
-// a native package PROMISES a prebuild for. It is the OS-axis sibling of
-// `gjsify.runtimes`, and the checks below keep the promise, the committed
-// artifacts and the CI that produces them from drifting apart.
-
-// There is exactly ONE spelling for a target: `${process.platform}-${process.arch}`.
-// A declaration in the old uname style (`linux-x86_64`, `linux-aarch64`) is
-// REJECTED here rather than silently canonicalised, so the invariant fails on
-// the package.json that is wrong instead of hours later as a "typelib not
-// found" at some consumer's runtime.
-const PLATFORM_RE = /^(linux|darwin|win32)-(x64|arm64|ppc64|s390x|riscv64)$/;
-
-/**
- * Legacy uname-style arch spellings folded onto the node one. Kept ONLY so a
- * workflow that still says `arch: x86_64` and a pre-rename tarball's shipped
- * directory both compare equal to the canonical declaration. Mirrors
- * `ARCH_ALIASES` in `packages/infra/cli/src/utils/detect-native-packages.ts`;
- * a divergence would let a package pass the audit while the CLI misses its dir.
- */
-const ARCH_ALIASES = { x86_64: 'x64', amd64: 'x64', aarch64: 'arm64' };
-
-/**
- * Every token `parseCiPlatforms` accepts as naming a CPU — the canonical
- * `process.arch` spellings plus the legacy aliases above.
- */
-const KNOWN_ARCH_TOKENS = new Set(['x64', 'arm64', 'ppc64', 's390x', 'riscv64', ...Object.keys(ARCH_ALIASES)]);
-
-/** Canonical (node-spelling) form so `linux-x86_64` and `linux-x64` compare equal. */
-function canonicalPlatform(token) {
-    const [os, arch] = String(token).split('-');
-    return `${os}-${ARCH_ALIASES[arch] ?? arch}`;
-}
-
-/** Default arch a bare runner label implies, keyed by the OS it maps to. */
-const RUNNER_DEFAULT_ARCH = { linux: 'x64', darwin: 'arm64', win32: 'x64' };
-
-function osFromRunner(runsOn) {
-    if (/macos/i.test(runsOn)) return 'darwin';
-    if (/windows/i.test(runsOn)) return 'win32';
-    return 'linux';
-}
-
-/**
- * Every package that carries a native build system or ships a prebuild
- * directory. These are the packages whose reach is bounded by what CI builds
- * — the ones `gjsify.platforms` applies to.
- */
-async function collectNativePackages() {
-    const dirs = await findPackages(PACKAGES_DIR);
-    const out = [];
-    for (const dir of dirs) {
-        const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
-        const hasMeson = existsSync(join(dir, 'meson.build'));
-        const hasGyp = existsSync(join(dir, 'binding.gyp'));
-        const prebuildField = pkg.gjsify?.prebuilds;
-        if (!hasMeson && !hasGyp && typeof prebuildField !== 'string') continue;
-        const prebuildDir = join(dir, typeof prebuildField === 'string' ? prebuildField : 'prebuilds');
-        let shipped = [];
-        if (existsSync(prebuildDir)) {
-            shipped = (await readdir(prebuildDir, { withFileTypes: true }))
-                .filter((e) => e.isDirectory())
-                .map((e) => e.name)
-                .sort();
-        }
-        const declared = Array.isArray(pkg.gjsify?.platforms) ? [...pkg.gjsify.platforms].sort() : null;
-        out.push({
-            name: pkg.name,
-            path: relative(ROOT, dir),
-            tier: pkg.gjsify?.tier,
-            builder: hasGyp ? 'node-gyp' : 'meson',
-            declared,
-            shipped,
-            // `gjsify.prebuilds` is what makes a package's artifacts THIS
-            // repo's responsibility: it names the committed directory. A
-            // native package without it (today `@gjsify/node-gi`, node-gyp)
-            // builds its binary at install time or ships it straight from a
-            // release artifact, so there is nothing here to hold to a
-            // per-target existence contract.
-            prebuildsField: typeof prebuildField === 'string' ? prebuildField : null,
-            prebuildDir,
-            // The escape hatch — see `auditPrebuildArtifacts`. Raw on purpose:
-            // its own shape is validated there, so a malformed value produces
-            // a named failure rather than a crash here.
-            uncommitted: pkg.gjsify?.platformsUncommitted ?? null,
-        });
-    }
-    out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    return out;
-}
-
-/** Group a job's lines into step blocks (a step starts at `- name:`/`- uses:`/`- run:`). */
-function splitSteps(lines) {
-    const steps = [];
-    let current = [];
-    for (const line of lines) {
-        if (/^\s*-\s+(name|uses|run):/.test(line) && current.length > 0) {
-            steps.push(current.join('\n'));
-            current = [];
-        }
-        current.push(line);
-    }
-    if (current.length > 0) steps.push(current.join('\n'));
-    return steps;
-}
-
-/**
- * Which `<os>-<arch>` targets CI actually produces, per package name.
- *
- * Deliberately a lightweight structural read of the workflow files rather
- * than a full YAML parse: split `jobs:` into its 2-space-indented job blocks,
- * take each job's `runs-on` (→ OS) and any `arch:` matrix entries (→ arch),
- * and attribute those targets to the packages that job actually PRODUCES an
- * artifact for.
- *
- * "Produces" is deliberately narrow — a package name has to appear on a line
- * that also carries a production verb (build / collect / stage / prebuild /
- * upload). A bare mention does not count, because the workflows are full of
- * explanatory comments naming packages they merely depend on ("…whose
- * `gjsify build` needs `@gjsify/rolldown-native`"), and crediting those would
- * manufacture platform support that does not exist. Comment lines are dropped
- * outright for the same reason.
- *
- * Jobs gated on `github.event_name == 'workflow_dispatch'` are EXCLUDED: a
- * manually-dispatched exploratory job (today: napi's blocked Windows attempt)
- * is not a platform CI produces, and counting it would let a package declare
- * a target no user will ever receive.
- *
- * The result is ADVISORY — a package the parser finds no job for is reported
- * as unverified rather than failed, so a build wired up in a workflow shape
- * this parser does not understand can never produce a false CI failure.
- */
-async function parseCiPlatforms(
-    nativePkgs,
-    workflowFiles = ['prebuilds.yml', 'napi.yml', 'node-gi.yml', 'release.yml'],
-) {
-    const byPackage = new Map();
-    // A step identifies its package either by npm name or by the workspace
-    // path it builds in (`working-directory: packages/node-gi/node-gi`) — the
-    // macOS/arm64 jobs use the latter exclusively, so name-only matching would
-    // silently under-report their coverage.
-    const identifiers = nativePkgs.map((p) => ({ name: p.name, name_re: p.name, path_re: p.path }));
-    for (const file of workflowFiles) {
-        const abs = resolve(ROOT, '.github', 'workflows', file);
-        if (!existsSync(abs)) continue;
-        const text = await readFile(abs, 'utf8');
-        const lines = text.split('\n');
-        let current = null;
-        const jobs = [];
-        let inJobs = false;
-        for (const line of lines) {
-            if (/^jobs:\s*$/.test(line)) {
-                inJobs = true;
-                continue;
-            }
-            if (!inJobs) continue;
-            const header = /^ {2}([A-Za-z0-9][\w-]*):\s*$/.exec(line);
-            if (header) {
-                current = { job: header[1], file, runsOn: '', archs: new Set(), body: [] };
-                jobs.push(current);
-                continue;
-            }
-            if (!current) continue;
-            if (/^\s*#/.test(line)) continue; // explanatory comment — never a production step
-            current.body.push(line);
-            const runsOn = /^\s*runs-on:\s*(.+?)\s*$/.exec(line);
-            if (runsOn) current.runsOn = runsOn[1];
-            const arch = /^\s*-?\s*arch:\s*['"]?([\w]+)['"]?\s*$/.exec(line);
-            // Only tokens that NAME a CPU count. `arch:` is a matrix key here,
-            // but it is also a common ACTION INPUT (it was one on the emulated
-            // legs until they stopped using `uraimo/run-on-arch-action`, whose
-            // documented value alongside a custom `base_image` is the literal
-            // `none`). An unfiltered read turns any such value into a phantom
-            // target — `linux-none` — and fails the declared-vs-built contract
-            // for every package the job builds.
-            if (arch && KNOWN_ARCH_TOKENS.has(arch[1])) current.archs.add(arch[1]);
-            if (/^\s*if:\s*github\.event_name\s*==\s*'workflow_dispatch'/.test(line)) current.manualOnly = true;
-        }
-        for (const job of jobs) {
-            if (job.manualOnly) continue;
-            const os = osFromRunner(job.runsOn);
-            // `ubuntu-24.04-arm` and friends carry the arch in the label.
-            const labelArm = /-arm\b|-arm64\b/.test(job.runsOn);
-            const archs = job.archs.size > 0 ? [...job.archs] : [labelArm ? 'arm64' : RUNNER_DEFAULT_ARCH[os]];
-            // Attribute per STEP, not per line: a step's package identity and
-            // its production verb usually sit on different lines (`- name:
-            // Build native addon` + `working-directory: packages/…`).
-            for (const step of splitSteps(job.body)) {
-                if (!/\b(build|collect|stage|prebuild|upload)/i.test(step)) continue;
-                for (const id of identifiers) {
-                    if (!step.includes(id.name_re) && !step.includes(id.path_re)) continue;
-                    const set = byPackage.get(id.name) ?? new Set();
-                    for (const arch of archs) set.add(canonicalPlatform(`${os}-${arch}`));
-                    byPackage.set(id.name, set);
-                }
-            }
-        }
-    }
-    return byPackage;
-}
-
-/**
- * Keep promise, artifact and CI in sync. Returns human-readable failure lines
- * (empty = ok) plus the per-package rows the reporters render.
- */
-function auditPlatforms(nativePkgs, ciPlatforms) {
-    const failures = [];
-    const rows = [];
-    for (const pkg of nativePkgs) {
-        const ci = ciPlatforms.get(pkg.name);
-        const ciList = ci ? [...ci].sort() : null;
-        rows.push({ ...pkg, ci: ciList });
-
-        if (!pkg.declared) {
-            failures.push(
-                `${pkg.name} (${pkg.path}): missing \`gjsify.platforms\` — every package with a native build system must declare the \`<os>-<arch>\` targets it ships a prebuild for. \`gjsify.runtimes\` covers runtimes, not operating systems; without this the package's OS reach is undocumented and unverifiable.`,
-            );
-            continue;
-        }
-        const bad = pkg.declared.filter((p) => !PLATFORM_RE.test(p));
-        if (bad.length > 0) {
-            failures.push(
-                `${pkg.name} (${pkg.path}): invalid \`gjsify.platforms\` entr${bad.length === 1 ? 'y' : 'ies'} ${bad.join(', ')} — expected \`\${process.platform}-\${process.arch}\`, i.e. os ∈ {linux, darwin, win32} and arch ∈ {x64, arm64, ppc64, s390x, riscv64}. The uname spelling (\`linux-x86_64\`, \`linux-aarch64\`) is no longer accepted: one spelling, and it is the one a running process can compute about itself.`,
-            );
-            continue;
-        }
-        const declaredCanon = new Set(pkg.declared.map(canonicalPlatform));
-
-        // A committed artifact nobody declared: either the declaration is
-        // stale or the artifact is. Both are silent-wrongness risks — a
-        // consumer resolving `prebuilds/<p>/` finds something the package
-        // does not promise to keep working.
-        for (const shipped of pkg.shipped) {
-            if (!declaredCanon.has(canonicalPlatform(shipped))) {
-                failures.push(
-                    `${pkg.name} (${pkg.path}): ships \`prebuilds/${shipped}/\` but does not declare it in \`gjsify.platforms\` (${pkg.declared.join(', ')}).`,
-                );
-            }
-        }
-
-        // The promise and the build must agree in BOTH directions, so that
-        // whoever changes one is forced to change the other:
-        //   declared ⊄ CI  → a platform users are promised but never receive
-        //   CI ⊄ declared  → a platform CI pays to build that nothing claims,
-        //                    and that no consumer-facing document mentions
-        // Only enforced when the parser found CI jobs for this package at all
-        // — see parseCiPlatforms' contract.
-        if (ci) {
-            for (const declared of pkg.declared) {
-                if (!ci.has(canonicalPlatform(declared))) {
-                    failures.push(
-                        `${pkg.name} (${pkg.path}): declares \`${declared}\` in \`gjsify.platforms\` but no CI job produces that target — a promised platform with no build is a prebuild consumers will never receive.`,
-                    );
-                }
-            }
-            for (const built of ci) {
-                if (!declaredCanon.has(built)) {
-                    failures.push(
-                        `${pkg.name} (${pkg.path}): CI builds \`${built}\` but \`gjsify.platforms\` (${pkg.declared.join(', ')}) does not declare it — an artifact the package does not promise is invisible to consumers and to every platform-support document generated from this field.`,
-                    );
-                }
-            }
-        } else if (pkg.shipped.length > 0) {
-            // Committed binaries that no workflow reproduces. They were built
-            // by hand once and drift silently from their sources forever after
-            // — nothing rebuilds them when the Vala/Rust changes, and nothing
-            // proves they still match. Wire the package into a prebuild
-            // workflow, or stop shipping the artifact.
-            failures.push(
-                `${pkg.name} (${pkg.path}): ships prebuilds (${pkg.shipped.join(', ')}) but no CI job produces any of them — a hand-built binary nothing reproduces. Wire it into .github/workflows/prebuilds.yml.`,
-            );
-        }
-    }
-    return { failures, rows };
-}
-
-// ─── Prebuild-artifact audit (does the promise have a body?) ────────────────
-
-// `auditPlatforms` above compares three DECLARATIONS: the package's promise,
-// the directory names it happens to carry, and the targets a CI job produces.
-// All three can agree while the promise is empty — `@gjsify/oxfmt-native`
-// declared `darwin-arm64` for weeks with no artifact behind it and every one
-// of those checks stayed green, because a target with no `prebuilds/<t>/`
-// directory is simply absent from the "shipped" set it compares against.
-//
-// This audit closes that, in two halves. Only the first is obvious.
-//
-// 1. EXISTENCE — for every package that names a committed prebuild directory
-//    (`gjsify.prebuilds`), every declared target must have that directory,
-//    and the directory must hold the artifacts a consumer needs: a shared
-//    library in the host format for that OS, and the GI typelib without which
-//    `GI_TYPELIB_PATH` resolves nothing.
-//
-// 2. LOADABILITY — a directory that exists proves nothing. The macOS lesson
-//    (#832) was that a required job built two bridges for darwin-arm64 and
-//    only COPIED them; the bug that hid there for weeks was a missing sibling
-//    file that read exactly like a broken rpath. So every committed artifact
-//    is verified as far as this host allows:
-//
-//      • ALWAYS, on any host, for any target — STRUCTURAL: the image's own
-//        machine must match the directory it sits in; every `libgjsify*`
-//        sibling it records must be staged beside it and reachable through
-//        `@loader_path`/`$ORIGIN` (`scripts/check-prebuild-loader-path.mjs`,
-//        which parses Mach-O and ELF directly); and every library leaf the
-//        typelib names must be present, because that leaf is what GI hands to
-//        `dlopen` the moment a consumer resolves a class.
-//
-//      • ONLY for the host's own target — FUNCTIONAL: the library is actually
-//        `dlopen`ed, with every library-path environment variable stripped, so
-//        the self-relative sibling hop is proven rather than inferred.
-//
-//    A cross-arch prebuild CANNOT be loaded here and this audit does not
-//    pretend otherwise: it reports, per run, which targets got the functional
-//    probe and which got structure only. Being loud about the boundary is the
-//    point — a check that claims more than it did is worse than no check.
-//
-// The ESCAPE HATCH is `gjsify.platformsUncommitted`: a target → reason map for
-// a platform that is genuinely declared and genuinely built by CI, but whose
-// artifact this repo does not commit (today `@gjsify/napi`'s darwin-arm64,
-// which `napi.yml` builds, load-tests and uploads for a release to ship). It
-// makes an honest "promised, not committed here" statable in ONE place that
-// the audit reads, so the alternative — a silent gap — stops being available.
-// It is deliberately awkward to abuse: the reason is mandatory, the target
-// must already be in `gjsify.platforms`, and the entry becomes a FAILURE the
-// moment the directory does appear, so it cannot ossify past its usefulness.
-
-/** `${process.platform}-${process.arch}` — the one target this host can load. */
-const HOST_TARGET = `${process.platform}-${process.arch}`;
-
-/** Shared-library file extension per `process.platform` token. */
-const LIB_EXT = { linux: '.so', darwin: '.dylib', win32: '.dll' };
-
-/**
- * `dlopen` one library with every library-path variable stripped.
- *
- * Driven through `python3`'s `ctypes` — the same env-free probe the macOS
- * prebuild jobs use (#832), and the only dlopen available to a pure-Node
- * script with no addon of its own. Stripping the environment is the whole
- * point: `LD_LIBRARY_PATH`/`DYLD_LIBRARY_PATH` from `buildNativeEnv()` only
- * has to find the bare leaf the typelib records, so the library's own hop to
- * its Rust cdylib sibling must need nothing at all.
- *
- * @param {string} file absolute path to the library
- * @returns {{status: 'loaded'|'unavailable'|'failed', detail?: string}}
- *   `unavailable` = no python3 on this host (nothing was tested).
- */
-function dlopenProbe(file) {
-    const env = { ...process.env };
-    for (const key of ['LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']) delete env[key];
-    const res = spawnSync('python3', ['-c', 'import ctypes,sys; ctypes.CDLL(sys.argv[1])', file], {
-        env,
-        encoding: 'utf8',
-        timeout: 60_000,
-    });
-    if (res.error) return { status: 'unavailable', detail: String(res.error.message ?? res.error) };
-    if (res.status === 0) return { status: 'loaded' };
-    const detail = String(res.stderr ?? '')
-        .trim()
-        .split('\n')
-        .filter((l) => !/^\s*(File "|  |Traceback)/.test(l))
-        .join(' ')
-        .trim();
-    return { status: 'failed', detail: detail || `python3 exited ${res.status}` };
-}
-
-/**
- * Hold the existence + loadability invariant over every committed prebuild.
- *
- * @param {Array<object>} nativePkgs rows from `collectNativePackages()`
- * @returns {{failures: string[], notes: string[], stats: object}}
- */
-function auditPrebuildArtifacts(nativePkgs) {
-    /** @type {string[]} */ const failures = [];
-    /** @type {string[]} */ const notes = [];
-    const stats = { dirs: 0, packages: 0, loaded: 0, structuralOnly: 0, uncommitted: 0, hostSkipped: 0 };
-    let pythonUnavailable = false;
-
-    for (const pkg of nativePkgs) {
-        if (!pkg.declared) continue; // already a failure in `auditPlatforms`
-        const declaredCanon = pkg.declared.map(canonicalPlatform);
-
-        // ── The escape hatch, validated before it is honoured ──────────────
-        const uncommitted = new Set();
-        /** @type {Map<string, string[]>} reason → the targets deferred for it */
-        const exemptByReason = new Map();
-        if (pkg.uncommitted != null) {
-            const isPlainObject =
-                typeof pkg.uncommitted === 'object' && !Array.isArray(pkg.uncommitted) && pkg.uncommitted !== null;
-            if (!isPlainObject) {
-                failures.push(
-                    `${pkg.name} (${pkg.path}): \`gjsify.platformsUncommitted\` must be an object mapping each not-committed \`<os>-<arch>\` target to the REASON it is not committed, e.g. {"darwin-arm64": "built + load-tested by napi.yml; a release ships it from the uploaded artifact"}.`,
-                );
-            } else if (!pkg.prebuildsField) {
-                failures.push(
-                    `${pkg.name} (${pkg.path}): declares \`gjsify.platformsUncommitted\` but has no \`gjsify.prebuilds\` directory — the field exempts a target from the committed-artifact contract, and this package is not under that contract at all. Remove it.`,
-                );
-            } else {
-                for (const [target, reason] of Object.entries(pkg.uncommitted)) {
-                    if (!PLATFORM_RE.test(target)) {
-                        failures.push(
-                            `${pkg.name} (${pkg.path}): \`gjsify.platformsUncommitted\` key \`${target}\` is not a valid \`\${process.platform}-\${process.arch}\` target.`,
-                        );
-                        continue;
-                    }
-                    if (typeof reason !== 'string' || reason.trim() === '') {
-                        failures.push(
-                            `${pkg.name} (${pkg.path}): \`gjsify.platformsUncommitted["${target}"]\` needs a non-empty reason. An unexplained exemption is the silent gap this field exists to replace.`,
-                        );
-                        continue;
-                    }
-                    if (!declaredCanon.includes(canonicalPlatform(target))) {
-                        failures.push(
-                            `${pkg.name} (${pkg.path}): \`gjsify.platformsUncommitted\` exempts \`${target}\`, which \`gjsify.platforms\` (${pkg.declared.join(', ')}) does not declare — you can only defer shipping something you promise. Add it to \`platforms\` or drop the exemption.`,
-                        );
-                        continue;
-                    }
-                    if (pkg.shipped.some((s) => canonicalPlatform(s) === canonicalPlatform(target))) {
-                        failures.push(
-                            `${pkg.name} (${pkg.path}): \`gjsify.platformsUncommitted\` still exempts \`${target}\`, but \`${pkg.prebuildsField}/${target}/\` IS committed now. Delete the exemption so the artifact is held to the full contract.`,
-                        );
-                        continue;
-                    }
-                    uncommitted.add(canonicalPlatform(target));
-                    stats.uncommitted++;
-                    exemptByReason.set(reason.trim(), [...(exemptByReason.get(reason.trim()) ?? []), target]);
-                }
-                // One note per REASON, not per target: the packages that defer
-                // a whole emulated matrix defer it for one cause, and 24
-                // identical lines bury the one entry that says something else.
-                for (const [reason, targets] of exemptByReason) {
-                    notes.push(`${pkg.name}: \`${targets.join('`, `')}\` declared but not committed — ${reason}`);
-                }
-            }
-        }
-
-        // A package that does not name a committed prebuild directory
-        // (`@gjsify/node-gi`: node-gyp, built on install / shipped from a
-        // release artifact) is out of scope for everything below.
-        if (!pkg.prebuildsField) continue;
-        stats.packages++;
-
-        for (const target of pkg.declared) {
-            const canon = canonicalPlatform(target);
-            if (uncommitted.has(canon)) continue;
-            const [os, arch] = canon.split('-');
-            const dir = join(pkg.prebuildDir, target);
-
-            // ── Half 1: existence ─────────────────────────────────────────
-            if (!existsSync(dir)) {
-                failures.push(
-                    `${pkg.name} (${pkg.path}): declares \`${target}\` but ships no \`${pkg.prebuildsField}/${target}/\` — a promised platform with no artifact behind it. Either commit the prebuild (\`gjsify workspace ${pkg.name} build:prebuilds\` on that target, or the workflow that produces it), or record the gap honestly in \`gjsify.platformsUncommitted\` with the reason.`,
-                );
-                continue;
-            }
-            stats.dirs++;
-            const files = readdirSync(dir);
-            const ext = LIB_EXT[os];
-            const libs = files.filter((f) => f.endsWith(ext));
-            const typelibs = files.filter((f) => f.endsWith('.typelib'));
-            if (libs.length === 0) {
-                failures.push(
-                    `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/\` holds no \`${ext}\` — a ${os} consumer has nothing to load (present: ${files.join(', ') || 'nothing'}).`,
-                );
-                continue;
-            }
-            if (typelibs.length === 0) {
-                failures.push(
-                    `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/\` holds no \`.typelib\` — every package under this contract is a GI bridge reached through \`GI_TYPELIB_PATH\`, so a shared library alone is unreachable (present: ${files.join(', ')}).`,
-                );
-                continue;
-            }
-
-            // ── Half 2a: structural loadability (any host, any target) ────
-            let structurallySound = true;
-            for (const lib of libs.sort()) {
-                const path = join(dir, lib);
-                let info = null;
-                try {
-                    info = readLibrary(path);
-                } catch (err) {
-                    failures.push(
-                        `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${lib}\` is not a readable shared library — ${err instanceof Error ? err.message : String(err)}.`,
-                    );
-                    structurallySound = false;
-                    continue;
-                }
-                if (!info) {
-                    failures.push(
-                        `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${lib}\` has a \`${ext}\` name but is neither ELF, Mach-O nor PE — a stray or truncated file in a prebuild directory is what a consumer will try to load.`,
-                    );
-                    structurallySound = false;
-                    continue;
-                }
-                if (info.os !== os || (info.arch !== null && info.arch !== arch)) {
-                    failures.push(
-                        `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${lib}\` is a ${info.os}/${info.arch ?? 'unknown'} image in a \`${target}\` directory — it can never load on the platform it is published for. This is the one prebuild defect a cross-arch target CAN be caught for from any host, because the machine is in the file header; a build that silently ran on the runner's own architecture instead of the emulated one produces exactly this.`,
-                    );
-                    structurallySound = false;
-                }
-            }
-            const loaderProblems = checkPrebuildDir(dir, { verbose: false });
-            if (loaderProblems.length > 0) {
-                structurallySound = false;
-                for (const p of loaderProblems) failures.push(`${pkg.name} (${pkg.path}): ${p}`);
-            }
-            // The leaf GI itself will ask the loader for.
-            const present = new Set(files);
-            /** @type {Set<string>} */ const recorded = new Set();
-            for (const tl of typelibs) {
-                let leaves = null;
-                try {
-                    leaves = readTypelibSharedLibraries(join(dir, tl));
-                } catch (err) {
-                    failures.push(
-                        `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${tl}\` is not a readable typelib — ${err instanceof Error ? err.message : String(err)}.`,
-                    );
-                    structurallySound = false;
-                    continue;
-                }
-                if (leaves === null) {
-                    failures.push(
-                        `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${tl}\` does not carry the GI typelib magic — it is not a typelib, whatever its name says.`,
-                    );
-                    structurallySound = false;
-                    continue;
-                }
-                for (const leaf of leaves) {
-                    recorded.add(leaf);
-                    if (!present.has(leaf)) {
-                        failures.push(
-                            `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${tl}\` records shared library \`${leaf}\`, which is NOT staged in that directory (present: ${files.join(', ')}). GI hands that exact leaf to the loader as soon as a consumer resolves a class in the namespace, so the typelib resolves and the class access throws.`,
-                        );
-                        structurallySound = false;
-                    }
-                }
-            }
-
-            // ── Half 2b: functional loadability (host target only) ────────
-            if (canon !== HOST_TARGET) {
-                stats.structuralOnly++;
-                continue;
-            }
-            if (!structurallySound) {
-                // Loading a directory already known to be malformed adds a
-                // second, derivative error message and no information.
-                stats.hostSkipped++;
-                continue;
-            }
-            for (const leaf of [...recorded].sort()) {
-                const probe = dlopenProbe(join(dir, leaf));
-                if (probe.status === 'loaded') {
-                    stats.loaded++;
-                    continue;
-                }
-                if (probe.status === 'unavailable') {
-                    pythonUnavailable = true;
-                    stats.hostSkipped++;
-                    continue;
-                }
-                // A dependency of OUR OWN is a defect in the prebuild. A
-                // third-party one the host does not have is a fact about the
-                // host — this audit runs on a bare Node runner that has glib
-                // but not libsoup/GStreamer/libgda, and failing there would
-                // make the guard report the runner's package list rather than
-                // anything about the artifact.
-                const ownLeaves = new Set([...present].filter((f) => f.endsWith(ext)));
-                const blamesOwn = [...ownLeaves].some((f) => probe.detail?.includes(f));
-                if (blamesOwn) {
-                    failures.push(
-                        `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${leaf}\` fails to load on this host with no library-path variable set — ${probe.detail}. The unresolved object is one this package stages itself, so the prebuild cannot resolve its own siblings from its own directory (\`$ORIGIN\`/\`@loader_path\`).`,
-                    );
-                    stats.hostSkipped++;
-                } else {
-                    stats.hostSkipped++;
-                    notes.push(
-                        `${pkg.name}: \`${target}/${leaf}\` not load-tested — this host lacks a system dependency it links against (${probe.detail}). Structure was verified; the functional load was not.`,
-                    );
-                }
-            }
-        }
-    }
-    if (pythonUnavailable) {
-        notes.push(
-            'no `python3` on this host, so NO artifact was actually loaded — every committed prebuild was verified structurally only. The functional half runs wherever python3 exists (every CI runner, every Fedora/Debian developer machine).',
-        );
-    }
-    return { failures, notes, stats };
-}
-
-/**
- * What the prebuild audit actually verified, and — the load-bearing half —
- * what it did NOT.
- *
- * Printed on success as well as failure, on purpose. "Structure verified on
- * 47 directories, 11 of them actually loaded" is a different claim from "47
- * prebuilds work", and a reader who is never told the difference will assume
- * the second one. The cross-arch boundary is not an apology, it is the result.
- *
- * @param {{failures: string[], notes: string[], stats: object}} result
- */
-function renderPrebuildSummary({ notes, stats }) {
-    const lines = [
-        `prebuild-artifact audit: ${stats.dirs} committed prebuild director(y|ies) across ${stats.packages} package(s) verified STRUCTURALLY ` +
-            `(machine matches the directory, typelib-named libraries staged, self-relative sibling resolution recorded).`,
-        `  functional load (env-free \`dlopen\`, proving the sibling hop for real): ${stats.loaded} librar(y|ies) on this host's own target \`${HOST_TARGET}\`` +
-            `; ${stats.structuralOnly} director(y|ies) are for OTHER targets and CANNOT be loaded here — a cross-arch prebuild is verifiable only from its file headers, and this audit does not pretend otherwise.` +
-            (stats.hostSkipped > 0 ? ` ${stats.hostSkipped} host-target load(s) skipped (see notes).` : ''),
-    ];
-    if (stats.uncommitted > 0) {
-        lines.push(
-            `  ${stats.uncommitted} declared target(s) are exempt via \`gjsify.platformsUncommitted\` — promised, but with no artifact committed here. Each states its own reason:`,
-        );
-    }
-    for (const n of notes) lines.push(`  · ${n}`);
-    return lines.join('\n');
-}
-
-/** The OS × package matrix — the honest answer to "where does this run?". */
-function renderPlatformMatrix(rows, { markdown = false } = {}) {
-    const all = new Set();
-    for (const r of rows) {
-        for (const p of r.declared ?? []) all.add(canonicalPlatform(p));
-        for (const p of r.shipped) all.add(canonicalPlatform(p));
-        for (const p of r.ci ?? []) all.add(canonicalPlatform(p));
-    }
-    const platforms = [...all].sort();
-    const mark = (r, p) => {
-        const declared = (r.declared ?? []).some((d) => canonicalPlatform(d) === p);
-        const shipped = r.shipped.some((s) => canonicalPlatform(s) === p);
-        const built = (r.ci ?? []).some((c) => canonicalPlatform(c) === p);
-        // A declared target the package itself records as not-committed is a
-        // distinct state from "shipped" — the matrix is the document people
-        // read to answer "can I install this there?", and collapsing the two
-        // is how "declared" came to look like "delivered" in the first place.
-        const exempt =
-            r.prebuildsField != null &&
-            r.uncommitted != null &&
-            typeof r.uncommitted === 'object' &&
-            Object.keys(r.uncommitted).some((t) => canonicalPlatform(t) === p);
-        if (declared && exempt) return built ? '○' : '!';
-        if (declared && built) return '✓';
-        if (declared && shipped) return '⚠'; // committed once, nothing rebuilds it
-        if (declared) return '!'; // promised, nothing produces it at all
-        if (shipped || built) return '?'; // produced, never promised
-        return '·';
-    };
-    // "a CI job targets it", not "a green build exists": this is parsed out of
-    // the workflow YAML, which knows nothing about run results. Saying "built"
-    // would claim more than the data supports — the failure mode this whole
-    // audit exists to remove.
-    const legendParts = [
-        '✓ declared, a CI job targets it, artifact committed',
-        '○ declared, a CI job targets it, artifact NOT committed here',
-        '⚠ committed artifact, no CI job targets it',
-        '! declared, no CI job targets it',
-        '? produced, undeclared',
-        '· unsupported',
-    ];
-    if (markdown) {
-        const lines = [
-            `| package | tier | ${platforms.join(' | ')} |`,
-            `|---|---|${platforms.map(() => '---').join('|')}|`,
-        ];
-        for (const r of rows) {
-            lines.push(`| \`${r.name}\` | ${r.tier ?? '—'} | ${platforms.map((p) => mark(r, p)).join(' | ')} |`);
-        }
-        lines.push('');
-        lines.push(legendParts.map((l) => `\`${l.slice(0, 1)}\`${l.slice(1)}`).join(' · '));
-        return lines.join('\n');
-    }
-    const nameWidth = Math.max(...rows.map((r) => String(r.name).length), 'package'.length);
-    const head = `${'package'.padEnd(nameWidth)} │ ${platforms.map((p) => p.padEnd(14)).join(' │ ')}`;
-    const sep = `${'─'.repeat(nameWidth)}─┼─${platforms.map(() => '─'.repeat(14)).join('─┼─')}`;
-    const body = rows.map(
-        (r) => `${String(r.name).padEnd(nameWidth)} │ ${platforms.map((p) => mark(r, p).padEnd(14)).join(' │ ')}`,
-    );
-    return [head, sep, ...body, '', legendParts.join('   ')].join('\n');
-}
-
-// ─── Aggregation ────────────────────────────────────────────────────────────
 
 async function buildReport() {
     const pkgDirs = await findPackages(PACKAGES_DIR);
@@ -2535,43 +1294,181 @@ async function apply(rows) {
     return { updated, skipped };
 }
 
+// ─── Rule registrations ─────────────────────────────────────────────────────
+//
+// The three checks below stay implemented in this file because they are
+// inseparable from the source-signal model above, and all three are REPO-SCOPED
+// for the same reason: they compare a declaration not to a fact but to a
+// re-derivation built out of THIS repository — path-based axis classification
+// (`packages/node/*`, `packages/web/adwaita*`), five curated `@gjsify/*`
+// package-name allowlists, and `@gjsify/resolve-npm`'s own alias tables. Run
+// against somebody else's package that derivation does not degrade, it lies.
+//
+// Registering them means `field-coverage` can see that `gjsify.runtimes` and
+// `gjsify.runtimeSubpaths` have owners, and that a future declaration kind
+// cannot be added without one.
+
+/** Cached across rules in a single run — `buildReport` is the expensive part. */
+let reportRows = null;
+async function rowsFor() {
+    reportRows ??= await buildReport();
+    return reportRows;
+}
+
+/** Cached likewise: `collectReachMeta` scans every package's source tree. */
+let reachMetaCache = null;
+async function reachMetaFor() {
+    reachMetaCache ??= await collectReachMeta();
+    return reachMetaCache;
+}
+
+defineRule({
+    id: 'runtimes-drift',
+    scope: 'repo',
+    fields: ['gjsify.runtimes'],
+    description: 'the declared cross-runtime slot quadruplet matches what the source signals suggest',
+    async run() {
+        const rows = await rowsFor();
+        const { drifted, missing } = diffDeclared(rows);
+        const probeFailures = STRICT ? await runProbes(rows) : [];
+        const declarable = rows.filter((r) => r.suggested).length;
+        const failures = [
+            ...missing.map(
+                (r) =>
+                    `${r.name ?? r.path} (packages/${r.path}): no \`gjsify.runtimes\` declaration; signals suggest ${fmtTriplet(r.suggested)} (${summarizeSignals(r)}).`,
+            ),
+            ...drifted.map(
+                ({ row: r, mismatches }) =>
+                    `${r.name ?? r.path} (packages/${r.path}): declared ${fmtTriplet(r.declared)} drifts from suggested ${fmtTriplet(r.suggested)} on ${mismatches.join(', ')} (${summarizeSignals(r)}).`,
+            ),
+            ...probeFailures.flatMap(({ row: r, failures: fs }) =>
+                fs.map(
+                    (f) =>
+                        `${r.name ?? r.path} (packages/${r.path}): ${f.slot}-${declaredSlot(r, f.slot)}: ${f.kind} — ${f.detail}`,
+                ),
+            ),
+        ];
+        return {
+            failures,
+            stats: { declarable, drifted: drifted.length, missing: missing.length, probes: probeFailures.length },
+            summary:
+                `audit-runtimes --check${STRICT ? ' --strict' : ''}: OK. ${declarable} declarable package(s) match the signal-based suggestion ` +
+                `(${rows.length - declarable} infra/unknown skipped).${STRICT ? ` (functional probes passed on every declared slot)` : ''}`,
+            rows,
+            drifted,
+            missing,
+            probeFailures,
+            declarable,
+        };
+    },
+});
+
+defineRule({
+    id: 'runtimes-reachability',
+    scope: 'repo',
+    fields: ['gjsify.runtimes', 'gjsify.runtimeSubpaths'],
+    description: 'a slot declared `polyfill` must not resolve to code that reaches GLib/Gio (ADR 0014)',
+    async run() {
+        const meta = await reachMetaFor();
+        const reach = await auditReachability(meta);
+        return {
+            failures: reach.failures,
+            stats: { checked: reach.checked },
+            summary:
+                `reachability audit (ADR 0014): OK. ${reach.checked} polyfill/partial slot(s) checked; no "polyfill" slot resolves ` +
+                'to GLib/Gio-reaching code, and no curated browser alias resolves to the root of a package that ships a "./browser" entry.',
+            reach,
+        };
+    },
+});
+
+defineRule({
+    id: 'curated-alias-routing',
+    scope: 'repo',
+    // Governs no manifest field: it audits `@gjsify/resolve-npm`'s own curated
+    // alias TABLE against the packages it points at. Declared explicitly as an
+    // empty list so the registry's contract ("say what you govern") is met
+    // rather than silently skipped.
+    fields: [],
+    description: 'no curated browser alias resolves to the ROOT of a package that ships a `./browser` entry',
+    async run() {
+        const meta = await reachMetaFor();
+        const failures = await auditCuratedAliasRouting(meta);
+        return { failures, summary: undefined };
+    },
+});
+
+/**
+ * The rules `--check` selects.
+ *
+ * `package-outputs` and `refs-pin` are REGISTERED (so `field-coverage` sees the
+ * fields they govern) but deliberately NOT selected here, because neither can
+ * run in this job: `package-outputs` is a POST-condition on a built tree and
+ * this workflow does no install and no build, and `refs-pin` needs initialised
+ * `refs/` submodules and runs per-package inside `build:meson`. Selecting a
+ * rule that cannot pass here would turn the gate into noise; leaving it
+ * unregistered would hide its fields from coverage. Registration and selection
+ * are separate on purpose.
+ */
+const CHECK_RULES = [
+    'runtimes-drift',
+    'tier',
+    'platforms-ci',
+    'prebuild-artifacts',
+    'runtimes-reachability',
+    'curated-alias-routing',
+    'headless',
+    'field-coverage',
+];
+
+/** Build the context every rule reads. */
+function repoContext() {
+    return createContext({
+        root: ROOT,
+        // `packages/node-gi/*` and `packages/napi/*` are deliberately NOT
+        // workspace members, yet `@gjsify/napi` declares `gjsify.platforms` +
+        // `gjsify.platformsUncommitted` and is audited. Scanning the subtree is
+        // what keeps them in scope; narrowing to the `workspaces` globs would
+        // drop that coverage with nothing to notice it.
+        discoveryRoots: ['packages'],
+        extra: {
+            fieldCoverage: 'enforce',
+            uncheckedFields: UNCHECKED_FIELDS,
+        },
+    });
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
-// Everything below runs only when this file IS the program. Importing it
-// otherwise (`tests/e2e/prebuild-declaration-invariant`) would re-audit the
-// whole workspace as a side effect of loading a function.
-//
-// The prebuild invariant is the one part of this script whose test cannot use
-// the repository as its fixture: proving that a MISSING prebuild directory
-// fails means removing one, and the e2e suites run four-at-a-time against a
-// single shared checkout. So `auditPrebuildArtifacts` takes its rows as an
-// argument and is exported, and its suite builds synthetic packages (with real
-// linked binaries copied out of the committed prebuilds) in a temp directory.
 const IS_ENTRY = Boolean(process.argv[1]) && resolve(process.argv[1]).endsWith('audit-runtimes.mjs');
-
-export { auditPrebuildArtifacts, collectNativePackages, renderPrebuildSummary };
 
 if (IS_ENTRY) {
     await main();
 }
 
 async function main() {
-    const rows = await buildReport();
+    if (RULES_LIST) {
+        for (const rule of selectRules()) {
+            console.log(
+                `${rule.id.padEnd(24)} ${rule.scope.padEnd(9)} ${rule.fields.join(', ') || '(no manifest field)'}`,
+            );
+            console.log(`${' '.repeat(34)}${rule.description}`);
+        }
+        process.exit(0);
+    }
 
     if (PLATFORMS) {
-        const nativePkgs = await collectNativePackages();
-        const ciPlatforms = await parseCiPlatforms(nativePkgs);
-        const { rows: platformRows } = auditPlatforms(nativePkgs, ciPlatforms);
+        const { rows: platformRowsOut } = await platformRows(repoContext());
         if (FORMAT === 'json') {
-            console.log(JSON.stringify(platformRows, null, 2));
+            console.log(JSON.stringify(platformRowsOut, null, 2));
         } else {
-            console.log(renderPlatformMatrix(platformRows, { markdown: FORMAT === 'markdown' }));
+            console.log(renderPlatformMatrix(platformRowsOut, { markdown: FORMAT === 'markdown' }));
         }
         process.exit(0);
     }
 
     if (APPLY) {
-        const { updated, skipped } = await apply(rows);
+        const { updated, skipped } = await apply(await rowsFor());
         console.log(
             `audit-runtimes: applied ${updated} package(s), skipped ${skipped} (already-declared / infra / unknown).`,
         );
@@ -2579,91 +1476,51 @@ async function main() {
     }
 
     if (CHECK) {
-        const { drifted, missing } = diffDeclared(rows);
-        const declarable = rows.filter((r) => r.suggested).length;
-        // Functional probes only run under `--check --strict`. The default
-        // `--check` path stays byte-identical to its pre-strict behavior so the
-        // existing audit-runtimes CI workflow does not start failing the moment
-        // this script lands. Strict mode will become the default once R1 has
-        // closed the remaining `globals.mjs` gaps (T-Plan Sektion 1d step 3).
-        const probeFailures = STRICT ? await runProbes(rows) : [];
-        // Tier audit (ADR 0003 + ADR 0005) is part of EVERY `--check` run —
-        // declaration-driven, so there is no strict/quick split to respect.
-        const published = await collectPublishedPackages();
-        const tierFailures = auditTiers(published);
-        // Platform audit (OS axis) — always part of `--check`, like the tier
-        // audit: declaration-driven, cheap, and the only guard that a native
-        // package's promised operating systems, its committed artifacts and the
-        // CI that produces them stay in agreement.
-        const nativePkgs = await collectNativePackages();
-        const ciPlatforms = await parseCiPlatforms(nativePkgs);
-        const { failures: platformFailures, rows: platformRows } = auditPlatforms(nativePkgs, ciPlatforms);
-        // Prebuild-artifact audit — the body behind the promise. `auditPlatforms`
-        // above compares declarations to each other and stays green on a declared
-        // target with nothing behind it; this one opens every committed artifact,
-        // and loads the ones this host can load.
-        const prebuilds = auditPrebuildArtifacts(nativePkgs);
-        // Both remaining audits read the same per-package `gjsify` metadata, and
-        // collecting it runs `scanSourceTree` over every package — the bulk of what
-        // `--check` costs. Collect ONCE and hand it to both, the way #821's
-        // `auditCuratedAliasRouting(meta)` already does inside the reachability
-        // audit.
-        const reachMeta = await collectReachMeta();
-        // Cross-runtime reachability audit (ADR 0014) — always part of `--check`,
-        // for the same reason as the tier + platform audits: declaration-driven,
-        // cheap (static import scan, no build), and a guard that only runs behind
-        // `--strict` is a guard CI never executes.
-        const reach = await auditReachability(reachMeta);
-        // Headless-contract audit (ADR 0015) — always part of `--check`, same
-        // reasoning again: declaration-driven, a static import scan, and the ONLY
-        // guard on intra-GJS layering (headless vs toolkit-bound), which every
-        // check above is structurally blind to.
-        const headless = await auditHeadless(reachMeta);
-        const ok =
-            drifted.length === 0 &&
-            missing.length === 0 &&
-            probeFailures.length === 0 &&
-            tierFailures.length === 0 &&
-            platformFailures.length === 0 &&
-            prebuilds.failures.length === 0 &&
-            reach.failures.length === 0 &&
-            reach.aliasFailures.length === 0 &&
-            headless.failures.length === 0;
-        if (ok) {
-            const suffix = STRICT ? ` (functional probes passed on every declared slot)` : '';
-            console.log(
-                `audit-runtimes --check${STRICT ? ' --strict' : ''}: OK. ${declarable} declarable package(s) match the signal-based suggestion (${rows.length - declarable} infra/unknown skipped).${suffix}`,
-            );
-            console.log(
-                `tier audit: OK. ${published.size} published package(s) declare a tier; dependency-direction + ADR-0005 node-gi isolation hold on every deps/optionalDeps edge.`,
-            );
-            const unverified = platformRows.filter((r) => !r.ci).length;
-            console.log(
-                `platform audit: OK. ${platformRows.length} native package(s) declare \`gjsify.platforms\`; committed prebuilds and CI-produced targets agree with every declaration${unverified > 0 ? ` (${unverified} package(s) had no CI job the parser recognised — reported, not enforced)` : ''}.`,
-            );
-            console.log(renderPrebuildSummary(prebuilds));
-            console.log(
-                `reachability audit (ADR 0014): OK. ${reach.checked} polyfill/partial slot(s) checked; no "polyfill" slot resolves to GLib/Gio-reaching code, and no curated browser alias resolves to the root of a package that ships a "./browser" entry.`,
-            );
-            console.log(
-                `headless audit (ADR 0015): OK. ${headless.checked} package(s) declare \`gjsify.headless\`; no root entry graph reaches a typelib it promised not to.`,
-            );
+        const ctx = repoContext();
+        // The headless walk needs the same per-package metadata the
+        // reachability walk builds, and building it runs `scanSourceTree` over
+        // every package — the bulk of what `--check` costs. Collect ONCE and
+        // hand it to both.
+        ctx.options.headlessMeta = await reachMetaFor();
+        const run = await runRules(selectRules({ only: CHECK_RULES }), ctx);
+        const byId = new Map(run.results.map((r) => [r.rule.id, r.result]));
+
+        const drift = byId.get('runtimes-drift');
+        const tier = byId.get('tier');
+        const platform = byId.get('platforms-ci');
+        const prebuilds = byId.get('prebuild-artifacts');
+        const reachability = byId.get('runtimes-reachability');
+        const alias = byId.get('curated-alias-routing');
+        const headless = byId.get('headless');
+        const coverage = byId.get('field-coverage');
+        const reach = reachability.reach;
+
+        if (run.ok) {
+            console.log(drift.summary);
+            console.log(tier.summary);
+            console.log(platform.summary);
+            console.log(renderPrebuildSummary({ notes: prebuilds.notes ?? [], stats: prebuilds.stats }));
+            console.log(reachability.summary);
+            console.log(headless.summary);
+            console.log(coverage.summary);
+            for (const note of coverage.notes ?? []) console.log(`  · ${note}`);
             renderReachabilityNotes(reach);
             process.exit(0);
         }
+
         console.error(`audit-runtimes --check${STRICT ? ' --strict' : ''}: DRIFT DETECTED.\n`);
-        if (missing.length > 0) {
-            console.error(`Missing gjsify.runtimes declaration on ${missing.length} package(s):`);
-            for (const r of missing) {
+        if (drift.missing.length > 0) {
+            console.error(`Missing gjsify.runtimes declaration on ${drift.missing.length} package(s):`);
+            for (const r of drift.missing) {
                 console.error(`  - ${r.name ?? r.path}  (path: packages/${r.path})`);
                 console.error(`      suggested: ${fmtTriplet(r.suggested)}`);
                 console.error(`      reason:    ${summarizeSignals(r)}`);
             }
             console.error('');
         }
-        if (drifted.length > 0) {
-            console.error(`Declared triplet drifts from source-code signals on ${drifted.length} package(s):`);
-            for (const { row: r, mismatches } of drifted) {
+        if (drift.drifted.length > 0) {
+            console.error(`Declared triplet drifts from source-code signals on ${drift.drifted.length} package(s):`);
+            for (const { row: r, mismatches } of drift.drifted) {
                 console.error(`  - ${r.name ?? r.path}  (path: packages/${r.path})`);
                 console.error(`      declared:  ${fmtTriplet(r.declared)}`);
                 console.error(`      suggested: ${fmtTriplet(r.suggested)}`);
@@ -2672,9 +1529,9 @@ async function main() {
             }
             console.error('');
         }
-        if (probeFailures.length > 0) {
-            console.error(`FUNCTIONAL PROBE FAILURES on ${probeFailures.length} package(s):`);
-            for (const { row: r, failures } of probeFailures) {
+        if (drift.probeFailures.length > 0) {
+            console.error(`FUNCTIONAL PROBE FAILURES on ${drift.probeFailures.length} package(s):`);
+            for (const { row: r, failures } of drift.probeFailures) {
                 console.error(`  - ${r.name ?? r.path}  (path: packages/${r.path})`);
                 console.error(`      declared:  ${fmtTriplet(r.declared)}`);
                 const lines = failures.map((f) => `${f.slot}-${declaredSlot(r, f.slot)}: ${f.kind} — ${f.detail}`);
@@ -2684,24 +1541,28 @@ async function main() {
             }
             console.error('');
         }
-        if (tierFailures.length > 0) {
-            console.error(`TIER-CONTRACT FAILURES (ADR 0003 / ADR 0005) on ${tierFailures.length} edge(s)/package(s):`);
-            for (const line of tierFailures) {
+        if ((tier.failures ?? []).length > 0) {
+            console.error(
+                `TIER-CONTRACT FAILURES (ADR 0003 / ADR 0005) on ${tier.failures.length} edge(s)/package(s):`,
+            );
+            for (const line of tier.failures) {
                 console.error(`  - ${line}`);
             }
             console.error('');
         }
-        if (platformFailures.length > 0) {
-            console.error(`PLATFORM-CONTRACT FAILURES (OS axis) on ${platformFailures.length} package(s)/target(s):`);
-            for (const line of platformFailures) {
+        if ((platform.failures ?? []).length > 0) {
+            console.error(
+                `PLATFORM-CONTRACT FAILURES (OS axis) on ${platform.failures.length} package(s)/target(s):`,
+            );
+            for (const line of platform.failures) {
                 console.error(`  - ${line}`);
             }
             console.error('');
             console.error('Current OS × native-package matrix (`node scripts/audit-runtimes.mjs --platforms`):');
-            console.error(renderPlatformMatrix(platformRows));
+            console.error(renderPlatformMatrix(platform.rows));
             console.error('');
         }
-        if (prebuilds.failures.length > 0) {
+        if ((prebuilds.failures ?? []).length > 0) {
             console.error(
                 `PREBUILD-ARTIFACT FAILURES (does the declared platform have a loadable body?) on ${prebuilds.failures.length} target(s):`,
             );
@@ -2719,7 +1580,7 @@ async function main() {
                     '"not shipped yet" is available; a silent gap is not.',
             );
             console.error('');
-            console.error(renderPrebuildSummary(prebuilds));
+            console.error(renderPrebuildSummary({ notes: prebuilds.notes ?? [], stats: prebuilds.stats }));
             console.error('');
         }
         if (reach.failures.length > 0) {
@@ -2735,14 +1596,14 @@ async function main() {
             );
             console.error('');
         }
-        if (reach.aliasFailures.length > 0) {
-            console.error(`CURATED-ALIAS ROUTING FAILURES on ${reach.aliasFailures.length} alias entr(y|ies):`);
-            for (const line of reach.aliasFailures) {
+        if ((alias.failures ?? []).length > 0) {
+            console.error(`CURATED-ALIAS ROUTING FAILURES on ${alias.failures.length} alias entr(y|ies):`);
+            for (const line of alias.failures) {
                 console.error(`  - ${line}`);
             }
             console.error('');
         }
-        if (headless.failures.length > 0) {
+        if ((headless.failures ?? []).length > 0) {
             console.error(`HEADLESS-CONTRACT FAILURES (ADR 0015) on ${headless.failures.length} package(s):`);
             for (const line of headless.failures) {
                 console.error(`  - ${line}`);
@@ -2758,6 +1619,23 @@ async function main() {
             );
             console.error('');
         }
+        if ((coverage.failures ?? []).length > 0) {
+            console.error(
+                `MANIFEST FIELD-COVERAGE FAILURES on ${coverage.failures.length} declaration kind(s):`,
+            );
+            for (const line of coverage.failures) {
+                console.error(`  - ${line.split('\n').join('\n    ')}`);
+            }
+            console.error('');
+            console.error(
+                'Every `gjsify.*` declaration kind must be governed by a registered rule, or explicitly deferred with a ' +
+                    'reason in `scripts/manifest-conformance/unchecked-fields.mjs`. This is the guard that stops the next ' +
+                    'declaration from shipping with nothing verifying it — the failure mode every other rule here was ' +
+                    'written in reaction to.',
+            );
+            console.error('');
+        }
+        for (const note of coverage.notes ?? []) console.error(`  · ${note}`);
         renderReachabilityNotes(reach);
         console.error(
             "Either update the package's source-code signals (the GJS-binding shape changed) or update its package.json#gjsify.runtimes to match the new reality. See AGENTS.md `## Strategic direction — cross-runtime portability` for the slot model. For tier-contract failures see docs/adr/0003-package-tiering.md + docs/adr/0005-node-gi-scope.md. For reachability failures see docs/adr/0014-utils-core-subpath-and-platform-entry-routing.md. For headless-contract failures see docs/adr/0015-headless-package-contract.md.",
@@ -2765,6 +1643,7 @@ async function main() {
         process.exit(1);
     }
 
+    const rows = await rowsFor();
     if (FORMAT === 'json') {
         console.log(renderJson(rows));
     } else if (FORMAT === 'markdown') {

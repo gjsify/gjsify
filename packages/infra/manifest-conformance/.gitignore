@@ -1,0 +1,6 @@
+# `lib/` here is SOURCE, not a build output — plain committed ESM with a
+# hand-written `index.d.ts`, exactly like `@gjsify/resolve-npm`. That is what
+# lets a zero-install CI script import these rule modules by relative path with
+# no `node_modules` and no compiled output. Re-include it against the root
+# `.gitignore`'s blanket `lib/`.
+!lib/
