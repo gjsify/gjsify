@@ -7,15 +7,30 @@
 // up running the touched workspace + its downstream consumers instead of
 // the whole monorepo.
 //
+// EVERY VERDICT THIS FILE EMITS IS SCOPED TO ONE WORKFLOW: `main.yml`. That
+// scoping is the single most misread thing here, so it is stated before the
+// tables rather than after. The classifier is booted only by `main.yml`'s
+// `changes` job, and `main.yml` is the only workflow whose jobs consume its
+// outputs. So "ignored" NEVER means "irrelevant to the repository" — it means
+// "cannot change what `main.yml` builds or tests". Sibling workflows
+// (`prebuilds.yml`, `audit-runtimes.yml`, `node-gi.yml`, `napi.yml`,
+// `deploy-docs.yml`, …) gate themselves with their OWN `paths:` filters and are
+// unaffected by anything decided here. `IGNORE` has always worked this way —
+// `packages/node-gi/**` and `packages/napi/**` are load-bearing build inputs to
+// their own workflows and ignored here — but the table read as a global claim,
+// which is how a directory that is genuinely irrelevant to `main.yml` still
+// looks like something that must not be ignored.
+//
 // Classifier table (first-match wins) handles the cases that aren't a
 // straightforward "file lives in workspace X":
 //
-//   1. IGNORE  — pure-docs / *.md / website / refs/ submodule / unrelated
-//      workflow files / LICENSE / .gitignore. Discarded FIRST, before every
-//      other rule: an ignored file is never build-relevant, not even inside
-//      a GLOBAL_TRIGGERS directory (e.g. `packages/infra/cli/README.md` must
-//      not force a full run just because `packages/infra/cli/` is a global
-//      trigger). Ignore wins over global.
+//   1. IGNORE  — cannot change what `main.yml` builds or tests: pure-docs /
+//      *.md / website / refs/ submodule / other workflows' files and their
+//      inputs / LICENSE / .gitignore. Discarded FIRST, before every other
+//      rule: an ignored file is never build-relevant to this workflow, not
+//      even inside a GLOBAL_TRIGGERS directory (e.g.
+//      `packages/infra/cli/README.md` must not force a full run just because
+//      `packages/infra/cli/` is a global trigger). Ignore wins over global.
 //
 //   2. GLOBAL_TRIGGERS  — a non-ignored change touching infra the classifier
 //      itself depends on (`@gjsify/workspace`, `@gjsify/cli`, the bundler
@@ -24,12 +39,17 @@
 //      can't trust the closure when the algorithm that computes it just
 //      changed.
 //
-//   3. TEST_ONLY  — every changed file under ONE workspace is a spec
+//   3. SCRIPT_COUPLINGS  — a build input that reaches its consumer through a
+//      BUILD SCRIPT instead of a dependency, so the closure walk has no edge
+//      to follow. Contributes EXTRA seeds (and may force a test tier). See
+//      the table for why this cannot be inferred and must be declared.
+//
+//   4. TEST_ONLY  — every changed file under ONE workspace is a spec
 //      file, e2e fixture, or integration test. Seed = that workspace
 //      but SKIP the closure expansion (downstream consumers don't care
 //      about test code changes).
 //
-//   4. CODE (default)  — `workspacesForChangedFiles` maps file → ws,
+//   5. CODE (default)  — `workspacesForChangedFiles` maps file → ws,
 //      then `affectedClosure` walks reverse-dep edges.
 //
 // Integration tests are gated separately: they run when any workspace
@@ -206,13 +226,56 @@ const GLOBAL_TRIGGERS = [
     /^scripts\/audit-runtimes\.mjs$/,
 ];
 
+/**
+ * Inputs OWNED BY ANOTHER WORKFLOW — build-relevant, just not to `main.yml`.
+ *
+ * This is the sub-table where the workflow scoping stated at the top of the
+ * file is load-bearing, so each entry NAMES the workflow that does gate it.
+ * The test for membership is not "is this file unimportant" (none of these
+ * are) but "can `main.yml` build or test differently because of it" — and for
+ * every entry the answer is no, while the owning workflow has the path in its
+ * own `paths:` filter and would go red on a break.
+ *
+ * Adding a regex here is therefore a claim with two halves, and BOTH must
+ * hold: `main.yml` must not read the path, and some other workflow must.
+ */
+const OTHER_WORKFLOW_INPUTS = [
+    // Each sibling workflow's own definition. `main.yml` is deliberately
+    // absent — it is a GLOBAL_TRIGGER, since a job-shape change there is
+    // invisible until the workflow re-runs.
+    /^\.github\/workflows\/(deploy-docs|commitlint|release|release-cut|audit-runtimes|prebuilds|node-gi|napi|cli-cross-platform|build-ci-image)\.yml$/,
+    // `prebuilds.yml`'s toolchain (#838): the QEMU-emulated build script and
+    // the `changed-packages` classifier that decides which native packages a
+    // prebuild run rebuilds. `prebuilds.yml` lists `.github/prebuild-toolchain/**`
+    // in BOTH its `push` and `pull_request` `paths:` filters, so a break here
+    // reds that workflow on the same PR. `main.yml` never executes any of it —
+    // it builds no prebuild and runs no emulated leg.
+    /^\.github\/prebuild-toolchain\//,
+    // The REPO-SCOPED manifest-conformance rules (#847) — `tier`, `refs-pin`,
+    // `platforms-ci` plus the `unchecked-fields` ledger. Their gate is
+    // `audit-runtimes.yml`, which runs `node scripts/audit-runtimes.mjs
+    // --check --strict` on EVERY pull_request with no `paths:` filter at all,
+    // so this content is verified on every PR regardless of what is ignored
+    // here; `prebuilds.yml` additionally declares it a shared input (#843) and
+    // rebuilds every native package when it changes.
+    //
+    // The distinction that makes this safe is a real one, not a technicality:
+    // `main.yml` DOES run manifest-conformance code, but it reaches it through
+    // `scripts/verify-package-outputs.mjs` importing
+    // `packages/infra/manifest-conformance/lib/**` — the PACKAGE, a normal
+    // workspace under the `packages/infra/*` glob that maps and seeds like any
+    // other. Only the `scripts/`-side repo-scoped half is ignored, and that
+    // half is precisely the half `main.yml` does not load.
+    /^scripts\/manifest-conformance\//,
+];
+
 /** Patterns that contribute no seed and don't force a full run. */
 const IGNORE = [
     /\.md$/i,
     /^refs\//,
     /^website\//,
     /^docs\//,
-    /^\.github\/workflows\/(deploy-docs|commitlint|release|audit-runtimes|prebuilds|node-gi|napi|cli-cross-platform|build-ci-image)\.yml$/,
+    ...OTHER_WORKFLOW_INPUTS,
     /^\.githooks\//,
     // @gjsify/node-gi (the Node-native GObject-Introspection engine, Axis 5) is
     // NOT a gjsify workspace member — the GJS-first install/foreach tooling can't
@@ -245,6 +308,81 @@ const IGNORE = [
 
 /** Patterns that suggest a test-only change. */
 const TEST_PATHS = [/\.spec\.[mc]?[tj]sx?$/, /^tests\/(e2e|integration)\//];
+
+/**
+ * SCRIPT-BASED COUPLINGS — a build input whose consumer has NO edge to follow.
+ *
+ * The closure walk is a graph walk, and its only edges are `dependencies` /
+ * `optionalDependencies` in a `package.json`. When directory A is a real build
+ * input to workspace B because B's BUILD SCRIPT reads it — a `node scripts/…`,
+ * a `cpSync`, a glob over the repo — there is no such edge, so no amount of
+ * graph walking will ever reach B. The coupling has to be DECLARED.
+ *
+ * This failure is silent, and silent in the worse direction. An unmodelled
+ * input that lands in `unmatched` at least fails towards a full run; this one
+ * looks completely healthy: the input's own workspace is seeded, a small green
+ * closure is reported, B is never rebuilt, and B's build-output cache keeps
+ * serving the copy it made before the change. Nothing goes red.
+ *
+ * ADD AN ENTRY whenever you wire a build script to read outside its own
+ * package. `why` is mandatory and names the script, so the coupling is
+ * greppable from the thing that created it.
+ *
+ * KNOWN COUPLINGS THAT ARE DELIBERATELY NOT LISTED — and the trap they set.
+ * A repo-wide sweep (repo task #73) found three more script couplings, all
+ * rooted at `scripts/`:
+ *
+ *   scripts/stage-prebuild.mjs          → 11 native packages (`build:prebuilds`)
+ *   scripts/check-refs-pin.mjs          → the 3 Rust bridges (`build:meson`)
+ *   scripts/bootstrap-native-facades.mjs → the infra facades (`build:infra`)
+ *
+ * They need no entry TODAY only because `scripts/` is in neither IGNORE nor
+ * any workspace, so a change there lands in `unmatched` and already fails
+ * towards a full run. That is safety by accident, and it is load-bearing:
+ * **anyone who carves `scripts/` (or any subtree of it) out into IGNORE to
+ * save a full run MUST add the matching entries here in the same change**,
+ * or those three couplings convert straight from "expensive but correct" into
+ * the silent stale-artifact failure this table exists to prevent. The
+ * `scripts/manifest-conformance/**` carve-out above is exactly that kind of
+ * edit, and it is safe only because nothing under it is a build input to a
+ * workspace — it is a CI gate, which is a different thing.
+ */
+interface ScriptCoupling {
+    /** Files whose change implies the coupling fired. */
+    match: RegExp;
+    /** Workspaces to seed IN ADDITION to whatever the file itself maps to. */
+    seeds: string[];
+    /** Force the e2e tier — for a coupling whose only real coverage is e2e. */
+    runE2E?: boolean;
+    /** The script that creates the coupling. Mandatory: it is the evidence. */
+    why: string;
+}
+
+const SCRIPT_COUPLINGS: readonly ScriptCoupling[] = [
+    {
+        // `templates/*` ARE workspaces (root `package.json#workspaces` carries
+        // a `templates/*` glob), so a template change already seeds its own
+        // `@gjsify/template-<name>`. That is not the consumer that matters.
+        //
+        // The consumer is `@gjsify/create-app`, and it is unreachable twice
+        // over: it lives at `packages/infra/create-gjsify/`, so no
+        // directory-name search finds it, and it takes the templates in
+        // through `node scripts/process-template.mjs` in its `build` script
+        // (which resolves each template's `workspace:^` specifiers and copies
+        // the result into `dist-templates/`), so there is no dependency edge
+        // either. `dist-templates/` is a build-output cache candidate, so once
+        // it is stale it stays stale.
+        match: /^templates\//,
+        seeds: ['@gjsify/create-app'],
+        // …and `tests/e2e/create-app` is the ONLY thing that would notice: it
+        // scaffolds a project out of `dist-templates/` and builds it. Without
+        // this a templates-only PR got neither the regenerated templates nor
+        // the suite that exercises them. PR #853 passed only by accident of
+        // also touching root `package.json` and tripping a global trigger.
+        runE2E: true,
+        why: '@gjsify/create-app build → node scripts/process-template.mjs reads templates/',
+    },
+];
 
 function classifyAndExpand(workspaces: readonly Workspace[], changedFiles: readonly string[]): ClassifyResult {
     const files = changedFiles.map((f) => f.replace(/\\/g, '/')).filter((f) => f.length > 0);
@@ -295,23 +433,61 @@ function classifyAndExpand(workspaces: readonly Workspace[], changedFiles: reado
     }
     // Map files → workspaces. Files outside any workspace stay in `unmatched`.
     const { matched, unmatched } = workspacesForChangedFiles(workspaces, remaining);
+    // SCRIPT_COUPLINGS: add the seeds no graph edge can reach. Applied BEFORE
+    // the `unmatched` bail-out so the table works for a coupled directory that
+    // is NOT itself a workspace — such a file would otherwise force a full run
+    // and the declared seeds would never be consulted.
+    const knownNames = new Set(workspaces.map((w) => w.name));
+    const couplingSeeds = new Set<string>();
+    const couplingAccounted = new Set<string>();
+    let couplingRunE2E = false;
+    for (const c of SCRIPT_COUPLINGS) {
+        const hits = remaining.filter((f) => c.match.test(f));
+        if (hits.length === 0) continue;
+        for (const h of hits) couplingAccounted.add(h);
+        for (const s of c.seeds) {
+            // A declared seed that is not a workspace means the table has
+            // drifted from the tree (package renamed, moved, removed). Fail
+            // towards the full run and SAY SO — the whole point of this table
+            // is that a missing rebuild here is otherwise invisible, so it must
+            // never degrade quietly back into the bug it exists to prevent.
+            if (!knownNames.has(s)) {
+                return {
+                    global: true,
+                    reason:
+                        `script-coupling seed ${s} is not a workspace (${c.match.source} → ${c.why}); ` +
+                        `SCRIPT_COUPLINGS in commands/affected.ts is stale`,
+                    workspaces: workspaces.map((w) => w.name),
+                    runE2E: true,
+                    runIntegration: true,
+                    skipAll: false,
+                };
+            }
+            couplingSeeds.add(s);
+        }
+        if (c.runE2E) couplingRunE2E = true;
+    }
     // Unmatched-but-not-ignored files are suspicious enough to fall back to
     // the conservative "full run" path. Examples: a new top-level dotfile,
     // a script in `scripts/` we haven't carved out, a refs/-adjacent file.
-    if (unmatched.length > 0) {
+    // A file a coupling claimed is accounted for and does not count here.
+    const stillUnmatched = unmatched.filter((f) => !couplingAccounted.has(f));
+    if (stillUnmatched.length > 0) {
         return {
             global: true,
-            reason: `unmatched files (${unmatched.length}): ${unmatched.slice(0, 3).join(', ')}${unmatched.length > 3 ? '…' : ''}`,
+            reason: `unmatched files (${stillUnmatched.length}): ${stillUnmatched.slice(0, 3).join(', ')}${stillUnmatched.length > 3 ? '…' : ''}`,
             workspaces: workspaces.map((w) => w.name),
             runE2E: true,
             runIntegration: true,
             skipAll: false,
         };
     }
+    for (const s of couplingSeeds) matched.add(s);
     // TEST_ONLY shortcut: every remaining file is a spec / e2e / integration
     // path, all under ONE workspace. Skip the closure expansion — test code
-    // has no downstream consumers.
-    const testOnly = remaining.every((f) => TEST_PATHS.some((re) => re.test(f)));
+    // has no downstream consumers. A coupling deliberately disables it: the
+    // extra seeds exist precisely because a downstream consumer DOES care.
+    const testOnly = couplingSeeds.size === 0 && remaining.every((f) => TEST_PATHS.some((re) => re.test(f)));
     if (testOnly && matched.size === 1) {
         const only = [...matched][0]!;
         // E2E or integration test-only changes still need their own job.
@@ -361,10 +537,14 @@ function classifyAndExpand(workspaces: readonly Workspace[], changedFiles: reado
             }
         }
     }
-    const runE2E = remaining.some((f) => f.startsWith('tests/e2e/'));
+    // A `tests/e2e/**` touch turns the tier on, and so does any coupling that
+    // declares e2e as its only real coverage (see SCRIPT_COUPLINGS).
+    const runE2E = remaining.some((f) => f.startsWith('tests/e2e/')) || couplingRunE2E;
     return {
         global: false,
-        reason: `closure (${closure.size} ws from ${matched.size} seed(s))`,
+        reason:
+            `closure (${closure.size} ws from ${matched.size} seed(s))` +
+            (couplingSeeds.size > 0 ? `, ${couplingSeeds.size} via script-coupling` : ''),
         workspaces: [...closure].sort(),
         runE2E,
         runIntegration,
