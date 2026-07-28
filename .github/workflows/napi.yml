@@ -19,11 +19,18 @@ on:
       # (the N-API fidelity oracle), so a node-gi change that could break the
       # oracle must re-run this workflow too.
       - 'packages/node-gi/**'
+      # The transparent addon matrix in the `consumer` job below covers
+      # `napiNodeAddonPlugin`, which LIVES here — so a change to the plugin is
+      # exactly what must re-run this workflow. Without this path the matrix
+      # would still not have caught the six defects it exists for (#840): they
+      # were all in rolldown-plugin-gjsify, which triggers main.yml, not napi.yml.
+      - 'packages/infra/rolldown-plugin-gjsify/**'
       - '.github/workflows/napi.yml'
   pull_request:
     paths:
       - 'packages/napi/**'
       - 'packages/node-gi/**'
+      - 'packages/infra/rolldown-plugin-gjsify/**'
       - '.github/workflows/napi.yml'
   # Manual driver for the experimental `windows` job below (gated on this event)
   # — the from-source gjs + mozjs-140 Windows attempt is opt-in so it never reds
@@ -309,6 +316,52 @@ jobs:
         env:
           GJSIFY_CLI_ENTRY: /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js
         run: node test/consumer-gate.mjs
+
+      # TRANSPARENT matrix — the gate that covers `napiNodeAddonPlugin`'s
+      # auto-resolution across all four addon codegens (node-gyp-build ×2,
+      # bindings, napi-rs entry-replacement), each byte-diffed Node vs
+      # GJS-under-shim.
+      #
+      # It ran in NO workflow until now, which is why six defects in that plugin
+      # shipped at once (#840): every one of them was in the acquisition path
+      # this matrix exercises, and nothing ran it. Vendoring is 4 npm packages +
+      # two small node-gyp builds, so it belongs in this already-warm job rather
+      # than a new one.
+      - name: Vendor + source-build the addon matrix
+        working-directory: packages/napi/napi
+        run: sh test/addons/setup.sh
+
+      # Driven by the COMMITTED dist/cli.gjs.mjs, NOT the published CLI the
+      # consumer gate above uses. That distinction is the whole point: the
+      # published CLI carries the LAST RELEASE's plugin, so a PR changing the
+      # plugin would test nothing. The committed bundle carries THIS commit's
+      # plugin (the pre-commit hook rebuilds it; main.yml's
+      # verify-committed-bundles proves it reproduces from that source), and it
+      # additionally exercises `@gjsify/rolldown-native` — the engine where two
+      # of the six defects lived (a `null` importer across the JSON hook
+      # boundary, and a Rust-`regex`-incompatible filter that silently disabled
+      # every interception). A Node-driven build cannot see either.
+      #
+      # `@gjsify/napi` must be resolvable by BARE specifier for the emitted
+      # shims, exactly as in a real consumer — the `gjsify install @gjsify/napi`
+      # stand-in, since packages/napi is not a workspace member.
+      - name: Transparent addon matrix (GJS engine, committed CLI bundle)
+        working-directory: packages/napi/napi
+        env:
+          GJSIFY_GATE_ENGINE: gjs
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/node_modules/@gjsify"
+          ln -sfn "$GITHUB_WORKSPACE/packages/napi/napi" "$GITHUB_WORKSPACE/node_modules/@gjsify/napi"
+          sh test/run-transparent-matrix.sh
+
+      # The same matrix on the Node engine (npm `rolldown`). Both engines must
+      # produce byte-identical output; running only one would let an
+      # engine-specific regression through in the other direction.
+      - name: Transparent addon matrix (Node engine)
+        working-directory: packages/napi/napi
+        env:
+          GJSIFY_CLI_ENTRY: /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js
+        run: sh test/run-transparent-matrix.sh
 
   # Phase-1 N-API fidelity oracle: @gjsify/node-gi (a REAL native N-API addon —
   # the reverse GObject-Introspection engine) runs UNDER the @gjsify/napi shim on

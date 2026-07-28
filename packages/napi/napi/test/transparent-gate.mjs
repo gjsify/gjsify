@@ -68,6 +68,55 @@ function resolveCli() {
 }
 const CLI = resolveCli();
 const runGjsify = (args, opts) => execFileSync(process.execPath, [CLI, ...args], opts);
+
+/**
+ * How the gate DRIVES `gjsify build`. Default is the Node CLI entry (npm
+ * `rolldown`); `GJSIFY_GATE_ENGINE=gjs` drives the committed GJS bundle
+ * instead, i.e. `@gjsify/rolldown-native`.
+ *
+ * The engine is not an implementation detail for this gate, it is a distinct
+ * risk surface, and the interception had NO coverage on it. Two of the six
+ * defects fixed in #840 were engine-specific and invisible to a Node-driven
+ * build:
+ *
+ *   - the native engine hands hook payloads across a JSON boundary, so "no
+ *     importer" arrives as `null` rather than `undefined` — every guard was
+ *     `=== undefined`, and `dirname(null)` failed the whole build as an
+ *     UNHANDLEABLE_ERROR;
+ *   - the plugin's `filter` is handed to the Rust core as an `idFilter` STRING,
+ *     and Rust's `regex` supports neither lookaround nor `\0` — it rejects the
+ *     WHOLE pattern rather than one branch, silently disabling every
+ *     interception under GJS while npm `rolldown` keeps working.
+ *
+ * Using the COMMITTED bundle is deliberate: it carries the plugin code of the
+ * commit under test (the pre-commit hook rebuilds it; `verify-committed-bundles`
+ * proves it reproduces from that source), so no in-repo CLI build is needed —
+ * which is what let this run inside the existing consumer job instead of
+ * needing its own workspace build.
+ *
+ * The prebuild env must be exported BEFORE the process starts: the typelib
+ * lookup happens inside the GJS runtime, so the CLI cannot repair it from the
+ * inside (see `bundler-pick.ts`'s diagnostic for the same trap).
+ */
+function resolveBuildDriver() {
+    if ((process.env.GJSIFY_GATE_ENGINE ?? 'node') !== 'gjs') {
+        return { cmd: process.execPath, pre: [CLI], env: {}, label: 'node/npm-rolldown' };
+    }
+    const bundle = join(ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
+    if (!existsSync(bundle)) die(`GJSIFY_GATE_ENGINE=gjs but the committed CLI bundle is missing: ${bundle}`);
+    const prebuilds = [
+        join(ROOT, 'packages', 'infra', 'rolldown-native', 'prebuilds', 'linux-x64'),
+        join(ROOT, 'node_modules', '@gjsify', 'rolldown-native', 'prebuilds', 'linux-x64'),
+        PREBUILD_DIR, // @gjsify/napi's own typelib — the shims resolve it too
+    ].filter((d) => existsSync(d));
+    const prepend = (name) => [...prebuilds, ...(process.env[name] ? [process.env[name]] : [])].join(':');
+    return {
+        cmd: 'gjs',
+        pre: ['-m', bundle],
+        env: { GI_TYPELIB_PATH: prepend('GI_TYPELIB_PATH'), LD_LIBRARY_PATH: prepend('LD_LIBRARY_PATH') },
+        label: 'gjs/rolldown-native',
+    };
+}
 const ADDONS_DIR = join(HERE, 'addons');
 const NAPI_LIB = join(PKG, 'lib', 'esm', 'index.js');
 const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
@@ -178,11 +227,14 @@ try {
     stage('bundling workout for --app gjs (transparent auto-resolution) …');
     const aliases = [`${cfg.pkg}=${indexJs}`, ...(cfg.aliases ?? [])];
     const aliasArgs = aliases.flatMap((a) => ['--alias', a]);
+    const driver = resolveBuildDriver();
+    stage(`build driver: ${driver.label}`);
     const build = runCapture(
-        process.execPath,
-        [CLI, 'build', workout, '--app', 'gjs', '--outfile', bundle, ...aliasArgs],
+        driver.cmd,
+        [...driver.pre, 'build', workout, '--app', 'gjs', '--outfile', bundle, ...aliasArgs],
         {
             cwd: ADDONS_DIR,
+            env: { ...process.env, ...driver.env },
         },
     );
     if (!build.ok || !existsSync(bundle)) {
