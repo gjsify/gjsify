@@ -929,6 +929,29 @@ Root-cause fix surfaced by this suite: **`@gjsify/buffer` constructed `TextEncod
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
+### 60 dead lint-disable directives; `--report-unused-disable-directives` is off
+
+oxlint supports `--report-unused-disable-directives`, which flags an
+`// eslint-disable-…` / `// oxlint-disable-…` comment that suppresses nothing.
+That is precisely the failure mode behind the bare-`require` incident: the
+`@typescript-eslint/no-require-imports` disables sitting at the offending sites
+were DECORATION, because the rule they named was never enabled. An
+unused-directive check would have said so out loud, years before a red main did.
+
+Measured on `c185bbaf4`: **60 unused directives** across the tree
+(`node-gi/globals.d.ts`, `zlib/src/browser.ts`, `worker-stress`,
+`http2/src/native-dispatcher.ts`, …). So the flag cannot just be switched on at
+`error` — that is a 60-site cleanup, and each site needs deciding individually
+(delete the directive, or repair the rule name it got wrong; a directive naming
+a rule oxlint does not implement is indistinguishable from one naming a rule
+that is merely disabled).
+
+Enabling it at `warn` alone is NOT worth doing: `gjsify lint` already emits
+warnings that nothing gates on, so it would add noise without adding a
+guarantee — the half-measure this whole class argues against. The useful shape
+is one change that sweeps the 60 AND turns it on as an ERROR, so it cannot
+regrow.
+
 ### `@gjsify/http2` lazy native-dispatcher loads still use a bare `require`
 
 Two sites load the optional native HTTP/2 dispatcher through a bare
