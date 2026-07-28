@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.24.1](https://github.com/gjsify/gjsify/compare/v0.24.0...v0.24.1) (2026-07-28)
+
+### Bug Fixes
+
+* **ci:** give the build-output cache a single writer ([#864](https://github.com/gjsify/gjsify/issues/864)) ([3a815b4](https://github.com/gjsify/gjsify/commit/3a815b4f61afc78c0b87148321ee53d1ea009ff4)), closes [#863](https://github.com/gjsify/gjsify/issues/863) [#863](https://github.com/gjsify/gjsify/issues/863)
+* **ci:** make the warm-cache probe prove completeness ([#862](https://github.com/gjsify/gjsify/issues/862)) ([10f3705](https://github.com/gjsify/gjsify/commit/10f3705dac3ec38f6176139a47621c74af5fa7da)), closes [#860](https://github.com/gjsify/gjsify/issues/860)
+* **ci:** pin the emulator so exotic arches build ([17540c2](https://github.com/gjsify/gjsify/commit/17540c2590bf48ab936eafe25aba7136fd987f3a))
+* **ci:** stop selective builds matching nothing ([#855](https://github.com/gjsify/gjsify/issues/855)) ([3b980bb](https://github.com/gjsify/gjsify/commit/3b980bb7a3bdaf1e06686c515c6caa43ed598523))
+* **cli:** drop bare `require` from ESM affected emit ([#859](https://github.com/gjsify/gjsify/issues/859)) ([210d406](https://github.com/gjsify/gjsify/commit/210d406ce39e786980c5e0eeb026e835e0abf1b1)), closes [#855](https://github.com/gjsify/gjsify/issues/855)
+* **cli:** resolve node-gi from the bundle dir; guard transparent .node loading on gjs ([#841](https://github.com/gjsify/gjsify/issues/841)) ([498479e](https://github.com/gjsify/gjsify/commit/498479ed937e07d278d6523b3409158698e81cac)), closes [#840](https://github.com/gjsify/gjsify/issues/840) [#840](https://github.com/gjsify/gjsify/issues/840) [#840](https://github.com/gjsify/gjsify/issues/840)
+* **css-as-string:** acquire npm lightningcss at runtime ([#846](https://github.com/gjsify/gjsify/issues/846)) ([1a803ac](https://github.com/gjsify/gjsify/commit/1a803ac6f7c05b2084a49a330bd689086f05fb99))
+* fail builds that emit no declared output ([057c5ff](https://github.com/gjsify/gjsify/commit/057c5ff13e7c950c50a838ce7001385f0cdc643c)), closes [#655](https://github.com/gjsify/gjsify/issues/655) [#3](https://github.com/gjsify/gjsify/issues/3) [#683](https://github.com/gjsify/gjsify/issues/683)
+* **gjs:** force-inline the bundler's own shims ([#851](https://github.com/gjsify/gjsify/issues/851)) ([c700af4](https://github.com/gjsify/gjsify/commit/c700af4c2f468dfec1adb21a53e92f164d1f0660))
+* **lightningcss-native:** keep specs out of the facade emit ([e10c56e](https://github.com/gjsify/gjsify/commit/e10c56ed13d0de048aa250edc237f1a30a18de1a))
+* **napi:** attribute tsfn claims at env teardown ([c025594](https://github.com/gjsify/gjsify/commit/c0255941e1c41f2132f3c5241fa627fb97e7fe69)), closes [#66](https://github.com/gjsify/gjsify/issues/66) [#833](https://github.com/gjsify/gjsify/issues/833) [#833](https://github.com/gjsify/gjsify/issues/833) [pre-#809](https://github.com/gjsify/pre-/issues/809) [#833](https://github.com/gjsify/gjsify/issues/833)
+* **os:** ship real errno/signal numbers in browser ([#860](https://github.com/gjsify/gjsify/issues/860)) ([c185bba](https://github.com/gjsify/gjsify/commit/c185bbaf43bb821f2662d554e17426d980aa770a)), closes [#855](https://github.com/gjsify/gjsify/issues/855)
+* **release:** rebuild bundles with the workspace CLI ([ca57ca3](https://github.com/gjsify/gjsify/commit/ca57ca3d0a9a2a32808e0f491422521c92ae1df8))
+* run the committed-bundle verification on a cold tree ([#858](https://github.com/gjsify/gjsify/issues/858)) ([c19c33c](https://github.com/gjsify/gjsify/commit/c19c33c1135dd14db58aa8f8dbe80db0cae19dcc)), closes [#835](https://github.com/gjsify/gjsify/issues/835)
+* **xmlhttprequest:** emit declarations to lib/types ([707758f](https://github.com/gjsify/gjsify/commit/707758f472483856c1b296bb2b7d688319ca604a))
+
+### Documentation
+
+* state the emulated-target gap as measured ([ebaabef](https://github.com/gjsify/gjsify/commit/ebaabef769c79f4a5dcf4b63ad09f0901bc3b314))
+* **website:** document the Vite plugin ([#842](https://github.com/gjsify/gjsify/issues/842)) ([e7d7c17](https://github.com/gjsify/gjsify/commit/e7d7c17cbb515f7fb5ccefd4065b530e179e3bd9))
+* **website:** tab the package managers ([#850](https://github.com/gjsify/gjsify/issues/850)) ([1c00e26](https://github.com/gjsify/gjsify/commit/1c00e262d267aaf20b000c03d3139aecd18da8f8))
+
+### Code Refactoring
+
+* forbid bare require in ESM sources ([#861](https://github.com/gjsify/gjsify/issues/861)) ([8dbe4a1](https://github.com/gjsify/gjsify/commit/8dbe4a1740c8a6faddbffa07bbccc47360e970cc))
+* one registry for manifest conformance ([#847](https://github.com/gjsify/gjsify/issues/847)) ([4834db3](https://github.com/gjsify/gjsify/commit/4834db3c2648dff2993cbcb0544e0cc424082622)), closes [#821](https://github.com/gjsify/gjsify/issues/821)
+* **resolve-npm:** name the browser redirects ([#857](https://github.com/gjsify/gjsify/issues/857)) ([267e265](https://github.com/gjsify/gjsify/commit/267e265065da55e73376a53011a5961ded58c36f))
+
+### Build System
+
+* rebuild the bundles the release regressed ([8230b8f](https://github.com/gjsify/gjsify/commit/8230b8f2a941a27845d72e7ae3634b727d4c6f0a)), closes [#830](https://github.com/gjsify/gjsify/issues/830)
+
+### Continuous Integration
+
+* allow a full sweep on demand ([#854](https://github.com/gjsify/gjsify/issues/854)) ([046d9d6](https://github.com/gjsify/gjsify/commit/046d9d6e62ac59895698cdf184a5a3c04923f138))
+* cut releases from CI ([#865](https://github.com/gjsify/gjsify/issues/865)) ([2705163](https://github.com/gjsify/gjsify/commit/270516354cfcc250845aee29229ee03ba5584a84))
+* hold declared platforms to a real prebuild ([bad2437](https://github.com/gjsify/gjsify/commit/bad24379e28c8853c5b51da41df80ab00185eb60)), closes [#832](https://github.com/gjsify/gjsify/issues/832)
+* pull the CI image anonymously so fork PRs run ([1ff4d12](https://github.com/gjsify/gjsify/commit/1ff4d1224e867a4ec822e47bf5ca59e3abde93ee))
+* trigger prebuilds on the emulated build script ([73f46dc](https://github.com/gjsify/gjsify/commit/73f46dc466e6fb44ae8c167f413efc6c987583c4))
+
+### Maintenance
+
+* **prebuilds:** drop exemptions the artifacts outgrew ([#848](https://github.com/gjsify/gjsify/issues/848)) ([b24098a](https://github.com/gjsify/gjsify/commit/b24098ae0d9d6a5375bbb4c1c11456bd16b58085)), closes [#838](https://github.com/gjsify/gjsify/issues/838)
+* update native prebuilds [skip ci] ([240e388](https://github.com/gjsify/gjsify/commit/240e3882a0aeff4492b64ead42b5ed80111f6bab))
+* update native prebuilds [skip ci] ([1ec2f67](https://github.com/gjsify/gjsify/commit/1ec2f674200161a8e2f93aafd9413c6ed1a27ea4))
+
+### Tests
+
+* **napi:** gate tsfn env-teardown claim shapes ([d6a4e49](https://github.com/gjsify/gjsify/commit/d6a4e49a29b20c0526071b697e00d335f3444eb6))
+
 ## [0.24.0](https://github.com/gjsify/gjsify/compare/v0.23.0...v0.24.0) (2026-07-27)
 
 ### Features
