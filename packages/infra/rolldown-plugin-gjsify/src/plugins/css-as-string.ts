@@ -166,7 +166,32 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
 }
 
 async function loadNpmBundler(): Promise<Bundler> {
-    const { bundleAsync } = await import('lightningcss');
+    // INDIRECT specifier, for the same reason `tryLoadNativeBundler` uses one:
+    // keep this acquisition out of the BUILD graph so it is resolved at
+    // runtime only. npm `lightningcss` is a napi-rs package, and a static
+    // `import('lightningcss')` here put its generated loader into the module
+    // graph of every `--app gjs` bundle — including the CLI's own committed
+    // `dist/cli.gjs.mjs`.
+    //
+    // That is what made the committed bundle ENVIRONMENT-DEPENDENT. With
+    // `@gjsify/napi` resolvable, `napiNodeAddonPlugin` rewrites the loader to a
+    // `loadAddon()` shim and inlines it; without it the plugin declines and the
+    // import stays external. Two different module graphs, so the minifier
+    // assigns different variable names, so the artifact stops reproducing from
+    // its own source (`verify-committed-bundles` red, first difference at byte
+    // 275: `r=` vs `a=` for `globalThis.imports.gi.GLib`). A toolchain artifact
+    // must not depend on whether an optional package happened to be installed
+    // when it was built.
+    //
+    // Nothing is lost under GJS: the documented GJS backend is
+    // `@gjsify/lightningcss-native` (above), and this npm fallback was never
+    // actually usable there — its `.node` cannot load under GJS without a
+    // build-time rewrite, and the only arches where that rewrite is possible
+    // (`@gjsify/napi`: linux-x64, darwin-arm64) are arches where the native
+    // bridge exists anyway. On Node this is unchanged: `lightningcss` is a real
+    // `dependency` of this package, so the runtime resolve finds it.
+    const specifier = 'lightningcss';
+    const { bundleAsync } = (await import(/* @vite-ignore */ specifier)) as typeof import('lightningcss');
     return async (filename, targets) => {
         const result = await bundleAsync({
             filename,
