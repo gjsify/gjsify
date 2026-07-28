@@ -91,9 +91,14 @@ function buildPackageTar(pkgJson, { withPrebuild = false } = {}) {
     parts.push(tarFile('package/package.json', Buffer.from(JSON.stringify(pkgJson, null, 2) + '\n')));
     if (withPrebuild) {
         parts.push(tarHeader(`package/${PREBUILD_REL}/`, 0, '5'));
-        // A stand-in for the .so + .typelib — content is irrelevant; only the
-        // directory's existence matters to detectNativePackages.
+        // Stand-ins for the two files EVERY gjsify GI bridge ships — content is
+        // irrelevant, presence is not. The `.typelib` is load-bearing for the
+        // launcher: `prebuilds/<os>-<arch>/` is also the prebuildify convention,
+        // so the preamble takes a directory only when it holds one, and a
+        // fixture with just a `.so` would be a prebuild the real launcher is
+        // right to skip.
         parts.push(tarFile(`package/${PREBUILD_REL}/libgjsify_engine.so`, Buffer.from('\x7fELF stub')));
+        parts.push(tarFile(`package/${PREBUILD_REL}/GjsifyEngine-1.0.typelib`, Buffer.from('GTYP stub')));
     }
     parts.push(Buffer.alloc(BLOCK * 2)); // trailer
     return Buffer.concat(parts);
@@ -353,6 +358,7 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
         const latePrebuild = join(prefix, 'node_modules', '@gjsify', 'late-native', PREBUILD_REL);
         mkdirSync(latePrebuild, { recursive: true });
         writeFileSync(join(latePrebuild, 'libgjsify_late.so'), '\x7fELF stub');
+        writeFileSync(join(latePrebuild, 'GjsifyLate-1.0.typelib'), 'GTYP stub');
         const envAfter = await launcherEnv(launcherPath, tmpRoot);
         assert.ok(
             envAfter.GI_TYPELIB_PATH?.split(':').includes(latePrebuild),
@@ -365,6 +371,19 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
         assert.ok(
             envInherited.GI_TYPELIB_PATH?.split(':').includes('/user/typelibs'),
             `launcher must preserve an inherited GI_TYPELIB_PATH: ${envInherited.GI_TYPELIB_PATH}`,
+        );
+
+        // 5. …and a `prebuilds/<os>-<arch>/` that carries NO typelib is skipped.
+        //    That layout is also the prebuildify convention (`bare-fs` & co), so
+        //    a directory-only match would put a pile of foreign shared objects
+        //    ahead of the system ones on the loader path.
+        const foreign = join(prefix, 'node_modules', 'bare-lookalike', PREBUILD_REL);
+        mkdirSync(foreign, { recursive: true });
+        writeFileSync(join(foreign, 'bare-lookalike.node'), 'not a typelib');
+        const envForeign = await launcherEnv(launcherPath, tmpRoot);
+        assert.ok(
+            !envForeign.GI_TYPELIB_PATH?.split(':').includes(foreign),
+            `a prebuilds dir with no typelib must be skipped: ${envForeign.GI_TYPELIB_PATH}`,
         );
     });
 
