@@ -96,6 +96,7 @@ export default defineConfig({
                         { slug: 'patterns/bridges', label: 'Bridge Widgets' },
                         { slug: 'guides/storybook' },
                         { slug: 'guides/devtools' },
+                        { slug: 'guides/vite-plugin' },
                     ],
                 },
                 {
