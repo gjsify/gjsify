@@ -259,11 +259,27 @@ export const installCommand: Command<unknown, InstallOptions> = {
             overallTimeoutMs > 0
                 ? setTimeout(() => {
                       const secs = Math.round(overallTimeoutMs / 100) / 10;
+                      // Do NOT assert a cause here — this timer cannot tell the
+                      // two shapes apart, and claiming the rarer one sends the
+                      // next reader after a bug that isn't there. Measured on a
+                      // cold tree of this workspace: 1597 packages / ~4.8 GB
+                      // extracted, of which ~3.4 GB are foreign-platform
+                      // optional deps (`os`/`cpu` excludes the host) that npm
+                      // would never place. That install was still making steady
+                      // progress when the 30-min budget elapsed, and a re-run
+                      // finished the remainder in ~2 min. Extraction also has
+                      // multi-second SYNCHRONOUS stretches (tar parse + file
+                      // writes) and 16 run concurrently, so the clean abort path
+                      // can easily miss the grace window with nothing wedged.
                       console.error(
-                          `gjsify install: still stuck ${Math.round(HARD_EXIT_GRACE_MS / 1000)}s after the ${secs}s ` +
-                              `budget elapsed and the in-flight aborts — forcing exit. A dependency's extract or ` +
-                              `link step wedged (typically a dropped Gio stream event under GJS). Re-run; if it ` +
-                              `persists, raise --timeout or file an issue.`,
+                          `gjsify install: the ${secs}s budget elapsed and the abort did not unwind within ` +
+                              `${Math.round(HARD_EXIT_GRACE_MS / 1000)}s — forcing exit. That means one of two ` +
+                              `things, and this timer cannot distinguish them: the install was still WORKING ` +
+                              `(a cold tree here extracts several GB, and extraction blocks the loop in ` +
+                              `multi-second synchronous stretches), or a step genuinely wedged. Re-running tells ` +
+                              `you which, and is safe: extraction is idempotent, every package already on disk ` +
+                              `is skipped, so a second run finishes the remainder in a fraction of the time. A ` +
+                              `re-run that makes NO further progress is a real wedge — file an issue.`,
                       );
                       forceExit(1);
                   }, overallTimeoutMs + HARD_EXIT_GRACE_MS)
