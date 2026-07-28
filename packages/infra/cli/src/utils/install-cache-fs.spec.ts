@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { atomicWrite, gjsifyCacheRoot, readCacheFile } from './install-cache-fs.js';
@@ -30,7 +30,7 @@ export default async () => {
         });
 
         await it('gjsifyCacheRoot falls back to ~/.cache when XDG is unset/empty', async () => {
-            const home = require('node:os').homedir() as string;
+            const home = homedir();
             withXdg(undefined, () => {
                 expect(gjsifyCacheRoot('tarballs', 'v1')).toBe(join(home, '.cache', 'gjsify', 'tarballs', 'v1'));
             });
