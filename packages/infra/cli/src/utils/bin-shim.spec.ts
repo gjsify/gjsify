@@ -153,7 +153,7 @@ export default async () => {
             expect(sh).toContain(`'/opt/prefix'/node_modules/@*/*/prebuilds/linux-x64`);
             expect(sh).toContain(`'/opt/prefix'/node_modules/*/prebuilds/linux-x64`);
             expect(sh).toContain('for gjsify_d in');
-            expect(sh).toContain('if [ -d "$gjsify_d" ]');
+            expect(sh).toContain('[ -d "$gjsify_d" ] || continue');
             expect(sh).toContain('export GI_TYPELIB_PATH LD_LIBRARY_PATH');
             // Nothing found at write time must NOT collapse to "no preamble" —
             // that is exactly the failure mode being removed.
@@ -163,6 +163,17 @@ export default async () => {
         await it('probes the legacy uname spelling too, for pre-rename tarballs', async () => {
             const sh = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'linux', arch: 'x64' });
             expect(sh).toContain('/prebuilds/linux-x86_64');
+        });
+
+        await it('takes a directory only when it holds a typelib', async () => {
+            // `prebuilds/<os>-<arch>/` is ALSO the prebuildify convention, so a
+            // plain directory match sweeps in `bare-fs` & co — no typelib, and
+            // a directory of foreign shared objects ahead of the system ones on
+            // the loader path. `detectNativePackages` never returned those (it
+            // keys on `gjsify.prebuilds`); this restores that from disk alone.
+            const sh = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'linux', arch: 'x64' });
+            expect(sh).toContain('"$gjsify_d"/*.typelib');
+            expect(sh).toContain('if [ -f "$gjsify_t" ]');
         });
 
         await it('preserves an inherited value as a suffix', async () => {

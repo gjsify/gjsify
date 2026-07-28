@@ -385,16 +385,29 @@ export function buildNativeEnvPreamble(
     }
 
     const seed = external.length > 0 ? shQuote(external.join(separator)) : `''`;
+    // A directory match is not enough: `prebuilds/<os>-<arch>/` is ALSO the
+    // prebuildify convention, so a plain glob sweeps in `bare-fs`, `bare-os`
+    // and friends — packages with no typelib at all, which `detectNativePackages`
+    // never returned because it keyed on `gjsify.prebuilds`. Onto
+    // GI_TYPELIB_PATH that is merely noise; onto the LOADER path it is a
+    // directory of foreign shared objects ahead of the system ones. The
+    // `.typelib` probe restores the old precision from the filesystem alone —
+    // and it is exactly what the artifact invariant already guarantees every
+    // gjsify GI bridge ships (a library AND the typelib without which
+    // GI_TYPELIB_PATH resolves nothing).
     return (
         `gjsify_np=${seed}\n` +
         `for gjsify_d in ${patterns.join(' ')}; do\n` +
-        `  if [ -d "$gjsify_d" ]; then gjsify_np="\${gjsify_np:+$gjsify_np${separator}}$gjsify_d"; fi\n` +
+        `  [ -d "$gjsify_d" ] || continue\n` +
+        `  for gjsify_t in "$gjsify_d"/*.typelib; do\n` +
+        `    if [ -f "$gjsify_t" ]; then gjsify_np="\${gjsify_np:+$gjsify_np${separator}}$gjsify_d"; break; fi\n` +
+        `  done\n` +
         `done\n` +
         `if [ -n "$gjsify_np" ]; then\n` +
         `  GI_TYPELIB_PATH="$gjsify_np\${GI_TYPELIB_PATH:+${separator}$GI_TYPELIB_PATH}"\n` +
         `  ${libVar}="$gjsify_np\${${libVar}:+${separator}$${libVar}}"\n` +
         `  export GI_TYPELIB_PATH ${libVar}\n` +
         `fi\n` +
-        `unset gjsify_np gjsify_d\n`
+        `unset gjsify_np gjsify_d gjsify_t\n`
     );
 }
