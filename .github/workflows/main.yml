@@ -10,6 +10,17 @@ on:
     # below. Runs the full test suite even when no PR touched a path the
     # classifier would mark as a global trigger.
     - cron: '0 4 * * *'
+  # On-demand FULL sweep. The nightly is a safety net that runs when it runs;
+  # this is the one you can point at a specific ref and wait for — the check
+  # you want before cutting a release, or whenever a selective run's green is
+  # not the answer to the question you are asking.
+  #
+  # Deliberately NOT an input-gated "force full" on the normal triggers: the
+  # only existing way to force a full run is the repo variable
+  # `GJSIFY_CI_FORCE_FULL`, which is a global switch that slows down EVERY PR
+  # until someone remembers to unset it. A dispatch is per-run and leaves no
+  # residue.
+  workflow_dispatch:
 
 # Cancel superseded runs on the SAME PR branch (a force-push / new commit
 # obsoletes the in-flight run). main pushes + the nightly schedule are NOT
@@ -194,7 +205,11 @@ jobs:
   # Repo-level kill switch: set `vars.GJSIFY_CI_FORCE_FULL=1` and the
   # classifier emits `global=true` regardless of the diff.
   changes:
-    if: ${{ github.event_name != 'schedule' && github.ref != 'refs/heads/main' }}
+    # Skipped for schedule / main / manual dispatch — all three MUST run the
+    # full suite. Downstream jobs read `needs.changes.outputs.*` as empty and
+    # fall back to the historical full-run path, so a dispatch needs no gate of
+    # its own; it reuses the branch the nightly has been proving every night.
+    if: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' && github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-latest
     outputs:
       skip-all: ${{ steps.classify.outputs.skip-all }}
