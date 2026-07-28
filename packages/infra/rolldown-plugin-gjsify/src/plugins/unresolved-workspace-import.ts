@@ -81,6 +81,7 @@
 // contract, not a bug, so `library/lib.ts` deliberately does not compose this
 // plugin.
 
+import { dirname } from 'node:path';
 import type { Plugin } from 'rolldown';
 
 /** Bare `@gjsify/*` package specifier — the workspace edge this guard protects. */
@@ -311,6 +312,16 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
     // Alias TARGET → the specifiers that route to it. Only read on the failure
     // path, to recover the `node:fs` behind a failed `@gjsify/fs`.
     const reverseAliases = buildReverseAliasIndex(aliases);
+    // Successful resolutions, memoized per (candidate, importer DIRECTORY) —
+    // the pair node resolution actually depends on, so a hit is the answer the
+    // chain would have recomputed. Without it this hook was the single most
+    // expensive plugin in a CLI-bundle build (32% of plugin time): `@gjsify/*`
+    // edges repeat across hundreds of modules, and each miss re-runs the whole
+    // `pre`-order chain (alias, napi-addon, gi-node) for the same target. Same
+    // shape + rationale as `napiNodeAddonPlugin`'s `bareEntryCache` (#840).
+    // Only POSITIVE results are cached: a failure throws, so it is never hot,
+    // and caching it could outlive a package appearing mid-watch.
+    const resolvedCache = new Map<string, { id: string }>();
     return {
         name: 'gjsify-unresolved-workspace-import',
         resolveId: {
@@ -331,7 +342,14 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
                 if (extraOptions?.isEntry) return null;
                 const verdict = classifyImport({ source, importer, aliases, isExternal });
                 if (verdict.verdict === 'ignore') return null;
-                const key = `${verdict.candidate}\0${importer ?? ''}`;
+                // `kind` participates in the key: it selects the `import`
+                // vs `require` export condition, so the same specifier can
+                // legitimately resolve to different files from one directory.
+                const key = `${verdict.candidate}\0${importer === undefined ? '' : dirname(importer)}\0${
+                    extraOptions?.kind ?? ''
+                }`;
+                const cached = resolvedCache.get(key);
+                if (cached) return cached;
                 if (inFlight.has(key)) return null;
                 inFlight.add(key);
                 let resolved: { id: string } | null;
@@ -343,7 +361,10 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
                 } finally {
                     inFlight.delete(key);
                 }
-                if (resolved) return resolved;
+                if (resolved) {
+                    resolvedCache.set(key, resolved);
+                    return resolved;
+                }
                 throw new UnresolvedWorkspaceImportError({
                     target,
                     source,

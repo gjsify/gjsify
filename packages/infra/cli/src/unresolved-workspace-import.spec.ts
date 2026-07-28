@@ -260,18 +260,35 @@ export default async () => {
     });
 
     await describe('unresolved-workspace-import: plugin behaviour', async () => {
-        const plugin = unresolvedWorkspaceImportPlugin({
-            target: 'gjs',
-            aliases: GJS_ALIASES,
-            isExternal: createGjsExternalsPredicate([]),
-        });
-        const handler = handlerOf(plugin);
+        // A FRESH instance per test: the plugin memoizes successful resolutions
+        // for the lifetime of a build, so sharing one instance would let an
+        // earlier test's cache hit answer a later test's lookup.
+        const freshHandler = () =>
+            handlerOf(
+                unresolvedWorkspaceImportPlugin({
+                    target: 'gjs',
+                    aliases: GJS_ALIASES,
+                    isExternal: createGjsExternalsPredicate([]),
+                }),
+            );
 
         await it('is registered as a post-order resolveId hook', () => {
+            const plugin = unresolvedWorkspaceImportPlugin({ target: 'gjs', aliases: GJS_ALIASES });
             expect((plugin as { resolveId: { order: string } }).resolveId.order).toBe('post');
         });
 
+        await it('memoizes a successful resolution for the rest of the build', async () => {
+            // Second lookup of the same (candidate, importer dir, kind) must not
+            // re-run the chain — this is what keeps the guard off the hot path.
+            const handler = freshHandler();
+            const ctx = mockCtx({ '@gjsify/fs': '/proj/node_modules/@gjsify/fs/lib/esm/index.js' });
+            await handler.call(ctx, 'node:fs', IMPORTER);
+            await handler.call(ctx, 'node:fs', '/proj/src/other.ts');
+            expect(ctx.asked).toStrictEqual(['@gjsify/fs']);
+        });
+
         await it('returns the resolved id when the workspace edge exists', async () => {
+            const handler = freshHandler();
             const ctx = mockCtx({ '@gjsify/fs': '/proj/node_modules/@gjsify/fs/lib/esm/index.js' });
             const out = await handler.call(ctx, 'node:fs', IMPORTER);
             expect(out).toStrictEqual({ id: '/proj/node_modules/@gjsify/fs/lib/esm/index.js' });
@@ -279,6 +296,7 @@ export default async () => {
         });
 
         await it('throws instead of externalising when the workspace edge is missing', async () => {
+            const handler = freshHandler();
             const ctx = mockCtx();
             let caught: unknown;
             try {
@@ -292,6 +310,7 @@ export default async () => {
         });
 
         await it('never touches a declared external, even when unresolvable', async () => {
+            const handler = freshHandler();
             const ctx = mockCtx();
             expect(await handler.call(ctx, 'gi://Gtk?version=4.0', IMPORTER)).toBeNull();
             expect(await handler.call(ctx, 'cairo', IMPORTER)).toBeNull();
@@ -299,6 +318,7 @@ export default async () => {
         });
 
         await it('never touches an entry module', async () => {
+            const handler = freshHandler();
             const ctx = mockCtx();
             expect(await handler.call(ctx, '@gjsify/fs', undefined, { isEntry: true })).toBeNull();
             expect(ctx.asked).toStrictEqual([]);
@@ -309,6 +329,7 @@ export default async () => {
             // JSON, so "no importer" arrives as `null`, not `undefined` — the
             // #840 trap. Without normalisation the entry would be resolved as
             // a normal edge and could throw for a file the caller named.
+            const handler = freshHandler();
             const ctx = mockCtx();
             expect(await handler.call(ctx, '@gjsify/fs', null as unknown as undefined)).toBeNull();
             expect(ctx.asked).toStrictEqual([]);
