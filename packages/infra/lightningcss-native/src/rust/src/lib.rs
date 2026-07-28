@@ -1,5 +1,8 @@
 //! gjsify_lightningcss — single-call Rust→C FFI for lightningcss.
 //!
+//! (VERIFICATION-ONLY comment for PR #843's per-package prebuild gate — this
+//! branch touches nothing but this file. Do not merge.)
+//!
 //! Adapted from refs/lightningcss/c/src/lib.rs (lightningcss_c_bindings,
 //! Devon Govett, MIT). The upstream C bindings expose a 3-step pipeline
 //! (parse → transform → to_css) plus separate Targets/PseudoClasses/etc
