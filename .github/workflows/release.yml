@@ -803,6 +803,13 @@ jobs:
       # it, so without this the next step dies with "no usable bundler engine
       # under GJS". This is the same bootstrap the root `build:infra` runs; it
       # is mtime-skipped, so it costs nothing when the facade is already there.
+      #
+      # This job's tree is COLD by design (checkout + install, no build), which
+      # is what broke the v0.24.1 release: the bootstrap used to require the
+      # CLI's Node entry — itself a build output — and exited 1 telling the
+      # caller to build it, so @gjsify/napi was the one package that missed the
+      # train. The script now runs `build:infra` itself when the entry is
+      # absent, so no caller has to know the ordering.
       - name: Bootstrap the native bundler facade
         run: node scripts/bootstrap-native-facades.mjs
 

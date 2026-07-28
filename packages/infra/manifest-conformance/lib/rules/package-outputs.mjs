@@ -114,6 +114,20 @@ export function declaredPaths(pkg) {
         }
     }
 
+    // `gjsify.main` is the GJS-first twin of `main` — what `gjsify dlx` /
+    // `gjsify showcase` load. It was omitted here while `gjsify.bin` was
+    // checked, which reads as an oversight rather than a decision: both are
+    // entry points the CLI resolves and both fail the same way.
+    if (isCheckablePath(pkg.gjsify?.main)) out.push({ field: 'gjsify.main', value: pkg.gjsify.main });
+
+    // The `--app node` bundle an example/showcase names for the node/bun/deno
+    // runtimes. Missing, it surfaces to a user as
+    //   Cannot run showcase "<x>" on deno: declared node entry not found
+    // which reads as a broken package — because it is one.
+    if (isCheckablePath(pkg.gjsify?.example?.node)) {
+        out.push({ field: 'gjsify.example.node', value: pkg.gjsify.example.node });
+    }
+
     const walkExports = (node, path) => {
         if (node === null || node === undefined) return;
         if (typeof node === 'string') {
@@ -149,6 +163,48 @@ export function targetFor(pkgDir, value) {
 }
 
 /**
+ * The `--app node` bundle a package PROMISES by declaring a non-gjs runtime in
+ * `gjsify.example.runtimes`, when it does not name one explicitly.
+ *
+ * `gjsify.example.runtimes` is the only declaration in this manifest that
+ * promises an artifact WITHOUT naming its path: the CLI derives it from the GJS
+ * entry (`dist/x.gjs.js` → `dist/x.node.mjs`, probing the three ESM
+ * extensions), so "declares node but ships none" is invisible to a plain path
+ * check. That is exactly the shape that shipped:
+ * `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0` declared all four
+ * runtimes, its `build` script never called its own `build:node`, and the
+ * tarball carried only `dist/gjs.js` — so `deno run npm:@gjsify/cli showcase
+ * excalibur-jelly-jumper` died on a file that was promised and never built.
+ *
+ * Mirrors `resolveNodeEntry()` in `@gjsify/cli` (`utils/resolve-gjs-entry.ts`).
+ * The two must agree: this is the check, that is the consumer.
+ *
+ * @returns `null` when nothing is promised (no declaration, gjs-only, or an
+ *   explicit `gjsify.example.node` — which `declaredPaths` already covers),
+ *   otherwise the promise and the paths that would satisfy it.
+ */
+export function impliedExampleNodeEntry(pkg) {
+    const example = pkg.gjsify?.example;
+    if (!example || typeof example !== 'object') return null;
+    if (typeof example.node === 'string') return null;
+    if (!Array.isArray(example.runtimes)) return null;
+
+    const nonGjs = example.runtimes.filter((r) => typeof r === 'string' && r !== 'gjs');
+    if (nonGjs.length === 0) return null;
+
+    const gjsEntry =
+        pkg.gjsify?.main ??
+        (pkg.gjsify?.bin && typeof pkg.gjsify.bin === 'object' ? Object.values(pkg.gjsify.bin)[0] : undefined) ??
+        pkg.main;
+    if (typeof gjsEntry !== 'string' || gjsEntry.length === 0) {
+        return { runtimes: nonGjs, candidates: [], reason: 'no GJS entry to derive a node bundle from' };
+    }
+
+    const stem = gjsEntry.replace(/\.gjs\.(js|mjs|cjs)$/, '').replace(/\.(js|mjs|cjs)$/, '');
+    return { runtimes: nonGjs, candidates: [`${stem}.node.mjs`, `${stem}.node.js`, `${stem}.node.cjs`], reason: null };
+}
+
+/**
  * Inspect every in-scope package and report which declared paths are missing.
  * Exported separately from the rule so the standalone entry script can render
  * its own `--json` payload from the same data.
@@ -171,6 +227,20 @@ export function inspectDeclaredOutputs(ctx) {
             if (existsSync(abs) && (kind === 'file' || statSync(abs).isDirectory())) continue;
             missing.push({ field, value, path: relative(ctx.root, abs), kind });
         }
+
+        // The one promise made without naming a path — see `impliedExampleNodeEntry`.
+        const implied = impliedExampleNodeEntry(pkg.manifest);
+        if (implied && !implied.candidates.some((c) => existsSync(resolve(pkg.dir, c)))) {
+            missing.push({
+                field: 'gjsify.example.runtimes',
+                value: implied.runtimes.join(', '),
+                path:
+                    implied.candidates.length > 0
+                        ? implied.candidates.map((c) => relative(ctx.root, resolve(pkg.dir, c))).join(' | ')
+                        : implied.reason,
+                kind: 'any-of',
+            });
+        }
         results.push({
             dir: pkg.rel,
             name: pkg.name,
@@ -190,8 +260,22 @@ export function inspectDeclaredOutputs(ctx) {
 export const packageOutputsRule = defineRule({
     id: 'package-outputs',
     scope: 'portable',
-    fields: ['main', 'module', 'types', 'typings', 'style', 'unpkg', 'browser', 'bin', 'exports', 'gjsify.bin'],
-    description: 'every path a package.json declares (main/exports/types/bin/gjsify.bin) exists on disk',
+    fields: [
+        'main',
+        'module',
+        'types',
+        'typings',
+        'style',
+        'unpkg',
+        'browser',
+        'bin',
+        'exports',
+        'gjsify.bin',
+        'gjsify.main',
+        'gjsify.example',
+    ],
+    description:
+        'every path a package.json declares (main/exports/types/bin/gjsify.{bin,main,example}) exists on disk',
     run(ctx) {
         const results = inspectDeclaredOutputs(ctx);
         const broken = results.filter((r) => r.missing.length > 0);

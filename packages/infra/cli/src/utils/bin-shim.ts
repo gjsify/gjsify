@@ -25,6 +25,8 @@
 // declaring `#!/usr/bin/env node` and one declaring `#!/usr/bin/env -S gjs -m`
 // both work without the caller knowing which it is.
 
+import { libraryPathVar, prebuildDirCandidates } from './detect-native-packages.js';
+
 /** The three sibling files a Windows bin entry consists of. */
 export interface WindowsShimFiles {
     /** POSIX `sh` script — the extension-less `<name>` file. */
@@ -291,4 +293,108 @@ export function buildLauncherShims(opts: {
         'exit $LASTEXITCODE\n';
 
     return { cmd, ps1 };
+}
+
+/** POSIX `sh` single-quoting — the one place the escape lives. */
+function shQuote(s: string): string {
+    return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * The `sh` preamble a GJS launcher needs so `imports.gi.X` resolves against the
+ * `@gjsify/*` native prebuilds installed next to it.
+ *
+ * WHY IT SCANS AT RUN TIME INSTEAD OF BAKING A LIST
+ *
+ * The typelib/library lookup happens inside the GJS runtime, before a single
+ * line of the CLI bundle runs, so the env MUST be set by the launcher — the CLI
+ * cannot repair it from the inside. The launcher used to bake the directories
+ * `detectNativePackages()` found at INSTALL time, which makes the env a SNAPSHOT
+ * of one moment:
+ *
+ *   - a native package installed into the same prefix LATER (`gjsify install -g
+ *     @gjsify/<x>-native`, a project `gjsify install` that adds one) is invisible
+ *     until something happens to rewrite the launcher;
+ *   - and if the scan comes back empty for any reason, the launcher is written
+ *     with NO preamble at all and nothing says so. The failure then surfaces
+ *     much later and somewhere else entirely — `gjsify build` dying with "no
+ *     usable bundler engine under GJS" in an unrelated project, which reads as a
+ *     broken install rather than a stale launcher. That is what shipped in
+ *     v0.24.1: a `~/.local/bin/gjsify` with a bare `exec gjs -m …` line while
+ *     `@gjsify/rolldown-native` sat correctly installed in the prefix.
+ *
+ * Deriving the env from disk on every launch removes both: the launcher states
+ * WHERE to look rather than WHAT was there, so it cannot go stale, and an empty
+ * result is a fact about the current prefix instead of a silently frozen one.
+ * The cost is a handful of shell globs per launch (they are builtins, and a
+ * pattern that matches nothing stays literal and is rejected by `[ -d ]`).
+ *
+ * `bakedDirs` covers what a run-time scan of `scanRoot` structurally cannot see:
+ * `detectNativePackages()` walks UP the directory chain, so in a hoisted layout
+ * a prebuild may live in an ancestor's `node_modules`. Those are still embedded
+ * verbatim; only the primary root is dynamic. Duplicates are harmless (both
+ * variables are search paths).
+ *
+ * Windows is deliberately excluded: there the `sh` file is only reachable from
+ * git-bash/MSYS, the real launchers are the `.cmd`/`.ps1` companions built by
+ * {@link buildLauncherShims} from the same baked list, and `PATH` doubles as the
+ * DLL search path with `;` separators. It keeps the snapshot behaviour.
+ *
+ * @param scanRoot Directory whose `node_modules` is globbed at launch time.
+ * @param bakedDirs Prebuild dirs found at write time; entries outside `scanRoot`
+ *   are embedded (entries inside it are dropped — the scan finds them).
+ * @returns the preamble, or `''` when there is nothing to export.
+ */
+export function buildNativeEnvPreamble(
+    scanRoot: string,
+    bakedDirs: readonly string[] = [],
+    target: { platform?: string; arch?: string } = {},
+): string {
+    const platform = target.platform ?? process.platform;
+    const arch = target.arch ?? process.arch;
+    const { name: libVar, separator } = libraryPathVar(platform);
+
+    if (platform === 'win32') {
+        if (bakedDirs.length === 0) return '';
+        const joined = shQuote(bakedDirs.join(separator));
+        return (
+            `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+"${separator}$GI_TYPELIB_PATH"}\n` +
+            `${libVar}=${joined}\${${libVar}:+"${separator}$${libVar}"}\n` +
+            `export GI_TYPELIB_PATH ${libVar}\n`
+        );
+    }
+
+    // Only the ancestors' hits need embedding — anything under `scanRoot` is
+    // what the loop below finds, and re-embedding it would reintroduce the
+    // snapshot for exactly the packages the scan exists to keep current.
+    const nmRoot = `${scanRoot.replace(/\/+$/, '')}/node_modules/`;
+    const external = bakedDirs.filter((d) => !d.startsWith(nmRoot));
+
+    // The same `<os>-<arch>` spellings `resolvePrebuildDirName()` probes, in the
+    // same order: the canonical `${platform}-${arch}` plus the legacy uname one
+    // a tarball published before the rename still ships. Passing no declared
+    // platforms is correct here — the shell cannot read a package.json, and a
+    // package declaring ONLY a non-canonical spelling of this host has not
+    // existed since the audit made that state impossible.
+    const candidates = prebuildDirCandidates(platform, arch);
+    const patterns: string[] = [];
+    for (const candidate of candidates) {
+        // Scoped (`@gjsify/x`) and unscoped packages, matching `scanNodeModules`.
+        patterns.push(`${shQuote(scanRoot)}/node_modules/@*/*/prebuilds/${candidate}`);
+        patterns.push(`${shQuote(scanRoot)}/node_modules/*/prebuilds/${candidate}`);
+    }
+
+    const seed = external.length > 0 ? shQuote(external.join(separator)) : `''`;
+    return (
+        `gjsify_np=${seed}\n` +
+        `for gjsify_d in ${patterns.join(' ')}; do\n` +
+        `  if [ -d "$gjsify_d" ]; then gjsify_np="\${gjsify_np:+$gjsify_np${separator}}$gjsify_d"; fi\n` +
+        `done\n` +
+        `if [ -n "$gjsify_np" ]; then\n` +
+        `  GI_TYPELIB_PATH="$gjsify_np\${GI_TYPELIB_PATH:+${separator}$GI_TYPELIB_PATH}"\n` +
+        `  ${libVar}="$gjsify_np\${${libVar}:+${separator}$${libVar}}"\n` +
+        `  export GI_TYPELIB_PATH ${libVar}\n` +
+        `fi\n` +
+        `unset gjsify_np gjsify_d\n`
+    );
 }

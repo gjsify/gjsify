@@ -129,6 +129,74 @@ describe('verify-package-outputs — declared entry points must exist (#67)', ()
         assert.match(out, /bin\["a-cli"\]/);
     });
 
+    // `gjsify.main` / `gjsify.example` used to sit in the unchecked-field
+    // ledger while the sibling `gjsify.bin` was checked. The consequence
+    // shipped: `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0` declared all
+    // four runtimes, its `build` never called its own `build:node`, and `deno
+    // run npm:@gjsify/cli showcase excalibur-jelly-jumper` failed on
+    // "declared node entry not found" — a promise nothing verified.
+    it('covers the gjsify-first entry points (gjsify.main, gjsify.example.node)', () => {
+        const root = makeRoot('gjsify-entries');
+        addPackage(root, 'a', {
+            name: '@t/a',
+            version: '1.0.0',
+            gjsify: { main: 'dist/gjs.js', example: { runtimes: ['gjs', 'node'], node: 'dist/gjs.node.mjs' } },
+        });
+        const { status, out } = runGuard(root);
+        assert.equal(status, 1, out);
+        assert.match(out, /gjsify\.main → dist\/gjs\.js/);
+        assert.match(out, /gjsify\.example\.node → dist\/gjs\.node\.mjs/);
+    });
+
+    it('catches a declared non-gjs runtime with no node bundle to back it', () => {
+        // The only declaration that promises an artifact WITHOUT naming it:
+        // the CLI derives `dist/gjs.js` → `dist/gjs.node.mjs`, so a plain path
+        // check cannot see the promise at all.
+        const root = makeRoot('implied-node-entry');
+        addPackage(
+            root,
+            'a',
+            {
+                name: '@t/a',
+                version: '1.0.0',
+                gjsify: { main: 'dist/gjs.js', example: { runtimes: ['gjs', 'node', 'bun', 'deno'] } },
+            },
+            { 'dist/gjs.js': '// gjs bundle\n' },
+        );
+        const { status, out } = runGuard(root);
+        assert.equal(status, 1, out);
+        assert.match(out, /gjsify\.example\.runtimes → node, bun, deno/);
+        assert.match(out, /dist\/gjs\.node\.mjs/);
+    });
+
+    it('accepts the derived node bundle when it is actually built', () => {
+        const root = makeRoot('implied-node-entry-ok');
+        addPackage(
+            root,
+            'a',
+            {
+                name: '@t/a',
+                version: '1.0.0',
+                gjsify: { main: 'dist/gjs.js', example: { runtimes: ['gjs', 'node'] } },
+            },
+            { 'dist/gjs.js': '// gjs bundle\n', 'dist/gjs.node.mjs': '// node bundle\n' },
+        );
+        const { status, out } = runGuard(root);
+        assert.equal(status, 0, out);
+    });
+
+    it('asks nothing of a gjs-only example', () => {
+        const root = makeRoot('gjs-only-example');
+        addPackage(
+            root,
+            'a',
+            { name: '@t/a', version: '1.0.0', gjsify: { main: 'dist/gjs.js', example: { runtimes: ['gjs'] } } },
+            { 'dist/gjs.js': '// gjs bundle\n' },
+        );
+        const { status, out } = runGuard(root);
+        assert.equal(status, 0, out);
+    });
+
     it('ignores non-path values (bare specifiers, false, nested condition objects)', () => {
         const root = makeRoot('non-paths');
         addPackage(

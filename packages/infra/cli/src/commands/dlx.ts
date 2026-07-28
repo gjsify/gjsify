@@ -135,6 +135,21 @@ export interface EnsureOpts {
     registry?: string;
     cacheMaxAge: number;
     frozen: boolean;
+    /**
+     * Extra specs to install into the SAME cache tree as the requested package.
+     *
+     * A dlx tree is the package plus its own `dependencies`, which is right for
+     * the GJS path — the showcase's `--app gjs` bundle needs nothing else. The
+     * `--app node` bundle does: its `gi://` imports resolve through
+     * `@gjsify/node-gi`, which is a build-time concern for the showcase (a
+     * devDependency) but a RUNTIME one for whoever launches it off GJS. Nobody
+     * can act on the resulting "add @gjsify/node-gi as a dependency" error —
+     * the tree belongs to the cache, not to the user — so the launcher that
+     * knows the runtime supplies it.
+     *
+     * Part of the cache key, so the gjs and node trees never share an entry.
+     */
+    extraSpecs?: readonly string[];
 }
 
 /**
@@ -151,7 +166,8 @@ export async function ensurePkgDir(
         return { pkgDir: parsed.path, cachedPkgName: null };
     }
 
-    const cacheKey = createCacheKey({ packages: [parsed.spec] });
+    const specs = [parsed.spec, ...(opts.extraSpecs ?? [])];
+    const cacheKey = createCacheKey({ packages: specs });
     const cacheDir = cacheDirFor(cacheKey);
 
     const cached = opts.cacheMaxAge > 0 ? getValidCachedPkg(cacheDir, opts.cacheMaxAge) : undefined;
@@ -171,7 +187,7 @@ export async function ensurePkgDir(
     const progress = makeProgressReporter({ enabled: !opts.verbose });
     await installPackages({
         prefix: prepareDir,
-        specs: [parsed.spec],
+        specs,
         verbose: opts.verbose,
         registry: opts.registry,
         // Cache-prepare dirs are scoped per cache key, so writing a lockfile

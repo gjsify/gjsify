@@ -11,8 +11,9 @@ import DemoArrowTerminal from '../assets/demo-arrow-terminal.svg?raw';
 // The runtimes a showcase can be launched on. Each slide declares the set its
 // showcase is VERIFIED to run on (`package.json#gjsify.example.runtimes`), so
 // the command tabs are HONEST — a slide only shows a runtime tab when that
-// showcase genuinely runs on it. `bunx @gjsify/cli showcase <name>` errors for
-// a showcase that doesn't declare `bun`, so we must not advertise a tab for it.
+// showcase genuinely runs on it. `bunx @gjsify/cli@latest showcase <name>`
+// errors for a showcase that doesn't declare `bun`, so we must not advertise a
+// tab for it.
 type Runtime = 'gjs' | 'node' | 'bun' | 'deno';
 
 // Runtime → the CommandTabs tab id it renders as.
@@ -23,23 +24,34 @@ const RUNTIME_TAB: Record<Runtime, 'gjsify' | 'npm' | 'bun' | 'deno'> = {
   deno: 'deno',
 };
 
-// Runtime → how the gjsify toolchain is invoked on that host. gjsify's default
-// runtime follows the host it is invoked under, so each command genuinely runs
-// the showcase on that runtime.
+// Runtime → how the gjsify toolchain is invoked on that host.
+//
+// `@latest` is not decoration: `npx`/`bunx`/`deno run` all reuse a CACHED copy
+// of an unpinned bin, and on one machine on one day that served 0.4.25 under
+// npx and 0.23.0 under deno while bunx fetched 0.24.1 — with the two old ones
+// failing in ways that read as gjsify bugs. A pinned tag is what makes a
+// documented command reproducible.
 const RUNTIME_INVOCATION: Record<Runtime, string> = {
   gjs: 'gjsify',
-  node: 'npx @gjsify/cli',
-  bun: 'bunx @gjsify/cli',
-  deno: 'deno run -A npm:@gjsify/cli',
+  node: 'npx @gjsify/cli@latest',
+  bun: 'bunx @gjsify/cli@latest',
+  deno: 'deno run -A npm:@gjsify/cli@latest',
 };
 
 // Build the command-tab list for a slide from its VERIFIED runtimes and the CLI
 // sub-command that launches it (`showcase <name>`, or `storybook` for the
 // storybook slide). Preserves the runtime order so tabs read gjs · node · bun · deno.
+//
+// `--runtime <rt>` is EXPLICIT for the non-gjs tabs, because the invocation host
+// does not decide the target: `showcase`/`storybook` default to gjs whenever gjs
+// is installed (a showcase's canonical artifact is its `--app gjs` bundle), so
+// `npx @gjsify/cli showcase <name>` on a GNOME box runs it on GJS. A tab labelled
+// "node" that quietly runs GJS is a documented command that does not do what the
+// tab says.
 function runtimeCommands(runtimes: readonly Runtime[], launch: string) {
   return runtimes.map((rt) => ({
     runtime: RUNTIME_TAB[rt],
-    code: `${RUNTIME_INVOCATION[rt]} ${launch}`,
+    code: `${RUNTIME_INVOCATION[rt]} ${launch}${rt === 'gjs' ? '' : ` --runtime ${rt}`}`,
   }));
 }
 

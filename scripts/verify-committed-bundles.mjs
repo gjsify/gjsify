@@ -251,9 +251,6 @@ function fail(msg) {
     console.error(inActions ? `::error::${msg}` : `ERROR: ${msg}`);
 }
 
-/** The Node entry of `@gjsify/cli` — plain-tsc output, the bootstrap's only host. */
-const CLI_NODE_ENTRY = join(repoRoot, 'packages', 'infra', 'cli', 'lib', 'index.js');
-
 /**
  * Bring the workspace to the point where `gjsify build` can run AT ALL, so
  * this check works on a cold tree.
@@ -276,31 +273,27 @@ const CLI_NODE_ENTRY = join(repoRoot, 'packages', 'infra', 'cli', 'lib', 'index.
  * from `.release-it.json`'s `after:bump`) ends up unable to run on the cold
  * tree a CI release always has.
  *
- * Two entry points, because the bootstrap has a precondition of its own — it
- * drives the CLI's NODE entry (`packages/infra/cli/lib/index.js`, the one
- * emitter that needs no bundler), which is itself a build output:
+ * ONE entry point. The bootstrap has a precondition of its own — it drives the
+ * CLI's NODE entry (`packages/infra/cli/lib/index.js`, the one emitter that
+ * needs no bundler), which is itself a build output — but it now satisfies that
+ * precondition ITSELF on a cold tree by running root `build:infra` (the
+ * documented tsc chain that produces the entry AND ends in the very same
+ * bootstrap). This file used to carry that cold/warm branch; the branch belongs
+ * in the bootstrap, where EVERY caller inherits it rather than only this one.
+ * The release workflow's `publish-napi` job is the caller that did not, and it
+ * is why `@gjsify/napi` missed the v0.24.1 train.
  *
- *   - Node entry present (warm, and the CI ordering) → run the bootstrap
- *     directly. It is mtime-idempotent: already-built facades are skipped in
- *     milliseconds, so a warm run pays a few stat sweeps.
- *   - Node entry absent (cold clone) → run root `build:infra`, which is the
- *     documented tsc chain that produces that entry AND ends in the very same
- *     bootstrap. Re-spelling its prefix here would be a second copy of a
- *     recipe that already exists — the same reason `--rebuild` lives in this
- *     file instead of in `.release-it.json`.
+ * Warm is the CI ordering and stays cheap: the bootstrap is mtime-idempotent,
+ * so already-built facades are skipped in milliseconds.
  *
  * @returns {string|null} an abort reason, or null on success.
  */
-function ensureBuildableWorkspace(gjsify) {
-    const cold = !existsSync(CLI_NODE_ENTRY);
+function ensureBuildableWorkspace() {
     const bootstrap = join(repoRoot, 'scripts', 'bootstrap-native-facades.mjs');
-    const cmd = cold ? gjsify.cmd : process.execPath;
-    const cmdArgs = cold ? [...gjsify.args, 'run', 'build:infra'] : [bootstrap];
-    const label = cold ? 'gjsify run build:infra' : 'node scripts/bootstrap-native-facades.mjs';
-    const why = cold ? 'cold tree — no packages/infra/cli/lib/index.js' : 'warm tree';
+    const label = 'node scripts/bootstrap-native-facades.mjs';
 
-    console.log(`\n[verify-bundles] preflight (${why}): ${label}`);
-    const r = spawnSync(cmd, cmdArgs, { cwd: repoRoot, stdio: 'inherit', env: process.env });
+    console.log(`\n[verify-bundles] preflight: ${label}`);
+    const r = spawnSync(process.execPath, [bootstrap], { cwd: repoRoot, stdio: 'inherit', env: process.env });
     if (r.status === 0) return null;
     return (
         `preflight: \`${label}\` failed (exit ${r.status}). Without it the GJS bundler engine ` +
@@ -362,7 +355,7 @@ try {
     // Cold-tree preflight. Inside the `try` so a failure still unwinds through
     // the restore below, and BEFORE the loop so no recipe ever runs against a
     // workspace that cannot bundle.
-    aborted = ensureBuildableWorkspace(gjsify);
+    aborted = ensureBuildableWorkspace();
 
     for (const recipe of RECIPES) {
         if (aborted) break;

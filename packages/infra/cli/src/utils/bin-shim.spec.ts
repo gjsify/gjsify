@@ -15,7 +15,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildCmdShim, buildLauncherShims, parseShebang } from './bin-shim.js';
+import { buildCmdShim, buildLauncherShims, buildNativeEnvPreamble, parseShebang } from './bin-shim.js';
 import { writeBinEntry } from './install-backend-native.js';
 
 export default async () => {
@@ -131,6 +131,90 @@ export default async () => {
             const { cmd, ps1 } = buildLauncherShims({ interpreter: 'node', target: '/x/y.js' });
             expect(cmd.includes('@SET')).toBe(false);
             expect(ps1.includes('$env:')).toBe(false);
+        });
+    });
+
+    // The `sh` preamble every GJS launcher carries so `imports.gi.X` resolves
+    // against the installed `@gjsify/*` prebuilds.
+    //
+    // The regression these pin down (v0.24.1): the preamble used to EMBED the
+    // directories found at install time, so a scan that came back empty — for
+    // any reason, at that one moment — produced a launcher with no preamble at
+    // all and nothing said so. `gjsify build` then died with "no usable bundler
+    // engine under GJS" in an unrelated project, which reads as a broken
+    // install rather than a stale launcher. So the assertions are about SHAPE:
+    // the launcher must name WHERE to look, not WHAT was there once.
+    await describe('buildNativeEnvPreamble', async () => {
+        await it('derives the env from disk at launch time, not from a baked list', async () => {
+            const sh = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'linux', arch: 'x64' });
+
+            // Scoped + unscoped, which is what makes a package installed LATER
+            // visible without re-linking the launcher.
+            expect(sh).toContain(`'/opt/prefix'/node_modules/@*/*/prebuilds/linux-x64`);
+            expect(sh).toContain(`'/opt/prefix'/node_modules/*/prebuilds/linux-x64`);
+            expect(sh).toContain('for gjsify_d in');
+            expect(sh).toContain('if [ -d "$gjsify_d" ]');
+            expect(sh).toContain('export GI_TYPELIB_PATH LD_LIBRARY_PATH');
+            // Nothing found at write time must NOT collapse to "no preamble" —
+            // that is exactly the failure mode being removed.
+            expect(sh.length > 0).toBe(true);
+        });
+
+        await it('probes the legacy uname spelling too, for pre-rename tarballs', async () => {
+            const sh = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'linux', arch: 'x64' });
+            expect(sh).toContain('/prebuilds/linux-x86_64');
+        });
+
+        await it('preserves an inherited value as a suffix', async () => {
+            const sh = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'linux', arch: 'x64' });
+            expect(sh).toContain('${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}');
+            expect(sh).toContain('${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}');
+        });
+
+        await it('exports the loader variable the HOST consults', async () => {
+            const mac = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'darwin', arch: 'arm64' });
+            // dyld never reads LD_LIBRARY_PATH — exporting it on a Mac left
+            // every darwin-arm64 prebuild unloadable.
+            expect(mac).toContain('export GI_TYPELIB_PATH DYLD_LIBRARY_PATH');
+            expect(mac).toContain('/prebuilds/darwin-arm64');
+            // `DYLD_LIBRARY_PATH` CONTAINS `LD_LIBRARY_PATH`, so the ELF
+            // variable has to be looked for with its own name freed of it.
+            expect(mac.split('DYLD_LIBRARY_PATH').join('').includes('LD_LIBRARY_PATH')).toBe(false);
+        });
+
+        await it('embeds only the hits a single-root scan cannot see', async () => {
+            const sh = buildNativeEnvPreamble(
+                '/opt/prefix',
+                [
+                    // Inside the scan root — the loop finds it; embedding it
+                    // would reintroduce the snapshot it replaces.
+                    '/opt/prefix/node_modules/@gjsify/rolldown-native/prebuilds/linux-x64',
+                    // In an ANCESTOR's node_modules (hoisted layout): the walk
+                    // in `detectNativePackages` finds it, a one-root scan cannot.
+                    '/opt/node_modules/@gjsify/webgl/prebuilds/linux-x64',
+                ],
+                { platform: 'linux', arch: 'x64' },
+            );
+            expect(sh).toContain(`gjsify_np='/opt/node_modules/@gjsify/webgl/prebuilds/linux-x64'`);
+            expect(sh.includes(`gjsify_np='/opt/prefix/node_modules/@gjsify/rolldown-native`)).toBe(false);
+        });
+
+        await it('keeps the baked form on win32, where PATH is the DLL search path', async () => {
+            const win = buildNativeEnvPreamble('C:/prefix', ['C:/prefix/node_modules/@gjsify/x/prebuilds/win32-x64'], {
+                platform: 'win32',
+                arch: 'x64',
+            });
+            // The real Windows launchers are the .cmd/.ps1 companions built
+            // from the same list; this `sh` file is only reachable from
+            // git-bash, and `PATH` (`;`-separated) is the loader variable there.
+            expect(win).toContain('export GI_TYPELIB_PATH PATH');
+            expect(win).toContain(';');
+            expect(win.includes('for gjsify_d in')).toBe(false);
+        });
+
+        await it('single-quotes a prefix containing a quote', async () => {
+            const sh = buildNativeEnvPreamble("/opt/o'brien", [], { platform: 'linux', arch: 'x64' });
+            expect(sh).toContain(`'/opt/o'\\''brien'/node_modules/`);
         });
     });
 

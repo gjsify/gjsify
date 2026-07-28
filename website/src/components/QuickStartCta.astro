@@ -7,9 +7,9 @@ import CommandTabs from './CommandTabs.astro';
 
 const createCommands = [
   { runtime: 'gjsify', code: 'gjsify create my-app' },
-  { runtime: 'npm', code: 'npx @gjsify/cli create my-app' },
-  { runtime: 'bun', code: 'bunx @gjsify/cli create my-app' },
-  { runtime: 'deno', code: 'deno run -A npm:@gjsify/cli create my-app' },
+  { runtime: 'npm', code: 'npx @gjsify/cli@latest create my-app' },
+  { runtime: 'bun', code: 'bunx @gjsify/cli@latest create my-app' },
+  { runtime: 'deno', code: 'deno run -A npm:@gjsify/cli@latest create my-app' },
 ];
 ---
 
@@ -19,7 +19,7 @@ const createCommands = [
   <CommandTabs title="Terminal" commands={createCommands} />
 
   <p class="quick-start-hint">
-    or run <code>npx @gjsify/cli --help</code> to explore all commands
+    or run <code>npx @gjsify/cli@latest --help</code> to explore all commands
   </p>
   <div class="quick-start-links">
     <a class="quick-start-btn quick-start-btn-primary" href="/gjsify/getting-started/">Getting Started Guide</a>

@@ -481,6 +481,18 @@ jobs:
         timeout-minutes: 45
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify foreach build -ptv --include "@gjsify/example-*" --jobs 1'
 
+      # Same declared-output post-condition as the core sweep above, for the
+      # packages that sweep deliberately excludes because they build in the step
+      # right before this one. A showcase is published like any other package,
+      # and a declared entry point it does not ship breaks a user the same way:
+      # `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0` promised four
+      # runtimes, shipped only the GJS bundle, and `deno run npm:@gjsify/cli
+      # showcase excalibur-jelly-jumper` died on the file it named. Gated on the
+      # SAME condition as `Build examples` — it reads what that step produces.
+      - name: Verify declared example outputs exist
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
+        run: su testuser -c 'node scripts/verify-package-outputs.mjs --scope examples'
+
       # Workspace-wide dependency-range drift detection. `--exclude-workspace
       # '@gjsify/integration-*'` carves out integration tests whose pins to
       # specific upstream versions are intentional.
