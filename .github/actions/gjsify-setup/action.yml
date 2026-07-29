@@ -169,6 +169,7 @@ runs:
         packages/*/*/lib
         !packages/infra/tsc/lib
         !packages/infra/resolve-npm/lib
+        !packages/infra/manifest-conformance/lib
         packages/*/*/tsconfig.tsbuildinfo
         packages/*/*/tsconfig.*.tsbuildinfo
         packages/*/*/dist
@@ -236,13 +237,13 @@ runs:
         # Explicit paths, not a word-split variable — the latter behaves
         # differently across shells and this must not depend on that.
         chown -R testuser:testuser \
-          packages/infra/resolve-npm/lib packages/infra/cli/dist packages/infra/tsc/dist
+          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist packages/infra/tsc/dist
         # Report BEFORE repairing — after the checkout the tree is clean by
         # construction, so a check placed after it could never fire.
         SHADOWED=$(su testuser -c "git -c safe.directory='*' diff --name-only HEAD -- \
-          packages/infra/resolve-npm/lib packages/infra/cli/dist packages/infra/tsc/dist")
+          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist packages/infra/tsc/dist")
         su testuser -c "git -c safe.directory='*' checkout HEAD -- \
-          packages/infra/resolve-npm/lib packages/infra/cli/dist packages/infra/tsc/dist"
+          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist packages/infra/tsc/dist"
         if [ -n "$SHADOWED" ]; then
           echo "::warning::The build cache shadowed tracked file(s); restored from HEAD. Add them to the cache excludes:"
           echo "$SHADOWED"
