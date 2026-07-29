@@ -21,16 +21,6 @@
  */
 
 export const UNCHECKED_FIELDS = {
-    example:
-        'FINDING (pre-existing). `gjsify.example.runtimes` / `gjsify.example.node` promise which runtimes a showcase ' +
-        'ships an artifact for, and AGENTS.md already records that two showcases (canvas2d-fireworks, ' +
-        'excalibur-jelly-jumper) shipped a declared-but-unbuilt node entry, which reads to a user as a broken package. ' +
-        'A rule would assert the declared runtimes agree with the `build` script + `files`. Deferred: adding it here ' +
-        'would be fixing a finding inside a refactor.',
-    main:
-        'FINDING (pre-existing). `gjsify.main` is the GJS-first entry point twin of `gjsify.bin`, and `package-outputs` ' +
-        'already checks `gjsify.bin` — the omission looks accidental rather than intended. Deferred for the same ' +
-        'reason: extending an existing rule changes what the guard reports, which a pure refactor must not do.',
     storybook:
         'FINDING (pre-existing), and the only `gjsify.*` field this repo shares with downstream consumers today ' +
         '(buchhaltung, pixel-rpg/map-editor both declare it). `gjsify.storybook.stories` names a directory that ' +

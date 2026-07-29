@@ -162,4 +162,26 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
         assert.match(r.stderr, /does not support --runtime bun/);
         assert.match(r.stderr, /--runtime gjs/);
     });
+
+    // A dlx tree is the package plus its own `dependencies`. `@gjsify/node-gi`
+    // — what the `--app node` bundle's `gi://` imports resolve through — is a
+    // devDependency of every showcase, so it was never in that tree and the
+    // launch died with "add @gjsify/node-gi as a dependency": advice pointing
+    // at a directory the user does not own. The launcher knows the runtime, so
+    // it adds the bridge to the install (`extraSpecs`).
+    //
+    // The property that has to hold for that to be safe is the CACHE KEY: the
+    // gjs tree (no bridge) and the node tree (bridge) must never share a cache
+    // entry, or whichever ran first decides what the other one gets.
+    it('keys the dlx cache on the extra specs, so gjs and node trees never collide', async () => {
+        const { createCacheKey } = await import(
+            new URL('../../../packages/infra/cli/lib/utils/dlx-cache.js', import.meta.url).href
+        );
+        const showcase = '@gjsify/example-dom-canvas2d-fireworks@9.9.9';
+        const gjsKey = createCacheKey({ packages: [showcase] });
+        const nodeKey = createCacheKey({ packages: [showcase, '@gjsify/node-gi@9.9.9'] });
+        assert.notEqual(gjsKey, nodeKey);
+        // …and stays stable for the same input, or every launch re-installs.
+        assert.equal(nodeKey, createCacheKey({ packages: [showcase, '@gjsify/node-gi@9.9.9'] }));
+    });
 });

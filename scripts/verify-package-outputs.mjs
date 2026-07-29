@@ -15,6 +15,8 @@
  *
  * Usage:
  *   node scripts/verify-package-outputs.mjs                 # non-private workspaces
+ *   node scripts/verify-package-outputs.mjs --scope examples  # the showcases only
+ *   node scripts/verify-package-outputs.mjs --scope all
  *   node scripts/verify-package-outputs.mjs --include-private
  *   node scripts/verify-package-outputs.mjs --allow-unbuilt # warn, don't fail
  *   node scripts/verify-package-outputs.mjs --json
@@ -45,6 +47,12 @@ const asJson = args.has('--json');
 // passes it — the whole point of the guard is that its package set is derived,
 // not curated — but it makes a single package inspectable while iterating.
 const only = argv.flatMap((a, i) => (a === '--only' && argv[i + 1] ? [argv[i + 1]] : []));
+const scopeFlag = argv.indexOf('--scope');
+const scope = scopeFlag === -1 ? 'core' : (argv[scopeFlag + 1] ?? 'core');
+if (!['core', 'examples', 'all'].includes(scope)) {
+    console.error(`ERROR: --scope must be one of core | examples | all (got "${scope}")`);
+    process.exit(2);
+}
 
 /**
  * Workspaces this check does not own.
@@ -60,15 +68,38 @@ const only = argv.flatMap((a, i) => (a === '--only' && argv[i + 1] ? [argv[i + 1
  */
 const EXCLUDED_NAME_PATTERNS = [/^@girs\//, /^@gjsify\/website$/, /^@gjsify\/example-/];
 
+/**
+ * `--scope examples` INVERTS that carve-out: it checks the `@gjsify/example-*`
+ * packages and nothing else.
+ *
+ * The examples are excluded from the default sweep for a real reason — they are
+ * built by a separate step (`build:examples`) that CI runs only when one is in
+ * the affected closure, so checking them in the main pass would fail on a tree
+ * where they were never built. But "not checked in that pass" silently became
+ * "not checked anywhere", and a published showcase is exactly as broken to a
+ * user as a published library: `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0`
+ * declared four runtimes, shipped only the GJS bundle, and `deno run
+ * npm:@gjsify/cli showcase excalibur-jelly-jumper` failed on the promised file.
+ *
+ * So the scope is a SECOND invocation, placed where the examples are known to
+ * be built: after `build:examples` in root `npm:publish` (the release path,
+ * which cannot skip it) and in the example-gated CI step. Same rule, same
+ * derivation, different moment.
+ */
+const EXAMPLE_ONLY_PATTERNS = [/^(?!@gjsify\/example-).*$/];
+
 function fail(msg) {
     console.error(inActions ? `::error::${msg}` : `ERROR: ${msg}`);
 }
+
+const excludeNamePatterns =
+    scope === 'examples' ? EXAMPLE_ONLY_PATTERNS : scope === 'all' ? [/^@girs\//, /^@gjsify\/website$/] : EXCLUDED_NAME_PATTERNS;
 
 const ctx = createContext({
     root: repoRoot,
     only,
     allowUnbuilt,
-    extra: { packageOutputs: { excludeNamePatterns: EXCLUDED_NAME_PATTERNS, includePrivate } },
+    extra: { packageOutputs: { excludeNamePatterns, includePrivate } },
 });
 
 const results = inspectDeclaredOutputs(ctx);
@@ -79,7 +110,7 @@ if (asJson) {
     console.log(JSON.stringify({ checked: results.length, broken, totalMissing }, null, 2));
 } else {
     console.log(
-        `Declared-output check: ${results.length} workspace package(s)${includePrivate ? '' : ' (non-private)'}`,
+        `Declared-output check [scope: ${scope}]: ${results.length} workspace package(s)${includePrivate ? '' : ' (non-private)'}`,
     );
     for (const r of broken) {
         if (r.error) {

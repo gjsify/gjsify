@@ -36,8 +36,8 @@ import { gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
-import { detectNativePackages, libraryPathVar } from '../utils/detect-native-packages.js';
-import { buildLauncherShims } from '../utils/bin-shim.js';
+import { detectNativePackages } from '../utils/detect-native-packages.js';
+import { buildLauncherShims, buildNativeEnvPreamble } from '../utils/bin-shim.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { atomicWriteStrict } from '../utils/install-cache-fs.js';
 import { acquireInstallLock } from '../utils/install-lock.js';
@@ -1029,9 +1029,11 @@ function writeWorkspaceBinShims(cwd: string, workspaces: ReturnType<typeof disco
                     /* fine */
                 }
             }
-            writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs), {
-                mode: 0o755,
-            });
+            writeFileSync(
+                linkPath,
+                buildBinShim(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs, process.platform, cwd),
+                { mode: 0o755 },
+            );
             chmodSync(linkPath, 0o755);
             // Windows executes neither an extension-less file nor a `#!` line —
             // the sh shim above is only reachable from git-bash/MSYS/WSL. Write
@@ -1174,6 +1176,7 @@ export function buildBinShim(
     gjsTarget?: string,
     nativePrebuildDirs: string[] = [],
     platform: string = process.platform,
+    scanRoot: string = wsLocation,
 ): string {
     const nodeAbs = nodeTarget ? join(wsLocation, nodeTarget) : null;
     const gjsAbs = gjsTarget ? join(wsLocation, gjsTarget) : null;
@@ -1181,22 +1184,12 @@ export function buildBinShim(
     // export to the gjs branch, keeping the shim minimal when no native pkgs
     // exist or only the Node bin is in play.
     //
-    // The library-path variable is host-dependent: `dyld` on macOS never reads
-    // LD_LIBRARY_PATH, so exporting it there silently produced a launcher that
-    // could not load a single `darwin-arm64` prebuild. `libraryPathVar()` is the
-    // one place that mapping lives.
-    const { name: libVar } = libraryPathVar(platform);
-    const gjsPreamble =
-        nativePrebuildDirs.length === 0
-            ? ''
-            : (() => {
-                  const joined = `'${nativePrebuildDirs.join(':').replace(/'/g, `'\\''`)}'`;
-                  return (
-                      `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
-                      `${libVar}=${joined}\${${libVar}:+":$${libVar}"}\n` +
-                      `export GI_TYPELIB_PATH ${libVar}\n`
-                  );
-              })();
+    // `scanRoot` is the INSTALL prefix (the tree holding `node_modules/.bin`),
+    // not the workspace package dir: the preamble globs its `node_modules` at
+    // launch time instead of embedding what was installed the day the shim was
+    // written, so `gjsify install <some>-native` afterwards is picked up without
+    // a re-link. See `buildNativeEnvPreamble`.
+    const gjsPreamble = buildNativeEnvPreamble(scanRoot, nativePrebuildDirs, { platform });
     if (nodeAbs && gjsAbs) {
         // GJS-FIRST: prefer the committed Node-free GJS bundle when `gjs` is on
         // PATH AND the bundle exists; fall back to the Node entry otherwise (a

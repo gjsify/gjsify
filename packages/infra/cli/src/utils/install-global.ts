@@ -25,8 +25,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { detectNativePackages, libraryPathVar } from './detect-native-packages.js';
-import { buildLauncherShims, parseShebang, type Shebang } from './bin-shim.js';
+import { detectNativePackages } from './detect-native-packages.js';
+import { buildLauncherShims, buildNativeEnvPreamble, parseShebang, type Shebang } from './bin-shim.js';
 
 export interface GlobalLayout {
     /** Where extracted package trees live: `<prefix>/node_modules/<pkg>/`. */
@@ -176,18 +176,25 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
     fs.mkdirSync(layout.binDir, { recursive: true });
     const created: LinkedBin[] = [];
 
-    // Discover @gjsify/* packages with native prebuilds (Vala/GObject typelibs
-    // + shared libs) under the global prefix. The launcher bakes their
-    // directories into GI_TYPELIB_PATH / LD_LIBRARY_PATH so `imports.gi.X`
-    // resolves at CLI startup — required for e.g. @gjsify/terminal-native,
-    // without which process.stdout.isTTY / columns / colors all fall back to
-    // the conservative env-only defaults (no colors, 80-col wrap).
+    // The launcher exports GI_TYPELIB_PATH / <loader path> for the @gjsify/*
+    // native prebuilds (Vala/GObject typelibs + shared libs) installed in this
+    // prefix, so `imports.gi.X` resolves at CLI startup — required for the
+    // bundler engine `@gjsify/rolldown-native` (without which `gjsify build`
+    // hard-fails under GJS) and for e.g. `@gjsify/terminal-native`, without
+    // which isTTY / columns / colors fall back to conservative defaults.
     //
-    // `runGjsBundle()` does the same dance for `gjsify run <bundle>` at
-    // runtime; here we do it at install time because the global launcher
-    // invokes the CLI bundle directly, with no opportunity to set env first.
+    // `runGjsBundle()` does the same dance for `gjsify run <bundle>` at runtime;
+    // here it has to be the launcher, because the typelib lookup happens inside
+    // the GJS runtime before the bundle's first line runs.
+    //
+    // The preamble SCANS the prefix at launch time rather than embedding what
+    // was there at install time — see `buildNativeEnvPreamble` for why a
+    // snapshot is the wrong shape. `nativePrebuildDirs` is still computed: the
+    // Windows `.cmd`/`.ps1` shims take the baked list, and a hit in an
+    // ANCESTOR's node_modules (which the walk finds and a single-root scan
+    // cannot) is embedded verbatim.
     const nativePrebuildDirs = detectNativePackages(layout.prefix).map((p) => p.prebuildsDir);
-    const envPreamble = buildLauncherEnvPreamble(nativePrebuildDirs);
+    const envPreamble = buildNativeEnvPreamble(layout.prefix, nativePrebuildDirs);
 
     for (const pkgName of packageNames) {
         const pkgDir = path.join(layout.prefix, 'node_modules', pkgName);
@@ -271,32 +278,6 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
 
 function shQuote(s: string): string {
     return `'${s.replace(/'/g, `'\\''`)}'`;
-}
-
-/**
- * Build the POSIX-sh `export` lines that prepend the given prebuild
- * directories to GI_TYPELIB_PATH and the host's shared-library search path.
- * Any pre-existing value inherited from the user's environment is preserved as
- * a suffix so user-installed typelibs/libraries still resolve.
- *
- * The library variable is host-dependent — `LD_LIBRARY_PATH` on Linux,
- * `DYLD_LIBRARY_PATH` on macOS (dyld never reads the ELF one), so a launcher
- * written on a Mac used to export a variable nothing consults, leaving every
- * `darwin-arm64` prebuild unloadable. `platform` is a parameter so both
- * branches are unit-testable from either host.
- *
- * Returns the empty string when no prebuilds were found — avoids emitting an
- * inert assignment in the launcher.
- */
-export function buildLauncherEnvPreamble(prebuildsDirs: string[], platform: string = process.platform): string {
-    if (prebuildsDirs.length === 0) return '';
-    const { name: libVar } = libraryPathVar(platform);
-    const joined = shQuote(prebuildsDirs.join(':'));
-    return (
-        `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
-        `${libVar}=${joined}\${${libVar}:+":$${libVar}"}\n` +
-        `export GI_TYPELIB_PATH ${libVar}\n`
-    );
 }
 
 /** Parse a bin file's `#!` line; `null` when unreadable or not a shebang. */

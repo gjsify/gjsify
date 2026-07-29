@@ -65,6 +65,13 @@
 // Skips a facade (and a CLI runtime dep) when its lib/ output already exists
 // AND is newer than everything under its src/ — a full rebuild is only
 // ~10-20 s, but skipping keeps warm-cache `build:infra` runs fast.
+//
+// SELF-SUFFICIENT ON A COLD TREE. The Node CLI entry it spawns is itself a
+// build output, so on a fresh clone / a CI job that only installed, this script
+// first runs `gjsify run build:infra` to produce it rather than telling the
+// caller to (see `ensureNodeCliEntry`). That is not a convenience: a script
+// whose whole purpose is bootstrapping a cold tree must not have a
+// precondition that only a cold tree can fail.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, statSync, readdirSync } from 'node:fs';
@@ -86,13 +93,104 @@ const FACADES = ['rolldown-native', 'lightningcss-native'];
 // earlier `build:infra` step. Drift is caught by `ensureCliEntryLinks()`.
 const CLI_RUNTIME_DEPS = ['workspace', 'semver', 'npm-registry', 'tar'];
 
-if (!existsSync(cliEntry)) {
-    console.error(
-        `[bootstrap-native-facades] Node CLI entry not found: ${cliEntry}\n` +
-            'Run `gjsify workspace @gjsify/cli build` first (build:infra does this).',
-    );
-    process.exit(1);
+// `--print-plan` reports the cold/warm decision and exits WITHOUT spawning
+// anything. The cold branch runs a multi-minute `build:infra`, so this is how
+// the e2e suite pins the decision (and the recursion guard) down cheaply —
+// pointing the script at a fixture root by copying it to `<fixture>/scripts/`,
+// since `root` is derived from the script's own location.
+const printPlanOnly = process.argv.includes('--print-plan');
+
+// Set on the `build:infra` child this script may spawn below, so the nested
+// `node scripts/bootstrap-native-facades.mjs` that `build:infra` itself ends
+// with cannot recurse back into spawning another one.
+const NO_RECURSE_ENV = 'GJSIFY_BOOTSTRAP_NO_BUILD_INFRA';
+
+/**
+ * Resolve the `gjsify` bin for a spawn: the workspace-local shim first (it is
+ * the version this tree pins), PATH second (a fresh clone whose install has not
+ * written `.bin` yet), the committed GJS bundle last (works with nothing
+ * installed at all, which is the case this whole script exists for).
+ */
+function resolveGjsifyCommand() {
+    const local = join(root, 'node_modules', '.bin', 'gjsify');
+    if (existsSync(local)) return { cmd: local, args: [] };
+    const bundle = join(root, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
+    if (existsSync(bundle)) return { cmd: 'gjs', args: ['-m', bundle] };
+    return { cmd: 'gjsify', args: [] };
 }
+
+/**
+ * Make sure the Node CLI entry this script SPAWNS actually exists.
+ *
+ * `packages/infra/cli/lib/index.js` is a build output, so on a COLD tree —
+ * fresh clone, or a CI job that only ran `gjsify install --immutable` — it is
+ * absent and this script used to exit 1 with "run `gjsify workspace @gjsify/cli
+ * build` first". That instruction is correct and was still a defect: the script
+ * documents itself as the fresh-clone bootstrap, and every caller that reached
+ * it on a cold tree had to know to run something else first. One did not — the
+ * release workflow's `publish-napi` job — so `@gjsify/napi` was the single
+ * package the v0.24.1 release failed to publish, on a job that had just done a
+ * clean checkout + install by design.
+ *
+ * `verify-committed-bundles.mjs` already carried exactly this fallback in its
+ * own preflight. Having it HERE is the difference between one caller being
+ * correct and every caller being correct.
+ *
+ * `build:infra` is the documented cold-tree chain and ends by running this very
+ * script, so the recursion is cut two ways: the child is marked (a nested run
+ * refuses to spawn again) and by the time the child reaches its own bootstrap
+ * step, `gjsify workspace @gjsify/cli build` has already produced the entry.
+ */
+function ensureNodeCliEntry() {
+    if (existsSync(cliEntry)) {
+        if (printPlanOnly) {
+            console.log('[bootstrap-native-facades] plan: warm — Node CLI entry present, building facades directly');
+            process.exit(0);
+        }
+        return;
+    }
+
+    if (printPlanOnly && process.env[NO_RECURSE_ENV] !== '1') {
+        console.log('[bootstrap-native-facades] plan: cold — no Node CLI entry, would run `gjsify run build:infra`');
+        process.exit(0);
+    }
+
+    if (process.env[NO_RECURSE_ENV] === '1') {
+        console.error(
+            `[bootstrap-native-facades] Node CLI entry still not found after \`gjsify run build:infra\`: ${cliEntry}\n` +
+                'That chain builds it with `gjsify workspace @gjsify/cli build` — check that step for the real error.',
+        );
+        process.exit(1);
+    }
+
+    const { cmd, args } = resolveGjsifyCommand();
+    console.log(
+        `[bootstrap-native-facades] cold tree — no ${cliEntry}\n` +
+            '[bootstrap-native-facades] running `gjsify run build:infra` to produce it…',
+    );
+    const r = spawnSync(cmd, [...args, 'run', 'build:infra'], {
+        cwd: root,
+        stdio: 'inherit',
+        env: { ...process.env, [NO_RECURSE_ENV]: '1' },
+    });
+    if (r.status !== 0) {
+        console.error(
+            `[bootstrap-native-facades] \`gjsify run build:infra\` failed (exit ${r.status}${r.signal ? `, signal ${r.signal}` : ''}).\n` +
+                'Without it the Node CLI entry does not exist and no facade can be built.',
+        );
+        process.exit(r.status ?? 1);
+    }
+    if (!existsSync(cliEntry)) {
+        console.error(
+            `[bootstrap-native-facades] \`gjsify run build:infra\` succeeded but ${cliEntry} is still missing.`,
+        );
+        process.exit(1);
+    }
+    // `build:infra` ends by running this script, so the facades are built too —
+    // the loop below then no-ops on mtime.
+}
+
+ensureNodeCliEntry();
 
 /** Newest mtime (ms) of any file under dir, recursively. 0 when dir is missing/empty. */
 function newestMtime(dir) {
