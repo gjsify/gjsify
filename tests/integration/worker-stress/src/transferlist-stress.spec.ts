@@ -83,7 +83,6 @@ export default async () => {
             // visually in CI logs.
             const totalMiB = (CHUNK_BYTES * CHUNK_COUNT) / 1024 / 1024;
             const mibPerSec = (totalMiB * 1000) / Math.max(1, elapsedMs);
-            // eslint-disable-next-line no-console
             console.log(
                 `[worker-stress] transferList: ${totalMiB.toFixed(1)} MiB in ${elapsedMs} ms (${mibPerSec.toFixed(0)} MiB/s)`,
             );

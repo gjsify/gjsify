@@ -70,16 +70,24 @@ cargo = find_program('cargo')
 
 rust_sources = files(
     'src/rust/Cargo.toml',
+    'src/rust/Cargo.lock',
     'src/rust/src/lib.rs',
 )
 
 rust_target_dir = meson.current_build_dir() / 'cargo-target'
 
+# `${CI:+--locked}` — on a CI runner (GitHub Actions always exports CI=true) the
+# committed src/rust/Cargo.lock is ENFORCED: cargo fails loudly instead of
+# re-resolving the registry and rewriting the lock, so a lock that no longer
+# satisfies Cargo.toml (or a refs/ bump that moved a path crate's version) reds
+# the run rather than silently shipping a differently-linked prebuild. Locally
+# the flag expands to nothing, so editing Cargo.toml still just works — commit
+# the resulting lock diff together with the change.
 rust_cdylib = custom_target('gjsify-lightningcss-rust',
     input:  rust_sources,
     output: rust_cdylib_name,
     command: ['sh', '-c',
-              'cargo build --release --manifest-path "$1" --target-dir "$2" && cp "$2/release/'
+              'cargo build --release ${CI:+--locked} --manifest-path "$1" --target-dir "$2" && cp "$2/release/'
                   + rust_cdylib_name + '" "$3"' + rust_cdylib_post,
               'sh',
               meson.current_source_dir() / 'src/rust/Cargo.toml',

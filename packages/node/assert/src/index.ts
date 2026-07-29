@@ -44,7 +44,6 @@ function ok(value: unknown, message?: string | Error): void {
 }
 
 function equal(actual: unknown, expected: unknown, message?: string | Error): void {
-    // eslint-disable-next-line eqeqeq
     if (actual != expected) {
         innerFail({
             actual,
@@ -57,7 +56,6 @@ function equal(actual: unknown, expected: unknown, message?: string | Error): vo
 }
 
 function notEqual(actual: unknown, expected: unknown, message?: string | Error): void {
-    // eslint-disable-next-line eqeqeq
     if (actual == expected) {
         innerFail({
             actual,

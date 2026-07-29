@@ -4,6 +4,20 @@
     "categories": {
         "correctness": "error"
     },
+    "options": {
+        // A disable directive that suppresses NOTHING is a claim that something
+        // was considered and handled, when nothing was. That is not hypothetical:
+        // `// eslint-disable-next-line @typescript-eslint/no-require-imports`
+        // comments sat next to a bare `require('node:fs')` for two months while
+        // the rule they named was never enabled, so they announced a review that
+        // had never happened and the bug went red on main instead (#859/#861).
+        // `error`, not `warn`: the CI lint gate is oxlint's own exit semantics
+        // (errors fail, warnings do not), so a warning here would be a check that
+        // gates nothing — the half-measure that incident argues against.
+        // A directive that IS load-bearing never appears: the two lazy
+        // `@gjsify/http2` native-dispatcher disables stay silent under this.
+        "reportUnusedDisableDirectives": "error"
+    },
     "rules": {
         "typescript/consistent-type-imports": "warn",
         "typescript/no-explicit-any": "warn",

@@ -389,7 +389,6 @@ export class Http2NativeDispatcher {
                 this._handler(event);
             } catch (err) {
                 const e = err as Error;
-                // eslint-disable-next-line no-console
                 console.error('Http2NativeDispatcher: handler threw:', e.message ?? String(err), e.stack ?? '');
             }
         });

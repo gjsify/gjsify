@@ -792,6 +792,16 @@ jobs:
       # ~20 s it costs buys back the invariant that `commit-prebuilds` depends
       # on this JOB succeeding, and a job that skipped itself would take the
       # commit down with it (see the `needs` comment there).
+      #
+      # `-e CI=true` is what makes the committed `src/rust/Cargo.lock` ENFORCED
+      # in here too. Every other leg runs either directly on the runner or in a
+      # job-level `container:`, both of which get GitHub's own `CI=true`, and
+      # each `meson.build` turns that into `cargo build --locked`. A `docker run`
+      # inherits NOTHING but what is listed here, so without this line the three
+      # emulated legs would still USE the lock but never FAIL on a stale one.
+      # Passed as the literal rather than `"$CI"` so `set -u` cannot trip when
+      # the script is reproduced by hand (`podman run … emulated-build.sh`),
+      # where an unlocked build is the wanted local behaviour anyway.
       - name: Build all prebuilds on ${{ matrix.arch }} via QEMU
         env:
           ARCH: ${{ matrix.arch }}
@@ -804,6 +814,7 @@ jobs:
             -v "$PWD:/workspace" -w /workspace \
             -e ARCH="$ARCH" \
             -e PREBUILD_SKIP="$PREBUILD_SKIP" \
+            -e CI=true \
             "$BASE_IMAGE" \
             bash .github/prebuild-toolchain/emulated-build.sh
 

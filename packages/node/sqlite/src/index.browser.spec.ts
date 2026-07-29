@@ -49,7 +49,6 @@ export default async () => {
             await it('constructor error message points at a WASM backend', async () => {
                 let message = '';
                 try {
-                    // eslint-disable-next-line no-new
                     new DatabaseSync(':memory:');
                 } catch (e) {
                     message = (e as Error).message;

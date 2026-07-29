@@ -45,7 +45,6 @@ import {
 Gst.init(null);
 const webrtcbinReady = Boolean(Gst.ElementFactory.find('webrtcbin') && Gst.ElementFactory.find('nicesrc'));
 if (!webrtcbinReady) {
-    // eslint-disable-next-line no-console
     console.log(
         '  ⚠ webrtcbin/nicesrc not installed — skipping pipeline tests.\n' +
             '    Install: dnf install libnice-gstreamer1 (Fedora) | apt install gstreamer1.0-nice (Ubuntu)',

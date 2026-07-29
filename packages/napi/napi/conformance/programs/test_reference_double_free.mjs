@@ -11,9 +11,7 @@ export const meta = { dir: 'test_reference_double_free', targets: ['test_referen
 export default async function run(h) {
     const addon = h.loadAddon('test_reference_double_free');
 
-    // eslint-disable-next-line no-new
     { new addon.MyObject(true); }
-    // eslint-disable-next-line no-new
     { new addon.MyObject(false); }
 
     // Give any finalizer / deferred free a chance to run — a double free would

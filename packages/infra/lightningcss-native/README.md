@@ -32,6 +32,37 @@ if (hasNativeLightningcss()) {
 
 The native bridge is consumed automatically by `gjsify build --app gjs` via `@gjsify/rolldown-plugin-gjsify`. Direct use is only needed when calling the CSS pipeline outside of a gjsify build.
 
+## Building from source
+
+```bash
+gjsify workspace @gjsify/lightningcss-native build:prebuilds   # needs meson + vala + cargo
+```
+
+Unlike the other two Rust bridges this one has no `refs/` submodule — `lightningcss`,
+`parcel_sourcemap` and `browserslist-rs` all come from crates.io.
+
+### Dependency lock
+
+`src/rust/Cargo.lock` is **committed**, and because there is no `refs/` pin here it is the *only*
+thing tying the shipped prebuild to a known dependency graph. CI builds with `--locked`
+(`${CI:+--locked}` on the `cargo build` in `meson.build`; every CI leg runs with `CI=true`),
+so a lock that no longer satisfies `Cargo.toml` fails the run instead of being silently rewritten.
+Local builds are unlocked, so editing `Cargo.toml` still just works — commit the resulting lock
+diff with the change.
+
+Updating a dependency is a deliberate act:
+
+```bash
+cd packages/infra/lightningcss-native/src/rust
+cargo update -p <crate>        # or plain `cargo update` for the whole registry side
+cargo tree -d                  # review what the update duplicated
+cd -
+gjsify workspace @gjsify/lightningcss-native build:prebuilds
+```
+
+Note that `lightningcss` is a pre-release line (`1.0.0-alpha.*`), where a caret requirement still
+matches later alphas — so without the lock a plain rebuild can silently pick up a new alpha.
+
 ## Platform coverage
 
 | Platform | Prebuild | Built by |

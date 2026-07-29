@@ -12,7 +12,7 @@ export const EventTargetTest = async () => {
         await it('should throw a TypeError if called as a function.', async () => {
             assert.throws(() => {
                 // @ts-expect-error
-                EventTarget(); // eslint-disable-line new-cap
+                EventTarget();
             }, TypeError);
         });
     });

@@ -139,11 +139,9 @@ export default async () => {
 
         await it('validates `level` is an integer in [0, 3]', () => {
             expect(() => {
-                // eslint-disable-next-line no-new
                 new Chalk({ level: 10 });
             }).toThrow();
             expect(() => {
-                // eslint-disable-next-line no-new
                 new Chalk({ level: -1 });
             }).toThrow();
         });
