@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/gtk-runtime-win32-x64",
-  "version": "0.24.1",
+  "version": "0.24.2",
   "description": "Batteries-included GTK/GObject-Introspection runtime bundle for Windows x64 — lets @gjsify/node-gi load gi:// namespaces (GLib/GObject/Gio/cairo/Pango/Graphene/Gdk) with NO gvsbuild/system GTK. Platform-gated (win32/x64 only).",
   "type": "module",
   "license": "MIT",

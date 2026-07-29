@@ -1,6 +1,6 @@
 {
     "name": "gjsify",
-    "version": "0.24.1",
+    "version": "0.24.2",
     "description": "The full JavaScript ecosystem, native on GNOME",
     "type": "module",
     "private": true,
@@ -30,7 +30,7 @@
         "test:e2e:tsbuildinfo-containment": "node --test tests/e2e/tsbuildinfo-containment/run.mjs",
         "test:e2e:package-outputs": "node --test tests/e2e/package-outputs/run.mjs",
         "verify:package-outputs": "node scripts/verify-package-outputs.mjs",
-    "verify:package-outputs:examples": "node scripts/verify-package-outputs.mjs --scope examples",
+        "verify:package-outputs:examples": "node scripts/verify-package-outputs.mjs --scope examples",
         "test:e2e:create-app": "node --test tests/e2e/create-app/run.mjs",
         "test:e2e:cli-only": "node --test tests/e2e/cli-only/run.mjs",
         "test:e2e:cli-only-pnp": "node --test tests/e2e/cli-only-pnp/run.mjs",

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.24.2](https://github.com/gjsify/gjsify/compare/v0.24.1...v0.24.2) (2026-07-29)
+
+### Bug Fixes
+
+* derive launcher env at run time, not install time ([#866](https://github.com/gjsify/gjsify/issues/866)) ([85b64b7](https://github.com/gjsify/gjsify/commit/85b64b73d16da3ec1083a9fcd40bb59cea60a2ff)), closes [#868](https://github.com/gjsify/gjsify/issues/868)
+
+### Build System
+
+* commit a Cargo.lock per native bridge ([#852](https://github.com/gjsify/gjsify/issues/852)) ([b2327dc](https://github.com/gjsify/gjsify/commit/b2327dc2f9896f813a17e570dbb401e474102769))
+
+### Continuous Integration
+
+* error on unused lint-disable directives ([#867](https://github.com/gjsify/gjsify/issues/867)) ([e174cc1](https://github.com/gjsify/gjsify/commit/e174cc1de8200ce223888e5fb94011d5b244d8d3)), closes [#859](https://github.com/gjsify/gjsify/issues/859) [#861](https://github.com/gjsify/gjsify/issues/861)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([e169d62](https://github.com/gjsify/gjsify/commit/e169d625758cacb150ab33b01bd53e6bc5e6a6e5))
+* update native prebuilds [skip ci] ([169f73e](https://github.com/gjsify/gjsify/commit/169f73e8e2b866b25fc7cb73a25edd7791b077bf))
+
 ## [0.24.1](https://github.com/gjsify/gjsify/compare/v0.24.0...v0.24.1) (2026-07-28)
 
 ### Bug Fixes
