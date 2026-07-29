@@ -128,7 +128,6 @@ export default async () => {
                 // Throughput baseline.
                 const totalMiB = SAB_BYTES / 1024 / 1024;
                 const mibPerSec = (totalMiB * 1000) / Math.max(1, elapsedMs);
-                // eslint-disable-next-line no-console
                 console.log(
                     `[worker-stress] SAB hash: ${totalMiB.toFixed(1)} MiB across ${WORKER_COUNT} workers in ${elapsedMs} ms (${mibPerSec.toFixed(0)} MiB/s)`,
                 );

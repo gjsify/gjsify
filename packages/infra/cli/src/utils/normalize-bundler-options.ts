@@ -32,7 +32,6 @@ export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions 
     ) {
         if (!warnedDefineOnce) {
             warnedDefineOnce = true;
-            // eslint-disable-next-line no-console
             console.warn(
                 "[gjsify] WARNING: 'bundler.define' is not a valid Rolldown option and would be " +
                     "silently ignored — it has been auto-mapped to 'bundler.transform.define'. " +
@@ -57,7 +56,6 @@ export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions 
 
     if (!warnedOnce) {
         warnedOnce = true;
-        // eslint-disable-next-line no-console
         console.warn(
             "[gjsify] DEPRECATION: the 'esbuild' config key is deprecated and will be removed in 0.5.0. " +
                 "Rename it to 'bundler' (typed as RolldownOptions). See the migration notes in the gjsify CHANGELOG.",

@@ -84,7 +84,6 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
                 try {
                     tlsConn.set_certificate(ctx.certificate);
                 } catch (err: unknown) {
-                    // eslint-disable-next-line no-console
                     console.warn('[tls] failed to set client certificate:', err);
                 }
             }

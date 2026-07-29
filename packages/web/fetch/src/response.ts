@@ -67,7 +67,6 @@ export class Response extends Body {
     constructor(body: BodyInit | Readable | Blob | Buffer | null = null, options: ResponseOptions = {}) {
         super(body, options);
 
-        // eslint-disable-next-line no-eq-null, eqeqeq, no-negated-condition
         const status = options.status != null ? options.status : 200;
 
         const headers = new Headers(options.headers);

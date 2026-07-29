@@ -30,7 +30,6 @@ export default async () => {
             });
 
             await it('FontFace.load() via globalThis resolves and sets status=loaded', async () => {
-                // oxlint-disable-next-line typescript/no-explicit-any -- runtime-injected FontFace constructor; not available in GJS static types
                 const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => { status: string; load: () => Promise<void> };
                 const face = new FF('Round9x13', 'url(/res/fonts/Round9x13.ttf)');
                 expect(face.status).toBe('unloaded');
@@ -39,7 +38,6 @@ export default async () => {
             });
 
             await it('document.fonts.add() after load does not throw', async () => {
-                // oxlint-disable-next-line typescript/no-explicit-any -- runtime-injected FontFace constructor; not available in GJS static types
                 const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => { status: string; load: () => Promise<void> };
                 const face = new FF('Round9x13', 'url(/res/fonts/Round9x13.ttf)');
                 await face.load();
@@ -61,7 +59,6 @@ export default async () => {
             const TTF = '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf';
 
             await it('load() with file:// URL registers font and sets status=loaded', async () => {
-                // oxlint-disable-next-line typescript/no-explicit-any -- runtime-injected FontFace constructor; not available in GJS static types
                 const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => { status: string; load: () => Promise<void> };
                 const face = new FF('DejaVuTestFont', `url(file://${TTF})`);
                 expect(face.status).toBe('unloaded');
