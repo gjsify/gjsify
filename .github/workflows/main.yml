@@ -468,8 +468,27 @@ jobs:
       # The script restores the artifacts to their pre-run bytes afterwards, so
       # the build-output cache saved below is unaffected either way.
       - name: Verify committed bundles rebuild from source
+        id: verify-bundles
         timeout-minutes: 30
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/verify-committed-bundles.mjs'
+
+      # When the check fails, hand back the bytes THIS run built. "Rebuild it
+      # locally and commit" is the normal fix, but it is not always a fix a
+      # contributor can apply: at least two developer machines measurably do not
+      # reproduce these bundles (a module-order difference that survives
+      # matching the Node version, the rolldown version, the lockfile and the
+      # core count — see release-cut.yml, which exists because of it). On such a
+      # machine the instruction is an infinite loop and CI is the only source of
+      # the bytes that satisfy the check. Uploading them costs nothing on a
+      # green run (the step is skipped) and turns a dead end into a download.
+      - name: Upload the bundles CI rebuilt (on mismatch)
+        if: ${{ failure() && steps.verify-bundles.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: rebuilt-bundles
+          path: tmp/rebuilt-bundles
+          if-no-files-found: ignore
+          retention-days: 7
 
       # Build examples (+ check below) only when an example/showcase is in the
       # closure, e2e will run (its lint-engines suite asserts example dist), or

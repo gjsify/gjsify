@@ -218,6 +218,21 @@ function restoreDisk(snapshot, groups) {
     }
 }
 
+/**
+ * Where a mismatching rebuild is kept so it can leave the machine that made it.
+ * Mirrors the repo-relative path, so the whole tree can be copied over a
+ * checkout verbatim (`cp -r tmp/rebuilt-bundles/. .`).
+ */
+const REBUILT_DIR = join(repoRoot, 'tmp', 'rebuilt-bundles');
+const rebuiltSaved = [];
+
+function saveRebuilt(relPath, bytes) {
+    const dest = join(REBUILT_DIR, relPath);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, bytes);
+    rebuiltSaved.push(relPath);
+}
+
 /** Byte offset of the first difference, or -1 when equal. */
 function firstDiffOffset(a, b) {
     const n = Math.min(a.length, b.length);
@@ -419,6 +434,17 @@ try {
                 console.error(`  committed …${excerpt(expected, off)}…`);
                 console.error(`  rebuilt   …${excerpt(actual, off)}…`);
                 fail(`  Refresh locally: ${recipe.hint}, then commit it.`);
+                // …and keep the bytes THIS run produced, because "refresh
+                // locally" is not always advice a contributor can take: at
+                // least two developer machines measurably do not reproduce
+                // these bundles (`mapSysname` where the committed file has
+                // `makeCallable` — a module-order difference that survives
+                // matching the Node version, the rolldown version, the
+                // lockfile and the core count; see release-cut.yml). On such a
+                // machine the instruction above is an infinite loop, and the
+                // only bytes that satisfy this check are the ones CI builds.
+                // Saving them turns a dead end into a download.
+                saveRebuilt(p, actual);
             }
             if (group.kind === 'dir') {
                 console.log(`  ✓ ${group.path}/: ${matched}/${expectedPaths.length} reproduce from source`);
@@ -443,6 +469,19 @@ if (failures > 0) {
         `${failures} committed artifact(s) do not match their source. A stale bundle still runs and still reports ` +
             'the right version, which is why the version check cannot see this.',
     );
+    if (rebuiltSaved.length > 0) {
+        console.error(
+            `\nThe ${rebuiltSaved.length} rebuilt artifact(s) THIS run produced were kept under tmp/rebuilt-bundles/:\n` +
+                rebuiltSaved.map((p) => `  ${p}`).join('\n') +
+                (inActions
+                    ? '\n\nCI uploads them as the `rebuilt-bundles` artifact. If your machine cannot reproduce ' +
+                      'these bytes (a known, unexplained divergence on at least two machines — see release-cut.yml), ' +
+                      'download it and copy it over your checkout:\n' +
+                      '  gh run download <run-id> -n rebuilt-bundles -D tmp/rebuilt-bundles\n' +
+                      '  cp -r tmp/rebuilt-bundles/. . && git add -A\n'
+                    : '\n\nCompare them against the committed files to see what your machine builds differently.\n'),
+        );
+    }
     process.exit(1);
 }
 
