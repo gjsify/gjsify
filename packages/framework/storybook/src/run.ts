@@ -1,6 +1,12 @@
 // runStorybook — the one-call entry point a host launcher or the
 // `gjsify storybook` generated entry uses. original implementation.
 
+// The bare `system` built-in, not `imports.system`/`ARGV` (ARGV IS
+// `system.programArgs` on gjs) — resolves on gjs AND the `--app node` reverse
+// bridge, i.e. `gjsify storybook --runtime node` (AGENTS.md § The legacy
+// imports.* object is NOT an API).
+import system from 'system';
+
 import { StorybookApplication, type StorybookOptions } from './application.js';
 
 /**
@@ -15,5 +21,5 @@ import { StorybookApplication, type StorybookOptions } from './application.js';
  */
 export async function runStorybook(options: StorybookOptions): Promise<number> {
     const app = new StorybookApplication(options);
-    return app.runAsync([imports.system.programInvocationName, ...ARGV]);
+    return app.runAsync([system.programInvocationName, ...system.programArgs]);
 }
