@@ -39,8 +39,10 @@ on:
         default: true
 
 # Cutting pushes a commit + tag to main and creates a release.
+# `actions: write` is for the publish dispatch at the end of the job — see there.
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   # Never two cuts at once — they would race on the same tag + main ref.
@@ -130,6 +132,38 @@ jobs:
           echo "release-it $*"
           PATH="$PWD/node_modules/.bin:$PATH" npx release-it "$@"
 
+      # The cut creates a GitHub release, and release.yml listens for
+      # `release: [published]` — but a release created by a workflow using the
+      # repository's GITHUB_TOKEN does NOT trigger other workflows. That is
+      # GitHub's recursion guard, and it is not optional or configurable.
+      #
+      # So the cut tagged, pushed and published a GitHub release, and NOTHING
+      # went to npm — silently, with this job green. v0.25.0 and v0.25.1 both
+      # sat on GitHub for an hour while npm still served 0.24.2, and the first
+      # symptom was three unrelated-looking node-gi jobs failing with
+      # `ETARGET No matching version found for @gjsify/cli@0.25.0` (they install
+      # the PUBLISHED cli at the version the checkout declares). This step's own
+      # Summary text used to assert the release event would do it.
+      #
+      # `workflow_dispatch` is the DOCUMENTED exception to that guard, so a
+      # dispatch from here does start a run. Dispatching (rather than making
+      # release.yml a `workflow_call` reusable workflow) is deliberate: npm
+      # Trusted Publishing binds the OIDC claim to the workflow FILE, and the
+      # configured publisher is `release.yml`. Called as a reusable workflow its
+      # `workflow_ref` would name THIS file instead and the OIDC exchange would
+      # be rejected. A dispatch keeps release.yml a top-level run, so the claim
+      # still matches what npmjs.com is configured to trust.
+      - name: Dispatch the npm publish
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="$(git describe --tags --abbrev=0)"
+          echo "dispatching release.yml for $TAG"
+          gh workflow run release.yml --ref main \
+            -f release_tag="$TAG" -f skip_publish=false -f verify_only=false
+          echo "PUBLISH_TAG=$TAG" >> "$GITHUB_ENV"
+
       - name: Summary
         if: always()
         env:
@@ -144,6 +178,6 @@ jobs:
             if [ "$DRY" = "true" ]; then
               echo ""
               echo "Nothing was written. Re-run with **dry run off** to cut for real;"
-              echo "that publishes to npm via \`release.yml\` on the resulting release event."
+              echo "that dispatches \`release.yml\` to publish to npm."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
