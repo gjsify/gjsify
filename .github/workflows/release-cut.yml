@@ -11,11 +11,19 @@ name: Cut a release
 # which REBUILDS the committed GJS bundles and commits whatever it produced. So
 # the release ships bundles built by whatever machine ran the release. That is
 # only safe if that machine reproduces them byte-identically — and at least one
-# developer machine measurably does NOT: rebuilding `tsc.gjs.mjs` there yields a
+# developer machine measurably did NOT: rebuilding `tsc.gjs.mjs` there yielded a
 # 68-byte-larger file with a different module order (`mapSysname` where the
-# committed bundle has `makeCallable`), while the same commit reproduces
-# byte-identically in CI. Cause still unidentified; `gjsify install --immutable`,
-# a cache purge, a shim repair and a facade rebuild have all been ruled out.
+# committed bundle has `makeCallable`), while the same commit reproduced
+# byte-identically in CI. The cause is now IDENTIFIED and fixed at the core:
+# `globToEntryPoints` handed fast-glob's completion-ordered matches to Rolldown
+# as the entry order, sibling directories race in fast-glob's concurrent
+# walker, and Rolldown renders every chunk's imports in entry-order-derived
+# exec order — so a `--library` build that caught a minority ordering emitted
+# reordered `lib/esm` files, and every bundle inlining them drifted (the
+# per-package build cache then kept the raced order alive across rebuilds,
+# which is why install/cache/shim/facade repairs could not cure it). Each
+# pattern's expansion is now sorted (`utils/entry-points.ts`; guarded by
+# `entry-points.spec.ts` + `tests/e2e/deterministic-library-build/`).
 #
 # Cutting from CI removes the variable entirely: the bundles that ship are built
 # in the environment that verifies them. This is also what made the v0.24.0 cut
