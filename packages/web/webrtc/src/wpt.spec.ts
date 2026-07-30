@@ -668,9 +668,6 @@ export default async () => {
     await describe('WPT — RTCConfiguration-validation.html (subset)', async () => {
         // Ported: refs/wpt/webrtc/RTCConfiguration-validation.html + the
         // bundlePolicy / iceTransportPolicy validation tests.
-        //
-        // Atomic setConfiguration (invalid input must leave state unchanged)
-        // is tracked in Phase 3 — we throw NotSupportedError right now.
 
         if (!pipelineReady) {
             await it('(skipped — webrtcbin/nicesrc missing)', async () => {
@@ -699,17 +696,27 @@ export default async () => {
             }
         });
 
-        await it('setConfiguration throws NotSupportedError (not yet implemented)', async () => {
+        // setConfiguration IS implemented (Phase 4.4, stats-and-config.ts) —
+        // W3C § 4.3.2: applying a compatible configuration succeeds and is
+        // reflected by getConfiguration(); bundlePolicy is fixed at
+        // construction, changing it throws InvalidModificationError.
+        await it('setConfiguration applies config; bundlePolicy immutable', async () => {
             const pc = new RTCPeerConnection();
-            let thrown: any = null;
             try {
-                (pc as any).setConfiguration({ iceTransportPolicy: 'all' });
-            } catch (e) {
-                thrown = e;
+                pc.setConfiguration({ iceTransportPolicy: 'relay' });
+                expect(pc.getConfiguration().iceTransportPolicy).toBe('relay');
+
+                let thrown: any = null;
+                try {
+                    pc.setConfiguration({ bundlePolicy: 'max-bundle' });
+                } catch (e) {
+                    thrown = e;
+                }
+                expect(thrown).toBeDefined();
+                expect((thrown as any)?.name).toBe('InvalidModificationError');
+            } finally {
+                pc.close();
             }
-            expect(thrown).toBeDefined();
-            expect((thrown as any)?.name).toBe('NotSupportedError');
-            pc.close();
         });
     });
 
