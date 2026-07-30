@@ -1061,13 +1061,16 @@ things were deliberately left out of that refactor so it stayed a refactor.
 
 `nodeGiGlobalsInject` keys on BARE ambient globals (`print`/`imports`/`ARGV`), so a genuine GJS source that uses `gi://` but logs via `console.log` — and passes no explicit `--globals` — is not recognised: its `@girs/*` value imports are emptied (`class extends undefined`) **and** its `/register` imports route to `@gjsify/empty`. Verified with both probes. This pre-dates ADR 0012 and hits `@girs/*` and registers equally; ADR 0012 only brought the two into parity via the single `isGjsSourceBuild` gate in `app/node.ts`. Fix by widening the SIGNAL itself — e.g. treat "a `gi://` specifier survived in the bundled graph" as a reverse-bridge build — which closes both at once.
 
-### `@gjsify/webaudio` — audio builds but stays inaudible on node
+### `@gjsify/node-gi` — a pointer struct FIELD whose length lives in a sibling field marshals EMPTY
 
-Two hard errors that stood in front of audio on the node-gi reverse bridge are fixed (`set_property` had no GValue marshalling; the GstApp typelib was tree-shaken out of the `--app node` bundle, so `push_buffer` never resolved). Decode now succeeds on node — the showcase logs no decode failure and no "audio unavailable" fallback — and the playback pipeline is constructed without a single JS-visible error.
+`GstMapInfo.data` is a `guint8*` field whose length is carried by the sibling `size` field — a dependency GI cannot express for a struct-field READ. gjs resolves it; node-gi returns an empty array, and reports no error while doing so. Measured on a decoded audio sample:
 
-It is still silent. Measured against PipeWire while the excalibur-jelly-jumper showcase runs: gjs opens a `float32le 2ch 44100Hz` sink-input (user-confirmed audible), node opens none, and the bus posts no ERROR for the handler to report. So the pipeline is built and accepted, and data never reaches the sink. Next step is instrumenting the state transitions (does it reach PLAYING, does `appsrc` see its buffers consumed, does `autoaudiosink` select a real sink) rather than guessing.
+    map: ok=true  size=8192  data.length=0   buffer.get_size()=8192
+    buffer.extract_dup(0, 8192) → 8192
 
-bun/deno remain gated by `isGstStreamingUnsafe()` for the separate segfault documented there.
+That silent zero is what made audio inaudible on node for the whole of this investigation: `decodeAudioDataSync` pulled samples with correctly negotiated caps and copied nothing out of them, so every layer above reported success on an empty buffer. `@gjsify/webaudio` now uses the copying `gst_buffer_extract_dup` instead, which works on both runtimes — but any consumer reading a length-in-a-sibling-field pointer will hit this, and the empty result is indistinguishable from a genuinely empty buffer.
+
+Fix shape: honour the GIR's `array length=` annotation on struct FIELDS in the field reader (the call-argument path already does), and where the annotation is absent, prefer failing loudly over returning an empty array.
 
 ### `@gjsify/node-gi` — `GTK_IS_EVENT_CONTROLLER` assertion failures on the reverse bridge
 
