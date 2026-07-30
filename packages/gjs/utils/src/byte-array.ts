@@ -5,10 +5,9 @@ import type GLib from '@girs/glib-2.0';
  *
  * Uses `GLib.Bytes.prototype.toArray()` — the GJS core override
  * (`refs/gjs/modules/core/overrides/GLib.js`), which `@gjsify/node-gi` mirrors
- * on its boxed-GBytes proxy. The legacy `imports.byteArray.fromGBytes()` does
- * the same thing but only exists when the GJS ambient globals are present, so
- * it throws a `ReferenceError` on a `--app node` bundle that was not given the
- * `@gjsify/node-gi/globals` shim.
+ * on its boxed-GBytes proxy — instead of the legacy
+ * `imports.byteArray.fromGBytes()` (AGENTS.md § The legacy imports.* object is
+ * NOT an API).
  */
 export function gbytesToUint8Array(bytes: GLib.Bytes): Uint8Array {
     return bytes.toArray();
