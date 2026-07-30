@@ -310,6 +310,18 @@ async function runShowcaseOnRuntime(
     }
 
     console.log(`Running showcase: ${showcase.name} ${runningAs(cliVersion)}on ${runtime} (${entry})\n`);
-    // Terminal call — exit on success.
-    await runRuntimeBundle(runtime, entry, [], { exitOnSuccess: true });
+    // Terminal call — exit on success. Failures are reported here rather than
+    // thrown: an exception escaping the handler makes yargs dump the command's
+    // full `--help` above the message, which buries it.
+    try {
+        await runRuntimeBundle(runtime, entry, [], { exitOnSuccess: true });
+    } catch (err) {
+        console.error(
+            `${(err as Error).message}\n\n` +
+                `  The showcase and the \`@gjsify/node-gi\` bridge it needs are both installed by THIS CLI\n` +
+                `  (gjsify ${cliVersion ?? '(unknown)'}) into its own cache, so a missing bridge points at the CLI\n` +
+                `  rather than at anything in your project.\n\n  ${PIN_HINT}`,
+        );
+        return process.exit(1);
+    }
 }
