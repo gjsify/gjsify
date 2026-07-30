@@ -37,3 +37,23 @@ export function withGstPromise(emit: (promise: Gst.Promise) => void): Promise<Gs
         emit(bridge.promise);
     });
 }
+
+/**
+ * Read the RTP CNAME of a webrtcbin — "the CNAME of the associated
+ * RTCPeerConnection" that W3C § 5.2 getParameters exposes as `rtcp.cname`.
+ *
+ * webrtcbin's internal rtpbin generates one canonical name per connection
+ * (used in its RTCP SDES packets) and exposes it through rtpbin's `sdes`
+ * GstStructure (`application/x-rtp-source-sdes, cname=(string)…`). The
+ * rtpbin child is class-installed by GstWebRTCBin under the fixed name
+ * "rtpbin".
+ */
+export function getRtcpCname(webrtcbin: Gst.Element): string | undefined {
+    try {
+        const rtpbin = (webrtcbin as Gst.Bin).get_by_name('rtpbin') as (Gst.Element & { sdes?: Gst.Structure }) | null;
+        const cname = rtpbin?.sdes?.get_string('cname');
+        return cname ?? undefined;
+    } catch {
+        return undefined;
+    }
+}

@@ -50,3 +50,23 @@ export function getRtpCapabilities(kind: string): RTCRtpCapabilities | null {
     if (kind === 'video') return VIDEO_CAPABILITIES;
     return null;
 }
+
+// Standard RTP payload types used in WebRTC SDP — shared between the Path-A
+// encoder chain (opusenc→rtpopuspay / vp8enc→rtpvp8pay in rtc-rtp-sender.ts)
+// and the Path-B kind-only transceiver caps below.
+export const OPUS_PAYLOAD_TYPE = 111;
+export const VP8_PAYLOAD_TYPE = 96;
+
+/**
+ * Full RTP caps for a kind-only (Path-B) `add-transceiver`. webrtcbin needs
+ * `encoding-name`/`clock-rate`/`payload` to build an m-section for the
+ * transceiver — `application/x-rtp,media=audio` alone yields an offer with
+ * NO m-line at all (measured on GStreamer 1.28: create-offer returned only
+ * the session-level `v=/o=/s=/t=` + `a=ice-options:trickle`). Mirrors the
+ * caps the Path-A encoder chain advertises via its capsfilter.
+ */
+export function defaultRtpCapsString(kind: 'audio' | 'video'): string {
+    return kind === 'audio'
+        ? `application/x-rtp,media=audio,encoding-name=OPUS,clock-rate=48000,payload=${OPUS_PAYLOAD_TYPE}`
+        : `application/x-rtp,media=video,encoding-name=VP8,clock-rate=90000,payload=${VP8_PAYLOAD_TYPE}`;
+}

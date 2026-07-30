@@ -12,7 +12,9 @@ import type GstNs from 'gi://Gst?version=1.0';
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { Gst } from './gst-init.js';
-import { getRtpCapabilities } from './rtp-capabilities.js';
+import { getRtcpCname } from './gst-utils.js';
+import { getRtpCapabilities, OPUS_PAYLOAD_TYPE, VP8_PAYLOAD_TYPE } from './rtp-capabilities.js';
+import { parseMediaSectionParams } from './sdp-params.js';
 import { RTCDTMFSender } from './rtc-dtmf-sender.js';
 import { TeeMultiplexer } from './tee-multiplexer.js';
 import {
@@ -20,6 +22,7 @@ import {
     asRtpPayloaderElement,
     asCapsFilterElement,
     asVp8EncElement,
+    asWebRtcBin,
     type ValveElement,
 } from './internal/gst-types.js';
 import type { RTCStatsReport } from './rtc-stats-report.js';
@@ -27,9 +30,9 @@ import type { RTCDtlsTransport } from './rtc-dtls-transport.js';
 import type { MediaStreamTrack } from './media-stream-track.js';
 import type { MediaStream } from './media-stream.js';
 
-// Standard RTP payload types used in WebRTC SDP
-const OPUS_PAYLOAD_TYPE = 111;
-const VP8_PAYLOAD_TYPE = 96;
+// OPUS_PAYLOAD_TYPE / VP8_PAYLOAD_TYPE come from rtp-capabilities.ts — the
+// Path-B kind-only transceiver caps must advertise the SAME payload types
+// this encoder chain uses.
 
 export type RTCRtpTransceiverDirection = 'sendrecv' | 'sendonly' | 'recvonly' | 'inactive' | 'stopped';
 
@@ -108,8 +111,8 @@ export class RTCRtpSender {
     private _dtmf: RTCDTMFSender | null = null;
     /** @internal — the kind of media this sender handles */
     _kind: 'audio' | 'video' | null = null;
-    /** @internal — back-reference for DTMF stopped/direction checks */
-    _transceiver: { stopped: boolean; currentDirection: string | null } | null = null;
+    /** @internal — back-reference for DTMF stopped/direction checks + m-section (mid) lookup */
+    _transceiver: { stopped: boolean; currentDirection: string | null; mid: string | null } | null = null;
     /** @internal — callback to notify RTCPeerConnection when pipeline changes (cross-pipeline fix) */
     _onPipelineChanged: ((newPipeline: GstNs.Pipeline) => void) | null = null;
 
@@ -378,16 +381,69 @@ export class RTCRtpSender {
     }
 
     getParameters(): RTCRtpSendParameters {
+        const negotiated = this._negotiatedParams();
         if (!this._lastParams) {
             this._lastParams = {
                 transactionId: String(++_txCounter),
                 encodings: [],
-                codecs: [],
-                headerExtensions: [],
-                rtcp: {},
+                ...negotiated,
             };
+        } else {
+            // Refresh the negotiated snapshot; the transactionId is kept
+            // until setParameters consumes it (W3C § 5.2
+            // [[LastReturnedParameters]] round-trip).
+            this._lastParams.codecs = negotiated.codecs;
+            this._lastParams.headerExtensions = negotiated.headerExtensions;
+            this._lastParams.rtcp = negotiated.rtcp;
         }
-        return { ...this._lastParams, encodings: [...this._lastParams.encodings] };
+        const p = this._lastParams;
+        return {
+            ...p,
+            encodings: [...p.encodings],
+            codecs: p.codecs.map((c) => ({ ...c })),
+            headerExtensions: p.headerExtensions.map((h) => ({ ...h })),
+            rtcp: { ...p.rtcp },
+        };
+    }
+
+    /**
+     * Negotiated codecs/extensions/rtcp for this sender's m-section.
+     * W3C § 5.2 getParameters: "The codecs sequence is populated based on
+     * the codecs that have been negotiated for sending … in the priority
+     * order indicated by the remote description"; "rtcp.cname is set to the
+     * CNAME of the associated RTCPeerConnection". Before any negotiation
+     * completed the codec list is empty (there is no negotiated set yet).
+     */
+    private _negotiatedParams(): Pick<RTCRtpSendParameters, 'codecs' | 'headerExtensions' | 'rtcp'> {
+        const rtcp: RTCRtcpParameters = {};
+        const result: Pick<RTCRtpSendParameters, 'codecs' | 'headerExtensions' | 'rtcp'> = {
+            codecs: [],
+            headerExtensions: [],
+            rtcp,
+        };
+        if (!this._webrtcbin) return result;
+
+        const cname = getRtcpCname(this._webrtcbin);
+        if (cname !== undefined) rtcp.cname = cname;
+
+        const bin = asWebRtcBin(this._webrtcbin);
+        // Priority order comes from the remote description when present.
+        const desc = bin.current_remote_description ?? bin.current_local_description;
+        const sdpText = desc?.sdp?.as_text?.() ?? '';
+        if (!sdpText) return result;
+
+        const kind = this._track?.kind ?? this._kind;
+        const section = parseMediaSectionParams(sdpText, {
+            mid: this._transceiver?.mid ?? undefined,
+            mlineIndex: this._mlineIndex >= 0 ? this._mlineIndex : undefined,
+            kind: kind ?? undefined,
+        });
+        if (!section) return result;
+
+        result.codecs = section.codecs;
+        result.headerExtensions = section.headerExtensions;
+        rtcp.reducedSize = section.reducedSize;
+        return result;
     }
 
     async setParameters(params: RTCRtpSendParameters): Promise<void> {

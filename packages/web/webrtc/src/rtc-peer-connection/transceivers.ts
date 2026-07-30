@@ -25,6 +25,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { Gst } from '../gst-init.js';
 import { w3cDirectionToGst } from '../gst-enum-maps.js';
+import { defaultRtpCapsString } from '../rtp-capabilities.js';
 import { MediaStreamTrack } from '../media-stream-track.js';
 import { RTCRtpSender } from '../rtc-rtp-sender.js';
 import { RTCRtpReceiver } from '../rtc-rtp-receiver.js';
@@ -150,8 +151,13 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             gstTrans.direction = w3cDirectionToGst(direction);
         } else {
             // Path B: No GStreamer source, or receive-only/inactive.
-            // Use emit('add-transceiver') which creates a transceiver without pads.
-            const caps = Gst.Caps.from_string(`application/x-rtp,media=${kind}`);
+            // Use emit('add-transceiver') which creates a transceiver without
+            // pads. The caps MUST carry encoding-name/clock-rate/payload —
+            // with bare `media=<kind>` caps webrtcbin cannot build an
+            // m-section for the transceiver and createOffer returns an SDP
+            // with NO m-line at all (measured on GStreamer 1.28), so nothing
+            // was ever negotiated for kind-only transceivers.
+            const caps = Gst.Caps.from_string(defaultRtpCapsString(kind));
             // webrtcbin doesn't accept NONE for add-transceiver; use SENDRECV
             // and override to inactive after creation.
             const createDirection =
