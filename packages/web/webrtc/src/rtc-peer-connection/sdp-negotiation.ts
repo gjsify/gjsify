@@ -70,13 +70,16 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
     async setLocalDescription(this: RTCPeerConnection, description?: RTCSessionDescriptionInit): Promise<void> {
         this._rejectIfClosed('setLocalDescription');
 
-        // W3C § 4.4.1.6 — implicit setLocalDescription (perfect negotiation):
-        // When called without arguments (or with empty type/sdp), auto-create
-        // the appropriate SDP based on the current signaling state.
-        if (!description || !description.type || !description.sdp) {
+        // W3C § 4.4.2 — implicit setLocalDescription (perfect negotiation):
+        // ONLY a missing description/type auto-creates the appropriate SDP
+        // from the current signaling state. A description whose `type` is
+        // present must never be routed here — in particular 'rollback', whose
+        // `sdp` is empty BY DESIGN (§ 4.4.1.5 ignores it), and which a
+        // `!description.sdp` test used to misroute into createOffer().
+        if (!description || !description.type) {
             const state = this.signalingState;
             if (state === 'stable' || state === 'have-local-offer') {
-                // Stable → create offer; have-local-offer → rollback + re-offer
+                // Stable → create offer; have-local-offer → re-offer
                 description = await this.createOffer();
             } else if (state === 'have-remote-offer' || state === 'have-remote-pranswer') {
                 description = await this.createAnswer();
@@ -86,6 +89,34 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
                     'InvalidStateError',
                 );
             }
+        }
+
+        if (description.type === 'rollback') {
+            // W3C § 4.4.1.5: type 'rollback' is invalid in 'stable',
+            // 'have-local-pranswer' and 'have-remote-pranswer' →
+            // InvalidStateError. The only state with a pending LOCAL
+            // description to roll back is 'have-local-offer'.
+            const state = this.signalingState;
+            if (state !== 'have-local-offer') {
+                throw new DOMException(
+                    `setLocalDescription: cannot rollback in signalingState '${state}'`,
+                    'InvalidStateError',
+                );
+            }
+            const hadCompletedNegotiation = this.currentLocalDescription !== null;
+            // webrtcbin supports ROLLBACK natively (verified on GStreamer
+            // 1.28: HAVE_LOCAL_OFFER → STABLE, pending description cleared,
+            // promise replied) — no pipeline state bump needed.
+            const gstDesc = new RTCSessionDescription(description).toGstDesc();
+            await withGstPromise((p) => {
+                this._webrtcbin.emit('set-local-description', gstDesc, p);
+            });
+            // Rolling back the INITIAL offer detaches the never-connected
+            // transports again (WPT RTCRtpSender.https.html "null transport
+            // after rollback of sLD(offer)"); after a completed offer/answer
+            // the live transports survive a renegotiation rollback.
+            if (!hadCompletedNegotiation) this._clearTransports();
+            return;
         }
 
         // On first-time setLocalDescription, the pipeline needs to start running.
