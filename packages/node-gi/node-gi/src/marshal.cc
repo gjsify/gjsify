@@ -496,7 +496,31 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
             out->v_pointer = nullptr;
             handled = true;
           } else if (v.IsExternal()) {
-            out->v_pointer = v.As<Napi::External<GObject>>().Data();
+            GObject* obj = v.As<Napi::External<GObject>>().Data();
+            // A (transfer full) GObject IN arg CONSUMES a reference: the callee
+            // takes over the one it is handed. Passing the handle's own ref
+            // makes the callee and the JS wrapper share a single ref that BOTH
+            // release — the wrapper's finalize then frees an object the callee
+            // still owns, and the callee is left dereferencing freed memory.
+            //
+            // `gtk_widget_add_controller()` is the canonical case and the one
+            // that surfaced it: GTK keeps the controller in the widget's list,
+            // the JS wrapper for it goes out of scope, and the next pointer
+            // motion over the widget hits
+            //
+            //   Gtk-CRITICAL **: gtk_event_controller_handle_crossing:
+            //   assertion 'GTK_IS_EVENT_CONTROLLER (controller)' failed
+            //
+            // NONDETERMINISTICALLY — it needs a GC between the add and the
+            // event, which is why it looked unrelated to anything nearby.
+            //
+            // gjs takes the ref here (wrapperutils.h
+            // `transfer_to_gi_argument`: `GI_DIRECTION_IN && transfer !=
+            // GI_TRANSFER_NOTHING` → `copy_ptr` → `g_object_ref`), and this
+            // file already does the equivalent for BOXED args via
+            // `TransferBoxedIn`. Objects were simply never given the same rule.
+            if (transfer != GI_TRANSFER_NOTHING && obj != nullptr) g_object_ref(obj);
+            out->v_pointer = obj;
             handled = true;
           }
         } else if (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface)) {
