@@ -179,11 +179,32 @@ if (!isNodeRuntime && RUNTIME !== 'gjs') {
       // (Bun's own processTicksAndRejections calls it from JS).
       ({ drainMicrotasks: drain } = require('bun:jsc'));
     } else if (typeof globalThis.Deno?.internal === 'symbol') {
-      // V8: core.runMicrotasks → op_run_microtasks →
-      // Isolate::PerformMicrotaskCheckpoint (a reentrant op, explicitly
-      // safe with JS frames on the stack).
+      // V8: the checkpoint needs BOTH queues. core.runMicrotasks is only
+      // Isolate::PerformMicrotaskCheckpoint; Deno's node-compat
+      // process.nextTick queue is a SEPARATE deno_core queue
+      // (ext:deno_node/_next_tick.ts → core.queueNextTick) that only the
+      // runtime's own event loop drains — and that loop is paused for the
+      // whole lifetime of a blocking run(). node:stream delivers stream
+      // 'end' via process.nextTick (endReadableNT), so with a
+      // microtask-only drain any body consumption over a Readable
+      // (@gjsify/fetch consumeBody → XHR arrayBuffer/text) got its chunks
+      // (microtask-delivered) but never the end: every asset load hung at
+      // readyState 3 forever on Deno while the SAME bundle settled on Bun,
+      // whose nextTick rides JSC's microtask queue (bun:jsc
+      // drainMicrotasks covers it). core.runNextTicks mirrors node's
+      // task_queues.js runNextTicks: microtask checkpoint when no ticks
+      // are scheduled, full processTicksAndRejections (ticks + microtasks
+      // interleaved) when there are — one call, both queues. Regression:
+      // test/blocking-run-checkpoint.test.mjs.
       const core = globalThis.Deno[globalThis.Deno.internal]?.core;
-      if (typeof core?.runMicrotasks === 'function') drain = () => core.runMicrotasks();
+      if (typeof core?.runNextTicks === 'function') {
+        drain = () => core.runNextTicks();
+      } else if (typeof core?.runMicrotasks === 'function') {
+        // Older deno_core without runNextTicks: microtask-only drain
+        // (pre-fix behaviour — promise continuations settle, nextTick
+        // consumers like node:stream 'end' still starve).
+        drain = () => core.runMicrotasks();
+      }
     }
     if (typeof drain === 'function') native.setMicrotaskDrain(drain);
   } catch {

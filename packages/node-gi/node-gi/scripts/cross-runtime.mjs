@@ -52,6 +52,7 @@ const CONFORMANCE = [
   'arrays',
   'boxed-out',
   'async-error',
+  'blocking-run-checkpoint',
   'bytes',
   'cairo',
   'cairo-canvas2d',
