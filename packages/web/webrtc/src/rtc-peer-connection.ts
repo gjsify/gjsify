@@ -570,9 +570,42 @@ export class RTCPeerConnection extends EventTarget {
     // synchronously dispatch from here.
 
     _handleNegotiationNeeded(): void {
+        // W3C § 4.7.3 "update the negotiation-needed flag" aborts when
+        // [[IsClosed]] is true — and webrtcbin's own emission reaches us
+        // through the bridge's main-context idle hop, so it can arrive
+        // AFTER close() already ran.
+        if (this._closed) return;
         const ev = new Event('negotiationneeded');
         this._onnegotiationneeded?.call(this, ev);
         this.dispatchEvent(ev);
+    }
+
+    /** @internal — one queued negotiationneeded task per mutation burst. */
+    _negotiationNeededQueued = false;
+
+    /**
+     * @internal — the JS half of W3C § 4.7.3 "update the negotiation-needed
+     * flag", called by the mutating entry points (addTransceiver, addTrack,
+     * createDataChannel, restartIce). webrtcbin emits on-negotiation-needed
+     * for the INITIAL need but — measured on GStreamer 1.28 — does NOT
+     * re-emit when a transceiver or data channel is added after a completed
+     * offer/answer, so once `_hasNegotiated` is set the renegotiation event
+     * is queued here instead. The `_negotiationNeededQueued` dedupe mirrors
+     * the spec's [[NegotiationNeeded]] flag chain (one queued task per
+     * burst); the stable-state re-check on dispatch mirrors § 4.7.3 step
+     * "if connection's signaling state is not 'stable', abort".
+     */
+    _updateNegotiationNeeded(): void {
+        if (this._closed) return;
+        if (!this._hasNegotiated) return; // initial need — webrtcbin emits it
+        if (this.signalingState !== 'stable') return; // re-checked once stable
+        if (this._negotiationNeededQueued) return;
+        this._negotiationNeededQueued = true;
+        Promise.resolve().then(() => {
+            this._negotiationNeededQueued = false;
+            if (this.signalingState !== 'stable') return;
+            this._handleNegotiationNeeded();
+        });
     }
 
     private _handleIceCandidate(sdpMLineIndex: number, candidate: string): void {

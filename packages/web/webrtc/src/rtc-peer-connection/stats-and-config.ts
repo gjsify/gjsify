@@ -82,15 +82,10 @@ const statsAndConfigMethods: StatsAndConfigMethods & ThisType<RTCPeerConnection>
     restartIce(this: RTCPeerConnection): void {
         if (this._closed) return; // no-op on closed connections per spec
         this._iceRestartNeeded = true;
-        // Only fire negotiationneeded if we've completed at least one negotiation.
-        // Before initial negotiation, restartIce has no observable effect.
-        if (this._hasNegotiated) {
-            // Fire asynchronously per spec (queued as a microtask)
-            Promise.resolve().then(() => {
-                if (this._closed) return;
-                this._handleNegotiationNeeded();
-            });
-        }
+        // Route through the shared § 4.7.3 mechanism: fires (queued) only
+        // once at least one negotiation has completed — before that,
+        // restartIce has no observable effect.
+        this._updateNegotiationNeeded();
     },
 
     setConfiguration(this: RTCPeerConnection, configuration: RTCConfiguration): void {

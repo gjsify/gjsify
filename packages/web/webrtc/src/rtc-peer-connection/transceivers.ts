@@ -181,6 +181,10 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             }
         }
 
+        // W3C § 5.3 addTransceiver step "update the negotiation-needed flag"
+        // (§ 4.7.3) — covers renegotiation, which webrtcbin does not re-emit.
+        this._updateNegotiationNeeded();
+
         return jsTrans;
     },
 };
