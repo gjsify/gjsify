@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.25.1](https://github.com/gjsify/gjsify/compare/v0.25.0...v0.25.1) (2026-07-30)
+
+### Bug Fixes
+
+* **node-gi:** drain deno's nextTick queue during a blocking run ([#873](https://github.com/gjsify/gjsify/issues/873)) ([8aac1d2](https://github.com/gjsify/gjsify/commit/8aac1d2d2b3d29e0962ea5c9f4154fe39981ea4e))
+
 ## [0.25.0](https://github.com/gjsify/gjsify/compare/v0.24.2...v0.25.0) (2026-07-30)
 
 ### Bug Fixes
