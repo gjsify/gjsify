@@ -794,10 +794,16 @@ export default async () => {
             closePeerConnections(pc);
         });
 
-        await it('sender dtmf should be null', async () => {
+        // Per WPT refs/wpt/webrtc/RTCRtpSender.https.html ("Video sender
+        // @dtmf is null"): an AUDIO sender's dtmf is an RTCDTMFSender
+        // (assert_not_equals(t1.sender.dtmf, null)); only a VIDEO sender's
+        // dtmf is null (assert_equals(t2.sender.dtmf, null)).
+        await it('audio sender dtmf is non-null, video sender dtmf is null', async () => {
             const pc = createPeerConnection();
-            const t = pc.addTransceiver('audio');
-            expect(t.sender.dtmf).toBeNull();
+            const audio = pc.addTransceiver('audio');
+            const video = pc.addTransceiver('video');
+            expect(audio.sender.dtmf).not.toBeNull();
+            expect(video.sender.dtmf).toBeNull();
             closePeerConnections(pc);
         });
 
