@@ -5,8 +5,7 @@
 // oxlint-disable typescript/no-explicit-any -- W3C XMLHttpRequest surface uses `any` deliberately: `response: any` in lib.dom matches our impl (the actual shape varies by `responseType`: text/json/arraybuffer/blob); the `on{load,error,progress,…}` handler return types are `=> any` in lib.dom; the simplified progress events we dispatch carry varying-shape payloads. The remaining `any`s in send()'s body parameter, fetch-callback narrowing at the Soup boundary, listener-map value type, and catch-block error sit inside this same W3C surface and a `gioAsync`-style introspection boundary.
 
 import GLib from 'gi://GLib?version=2.0';
-import System from 'system';
-import fetch from '@gjsify/fetch';
+import fetch, { resolveRootRelativeUrl } from '@gjsify/fetch';
 
 let _blobCounter = 0;
 
@@ -164,17 +163,11 @@ export class XMLHttpRequest {
         const responseType = this.responseType;
         const DEBUG = (globalThis as { __GJSIFY_DEBUG_XHR?: boolean }).__GJSIFY_DEBUG_XHR === true;
 
-        // Root-relative URLs (start with '/', not '//') have no host to
-        // resolve against in GJS. Rewrite to file:// relative to the program
-        // directory — matches how an HTTP static server would resolve them.
-        if (url.startsWith('/') && !url.startsWith('//')) {
-            const prog = (System as { programPath?: string }).programPath ?? System.programInvocationName ?? '';
-            if (prog) {
-                const programDir = GLib.path_get_dirname(prog);
-                url = `file://${programDir}${this._url}`;
-                if (DEBUG) console.log(`[xmlhttprequest] rewrite ${this._url} → ${url}`);
-            }
-        }
+        // Root-relative URLs have no host to resolve against in GJS — the
+        // shared rewrite (one copy for fetch AND XHR, `@gjsify/fetch`'s
+        // utils/root-relative.ts) maps them to file:// under the program dir.
+        url = resolveRootRelativeUrl(url);
+        if (DEBUG && url !== this._url) console.log(`[xmlhttprequest] rewrite ${this._url} → ${url}`);
 
         if (DEBUG) console.log(`[xmlhttprequest] ${this._method} ${url} responseType=${responseType}`);
 

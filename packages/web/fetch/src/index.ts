@@ -5,10 +5,10 @@
 
 import type Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import System from 'system';
 import Stream from 'node:stream';
 
 import { parseDataUri } from './utils/data-uri.js';
+import { resolveRootRelativeUrl } from './utils/root-relative.js';
 
 import { clone } from './body.js';
 import Response from './response.js';
@@ -27,50 +27,30 @@ import { URL } from '@gjsify/url';
 export { FormData, Headers, Request, Response, FetchError, AbortError, isRedirect };
 export { Blob, File };
 export { XMLHttpRequest, XMLHttpRequestUpload } from './xhr.js';
+// The shared program-dir rewrite — consumed by @gjsify/xmlhttprequest so fetch
+// and XHR cannot drift apart again (see utils/root-relative.ts).
+export { resolveRootRelativeUrl } from './utils/root-relative.js';
 
 import type { SystemError } from './types/index.js';
 
 const supportedSchemas = new Set(['data:', 'http:', 'https:', 'file:']);
 
-/**
- * Rewrite root-relative URLs (e.g. `/res/images/foo.png`) to `file://` relative
- * to the program directory. In a browser these would resolve against the page
- * origin; in GJS there is no origin, so we map them to the running bundle's
- * directory. This lets apps use the same asset paths across browser and GJS.
- */
-/**
- * Rewrite root-relative URLs (e.g. `/res/images/foo.png`) to `file://` relative
- * to the program directory. This lets GJS apps load bundled assets using the
- * same paths as in the browser. The security implications (arbitrary file
- * reads via fetch) are acceptable for the current use cases — revisit if
- * @gjsify/fetch is ever used to handle untrusted input.
- */
 /** Module-local typed view of the debug flag this file reads. */
 interface _FetchRuntimeGlobals {
     __GJSIFY_DEBUG_FETCH?: boolean;
 }
 
+/**
+ * String inputs go through the shared root-relative rewrite
+ * (`utils/root-relative.ts` — one copy for fetch AND XHR; two drifting copies
+ * are what #869 was). Non-string inputs pass through untouched.
+ */
 function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
     if (typeof input !== 'string') return input;
-    if (!input.startsWith('/') || input.startsWith('//')) return input;
-    const _g = globalThis as unknown as _FetchRuntimeGlobals;
-    const DEBUG = _g.__GJSIFY_DEBUG_FETCH === true;
+    const DEBUG = (globalThis as unknown as _FetchRuntimeGlobals).__GJSIFY_DEBUG_FETCH === true;
     try {
-        // Program dir from the `system` built-in — the SAME source
-        // `@gjsify/xmlhttprequest` and `@gjsify/dom-elements` use for this
-        // identical rewrite. It used to read `globalThis.imports.system`, which
-        // exists only on GJS: on the node-gi reverse bridge the probe was
-        // `undefined`, the path was handed to the runtime's native `URL`
-        // unchanged, and every root-relative `fetch()` died with
-        // `ERR_INVALID_URL` — while XHR-loaded assets in the same app resolved
-        // fine, because those two siblings import the module. That asymmetry is
-        // what made the excalibur-jelly-jumper showcase render an empty level on
-        // node/bun/deno: its Tiled map is the one asset fetched rather than XHR'd.
-        const programPath = (System as { programPath?: string }).programPath ?? System.programInvocationName ?? '';
-        if (!programPath) return input;
-        const dir = GLib.path_get_dirname(programPath);
-        const rewritten = `file://${dir}${input}`;
-        if (DEBUG) console.log(`[fetch] rewrite ${input} → ${rewritten}`);
+        const rewritten = resolveRootRelativeUrl(input);
+        if (DEBUG && rewritten !== input) console.log(`[fetch] rewrite ${input} → ${rewritten}`);
         return rewritten;
     } catch (err) {
         if (DEBUG) console.warn(`[fetch] rewrite FAILED: ${err instanceof Error ? err.message : String(err)}`);
@@ -345,9 +325,9 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
             // the streaming decode is fragile. Buffer first, then decompress the
             // complete in-memory blob — the same pattern @gjsify/tar uses for .tgz.
             const rawBuffer = await new Response(readable, responseOptions).arrayBuffer();
-            const decompressed = new Blob([rawBuffer]).stream().pipeThrough(
-                new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>,
-            );
+            const decompressed = new Blob([rawBuffer])
+                .stream()
+                .pipeThrough(new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
             finalize();
             return new Response(decompressed as unknown as ReadableStream, responseOptions);
         }
