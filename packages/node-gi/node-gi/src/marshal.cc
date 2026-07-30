@@ -3,6 +3,7 @@
 
 #include "common.h"
 
+#include <cmath>
 #include <unordered_map>
 #include <utility>
 
@@ -190,6 +191,101 @@ gpointer TransferBoxedIn(BoxedHandle* h, GITransfer transfer) {
   return h->ptr;
 }
 
+// Whether `v` is a boxed handle that ALREADY holds a GValue — the one shape a
+// `GObject.Value` IN-arg takes as-is (gjs GValueIn::in passes it through when the
+// JS object's own gtype is G_TYPE_VALUE, and boxes EVERYTHING else, including
+// other boxed handles: a GVariant handed to `set_property('state', …)` becomes a
+// G_TYPE_VARIANT GValue, it does not become the GValue).
+static bool NodeGiIsGValueHandle(Napi::Value v) {
+  BoxedHandle* h = TryGetBoxedHandle(v);
+  return h != nullptr && h->gtype != G_TYPE_INVALID && g_type_is_a(h->gtype, G_TYPE_VALUE);
+}
+
+// Initialise `out` from a plain JS value, guessing the GType the way gjs does
+// for an uninitialized GValue (refs/gjs/gi/value.cpp gjs_value_guess_g_type +
+// gjs_value_to_g_value_internal). Returns false with a pending JS exception when
+// the value has no sensible GValue representation.
+//
+// The int32-vs-double split matches gjs exactly (`value.isInt32()` →
+// `G_TYPE_INT`, `value.isDouble()` → `G_TYPE_DOUBLE`); JS has no such tag at the
+// N-API boundary, so an integral number in int32 range stands in for isInt32.
+// That distinction is not load-bearing for correctness — `g_object_set_property`
+// transforms between the numeric fundamentals — but staying bit-for-bit with gjs
+// keeps a property that reads the GValue's own type behaving identically.
+static bool JsToFreshGValue(Napi::Env env, Napi::Value v, GValue* out) {
+  if (v.IsNull() || v.IsUndefined()) {
+    // gjs guesses G_TYPE_POINTER for null. A real GValue holding NULL is also
+    // the only thing a callee can safely dereference — passing a NULL GValue*
+    // (the plain boxed-null path) would crash g_object_set_property.
+    g_value_init(out, G_TYPE_POINTER);
+    g_value_set_pointer(out, nullptr);
+    return true;
+  }
+  if (v.IsBoolean()) {
+    g_value_init(out, G_TYPE_BOOLEAN);
+    g_value_set_boolean(out, v.As<Napi::Boolean>().Value() ? TRUE : FALSE);
+    return true;
+  }
+  if (v.IsString()) {
+    g_value_init(out, G_TYPE_STRING);
+    g_value_set_string(out, v.As<Napi::String>().Utf8Value().c_str());
+    return true;
+  }
+  if (v.IsBigInt()) {
+    bool lossless = false;
+    int64_t i64 = v.As<Napi::BigInt>().Int64Value(&lossless);
+    if (lossless || i64 < 0) {
+      g_value_init(out, G_TYPE_INT64);
+      g_value_set_int64(out, i64);
+    } else {
+      bool ulossless = false;
+      g_value_init(out, G_TYPE_UINT64);
+      g_value_set_uint64(out, v.As<Napi::BigInt>().Uint64Value(&ulossless));
+    }
+    return true;
+  }
+  if (v.IsNumber()) {
+    double d = v.As<Napi::Number>().DoubleValue();
+    if (d == std::trunc(d) && d >= static_cast<double>(G_MININT32) &&
+        d <= static_cast<double>(G_MAXINT32)) {
+      g_value_init(out, G_TYPE_INT);
+      g_value_set_int(out, static_cast<gint>(d));
+    } else {
+      g_value_init(out, G_TYPE_DOUBLE);
+      g_value_set_double(out, d);
+    }
+    return true;
+  }
+  if (v.IsExternal()) {
+    // A GObject handle → a G_TYPE_OBJECT GValue carrying its own GType, so a
+    // property typed against a subclass still accepts it.
+    Napi::External<GObject> objExt = v.As<Napi::External<GObject>>();
+    if (objExt.CheckTypeTag(&kGObjectHandleTag)) {
+      GObject* obj = objExt.Data();
+      GType gt = obj != nullptr ? G_OBJECT_TYPE(obj) : G_TYPE_OBJECT;
+      g_value_init(out, gt);
+      g_value_set_object(out, obj);
+      return true;
+    }
+    // A boxed handle → its own registered GType (GVariant has its own
+    // fundamental; a non-registered C struct has no GType to name and is
+    // rejected rather than guessed at).
+    BoxedHandle* h = TryGetBoxedHandle(v);
+    if (h != nullptr && h->gtype != G_TYPE_INVALID) {
+      g_value_init(out, h->gtype);
+      if (h->gtype == G_TYPE_VARIANT) g_value_set_variant(out, static_cast<GVariant*>(h->ptr));
+      else if (G_TYPE_IS_BOXED(h->gtype)) g_value_set_boxed(out, h->ptr);
+      else g_value_set_pointer(out, h->ptr);
+      return true;
+    }
+  }
+  Napi::TypeError::New(
+      env, "Cannot convert this value to a GObject.Value (expected a boolean, number, bigint, "
+           "string, null, or a GObject/boxed handle)")
+      .ThrowAsJavaScriptException();
+  return false;
+}
+
 // Read a boxed handle's pointer if `v` is one (tag-checked; no deref of ptr).
 bool TryGetBoxedPtr(Napi::Value v, gpointer* out) {
   if (!v.IsExternal()) return false;
@@ -337,7 +433,8 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     GITransfer transfer,
                     std::vector<gpointer>* ownedStrings,
                     CreatedClosures* closures,
-                    CreatedBytes* bytes) {
+                    CreatedBytes* bytes,
+                    CreatedValues* values) {
   if (v.IsEmpty()) {
     // Residue of a swallowed napi failure (a fallible Get()/coercion upstream
     // failed on a terminating env, or a throwing getter left the exception
@@ -453,6 +550,29 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
             out->v_pointer = b;
             if (transfer == GI_TRANSFER_NOTHING) bytes->transferNone.push_back(b);
             else bytes->transferFull.push_back(b);
+            handled = true;
+          } else if (values != nullptr && !NodeGiIsGValueHandle(v) &&
+                     gi_registered_type_info_get_g_type(
+                         reinterpret_cast<GIRegisteredTypeInfo*>(iface)) == G_TYPE_VALUE) {
+            // A plain JS value for a `GObject.Value` IN-arg → a fresh GValue whose
+            // GType is guessed from the value, exactly as gjs (refs/gjs
+            // gi/arg-cache.cpp GValueIn::in → gjs_value_to_g_value). This is what
+            // makes `obj.set_property('volume', 0.5)` — whose GI signature takes a
+            // GValue — work at all; a JS number is not a boxed handle, so it used
+            // to fall through to the "Unsupported interface IN argument" throw.
+            //
+            // An EXISTING GObject.Value handle is excluded here and routes through
+            // the boxed-handle branch below untouched, matching gjs's pass-through
+            // for an already-typed GValue.
+            GValue* boxed = g_new0(GValue, 1);
+            if (!JsToFreshGValue(env, v, boxed)) {
+              g_free(boxed);
+              gi_base_info_unref(iface);
+              return false;  // JsToFreshGValue already threw
+            }
+            out->v_pointer = boxed;
+            if (transfer == GI_TRANSFER_NOTHING) values->transferNone.push_back(boxed);
+            else values->transferFull.push_back(boxed);
             handled = true;
           } else if (v.IsNull() || v.IsUndefined()) {
             // Boxed/struct IN args arrive as boxed handles; null/undefined maps to

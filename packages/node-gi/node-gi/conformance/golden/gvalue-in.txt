@@ -1,0 +1,7 @@
+string: org.gjsify.Changed
+uint: 1234
+boolean: false
+flags: true
+boxed-variant: true
+explicit-gvalue: org.gjsify.Explicit
+repeat: org.gjsify.N4

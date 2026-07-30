@@ -545,6 +545,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // the invoke (the callee ref'd the GBytes if it kept it), transfer-full refs
   // belong to the callee (dropped only when the callee never ran).
   CreatedBytes createdBytes;
+  CreatedValues createdValues;
   bool ok = true;
   size_t jsCursor = 0;
   for (unsigned int i = 0; i < n_args && ok; i++) {
@@ -800,7 +801,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
       } else {
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
         ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings,
-                            &createdClosures, &createdBytes);
+                            &createdClosures, &createdBytes, &createdValues);
       }
     }
 
@@ -818,6 +819,9 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     // Likewise every fresh GBytes built from a JS typed array — never adopted.
     for (GBytes* b : createdBytes.transferNone) g_bytes_unref(b);
     for (GBytes* b : createdBytes.transferFull) g_bytes_unref(b);
+    // Likewise every GValue boxed from a plain JS value — never adopted.
+    for (GValue* gv : createdValues.transferNone) NodeGiFreeBoxedGValue(gv);
+    for (GValue* gv : createdValues.transferFull) NodeGiFreeBoxedGValue(gv);
     // Likewise the transfer-full-instance ref: the callee never consumed it.
     if (instanceRefTaken) g_object_unref(static_cast<GObject*>(instance));
     for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
@@ -857,6 +861,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // paths). A callee that kept the bytes (GdkPixbuf.Pixbuf.new_from_bytes) holds
   // its own ref. Transfer-full GBytes were adopted by the callee — no release.
   for (GBytes* b : createdBytes.transferNone) g_bytes_unref(b);
+  // Transfer-none GValue IN-args boxed from plain JS values: the callee copied
+  // whatever it needed (g_object_set_property copies into the property), so the
+  // box is ours to free — success AND error paths, mirroring the GBytes rule.
+  // Transfer-full GValues were adopted by the callee — no release.
+  for (GValue* gv : createdValues.transferNone) NodeGiFreeBoxedGValue(gv);
   if (!success) {
     for (const InContainer& c : inContainers) FreeInContainer(c);
     // A failed invoke did not adopt the transfer-full IN/INOUT strings we g_strdup'd
