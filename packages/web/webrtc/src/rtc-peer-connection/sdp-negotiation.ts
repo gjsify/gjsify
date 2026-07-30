@@ -22,6 +22,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 import { DOMException } from '@gjsify/dom-exception';
 import { Gst } from '../gst-init.js';
 import { withGstPromise } from '../gst-utils.js';
+import { rewriteIceCredentials } from '../sdp-params.js';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from '../rtc-session-description.js';
 import type { RTCIceCandidate } from '../rtc-ice-candidate.js';
 import { type RTCIceCandidateInit } from '../rtc-ice-candidate.js';
@@ -44,7 +45,8 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         this._rejectIfClosed('createOffer');
         const opts = Gst.Structure.new_empty('offer-options');
         // If restartIce() was called, request fresh ICE credentials
-        if (this._iceRestartNeeded) {
+        const iceRestart = this._iceRestartNeeded;
+        if (iceRestart) {
             this._setStructureField(opts, 'ice-restart', 'boolean', true);
             this._iceRestartNeeded = false;
         }
@@ -54,7 +56,17 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         // GJS unboxes `get_value` for boxed types directly to the underlying
         // struct; no GObject.Value wrapper involvement.
         const desc = reply!.get_value('offer') as unknown as GstWebRTC.WebRTCSessionDescription;
-        return RTCSessionDescription.fromGstDesc(desc).toJSON();
+        const json = RTCSessionDescription.fromGstDesc(desc).toJSON();
+        if (iceRestart) {
+            // webrtcbin (≤ 1.28) ignores the `ice-restart` offer option
+            // (measured: identical ufrag either way), so the JSEP restart
+            // primitive — fresh ufrag/pwd in the offer (RFC 9429 § 3.5.1) —
+            // is applied here; setLocalDescription pushes the rewritten
+            // credentials into webrtcbin's ICE agent (measured: ICE
+            // connectivity completes with munged credentials).
+            json.sdp = rewriteIceCredentials(json.sdp);
+        }
+        return json;
     },
 
     async createAnswer(this: RTCPeerConnection, _options?: RTCAnswerOptions): Promise<RTCSessionDescriptionInit> {

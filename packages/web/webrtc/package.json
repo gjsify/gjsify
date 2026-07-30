@@ -64,6 +64,7 @@
         "@gjsify/buffer": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/dom-exception": "workspace:^",
+        "@gjsify/webcrypto": "workspace:^",
         "@gjsify/webrtc-native": "workspace:^"
     },
     "devDependencies": {
