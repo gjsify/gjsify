@@ -7,6 +7,7 @@
 
 import GLib from 'gi://GLib?version=2.0';
 import { ensureGstInit, Gst } from './gst-init.js';
+import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import type { AudioBuffer } from './audio-buffer.js';
 import type Gst1 from '@girs/gst-1.0';
 import type GstApp1 from '@girs/gstapp-1.0';
@@ -60,6 +61,7 @@ export class GstPlayer {
         const capsStr = `audio/x-raw,format=F32LE,rate=${sr},channels=${ch},layout=interleaved`;
         const desc = `appsrc name=src caps="${capsStr}" format=3 ! audioconvert ! volume name=vol ! autoaudiosink`;
         this._pipeline = Gst.parse_launch(desc) as Gst1.Pipeline;
+        trackPipeline(this._pipeline);
         this._volumeElement = this._pipeline.get_by_name('vol');
         const appsrc = this._pipeline.get_by_name('src')! as GstApp1.AppSrc;
 
@@ -156,8 +158,13 @@ export class GstPlayer {
             // block the GLib main loop when called from within the bus-watch callback (EOS/ERROR).
             // autoaudiosink teardown flushes the audio device, which can take several ms and
             // causes frame drops when SFX fire frequently during gameplay.
+            //
+            // The pipeline stays REGISTERED until that idle actually runs, so an
+            // app that quits first still gets it to NULL via the shutdown drain
+            // (`gst-teardown.ts`) instead of finalizing it in PLAYING and
+            // printing a GStreamer-CRITICAL per element.
             GLib.idle_add(GLib.PRIORITY_LOW, () => {
-                pipeline.set_state(Gst.State.NULL);
+                stopPipeline(pipeline);
                 return GLib.SOURCE_REMOVE;
             });
         }
