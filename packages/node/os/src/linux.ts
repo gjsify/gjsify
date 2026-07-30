@@ -5,9 +5,11 @@ import GLib from '@girs/glib-2.0';
 import { createSubnet } from './createSubnet.js';
 import { cli } from '@gjsify/utils';
 
-// `imports.byteArray` is GJS-only and undefined under Node. Access lazily inside
-// the function body (called only on GJS) so the module's top level stays free
-// of a hard `imports` reference — keeps node-target bundles loadable.
+// Standard `TextDecoder` (a GJS built-in) instead of the legacy
+// `imports.byteArray.toString()`: `imports` only exists when the GJS ambient
+// globals are present, so it throws a `ReferenceError` on a `--app node` bundle
+// built without the `@gjsify/node-gi/globals` shim.
+const decoder = new TextDecoder();
 
 const EOL = /\r\n|\n/;
 
@@ -17,7 +19,7 @@ const EOL = /\r\n|\n/;
 function readTextFile(path: string): string {
     const [ok, contents] = GLib.file_get_contents(path);
     if (!ok || !contents) return '';
-    return imports.byteArray.toString(contents);
+    return decoder.decode(contents);
 }
 
 const getIPv4Subnet = createSubnet(32, 8, 10, '.');
