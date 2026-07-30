@@ -132,7 +132,11 @@ export const deferredProcessExitRule: Rule = {
                     message:
                         'Bare `process.exit()` does not halt under GJS (no atexit, the GLib loop may still ' +
                         'be armed) — the statements after this one still run, and the exit code can be lost. ' +
-                        'Write `return process.exit(...)` so the handler actually stops here.',
+                        'In an async or void-returning function write `return process.exit(...)`. In a ' +
+                        'SYNCHRONOUS function that returns a value, `return` is the WRONG repair: under GJS ' +
+                        'the exit yields a forever-pending Promise, so the caller receives that Promise as ' +
+                        'the return value and keeps going — throw after the exit instead, and say so in a ' +
+                        'reasoned oxlint-disable comment.',
                     node: offender,
                 });
             }
