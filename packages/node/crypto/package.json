@@ -84,7 +84,7 @@
         "@girs/glib-2.0": "^4.1.0",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/stream": "workspace:^",
-        "@gjsify/utils": "workspace:^",
+        "@gjsify/webcrypto": "workspace:^",
         "@noble/hashes": "^2.2.0"
     },
     "gjsify": {
