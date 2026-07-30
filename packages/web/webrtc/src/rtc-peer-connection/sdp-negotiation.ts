@@ -94,6 +94,10 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         await withGstPromise((p) => {
             this._webrtcbin.emit('set-local-description', gstDesc, p);
         });
+
+        // Applying a local description creates the transports — W3C § 4.4.1.5,
+        // WPT RTCRtpSender.https.html "should have a transport after sLD(offer)".
+        this._assignTransports();
     },
 
     async setRemoteDescription(this: RTCPeerConnection, description: RTCSessionDescriptionInit): Promise<void> {

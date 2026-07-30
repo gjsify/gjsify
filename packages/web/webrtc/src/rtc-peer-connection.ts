@@ -483,6 +483,33 @@ export class RTCPeerConnection extends EventTarget {
         this._sctpTransport = new RTCSctpTransport(dtls);
     }
 
+    /**
+     * @internal — attach the shared DTLS transport to every sender/receiver.
+     * Called when a LOCAL description is applied: per W3C § 4.4.1.5 (set
+     * session description → "create the DTLS transports") and the WPT
+     * canonical refs/wpt/webrtc/RTCRtpSender.https.html, `sender.transport` /
+     * `receiver.transport` is null until setLocalDescription ("null transport
+     * initially", "a transport after sLD(offer)") and stays null on the peer
+     * that only applied a REMOTE offer ("null transport after sRD(offer)").
+     */
+    _assignTransports(): void {
+        const dtls = this._ensureTransports();
+        for (const s of this._senders) s._transport = dtls;
+        for (const r of this._receivers) r._transport = dtls;
+    }
+
+    /**
+     * @internal — detach the transports again when the initial offer is
+     * rolled back (WPT RTCRtpSender.https.html: "null transport after
+     * rollback of sLD(offer)"). The caller only invokes this while no
+     * negotiation has completed — after a completed offer/answer the
+     * transports survive a renegotiation rollback.
+     */
+    _clearTransports(): void {
+        for (const s of this._senders) s._transport = null;
+        for (const r of this._receivers) r._transport = null;
+    }
+
     _createTransceiverWrapper(gstTrans: GstWebRTC.WebRTCRTPTransceiver): RTCRtpTransceiver {
         let kind: 'audio' | 'video' = 'audio';
         try {
@@ -507,10 +534,16 @@ export class RTCPeerConnection extends EventTarget {
         sender._getStatsForTrack = statsDelegate;
         receiver._getStatsForTrack = statsDelegate;
 
-        // Assign shared DTLS transport to sender/receiver
-        const dtls = this._ensureTransports();
-        sender._transport = dtls;
-        receiver._transport = dtls;
+        // sender/receiver.transport stays null until a local description is
+        // applied (W3C § 4.4.1.5; WPT RTCRtpSender.https.html "null transport
+        // initially"). A transceiver created AFTER that point — e.g. by a
+        // remote offer arriving once our own description is in place — picks
+        // the shared transport up immediately.
+        if (this.localDescription) {
+            const dtls = this._ensureTransports();
+            sender._transport = dtls;
+            receiver._transport = dtls;
+        }
 
         // Pass mline index to sender for sink pad naming
         try {

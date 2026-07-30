@@ -930,17 +930,25 @@ export default async () => {
                     pc.close();
                 });
 
-                await it('sender.transport is the same as receiver.transport', async () => {
+                // Per WPT refs/wpt/webrtc/RTCRtpSender.https.html the transport
+                // is null until a LOCAL description is applied ("null transport
+                // initially" / "a transport after sLD(offer)") — so these
+                // shared-transport assertions negotiate first. The pre-sLD null
+                // expectations live in wpt-media.spec.ts.
+                await it('sender.transport is the same as receiver.transport after sLD', async () => {
                     const pc = new RTCPeerConnection();
                     const tc = pc.addTransceiver('audio');
+                    await pc.setLocalDescription(await pc.createOffer());
                     expect(tc.sender.transport).toBeDefined();
+                    expect(tc.sender.transport).not.toBeNull();
                     expect(tc.sender.transport).toBe(tc.receiver.transport);
                     pc.close();
                 });
 
-                await it('sender.transport is an RTCDtlsTransport', async () => {
+                await it('sender.transport is an RTCDtlsTransport after sLD', async () => {
                     const pc = new RTCPeerConnection();
                     const tc = pc.addTransceiver('audio');
+                    await pc.setLocalDescription(await pc.createOffer());
                     expect(tc.sender.transport instanceof RTCDtlsTransport).toBeTruthy();
                     pc.close();
                 });
@@ -948,21 +956,28 @@ export default async () => {
                 await it('DTLS transport starts in new state', async () => {
                     const pc = new RTCPeerConnection();
                     const tc = pc.addTransceiver('audio');
+                    await pc.setLocalDescription(await pc.createOffer());
                     expect(tc.sender.transport!.state).toBe('new');
                     pc.close();
                 });
 
                 await it('ICE transport starts in new state', async () => {
+                    // Reached via pc.sctp — a data channel materialises the
+                    // transport pair without starting negotiation, so ICE
+                    // gathering provably has not begun yet (the sender path
+                    // needs sLD, which kicks gathering off asynchronously).
                     const pc = new RTCPeerConnection();
-                    const tc = pc.addTransceiver('audio');
-                    expect(tc.sender.transport!.iceTransport.state).toBe('new');
-                    expect(tc.sender.transport!.iceTransport.gatheringState).toBe('new');
+                    pc.createDataChannel('probe');
+                    const ice = pc.sctp!.transport.iceTransport;
+                    expect(ice.state).toBe('new');
+                    expect(ice.gatheringState).toBe('new');
                     pc.close();
                 });
 
                 await it('DTLS transport goes to closed on pc.close()', async () => {
                     const pc = new RTCPeerConnection();
                     const tc = pc.addTransceiver('audio');
+                    await pc.setLocalDescription(await pc.createOffer());
                     const dtls = tc.sender.transport!;
                     pc.close();
                     // close() is async via idle_add — wait a tick
@@ -974,6 +989,7 @@ export default async () => {
                     const pc = new RTCPeerConnection();
                     const tc1 = pc.addTransceiver('audio');
                     const tc2 = pc.addTransceiver('video');
+                    await pc.setLocalDescription(await pc.createOffer());
                     expect(tc1.sender.transport).toBe(tc2.sender.transport);
                     expect(tc1.receiver.transport).toBe(tc2.receiver.transport);
                     pc.close();

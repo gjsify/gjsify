@@ -127,13 +127,18 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             const gstReceiver = gstTrans.receiver ?? null;
             const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
 
-            // Wire stats delegation + transport
+            // Wire stats delegation
             const statsDelegate = (t: MediaStreamTrack) => this.getStats(t);
             sender._getStatsForTrack = statsDelegate;
             receiver._getStatsForTrack = statsDelegate;
-            const dtls = this._ensureTransports();
-            sender._transport = dtls;
-            receiver._transport = dtls;
+            // sender/receiver.transport stays null until a local description
+            // is applied (W3C § 4.4.1.5; WPT RTCRtpSender.https.html "null
+            // transport initially") — same rule as _createTransceiverWrapper.
+            if (this.localDescription) {
+                const dtls = this._ensureTransports();
+                sender._transport = dtls;
+                receiver._transport = dtls;
+            }
 
             jsTrans = new RTCRtpTransceiver(gstTrans, sender, receiver);
             sender._transceiver = jsTrans;
