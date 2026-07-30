@@ -1061,7 +1061,16 @@ things were deliberately left out of that refactor so it stayed a refactor.
 
 `nodeGiGlobalsInject` keys on BARE ambient globals (`print`/`imports`/`ARGV`), so a genuine GJS source that uses `gi://` but logs via `console.log` — and passes no explicit `--globals` — is not recognised: its `@girs/*` value imports are emptied (`class extends undefined`) **and** its `/register` imports route to `@gjsify/empty`. Verified with both probes. This pre-dates ADR 0012 and hits `@girs/*` and registers equally; ADR 0012 only brought the two into parity via the single `isGjsSourceBuild` gate in `app/node.ts`. Fix by widening the SIGNAL itself — e.g. treat "a `gi://` specifier survived in the bundled graph" as a reverse-bridge build — which closes both at once.
 
-A RELATED failure in the same detector is now closed and should not be confused with this one: the analysis pass used to run BEFORE the explicit-`--globals` register stub was resolved, so it saw a different module graph than the build (registers routed to `@gjsify/empty`, `@girs/*` emptied) and missed every ambient global reachable only through a register module. That is an ordering bug, fixed in `actions/build.ts`, and `node-bundle-guard.ts` now asserts the prediction against the emitted artifact so any future divergence fails the build instead of shipping a `ReferenceError`. The narrowness above is different: the SIGNAL itself is too weak, and no post-condition on the artifact can widen it.
+### `@gjsify/node-gi` — a live GStreamer pipeline corrupts the process on the reverse bridge
+
+The blocker for audio on node/bun/deno, now that the two bugs standing in front of it are fixed (`set_property` had no GValue marshalling; the GstApp typelib was tree-shaken out of the `--app node` bundle, so `push_buffer` never resolved). With both fixed, decode and playback DO run on node — and the app then dies mid-frame with
+
+    Gtk-CRITICAL **: gtk_event_controller_handle_crossing:
+    assertion 'GTK_IS_EVENT_CONTROLLER (controller)' failed
+
+repeated: live GTK objects invalidated underneath it. Same root cause as the bun/deno segfault already tracked here — GStreamer's streaming threads racing the JS engine's GC (a GObject finalize on a streaming thread while the engine drains its toggle-ref queue) — with a different symptom because node's uv-coupled loop changes where the corruption lands. Isolated by bisecting the two fixes: no criticals while playback was still broken, criticals as soon as it worked.
+
+`isGstStreamingUnsafe()` therefore now covers the WHOLE reverse bridge, not just bun/deno, and `GstPlayer` refuses up front like the decoder always has. Audio is silent there and unchanged on gjs — no capability is lost, because audio has never actually worked on node. Closing this is node-gi threading work: the toggle-ref drain has to be safe against a foreign thread finalizing a GObject, which is the same class as the tsfn/GC coupling below.
 
 ### `@gjsify/node-gi` — the `$gtype` surface is incomplete
 

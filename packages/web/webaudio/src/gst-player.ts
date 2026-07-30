@@ -6,7 +6,7 @@
 // Reference: GStreamer 1.0 via gi://Gst
 
 import GLib from 'gi://GLib?version=2.0';
-import { ensureGstInit, Gst } from './gst-init.js';
+import { ensureGstInit, Gst, isGstStreamingUnsafe } from './gst-init.js';
 import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import type { AudioBuffer } from './audio-buffer.js';
 import type Gst1 from '@girs/gst-1.0';
@@ -38,6 +38,16 @@ export class GstPlayer {
     private _audioBuffer: AudioBuffer;
 
     constructor(options: GstPlayerOptions) {
+        // Refuse up front on a runtime where a live pipeline's streaming threads
+        // corrupt the process (the whole node-gi reverse bridge — see
+        // isGstStreamingUnsafe). The decode path has always done this; playback
+        // only reached a real pipeline once `set_property` and the GstApp
+        // typelib were fixed, and promptly started killing the app mid-frame.
+        // `AudioBufferSourceNode.start` already treats a throw here as
+        // "continue silent", so this degrades instead of crashing.
+        if (isGstStreamingUnsafe()) {
+            throw new Error('GStreamer playback is unavailable on this runtime');
+        }
         ensureGstInit();
         this._loop = options.loop;
         this._onEnded = options.onEnded;
