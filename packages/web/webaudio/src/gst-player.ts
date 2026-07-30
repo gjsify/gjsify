@@ -12,9 +12,8 @@ import type { AudioBuffer } from './audio-buffer.js';
 import type Gst1 from '@girs/gst-1.0';
 import type GstApp1 from '@girs/gstapp-1.0';
 
-// Force GstApp typelib load
-import GstApp from 'gi://GstApp?version=1.0';
-void GstApp;
+// The GstApp typelib is loaded by ensureGstInit() — see gst-init.ts for why a
+// bare `import`/`void` does not do it on the node-gi reverse bridge.
 
 export interface GstPlayerOptions {
     audioBuffer: AudioBuffer;

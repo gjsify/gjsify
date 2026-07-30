@@ -9,9 +9,8 @@ import { ensureGstInit, Gst, isGstStreamingUnsafe } from './gst-init.js';
 import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import { AudioBuffer } from './audio-buffer.js';
 
-// Force GstApp typelib load so get_by_name() resolves AppSrc/AppSink types
-import GstApp from 'gi://GstApp?version=1.0';
-void GstApp;
+// The GstApp typelib is loaded by ensureGstInit() — see gst-init.ts for why a
+// bare `import`/`void` does not do it on the node-gi reverse bridge.
 
 const PIPELINE_DESC =
     'appsrc name=src ! decodebin ! audioconvert ! audioresample ! ' +
