@@ -108,8 +108,14 @@ static void DrainMicrotasks() {
 //
 // Portable fix: N-API exposes no engine microtask checkpoint, but both runtimes
 // expose their OWN drain primitive to JS (Bun: `bun:jsc` drainMicrotasks —
-// JSC's VM drain, callable mid-stack by design; Deno: core.runMicrotasks →
-// Isolate::PerformMicrotaskCheckpoint via a reentrant op). index.js registers
+// JSC's VM drain, callable mid-stack by design, and Bun's process.nextTick
+// rides that same queue; Deno: core.runNextTicks — node's task_queues.js
+// runNextTicks shape, draining the node-compat process.nextTick queue AND the
+// V8 microtask checkpoint. core.runMicrotasks alone is NOT enough on Deno:
+// its nextTick queue is separate from V8's microtasks, and node:stream's
+// 'end' is nextTick-delivered (endReadableNT), so a microtask-only drain hung
+// every fetch/XHR body consumption at readyState 3 during a blocking run —
+// see test/blocking-run-checkpoint.test.mjs). index.js registers
 // it here on non-Node runtimes only; the loop-dispatched trampolines
 // (signals.cc / calls.cc / class.cc) invoke NodeGiMaybeDrainMicrotasks at their
 // OUTERMOST boundary (g_loopDispatchDepth == 0). Node never registers — its
