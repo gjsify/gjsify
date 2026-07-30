@@ -101,14 +101,17 @@ release from months ago. Pin the tag to force a resolve:
 ```bash
 npx @gjsify/cli@latest showcase excalibur-jelly-jumper
 bunx @gjsify/cli@latest showcase excalibur-jelly-jumper
-deno run -A --reload npm:@gjsify/cli@latest showcase excalibur-jelly-jumper
+deno run -A --reload --min-dep-age=0 npm:@gjsify/cli@latest showcase excalibur-jelly-jumper
 ```
 
-Deno adds a second rule: `minimumDependencyAge` (24 h by default) refuses a
-version published more recently than that — so a same-day release is skipped in
-favour of an older one until it ages in. Deno says so explicitly when you pin
-the version; when you don't, it quietly resolves to the older one. Pass
-`--min-dep-age=0` (or set `"minimumDependencyAge"` in `deno.json`) to opt out.
+The deno line carries a second flag because deno adds a second rule:
+`minimumDependencyAge` (24 h by default) refuses a version published more
+recently than that — so a same-day release is skipped in favour of an older one
+until it ages in. Deno says so explicitly when you pin the version; when you
+don't, it quietly resolves to the older one. That is the worst possible moment
+for it: you hit a bug, you are told to run `@latest`, and `@latest` hands back
+the same pre-fix binary. `--min-dep-age=0` waives it for one run (or set
+`"minimumDependencyAge"` in `deno.json`).
 
 `gjsify showcase` prints the CLI version it is running as (`[gjsify 0.24.1]`),
 so if a showcase misbehaves, check that line first.
