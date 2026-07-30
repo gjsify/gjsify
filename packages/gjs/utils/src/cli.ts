@@ -1,13 +1,13 @@
 import GLib from '@girs/glib-2.0';
 
-// `imports.byteArray` is GJS-only and undefined under Node. Access lazily inside
-// the function body (called only on GJS) so the module's top level stays free
-// of a hard `imports` reference — keeps node-target bundles loadable.
+// Standard `TextDecoder` instead of the legacy `imports.byteArray.toString()` —
+// see the note in `./file.ts`.
+const decoder = new TextDecoder();
 
 export const cli = (commandLine: string): string => {
     const [_res, out, err, _status] = GLib.spawn_command_line_sync(commandLine);
 
-    if (err.byteLength) throw new Error(imports.byteArray.toString(err));
+    if (err.byteLength) throw new Error(decoder.decode(err));
 
-    return imports.byteArray.toString(out);
+    return decoder.decode(out);
 };

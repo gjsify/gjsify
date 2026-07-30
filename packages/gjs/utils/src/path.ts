@@ -1,5 +1,10 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
+// The bare `system` built-in, not `imports.system`: `system` is external on the
+// gjs target and aliased to `@gjsify/node-gi/system` on the node target, so it
+// resolves on both — while `imports` only exists when the GJS ambient globals
+// are installed.
+import system from 'system';
 const { File } = Gio;
 
 const _getProgramDir = (programFile: Gio.File) => {
@@ -23,7 +28,7 @@ export const resolve = (dir: string, ...filenames: string[]) => {
 
 export const getProgramExe = () => {
     const currentDir = GLib.get_current_dir();
-    return File.new_for_path(currentDir).resolve_relative_path(imports.system.programInvocationName);
+    return File.new_for_path(currentDir).resolve_relative_path(system.programInvocationName);
 };
 
 export const getProgramDir = () => {

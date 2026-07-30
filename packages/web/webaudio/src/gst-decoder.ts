@@ -6,6 +6,7 @@
 // Reference: GStreamer 1.0 via gi://Gst, GstApp via gi://GstApp
 
 import { ensureGstInit, Gst, isGstStreamingUnsafe } from './gst-init.js';
+import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import { AudioBuffer } from './audio-buffer.js';
 
 // Force GstApp typelib load so get_by_name() resolves AppSrc/AppSink types
@@ -58,44 +59,51 @@ export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
     const appsrc = pipeline.get_by_name('src') as _AppSrc;
     const appsink = pipeline.get_by_name('sink') as _AppSink;
 
+    // Registered + torn down in `finally`: anything between PLAYING and NULL can
+    // throw (a push/pull failure, a malformed sample), and an early return left
+    // the pipeline PLAYING to be disposed later — one GStreamer-CRITICAL per
+    // element, emitted long after the decode that caused it.
+    trackPipeline(pipeline);
     pipeline.set_state(Gst.State.PLAYING);
 
-    // Push encoded data into the pipeline
-    const data = new Uint8Array(arrayBuffer);
-    appsrc.push_buffer(Gst.Buffer.new_wrapped(data));
-    appsrc.end_of_stream();
-
-    // Pull decoded PCM samples
     const chunks: Uint8Array[] = [];
     let sampleRate = 0;
     let channels = 0;
 
-    while (true) {
-        const sample = appsink.try_pull_sample(2 * Number(Gst.SECOND));
-        if (!sample) break;
+    try {
+        // Push encoded data into the pipeline
+        const data = new Uint8Array(arrayBuffer);
+        appsrc.push_buffer(Gst.Buffer.new_wrapped(data));
+        appsrc.end_of_stream();
 
-        // Read format from the first sample's negotiated caps
-        if (sampleRate === 0) {
-            const caps = sample.get_caps();
-            if (caps) {
-                const struct = caps.get_structure(0);
-                [, sampleRate] = struct.get_int('rate');
-                [, channels] = struct.get_int('channels');
+        // Pull decoded PCM samples
+        while (true) {
+            const sample = appsink.try_pull_sample(2 * Number(Gst.SECOND));
+            if (!sample) break;
+
+            // Read format from the first sample's negotiated caps
+            if (sampleRate === 0) {
+                const caps = sample.get_caps();
+                if (caps) {
+                    const struct = caps.get_structure(0);
+                    [, sampleRate] = struct.get_int('rate');
+                    [, channels] = struct.get_int('channels');
+                }
+            }
+
+            const buffer = sample.get_buffer();
+            if (!buffer) continue;
+
+            const [ok, mapInfo] = buffer.map(Gst.MapFlags.READ);
+            if (ok) {
+                // Copy data — mapInfo.data is only valid until unmap
+                chunks.push(new Uint8Array(mapInfo.data));
+                buffer.unmap(mapInfo);
             }
         }
-
-        const buffer = sample.get_buffer();
-        if (!buffer) continue;
-
-        const [ok, mapInfo] = buffer.map(Gst.MapFlags.READ);
-        if (ok) {
-            // Copy data — mapInfo.data is only valid until unmap
-            chunks.push(new Uint8Array(mapInfo.data));
-            buffer.unmap(mapInfo);
-        }
+    } finally {
+        stopPipeline(pipeline);
     }
-
-    pipeline.set_state(Gst.State.NULL);
 
     if (sampleRate === 0 || channels === 0) {
         throw new DOMException('Unable to decode audio data', 'EncodingError');

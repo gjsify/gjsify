@@ -19,6 +19,7 @@ import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
 import { assertGjsBundleLoadable } from '../utils/gjs-bundle-guard.js';
+import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
 
@@ -326,6 +327,30 @@ export class BuildAction {
     }
 
     /**
+     * Post-bundle gate for `--app node`: throw when the emitted bundle still
+     * references GJS ambient globals (`print`/`imports`/…) although the
+     * pre-build detection decided no `@gjsify/node-gi/globals` shim was needed
+     * — see `utils/node-bundle-guard.ts` for the full rationale.
+     *
+     * Unlike the `--app gjs` gate, the oracle here CANNOT be the module graph:
+     * an ambient global is a free identifier, not an import, so nothing about it
+     * appears in a chunk's `imports` list. It is the same acorn pass the
+     * detector runs, re-applied to what was actually written — a post-condition
+     * on the prediction, not a second opinion.
+     */
+    private assertNodeOutputGlobals(result: RolldownOutput, outfile: string | undefined, outdir: string | undefined) {
+        const label = outfile ?? outdir ?? 'the node bundle';
+        for (const item of result.output ?? []) {
+            if (item.type !== 'chunk') continue;
+            // `code` is present on a written chunk for both engines; skip
+            // defensively rather than fail a build over a missing field.
+            const code = (item as { code?: string }).code;
+            if (typeof code !== 'string' || code.length === 0) continue;
+            assertNodeBundleGlobalsShimmed(code, item.fileName ? `${label} (${item.fileName})` : label);
+        }
+    }
+
+    /**
      * Post-bundle step for a `--app browser` HTML entry: write the processed
      * `index.html` beside the JS bundle, with the entry `<script>`'s `src`
      * rewritten to point at the built bundle. Mirrors `applyShebang` — kept in
@@ -627,6 +652,31 @@ export class BuildAction {
             // detection must run BEFORE the final build so the entry can be
             // wrapped; nothing is injected when no globals are referenced (the
             // eager-native-load regression guard).
+            //
+            // Explicit extras on a node build (`--globals auto,dom,…`) are the
+            // reverse bridge's DOM-surface request: inject the SAME register
+            // modules the gjs target would for those identifiers, so a genuine
+            // GJS source (an Excalibur/WebGLBridge app) gets document /
+            // HTMLCanvasElement / matchMedia / … on Node via node-gi. The
+            // orchestrator lifts the `@gjsify/empty` register routing only when
+            // this inject stub is present (see app/node.ts) — plain `auto`
+            // node builds are byte-unchanged.
+            //
+            // The stub is resolved BEFORE the detection pass, and that ordering
+            // is load-bearing: it is one of the two signals `isGjsSourceBuild`
+            // reads, so it decides whether `/register` subpaths resolve for real
+            // or route to `@gjsify/empty` and whether `@girs/*` bodies survive.
+            // Resolving it afterwards made the analysis bundle a DIFFERENT
+            // module graph from the one actually emitted — every GJS ambient
+            // global reachable only THROUGH a register module was invisible, so
+            // the shim was not injected and the emitted bundle threw
+            // `ReferenceError: imports is not defined` at runtime (the
+            // excalibur-jelly-jumper showcase on node/bun, via
+            // `@gjsify/canvas2d-core`'s `_toDataURL` and `@gjsify/utils`).
+            if (extras) {
+                pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(app, extras, verbose);
+            }
+
             const gjsifyPluginFactory = async (opts: PluginOptions) => {
                 const cfg = await gjsifyPlugin(
                     {
@@ -656,18 +706,6 @@ export class BuildAction {
             );
 
             if (needsGiGlobals) pluginOpts.nodeGiGlobalsInject = true;
-
-            // Explicit extras on a node build (`--globals auto,dom,…`) are the
-            // reverse bridge's DOM-surface request: inject the SAME register
-            // modules the gjs target would for those identifiers, so a genuine
-            // GJS source (an Excalibur/WebGLBridge app) gets document /
-            // HTMLCanvasElement / matchMedia / … on Node via node-gi. The
-            // orchestrator lifts the `@gjsify/empty` register routing only when
-            // this inject stub is present (see app/node.ts) — plain `auto`
-            // node builds are byte-unchanged.
-            if (extras) {
-                pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(app, extras, verbose);
-            }
         } else if (extras) {
             pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(app, extras, verbose);
         }
@@ -711,6 +749,14 @@ export class BuildAction {
         // Refuse to hand back a `--app gjs` bundle stock GJS cannot even load.
         if (app === 'gjs') {
             this.assertGjsOutputLoadable(writeResult, outfile, outdir);
+        }
+
+        // Refuse to hand back a `--app node` bundle that reaches for GJS ambient
+        // globals nothing seeds. Only meaningful when the shim was NOT injected:
+        // with it, the globals are installed and the references are correct.
+        // `--globals none` opts out of the mechanism, so it opts out of the gate.
+        if (app === 'node' && autoMode && !pluginOpts.nodeGiGlobalsInject) {
+            this.assertNodeOutputGlobals(writeResult, outfile, outdir);
         }
 
         // Browser HTML entry: emit the processed `index.html` beside the bundle

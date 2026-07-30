@@ -4,6 +4,7 @@
     "types": [
       "node",
       "@girs/gjs",
+      "@girs/gio-2.0",
       "@girs/gst-1.0",
       "@girs/gstapp-1.0",
       "@girs/gstaudio-1.0",

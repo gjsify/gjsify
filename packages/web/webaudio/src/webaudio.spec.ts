@@ -14,6 +14,7 @@ import { GainNode } from './gain-node.js';
 import { AudioBufferSourceNode } from './audio-buffer-source-node.js';
 import { AudioDestinationNode } from './audio-destination-node.js';
 import { HTMLAudioElement } from './html-audio-element.js';
+import { livePipelineCount, stopAllPipelines } from './gst-teardown.js';
 
 /** Generate a minimal WAV ArrayBuffer (mono, 16-bit PCM, 440Hz sine) */
 function createTestWav(durationSec = 0.1, sampleRate = 44100): ArrayBuffer {
@@ -323,6 +324,9 @@ export default async () => {
             node.connect(gain).connect(dest);
             node.start();
             expect(() => node.start()).toThrow();
+            // Stop what we started: a pipeline left PLAYING is finalized in that
+            // state at process exit and GStreamer logs a CRITICAL per element.
+            node.stop();
         });
 
         await it('should fire onended after playback completes', async () => {
@@ -402,6 +406,22 @@ export default async () => {
         await it('should handle codecs parameter', async () => {
             const audio = new HTMLAudioElement();
             expect(audio.canPlayType('audio/ogg; codecs=vorbis')).toBe('maybe');
+        });
+    });
+
+    await describe('GStreamer teardown', async () => {
+        await it('leaves no pipeline live after stopAllPipelines()', () => {
+            // The last line of defence for a host with no exit hook to attach to.
+            // `GstPlayer` defers its NULL transition to a LOW-priority GLib idle,
+            // and this runner quits the main loop before idles of that priority
+            // are reached — so a pipeline started above would be finalized in
+            // PLAYING and GStreamer would log a CRITICAL for every element it
+            // owns. The registry exists precisely so a host can drain it
+            // synchronously; a GTK app gets this from `GApplication::shutdown`,
+            // node/bun/deno from `process.on('exit')`, and a gjs test from here
+            // (`@gjsify/unit` exits through `system.exit()`, which emits neither).
+            stopAllPipelines();
+            expect(livePipelineCount()).toBe(0);
         });
     });
 };

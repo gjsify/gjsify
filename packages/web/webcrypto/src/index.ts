@@ -9,6 +9,7 @@
 
 import { SubtleCrypto } from './subtle.js';
 import { CryptoKey } from './crypto-key.js';
+import { fillRandomBytes } from './random.js';
 export type {
     CryptoKeyPair,
     KeyUsage,
@@ -71,15 +72,16 @@ class CryptoPolyfill {
             );
         }
         const bytes = new Uint8Array(array.buffer as ArrayBuffer, array.byteOffset, array.byteLength);
-        // Use saved reference to native crypto (NOT globalThis.crypto which may be this polyfill)
-        if (_nativeCrypto && typeof _nativeCrypto.getRandomValues === 'function') {
-            _nativeCrypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>);
-        } else {
-            // Fallback: use GLib or Math.random
-            for (let i = 0; i < bytes.length; i++) {
-                bytes[i] = Math.floor(Math.random() * 256);
-            }
-        }
+        // The shared entropy chain (WebCrypto → /dev/urandom → GLib → Math),
+        // with tier 1 pinned to the SAVED native reference rather than
+        // `globalThis.crypto`, which may be this very polyfill. Passing `null`
+        // when there is no native crypto skips the tier outright — without that
+        // the chain would call back into us and recurse.
+        //
+        // This is what the old "Fallback: use GLib or Math.random" comment
+        // claimed to do; the code under it only ever ran `Math.random()`, and
+        // `@gjsify/crypto.randomBytes()` sat downstream of it on GJS.
+        fillRandomBytes(bytes, { webcrypto: _nativeCrypto?.getRandomValues ? _nativeCrypto : null });
         return array;
     }
 

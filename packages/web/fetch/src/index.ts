@@ -5,6 +5,7 @@
 
 import type Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
+import System from 'system';
 import Stream from 'node:stream';
 
 import { parseDataUri } from './utils/data-uri.js';
@@ -44,14 +45,9 @@ const supportedSchemas = new Set(['data:', 'http:', 'https:', 'file:']);
  * reads via fetch) are acceptable for the current use cases — revisit if
  * @gjsify/fetch is ever used to handle untrusted input.
  */
-/**
- * Module-local typed view of the GJS-runtime globals this file reads.
- * `globalThis.imports.system` is the GJS bootstrap object that exposes
- * `programPath` / `programInvocationName` before any `@girs/*` resolves.
- */
+/** Module-local typed view of the debug flag this file reads. */
 interface _FetchRuntimeGlobals {
     __GJSIFY_DEBUG_FETCH?: boolean;
-    imports?: { system?: { programPath?: string; programInvocationName?: string } };
 }
 
 function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
@@ -60,8 +56,17 @@ function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo
     const _g = globalThis as unknown as _FetchRuntimeGlobals;
     const DEBUG = _g.__GJSIFY_DEBUG_FETCH === true;
     try {
-        // GJS-only: derive program dir from System.programInvocationName.
-        const programPath = _g.imports?.system?.programPath ?? _g.imports?.system?.programInvocationName ?? '';
+        // Program dir from the `system` built-in — the SAME source
+        // `@gjsify/xmlhttprequest` and `@gjsify/dom-elements` use for this
+        // identical rewrite. It used to read `globalThis.imports.system`, which
+        // exists only on GJS: on the node-gi reverse bridge the probe was
+        // `undefined`, the path was handed to the runtime's native `URL`
+        // unchanged, and every root-relative `fetch()` died with
+        // `ERR_INVALID_URL` — while XHR-loaded assets in the same app resolved
+        // fine, because those two siblings import the module. That asymmetry is
+        // what made the excalibur-jelly-jumper showcase render an empty level on
+        // node/bun/deno: its Tiled map is the one asset fetched rather than XHR'd.
+        const programPath = (System as { programPath?: string }).programPath ?? System.programInvocationName ?? '';
         if (!programPath) return input;
         const dir = GLib.path_get_dirname(programPath);
         const rewritten = `file://${dir}${input}`;

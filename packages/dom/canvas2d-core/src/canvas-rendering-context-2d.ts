@@ -30,6 +30,12 @@
 //                                     createRadialGradient / createPattern.
 
 import Cairo from 'cairo';
+// `gi://` — NOT the legacy `imports.gi` global. Both resolve the same namespaces
+// under gjs, but only `gi://` is rewritten to `@gjsify/node-gi`'s `requireGi()`
+// by the `--app node` build, so a `_toDataURL()` on the reverse bridge works
+// whether or not the GJS-ambient-globals shim happens to be injected.
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 // HTMLCanvasElement type is provided by the DOM lib.
 // Our @gjsify/dom-elements HTMLCanvasElement satisfies this interface.
 
@@ -440,8 +446,6 @@ export class CanvasRenderingContext2D {
         this._surface.flush();
 
         // Write to a temp file, read back as base64
-        const Gio = imports.gi.Gio;
-        const GLib = imports.gi.GLib;
         const [, tempPath] = GLib.file_open_tmp('canvas-XXXXXX.png');
         try {
             this._surface.writeToPNG(tempPath);
