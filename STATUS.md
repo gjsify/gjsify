@@ -1063,14 +1063,19 @@ things were deliberately left out of that refactor so it stayed a refactor.
 
 A RELATED failure in the same detector is now closed and should not be confused with this one: the analysis pass used to run BEFORE the explicit-`--globals` register stub was resolved, so it saw a different module graph than the build (registers routed to `@gjsify/empty`, `@girs/*` emptied) and missed every ambient global reachable only through a register module. That is an ordering bug, fixed in `actions/build.ts`, and `node-bundle-guard.ts` now asserts the prediction against the emitted artifact so any future divergence fails the build instead of shipping a `ReferenceError`. The narrowness above is different: the SIGNAL itself is too weak, and no post-condition on the artifact can widen it.
 
-### `@gjsify/webaudio` playback + decode do not work on the node-gi reverse bridge
+### `@gjsify/node-gi` — the `$gtype` surface is incomplete
 
-Reproduced on node/bun/deno with the excalibur-jelly-jumper showcase (everything else in it — WebGL, tilemap, input, HUD — renders identically to gjs):
+gjs exposes `$gtype` uniformly (`[object GType for 'X']`); node-gi does not, and the three shapes fail differently — measured against gjs on the same source:
 
-- DECODE: `decodeAudioDataSync`'s `decodebin` pipeline yields no samples on node, so `decodeAudioData` rejects with `EncodingError`. On bun/deno the same pipeline used to segfault the process and is deliberately refused up front by `isGstStreamingUnsafe()`.
-- PLAYBACK: `new GstPlayer(...)` (from `AudioBufferSourceNode.start`) throws `TypeError: Unsupported interface IN argument (expected a GObject/boxed handle, enum or flags number)` out of node-gi — a marshalling gap on the `Gst.parse_launch` / appsrc path rather than anything webaudio does differently.
+| expression | gjs | node-gi |
+|---|---|---|
+| `Gio.ApplicationFlags.$gtype` | `GApplicationFlags` | `undefined` (`makeEnum` freezes a plain member object, no lazy getter) |
+| `GLib.Variant.$gtype` | `GVariant` | a static-method THUNK — `$gtype` falls through the struct proxy to method resolution |
+| `String(Gio.Application.$gtype)` | `[object GType for 'GApplication']` | throws `Cannot convert object to primitive value` (the GType handle is a bare tagged External) |
 
-Both are non-fatal for consumers (`AudioBufferSourceNode.start` catches and continues silent, and the showcase tolerates a rejected `Sound.load`), so the game runs silent on the reverse bridge and with full audio on gjs. Closing it is node-gi marshalling work, not webaudio work.
+The handle works fine as an ARGUMENT (`GObject.Value.init(GObject.TYPE_STRING)` round-trips), so this is a surface gap, not a marshalling one — it bites code that reads a GType off a namespace rather than passing one through. Found while writing the `gvalue-in` conformance program, which had to route around all three.
+
+Fix shape: attach the same lazy `$gtype` getter `defineLazyGType` gives classes to `makeEnum`'s frozen object and to the struct path that misses it, and give the GType handle a `toString`/`Symbol.toPrimitive` + `.name` so it prints like gjs's GType object.
 
 ### `@gjsify/napi` — a tsfn claim nobody hands back still leaks its control block
 
