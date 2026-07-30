@@ -500,6 +500,23 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
         // sibling-polyfill closure (see collectForcedPolyfillAliases above).
         const relEntry = entrySrc.replace(dir + '/', '');
         const forcedAliases = collectForcedPolyfillAliases(dir);
+        // The self-retarget must name the POLYFILL BODY, not the package, when
+        // the package under test declares `node: "native"` itself. Aliasing
+        // `node:<bare>` to `@gjsify/<bare>` there routes straight back through
+        // the slot rule to `<pkg>/globals`, whose whole job is to re-export
+        // `node:<bare>` — a cycle the bundler reports as
+        // `[CIRCULAR_REEXPORT] '<Name>' ... references itself` (or, with the
+        // `export *` spelling globals.mjs actually uses, as the more cryptic
+        // `[MISSING_EXPORT] "<Name>" is not exported by "globals.mjs"`).
+        // @gjsify/string_decoder is the case that surfaced it: BUILD-FAIL, which
+        // `--require-pass` then reported as "did not PASS on node".
+        //
+        // This is the SAME rule collectForcedPolyfillAliases already applies to
+        // every `native`-slotted sibling — it simply never applied it to the
+        // package being tested, whose own slot is the one the retarget targets.
+        const selfPkg = readPkgJson(dir);
+        const selfEntry = selfPkg?.gjsify?.runtimes?.node === 'native' ? polyfillEntryOf(dir, selfPkg) : null;
+        const selfTarget = selfEntry ?? name;
         const b = exec(
             gjsify,
             [
@@ -508,7 +525,7 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
                 '--app',
                 'node',
                 '--alias',
-                `node:${bare}=${name}`,
+                `node:${bare}=${selfTarget}`,
                 ...forcedAliases.flatMap((a) => ['--alias', a]),
                 '--outfile',
                 outfile,
