@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.25.0](https://github.com/gjsify/gjsify/compare/v0.24.2...v0.25.0) (2026-07-30)
+
+### Bug Fixes
+
+* **node-gi:** box plain JS values for GValue args; load GstApp on the node target ([#870](https://github.com/gjsify/gjsify/issues/870)) ([fd6a32a](https://github.com/gjsify/gjsify/commit/fd6a32a886f8a728304358979be586d0e7e644e7))
+* run the excalibur showcase on node/bun/deno, not just gjs ([#869](https://github.com/gjsify/gjsify/issues/869)) ([3b1ed43](https://github.com/gjsify/gjsify/commit/3b1ed43a3933a1a90a1a048fea8f9e250f7d6aa8))
+* **webaudio:** drop the bun/deno GStreamer guard; make the suite able to fail ([#872](https://github.com/gjsify/gjsify/issues/872)) ([07d2368](https://github.com/gjsify/gjsify/commit/07d2368681d7ececa2a498771751b7ef2246fd97))
+
+### Continuous Integration
+
+* **napi:** don't bundle @gjsify/tsc while building the polyfill libs ([#871](https://github.com/gjsify/gjsify/issues/871)) ([b0183bd](https://github.com/gjsify/gjsify/commit/b0183bdab2d13a3b0303a09b9bd1b70d21067e48)), closes [#869](https://github.com/gjsify/gjsify/issues/869)
+
 ## [0.24.2](https://github.com/gjsify/gjsify/compare/v0.24.1...v0.24.2) (2026-07-29)
 
 ### Bug Fixes
