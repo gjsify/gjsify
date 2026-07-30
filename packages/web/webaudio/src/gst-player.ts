@@ -88,6 +88,17 @@ export class GstPlayer {
                     this._fireEnded();
                 }
             } else if (msg.type === Gst.MessageType.ERROR) {
+                // Report what GStreamer said before ending. Swallowing it made a
+                // failed pipeline indistinguishable from one that played: on the
+                // node-gi reverse bridge the pipeline is now built without a
+                // single JS-visible error yet no audio ever reaches the sink
+                // (verified against PipeWire — gjs shows a `float32le 2ch
+                // 44100Hz` stream, node shows none), and this handler is where
+                // that difference was being discarded.
+                const [err, debug] = msg.parse_error();
+                console.error(
+                    `[webaudio] GStreamer playback error: ${err?.message ?? 'unknown'}${debug ? ` (${debug})` : ''}`,
+                );
                 this._fireEnded();
             }
             return true; // keep watching

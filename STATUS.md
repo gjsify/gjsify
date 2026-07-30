@@ -1061,16 +1061,24 @@ things were deliberately left out of that refactor so it stayed a refactor.
 
 `nodeGiGlobalsInject` keys on BARE ambient globals (`print`/`imports`/`ARGV`), so a genuine GJS source that uses `gi://` but logs via `console.log` — and passes no explicit `--globals` — is not recognised: its `@girs/*` value imports are emptied (`class extends undefined`) **and** its `/register` imports route to `@gjsify/empty`. Verified with both probes. This pre-dates ADR 0012 and hits `@girs/*` and registers equally; ADR 0012 only brought the two into parity via the single `isGjsSourceBuild` gate in `app/node.ts`. Fix by widening the SIGNAL itself — e.g. treat "a `gi://` specifier survived in the bundled graph" as a reverse-bridge build — which closes both at once.
 
-### `@gjsify/node-gi` — a live GStreamer pipeline corrupts the process on the reverse bridge
+### `@gjsify/webaudio` — audio builds but stays inaudible on node
 
-The blocker for audio on node/bun/deno, now that the two bugs standing in front of it are fixed (`set_property` had no GValue marshalling; the GstApp typelib was tree-shaken out of the `--app node` bundle, so `push_buffer` never resolved). With both fixed, decode and playback DO run on node — and the app then dies mid-frame with
+Two hard errors that stood in front of audio on the node-gi reverse bridge are fixed (`set_property` had no GValue marshalling; the GstApp typelib was tree-shaken out of the `--app node` bundle, so `push_buffer` never resolved). Decode now succeeds on node — the showcase logs no decode failure and no "audio unavailable" fallback — and the playback pipeline is constructed without a single JS-visible error.
+
+It is still silent. Measured against PipeWire while the excalibur-jelly-jumper showcase runs: gjs opens a `float32le 2ch 44100Hz` sink-input (user-confirmed audible), node opens none, and the bus posts no ERROR for the handler to report. So the pipeline is built and accepted, and data never reaches the sink. Next step is instrumenting the state transitions (does it reach PLAYING, does `appsrc` see its buffers consumed, does `autoaudiosink` select a real sink) rather than guessing.
+
+bun/deno remain gated by `isGstStreamingUnsafe()` for the separate segfault documented there.
+
+### `@gjsify/node-gi` — `GTK_IS_EVENT_CONTROLLER` assertion failures on the reverse bridge
+
+Running any GTK app through node-gi intermittently produces
 
     Gtk-CRITICAL **: gtk_event_controller_handle_crossing:
     assertion 'GTK_IS_EVENT_CONTROLLER (controller)' failed
 
-repeated: live GTK objects invalidated underneath it. Same root cause as the bun/deno segfault already tracked here — GStreamer's streaming threads racing the JS engine's GC (a GObject finalize on a streaming thread while the engine drains its toggle-ref queue) — with a different symptom because node's uv-coupled loop changes where the corruption lands. Isolated by bisecting the two fixes: no criticals while playback was still broken, criticals as soon as it worked.
+and can take the process down mid-frame. NONDETERMINISTIC, which is the trap: single runs prove nothing in either direction. Measured on the showcase — node 1/6/1 criticals over three consecutive runs, bun likewise, deno clean in the same sample.
 
-`isGstStreamingUnsafe()` therefore now covers the WHOLE reverse bridge, not just bun/deno, and `GstPlayer` refuses up front like the decoder always has. Audio is silent there and unchanged on gjs — no capability is lost, because audio has never actually worked on node. Closing this is node-gi threading work: the toggle-ref drain has to be safe against a foreign thread finalizing a GObject, which is the same class as the tsfn/GC coupling below.
+It is INDEPENDENT of audio, and that took a correction to establish: it first appeared right after audio started working on node, which read as "live GStreamer corrupts GTK objects". Re-measuring killed that theory — the criticals still occur with audio gated off, and with the GValue marshalling fix reverted entirely, i.e. on code that predates all of it. The event controllers are attached by `@gjsify/event-bridge` via `attachEventControllers`, so the likely shape is the JS wrapper for a controller being collected while GTK still holds the C object — a toggle-ref/lifetime question in the same family as the GC coupling below, not a GStreamer one.
 
 ### `@gjsify/node-gi` — the `$gtype` surface is incomplete
 

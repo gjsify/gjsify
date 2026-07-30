@@ -46,64 +46,31 @@ export function ensureGstInit(): void {
  * Whether a GStreamer pipeline that spins its own streaming threads
  * (`decodebin`, `playbin`, …) is UNSAFE to run on the current runtime.
  *
- * TRUE on the whole `@gjsify/node-gi` reverse bridge — node, bun and deno —
- * and FALSE on gjs, where native GStreamer drives the identical pipeline
- * safely.
- *
- * GStreamer's streaming threads race the JS engine's garbage collector (a
+ * TRUE on **bun** and **deno**, which drive the GLib main context with a pure
+ * `iterateMainContext` pump and no libuv coupling: GStreamer's streaming threads
+ * then race the JS engine's garbage collector during pipeline teardown (a
  * GObject finalize firing on a streaming thread while the engine drains its
- * toggle-ref queue). It was first reproduced on bun/deno, which drive the GLib
- * main context with a pure `iterateMainContext` pump, as a nondeterministic
- * SEGFAULT — and node was believed unaffected because its main loop is
- * uv-coupled. It is not: node was merely never reaching a live pipeline. Two
- * bugs stood in front of it (`set_property` had no GValue marshalling, and the
- * GstApp typelib was tree-shaken out of the bundle so `push_buffer` did not
- * resolve), and with both fixed, decode and playback DO run there — and the
- * process then dies mid-frame with
+ * toggle-ref queue) and NONDETERMINISTICALLY segfault the process — reproduced
+ * on bun with the synchronous `decodebin` decode path; deno shares the pump so
+ * is guarded defensively.
  *
- *   Gtk-CRITICAL **: gtk_event_controller_handle_crossing:
- *   assertion 'GTK_IS_EVENT_CONTROLLER (controller)' failed
- *
- * repeated, i.e. live GTK objects invalidated under it. Same root cause, a
- * different symptom because node's loop coupling changes where the corruption
- * lands. Isolated by bisecting the two fixes: no criticals while playback was
- * still broken, criticals as soon as it worked.
+ * FALSE on gjs (native GStreamer) and on **node**, whose main loop IS uv-coupled.
+ * Node was briefly guarded here as well, on the theory that the
+ * `GTK_IS_EVENT_CONTROLLER` assertion failures seen once audio finally ran there
+ * were the same race. They are not: re-running with the guard ON still produces
+ * them (1/6/1 criticals over three runs), and so does a build with the GValue
+ * marshalling fix reverted entirely. They are a separate, pre-existing and
+ * NONDETERMINISTIC node-gi instability, which is exactly why a single clean run
+ * is not evidence of anything — the first attribution was a sampling error, and
+ * gating audio on it would have removed a working capability for a defect it
+ * does not cause. Tracked in STATUS.md as its own entry.
  *
  * Callers use this to fail cleanly (a rejected `EncodingError`, which every
- * WebAudio consumer already handles) instead of crashing. Audio is therefore
- * silent on the reverse bridge and unchanged on gjs. That closes no capability
- * that was ever available — audio has never actually worked on node — and the
- * two fixes above are still what a future node-gi threading fix will build on.
- * Tracked in STATUS.md as the node-gi GStreamer-threading follow-up.
+ * WebAudio consumer already handles) instead of crashing.
  */
 export function isGstStreamingUnsafe(): boolean {
-    const g = globalThis as {
-        Bun?: unknown;
-        Deno?: unknown;
-        process?: { versions?: Record<string, string>; argv?: unknown };
-    };
-    if (typeof g.Bun !== 'undefined' || typeof g.Deno !== 'undefined') return true;
-
-    // Node vs gjs, and neither obvious marker works alone — `process` on the gjs
-    // target comes in TWO shapes and one of them mimics Node:
-    //
-    //   • the byte-1 stub the gjs build prepends (`process-stub.ts`) sets
-    //     `versions:{}` — no `node`, no `gjs`;
-    //   • `@gjsify/process`, once registered, deliberately reports
-    //     `versions.node = '20.0.0'` for npm packages that gate on it (the trap
-    //     documented in its own internal/detect.ts) AND sets `versions.gjs`.
-    //
-    // So: no `process` at all is gjs (a bundle with neither), `versions.gjs` is
-    // gjs, an EMPTY `versions` is the gjs stub, and `argv[0] === 'gjs'` is set by
-    // both gjs shapes. Only a `process` that reports a node version while
-    // claiming none of those is a reverse-bridge runtime.
-    const proc = g.process;
-    if (proc === undefined) return false;
-    const versions = proc.versions ?? {};
-    if (typeof versions.gjs === 'string') return false;
-    if (typeof versions.node !== 'string') return false;
-    if (Array.isArray(proc.argv) && proc.argv[0] === 'gjs') return false;
-    return true;
+    const g = globalThis as { Bun?: unknown; Deno?: unknown };
+    return typeof g.Bun !== 'undefined' || typeof g.Deno !== 'undefined';
 }
 
 export { Gst };
