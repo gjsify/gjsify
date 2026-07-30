@@ -34,6 +34,7 @@ import testSuiteDataTypes from './data-types.spec.js';
 
 // Bare GJS ambient global — the node-gi-source signal (see header). Seeded by
 // the auto-injected `@gjsify/node-gi/globals` shim.
+// oxlint-disable-next-line no-restricted-globals -- deliberate: the bare `print` IS the trigger `detectNodeGiGlobals` keys the `@gjsify/node-gi/globals` injection on (scripts/node-gi-consumer-harness.mjs)
 print('sqlite suite on @gjsify/node-gi (Gda SQLite on Node)');
 
 // ── BLOB (byte-array) round-trip — now GREEN ─────────────────────────────────
