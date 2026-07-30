@@ -100,7 +100,10 @@ async function main(): Promise<void> {
     if (!sabMod.hasNativeSab()) {
         console.log(`${RED}@gjsify/sab-native prebuild missing.${RESET}`);
         console.log(`${DIM}Install the package to provide GjsifySabNative.so + .typelib.${RESET}`);
-        process.exit(1);
+        // `return` — a bare `process.exit()` is deferred under GJS (no atexit),
+        // so the demo would fall through into SharedBuffer.create() on the
+        // missing native bridge it just reported.
+        return process.exit(1);
     }
     const { SharedBuffer, atomics } = sabMod;
 
@@ -203,7 +206,9 @@ async function main(): Promise<void> {
         console.log(`${GREEN}✓ digest matches in-process reference${RESET}  ${DIM}(wall: ${wallMs} ms)${RESET}`);
     } else {
         console.log(`${RED}✗ digest mismatch — cross-process write was not visible${RESET}`);
-        process.exit(1);
+        // `return` — the deferred GJS exit otherwise fell through into the
+        // worker teardown, which could park the loop and swallow the failure.
+        return process.exit(1);
     }
 
     await Promise.all(workers.map((w) => w.terminate()));

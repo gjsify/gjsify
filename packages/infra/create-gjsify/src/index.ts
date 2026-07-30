@@ -48,7 +48,9 @@ void yargs(hideBin(process.argv))
                     console.error(
                         `Error: --template is required in non-interactive mode. Available templates: ${list || '(none)'}`,
                     );
-                    process.exit(1);
+                    // `return` — the deferred GJS exit otherwise fell through
+                    // into the interactive template prompt on a non-TTY.
+                    return process.exit(1);
                 }
                 const picked = await promptTemplate(templates);
                 template = picked.name;

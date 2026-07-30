@@ -26,8 +26,7 @@ export const systemCheckCommand: Command<unknown, CheckOptions> = {
         if (args.json) {
             console.log(JSON.stringify({ packageManager: pm, deps: results }, null, 2));
             // Only required deps influence the exit code.
-            process.exit(missingRequired.length > 0 ? 1 : 0);
-            return;
+            return process.exit(missingRequired.length > 0 ? 1 : 0);
         }
 
         console.log('System dependency check\n');

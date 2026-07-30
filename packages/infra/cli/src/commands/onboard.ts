@@ -146,8 +146,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             const msg = err instanceof Error ? err.message : String(err);
             if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, error: 'auth', message: msg })}\n`);
             else console.error(msg);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
         // Login may have written a fresh token — reload so the probes/ops use it.
         npmrc = await loadNpmrc(cwd);
@@ -163,8 +162,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             const msg = 'gjsify onboard: could not determine the GitHub repository — pass --repository owner/repo.';
             if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, error: 'repository', message: msg })}\n`);
             else console.error(msg);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
         const workflow = normalizeWorkflowFile(args.workflow);
         const environment = args.environment;
@@ -181,8 +179,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             const msg = 'gjsify onboard: no publishable workspace packages found.';
             if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, error: 'no-packages', message: msg })}\n`);
             else console.error(msg);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
 
         log(`gjsify onboard: ${selected.length} package(s) | repo=${repository} workflow=${workflow}`);

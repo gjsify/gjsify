@@ -80,7 +80,9 @@ export const testCommand: Command<unknown, TestOptions> = {
                     `add an \`src/test.mts\` that aggregates your \`@gjsify/unit\` suites, ` +
                     `or set \`gjsify.test.entry\` in package.json.`,
             );
-            process.exit(1);
+            // `return` — a bare `process.exit()` is deferred under GJS and the
+            // handler would try to build the missing entry anyway.
+            return process.exit(1);
         }
 
         const requested: Runtime[] =
@@ -152,7 +154,9 @@ export const testCommand: Command<unknown, TestOptions> = {
 
         const anyFailed = results.some((r) => !r.ok);
         if (anyFailed) {
-            process.exit(1);
+            // `return` — the deferred GJS exit otherwise fell through to the
+            // success `process.exit(0)` below, clobbering the failure code.
+            return process.exit(1);
         }
         // Explicit success exit: under GJS the spawn-armed main loop would
         // otherwise park this process after the summary. (runGjsBundle

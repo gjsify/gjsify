@@ -118,7 +118,9 @@ export const tscCommand: Command<unknown, TscOptions> = {
         if (!bundlePath && !nodeTscPath) {
             console.error('gjsify tsc: neither @gjsify/tsc (GJS bundle) nor npm `typescript` (Node) is installed.');
             console.error('  Install with: gjsify install --save-dev @gjsify/tsc   (or add `typescript`).');
-            process.exit(1);
+            // `return` — a bare `process.exit()` is deferred under GJS and the
+            // handler would try to spawn a compiler that is not there.
+            return process.exit(1);
         }
 
         // Mirror `gjsify run`'s native-env composition so any future

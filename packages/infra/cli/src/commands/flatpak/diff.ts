@@ -133,7 +133,9 @@ export const flatpakDiffCommand: Command<unknown, DiffOptions> = {
         }
         if (!remoteTag) {
             console.warn('[gjsify flatpak diff] flathub manifest has no `tag` field on the inspected source.');
-            process.exit(1);
+            // `return` — the deferred GJS exit otherwise compared an undefined
+            // tag below and could report "in sync" on a broken manifest.
+            return process.exit(1);
         }
 
         if (remoteTag === localVersion) {
