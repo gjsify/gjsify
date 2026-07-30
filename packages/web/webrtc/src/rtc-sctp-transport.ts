@@ -53,6 +53,20 @@ export class RTCSctpTransport extends EventTarget {
 
     // ---- Internal setters (called by RTCPeerConnection) ---------------------
 
+    /**
+     * @internal — update the `maxMessageSize` ceiling, e.g. from a parsed SDP
+     * `a=max-message-size:N` attribute (RFC 8841 § 6.1). A value of `0` means
+     * the peer can handle messages of any size — `RTCDataChannel.send`'s
+     * enforcement skips the check entirely. Negative or non-finite values are
+     * rejected.
+     */
+    _setMaxMessageSize(v: number): void {
+        if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
+            throw new TypeError(`RTCSctpTransport: invalid max-message-size ${String(v)}`);
+        }
+        this._maxMessageSize = v;
+    }
+
     /** @internal */
     _setState(state: RTCSctpTransportState): void {
         if (this._state === state) return;
