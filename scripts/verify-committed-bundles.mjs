@@ -435,15 +435,17 @@ try {
                 console.error(`  rebuilt   …${excerpt(actual, off)}…`);
                 fail(`  Refresh locally: ${recipe.hint}, then commit it.`);
                 // …and keep the bytes THIS run produced, because "refresh
-                // locally" is not always advice a contributor can take: at
-                // least two developer machines measurably do not reproduce
-                // these bundles (`mapSysname` where the committed file has
-                // `makeCallable` — a module-order difference that survives
-                // matching the Node version, the rolldown version, the
-                // lockfile and the core count; see release-cut.yml). On such a
-                // machine the instruction above is an infinite loop, and the
-                // only bytes that satisfy this check are the ones CI builds.
-                // Saving them turns a dead end into a download.
+                // locally" is not always advice a contributor can take. The
+                // historical way that happened — fast-glob's raced entry order
+                // leaking into `--library` outputs (`mapSysname` where the
+                // committed file had `makeCallable`; see release-cut.yml) — is
+                // fixed at the core (`utils/entry-points.ts` sorts each
+                // pattern's expansion), but a STALE `lib/esm` built before the
+                // fix, or restored from a build cache that predates it, still
+                // reproduces the old bytes until the closure is rebuilt. On
+                // such a tree the instruction above loops, and the only bytes
+                // that satisfy this check are the ones CI builds. Saving them
+                // turns a dead end into a download.
                 saveRebuilt(p, actual);
             }
             if (group.kind === 'dir') {
@@ -475,7 +477,7 @@ if (failures > 0) {
                 rebuiltSaved.map((p) => `  ${p}`).join('\n') +
                 (inActions
                     ? '\n\nCI uploads them as the `rebuilt-bundles` artifact. If your machine cannot reproduce ' +
-                      'these bytes (a known, unexplained divergence on at least two machines — see release-cut.yml), ' +
+                      'these bytes (usually a stale pre-entry-order-fix `lib/esm` or build cache — see release-cut.yml), ' +
                       'download it and copy it over your checkout:\n' +
                       '  gh run download <run-id> -n rebuilt-bundles -D tmp/rebuilt-bundles\n' +
                       '  cp -r tmp/rebuilt-bundles/. . && git add -A\n'
