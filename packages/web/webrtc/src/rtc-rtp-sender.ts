@@ -196,10 +196,17 @@ export class RTCRtpSender {
             const teeSrcPad = tee.requestSrcPad();
             this._teeSrcPad = teeSrcPad;
             sourceForChain = null; // We'll link via pad below
-        } else if (trackGst._gstPipeline && trackGst._gstPipeline !== this._pipeline) {
-            // Source is in another pipeline (no tee from VideoBridge) — this is the
-            // second PC using this track. Insert a tee between source and the
-            // existing consumer. Move source to this pipeline and create a tee.
+        } else if (trackGst._gstPipeline && trackGst._gstPipeline !== this._pipeline && trackGst._senderConsumers > 0) {
+            // Source is in another pipeline (no tee from VideoBridge) AND a
+            // sender already consumes it — this is the second PC using this
+            // track. Insert a tee between source and the existing consumer.
+            // Move source to this pipeline and create a tee.
+            //
+            // The `_senderConsumers > 0` guard is load-bearing: a fresh
+            // getUserMedia track also sits in a foreign pipeline (its gUM
+            // HOLDING pipeline), and without the guard the FIRST addTrack
+            // took this branch and built a tee nobody fans out from — the
+            // move-the-source branch below is the first-consumer path.
             const oldPipeline = trackGst._gstPipeline;
 
             // First, unlink source from its current peer (the first sender's valve)
@@ -332,6 +339,7 @@ export class RTCRtpSender {
 
         this._elements = ownedElements;
         this._linked = true;
+        track._senderConsumers++;
 
         // Wire Track.enabled → valve.drop
         track._setEnableCallback((enabled: boolean) => {
@@ -345,6 +353,7 @@ export class RTCRtpSender {
         // Disconnect enable callback from the track
         if (this._track) {
             this._track._setEnableCallback(null);
+            this._track._senderConsumers = Math.max(0, this._track._senderConsumers - 1);
         }
         // Release tee branch if using shared source
         if (this._teeSrcPad && this._track?._teeMultiplexer) {
