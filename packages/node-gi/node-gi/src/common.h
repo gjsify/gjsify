@@ -295,6 +295,33 @@ struct CreatedBytes {
   std::vector<GBytes*> transferFull;  // callee adopts; unref only when the callee never ran
 };
 
+// A plain JS value handed to a `GObject.Value` IN-arg is BOXED into a fresh
+// GValue whose GType is guessed from the JS value — exactly what GJS does
+// (refs/gjs/gi/arg-cache.cpp GValueIn::in → gjs_value_to_g_value, whose
+// gjs_value_guess_g_type supplies the type for an uninitialized GValue). Without
+// it, the single most common GObject call in existence —
+// `obj.set_property('name', 0.5)`, whose second GI argument is a GValue — fails
+// with "Unsupported interface IN argument", because a JS number is not a boxed
+// handle. An existing GObject.Value boxed handle still routes through the
+// boxed-handle path and is passed through untouched.
+//
+// Lifetime mirrors CreatedBytes: the box is freed after the invoke for
+// transfer-none (the callee copied whatever it needed — g_object_set_property
+// copies into the property), and left with the callee for transfer-full.
+struct CreatedValues {
+  std::vector<GValue*> transferNone;  // free after the invoke (callee borrowed)
+  std::vector<GValue*> transferFull;  // callee adopts; free only when it never ran
+};
+
+// Release a GValue this layer boxed: unset the held value (dropping the ref an
+// object/boxed/string GValue took) and free the struct. A plain `g_free` would
+// leak whatever the GValue owns.
+inline void NodeGiFreeBoxedGValue(GValue* gv) {
+  if (gv == nullptr) return;
+  if (G_IS_VALUE(gv)) g_value_unset(gv);
+  g_free(gv);
+}
+
 // Build the (floating) marshaled GClosure for a JS function (signals.cc — shares
 // the battle-tested JsClosure marshal/finalize machinery with `.connect()`).
 GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn);
@@ -309,12 +336,16 @@ GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn);
 // `bytes` (optional): enables the JS-bytes→GBytes IN-arg marshalling above;
 // nullptr (the default) keeps the previous behaviour (typed array → TypeError) on
 // paths that cannot release a created GBytes.
+// `values` (optional): enables the JS-value→GValue IN-arg boxing above; nullptr
+// (the default) keeps the previous behaviour (plain value → TypeError) on paths
+// that cannot release a created GValue.
 bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* out,
                     std::string* heldString,
                     GITransfer transfer = GI_TRANSFER_NOTHING,
                     std::vector<gpointer>* ownedStrings = nullptr,
                     CreatedClosures* closures = nullptr,
-                    CreatedBytes* bytes = nullptr);
+                    CreatedBytes* bytes = nullptr,
+                    CreatedValues* values = nullptr);
 
 // ---- IN container building -----------------------------------------
 //

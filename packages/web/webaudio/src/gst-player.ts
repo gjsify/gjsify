@@ -6,15 +6,14 @@
 // Reference: GStreamer 1.0 via gi://Gst
 
 import GLib from 'gi://GLib?version=2.0';
-import { ensureGstInit, Gst } from './gst-init.js';
+import { ensureGstInit, Gst, isGstStreamingUnsafe } from './gst-init.js';
 import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import type { AudioBuffer } from './audio-buffer.js';
 import type Gst1 from '@girs/gst-1.0';
 import type GstApp1 from '@girs/gstapp-1.0';
 
-// Force GstApp typelib load
-import GstApp from 'gi://GstApp?version=1.0';
-void GstApp;
+// The GstApp typelib is loaded by ensureGstInit() — see gst-init.ts for why a
+// bare `import`/`void` does not do it on the node-gi reverse bridge.
 
 export interface GstPlayerOptions {
     audioBuffer: AudioBuffer;
@@ -39,6 +38,16 @@ export class GstPlayer {
     private _audioBuffer: AudioBuffer;
 
     constructor(options: GstPlayerOptions) {
+        // Refuse up front on a runtime where a live pipeline's streaming threads
+        // corrupt the process (the whole node-gi reverse bridge — see
+        // isGstStreamingUnsafe). The decode path has always done this; playback
+        // only reached a real pipeline once `set_property` and the GstApp
+        // typelib were fixed, and promptly started killing the app mid-frame.
+        // `AudioBufferSourceNode.start` already treats a throw here as
+        // "continue silent", so this degrades instead of crashing.
+        if (isGstStreamingUnsafe()) {
+            throw new Error('GStreamer playback is unavailable on this runtime');
+        }
         ensureGstInit();
         this._loop = options.loop;
         this._onEnded = options.onEnded;
@@ -79,6 +88,17 @@ export class GstPlayer {
                     this._fireEnded();
                 }
             } else if (msg.type === Gst.MessageType.ERROR) {
+                // Report what GStreamer said before ending. Swallowing it made a
+                // failed pipeline indistinguishable from one that played: on the
+                // node-gi reverse bridge the pipeline is now built without a
+                // single JS-visible error yet no audio ever reaches the sink
+                // (verified against PipeWire — gjs shows a `float32le 2ch
+                // 44100Hz` stream, node shows none), and this handler is where
+                // that difference was being discarded.
+                const [err, debug] = msg.parse_error();
+                console.error(
+                    `[webaudio] GStreamer playback error: ${err?.message ?? 'unknown'}${debug ? ` (${debug})` : ''}`,
+                );
                 this._fireEnded();
             }
             return true; // keep watching

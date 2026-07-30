@@ -9,9 +9,8 @@ import { ensureGstInit, Gst, isGstStreamingUnsafe } from './gst-init.js';
 import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import { AudioBuffer } from './audio-buffer.js';
 
-// Force GstApp typelib load so get_by_name() resolves AppSrc/AppSink types
-import GstApp from 'gi://GstApp?version=1.0';
-void GstApp;
+// The GstApp typelib is loaded by ensureGstInit() — see gst-init.ts for why a
+// bare `import`/`void` does not do it on the node-gi reverse bridge.
 
 const PIPELINE_DESC =
     'appsrc name=src ! decodebin ! audioconvert ! audioresample ! ' +
@@ -94,11 +93,26 @@ export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
             const buffer = sample.get_buffer();
             if (!buffer) continue;
 
-            const [ok, mapInfo] = buffer.map(Gst.MapFlags.READ);
-            if (ok) {
-                // Copy data — mapInfo.data is only valid until unmap
-                chunks.push(new Uint8Array(mapInfo.data));
-                buffer.unmap(mapInfo);
+            // `extract_dup` rather than map/unmap + `GstMapInfo.data`.
+            //
+            // `data` is a raw `guint8*` FIELD whose length lives in a sibling
+            // `size` field — a dependency GI cannot express for a struct field
+            // read. gjs resolves it anyway; `@gjsify/node-gi` marshals it as an
+            // EMPTY array, and nothing says so: measured on a decoded sample,
+            // `mapInfo.size` is 8192 and `mapInfo.data.length` is 0. Decode
+            // therefore produced an AudioBuffer of ZERO frames on the reverse
+            // bridge, `_interleave` returned nothing, `GstPlayer` fired `ended`
+            // without ever building a pipeline, and audio was silent on node with
+            // no error at any layer.
+            //
+            // `gst_buffer_extract_dup` is an ordinary GI method that returns a
+            // COPY with a real length on BOTH runtimes (verified: 8192 on node,
+            // correct bytes on gjs), so it sidesteps the field-marshalling gap
+            // entirely — and it needs no unmap, which removes a lifetime pairing
+            // from this loop. The node-gi field gap is tracked in STATUS.md.
+            const size = buffer.get_size();
+            if (size > 0) {
+                chunks.push(new Uint8Array(buffer.extract_dup(0, size)));
             }
         }
     } finally {
