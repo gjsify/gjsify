@@ -286,7 +286,17 @@ jobs:
         if: steps.napi-libs-cache.outputs.cache-hit != 'true'
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
-          gjsify foreach build:gjsify
+          # `--exclude @gjsify/tsc`: this step exists to transpile the POLYFILL
+          # lib/esm trees, and every polyfill's `build:gjsify` is a self-contained
+          # `gjsify build --library`. `@gjsify/tsc`'s is not — it BUNDLES typescript
+          # `--app gjs`, which resolves `node:fs` → `@gjsify/fs` and therefore needs
+          # the very lib/esm trees this loop is still producing. `foreach` is
+          # unordered by default (`--topological` is opt-in) and discovery puts
+          # packages/infra/tsc before packages/node/fs, so it died with
+          # `cannot resolve @gjsify/fs`. Topological order would not help either:
+          # tsc reaches fs through the alias substitution, not a declared dep.
+          # These jobs never use the tsc bundle, so skip building it.
+          gjsify foreach build:gjsify --exclude '@gjsify/tsc'
 
       # The consumer gate builds @gjsify/napi's L1 itself and drives the workout
       # build through a Node CLI entry — point it at the published @gjsify/cli
@@ -432,7 +442,17 @@ jobs:
         if: steps.napi-libs-cache.outputs.cache-hit != 'true'
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
-          gjsify foreach build:gjsify
+          # `--exclude @gjsify/tsc`: this step exists to transpile the POLYFILL
+          # lib/esm trees, and every polyfill's `build:gjsify` is a self-contained
+          # `gjsify build --library`. `@gjsify/tsc`'s is not — it BUNDLES typescript
+          # `--app gjs`, which resolves `node:fs` → `@gjsify/fs` and therefore needs
+          # the very lib/esm trees this loop is still producing. `foreach` is
+          # unordered by default (`--topological` is opt-in) and discovery puts
+          # packages/infra/tsc before packages/node/fs, so it died with
+          # `cannot resolve @gjsify/fs`. Topological order would not help either:
+          # tsc reaches fs through the alias substitution, not a declared dep.
+          # These jobs never use the tsc bundle, so skip building it.
+          gjsify foreach build:gjsify --exclude '@gjsify/tsc'
 
       # Phase-1 node-gi gate: bundles nodegi-workout.mjs `--app gjs` (node-gi's
       # node:* → @gjsify/* polyfills; the addon pinned via NODE_GI_NATIVE + loaded
