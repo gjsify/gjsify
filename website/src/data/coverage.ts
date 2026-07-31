@@ -43,12 +43,12 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     {
         "category": "Web APIs",
         "total": 19,
-        "full": 17,
-        "partial": 2,
+        "full": 19,
+        "partial": 0,
         "stub": 0
     },
     {
-        "category": "Web native bridge",
+        "category": "Web native bridges",
         "total": 1,
         "full": 1,
         "partial": 0,
@@ -76,44 +76,44 @@ export const pillarCoverage: readonly PillarCoverage[] = [
         "stub": 0
     },
     {
-        "category": "Framework bridges",
-        "total": 6,
-        "full": 6,
+        "category": "Framework",
+        "total": 15,
+        "full": 15,
         "partial": 0,
         "stub": 0
     },
     {
-        "category": "Framework storybook",
+        "category": "NativeScript bridges",
+        "total": 5,
+        "full": 5,
+        "partial": 0,
+        "stub": 0
+    },
+    {
+        "category": "GJS infrastructure",
         "total": 3,
         "full": 3,
         "partial": 0,
         "stub": 0
     },
     {
-        "category": "Framework app shell",
-        "total": 1,
-        "full": 1,
-        "partial": 0,
+        "category": "Build/Infra tools",
+        "total": 20,
+        "full": 17,
+        "partial": 3,
         "stub": 0
     },
     {
-        "category": "GJS Infrastructure",
-        "total": 3,
+        "category": "Runtime engines",
+        "total": 4,
         "full": 3,
-        "partial": 0,
-        "stub": 0
-    },
-    {
-        "category": "Build/Infra Tools",
-        "total": 21,
-        "full": 21,
-        "partial": 0,
+        "partial": 1,
         "stub": 0
     },
     {
         "category": "Showcases",
-        "total": 8,
-        "full": 8,
+        "total": 13,
+        "full": 13,
         "partial": 0,
         "stub": 0
     },

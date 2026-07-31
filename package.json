@@ -32,6 +32,8 @@
         "test:e2e:tsbuildinfo-containment": "node --test tests/e2e/tsbuildinfo-containment/run.mjs",
         "test:e2e:package-outputs": "node --test tests/e2e/package-outputs/run.mjs",
         "verify:package-outputs": "node scripts/verify-package-outputs.mjs",
+        "status:generate": "node scripts/generate-status.mjs",
+        "status:check": "node scripts/generate-status.mjs --check",
         "verify:package-outputs:examples": "node scripts/verify-package-outputs.mjs --scope examples",
         "test:e2e:create-app": "node --test tests/e2e/create-app/run.mjs",
         "test:e2e:cli-only": "node --test tests/e2e/cli-only/run.mjs",

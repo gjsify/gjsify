@@ -121,6 +121,7 @@ import { UNCHECKED_FIELDS } from './manifest-conformance/unchecked-fields.mjs';
 import { platformRows, renderPlatformMatrix } from './manifest-conformance/rules/platforms-ci.mjs';
 import './manifest-conformance/rules/tier.mjs';
 import './manifest-conformance/rules/refs-pin.mjs';
+import './manifest-conformance/rules/status-data.mjs';
 
 // `tests/e2e/prebuild-declaration-invariant` drives the prebuild invariant
 // against SYNTHETIC packages, because proving that a MISSING prebuild directory
@@ -1436,6 +1437,7 @@ const CHECK_RULES = [
     'curated-alias-routing',
     'headless',
     'field-coverage',
+    'status-data',
 ];
 
 /** Build the context every rule reads. */
@@ -1510,6 +1512,7 @@ async function main() {
         const alias = byId.get('curated-alias-routing');
         const headless = byId.get('headless');
         const coverage = byId.get('field-coverage');
+        const statusData = byId.get('status-data');
         const reach = reachability.reach;
 
         if (run.ok) {
@@ -1520,6 +1523,7 @@ async function main() {
             console.log(reachability.summary);
             console.log(headless.summary);
             console.log(coverage.summary);
+            console.log(statusData.summary);
             for (const note of coverage.notes ?? []) console.log(`  · ${note}`);
             renderReachabilityNotes(reach);
             process.exit(0);
@@ -1649,6 +1653,19 @@ async function main() {
                     'reason in `scripts/manifest-conformance/unchecked-fields.mjs`. This is the guard that stops the next ' +
                     'declaration from shipping with nothing verifying it — the failure mode every other rule here was ' +
                     'written in reaction to.',
+            );
+            console.error('');
+        }
+        if ((statusData.failures ?? []).length > 0) {
+            console.error(`STATUS-DATA FAILURES on ${statusData.failures.length} finding(s):`);
+            for (const line of statusData.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'STATUS.md is GENERATED from the authored data under status/ plus the package manifests. Fix the ' +
+                    'authored data (status/status.json, status/*.md, status/sections/*.md), then regenerate with ' +
+                    '`node scripts/generate-status.mjs` and commit both. Never edit STATUS.md directly.',
             );
             console.error('');
         }
