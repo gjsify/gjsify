@@ -164,6 +164,95 @@ export default async () => {
             rmSync(src);
             rmdirSync(dir);
         });
+
+        // Regression: the GJS impl used to build a SHELL command line from the
+        // raw paths (`GLib.spawn_command_line_sync("ln <a> <b>")`) — a path
+        // with a space produced the wrong argv, and shell metacharacters were
+        // a command-injection hazard. The fix spawns an argv array (no shell).
+        await it('should link paths containing spaces', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'link space-');
+            const src = join(dir, 'orig with space.txt');
+            const dest = join(dir, 'hard link with space.txt');
+            writeFileSync(src, 'space content');
+
+            linkSync(src, dest);
+            expect(String(readFileSync(dest, 'utf-8'))).toBe('space content');
+            expect(statSync(dest).ino).toBe(statSync(src).ino);
+
+            rmSync(dest);
+            rmSync(src);
+            rmdirSync(dir);
+        });
+
+        await it('should link paths containing shell metacharacters without executing them', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'link meta-');
+            const src = join(dir, 'a;$(touch injected).txt');
+            const dest = join(dir, 'b`echo x`&&.txt');
+            writeFileSync(src, 'meta content');
+
+            linkSync(src, dest);
+            expect(String(readFileSync(dest, 'utf-8'))).toBe('meta content');
+            // No shell ever saw the path — the $(touch injected) substitution
+            // must not have produced a file.
+            expect(existsSync(join(dir, 'injected'))).toBeFalsy();
+            expect(existsSync('injected')).toBeFalsy();
+
+            rmSync(dest);
+            rmSync(src);
+            rmdirSync(dir);
+        });
+
+        await it('should throw EEXIST when newPath already exists', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'link eexist-');
+            const src = join(dir, 'src.txt');
+            const dest = join(dir, 'dest.txt');
+            writeFileSync(src, 'a');
+            writeFileSync(dest, 'b');
+
+            let code: string | undefined;
+            try {
+                linkSync(src, dest);
+            } catch (err) {
+                code = (err as NodeJS.ErrnoException).code;
+            }
+            expect(code).toBe('EEXIST');
+            // The existing dest must be untouched.
+            expect(String(readFileSync(dest, 'utf-8'))).toBe('b');
+
+            rmSync(dest);
+            rmSync(src);
+            rmdirSync(dir);
+        });
+
+        await it('should throw ENOENT when existingPath is missing', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'link enoent-');
+            let code: string | undefined;
+            try {
+                linkSync(join(dir, 'no such source.txt'), join(dir, 'dest.txt'));
+            } catch (err) {
+                code = (err as NodeJS.ErrnoException).code;
+            }
+            expect(code).toBe('ENOENT');
+            rmdirSync(dir);
+        });
+    });
+
+    await describe('fs.chmodSync (paths with spaces)', async () => {
+        // Same shell-out bug class as linkSync — chmod/chown used to route
+        // through an unquoted shell command line too. Now native Gio attributes.
+        await it('should chmod a path containing a space and metacharacters', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'chmod meta-');
+            const filePath = join(dir, 'mode $(x) file.txt');
+            writeFileSync(filePath, 'x');
+
+            chmodSync(filePath, 0o600);
+            expect(statSync(filePath).mode & 0o777).toBe(0o600);
+            chmodSync(filePath, 0o644);
+            expect(statSync(filePath).mode & 0o777).toBe(0o644);
+
+            rmSync(filePath);
+            rmdirSync(dir);
+        });
     });
 
     await describe('fs.link (callback)', async () => {

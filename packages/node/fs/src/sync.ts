@@ -476,16 +476,74 @@ export function readlinkSync(path: PathLike, options?: { encoding?: string } | s
 export function linkSync(existingPath: PathLike, newPath: PathLike): void {
     const existingStr = normalizePath(existingPath);
     const newStr = normalizePath(newPath);
-    // Gio doesn't have a direct hard link API, use GLib
-    const result = GLib.spawn_command_line_sync(`ln ${existingStr} ${newStr}`);
-    if (!result[0]) {
-        throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'`), {
-            code: 'EPERM',
-            errno: -1,
+    // Neither Gio.File nor GLib exposes link(2) through introspection (there is
+    // copy/move/make_symbolic_link, but no hard-link call), so the fallback is a
+    // spawned `ln` — as an argv ARRAY via GLib.spawn_sync, NEVER a shell command
+    // line: GLib.spawn_command_line_sync() word-splits and unquotes its input,
+    // so a path containing a space produced a wrong argv and a path containing
+    // shell metacharacters was a command-injection hazard.
+    //
+    // Node semantics are enforced up front, because bare `ln` diverges:
+    //   - newPath already exists → EEXIST (link(2) never overwrites; `ln` into
+    //     an existing DIRECTORY would create `<newPath>/<basename>` instead).
+    //   - existingPath missing → ENOENT.
+    // The lstat-style NOFOLLOW probes match link(2) on Linux (the source
+    // symlink itself is linked, not its target).
+    const existingFile = Gio.File.new_for_path(existingStr);
+    if (existingFile.query_file_type(Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null) === Gio.FileType.UNKNOWN) {
+        throw Object.assign(new Error(`ENOENT: no such file or directory, link '${existingStr}' -> '${newStr}'`), {
+            code: 'ENOENT',
+            errno: -2,
             syscall: 'link',
             path: existingStr,
             dest: newStr,
         });
+    }
+    const newFile = Gio.File.new_for_path(newStr);
+    if (newFile.query_file_type(Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null) !== Gio.FileType.UNKNOWN) {
+        throw Object.assign(new Error(`EEXIST: file already exists, link '${existingStr}' -> '${newStr}'`), {
+            code: 'EEXIST',
+            errno: -17,
+            syscall: 'link',
+            path: existingStr,
+            dest: newStr,
+        });
+    }
+    // `--` stops a dash-leading path from being parsed as an option. Under GJS
+    // a failed spawn (ln not on PATH) throws a GLib.Error; a spawned `ln` that
+    // EXITED non-zero only shows in the wait status, which
+    // spawn_check_wait_status turns into a thrown GLib.Error too.
+    let detail = '';
+    try {
+        const [, , stderr, waitStatus] = GLib.spawn_sync(
+            null,
+            ['ln', '--', existingStr, newStr],
+            null,
+            GLib.SpawnFlags.SEARCH_PATH,
+            null,
+        );
+        detail = stderr ? new TextDecoder().decode(stderr).trim() : '';
+        // Throws a GLib.Error on a non-zero exit; the boolean return is
+        // belt-and-suspenders for a binding that reports instead of throwing.
+        if (!GLib.spawn_check_wait_status(waitStatus)) {
+            throw new Error(`ln exited non-zero (${waitStatus})`);
+        }
+        return;
+    } catch (err: unknown) {
+        if (detail === '' && err instanceof Error) detail = err.message;
+        throw Object.assign(
+            new Error(
+                `EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'` +
+                    (detail ? ` (${detail})` : ''),
+            ),
+            {
+                code: 'EPERM',
+                errno: -1,
+                syscall: 'link',
+                path: existingStr,
+                dest: newStr,
+            },
+        );
     }
 }
 
@@ -515,14 +573,14 @@ export function truncateSync(path: PathLike, len?: number): void {
 export function chmodSync(path: PathLike, mode: Mode): void {
     const pathStr = normalizePath(path);
     const modeNum = typeof mode === 'string' ? parseInt(mode, 8) : mode;
-    const result = GLib.spawn_command_line_sync(`chmod ${modeNum.toString(8)} ${pathStr}`);
-    if (!result[0]) {
-        throw Object.assign(new Error(`EPERM: operation not permitted, chmod '${pathStr}'`), {
-            code: 'EPERM',
-            errno: -1,
-            syscall: 'chmod',
-            path: pathStr,
-        });
+    // Gio can chmod natively (G_FILE_ATTRIBUTE_UNIX_MODE is settable on local
+    // files) — no subprocess. The previous `chmod` shell-out broke on any path
+    // containing a space and never even checked the child's exit status.
+    try {
+        const file = Gio.File.new_for_path(pathStr);
+        file.set_attribute_uint32('unix::mode', modeNum, Gio.FileQueryInfoFlags.NONE, null);
+    } catch (err: unknown) {
+        throw createNodeError(err, 'chmod', pathStr);
     }
 }
 
@@ -530,14 +588,17 @@ export function chmodSync(path: PathLike, mode: Mode): void {
 
 export function chownSync(path: PathLike, uid: number, gid: number): void {
     const pathStr = normalizePath(path);
-    const result = GLib.spawn_command_line_sync(`chown ${uid}:${gid} ${pathStr}`);
-    if (!result[0]) {
-        throw Object.assign(new Error(`EPERM: operation not permitted, chown '${pathStr}'`), {
-            code: 'EPERM',
-            errno: -1,
-            syscall: 'chown',
-            path: pathStr,
-        });
+    // Gio can chown natively (unix::uid / unix::gid are settable on local
+    // files) — no subprocess (same unquoted-shell-out bug class as chmodSync).
+    // Node semantics: -1 leaves the respective id unchanged.
+    try {
+        const file = Gio.File.new_for_path(pathStr);
+        const info = new Gio.FileInfo();
+        if (uid !== -1) info.set_attribute_uint32('unix::uid', uid);
+        if (gid !== -1) info.set_attribute_uint32('unix::gid', gid);
+        file.set_attributes_from_info(info, Gio.FileQueryInfoFlags.NONE, null);
+    } catch (err: unknown) {
+        throw createNodeError(err, 'chown', pathStr);
     }
 }
 
