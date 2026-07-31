@@ -1,24 +1,57 @@
 /**
  * Rule `status-data` — REPO-SCOPED.
  *
- * STATUS.md is GENERATED (`scripts/generate-status.mjs`) from authored data in
- * `status/` plus derived facts from the package manifests. That split only
- * stays honest if something fails when the two drift, which is this rule:
+ * The project status snapshot lives as DATA under `status/`: the per-package
+ * status claim + prose a human must judge, the per-suite integration notes,
+ * the open TODOs, the upstream patch-candidate table and a fixed set of
+ * free-form sections. Everything DERIVABLE (package lists, tiers, runtime
+ * slots, platforms, GNOME-namespace usage, every count) is computed from the
+ * manifests + the tree by `scripts/generate-status.mjs` and is never authored.
  *
- *   1. The authored data is structurally valid — `status/status.json` entries
- *      use only `status`/`note`/`working`/`missing` (so a derivable fact like
- *      `tier` or `runtimes` CANNOT be restated by hand), every published
- *      package under `packages/` has an entry, every entry names a package
- *      that exists, an authored `native` status has a `gjsify.prebuilds`
- *      declaration behind it, integration-coverage headings map 1:1 onto
- *      `tests/integration/*` directories, open-TODO headings are not
- *      struck-through corpses, and `status/sections/` holds exactly the fixed
- *      section set the generator renders.
- *   2. The committed STATUS.md byte-matches a fresh regeneration — a hand
- *      edit of the generated file (or a data edit without regenerating) is a
- *      red run with the regenerate command in the message. Same posture as
- *      `verify-committed-bundles.mjs`: the artifact must reproduce from its
- *      sources.
+ * This rule holds the authored half to the manifests:
+ *
+ *   - `status/status.json` entries use only `status`/`note`/`working`/`missing`,
+ *     so a derivable fact (`tier`, `runtimes`, a test count) CANNOT be restated
+ *     by hand and therefore cannot contradict the manifest;
+ *   - `partial` entries must say WHAT is missing (the gap is the whole point);
+ *   - entry coverage runs in BOTH directions — every published package under
+ *     `packages/` has an entry, and every entry names a package that exists
+ *     (an orphan entry for a deleted package is exactly the drift the data
+ *     model exists to prevent);
+ *   - an authored `native` status requires a real `gjsify.prebuilds` declaration;
+ *   - `## <dir>` headings in `status/integration-coverage.md` are a bijection
+ *     onto `tests/integration/*`;
+ *   - `status/sections/` holds exactly the fixed section set the generator
+ *     renders (an unknown file would silently never appear);
+ *   - open-TODO headings are not struck-through / ✓ / "Completed" corpses —
+ *     the delete-on-resolve rule, machine-checked rather than remembered.
+ *
+ * WHY THERE IS NO "STATUS.md REPRODUCES" CHECK (removed 2026-07-31)
+ *
+ * The rule originally also regenerated STATUS.md and byte-compared it against
+ * the committed copy, mirroring `verify-committed-bundles.mjs`. That posture
+ * is right for the committed GJS bundles and wrong here, for two reasons that
+ * only became visible once it ran:
+ *
+ *   1. STATUS.md derives from EVERY package manifest, so ANY merge invalidates
+ *      every open PR's copy. PR A touches package X, PR B touches package Y;
+ *      each regenerated correctly against its own base. A merges, and B is
+ *      stale through no fault of its own — the check serialises unrelated work
+ *      and blames the wrong PR. The bundles pay that cost because rebuilding
+ *      them takes ~20 minutes and a human must decide; there is no comparable
+ *      justification for a one-second render.
+ *   2. The derived numbers are read off the DISK, not off git (directory
+ *      listings under `examples/`, `showcases/`, `tests/`), so two CORRECT
+ *      checkouts legitimately disagree. Measured on the very commit that
+ *      introduced the check: it baked `68` examples from a tree carrying
+ *      untracked scratch directories, against the `63` a clean checkout
+ *      counts, and CI could never have agreed with it.
+ *
+ * The fix was not to tolerate the drift but to remove what drifts: STATUS.md
+ * is no longer committed (gitignored; `npm run status:generate` renders it on
+ * demand). With no tracked artifact there is nothing to keep in sync, and the
+ * half that HAS a right answer — the authored data above — stays hard.
+ * Do not reintroduce a freshness comparison against a file that is not in git.
  *
  * Why repo-scoped: it knows this repository's layout (`status/`,
  * `tests/integration/*`, the pillar directories) and its documentation
@@ -26,46 +59,29 @@
  *
  * Why `fields: []`: like `curated-alias-routing`, it governs no
  * `package.json#gjsify.*` declaration — its inputs are the `status/` data
- * files and STATUS.md itself. Declared explicitly empty so the registry's
- * "say what you govern" contract is met rather than silently skipped.
+ * files. Declared explicitly empty so the registry's "say what you govern"
+ * contract is met rather than silently skipped.
  *
  * Cheap by design (plain fs scans, no install, no build) so it can run in the
  * `audit-runtimes.yml` job on every PR.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { defineRule } from '../../../packages/infra/manifest-conformance/lib/index.mjs';
-import { collectPackageFacts, generateStatus, loadStatusData } from '../../generate-status.mjs';
+import { collectPackageFacts, loadStatusData } from '../../generate-status.mjs';
 
 export const statusDataRule = defineRule({
     id: 'status-data',
     scope: 'repo',
     fields: [],
-    description: 'the authored status data validates, and STATUS.md reproduces from it byte-for-byte',
+    description: 'the authored status data under status/ validates against the package manifests',
     run(ctx) {
         const facts = collectPackageFacts(ctx.root);
         const { failures } = loadStatusData(ctx.root, facts);
-        let stale = false;
-        if (failures.length === 0) {
-            const { content } = generateStatus(ctx.root);
-            const statusPath = join(ctx.root, 'STATUS.md');
-            const current = existsSync(statusPath) ? readFileSync(statusPath, 'utf8') : '';
-            if (content !== current) {
-                stale = true;
-                failures.push(
-                    'STATUS.md does not match what status/ + the package manifests generate. STATUS.md is a ' +
-                        'GENERATED file — edit the authored data under status/ (or the manifests) and run ' +
-                        '`node scripts/generate-status.mjs`, then commit both.',
-                );
-            }
-        }
+        const published = facts.filter((f) => !f.private).length;
         return {
             failures,
-            stats: { packages: facts.length, stale },
-            summary:
-                `status-data: OK. status/ validates against ${facts.filter((f) => !f.private).length} published ` +
-                'package(s) and STATUS.md reproduces from it byte-for-byte.',
+            stats: { packages: facts.length, published },
+            summary: `status-data: OK. status/ validates against ${published} published package(s).`,
         };
     },
 });

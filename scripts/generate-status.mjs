@@ -23,24 +23,47 @@
  *   - `status/upstream-patch-candidates.md`      upstream workaround table
  *   - `status/sections/*.md`                     fixed set of free-form sections
  *
- * `node scripts/generate-status.mjs` renders STATUS.md from those inputs plus
- * the package manifests; `--check` regenerates in memory and fails when the
- * committed STATUS.md drifts (the `status-data` conformance rule wires this
- * into `audit-runtimes --check`, so a hand-edit of STATUS.md is a red PR with
- * the regenerate command in the message).
+ * `node scripts/generate-status.mjs` (`npm run status:generate`) renders the
+ * whole snapshot into STATUS.md on demand.
+ *
+ * THE RENDERED FILE IS NOT COMMITTED (ADR 0016 amendment)
+ *
+ * STATUS.md is gitignored: a rendered view you produce when you want to read
+ * one, never a tracked artifact. Two reasons, both measured:
+ *
+ *   - Committing it would put a file DERIVED FROM EVERY MANIFEST under a
+ *     freshness contract, which serialises unrelated PRs: PR A touches package
+ *     X, PR B touches package Y, each regenerates against its own base — A
+ *     merges and B's copy is stale through no fault of B's.
+ *   - The derived facts are read off the DISK, not off git (directory listings
+ *     under `examples/`, `showcases/`, `tests/`), so the output legitimately
+ *     differs between two correct checkouts. That is not hypothetical: the
+ *     commit introducing this generator baked `68` examples from a tree with
+ *     untracked scratch directories, against the 63 a clean checkout counts,
+ *     and no amount of care by the author could have made those agree.
+ *
+ * What REMAINS enforced is the half that has a right answer: the authored data
+ * under `status/` is schema-checked and cross-checked against the manifests by
+ * the `status-data` conformance rule on every PR. Anything derived is computed
+ * fresh at the moment somebody asks for it, and can therefore never be stale.
  *
  * DESIGN RULES
  *
- * - NO dependencies, plain Node — this runs in the `audit-runtimes.yml` job,
- *   which does no install and no build (same constraint as the rest of the
- *   conformance family; routing it through the CLI bundle would reintroduce
- *   the staleness circularity `verify-committed-bundles.mjs` breaks).
+ * - NO dependencies, plain Node — the validation half runs in the
+ *   `audit-runtimes.yml` job, which does no install and no build (same
+ *   constraint as the rest of the conformance family; routing it through the
+ *   CLI bundle would reintroduce the staleness circularity
+ *   `verify-committed-bundles.mjs` breaks).
  * - The authored file CANNOT restate a derivable fact: `status/status.json`
  *   entries allow only `status`/`note`/`working`/`missing`, so an authored
  *   `tier` or `runtimes` key is a validation FAILURE, not a second source of
  *   truth that can contradict the manifest.
- * - Deterministic output: every list is sorted, every scan is stable, so the
- *   `--check` byte-compare cannot flap.
+ * - Deterministic output: every list is sorted, every scan is stable — so two
+ *   renders of the same tree agree, and a reader can diff two runs.
+ * - The DERIVED numbers have one machine-read consumer, and it reads them
+ *   STRUCTURALLY: `website/scripts/generate-coverage.mjs` imports
+ *   `collectSummaryCounts()` below rather than re-parsing a Markdown table.
+ *   Never reintroduce a text-parsing consumer of the rendered output.
  */
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -444,23 +467,24 @@ const gnomeCell = (f) => (f.gnome.length === 0 ? '—' : f.gnome.join(', '));
 const summaryBucket = (status) =>
     status === 'partial' || status === 'poc' ? 'partial' : status === 'stub' ? 'stub' : 'full';
 
-/**
- * Render the whole STATUS.md from derived facts + authored data.
- *
- * @param {string} root
- * @param {PackageFacts[]} facts
- * @param {ReturnType<typeof loadStatusData>['data']} data
- */
-export function renderStatus(root, facts, data) {
-    const rootManifest = readManifest(root) ?? {};
-    const entryOf = (f) => data.packages[f.name] ?? { status: 'full', note: '' };
-    const publicFacts = facts.filter((f) => !f.private);
+/** The authored entry for a package (a package with no entry renders as full/no note). */
+const entryLookup = (data) => (f) => data.packages[f.name] ?? { status: 'full', note: '' };
 
-    // Category classification — path-derived, split by authored status where
-    // a pillar mixes kinds (APIs vs native bridges vs meta).
+/**
+ * Category classification — path-derived, split by authored status where a
+ * pillar mixes kinds (APIs vs native bridges vs meta).
+ *
+ * @param {PackageFacts[]} facts
+ * @param {(f: PackageFacts) => {status?: string}} entryOf
+ */
+function groupFacts(facts, entryOf) {
+    const publicFacts = facts.filter((f) => !f.private);
     const inPillar = (p) => publicFacts.filter((f) => f.pillar === p);
     const adwaita = (f) => f.rel.startsWith('packages/web/adwaita');
-    const groups = {
+    return {
+        publicFacts,
+        node: inPillar('node'),
+        web: inPillar('web'),
         nodeApis: inPillar('node').filter((f) => !['native', 'meta'].includes(entryOf(f).status)),
         nodeNative: inPillar('node').filter((f) => entryOf(f).status === 'native'),
         nodeMeta: inPillar('node').filter((f) => entryOf(f).status === 'meta'),
@@ -475,37 +499,73 @@ export function renderStatus(root, facts, data) {
         infra: inPillar('infra'),
         engines: [...inPillar('node-gi'), ...inPillar('napi')],
     };
-    const privateInfra = facts.filter((f) => f.pillar === 'infra' && f.private);
+}
 
+/**
+ * Directory-derived counts, read off the tree at generation time.
+ *
+ * NB these read the DISK, not git — an untracked directory under `examples/`
+ * counts. That is fine for a view rendered on demand and is precisely why the
+ * rendered file is not committed under a reproducibility contract (see the
+ * module header).
+ *
+ * @param {string} root
+ */
+function collectTreeCounts(root) {
     const showcaseDirs = ['dom', 'gtk', 'node'].flatMap((kind) =>
         subdirs(join(root, 'showcases', kind)).map((d) => `${kind}/${d}`),
     );
-    const integrationDirs = subdirs(join(root, 'tests', 'integration'));
-    const e2eDirs = subdirs(join(root, 'tests', 'e2e'));
-    const exampleDirs = ['cli', 'dom', 'gtk', 'net', 'node'].flatMap((kind) => subdirs(join(root, 'examples', kind)));
     let refsCount = 0;
     try {
         refsCount = (readFileSync(join(root, '.gitmodules'), 'utf8').match(/path = refs\//g) ?? []).length;
     } catch {
         /* no .gitmodules — refs metric renders as 0 */
     }
+    return {
+        showcaseDirs,
+        integrationDirs: subdirs(join(root, 'tests', 'integration')),
+        e2eDirs: subdirs(join(root, 'tests', 'e2e')),
+        exampleDirs: ['cli', 'dom', 'gtk', 'net', 'node'].flatMap((kind) => subdirs(join(root, 'examples', kind))),
+        refsCount,
+    };
+}
 
-    const totalSpecs = publicFacts.reduce((n, f) => n + f.tests.specFiles, 0);
-    const totalIts = publicFacts.reduce((n, f) => n + f.tests.itSites, 0);
-    const browserTested = publicFacts.filter((f) => f.browserTest);
+/**
+ * @typedef {object} SummaryCount
+ * @property {string} category
+ * @property {number} total
+ * @property {number} full
+ * @property {number} partial
+ * @property {number} stub
+ */
 
-    const summaryRows = [];
+/**
+ * The Summary table as NUMBERS — the structured form of what `renderStatus`
+ * formats into Markdown.
+ *
+ * Exported because the website's coverage bars are derived from exactly these
+ * counts: `website/scripts/generate-coverage.mjs` calls this instead of
+ * parsing a rendered table. That is not merely tidier — the rendered file is
+ * no longer committed, so there is nothing to parse; and recovering `33` from
+ * a formatted `33 (80%)` cell was always a lossy round trip that existed only
+ * because Markdown was the only artifact on offer.
+ *
+ * @param {string} root
+ * @param {PackageFacts[]} facts
+ * @param {ReturnType<typeof loadStatusData>['data']} data
+ * @returns {SummaryCount[]}
+ */
+export function collectSummaryCounts(root, facts, data) {
+    const entryOf = entryLookup(data);
+    const groups = groupFacts(facts, entryOf);
+    const { showcaseDirs, integrationDirs } = collectTreeCounts(root);
+
+    /** @type {SummaryCount[]} */
+    const counts = [];
     const summarize = (category, members) => {
         const buckets = { full: 0, partial: 0, stub: 0 };
         for (const f of members) buckets[summaryBucket(entryOf(f).status)]++;
-        const pct = (n) => (members.length === 0 ? '—' : `${n} (${Math.round((n / members.length) * 100)}%)`);
-        summaryRows.push([
-            category,
-            String(members.length),
-            buckets.full === members.length ? String(buckets.full) : pct(buckets.full),
-            buckets.partial === 0 ? '—' : pct(buckets.partial),
-            buckets.stub === 0 ? '—' : pct(buckets.stub),
-        ]);
+        counts.push({ category, total: members.length, ...buckets });
     };
     summarize('Node.js APIs', groups.nodeApis);
     summarize('Node.js native bridges', groups.nodeNative);
@@ -520,14 +580,49 @@ export function renderStatus(root, facts, data) {
     summarize('GJS infrastructure', groups.gjs);
     summarize('Build/Infra tools', groups.infra);
     summarize('Runtime engines', groups.engines);
-    summaryRows.push(['Showcases', String(showcaseDirs.length), String(showcaseDirs.length), '—', '—']);
-    summaryRows.push([
-        'Integration test suites',
-        String(integrationDirs.length),
-        String(integrationDirs.length),
-        '—',
-        '—',
-    ]);
+    // Directory-derived rows: every showcase / suite counts as present, so the
+    // Full column equals the Total and there is no partial/stub split.
+    counts.push({ category: 'Showcases', total: showcaseDirs.length, full: showcaseDirs.length, partial: 0, stub: 0 });
+    counts.push({
+        category: 'Integration test suites',
+        total: integrationDirs.length,
+        full: integrationDirs.length,
+        partial: 0,
+        stub: 0,
+    });
+    return counts;
+}
+
+/**
+ * Render the whole STATUS.md from derived facts + authored data.
+ *
+ * @param {string} root
+ * @param {PackageFacts[]} facts
+ * @param {ReturnType<typeof loadStatusData>['data']} data
+ */
+export function renderStatus(root, facts, data) {
+    const rootManifest = readManifest(root) ?? {};
+    const entryOf = entryLookup(data);
+    const groups = groupFacts(facts, entryOf);
+    const publicFacts = groups.publicFacts;
+    const privateInfra = facts.filter((f) => f.pillar === 'infra' && f.private);
+
+    const { showcaseDirs, integrationDirs, e2eDirs, exampleDirs, refsCount } = collectTreeCounts(root);
+
+    const totalSpecs = publicFacts.reduce((n, f) => n + f.tests.specFiles, 0);
+    const totalIts = publicFacts.reduce((n, f) => n + f.tests.itSites, 0);
+    const browserTested = publicFacts.filter((f) => f.browserTest);
+
+    const summaryRows = collectSummaryCounts(root, facts, data).map(({ category, total, full, partial, stub }) => {
+        const pct = (n) => (total === 0 ? '—' : `${n} (${Math.round((n / total) * 100)}%)`);
+        return [
+            category,
+            String(total),
+            full === total ? String(full) : pct(full),
+            partial === 0 ? '—' : pct(partial),
+            stub === 0 ? '—' : pct(stub),
+        ];
+    });
 
     // Tier membership — derived from `gjsify.tier`, listed compactly.
     const tiers = new Map([
@@ -626,11 +721,11 @@ export function renderStatus(root, facts, data) {
         ],
         [
             'Node.js pillar',
-            `${inPillar('node').length} (${groups.nodeApis.length} APIs + ${groups.nodeNative.length} native bridges + ${groups.nodeMeta.length} meta)`,
+            `${groups.node.length} (${groups.nodeApis.length} APIs + ${groups.nodeNative.length} native bridges + ${groups.nodeMeta.length} meta)`,
         ],
         [
             'Web pillar',
-            `${inPillar('web').length} (${groups.webApis.length} APIs + ${groups.webNative.length} native bridge + ${groups.webMeta.length} meta + ${groups.adwaita.length} Adwaita)`,
+            `${groups.web.length} (${groups.webApis.length} APIs + ${groups.webNative.length} native bridge + ${groups.webMeta.length} meta + ${groups.adwaita.length} Adwaita)`,
         ],
         ['DOM pillar', String(groups.dom.length)],
         ['Framework pillar', String(groups.framework.length)],
@@ -660,21 +755,25 @@ export function renderStatus(root, facts, data) {
     const out = [];
     out.push('# gjsify — Project Status');
     out.push('');
-    out.push('<!-- GENERATED FILE — DO NOT EDIT BY HAND.');
-    out.push('     Regenerate: node scripts/generate-status.mjs');
+    out.push('<!-- GENERATED, UNTRACKED FILE — DO NOT EDIT BY HAND, DO NOT COMMIT.');
+    out.push('     Rendered by: node scripts/generate-status.mjs (npm run status:generate)');
     out.push('     Authored inputs: status/ (status.json, integration-coverage.md, open-todos.md,');
-    out.push('     upstream-patch-candidates.md, sections/*.md). Everything else is DERIVED from');
-    out.push('     package manifests + the tree at generation time. CI fails on drift');
-    out.push('     (audit-runtimes --check, rule `status-data`). -->');
+    out.push('     upstream-patch-candidates.md, sections/*.md) — those ARE tracked and are');
+    out.push('     validated on every PR by audit-runtimes --check, rule `status-data`.');
+    out.push('     Everything else here is DERIVED from the package manifests + the tree at the');
+    out.push('     moment you ran the command, which is why this file is gitignored: a committed');
+    out.push('     copy would be stale the next time anyone touched a manifest. See ADR 0016. -->');
     out.push('');
-    out.push('> **This file is GENERATED.** The status snapshot lives as data: per-package status');
-    out.push('> prose in [`status/status.json`](status/status.json), integration-suite notes, open');
-    out.push('> TODOs and upstream patch candidates in [`status/*.md`](status/), free-form sections');
-    out.push('> in [`status/sections/`](status/sections/). Package lists, tiers, runtime slots,');
+    out.push('> **This file is GENERATED and NOT COMMITTED** — re-render it whenever you want to');
+    out.push('> read it (`npm run status:generate`). The status snapshot lives as data:');
+    out.push('> per-package status prose in [`status/status.json`](status/status.json),');
+    out.push('> integration-suite notes, open TODOs and upstream patch candidates in');
+    out.push('> [`status/*.md`](status/), free-form sections in');
+    out.push('> [`status/sections/`](status/sections/). Package lists, tiers, runtime slots,');
     out.push('> platform targets, GNOME-library usage and every count are derived from the repo —');
-    out.push('> never typed by hand. Edit the data (or the manifests), then run');
-    out.push('> `node scripts/generate-status.mjs`. STATUS.md remains a CURRENT SNAPSHOT, not a');
-    out.push('> changelog: per-change narrative belongs in commit messages + CHANGELOG.md.');
+    out.push('> never typed by hand. Edit the data (or the manifests) and re-render. This remains a');
+    out.push('> CURRENT SNAPSHOT, not a changelog: per-change narrative belongs in commit messages');
+    out.push('> + CHANGELOG.md.');
     out.push('');
     out.push('## Summary');
     out.push('');
@@ -703,7 +802,7 @@ export function renderStatus(root, facts, data) {
     );
     out.push('', '---', '');
 
-    out.push(pillarSection('Node.js Packages (`packages/node/`)', inPillar('node')));
+    out.push(pillarSection('Node.js Packages (`packages/node/`)', groups.node));
     out.push('---', '');
     out.push(
         pillarSection('Web API Packages (`packages/web/`, excluding Adwaita)', [
@@ -791,35 +890,47 @@ export function generateStatus(root) {
     return { content: renderStatus(root, facts, data), failures: [] };
 }
 
+/**
+ * Validate + return the Summary counts as numbers — the machine-readable entry
+ * point (`website/scripts/generate-coverage.mjs`). Throws on invalid authored
+ * data rather than returning counts computed from data the `status-data` rule
+ * would reject; a consumer must not silently bake half-valid numbers.
+ *
+ * @param {string} root
+ * @returns {SummaryCount[]}
+ */
+export function statusSummary(root) {
+    const facts = collectPackageFacts(root);
+    const { data, failures } = loadStatusData(root, facts);
+    if (failures.length > 0) {
+        throw new Error(
+            `status/ authored data is invalid, refusing to derive summary counts from it:\n  - ${failures.join('\n  - ')}`,
+        );
+    }
+    return collectSummaryCounts(root, facts, data);
+}
+
 const IS_ENTRY = Boolean(process.argv[1]) && resolve(process.argv[1]).endsWith('generate-status.mjs');
 
 if (IS_ENTRY) {
     const root = resolve(fileURLToPath(import.meta.url), '..', '..');
-    const check = process.argv.includes('--check');
     const { content, failures } = generateStatus(root);
     if (failures.length > 0) {
         console.error('generate-status: authored data is invalid:\n');
         for (const failure of failures) console.error(`  ✗ ${failure}`);
         process.exit(1);
     }
+    // STATUS.md is gitignored — writing it is always safe, and "already up to
+    // date" is a statement about a scratch file, never a CI-relevant fact.
+    // There is deliberately NO `--check` mode: a freshness comparison only has
+    // meaning for a committed artifact, and reintroducing one would re-import
+    // the parallel-PR serialisation this file's header describes.
     const statusPath = join(root, 'STATUS.md');
     const current = existsSync(statusPath) ? readFileSync(statusPath, 'utf8') : '';
-    if (check) {
-        if (current === content) {
-            console.log('generate-status --check: STATUS.md is in sync with status/ + the package manifests.');
-            process.exit(0);
-        }
-        console.error(
-            'generate-status --check: STATUS.md is STALE — it does not match what status/ + the package manifests ' +
-                'generate. STATUS.md is a generated file; edit status/** (or the manifests) and run\n\n' +
-                '    node scripts/generate-status.mjs\n',
-        );
-        process.exit(1);
-    }
     if (current === content) {
         console.log('generate-status: STATUS.md already up to date.');
     } else {
         writeFileSync(statusPath, content, 'utf8');
-        console.log(`generate-status: wrote STATUS.md (${content.length} bytes).`);
+        console.log(`generate-status: wrote STATUS.md (${content.length} bytes, gitignored).`);
     }
 }
