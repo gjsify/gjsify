@@ -336,11 +336,8 @@ export class Socket extends EventEmitter {
         // pending callback could fire in between otherwise and see the cancellable
         // already cancelled, emitting an unwanted 'error' on the closed socket.
         if (this._readSource) {
-            try {
-                this._readSource.destroy();
-            } catch (_e) {
-                /* ignore */
-            }
+            // g_source_destroy is idempotent and has no throw path in the GIR.
+            this._readSource.destroy();
             this._readSource = null;
         }
         this._cancellable.cancel();
