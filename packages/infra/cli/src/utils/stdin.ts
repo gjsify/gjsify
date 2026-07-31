@@ -89,13 +89,13 @@ function readStdinTextGioFile(): string {
     return new TextDecoder().decode(contents);
 }
 
-/** The GJS `imports.gi` namespace, or `undefined` when not running on GJS. */
+/**
+ * The GJS `imports.gi` namespace, or `undefined` when not running on GJS.
+ * Same optional-chained probe as `isGjs()` — off GJS `imports` is simply
+ * absent and the read yields `undefined`; there is no throw path.
+ */
 function giNamespace(): Record<string, unknown> | undefined {
-    try {
-        return (globalThis as unknown as { imports?: { gi?: Record<string, unknown> } }).imports?.gi;
-    } catch {
-        return undefined;
-    }
+    return (globalThis as unknown as { imports?: { gi?: Record<string, unknown> } }).imports?.gi;
 }
 
 /**

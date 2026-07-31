@@ -100,11 +100,10 @@ function lockingDisabled(): boolean {
  * we cannot prove abandoned; the mtime staleness budget still applies).
  */
 function isPidAlive(pid: number): boolean {
-    try {
-        if (existsSync('/proc/self')) return existsSync(`/proc/${pid}`);
-    } catch {
-        /* fall through to the signal probe */
-    }
+    // `existsSync` never throws by contract: Node returns false on any error,
+    // and the GJS shim is a typeof guard + Gio `query_exists` (both without a
+    // throw path in the GIR). Off Linux the `if` is simply false.
+    if (existsSync('/proc/self')) return existsSync(`/proc/${pid}`);
     try {
         process.kill(pid, 0);
         return true;

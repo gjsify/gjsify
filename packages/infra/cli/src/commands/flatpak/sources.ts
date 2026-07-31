@@ -59,12 +59,10 @@ function parseSri(integrity: string | undefined): { algorithm: string; hex: stri
     if (dash <= 0 || dash === integrity.length - 1) return null;
     const algorithm = integrity.slice(0, dash);
     const b64 = integrity.slice(dash + 1).replace(/=+$/, '');
-    let hex: string;
-    try {
-        hex = Buffer.from(b64, 'base64').toString('hex');
-    } catch {
-        return null;
-    }
+    // Base64 decoding is lenient on every runtime (Node skips invalid chars,
+    // @gjsify/buffer's table decode maps them to 0): malformed input yields
+    // short/garbage output — caught by the length check below — never a throw.
+    const hex = Buffer.from(b64, 'base64').toString('hex');
     if (hex.length < 4) return null;
     return { algorithm, hex };
 }
