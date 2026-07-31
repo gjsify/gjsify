@@ -143,7 +143,7 @@ Every published package declares its stability contract in `package.json#gjsify.
 | **dom-exception** | — | 1 specs · 34 it() | DOMException polyfill (WebIDL standard). |
 | **domparser** | — | 1 specs · 23 it() | DOMParser (parseFromString XML + HTML), minimal DOM (Element tagName/getAttribute/children/childNodes/querySelector[All]/textContent/innerHTML, Document documentElement/querySelector[All]). Sized for excalibur-tiled map parsing. |
 | **eventsource** | — | 1 specs · 24 it() | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams. |
-| **fetch** | gio-2.0, glib-2.0, soup-3.0 | 4 specs · 64 it() | fetch(), Request (raw body via `set_request_body_from_bytes`), Response, Headers, Referrer-Policy, `file://` URI support, streaming gzip decode (full-body buffer through `DecompressionStream`; `Soup.ContentDecoder` removed per-session to avoid double decompression), per-connection TLS opt-out (`rejectUnauthorized: false`, undici-style — that `Soup.Message` only, never the shared session) + `NODE_TLS_REJECT_UNAUTHORIZED=0`, AbortSignal honored during connect/request-send/TTFB. XHR + `URL.createObjectURL` moved out into `@gjsify/xmlhttprequest` + `@gjsify/url`. |
+| **fetch** | gio-2.0, glib-2.0, soup-3.0 | 5 specs · 69 it() | fetch(), Request (raw body via `set_request_body_from_bytes`), Response, Headers, Referrer-Policy, `file://` URI support, streaming gzip decode (full-body buffer through `DecompressionStream`; `Soup.ContentDecoder` removed per-session to avoid double decompression), per-connection TLS opt-out (`rejectUnauthorized: false`, undici-style — that `Soup.Message` only, never the shared session) + `NODE_TLS_REJECT_UNAUTHORIZED=0`, AbortSignal honored during connect/request-send/TTFB. XHR + `URL.createObjectURL` moved out into `@gjsify/xmlhttprequest` + `@gjsify/url`. |
 | **formdata** | — | 1 specs · 24 it() | FormData, File, multipart encoding. |
 | **gamepad** | manette-0.2 | 1 specs · 19 it() | Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected), GamepadHapticActuator (dual-rumble). Manette→W3C standard-layout button mapping (17 buttons incl. triggers-as-buttons), 4 stick axes + trigger axes→button values. Lazy Manette.Monitor init, graceful degradation without libmanette. |
 | **message-channel** | — | 1 specs · 10 it() | MessageChannel, MessagePort (W3C, EventTarget-based, transport-pluggable). Stock GJS exposes neither. The pluggable transport hook backs `@gjsify/iframe`'s WebKit bridge and `@gjsify/worker_threads`' cross-process ports. |
@@ -305,7 +305,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Package | GNOME Libs | Tests (static) | Notes |
 |---|---|---|---|
 | **runtime** | — | — | Platform-independent runtime detection (isGJS, isNode, runtimeName). |
-| **unit** | glib-2.0 | 3 specs · 127 it() | Test framework (describe/it/expect, cross-platform Node+GJS+browser) + vitest-compat surface (`vi.fn`/`stubGlobal`/`stubEnv`, `toMatchObject`/`toBeNaN`/`toHaveBeenCalled*`, `expect().rejects.toThrow`/`.resolves.toResolve`), `browserSignalDone` for the Playwright axis, fail-count isolation (a leaked late assertion becomes a distinct stray, never poisons a bystander `it()`). |
+| **unit** | glib-2.0 | 4 specs · 129 it() | Test framework (describe/it/expect, cross-platform Node+GJS+browser) + vitest-compat surface (`vi.fn`/`stubGlobal`/`stubEnv`, `toMatchObject`/`toBeNaN`/`toHaveBeenCalled*`, `expect().rejects.toThrow`/`.resolves.toResolve`), `browserSignalDone` for the Playwright axis, fail-count isolation (a leaked late assertion becomes a distinct stray, never poisons a bystander `it()`). |
 | **utils** | gio-2.0, giounix-2.0, glib-2.0 | 3 specs · 16 it() | Shared GJS utilities: Gio wrappers, process info, encoding, `ensureMainLoop`/`quitMainLoop`, structuredClone polyfill, `installCriticalLogWriter`. Two entry points per ADR 0014: `@gjsify/utils/core` is the cross-runtime half (makeCallable, deferEmit, gio-errors errno table, registerGlobal, queueMicrotask, nextTick, …) that polyfill/partial-slot packages MUST import; the barrel adds the six GJS-only modules (byte-array, cli, file, fs, gio, path). |
 
 ---
@@ -316,7 +316,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Package | GNOME Libs | Tests (static) | Notes |
 |---|---|---|---|
-| **cli** | adw, giounix-2.0, gtk, soup-3.0 | 49 specs · 585 it() | The `gjsify` CLI: build (Rolldown engine, `--app gjs\|node\|browser\|nativescript`, `--library`), run, install (native backend, lockfile, `--immutable`), dlx, foreach/workspace/run orchestration with the per-package build cache (ADR 0006), test runner, lint/format/fix (oxc), tsc, check, create-app scaffolding, showcase, storybook, debug (MCP↔devtools bridge), flatpak subcommands, publish/whoami/login/logout/trust/onboard, affected (selective-CI classifier), self-update, upgrade. Ships the committed GJS bundles `dist/cli.gjs.mjs` + `dist/affected.gjs.mjs` (freshness-gated in CI). |
+| **cli** | adw, giounix-2.0, gtk, soup-3.0 | 49 specs · 592 it() | The `gjsify` CLI: build (Rolldown engine, `--app gjs\|node\|browser\|nativescript`, `--library`), run, install (native backend, lockfile, `--immutable`), dlx, foreach/workspace/run orchestration with the per-package build cache (ADR 0006), test runner, lint/format/fix (oxc), tsc, check, create-app scaffolding, showcase, storybook, debug (MCP↔devtools bridge), flatpak subcommands, publish/whoami/login/logout/trust/onboard, affected (selective-CI classifier), self-update, upgrade. Ships the committed GJS bundles `dist/cli.gjs.mjs` + `dist/affected.gjs.mjs` (freshness-gated in CI). |
 | **create-app** | — | — | `gjsify create-app` scaffolding — project templates (incl. the Adwaita/canvas templates) with `--globals` default wiring and `@gjsify/{node,web}-polyfills` so any `node:*`/Web import resolves out of the box. |
 | **empty** | — | — | Stub module for platform exclusion (`export default {}`). Every remaining browser-alias use of it carries an (A)/(A')/(B)/(C) classification tag — an untagged `@gjsify/empty` alias is a bug (see AGENTS.md cross-runtime rules). |
 | **nativescript-vite** | — | — | Vite-8 composer for NativeScript apps: `defineNativescriptConfig()` loads `@nativescript/vite`'s config and fixes the Vite-8/Rolldown incompatibilities at compose time (major-gated: function-alias drop, `@rollup/plugin-commonjs` removal, ns-typescript-check strip), stubs missing framework peers via Node synchronous hooks, applies the SBG bundle-sync fix (stable chunk names + `emptyOutDir`), then spreads `gjsifyNativescript()`. Only hard dep: `@gjsify/vite-plugin-gjsify`. |
@@ -415,13 +415,13 @@ All derived at generation time — none of these numbers is maintained by hand.
 | GJS infrastructure | 3 |
 | Build/Infra tools | 20 published + 2 private (internal, documented in AGENTS.md) |
 | Runtime engines (node-gi / napi) | 4 |
-| Spec files (static count, `packages/**/src`) | 301 |
-| `it()` call sites (static count — not runtime totals; CI is the gate for those) | 7986 |
+| Spec files (static count, `packages/**/src`) | 303 |
+| `it()` call sites (static count — not runtime totals; CI is the gate for those) | 8000 |
 | Packages with a browser test entry (`src/test.browser.mts`) | 52 (canvas2d-core, dom-elements, stories, storybook-core, assert, async_hooks, buffer, console, constants, crypto, diagnostics_channel, dns, domain, events, fs, http, https, module, os, path, perf_hooks, process, querystring, sqlite, stream, string_decoder, sys, timers, url, util, vm, worker_threads, zlib, abort-controller, adwaita-core, adwaita-web, compression-streams, dom-events, dom-exception, domparser, eventsource, fetch, formdata, gamepad, message-channel, web-streams, web-globals, webassembly, webcrypto, websocket, webstorage, xmlhttprequest) |
 | Integration test suites (`tests/integration/*`) | 35 (acorn, autobahn, axios, chalk, chokidar, claude-agent-sdk, cosmiconfig, debug, deepkit-type-compiler, deltachat, devtools-cdp, dotenv, execa, fast-glob, gettext-parser, lightningcss, loro-crdt, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, nativescript, oxfmt-native, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, tls-session, ts-for-gir, typescript-tsc, undici, webtorrent, worker-stress, yargs, yjs) |
-| E2E suites (`tests/e2e/*`) | 104 |
+| E2E suites (`tests/e2e/*`) | 105 |
 | Showcases (`showcases/*`) | 13 (dom/adwaita-storybook-nativescript, dom/adwaita-widgets-nativescript, dom/canvas2d-fireworks, dom/excalibur-jelly-jumper, dom/minimalist-browser, dom/three-geometry-teapot, dom/three-geometry-teapot-nativescript, dom/three-postprocessing-pixel, dom/webrtc-loopback, dom/webrtc-video, gtk/adwaita-storybook, gtk/node-gi-window, node/express-webserver) |
-| Examples (`examples/*`) | 63 |
+| Examples (`examples/*`) | 68 |
 | Reference submodules (`refs/`) | 93 |
 
 ---
@@ -614,24 +614,13 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### `@gjsify/webrtc`'s suite cannot fail — and 17 tests are red underneath
+### 60 dead lint-disable directives; `--report-unused-disable-directives` is off
 
-`packages/web/webrtc/src/test.mts` awaits its four specs directly instead of
-routing them through `@gjsify/unit`'s `run()`, so the suite prints red ❌ marks
-and still exits 0 — the exact defect #872 fixed for `@gjsify/webaudio`
-("a suite that cannot fail"). Fixing the entry is one line, but doing it today
-surfaces **17 of 590 tests failing** (measured 2026-07-30 on Fedora/GJS
-1.88.1), so the entry fix is blocked on triaging them: setLocalDescription
-ROLLBACK (4: rollback to stable, signalingstatechange, pendingLocalDescription,
-stable-state no-op), two SCTP REGRESSION tests (`_setMaxMessageSize(0)` =
-unlimited per RFC 8841; send() > max-message-size throws OperationError),
-`getParameters()` codecs/rtcp (3), sender/receiver `transport`/`dtmf` null
-expectations (3), negotiationneeded lifecycle (2), tee multiplexer after second
-addTrack, `setConfiguration` NotSupportedError. Each needs an individual
-verdict (impl regression vs stale assertion) — do NOT weaken tests to get the
-entry green. `@gjsify/gamepad` had the same entry shape and was fixed (its
-suite is green); webrtc is the only remaining `src/test.mts` not calling
-`run()`.
+oxlint supports `--report-unused-disable-directives`, which flags an `// eslint-disable-…` / `// oxlint-disable-…` comment that suppresses nothing. That is precisely the failure mode behind the bare-`require` incident: the `@typescript-eslint/no-require-imports` disables sitting at the offending sites were DECORATION, because the rule they named was never enabled. An unused-directive check would have said so out loud, years before a red main did.
+
+Measured on `c185bbaf4`: **60 unused directives** across the tree (`node-gi/globals.d.ts`, `zlib/src/browser.ts`, `worker-stress`, `http2/src/native-dispatcher.ts`, …). So the flag cannot just be switched on at `error` — that is a 60-site cleanup, and each site needs deciding individually (delete the directive, or repair the rule name it got wrong; a directive naming a rule oxlint does not implement is indistinguishable from one naming a rule that is merely disabled).
+
+Enabling it at `warn` alone is NOT worth doing: `gjsify lint` already emits warnings that nothing gates on, so it would add noise without adding a guarantee — the half-measure this whole class argues against. The useful shape is one change that sweeps the 60 AND turns it on as an ERROR, so it cannot regrow.
 
 ### `@gjsify/http2` lazy native-dispatcher loads still use a bare `require`
 
@@ -676,7 +665,7 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 
 ### `--app node` genuine-GJS-source detection is narrower than the reverse bridge it gates
 
-`nodeGiGlobalsInject` now keys on BARE ambient globals (`print`/`imports`/`ARGV`) **plus** a static `@gjsify/node-gi/*` import in the tree-shaken output (`detectNodeGiModuleImports` — the externalised spelling of the bare `system`/`gettext`/`cairo` built-ins; such a bundle is already bridge-bound at load, so the signal cannot cost plain-Node loadability). That closes the portable-spelling half: a GJS source whose only host reach is `system.programArgs` (no ambient global) is recognised again (`gjsify storybook --runtime node` regressed exactly there when the storybook stopped referencing `imports`/`ARGV`). REMAINING narrowness: a genuine GJS source whose ONLY platform reach is `gi://` (no ambient global, no bare built-in, no explicit `--globals`) is still not recognised — its `@girs/*` value imports are emptied (`class extends undefined`) and its `/register` imports route to `@gjsify/empty`. A surviving `gi://` import CANNOT simply become the third signal: its shim loads node-gi LAZILY precisely so a gjs-gated `gi://` import keeps a cross-platform package's node bundle loadable on plain Node (#641, pinned by `tests/e2e/node-gi-globals-inject`'s gated case) — closing this needs a signal that separates an unconditionally-evaluated namespace use from a gated one, which the emitted-chunk scan cannot express today.
+`nodeGiGlobalsInject` keys on BARE ambient globals (`print`/`imports`/`ARGV`), so a genuine GJS source that uses `gi://` but logs via `console.log` — and passes no explicit `--globals` — is not recognised: its `@girs/*` value imports are emptied (`class extends undefined`) **and** its `/register` imports route to `@gjsify/empty`. Verified with both probes. This pre-dates ADR 0012 and hits `@girs/*` and registers equally; ADR 0012 only brought the two into parity via the single `isGjsSourceBuild` gate in `app/node.ts`. Fix by widening the SIGNAL itself — e.g. treat "a `gi://` specifier survived in the bundled graph" as a reverse-bridge build — which closes both at once.
 
 ### `@gjsify/node-gi` — a pointer struct FIELD whose length lives in a sibling field marshals EMPTY
 
