@@ -9,12 +9,25 @@
 #   packages/infra/cli/dist/cli.gjs.mjs   (the @gjsify/cli GJS bundle)
 #   packages/infra/tsc/dist/tsc.gjs.mjs   (the @gjsify/tsc GJS bundle)
 #
-# `.github/workflows/main.yml` runs `gjs -m <bundle> --version` against each
-# committed bundle and fails the build if the reported version does not match
-# the source-of-truth in `package.json` / `TYPESCRIPT_VERSION`. Contributors
-# who edit the corresponding `src/` without rebuilding the bundle land red
-# CI runs (~45 min × 2 platforms wasted). This hook removes the foot-gun by
-# rebuilding + auto-staging the affected bundle inside the same commit.
+# `.github/workflows/main.yml` rebuilds each committed bundle from source and
+# fails the build when it does not reproduce byte-identically
+# (`scripts/verify-committed-bundles.mjs`). Contributors who edit an inlined
+# source without rebuilding the bundle land red CI runs (~20 min per round
+# trip). This hook removes the foot-gun by rebuilding + auto-staging the
+# affected bundle inside the same commit.
+#
+# Trigger set — DERIVED, not hand-maintained
+# ------------------------------------------
+# The bundles inline the `lib/esm` of their whole transitive workspace-dep
+# closure, so a hand-written path list structurally cannot keep up (it missed
+# `@gjsify/fetch`, `@gjsify/utils`+`@gjsify/fs` and `@gjsify/zlib` in a single
+# day). Each bundle's build therefore records the workspace packages its
+# module graph actually inlined into a committed sibling manifest
+# (`dist/<bundle>.gjs.inputs.json`, written by `gjsify build
+# --inputs-manifest`, byte-compared in CI like the bundle itself). This hook
+# unions those manifests with a few explicit paths and triggers on any staged
+# change inside them. Reading a small committed JSON keeps the hook cheap —
+# no build runs to DECIDE whether to build.
 #
 # Bypass
 # ------
@@ -44,69 +57,123 @@ fi
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-# --- gjsify resolution ---------------------------------------------------
-#
-# Prefer the workspace-local CLI at node_modules/.bin/gjsify so the rebuilt
-# bundle uses the same version the workspace declares (matters during a
-# version bump where the global gjsify on PATH may drift from
-# packages/infra/cli/package.json#version). Fall back to PATH, then to the
-# committed GJS bundle itself (works on a freshly-cloned repo with no
-# node_modules yet — but that's a near-impossible case here because we're
-# about to invoke `gjsify workspace ... build` which itself needs the
-# workspace to be installed).
-
-if [ -x "$REPO_ROOT/node_modules/.bin/gjsify" ]; then
-    GJSIFY="$REPO_ROOT/node_modules/.bin/gjsify"
-elif command -v gjsify >/dev/null 2>&1; then
-    GJSIFY="$(command -v gjsify)"
-elif command -v gjs >/dev/null 2>&1 && [ -f "$REPO_ROOT/packages/infra/cli/dist/cli.gjs.mjs" ]; then
-    GJSIFY="gjs -m $REPO_ROOT/packages/infra/cli/dist/cli.gjs.mjs"
-else
-    echo "::warning::[gjsify pre-commit] no gjsify CLI on PATH and no node_modules/.bin/gjsify;"
-    echo "::warning::[gjsify pre-commit] skipping bundle freshness check. Run 'gjsify install' first."
-    exit 0
-fi
-
 # --- Detect what changed -------------------------------------------------
 #
 # `--diff-filter=ACMR` includes Added / Copied / Modified / Renamed entries.
 # We deliberately do not include Deleted — a pure delete won't make the
 # bundle stale.
-# `--name-only` keeps the command output single-line per file (cheap to
-# substring-check via `head -1` for emptiness).
 
-# Two non-`cli/src` paths are included deliberately, both for the same reason:
-# they are inlined into the bundle AND their staleness is SILENT.
+# Print the repo-relative package dirs a committed inputs manifest records —
+# one per line. The manifest is JSON with one array entry per line (the shape
+# `renderInputsManifest` in packages/infra/cli/src/utils/bundle-inputs-manifest.ts
+# pins), so plain sed suffices: the hook must work on a fresh clone with no
+# node_modules, where neither node nor jq can be assumed.
+manifest_pkg_dirs() {
+    [ -f "$1" ] || return 0
+    sed -n '/"packages": \[/,/\]/{s/^[[:space:]]*"\([^"]*\)",\{0,1\}[[:space:]]*$/\1/p;}' "$1"
+}
+
+# Expand package dirs (stdin, one per line) into the pathspecs that are
+# committed INPUTS to each package's `lib/esm`: the sources (`src/`), a
+# committed no-build `lib/` (the `@gjsify/resolve-npm` shape), and the
+# package manifest. No bash-4 namerefs — macOS ships bash 3.2.
+expand_pkg_triggers() {
+    while IFS= read -r pkg; do
+        [ -n "$pkg" ] || continue
+        printf '%s\n' "$pkg/src/" "$pkg/lib/" "$pkg/package.json"
+    done
+}
+
+CLI_DIST="packages/infra/cli/dist"
+TSC_DIST="packages/infra/tsc/dist"
+
+# Explicit baseline paths (kept even though the manifests normally cover them —
+# they are the belt to the manifests' braces, and they make a checkout whose
+# manifests predate this mechanism behave exactly like the old hook):
 #
-#   packages/infra/resolve-npm/lib/          — DATA the bundle inlines:
-#     `globals-map.mjs`'s GJS_GLOBALS_MAP (identifier → `/register` subpath) and
-#     `index.mjs`'s alias maps. A new entry SILENTLY no-ops until the bundle is
-#     rebuilt — `--globals auto` just fails to inject the identifier, no error.
-#
+#   packages/infra/resolve-npm/lib/          — DATA the bundle inlines (alias +
+#     globals maps); a new entry SILENTLY no-ops until the bundle is rebuilt.
 #   packages/infra/rolldown-plugin-gjsify/src/ — the BUILD PIPELINE the bundle
-#     inlines (resolveId/load plugins: alias, gi-node, napi-addon, externals,
-#     entry wrapper, the app/* orchestrators). Same silence, worse blast radius:
-#     a resolver fix appears to do nothing at all when exercised through
-#     `node_modules/.bin/gjsify` (which prefers the committed bundle), so the
-#     next person re-debugs a bug that is already fixed in `src/`. Cost of a
-#     false positive is one extra bundle rebuild; cost of a miss is a shipped
-#     build regression, since every e2e that boots `gjs -m dist/cli.gjs.mjs`
-#     tests the stale pipeline.
-#
-# `node_modules/.bin/gjsify` prefers the committed `dist/cli.gjs.mjs` over the
-# workspace `lib/` whenever `gjs` is on PATH — that preference is what makes all
-# of the above invisible without this trigger.
-CLI_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/cli/src/ packages/infra/cli/package.json packages/infra/resolve-npm/lib/ packages/infra/rolldown-plugin-gjsify/src/ | head -1)"
-TSC_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/tsc/src/ packages/infra/tsc/package.json | head -1)"
+#     inlines; a resolver fix appears to do nothing at all when exercised
+#     through `node_modules/.bin/gjsify` (which prefers the committed bundle).
+CLI_TRIGGERS=(
+    packages/infra/cli/src/
+    packages/infra/cli/package.json
+    packages/infra/resolve-npm/lib/
+    packages/infra/rolldown-plugin-gjsify/src/
+)
+TSC_TRIGGERS=(
+    packages/infra/tsc/src/
+    packages/infra/tsc/scripts/
+    packages/infra/tsc/package.json
+)
+
+# Union of the two CLI bundle manifests (cli.gjs.mjs + affected.gjs.mjs —
+# both are rebuilt together, so one trigger set serves both). Duplicate
+# pathspecs are harmless to `git diff`.
+while IFS= read -r spec; do
+    CLI_TRIGGERS+=("$spec")
+done < <(
+    {
+        manifest_pkg_dirs "$CLI_DIST/cli.gjs.inputs.json"
+        manifest_pkg_dirs "$CLI_DIST/affected.gjs.inputs.json"
+    } | expand_pkg_triggers
+)
+
+while IFS= read -r spec; do
+    TSC_TRIGGERS+=("$spec")
+done < <(manifest_pkg_dirs "$TSC_DIST/tsc.gjs.inputs.json" | expand_pkg_triggers)
+
+CLI_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- "${CLI_TRIGGERS[@]}" | head -5)"
+TSC_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- "${TSC_TRIGGERS[@]}" | head -5)"
 
 # Avoid re-entering rebuild if nothing relevant changed.
 if [ -z "$CLI_SRC_CHANGED" ] && [ -z "$TSC_SRC_CHANGED" ]; then
     exit 0
 fi
 
-echo "[gjsify pre-commit] detected staged changes that may stale the committed GJS bundle(s):"
-[ -n "$CLI_SRC_CHANGED" ] && echo "  • packages/infra/cli/src/ (or package.json), packages/infra/resolve-npm/lib/, or packages/infra/rolldown-plugin-gjsify/src/"
-[ -n "$TSC_SRC_CHANGED" ] && echo "  • packages/infra/tsc/src/ (or package.json)"
+echo "[gjsify pre-commit] staged changes stale the committed GJS bundle(s):"
+if [ -n "$CLI_SRC_CHANGED" ]; then
+    echo "  • $CLI_DIST/{cli,affected}.gjs.mjs — triggered by:"
+    echo "$CLI_SRC_CHANGED" | sed 's/^/      /'
+fi
+if [ -n "$TSC_SRC_CHANGED" ]; then
+    echo "  • $TSC_DIST/tsc.gjs.mjs — triggered by:"
+    echo "$TSC_SRC_CHANGED" | sed 's/^/      /'
+fi
+
+# --- gjsify resolution ---------------------------------------------------
+#
+# Prefer the workspace-local CLI at node_modules/.bin/gjsify so the rebuilt
+# bundle uses the same version the workspace declares (matters during a
+# version bump where the global gjsify on PATH may drift from
+# packages/infra/cli/package.json#version). Fall back to PATH, then to the
+# committed GJS bundle itself.
+#
+# Resolved AFTER detection on purpose: a checkout that cannot rebuild (a fresh
+# worktree with no node_modules — the #821 case) still gets told exactly WHAT
+# went stale and what to run, instead of a generic skip notice printed before
+# anything was even diffed.
+
+if [ -x "$REPO_ROOT/node_modules/.bin/gjsify" ]; then
+    GJSIFY="$REPO_ROOT/node_modules/.bin/gjsify"
+elif command -v gjsify >/dev/null 2>&1; then
+    GJSIFY="$(command -v gjsify)"
+elif command -v gjs >/dev/null 2>&1 && [ -f "$REPO_ROOT/$CLI_DIST/cli.gjs.mjs" ]; then
+    GJSIFY="gjs -m $REPO_ROOT/$CLI_DIST/cli.gjs.mjs"
+else
+    echo "::warning::[gjsify pre-commit] CANNOT REBUILD: no gjsify CLI reachable (node_modules/.bin/gjsify, PATH, or gjs + the committed bundle)."
+    echo "::warning::[gjsify pre-commit] The commit proceeds, but the bundle(s) above are STALE and CI's byte-compare (scripts/verify-committed-bundles.mjs) WILL fail."
+    echo "::warning::[gjsify pre-commit] Run 'gjsify install' first, then rebuild + amend before pushing:"
+    if [ -n "$CLI_SRC_CHANGED" ]; then
+        echo "::warning::[gjsify pre-commit]   gjsify workspace @gjsify/cli build --with-dependencies && gjsify workspace @gjsify/cli build:gjs-bundle && gjsify workspace @gjsify/cli build:affected-bundle"
+    fi
+    if [ -n "$TSC_SRC_CHANGED" ]; then
+        echo "::warning::[gjsify pre-commit]   gjsify workspace @gjsify/tsc build"
+    fi
+    exit 0
+fi
+
 echo "[gjsify pre-commit] rebuilding affected bundle(s) — bypass with 'git commit --no-verify' or SKIP_GJSIFY_HOOKS=1."
 
 # --- Rebuild @gjsify/cli -------------------------------------------------
@@ -118,13 +185,13 @@ if [ -n "$CLI_SRC_CHANGED" ]; then
     # does for the freshness verifier in main.yml.
     $GJSIFY workspace @gjsify/cli build
     $GJSIFY workspace @gjsify/cli build:gjs-bundle
-    git add packages/infra/cli/dist/cli.gjs.mjs
-    echo "[gjsify pre-commit] staged packages/infra/cli/dist/cli.gjs.mjs"
+    git add "$CLI_DIST/cli.gjs.mjs" "$CLI_DIST/cli.gjs.inputs.json"
+    echo "[gjsify pre-commit] staged $CLI_DIST/cli.gjs.mjs (+ inputs manifest)"
     # The dedicated, Soup-free classifier bundle the CI `changes` job boots —
     # rebuilt from the same src/ so it can't drift from the affected logic.
     $GJSIFY workspace @gjsify/cli build:affected-bundle
-    git add packages/infra/cli/dist/affected.gjs.mjs
-    echo "[gjsify pre-commit] staged packages/infra/cli/dist/affected.gjs.mjs"
+    git add "$CLI_DIST/affected.gjs.mjs" "$CLI_DIST/affected.gjs.inputs.json"
+    echo "[gjsify pre-commit] staged $CLI_DIST/affected.gjs.mjs (+ inputs manifest)"
 fi
 
 # --- Rebuild @gjsify/tsc -------------------------------------------------
@@ -134,8 +201,8 @@ if [ -n "$TSC_SRC_CHANGED" ]; then
     # The tsc package's `build` script already wraps build-bundle.mjs (no
     # separate :gjs-bundle phase) — its dist/tsc.gjs.mjs is the only artifact.
     $GJSIFY workspace @gjsify/tsc build
-    git add packages/infra/tsc/dist/tsc.gjs.mjs
-    echo "[gjsify pre-commit] staged packages/infra/tsc/dist/tsc.gjs.mjs"
+    git add "$TSC_DIST/tsc.gjs.mjs" "$TSC_DIST/tsc.gjs.inputs.json"
+    echo "[gjsify pre-commit] staged $TSC_DIST/tsc.gjs.mjs (+ inputs manifest)"
 fi
 
 exit 0

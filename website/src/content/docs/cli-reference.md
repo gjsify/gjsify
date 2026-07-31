@@ -55,6 +55,7 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--external` | name[] | `[]` | Module specifiers that should NOT be bundled — they remain as runtime imports. Repeatable; comma-separated values are split. Merged with the platform's built-in externals. |
 | `--define` | `KEY=VALUE`[] | `[]` | Bundler `define` pass-through. VALUE is a JS expression — string literals must be JSON-quoted (`--define VERSION='"1.2.3"'`). Repeatable. Merged with built-in defines like `global: 'globalThis'`. |
 | `--alias` | `FROM=TO`[] | `[]` | Layered on top of the built-in alias map. Useful for stubbing heavy deps (`--alias typedoc=@gjsify/empty`). Repeatable. |
+| `--inputs-manifest` | path | — | Write a JSON manifest at the given path listing the workspace packages whose modules the bundle inlined, derived from the bundler module graph. Used for committed bundles so tooling (e.g. gjsify's own pre-commit hook) can derive a rebuild-trigger set instead of maintaining it by hand. App builds only; requires the npm `rolldown` engine (the native engine does not report the module graph). |
 
 For `--app gjs`, the target is `firefox140` (SpiderMonkey 140) and `gi://*`, `cairo`, `system` and `gettext` are externalised. For `--app node`, the target is `node24`.
 

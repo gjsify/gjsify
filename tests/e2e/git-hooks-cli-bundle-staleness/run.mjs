@@ -1,10 +1,20 @@
 // E2E test for the `.githooks/pre-commit` hook that auto-rebuilds + auto-stages
-// the committed `@gjsify/{cli,tsc}` GJS bundles when their `src/` trees change.
+// the committed `@gjsify/{cli,tsc}` GJS bundles when sources they inline change.
 //
 // The hook is what removes the recurring foot-gun: contributors who edit
-// `packages/infra/{cli,tsc}/src/` without rebuilding the bundle would otherwise
-// land red CI runs against the bundle-freshness check in
-// `.github/workflows/main.yml`.
+// an inlined source without rebuilding the bundle would otherwise land red CI
+// runs against the bundle byte-compare in `.github/workflows/main.yml`
+// (`scripts/verify-committed-bundles.mjs`).
+//
+// The trigger set is DERIVED from the committed `dist/*.gjs.inputs.json`
+// manifests (`gjsify build --inputs-manifest`, one per bundle — the workspace
+// packages the bundler's module graph actually inlined) plus a few explicit
+// baseline paths. The synthetic repo therefore commits manifests in the exact
+// shape `renderInputsManifest()` emits, and the cases below prove that a
+// manifest-listed package OUTSIDE the explicit path list triggers the rebuild
+// while an unlisted workspace package does not — the class of miss
+// (`@gjsify/zlib`, `@gjsify/fetch`, `@gjsify/utils`) the hand-maintained
+// five-path list shipped three times in one day.
 //
 // We don't run the actual `gjsify workspace ... build` chain here — that
 // requires the full installed workspace and is exercised separately by every
@@ -17,7 +27,7 @@
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,11 +37,25 @@ const HOOK_SOURCE = join(REPO_ROOT, '.githooks', 'pre-commit');
 const INSTALL_SCRIPT = join(REPO_ROOT, 'scripts', 'install-git-hooks.mjs');
 
 /**
+ * The exact text shape `renderInputsManifest()` (packages/infra/cli/src/utils/
+ * bundle-inputs-manifest.ts) writes — one array entry per line, 4-space
+ * indent, trailing newline. Duplicated here ON PURPOSE: the hook parses this
+ * shape with `sed`, so this doubles as a format regression test — a generator
+ * reformat that breaks the hook's parser breaks these cases.
+ */
+function inputsManifest(packages) {
+    return `${JSON.stringify({ '//': 'synthetic manifest — shape pinned to renderInputsManifest()', packages }, null, 4)}\n`;
+}
+
+/**
  * Lay down the minimum repository skeleton the hook walks:
  *   - `.git` (real, via `git init`)
  *   - `.githooks/pre-commit` (copied from the actual workspace hook under test)
- *   - `packages/infra/cli/src/index.ts` + `dist/cli.gjs.mjs`
- *   - `packages/infra/tsc/src/index.ts` + `dist/tsc.gjs.mjs`
+ *   - `packages/infra/cli/src/index.ts` + `dist/cli.gjs.mjs` + inputs manifests
+ *   - `packages/infra/tsc/src/index.ts` + `dist/tsc.gjs.mjs` + inputs manifest
+ *   - manifest-listed workspace packages (`packages/node/zlib`,
+ *     `packages/gjs/utils` for the CLI bundles; `packages/node/fs` for tsc)
+ *     plus an UNLISTED one (`packages/web/webrtc`)
  *   - `node_modules/.bin/gjsify` — synthetic stub recording its argv to a log
  *
  * The stub is wired into PATH via `node_modules/.bin` so the hook's resolver
@@ -77,6 +101,27 @@ function setupSyntheticRepo(parent) {
         `export const TYPESCRIPT_VERSION = '0';\n`,
     );
     writeFileSync(join(root, 'packages', 'infra', 'tsc', 'dist', 'tsc.gjs.mjs'), `// initial tsc bundle\n`);
+
+    // Committed inputs manifests — the DERIVED trigger set. zlib + utils are
+    // inlined into the CLI bundles, fs into the tsc bundle; webrtc is inlined
+    // into NEITHER and must stay a no-op.
+    writeFileSync(
+        join(root, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.inputs.json'),
+        inputsManifest(['packages/gjs/utils', 'packages/node/zlib']),
+    );
+    writeFileSync(
+        join(root, 'packages', 'infra', 'cli', 'dist', 'affected.gjs.inputs.json'),
+        inputsManifest(['packages/gjs/utils']),
+    );
+    writeFileSync(
+        join(root, 'packages', 'infra', 'tsc', 'dist', 'tsc.gjs.inputs.json'),
+        inputsManifest(['packages/node/fs']),
+    );
+    for (const pkgDir of ['packages/node/zlib', 'packages/gjs/utils', 'packages/node/fs', 'packages/web/webrtc']) {
+        mkdirSync(join(root, pkgDir, 'src'), { recursive: true });
+        writeFileSync(join(root, pkgDir, 'src', 'index.ts'), `export const v = 1;\n`);
+        writeFileSync(join(root, pkgDir, 'package.json'), `{ "name": "@gjsify/${pkgDir.split('/').pop()}" }\n`);
+    }
 
     // Synthetic `gjsify` stub on PATH. Records its argv to a log + REWRITES
     // the appropriate `dist/<bundle>.gjs.mjs` so we can assert the hook
@@ -238,6 +283,126 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
             initialBundle,
             'cli bundle was not refreshed by the rebuild',
         );
+    });
+
+    it('auto-rebuilds the CLI bundles when a manifest-listed inlined package changes (@gjsify/zlib)', () => {
+        // THE case the hand-maintained path list missed three times in one
+        // day: `packages/node/zlib` is not one of the explicit hook paths, but
+        // the committed cli.gjs.inputs.json records it as inlined — so a
+        // staged edit there must rebuild the CLI bundles.
+        const { root, logPath } = setupSyntheticRepo(parent);
+        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
+
+        writeFileSync(join(root, 'packages/node/zlib/src/index.ts'), `export const v = 2;\n`);
+        execFileSync('git', ['-C', root, 'add', 'packages/node/zlib/src/index.ts']);
+
+        const result = runHook(root);
+        assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
+
+        // Only the CLI sequence — zlib is not in the tsc manifest.
+        assert.deepEqual(readLog(logPath), [
+            'workspace @gjsify/cli build',
+            'workspace @gjsify/cli build:gjs-bundle',
+            'workspace @gjsify/cli build:affected-bundle',
+        ]);
+
+        const filesInCommit = execFileSync(
+            'git',
+            ['-C', root, 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
+            { encoding: 'utf-8' },
+        )
+            .trim()
+            .split('\n');
+        assert.ok(
+            filesInCommit.includes('packages/infra/cli/dist/cli.gjs.mjs'),
+            `dist/cli.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
+        );
+        assert.notEqual(
+            readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8'),
+            initialBundle,
+            'cli bundle was not refreshed by the rebuild',
+        );
+    });
+
+    it('auto-rebuilds ONLY the tsc bundle when a tsc-manifest-listed package changes (@gjsify/fs)', () => {
+        const { root, logPath } = setupSyntheticRepo(parent);
+
+        writeFileSync(join(root, 'packages/node/fs/src/index.ts'), `export const v = 2;\n`);
+        execFileSync('git', ['-C', root, 'add', 'packages/node/fs/src/index.ts']);
+
+        const result = runHook(root);
+        assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
+        assert.deepEqual(readLog(logPath), ['workspace @gjsify/tsc build']);
+
+        const filesInCommit = execFileSync(
+            'git',
+            ['-C', root, 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
+            { encoding: 'utf-8' },
+        )
+            .trim()
+            .split('\n');
+        assert.ok(
+            filesInCommit.includes('packages/infra/tsc/dist/tsc.gjs.mjs'),
+            `dist/tsc.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
+        );
+    });
+
+    it('stays a no-op for a workspace package NO manifest lists (@gjsify/webrtc)', () => {
+        // The other half of the derivation: a package outside every bundle's
+        // module graph must not cost a rebuild.
+        const { root, logPath } = setupSyntheticRepo(parent);
+        writeFileSync(join(root, 'packages/web/webrtc/src/index.ts'), `export const v = 2;\n`);
+        execFileSync('git', ['-C', root, 'add', 'packages/web/webrtc/src/index.ts']);
+
+        const result = runHook(root);
+        assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
+        assert.deepEqual(readLog(logPath), [], `hook should not have invoked gjsify, got: ${result.stdout}`);
+    });
+
+    it('warns loudly — naming the stale bundle + rebuild commands — when it cannot rebuild', () => {
+        // The fresh-clone case (#821): no node_modules/.bin/gjsify, no gjsify
+        // and no gjs on PATH. The DECISION (manifest read + staged-diff match)
+        // must still work — plain git + sed — and the hook must say exactly
+        // what went stale and what to run, while still letting the commit
+        // through (best-effort; CI's byte-compare is the invariant).
+        const { root, logPath, stubPath } = setupSyntheticRepo(parent);
+        rmSync(stubPath);
+
+        // A minimal PATH with only what the hook's decision logic needs. No
+        // gjsify, no gjs — the resolver must reach its warn-and-skip tail.
+        const resolveTool = (name) => {
+            const r = spawnSync('sh', ['-c', `command -v ${name}`], { encoding: 'utf-8' });
+            assert.equal(r.status, 0, `required tool not found on PATH: ${name}`);
+            return r.stdout.trim();
+        };
+        const minBin = join(root, 'minbin');
+        mkdirSync(minBin);
+        for (const tool of ['bash', 'sh', 'git', 'sed', 'head']) {
+            symlinkSync(resolveTool(tool), join(minBin, tool));
+        }
+
+        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
+        writeFileSync(join(root, 'packages/node/zlib/src/index.ts'), `export const v = 3;\n`);
+        execFileSync('git', ['-C', root, 'add', 'packages/node/zlib/src/index.ts']);
+
+        const result = spawnSync(resolveTool('git'), ['-C', root, 'commit', '-q', '-m', 'hook-test'], {
+            encoding: 'utf-8',
+            env: { PATH: minBin, HOME: process.env.HOME ?? root },
+        });
+        assert.equal(result.status, 0, `commit should proceed (best-effort hook): ${result.stderr}`);
+        assert.deepEqual(readLog(logPath), [], 'nothing rebuildable should have been invoked');
+        assert.equal(
+            readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8'),
+            initialBundle,
+            'bundle must be untouched when no CLI is reachable',
+        );
+
+        const output = `${result.stdout}\n${result.stderr}`;
+        assert.match(output, /CANNOT REBUILD/, `expected a loud warning, got: ${output}`);
+        assert.match(output, /cli,affected}\.gjs\.mjs/, `expected the stale bundle to be named, got: ${output}`);
+        assert.match(output, /packages\/node\/zlib\/src\/index\.ts/, `expected the trigger file, got: ${output}`);
+        assert.match(output, /build:gjs-bundle/, `expected the rebuild command, got: ${output}`);
+        assert.match(output, /verify-committed-bundles/, `expected the CI check to be named, got: ${output}`);
     });
 
     it('skips the rebuild when SKIP_GJSIFY_HOOKS=1', () => {

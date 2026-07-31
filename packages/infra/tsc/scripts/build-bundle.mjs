@@ -154,7 +154,22 @@ const nodeCliEntry = join(pkgRoot, '..', 'cli', 'lib', 'index.js');
 // same filesystem is atomic, so a concurrent reader always sees the complete old
 // or complete new bundle, never a half-written one.
 const buildTmp = `${outfile}.building`;
-const buildArgv = ['build', entry, '--app', 'gjs', '--outfile', buildTmp, '--shebang'];
+// `--inputs-manifest`: the committed trigger-set manifest next to the bundle —
+// the workspace packages (the @gjsify polyfills) this bundle inlines, derived
+// from the bundler module graph. `.githooks/pre-commit` reads it to decide
+// when a staged change stales `dist/tsc.gjs.mjs`;
+// `scripts/verify-committed-bundles.mjs` byte-compares it in CI.
+const buildArgv = [
+    'build',
+    entry,
+    '--app',
+    'gjs',
+    '--outfile',
+    buildTmp,
+    '--shebang',
+    '--inputs-manifest',
+    join('dist', 'tsc.gjs.inputs.json'),
+];
 const r = existsSync(nodeCliEntry)
     ? spawnSync(process.execPath, [nodeCliEntry, ...buildArgv], { stdio: 'inherit', cwd: pkgRoot, env })
     : spawnSync('gjsify', buildArgv, { stdio: 'inherit', cwd: pkgRoot, env });

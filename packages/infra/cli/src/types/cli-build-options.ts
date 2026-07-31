@@ -104,4 +104,13 @@ export interface CliBuildOptions {
      * npm `rolldown` engine — run under Node.
      */
     watch?: boolean;
+    /**
+     * Write a JSON manifest next to the bundle listing the WORKSPACE packages
+     * whose modules the bundle inlined, derived from the bundler's module
+     * graph (each chunk's `moduleIds`). Used for the committed GJS bundles so
+     * `.githooks/pre-commit` can derive its rebuild-trigger set instead of
+     * maintaining it by hand. App builds only; requires the npm `rolldown`
+     * engine (the native engine does not report the module graph).
+     */
+    inputsManifest?: string;
 }

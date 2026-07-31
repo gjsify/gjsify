@@ -20,6 +20,14 @@ import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '.
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
 import { assertGjsBundleLoadable } from '../utils/gjs-bundle-guard.js';
 import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
+import {
+    assertModuleGraphReported,
+    collectChunkModuleIds,
+    deriveInputPackages,
+    renderInputsManifest,
+} from '../utils/bundle-inputs-manifest.js';
+import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { discoverWorkspaces } from '@gjsify/workspace';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
 
@@ -348,6 +356,38 @@ export class BuildAction {
             if (typeof code !== 'string' || code.length === 0) continue;
             assertNodeBundleGlobalsShimmed(code, item.fileName ? `${label} (${item.fileName})` : label);
         }
+    }
+
+    /**
+     * Post-bundle step for `--inputs-manifest <path>`: derive the set of
+     * WORKSPACE packages whose modules the bundle inlined (from the bundler's
+     * own module graph — the same oracle `assertGjsOutputLoadable` reads) and
+     * write it as a deterministic JSON manifest. For the committed bundles the
+     * manifest is committed alongside and byte-compared by
+     * `scripts/verify-committed-bundles.mjs`, so it cannot go stale
+     * independently of the bundle it describes.
+     */
+    private async writeInputsManifest(result: RolldownOutput, manifestPath: string): Promise<void> {
+        const moduleIds = collectChunkModuleIds(
+            (result.output ?? []) as readonly { type: string; moduleIds?: readonly string[] }[],
+        );
+        assertModuleGraphReported(moduleIds, manifestPath);
+
+        const workspaceRoot = findWorkspaceRoot(process.cwd());
+        if (!workspaceRoot) {
+            throw new Error(
+                'gjsify build --inputs-manifest: no workspace root found (no ancestor package.json with a ' +
+                    '`workspaces` field). The manifest records workspace-root-relative package dirs, so it ' +
+                    'only makes sense inside a workspace.',
+            );
+        }
+        const workspaces = discoverWorkspaces(workspaceRoot);
+        const packages = deriveInputPackages({ moduleIds, workspaceRoot, workspaces });
+
+        const abs = resolve(manifestPath);
+        await mkdir(dirname(abs), { recursive: true });
+        await writeFile(abs, renderInputsManifest(packages));
+        console.log(`[gjsify] inputs manifest: ${manifestPath} — ${packages.length} workspace package(s) inlined`);
     }
 
     /**
@@ -757,6 +797,14 @@ export class BuildAction {
         // `--globals none` opts out of the mechanism, so it opts out of the gate.
         if (app === 'node' && autoMode && !pluginOpts.nodeGiGlobalsInject) {
             this.assertNodeOutputGlobals(writeResult, outfile, outdir);
+        }
+
+        // Record which workspace packages the bundle inlined — the committed
+        // trigger set the pre-commit hook derives its rebuilds from (see
+        // `utils/bundle-inputs-manifest.ts`). After the guards on purpose: a
+        // bundle that fails its gates must not leave a fresh manifest behind.
+        if (this.configData.inputsManifest) {
+            await this.writeInputsManifest(writeResult, this.configData.inputsManifest);
         }
 
         // Browser HTML entry: emit the processed `index.html` beside the bundle

@@ -41,6 +41,13 @@ builddir/
 # plain ubuntu+gjs host (see .github/workflows/main.yml). Committed + refreshed
 # by `build:affected-bundle` alongside cli.gjs.mjs.
 !packages/infra/cli/dist/affected.gjs.mjs
+# Per-bundle inputs manifests (`gjsify build --inputs-manifest`): the workspace
+# packages each committed bundle inlines, derived from the bundler module
+# graph. `.githooks/pre-commit` derives its rebuild-trigger set from them;
+# `scripts/verify-committed-bundles.mjs` byte-compares them in CI. Regenerated
+# by the same build scripts that write the bundles.
+!packages/infra/cli/dist/cli.gjs.inputs.json
+!packages/infra/cli/dist/affected.gjs.inputs.json
 
 # @gjsify/tsc ships its bundled `tsc` as the bin — committed for
 # the same reason the CLI bundle is: downstream consumers (and
@@ -48,6 +55,8 @@ builddir/
 # install. Rebuilt by `gjsify workspace @gjsify/tsc build`.
 !packages/infra/tsc/dist/
 !packages/infra/tsc/dist/tsc.gjs.mjs
+# Inputs manifest for tsc.gjs.mjs — same mechanism as the CLI bundles above.
+!packages/infra/tsc/dist/tsc.gjs.inputs.json
 # @gjsify/tsc's default-library `lib/lib*.d.ts` are COMMITTED, exactly like the
 # bundle above: version-locked runtime data tsc resolves on a consumer that has
 # no upstream `typescript`. `package.json#files` ships them (`lib/lib*.d.ts`).

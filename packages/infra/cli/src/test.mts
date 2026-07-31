@@ -56,6 +56,7 @@ import runtimesSuite from './utils/runtimes.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
 import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
+import bundleInputsManifestSuite from './utils/bundle-inputs-manifest.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 
 run({
@@ -107,5 +108,6 @@ run({
     spawnSuite,
     gjsBundleGuardSuite,
     nodeBundleGuardSuite,
+    bundleInputsManifestSuite,
     unresolvedWorkspaceImportSuite,
 });

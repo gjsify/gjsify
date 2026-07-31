@@ -272,6 +272,7 @@ export class Config {
         // (mirrors the `bundler.input` fallback below).
         configData.globals ??= 'auto';
         if (cliArgs.shebang !== undefined) configData.shebang = cliArgs.shebang;
+        if (cliArgs.inputsManifest !== undefined) configData.inputsManifest = cliArgs.inputsManifest;
         if (cliArgs.excludeGlobals) {
             const raw = Array.isArray(cliArgs.excludeGlobals)
                 ? cliArgs.excludeGlobals.join(',')

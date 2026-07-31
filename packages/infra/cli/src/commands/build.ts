@@ -169,6 +169,12 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 type: 'string',
                 normalize: true,
             })
+            .option('inputs-manifest', {
+                description:
+                    'Write a JSON manifest at the given path listing the WORKSPACE packages whose modules the bundle inlined, derived from the bundler module graph. Used for the committed GJS bundles: `.githooks/pre-commit` derives its rebuild-trigger set from the committed manifest, and `scripts/verify-committed-bundles.mjs` byte-compares it in CI. App builds only; requires the npm rolldown engine (run via the Node CLI entry).',
+                type: 'string',
+                normalize: true,
+            })
             .option('watch', {
                 alias: 'w',
                 description:

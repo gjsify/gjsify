@@ -123,6 +123,14 @@ export interface ConfigData {
      */
     aliases?: Record<string, string>;
     /**
+     * Path of the bundle inputs manifest to write after an app build — the
+     * committed JSON that records which workspace packages the bundle
+     * inlined (derived from the bundler module graph, never hand-edited).
+     * Comes from `gjsify build --inputs-manifest <path>`. See
+     * `utils/bundle-inputs-manifest.ts`.
+     */
+    inputsManifest?: string;
+    /**
      * Global identifiers to remove from the auto-detected set before writing
      * the inject stub. Useful for false positives from dead browser-compat
      * code in npm dependencies whose polyfills require unavailable native libs.

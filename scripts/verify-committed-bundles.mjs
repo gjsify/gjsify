@@ -18,12 +18,22 @@
  *
  * `.githooks/pre-commit` is the local mitigation, and it is best-effort by
  * construction — it cannot be the invariant:
- *   - it triggers on FOUR source paths, while `cli.gjs.mjs` inlines the whole
- *     workspace-dep closure (`@gjsify/{tar,semver,buffer,workspace,…}`);
+ *   - its trigger set is derived from the committed `dist/*.gjs.inputs.json`
+ *     manifests (the workspace packages each bundle actually inlined,
+ *     recorded by `gjsify build --inputs-manifest` from the bundler module
+ *     graph) — but a manifest describes the PREVIOUS build, so a change that
+ *     ADDS a package to the closure is only caught here;
  *   - it SKIPS ITSELF with a warning when no gjsify CLI is reachable — which is
  *     exactly what happened in #821, authored in a worktree with no
  *     `node_modules`;
  *   - `--no-verify` / `SKIP_GJSIFY_HOOKS=1` bypass it, as they should.
+ *
+ * The inputs manifests are themselves committed generated artifacts, so they
+ * are verified HERE too: each recipe's rebuild regenerates them and the byte
+ * compare covers them — a hand-edited or stale manifest fails CI exactly like
+ * a stale bundle. Without that, the manifest would be a new declaration that
+ * nothing verifies, which is the failure class this whole file exists to
+ * close.
  *
  * This check closes that hole the only way that is exhaustive by
  * construction: REBUILD each artifact from source and compare it byte-for-byte
@@ -112,7 +122,9 @@ const RECIPES = [
         ],
         groups: [
             { kind: 'file', path: 'packages/infra/cli/dist/cli.gjs.mjs' },
+            { kind: 'file', path: 'packages/infra/cli/dist/cli.gjs.inputs.json' },
             { kind: 'file', path: 'packages/infra/cli/dist/affected.gjs.mjs' },
+            { kind: 'file', path: 'packages/infra/cli/dist/affected.gjs.inputs.json' },
         ],
         hint:
             'gjsify workspace @gjsify/cli build --with-dependencies && ' +
@@ -132,6 +144,7 @@ const RECIPES = [
         env: { GJSIFY_TSC_REFRESH_LIBS: '1' },
         groups: [
             { kind: 'file', path: 'packages/infra/tsc/dist/tsc.gjs.mjs' },
+            { kind: 'file', path: 'packages/infra/tsc/dist/tsc.gjs.inputs.json' },
             // Mirrors `isLibFile` in packages/infra/tsc/scripts/build-bundle.mjs
             // — note the bare `lib.d.ts`, which `^lib\..*\.d\.ts$` alone misses.
             { kind: 'dir', path: 'packages/infra/tsc/lib', match: /^lib\.(.*\.)?d\.ts$/ },
@@ -178,6 +191,22 @@ function discoverCommittedBundles() {
     return headFiles('')
         .filter((p) => p.endsWith('.gjs.mjs') && p.split('/').includes('dist'))
         .sort();
+}
+
+/**
+ * Every committed bundle inputs manifest (`<bundle>.gjs.inputs.json`) — like
+ * the bundles, each must be claimed by a recipe so a new one cannot escape
+ * the byte compare.
+ */
+function discoverCommittedManifests() {
+    return headFiles('')
+        .filter((p) => p.endsWith('.gjs.inputs.json') && p.split('/').includes('dist'))
+        .sort();
+}
+
+/** The inputs-manifest path that belongs to a committed bundle. */
+function manifestPathForBundle(bundlePath) {
+    return bundlePath.replace(/\.mjs$/, '.inputs.json');
 }
 
 /** Repo-relative paths a group currently resolves to ON DISK. */
@@ -333,6 +362,32 @@ if (unclaimed.length > 0) {
     fail(
         `committed GJS bundle(s) with no rebuild recipe: ${unclaimed.join(', ')}. ` +
             'Add them to RECIPES in scripts/verify-committed-bundles.mjs so CI can prove they match their source.',
+    );
+    process.exit(1);
+}
+
+// Every committed bundle must carry its committed inputs manifest, and every
+// committed manifest must be claimed by a recipe. The manifest is what
+// `.githooks/pre-commit` derives its rebuild-trigger set from — a bundle
+// without one silently regresses the hook to its old hand-maintained path
+// list, and a manifest outside the recipes would be a committed generated
+// artifact nothing verifies.
+const discoveredManifests = discoverCommittedManifests();
+const missingManifests = discovered.map(manifestPathForBundle).filter((p) => !discoveredManifests.includes(p));
+if (missingManifests.length > 0) {
+    fail(
+        `committed GJS bundle(s) without a committed inputs manifest: ${missingManifests.join(', ')}. ` +
+            'Each bundle build must pass `--inputs-manifest <bundle>.inputs.json` (see ' +
+            'packages/infra/cli/src/utils/bundle-inputs-manifest.ts) and the manifest must be committed — ' +
+            '`.githooks/pre-commit` derives its rebuild-trigger set from it.',
+    );
+    process.exit(1);
+}
+const unclaimedManifests = discoveredManifests.filter((p) => !claimed.has(p));
+if (unclaimedManifests.length > 0) {
+    fail(
+        `committed inputs manifest(s) with no rebuild recipe: ${unclaimedManifests.join(', ')}. ` +
+            'Add them to RECIPES in scripts/verify-committed-bundles.mjs next to their bundle.',
     );
     process.exit(1);
 }
