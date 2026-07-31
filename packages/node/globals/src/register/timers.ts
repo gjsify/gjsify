@@ -107,11 +107,9 @@ class GjsifyTimeout {
 
     _cancel(): void {
         if (this._id === null) return;
-        try {
-            getGLib()?.Source.remove(this._id);
-        } catch {
-            /* already removed */
-        }
+        // g_source_remove has no throw path (no `throws` in the GIR): a stale
+        // source ID logs a GLib CRITICAL and returns false, it never raises.
+        getGLib()?.Source.remove(this._id);
         this._id = null;
     }
 
@@ -129,12 +127,8 @@ function removeById(timeout: unknown): void {
     } else if (typeof timeout === 'number') {
         // Legacy: GJS's native setTimeout returned a source whose numeric ID was
         // recoverable via `+timer`. Accept bare numbers for callers still holding
-        // a pre-patch reference.
-        try {
-            getGLib()?.Source.remove(timeout);
-        } catch {
-            /* ignore */
-        }
+        // a pre-patch reference. g_source_remove never raises (see _cancel).
+        getGLib()?.Source.remove(timeout);
     }
 }
 
