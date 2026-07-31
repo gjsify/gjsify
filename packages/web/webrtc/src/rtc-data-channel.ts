@@ -8,7 +8,7 @@
 // on-message-string / on-message-data / on-buffered-amount-low) from the
 // GStreamer streaming thread onto the GLib main context. The raw `connect`
 // path is unusable because GJS blocks JS callbacks invoked from non-main
-// threads — see STATUS.md "WebRTC Status".
+// threads — see status/sections/webrtc-status.md.
 
 import GLib from 'gi://GLib?version=2.0';
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';

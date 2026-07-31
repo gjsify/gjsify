@@ -254,6 +254,6 @@ that only runs in a mode CI does not use is not a guard.**
 | `packages/infra/resolve-npm/lib/runtime-aliases.mjs` | `PackageRecord.platformEntries`; `resolveSlot` routes `polyfill` → `<pkg>/<target>` |
 | `scripts/audit-runtimes.mjs` | new cross-runtime reachability audit, wired into plain `--check` |
 
-Follow-ups belong in STATUS.md `## Open TODOs`, not here: the `@gjsify/web-globals`
+Follow-ups belong in `status/open-todos.md`, not here: the `@gjsify/web-globals`
 `node` slot defect, and the per-package parity work that promotes the ten `partial`
 browser entries to `polyfill`.

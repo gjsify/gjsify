@@ -27,8 +27,8 @@ export default async () => {
         const hasSAB = typeof SAB === 'function';
 
         await it('SharedArrayBuffer availability', async () => {
-            // Documented expectations. GJS today: undefined (see STATUS.md
-            // "Open TODOs → SharedArrayBuffer cross-process sharing").
+            // Documented expectations. GJS today: undefined (see
+            // status/open-todos.md → "SharedArrayBuffer cross-process sharing").
             if (hasSAB) {
                 expect(typeof SAB).toBe('function');
             } else {

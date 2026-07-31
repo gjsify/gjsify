@@ -471,7 +471,7 @@ export default async () => {
         // client over the active Soup connection. These tests verify the
         // server-side API contract instead: callback fired, ServerHttp2Stream
         // synthesised, even stream-id allocated, headers + frame bytes
-        // observable. See STATUS.md "Open TODOs" → "http2 PUSH_PROMISE wire
+        // observable. See status/open-todos.md → "http2 PUSH_PROMISE wire
         // delivery" for the wire-level follow-up.
 
         await describe('http2 pushStream() — API contract', async () => {

@@ -365,8 +365,8 @@ export function loadStatusData(root, facts) {
         if (heading.includes('~~') || /^Completed\b/.test(heading) || heading.includes('✓')) {
             failures.push(
                 `status/open-todos.md: "${heading}" looks resolved (strike-through / ✓ / Completed). A resolved ` +
-                    'TODO is DELETED — its record is the commit + CHANGELOG that closed it (AGENTS.md, STATUS.md ' +
-                    'maintenance rules).',
+                    'TODO is DELETED — its record is the commit + CHANGELOG that closed it (AGENTS.md § Project ' +
+                    'status & CHANGELOG.md maintenance).',
             );
         }
     }

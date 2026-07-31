@@ -1,7 +1,7 @@
 // E2E test for the rewriter's static-read inlining when the source file
 // lives inside a Yarn-PnP virtual zip cache.
 //
-// Background — STATUS.md "Open TODOs / High priority — rewriter must inline
+// Background — status/open-todos.md "High priority — rewriter must inline
 // zip-resident static reads (PnP)" (introduced by PR #70):
 //
 //   When `gjsify build` processes a workspace under `nodeLinker: pnp`, files

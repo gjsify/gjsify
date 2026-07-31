@@ -782,7 +782,7 @@ jobs:
           # `@gjsify/canvas2d-core/gdk` side-effect subpath) and is now
           # machine-checked per ADR 0015 — `gjsify.headless` in the package's
           # manifest, enforced by `audit-runtimes --check` against the ROOT
-          # entry graph, so it cannot silently come back. STATUS.md records the
+          # entry graph, so it cannot silently come back. status/status.json records the
           # package measuring 578/578 on node+bun+deno. Adding gtk4 here would
           # still drag graphene/vulkan-loader into a 20-minute job, so promoting
           # it into this proof set is a separate cost decision, not a blocked

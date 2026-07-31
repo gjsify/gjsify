@@ -35,9 +35,9 @@ today is narrower: CI/benchmarking where GJS isn't available, dev tooling
    mechanism (never eager).
 4. **Graduation gate (Tier 3 → 2):** the deferred crash-prone items fixed
    (toggle-ref/multi-env teardown, vfunc OUT/INOUT chain-up — each review-gated,
-   done fresh per the STATUS.md note), the GTK/Cairo layer landed, AND a second
+   done fresh per the authored status note), the GTK/Cairo layer landed, AND a second
    real consumer using the dual-build in anger. Until all three: no scope growth
-   beyond the STATUS.md roadmap.
+   beyond the roadmap in `status/open-todos.md`.
 
 ## Consequences
 
@@ -45,7 +45,7 @@ today is narrower: CI/benchmarking where GJS isn't available, dev tooling
   is bounded to opt-in users.
 - Expectations are honest: nobody builds a production server on node-gi because a
   storybook demo worked.
-- The track keeps moving (roadmap in STATUS.md), but investment is paced by the
+- The track keeps moving (roadmap in `status/open-todos.md`), but investment is paced by the
   graduation gate instead of by enthusiasm.
 
 ## Implementation
@@ -87,7 +87,7 @@ still double the runtime test matrix if Tier-1/2 packages hard-depended on it, s
 `audit-runtimes.mjs` rule that names it explicitly is unchanged). The sanctioned
 seams remain a `devDependency` and the conditional `--app node` build injection.
 
-Follow-ups (tracked in STATUS.md, none gate-blocking): the narrowed
+Follow-ups (tracked in `status/open-todos.md`, none gate-blocking): the narrowed
 `worker.terminate()`-mid-native-call residual, Gio.DBus overrides, GObject/GLib
 override parity, GValue BLOB byte-array marshalling, INOUT containers, and the
 website node-gi page.

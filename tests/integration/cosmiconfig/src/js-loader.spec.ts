@@ -45,7 +45,7 @@ export default async () => {
         // uses a CJS-evaluator (sukka's ts-node-loader-style) that calls into
         // `.shift()` on a path-segment array that GJS's `@gjsify/module`
         // createRequire path does not produce in the same shape. Tracked in
-        // STATUS.md "Open TODOs → Phase D-1 deferred fixes → cosmiconfig CJS
+        // status/open-todos.md → "Phase D-1 deferred fixes → cosmiconfig CJS
         // loader on GJS" — needs either a require-shim adjustment or upstream
         // PR to cosmiconfig for an explicit ESM-only mode.
         await on('Node.js', async () => {

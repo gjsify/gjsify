@@ -177,4 +177,4 @@ Two deliberate non-decisions:
    iterating (stale is fail-soft, not a correctness bug).
 5. AGENTS.md: replace the framework-package "No `/register`" sentence with the
    three rules above; note the two exceptions in the framework package table.
-6. STATUS.md `## Open TODOs`: `@gjsify/webgl` barrel-purity follow-up.
+6. `status/open-todos.md`: `@gjsify/webgl` barrel-purity follow-up.

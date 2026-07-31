@@ -34,7 +34,7 @@ on:
       - '.github/workflows/napi.yml'
   # Manual driver for the experimental `windows` job below (gated on this event)
   # — the from-source gjs + mozjs-140 Windows attempt is opt-in so it never reds
-  # a normal push/PR while gjs-on-Windows remains blocked (see STATUS.md).
+  # a normal push/PR while gjs-on-Windows remains blocked (see status/open-todos.md).
   workflow_dispatch:
 
 permissions:
@@ -612,7 +612,7 @@ jobs:
   # Linux-only, just a wider first cut): the golden-diff conformance oracle, the
   # better-sqlite3 consumer gate, the node-gi-under-shim oracle, and the valgrind
   # memory legs (valgrind has no maintained arm64-macOS target). Windows has no
-  # counterpart job — no prebuilt MSVC mozjs-140 exists (see STATUS.md).
+  # counterpart job — no prebuilt MSVC mozjs-140 exists (see status/open-todos.md).
   macos:
     name: macOS build + gates (GJS / macos-latest arm64)
     runs-on: macos-latest

@@ -114,4 +114,4 @@ values (`platformInfo()` returned a concrete OS version / SDK level / device mod
 not the off-platform `'unknown'` sentinel). Earlier run surfaced + fixed
 `@gjsify/buffer`'s top-level `new TextEncoder()` (it ran at module eval, before NS
 registers the global — crashed the bundle; now lazy-initialised). Record outcomes
-in `STATUS.md` → *Integration Test Coverage*.
+in `status/integration-coverage.md`.

@@ -9,13 +9,14 @@
 // spot). A blunt whole-file version replace is a footgun: it rewrites EVERY
 // past `vX` reference, corrupting historical prose. That is exactly what the
 // old version of this script did during the v0.7.3 release — it silently
-// rewrote 34 historical `v0.7.2` entries in STATUS.md (a point-in-time log)
+// rewrote 34 historical `v0.7.2` entries in the then-hand-written STATUS.md
 // and ~7 in AGENTS.md to `v0.7.3`, making the changelog claim things shipped
 // in a version they predate.
 //
 // RULES (keep this script trustworthy):
-//   - NEVER list STATUS.md / CHANGELOG.md here — they are point-in-time logs;
-//     their version mentions are history, never "current version".
+//   - NEVER list CHANGELOG.md here — it is a point-in-time log; its version
+//     mentions are history, never "current version". (STATUS.md is generated
+//     and untracked, so it cannot be listed at all.)
 //   - NEVER blunt-replace across a prose doc that carries version-tagged
 //     history (AGENTS.md). Anchor on a phrase that ONLY ever precedes the
 //     CURRENT version (e.g. the monorepo header `monorepo, v`).

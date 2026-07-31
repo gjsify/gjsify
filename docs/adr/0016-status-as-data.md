@@ -1,6 +1,6 @@
-# ADR 0016 — STATUS.md as generated output: authored status data + derived facts
+# ADR 0016 — Status as data: authored status data + derived facts
 
-- **Status:** Accepted (2026-07-31)
+- **Status:** Accepted (2026-07-31), **amended same day** — see [Amendment](#amendment-2026-07-31--the-rendered-statusmd-is-not-committed). The split (authored data vs derived facts) stands; the rendered `STATUS.md` is no longer a tracked artifact.
 - **Scope:** `STATUS.md` (now a generated artifact), the authored data set `status/` (`status.json` + `status.schema.json`, `integration-coverage.md`, `open-todos.md`, `upstream-patch-candidates.md`, `sections/*.md`), the generator `scripts/generate-status.mjs`, and the `status-data` rule in the manifest-conformance registry (selected by `audit-runtimes --check`).
 - **Complements** ADR 0003 (`gjsify.tier`), ADR 0014/0015 (declared runtime/headless contracts) and the manifest-conformance registry — the declarations those contracts hold are exactly what the status generator derives from instead of restating.
 
@@ -74,3 +74,49 @@ status was the last large document still maintained by retyping reality.
   `status/open-todos.md` § Manifest-conformance follow-ups, to be batched with
   the next CLI-src touch since classifier changes rebuild the committed
   `dist/affected.gjs.mjs`).
+
+## Amendment (2026-07-31) — the rendered STATUS.md is NOT committed
+
+Decision points 3–5 and the first Consequence above are superseded. The
+authored/derived split, the four-key schema, both-direction coverage, the
+suite-heading bijection, the fixed section set and the delete-on-resolve TODO
+rule all stand exactly as decided and stay hard-gated by `status-data`. What
+changes is the STATUS OF THE RENDERED FILE.
+
+**`STATUS.md` is gitignored and generated on demand** (`npm run
+status:generate`). `generate-status.mjs` no longer offers `--check`; the
+`status-data` rule no longer byte-compares anything; `audit-runtimes --check`
+validates only the authored data.
+
+Two reasons, the second decisive:
+
+1. **A committed copy serialises unrelated PRs.** STATUS.md derives from EVERY
+   package manifest, so any merge invalidates every open PR's copy: PR A
+   touches package X, PR B touches package Y, each regenerated correctly
+   against its own base — A merges and B is stale through no fault of its own,
+   with the red landing on whoever pushes next. This is the same shape as the
+   committed GJS bundles, but the bundles earn that cost (a ~20-minute rebuild
+   a human must decide to run) and fire only when an *inlined* source changes;
+   a one-second render that stales on *any* manifest edit does not.
+2. **The derived numbers are not reproducible across correct checkouts.** They
+   are read off the DISK — directory listings under `examples/`, `showcases/`,
+   `tests/` — not off git. The commit that introduced the generator baked `68`
+   examples from a working tree carrying untracked scratch directories against
+   the `63` a clean checkout counts, and the freshness check went red on its
+   own introducing PR for a reason no author could have avoided. A
+   reproducibility contract over an input set that includes untracked files is
+   not enforceable; making it enforceable would mean deriving from `git
+   ls-files` and giving up the ability to render a work-in-progress tree.
+
+Removing the artifact removes the whole failure class rather than managing it.
+It costs nothing that was being paid for: the readers of the snapshot are
+agents and maintainers who can render it in a second, the authored data is
+better read as data, and the one machine consumer was rewired to the numbers
+(`website/scripts/generate-coverage.mjs` now calls the generator's exported
+`statusSummary()` instead of parsing the Markdown table — no file needed, and
+no lossy `33 (80%)` → `33` round trip).
+
+**Do not reintroduce a freshness comparison** against a file that is not in
+git, and do not re-commit the render "just so it is readable on GitHub":
+readability was the only argument for tracking it, and it is answered by the
+authored data plus one command.

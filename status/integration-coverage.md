@@ -1,4 +1,5 @@
-<!-- Authored per-suite notes for STATUS.md's "Integration Test Coverage" section.
+<!-- Authored per-suite notes — THIS FILE is the tracked source of truth for the
+     "Integration Test Coverage" section of the generated status snapshot.
      One `## <dir>` section per tests/integration/<dir> — the status-data check
      enforces the bijection in BOTH directions (a suite without a section fails,
      a section without a suite fails). Keep counts/narrative current in place;

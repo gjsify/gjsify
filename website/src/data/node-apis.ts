@@ -1,4 +1,4 @@
-// Node.js API coverage — mirrors the table in CLAUDE.md and STATUS.md.
+// Node.js API coverage — mirrors the table in AGENTS.md and status/status.json.
 //
 // 41 user-facing Node APIs grouped by stdlib category. Status tiers as in
 // the Web Standards file, minus `out-of-scope` (every Node API is in scope).

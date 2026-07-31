@@ -88,5 +88,5 @@ is enabled, including:
 
 Docker-in-Docker on our Fedora CI containers needs configuration before
 this suite can run in GitHub Actions. Manual run + baseline commit is
-the Phase 1 workflow. See STATUS.md → *Integration Test Coverage* for
+the Phase 1 workflow. See `status/integration-coverage.md` for the
 rollout plan.

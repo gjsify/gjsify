@@ -38,7 +38,7 @@ gjsify **self-hosts** its type-checking on this package: every workspace
 `check` and `.d.ts` emit runs `gjsify-tsc`, not Node's `tsc`. Together with
 the `gjsify` CLI (also a GJS bundle) and the native Rolldown bundler engine,
 the gjsify build chain now runs Node-free under GJS — the long-standing goal
-tracked in the project's `STATUS.md`.
+tracked in `status/open-todos.md`.
 
 ## Layout
 

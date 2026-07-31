@@ -878,7 +878,7 @@ export class FileHandle implements IFileHandle {
      * helpers ({@link https://nodejs.org/api/stream_iter.html}). The
      * stub keeps the @types/node FileHandle interface satisfied so
      * downstream typecheck passes; calling at runtime throws a clear
-     * "not yet" error. Tracked in STATUS.md "Open TODOs → Node 25
+     * "not yet" error. Tracked in status/open-todos.md → "Node 25
      * stream/iter integration".
      */
     // oxlint-disable-next-line typescript/no-explicit-any -- stream/iter Transform / ByteReadableStream types are too new to plumb here cleanly; the throw makes the surface non-callable until the proper port lands.

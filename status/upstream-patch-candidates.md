@@ -1,4 +1,5 @@
-<!-- Authored "Upstream GJS Patch Candidates" table for STATUS.md. Workarounds we
+<!-- Authored "Upstream GJS Patch Candidates" table — THIS FILE is the tracked
+     source of truth (the rendered STATUS.md view is generated). Workarounds we
      maintain that could be eliminated with upstream GJS/SpiderMonkey/GLib/libsoup
      patches, ordered by impact. A SOLVED row is DELETED (its record is the commit
      + CHANGELOG that closed it). The status-data check requires this exact

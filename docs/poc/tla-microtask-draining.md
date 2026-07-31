@@ -97,8 +97,8 @@ deadlock is specific to a registered main-loop hook, i.e. `ensureMainLoop()`.
 
 This matches the existing in-tree notes: the `@gjsify/process` `exitProcess()`
 comment ("calling `system.exit()` directly from a microtask continuation while a
-`GLib.MainLoop` is parked deadlocks the process") and STATUS.md's oxc exit-code
-note.
+`GLib.MainLoop` is parked deadlocks the process") and the oxc exit-code note in
+AGENTS.md.
 
 ## Mitigation gjsify owns (and already ships for `process.exit`)
 
@@ -163,5 +163,5 @@ to a non-124 exit and need review).
 
 - `packages/gjs/utils/src/main-loop.ts` — `ensureMainLoop()` / `quitMainLoop()` (hook registration; carries the TLA-deadlock warning)
 - `packages/node/process/src/internal/exit.ts` — `exitProcess()` (the idle-scheduled exit that already escapes the deadlock)
-- STATUS.md → "Upstream GJS Patch Candidates" — the deadlock entry
+- `status/upstream-patch-candidates.md` — the deadlock entry
 - `fix/process-stdin-on-data-resume` — the separate stdin auto-resume fix

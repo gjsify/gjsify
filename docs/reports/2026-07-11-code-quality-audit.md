@@ -3,12 +3,12 @@
 A fresh, whole-repository audit of gjsify (130 packages, ~174k LOC) across six
 dimensions: package-manifest consistency, technical debt / root-cause-rule
 violations, code duplication & shared-`core` gaps, `packages/infra/*` internal
-quality, import-graph & barrel purity, and AGENTS.md/STATUS.md↔reality drift.
+quality, import-graph & barrel purity, and AGENTS.md/status↔reality drift.
 
 This complements the [2026-07-01 architecture review](2026-07-01-architecture-review.md)
 (which produced ADRs 0001–0009). That review looked at the *concept and pillar
 structure*; this one looks at *code-level drift and debt that has accumulated
-below the automated gates*. STATUS.md `## Open TODOs` remains the tracker for
+below the automated gates*. `status/open-todos.md` remains the tracker for
 remaining work; this file is the *why + priority* record for the new findings.
 
 ## Verdict
@@ -107,7 +107,7 @@ notes the validation it needs.
 
 | # | Finding | Recommendation | Prio |
 |---|---------|----------------|------|
-| D1 | **WebCrypto `wrapKey`/`unwrapKey` throw "not yet implemented"** (`web/webcrypto/src/subtle.ts`) and are untracked in STATUS.md — the one squarely root-cause-rule-violating gap | Implement from primitives already in the file: wrapKey = `exportKey`→`encrypt`; unwrapKey = `decrypt`→`importKey`. Round-trip spec. **GJS webcrypto run** | **P1** |
+| D1 | **WebCrypto `wrapKey`/`unwrapKey` throw "not yet implemented"** (`web/webcrypto/src/subtle.ts`) and are untracked in the status data — the one squarely root-cause-rule-violating gap | Implement from primitives already in the file: wrapKey = `exportKey`→`encrypt`; unwrapKey = `decrypt`→`importKey`. Round-trip spec. **GJS webcrypto run** | **P1** |
 | D2 | `@gjsify/dgram` UDP send/receive skip-guarded to Node (`index.spec.ts` ×2) though GJS is the primary target and `ensureMainLoop()` exists; `@gjsify/eventsource` connection suite (~350 lines) skipped on GJS with a weak "needs a Node HTTP server" justification (other packages serve HTTP on GJS via Soup) | Un-skip on GJS (drive via `ensureMainLoop()` / a Soup server); root-cause any impl gap surfaced. **GJS run** | P2 |
 | D3 | http2 repeats `catch {}` ~13× for best-effort `connection.close` | `closeQuietly(conn)` helper with one explanatory comment | P3 |
 | D4 | webgl `@girs/gwebgl` type TODOs (`uniform.ts:117,169`) cast Uint32Array/Float32Array | fix in the gwebgl `@girs` regen, then drop the casts | P3 |

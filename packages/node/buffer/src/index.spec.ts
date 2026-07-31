@@ -575,7 +575,7 @@ export default async () => {
                     // guarantees for the SharedBuffer duck-type — the real
                     // @gjsify/sab-native SharedBuffer's viewBytes happens to be a
                     // memcpy in current GJS (limitation of byteArray.fromGBytes,
-                    // tracked in STATUS.md), so end-to-end is a copy there. Once
+                    // tracked in status/upstream-patch-candidates.md), so end-to-end is a copy there. Once
                     // the C-level zero-copy shim lands, sab-native will share
                     // storage too.
                     const sb = new SharedBuffer(8);

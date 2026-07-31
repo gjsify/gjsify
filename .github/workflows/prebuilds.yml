@@ -19,7 +19,7 @@ name: Build Native Prebuilds
 # QEMU legs. Only `build-prebuilds-macos` is held back (10x billing, a scarce
 # shared concurrency pool, and the slowest leg here), with main.yml's `ci:macos`
 # label as the opt-in. That is wider than the "native x86_64, Vala-only" shape
-# STATUS.md once proposed, for two measured reasons:
+# the status notes once proposed, for two measured reasons:
 #   • A Vala-only leg would have been GREEN on the very break that motivated
 #     this — #827 was a Rust dependency-resolution failure in oxfmt-native. A PR
 #     check that would not have caught its own motivating incident is worse than

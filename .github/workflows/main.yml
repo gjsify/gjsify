@@ -1296,7 +1296,7 @@ jobs:
             printf -- '- affected closure: `%s`\n' "${C_INCLUDE:-<empty — treated as a full run>}"
             printf -- '- macOS leg: `enabled=%s` — %s\n' "${M_ENABLED:-<unset>}" "${M_REASON:-<unset>}"
             echo "- integration suites (\`tests/integration/**\`) are not wired into any"
-            echo "  workflow yet — they run on no event, PR or main. Tracked in STATUS.md."
+            echo "  workflow yet — they run on no event, PR or main. Tracked in status/open-todos.md."
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1350,4 +1350,4 @@ jobs:
   # Integration tests are NOT wired into CI yet (opt-in; suites have
   # CI-incompatible preconditions). The classifier still emits run-integration
   # so the gate can be re-enabled per-suite once each is hardened. Tracked in
-  # STATUS.md Open TODOs.
+  # status/open-todos.md.

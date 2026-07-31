@@ -1861,8 +1861,8 @@ export default async () => {
     //
     // Note: SharedArrayBuffer is not exposed in GJS today — Mozilla disables it
     // unless the embedder opts in. These tests run only when SAB is available
-    // (Node.js, or future GJS builds with SAB enabled). See STATUS.md
-    // "Open TODOs" → SharedArrayBuffer cross-process sharing.
+    // (Node.js, or future GJS builds with SAB enabled). See
+    // status/open-todos.md → SharedArrayBuffer cross-process sharing.
 
     await describe('SharedArrayBuffer in postMessage', async () => {
         const SAB = (globalThis as Record<string, unknown>).SharedArrayBuffer as typeof SharedArrayBuffer | undefined;
