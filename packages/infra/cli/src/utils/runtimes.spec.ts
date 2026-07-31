@@ -13,6 +13,7 @@ import {
     checkRuntimeSupported,
     defaultExampleRuntime,
     isRuntimeAvailable,
+    requiresGjsSystemDeps,
 } from './runtimes.js';
 
 export default async () => {
@@ -115,6 +116,26 @@ export default async () => {
             expect(res.message).toContain('adwaita-storybook');
             expect(res.message).toContain('does not support --runtime node');
             expect(res.message).toContain('Declared runtimes: gjs');
+        });
+    });
+
+    await describe('runtimes: requiresGjsSystemDeps', async () => {
+        await it('demands a gjs binary ONLY for the gjs runtime', () => {
+            // The regression this encodes: `gjsify showcase --runtime node`
+            // aborted with "Missing system dependencies: ✗ GJS" on every host
+            // without gjs, because the check ran before the runtime was known.
+            expect(requiresGjsSystemDeps('gjs')).toBe(true);
+            expect(requiresGjsSystemDeps('node')).toBe(false);
+            expect(requiresGjsSystemDeps('bun')).toBe(false);
+            expect(requiresGjsSystemDeps('deno')).toBe(false);
+        });
+
+        await it('stays derived from buildAppForRuntime for every runtime', () => {
+            // Not a second table: a runtime added to RUNTIMES must be correct
+            // here with no matching edit, or the two answers drift apart.
+            for (const rt of EXAMPLE_RUNTIMES) {
+                expect(requiresGjsSystemDeps(rt)).toBe(buildAppForRuntime(rt) === 'gjs');
+            }
         });
     });
 };

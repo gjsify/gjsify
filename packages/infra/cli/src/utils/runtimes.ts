@@ -64,6 +64,27 @@ export function buildAppForRuntime(runtime: ExampleRuntime): 'gjs' | 'node' {
     return RUNTIMES[runtime].buildApp;
 }
 
+/**
+ * Does running an example/showcase on `runtime` require the GJS SYSTEM
+ * dependencies — i.e. a `gjs` binary on PATH?
+ *
+ * DERIVED from `buildApp`, deliberately not a second table: "consumes the
+ * `--app gjs` bundle" and "needs a gjs interpreter" are the same fact, and a
+ * hand-written second list drifts the first time a runtime is added.
+ *
+ * The caller must resolve the runtime BEFORE gating on it. `gjsify showcase`
+ * called `runMinimalChecks()` — which marks `gjs` `required` — three statements
+ * ABOVE the line resolving `args.runtime`, so `--runtime node` aborted with
+ * "Missing system dependencies: ✗ GJS" before reaching the `runtime !== 'gjs'`
+ * branch that never touches gjs. Every showcase was unreachable on a host
+ * without gjs (Windows, plain Node/bun/deno) — including the default path,
+ * since `defaultExampleRuntime()` falls back to the host runtime for exactly
+ * those hosts.
+ */
+export function requiresGjsSystemDeps(runtime: ExampleRuntime): boolean {
+    return buildAppForRuntime(runtime) === 'gjs';
+}
+
 /** Whether `<probe> --version` succeeds (i.e. the runtime binary is on PATH). */
 export function isRuntimeOnPath(probe: string): boolean {
     try {
