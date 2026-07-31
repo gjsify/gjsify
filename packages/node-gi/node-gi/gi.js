@@ -988,6 +988,10 @@ function applicationRunAsync(handle) {
 // concurrent runAsync calls share one timer.
 let pumpTimer = null;
 let pumpRefCount = 0;
+// How many of those refs belong to the AUTO-armed pump (requireGi's permanent
+// hold on Bun/Deno). `pumpRefCount > pumpAutoRefs` therefore means an EXPLICIT
+// `startMainContextPump()` caller currently holds the pump.
+let pumpAutoRefs = 0;
 // Whether the pump timer currently HOLDS the runtime's event loop open (ref'd).
 let pumpHoldsRuntime = false;
 
@@ -997,6 +1001,45 @@ function drainReadySources() {
   while (native.iterateMainContext(false) && guard++ < 100000) {
     /* drain ready sources */
   }
+}
+
+// Zero-N-API view over the JS-armed-work counter — `pendingView[0] > 0` is
+// `mainContextHasPending()` as a plain V8 memory read. The IDLE beat must not
+// enter the addon at all: on Deno, a single napi call from the pump tick during
+// the between-test-files GC window reproduces the #47 boxed-handle teardown
+// SIGSEGV (measured on the gtk-smoke leg: a query-only tick crashed 3/3, a tick
+// that never touches the addon exited 0, the full dispatching tick crashed
+// 10/10). So every read on the beat's idle path goes through this view.
+// Created LAZILY on the first pump arm (Bun/Deno only): the @gjsify/napi shim
+// loud-stubs external arraybuffers, and the gjs host never arms the pump.
+let pendingView = null;
+
+/**
+ * One pump beat: dispatch if the program owns GLib work, then re-evaluate the
+ * keep-alive hold. Both the gate and the hold read the SAME counter, so the
+ * auto-armed pump dispatches exactly when it also holds the loop open.
+ *
+ * DISPATCH is gated like the hold — on the program's OWN GLib work. An EXPLICIT
+ * `startMainContextPump()` holder gets unconditional dispatch (its documented
+ * contract: co-pump the context, whatever is in it). The AUTO-armed pump
+ * dispatches only while a JS-armed GI callback is outstanding (scope=async
+ * completions + scope=notified sources), so a FINISHED program stops touching
+ * the addon entirely instead of grinding through GDK/GIO's C-armed housekeeping
+ * sources forever.
+ *
+ * That silence is load-bearing on Deno: the documented #47 N-API teardown race
+ * is armed by the pump ENTERING the addon between test files (see pendingView
+ * above), while stopping/unref'ing the pump at teardown does NOT avoid it.
+ * Nothing is lost for a RUNNING program: any JS-observable progress path is
+ * counted (a Gio completion is scope=async, a `GLib.timeout_add` is
+ * scope=notified), and while one is outstanding the beat drains ALL ready
+ * sources, C-armed ones included.
+ */
+function pumpBeat() {
+  if (pumpRefCount > pumpAutoRefs || pendingView[0] > 0) {
+    drainReadySources();
+  }
+  syncPumpKeepAlive();
 }
 
 /**
@@ -1017,7 +1060,7 @@ function drainReadySources() {
  */
 function syncPumpKeepAlive() {
   if (pumpTimer === null) return;
-  const hold = native.mainContextHasPending() === true;
+  const hold = pendingView[0] > 0; // zero-N-API — see pendingView above
   if (hold === pumpHoldsRuntime) return;
   if (hold) pumpTimer.ref?.();
   else pumpTimer.unref?.();
@@ -1042,13 +1085,12 @@ export function startMainContextPump() {
   if (native.isNodeRuntime || native.RUNTIME === 'gjs') return () => {};
   pumpRefCount++;
   if (pumpTimer === null) {
-    // ~4 ms cadence: low latency without busy-spinning. Each tick drains every
+    if (pendingView === null) pendingView = native.makePumpPendingCount();
+    // ~4 ms cadence: low latency without busy-spinning. Each beat drains every
     // currently-ready source (iterateMainContext(false) returns false when none
-    // remain, bounding the inner loop), then re-evaluates the keep-alive hold.
-    pumpTimer = setInterval(() => {
-      drainReadySources();
-      syncPumpKeepAlive();
-    }, 4);
+    // remain, bounding the inner loop) — gated on the program's own GLib work
+    // for the auto-armed pump, see pumpBeat — then re-evaluates the hold.
+    pumpTimer = setInterval(pumpBeat, 4);
     // Start UNREF'd: the pump alone must never keep a finished program alive.
     // syncPumpKeepAlive() refs it for exactly as long as GLib has work.
     pumpTimer.unref?.();
@@ -2371,14 +2413,17 @@ export function requireGi(namespace, version) {
       // opt-in is what made the same bundle exit 0 MID-suite on bun/deno while
       // node ran it to completion.
       startMainContextPump(); // permanent +1 — the auto-pump is never disposed
+      // Tag that hold as the AUTO pump's: pumpBeat dispatches for it only while
+      // a JS-armed GI callback is outstanding, so a finished program produces
+      // no teardown churn (the deno #47 window) — explicit callers keep
+      // unconditional dispatch.
+      pumpAutoRefs++;
       // The portable analogue of the Node pump's beforeExit kick. The runtime's
       // loop just ran empty, which is exactly the moment an unref'd pump would
-      // let the process die with GLib work still outstanding: drain what is
-      // ready, then re-evaluate the hold — re-ref'ing here revives the loop.
-      runtimeProcess.on('beforeExit', () => {
-        drainReadySources();
-        syncPumpKeepAlive();
-      });
+      // let the process die with GLib work still outstanding: run one beat —
+      // if the program still owns GLib work it drains + re-refs (reviving the
+      // loop); if not, the beat stays silent and the process exits.
+      runtimeProcess.on('beforeExit', pumpBeat);
     }
     loopAttached = true;
   }

@@ -130,16 +130,21 @@ const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 // the next, gobject the next) AND on a DIFFERENT platform run-to-run (macos-arm64 one
 // run, linux-arm64 the next).
 //
-// Its FREQUENCY tracks how much boxed-handle churn a file leaves behind at teardown,
-// so it grew when `requireGi` started auto-arming the portable main-context pump on
-// Bun/Deno (the process-lifetime fix): the pump dispatches GLib sources a Deno program
-// previously left undispatched, which creates and frees more boxed handles. Measured on
-// one Fedora 44 desktop WITH a session bus: 0/37 files before, 2–5/37 after — all of
-// them "every announced test passed, then SIGSEGV". It is the same race, more often, not
-// a new one: it also reproduces with an explicit `startMainContextPump()` call on the
-// pre-fix engine, the crashing thread carries only deno/V8 JIT frames (GLib's own
-// threads are idle), and a plain `deno run <bundle>` of the same work exits 0. Bun is
-// unaffected (37/37 with the pump armed).
+// Its FREQUENCY tracks the auto-armed pump's ADDON ENTRIES between test files, which is
+// why the pump's beat is addon-silent while idle (gi.js pumpBeat + the zero-napi
+// `pumpPendingCount` view): when `requireGi` first auto-armed the pump on Bun/Deno with
+// an ungated tick, the GTK/Adw smoke leg went from exit 0 to a deterministic 139, and a
+// finer A/B showed the DISPATCH volume is not even required — a query-only tick (one
+// napi call, no dispatch) still crashed 3/3 while a tick that never enters the addon
+// exited 0, and stopping/unref'ing the pump at teardown did not help. With the
+// view-gated beat the smoke leg is back to exit 0 (10/10) and this suite sees the race
+// only where a file's OWN JS-armed GLib work runs close to teardown (measured on one
+// Fedora 44 desktop WITH a session bus: 2/38 files, both "every announced test passed,
+// then SIGSEGV"). It is the same pre-existing race, not a new one: it also reproduces
+// with an explicit `startMainContextPump()` call on the pre-fix engine, the crashing
+// thread carries only deno/V8 JIT frames (GLib's own threads are idle), and a plain
+// `deno run <bundle>` of the same work exits 0. Bun is unaffected (38/38 with the pump
+// armed).
 //
 // ROOT CAUSE (#47, diagnosed against deno 2.9.3, glibc/gobject, exit 139 = SIGSEGV):
 // a segfault inside libgobject g_type_fundamental, called from the boxed-handle

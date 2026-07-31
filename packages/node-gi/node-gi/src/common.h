@@ -636,6 +636,11 @@ Napi::Value BindingGroupBindFull(const Napi::CallbackInfo& info);
 Napi::Value StartMainLoop(const Napi::CallbackInfo& info);
 Napi::Value IterateMainContext(const Napi::CallbackInfo& info);
 Napi::Value MainContextHasPending(const Napi::CallbackInfo& info);
+// Factory for an Int32Array(1) view over the JS-armed-work counter (see
+// loop.cc) — lets the L1 pump answer "does the program own GLib work?" WITHOUT
+// a napi call. Lazy (a factory, not an Init-time export): the @gjsify/napi shim
+// loud-stubs napi_create_external_arraybuffer and never arms the pump.
+Napi::Value MakePumpPendingCount(const Napi::CallbackInfo& info);
 Napi::Value PumpKick(const Napi::CallbackInfo& info);
 Napi::Value SetMicrotaskDrain(const Napi::CallbackInfo& info);
 

@@ -672,6 +672,32 @@ Napi::Value MainContextHasPending(const Napi::CallbackInfo& info) {
   return Napi::Boolean::New(env, g_pump_async_pending > 0);
 }
 
+// makePumpPendingCount() -> Int32Array(1) OVER g_pump_async_pending (external,
+// zero copy). The JS pump's beat reads this view instead of calling
+// MainContextHasPending(): on Deno, merely ENTERING the addon from the pump's
+// timer tick during the between-test-files GC window reproduces the #47
+// boxed-handle teardown SIGSEGV — measured on the gtk-smoke leg, a query-only
+// tick (one napi call, no dispatch) crashed 3/3 while a tick that never touches
+// the addon exited 0. A typed-array read is a plain JS memory access, so the
+// beat's idle path stays native-silent. No atomics: the counter is written only
+// from the JS thread (Begin/End are main-thread only) and read from JS.
+//
+// A FACTORY, deliberately not created at addon Init: the @gjsify/napi shim
+// (the gjs-napi conformance oracle runs node-gi under it) loud-stubs
+// napi_create_external_arraybuffer, and the gjs host never arms the portable
+// pump — L1 calls this lazily on the first Bun/Deno pump arm, so the stub is
+// never reached where the view is never needed.
+Napi::Value MakePumpPendingCount(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  static_assert(sizeof(g_pump_async_pending) == sizeof(int32_t),
+                "the JS Int32Array view requires a 32-bit counter");
+  // External buffer over static storage — no finalizer needed, the counter
+  // outlives every env.
+  Napi::ArrayBuffer buf =
+      Napi::ArrayBuffer::New(env, &g_pump_async_pending, sizeof(g_pump_async_pending));
+  return Napi::TypedArrayOf<int32_t>::New(env, 1, buf, 0, napi_int32_array);
+}
+
 // In-flight scope=async keep-alive: while any GI scope=async callback (a
 // GAsyncReadyCallback) is pending, REF the (always-active) prepare handle so the
 // libuv loop stays alive until the completion arrives — the exact analogue of
