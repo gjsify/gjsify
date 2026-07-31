@@ -71,6 +71,8 @@ const mainloop: GLib.MainLoop | undefined =
 let countTestsOverall = 0;
 let countTestsFailed = 0;
 let countTestsIgnored = 0;
+/** Tests marked `it.failing` that failed as expected (see `it.failing`). */
+let countTestsXfail = 0;
 
 /**
  * True only while an `it()` callback is on the stack. A matcher/assert that
@@ -841,6 +843,89 @@ it.skip = async function (expectation: string, _callback?: () => void | Promise<
     print(`  ${BLUE}-${RESET} ${GRAY}${expectation} (skipped)${RESET}`);
 };
 
+/**
+ * An EXPECTED failure — a test that asserts the correct behaviour against a
+ * defect we cannot fix from here (an upstream bug, a platform gap).
+ *
+ * This is categorically NOT `it.skip`, and the difference is the whole point:
+ *
+ * - a skip stops running the code, so it hides forever and nothing ever tells
+ *   you the day the bug is fixed;
+ * - `it.failing` RUNS the test, tolerates the failure it was told to expect —
+ *   and **fails the suite the moment the test starts passing**, because that
+ *   means the marker has outlived its cause and must be removed.
+ *
+ * So it is self-retiring: it keeps the suite honest today without turning the
+ * gate off, and it turns itself into a task the moment upstream lands the fix.
+ * The assertion is never weakened — the test still asserts the spec-correct
+ * behaviour, which is what makes the pass-detection meaningful.
+ *
+ * `reason` is mandatory and should name the upstream defect and where it is
+ * tracked, so the next reader does not have to re-derive why this is here.
+ *
+ * ```ts
+ * await it.failing(
+ *     'send/receive empty string',
+ *     async () => { … },
+ *     'GStreamer webrtcdatachannel sends a zero-length buffer for the ' +
+ *         'STRING_EMPTY PPID; RFC 8831 §6.6 requires one zero byte. Not ' +
+ *         'reachable from JS — needs an upstream fix.',
+ * );
+ * ```
+ */
+/**
+ * Live view of the run counters. Exposed so `it.failing`'s own spec can assert
+ * on what the CI gate reads (the counters) instead of scraping printed text —
+ * the summary's wording is free to change, its accounting is not.
+ */
+export const getTestCounters = (): { overall: number; failed: number; ignored: number; xfail: number } => ({
+    overall: countTestsOverall,
+    failed: countTestsFailed,
+    ignored: countTestsIgnored,
+    xfail: countTestsXfail,
+});
+
+it.failing = async function (expectation: string, callback: () => void | Promise<void>, reason: string) {
+    const timeoutMs = timeoutConfig.testTimeout;
+    const t0 = now();
+    ++activeTestDepth;
+    let threw = false;
+    try {
+        if (typeof beforeEachCb === 'function') await beforeEachCb();
+        await withTimeout(callback, timeoutMs, expectation);
+        if (typeof afterEachCb === 'function') await afterEachCb();
+    } catch {
+        // The expected outcome. Deliberately swallowed — tolerating THIS
+        // failure is the contract; the assertion itself is unchanged and the
+        // pass-branch below is what keeps the marker honest.
+        threw = true;
+    } finally {
+        --activeTestDepth;
+    }
+
+    const duration = now() - t0;
+    if (threw) {
+        ++countTestsXfail;
+        print(`  ${BLUE}✗${RESET} ${GRAY}${expectation}  (expected failure — ${reason})${RESET}`);
+        return;
+    }
+
+    // It PASSED. The defect this marker documents is gone, so the marker is
+    // now the lie. Fail loudly rather than let it rot: whoever fixed upstream
+    // gets told to delete the marker, in the run that proves they can.
+    ++countTestsFailed;
+    testErrors.push({
+        suite: currentSuite,
+        test: expectation,
+        message:
+            `it.failing("${expectation}") PASSED — the expected failure no longer happens, ` +
+            `so this marker is stale and must be removed (turn it back into a plain it()). ` +
+            `It was marked expected-failing because: ${reason}`,
+    });
+    print(`  ${RED}❌${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
+    print(`${RED}it.failing passed unexpectedly — remove the marker. Reason it carried: ${reason}${RESET}`);
+};
+
 // The optional second argument mirrors vitest/jest `expect(value, message?)`;
 // it is a human label for the assertion and does not affect matching.
 export const expect = function (actualValue: unknown, _message?: string) {
@@ -957,6 +1042,15 @@ const printResult = () => {
         print(`\n${BLUE}✔ ${countTestsIgnored} ignored test${countTestsIgnored > 1 ? 's' : ''}${RESET}`);
     }
 
+    if (countTestsXfail) {
+        // Expected failures are NOT silent: they are printed as their own line
+        // so a reader sees the suite is gating around a known upstream defect,
+        // and so the count going DOWN is visible when one gets fixed.
+        print(
+            `\n${BLUE}✗ ${countTestsXfail} expected failure${countTestsXfail > 1 ? 's' : ''} (it.failing — upstream defects)${RESET}`,
+        );
+    }
+
     if (strayFailures.length) {
         // Late assertions that fired with no it() on the stack (a leaked timer
         // / unawaited promise in some test). Surface them as their own line so
@@ -1034,6 +1128,7 @@ export const run = async (
     applyEnvOverrides();
     runStartTime = now();
     skipReasons = new Map();
+    countTestsXfail = 0;
 
     if (options) {
         if (typeof options === 'number') {
