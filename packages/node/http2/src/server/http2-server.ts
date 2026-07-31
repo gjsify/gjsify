@@ -466,12 +466,19 @@ function _createTlsCertificate(certPem: string, keyPem: string): Gio.TlsCertific
             const tlsCert = Gio.TlsCertificate.new_from_files(certPath, keyPath);
             return tlsCert;
         } finally {
+            // Best-effort temp-file cleanup: delete(null) throws when the file
+            // was never written (file_set_contents failed above) — that failure
+            // must not mask the certificate result/error leaving this block.
             try {
                 Gio.File.new_for_path(certPath).delete(null);
-            } catch {}
+            } catch {
+                // See above.
+            }
             try {
                 Gio.File.new_for_path(keyPath).delete(null);
-            } catch {}
+            } catch {
+                // See above.
+            }
         }
     }
 }
