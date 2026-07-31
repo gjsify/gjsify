@@ -545,13 +545,13 @@ export class Worker extends EventEmitter {
         // to the now-closed stdin pipe; bail out cleanly so subsequent
         // `port.postMessage` calls become no-ops (the wrapper's `_closed`
         // path returns early).
+        // No try/catch: every registry value is a port wrapper whose `_inner`
+        // is an initialized plain field (single registry .set() site), and
+        // `_closed` / `_transport` are plain data properties — these writes
+        // have no throw path.
         for (const port of this._portRegistry.values()) {
-            try {
-                (port as unknown as { _inner: { _closed: boolean; _transport: unknown } })._inner._closed = true;
-                (port as unknown as { _inner: { _transport: unknown } })._inner._transport = null;
-            } catch {
-                /* defensive */
-            }
+            (port as unknown as { _inner: { _closed: boolean; _transport: unknown } })._inner._closed = true;
+            (port as unknown as { _inner: { _transport: unknown } })._inner._transport = null;
         }
         this._portRegistry.clear();
         this._subprocess = null;
