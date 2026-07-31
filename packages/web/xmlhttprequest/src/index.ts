@@ -311,13 +311,11 @@ export function installObjectURLSupport(): void {
         urlPatch.revokeObjectURL = function (url: string): void {
             const path = _objectURLPaths.get(url);
             if (path) {
-                try {
-                    // Optionally clean up temp file
-                    const file = GLib.build_filenamev([path]);
-                    GLib.unlink(file);
-                } catch {
-                    // ignore cleanup errors
-                }
+                // Best-effort temp-file cleanup — GLib.unlink reports failure
+                // via its return value (-1); neither it nor build_filenamev
+                // has a throw path (no `throws` in the GIR).
+                const file = GLib.build_filenamev([path]);
+                GLib.unlink(file);
                 _objectURLPaths.delete(url);
             }
         };
