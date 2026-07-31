@@ -133,6 +133,37 @@ jobs:
           # extension-less `sh` member of the trio).
           ./node_modules/.bin/gjsify --version
 
+      # `showcase` is the first thing a user runs, and the ONLY command that
+      # asks about SYSTEM dependencies. This runner has no gjs — which is
+      # exactly why the step belongs here: every Linux job has gjs installed,
+      # so "does this work without gjs" is a question they structurally cannot
+      # ask, and the environment answers it before the test can. That blind
+      # spot shipped a pre-flight demanding a gjs binary for `--runtime node`
+      # (#889) — every showcase unreachable for every Windows / plain-Node
+      # user, on the default path too.
+      #
+      # Probes a gjs-ONLY showcase so the run ends at the declaration check:
+      # no bundle, no node-gi, no GTK on the runner. WHICH error comes back is
+      # the assertion — the declaration one means the runtime was resolved
+      # first, the GJS one means it was not.
+      #
+      # This job installs the PUBLISHED CLI, so the step stays red until the
+      # fix ships. That is the signal working as designed: it turns green
+      # exactly when the fix reaches users, which is what this job measures.
+      - name: 'Showcase: --runtime node does not demand gjs'
+        id: showcase
+        continue-on-error: true
+        working-directory: gjsify-diag
+        run: |
+          set -eux
+          out="$(npx gjsify showcase webrtc-loopback --runtime node 2>&1 || true)"
+          echo "$out"
+          if echo "$out" | grep -q "Missing system dependencies"; then
+            echo "::error::showcase demanded gjs for --runtime node — the runtime gate ran too early"
+            exit 1
+          fi
+          echo "$out" | grep -q "does not support --runtime node"
+
       - name: Diagnostic summary
         run: |
           echo "## gjsify CLI on ${{ matrix.os }} (Node)" >> "$GITHUB_STEP_SUMMARY"
@@ -143,6 +174,7 @@ jobs:
           echo "| run the bundle | ${{ steps.run.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| gjsify install (backend) | ${{ steps.install.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| .bin shim created + runnable | ${{ steps.binshim.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| showcase --runtime node (no gjs) | ${{ steps.showcase.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "--- outcomes: version=${{ steps.version.outcome }} build=${{ steps.build.outcome }} run=${{ steps.run.outcome }} install=${{ steps.install.outcome }} binshim=${{ steps.binshim.outcome }}"
           # Every substantive step stays continue-on-error so ONE run still maps
           # ALL the gaps; the gate lives here, at the end.
@@ -161,6 +193,10 @@ jobs:
           if [ "${{ steps.run.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.install.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.binshim.outcome }}" != "success" ]; then FAILED=1; fi
+          # `showcase` gates like the rest. It measures the PUBLISHED CLI, so
+          # it stays red until the #889 fix ships and turns green on its own
+          # when it does — a known, self-resolving gap, not a permanent one.
+          if [ "${{ steps.showcase.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "$FAILED" = "0" ]; then
             echo "CLI PATH GREEN on ${{ matrix.os }} (toolchain + install backend)"
           else
