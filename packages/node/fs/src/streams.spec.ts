@@ -15,9 +15,9 @@ function setup(): void {
 }
 
 function cleanup(): void {
-    try {
-        rmSync(tmpDir, { recursive: true });
-    } catch {}
+    // force:true makes a missing tmpDir a no-op — the only failure this ever
+    // needed to tolerate; anything else (EACCES) should fail the suite loudly.
+    rmSync(tmpDir, { recursive: true, force: true });
 }
 
 export default async () => {

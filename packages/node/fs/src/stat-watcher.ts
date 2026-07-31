@@ -53,7 +53,11 @@ export class StatWatcher extends EventEmitter {
     start(): void {
         try {
             this._prev = statSync(this._path) as unknown as Stats;
-        } catch {}
+        } catch {
+            // Node's watchFile contract: watching a not-yet-existing path is
+            // legal — `_prev` stays zeroed until the file appears, and the
+            // first poll that finds it emits 'change' against the zeroed stat.
+        }
         this._timerId = setInterval(() => {
             let curr: Stats;
             try {
