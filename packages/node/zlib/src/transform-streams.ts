@@ -15,24 +15,13 @@
 // semantics). `Unzip` sniffs the gzip magic (0x1f 0x8b) on the first bytes and
 // dispatches to the gzip or zlib decoder accordingly.
 
-import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
 import { Transform } from 'node:stream';
 import type { TransformOptions } from 'node:stream';
 import type { ZlibOptions } from 'node:zlib';
-
-type GioFormat = 'gzip' | 'deflate' | 'deflate-raw';
-
-function getGioCompressorFormat(format: GioFormat): Gio.ZlibCompressorFormat {
-    switch (format) {
-        case 'gzip':
-            return Gio.ZlibCompressorFormat.GZIP;
-        case 'deflate':
-            return Gio.ZlibCompressorFormat.ZLIB;
-        case 'deflate-raw':
-            return Gio.ZlibCompressorFormat.RAW;
-    }
-}
+// Gio codec primitives shared with the one-shot API in index.ts — see the
+// performance contract documented in gio-codec.ts (bounded-slice member scan,
+// 1 MiB stream reads).
+import { compressWithGio, decompressStreamWithGio, gunzipWithGio, type GioFormat } from './gio-codec.js';
 
 function toUint8Array(chunk: Uint8Array | string): Uint8Array {
     if (typeof chunk === 'string') return new TextEncoder().encode(chunk);
@@ -48,87 +37,6 @@ function concat(chunks: Uint8Array[]): Uint8Array {
         off += c.length;
     }
     return out;
-}
-
-// ---- Gio codec primitives (shared with the one-shot API in index.ts) ----
-
-function compressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
-    const compressor = new Gio.ZlibCompressor({ format: getGioCompressorFormat(format) });
-    const converter = new Gio.ConverterOutputStream({
-        base_stream: Gio.MemoryOutputStream.new_resizable(),
-        converter: compressor,
-    });
-    converter.write_bytes(new GLib.Bytes(data), null);
-    converter.close(null);
-    const memStream = converter.get_base_stream() as Gio.MemoryOutputStream;
-    const bytes = memStream.steal_as_bytes();
-    return new Uint8Array(bytes.get_data() ?? []);
-}
-
-function decompressMemberWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
-    const decompressor = new Gio.ZlibDecompressor({ format: getGioCompressorFormat(format) });
-    const memInput = Gio.MemoryInputStream.new_from_bytes(new GLib.Bytes(data));
-    const converter = new Gio.ConverterInputStream({
-        base_stream: memInput,
-        converter: decompressor,
-    });
-
-    const chunks: Uint8Array[] = [];
-    const bufSize = 4096;
-    while (true) {
-        const bytes = converter.read_bytes(bufSize, null);
-        if (bytes.get_size() === 0) break;
-        chunks.push(new Uint8Array(bytes.get_data()!));
-    }
-    converter.close(null);
-    return concat(chunks);
-}
-
-/**
- * Determine how many input bytes a single gzip member consumes, using the
- * low-level `convert()` API. The decoded output is discarded (GJS does not
- * write the out-buffer back to JS) but `bytes_read` is accurate — exactly what
- * we need to slice off one member from a concatenated gzip stream.
- */
-function findGzipMemberEnd(data: Uint8Array): number {
-    const decompressor = new Gio.ZlibDecompressor({ format: Gio.ZlibCompressorFormat.GZIP });
-    const outBuf = new Uint8Array(65536);
-    let totalRead = 0;
-    let finished = false;
-    while (!finished) {
-        const input = data.subarray(totalRead);
-        try {
-            const [result, bytesRead] = decompressor.convert(input, outBuf, Gio.ConverterFlags.NONE);
-            totalRead += bytesRead;
-            if (result === Gio.ConverterResult.FINISHED) finished = true;
-        } catch {
-            finished = true;
-        }
-    }
-    return totalRead;
-}
-
-function gunzipWithGio(data: Uint8Array): Uint8Array {
-    // Handle concatenated gzip members (Node's gunzip behaviour).
-    const allChunks: Uint8Array[] = [];
-    let inputOffset = 0;
-
-    while (inputOffset < data.length) {
-        if (data.length - inputOffset < 2 || data[inputOffset] !== 0x1f || data[inputOffset + 1] !== 0x8b) {
-            break;
-        }
-        const memberData = data.subarray(inputOffset);
-        const consumed = findGzipMemberEnd(memberData);
-        if (consumed <= 0) break; // No progress — avoid an infinite loop.
-        allChunks.push(decompressMemberWithGio(memberData.subarray(0, consumed), 'gzip'));
-        inputOffset += consumed;
-    }
-
-    if (allChunks.length === 0) {
-        // No valid gzip members — let the member decoder surface the real error.
-        return decompressMemberWithGio(data, 'gzip');
-    }
-    return concat(allChunks);
 }
 
 // ---- Base Transform ----
@@ -176,7 +84,7 @@ export class ZlibBase extends Transform {
             case 'compress':
                 return compressWithGio(input, mode.format);
             case 'decompress':
-                return decompressMemberWithGio(input, mode.format);
+                return decompressStreamWithGio(input, mode.format);
             case 'gunzip':
                 return gunzipWithGio(input);
             case 'unzip':
@@ -185,7 +93,7 @@ export class ZlibBase extends Transform {
                 if (input.length >= 2 && input[0] === 0x1f && input[1] === 0x8b) {
                     return gunzipWithGio(input);
                 }
-                return decompressMemberWithGio(input, 'deflate');
+                return decompressStreamWithGio(input, 'deflate');
         }
     }
 }

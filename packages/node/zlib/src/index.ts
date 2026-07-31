@@ -25,132 +25,24 @@ export {
     createBrotliDecompress,
 } from './transform-streams.js';
 
-import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
 import type { ZlibOptions } from 'node:zlib';
+import { compressWithGio, decompressStreamWithGio, gunzipWithGio, type GioFormat } from './gio-codec.js';
 
 type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
 const hasWebCompression = typeof globalThis.CompressionStream !== 'undefined';
 
-// ---- Gio-based compression for GJS ----
-
-type GioFormat = 'gzip' | 'deflate' | 'deflate-raw';
-
-function getGioFormat(format: GioFormat): Gio.ZlibCompressorFormat {
-    switch (format) {
-        case 'gzip':
-            return Gio.ZlibCompressorFormat.GZIP;
-        case 'deflate':
-            return Gio.ZlibCompressorFormat.ZLIB;
-        case 'deflate-raw':
-            return Gio.ZlibCompressorFormat.RAW;
-    }
-}
-
-function compressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
-    const compressor = new Gio.ZlibCompressor({ format: getGioFormat(format) });
-    const converter = new Gio.ConverterOutputStream({
-        base_stream: Gio.MemoryOutputStream.new_resizable(),
-        converter: compressor,
-    });
-
-    converter.write_bytes(new GLib.Bytes(data), null);
-    converter.close(null);
-
-    const memStream = converter.get_base_stream() as Gio.MemoryOutputStream;
-    const bytes = memStream.steal_as_bytes();
-    return new Uint8Array(bytes.get_data() ?? []);
-}
-
-function decompressStreamWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
-    const decompressor = new Gio.ZlibDecompressor({ format: getGioFormat(format) });
-    const memInput = Gio.MemoryInputStream.new_from_bytes(new GLib.Bytes(data));
-    const converter = new Gio.ConverterInputStream({
-        base_stream: memInput,
-        converter: decompressor,
-    });
-
-    const chunks: Uint8Array[] = [];
-    const bufSize = 4096;
-    while (true) {
-        const bytes = converter.read_bytes(bufSize, null);
-        const size = bytes.get_size();
-        if (size === 0) break;
-        chunks.push(new Uint8Array(bytes.get_data()!));
-    }
-    converter.close(null);
-
-    const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-        result.set(chunk, offset);
-        offset += chunk.length;
-    }
-    return result;
-}
-
-function findGzipMemberEnd(data: Uint8Array): number {
-    // Use the low-level convert() API to determine how many bytes a single
-    // gzip member consumes. The outBuf data is not usable in GJS (not written
-    // back to JS), but bytes_read is correct.
-    const decompressor = new Gio.ZlibDecompressor({ format: Gio.ZlibCompressorFormat.GZIP });
-    const outBuf = new Uint8Array(65536);
-    let totalRead = 0;
-    let finished = false;
-    while (!finished) {
-        const input = data.subarray(totalRead);
-        try {
-            const [result, bytesRead] = decompressor.convert(input, outBuf, Gio.ConverterFlags.NONE);
-            totalRead += bytesRead;
-            if (result === Gio.ConverterResult.FINISHED) finished = true;
-        } catch {
-            finished = true;
-        }
-    }
-    return totalRead;
-}
+// ---- Gio-based decompression for GJS ----
+// The Gio codec primitives (shared with the streaming classes in
+// transform-streams.ts, incl. the bounded-slice gzip member walk) live in
+// gio-codec.ts — see the performance contract documented there.
 
 function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
     if (format !== 'gzip') {
         return decompressStreamWithGio(data, format);
     }
-
-    // Gzip: handle concatenated members (Node.js gunzip behavior)
-    const allChunks: Uint8Array[] = [];
-    let inputOffset = 0;
-
-    while (inputOffset < data.length) {
-        // Check for gzip magic bytes
-        if (data.length - inputOffset < 2 || data[inputOffset] !== 0x1f || data[inputOffset + 1] !== 0x8b) {
-            break;
-        }
-
-        const memberData = data.subarray(inputOffset);
-        // Find where this member ends using the low-level API
-        const consumed = findGzipMemberEnd(memberData);
-        if (consumed <= 0) break; // No progress, avoid infinite loop
-
-        // Decompress just this member using ConverterInputStream
-        const decompressed = decompressStreamWithGio(memberData.subarray(0, consumed), 'gzip');
-        allChunks.push(decompressed);
-        inputOffset += consumed;
-    }
-
-    if (allChunks.length === 0) {
-        // No valid gzip members found; try decompressing anyway to get proper error
-        return decompressStreamWithGio(data, 'gzip');
-    }
-
-    const totalLength = allChunks.reduce((acc, c) => acc + c.length, 0);
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of allChunks) {
-        result.set(chunk, offset);
-        offset += chunk.length;
-    }
-    return result;
+    // Gzip: handle concatenated members (Node.js gunzip behavior).
+    return gunzipWithGio(data);
 }
 
 // ---- Compression helpers using Web Compression API ----
