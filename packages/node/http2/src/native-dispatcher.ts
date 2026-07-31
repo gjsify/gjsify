@@ -239,7 +239,9 @@ export class Http2NativeDispatcher {
             // typelib being present but failing to load — a real defect, not the
             // legitimate "optional prebuild absent" case. Say so before dropping
             // the connection; a silent reset points the user at the network.
-            console.error('Http2NativeDispatcher: @gjsify/http2-native loaded at listen() but failed here — dropping connection');
+            console.error(
+                'Http2NativeDispatcher: @gjsify/http2-native loaded at listen() but failed here — dropping connection',
+            );
             try {
                 connection.close(null);
             } catch {
