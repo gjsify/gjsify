@@ -480,3 +480,56 @@ export function detectGjsAmbientGlobals(code: string): Set<string> {
         ignoreHostMembers: true,
     });
 }
+
+/** The node-gi reverse-bridge package every `--app node` GJS shim resolves to. */
+const NODE_GI_PACKAGE = '@gjsify/node-gi';
+
+/** Is `source` the `@gjsify/node-gi` package root or one of its subpaths? */
+function isNodeGiSpecifier(source: unknown): boolean {
+    return typeof source === 'string' && (source === NODE_GI_PACKAGE || source.startsWith(`${NODE_GI_PACKAGE}/`));
+}
+
+/**
+ * Detect a STATIC import of `@gjsify/node-gi` (root or any subpath) in a
+ * bundled `--app node` chunk — the second genuine-GJS-source signal next to
+ * `detectGjsAmbientGlobals`.
+ *
+ * Why this is a signal: the bare GJS built-in modules (`system`/`gettext`/
+ * `cairo`) are rewritten to `@gjsify/node-gi/<name>` and kept EXTERNAL as
+ * top-level import statements, so any bundle whose tree-shaken graph retains
+ * one is ALREADY bound to the bridge at load — Node resolves the external at
+ * link time and fails without node-gi installed. Treating that bundle as a
+ * GJS-source build therefore cannot cost plain-Node loadability; NOT treating
+ * it as one is how a portable GJS app that spells `ARGV` as
+ * `system.programArgs` (the AGENTS.md-mandated spelling) lost its `@girs/*`
+ * bodies and its globals shim in one go — `gjsify storybook --runtime node`
+ * emitted a bundle with no `requireGi` at all.
+ *
+ * Why a surviving `gi://` import is deliberately NOT a signal: its shim loads
+ * node-gi LAZILY through a `require('@gjsify/node-gi/gi')` CALL — not an import
+ * statement, so this scan is structurally blind to it, by design. A
+ * cross-platform package with a gjs-gated `gi://` import stays loadable on
+ * plain Node (the #641 lesson, pinned by `tests/e2e/node-gi-globals-inject`),
+ * and flipping injection for it would break exactly that.
+ *
+ * Scans import/re-export STATEMENTS via the AST (never text), so a quoted
+ * `'@gjsify/node-gi/system'` inside a test name or template cannot trigger.
+ */
+export function detectNodeGiModuleImports(code: string): boolean {
+    const ast = acorn.parse(code, {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        allowHashBang: true,
+    });
+    for (const node of ast.body) {
+        if (node.type === 'ImportDeclaration' && isNodeGiSpecifier(node.source.value)) return true;
+        if (
+            (node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') &&
+            node.source &&
+            isNodeGiSpecifier(node.source.value)
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
