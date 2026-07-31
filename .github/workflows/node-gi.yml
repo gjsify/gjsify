@@ -1789,7 +1789,21 @@ jobs:
               exit "${rc}"
           }
           node --check dist/storybook.node.mjs
-          grep -q requireGi dist/storybook.node.mjs
+          # The assertions are where it actually dies (set -x proved it: the
+          # build and node --check both pass, `grep -q requireGi` is the last
+          # traced command). A bare `grep -q` reports only "not found", so dump
+          # what the bundle DOES contain instead of guessing again.
+          if ! grep -q requireGi dist/storybook.node.mjs; then
+              echo "::error::bundle has no requireGi — gi:// was never rewritten, so nodeGiGlobalsInject did not fire."
+              echo "--- bytes: $(wc -c < dist/storybook.node.mjs) ---"
+              echo "--- @gjsify/node-gi occurrences: $(grep -c '@gjsify/node-gi' dist/storybook.node.mjs || true) ---"
+              echo "--- gi:// occurrences: $(grep -c 'gi://' dist/storybook.node.mjs || true) ---"
+              echo "--- static imports in the emitted bundle ---"
+              grep -oE "^import[^;]{0,120};" dist/storybook.node.mjs | head -20
+              echo "--- generated entry ---"
+              head -20 node_modules/.cache/gjsify-storybook/entry.ts 2>/dev/null || echo "(no entry)"
+              exit 1
+          fi
           grep -q "@gjsify/node-gi" dist/storybook.node.mjs
           if grep -q "gi://" dist/storybook.node.mjs; then echo "raw gi:// left in bundle"; exit 1; fi
           echo "storybook --app node bundle OK ($(wc -c < dist/storybook.node.mjs) bytes)"
