@@ -48,15 +48,18 @@ interface _FetchRuntimeGlobals {
  */
 function rewriteFetchInput(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
     if (typeof input !== 'string') return input;
-    const DEBUG = (globalThis as unknown as _FetchRuntimeGlobals).__GJSIFY_DEBUG_FETCH === true;
-    try {
-        const rewritten = resolveRootRelativeUrl(input);
-        if (DEBUG && rewritten !== input) console.log(`[fetch] rewrite ${input} → ${rewritten}`);
-        return rewritten;
-    } catch (err) {
-        if (DEBUG) console.warn(`[fetch] rewrite FAILED: ${err instanceof Error ? err.message : String(err)}`);
-        return input;
+    // No try/catch: `resolveRootRelativeUrl` reads two properties off the
+    // `system` built-in and calls a pure function — there is no throw path, so
+    // a catch here could only ever SWALLOW a bug. That is precisely how #869
+    // hid: the previous spelling reached `globalThis.imports.system`, which is
+    // `undefined` off gjs, and the catch turned the resulting TypeError into a
+    // silently unrewritten URL. If this ever does throw, the caller should see
+    // it.
+    const rewritten = resolveRootRelativeUrl(input);
+    if (rewritten !== input && (globalThis as unknown as _FetchRuntimeGlobals).__GJSIFY_DEBUG_FETCH === true) {
+        console.log(`[fetch] rewrite ${input} → ${rewritten}`);
     }
+    return rewritten;
 }
 
 /**

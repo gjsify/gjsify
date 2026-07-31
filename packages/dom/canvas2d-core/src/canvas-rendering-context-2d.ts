@@ -453,11 +453,11 @@ export class CanvasRenderingContext2D {
             const base64 = GLib.base64_encode(contents);
             return `data:image/png;base64,${base64}`;
         } finally {
-            try {
-                GLib.unlink(tempPath);
-            } catch (_e) {
-                /* ignore */
-            }
+            // `GLib.unlink` returns 0/-1 and is not `throws` in the GIR, so the
+            // try/catch that used to sit here could never fire. Best-effort
+            // cleanup is expressed by ignoring the RETURN value, not by
+            // wrapping a non-throwing call in a swallowing catch.
+            GLib.unlink(tempPath);
         }
     }
 

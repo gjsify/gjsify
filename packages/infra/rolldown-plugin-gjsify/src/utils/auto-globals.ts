@@ -470,7 +470,11 @@ export async function detectAutoGlobals(
                             `[gjsify-auto-globals] parse failed on chunk #${i} — wrote ${path} for inspection`,
                         );
                     } catch {
-                        /* ignore */
+                        // Deliberately swallowed, and the ONLY reason this
+                        // catch is legitimate: writing the debug dump is
+                        // best-effort (permissions, disk), and letting its
+                        // failure escape would replace the real parse error
+                        // `e` — rethrown below — with a misleading one.
                     }
                 }
                 throw e;
