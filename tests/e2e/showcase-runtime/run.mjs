@@ -211,8 +211,9 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
     it('resolves --runtime before gating on the gjs system deps', async () => {
         const emptyBin = mkdtempSync(join(tmpdir(), 'gjsify-e2e-nogjs-'));
         try {
+            // No `cwd`: the showcase dir resolves through `createRequire`
+            // relative to the CLI's own lib, never through the caller's cwd.
             const r = await runCli(['showcase', 'webrtc-loopback', '--runtime', 'node'], {
-                cwd: dir,
                 env: { ...process.env, PATH: emptyBin },
             });
             assert.doesNotMatch(r.stderr, /Missing system dependencies/);
