@@ -30,6 +30,10 @@ export interface PackumentVersion {
     optionalDependencies?: Record<string, string>;
     bin?: string | Record<string, string>;
     deprecated?: string;
+    /** Platform constraints (npm manifest shape; entries may be `!negated`). */
+    os?: string | string[];
+    cpu?: string | string[];
+    libc?: string | string[];
     [key: string]: unknown;
 }
 

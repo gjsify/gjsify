@@ -44,6 +44,7 @@ import {
 import { getCachedPackument, putCachedPackument } from './install-packument-cache.js';
 import { assertNativeBackendNodeVersion } from './node-version.js';
 import { buildCmdShim, parseShebang } from './bin-shim.js';
+import { currentPlatformEnv, platformMatches, type PlatformList } from './platform-check.js';
 
 // 16-wide download pool. Matched to the shared Soup.Session's lifted
 // `max-conns-per-host` (see @gjsify/fetch `getSharedSession`) — a higher pool
@@ -72,6 +73,18 @@ interface ResolvedNode {
     /** `optionalDependencies` field from the packument. */
     optionalDependencies: Record<string, string>;
     bin?: string | Record<string, string>;
+    /** Platform constraints from the packument version (npm manifest shape). */
+    os?: PlatformList;
+    cpu?: PlatformList;
+    libc?: PlatformList;
+    /**
+     * True when the node is reachable ONLY through `optionalDependencies`
+     * edges (npm's `node.optional` dep flag). Only optional nodes may be
+     * skipped by the platform filter — a REQUIRED node with a foreign
+     * platform declaration is still materialised (npm would hard-fail it
+     * with EBADPLATFORM; we keep the historical permissive behavior).
+     */
+    optional?: boolean;
 }
 
 const LOCKFILE_NAME = 'gjsify-lock.json';
@@ -83,10 +96,35 @@ interface LockfileEntry {
     integrity?: string;
     dependencies?: Record<string, string>;
     bin?: string | Record<string, string>;
+    /**
+     * Platform constraints + optional flag, npm-lockfile-style. The lockfile
+     * deliberately keeps EVERY resolved node — including foreign-platform
+     * optional deps — so it stays cross-platform (two developers on different
+     * OSes share one lockfile, `--immutable` included). Filtering happens at
+     * MATERIALISATION time only, and these fields are what make that decision
+     * recomputable per host without a packument fetch.
+     */
+    os?: PlatformList;
+    cpu?: PlatformList;
+    libc?: PlatformList;
+    optional?: boolean;
 }
 
 interface Lockfile {
     lockfileVersion: number;
+    /**
+     * True when the entries carry platform metadata (`os`/`cpu`/`libc`/
+     * `optional`). Written by every resolve since the platform filter landed.
+     * Absent ⇒ the lockfile predates the metadata: per-entry field absence is
+     * then indistinguishable from "no constraint declared", so the filter
+     * stays inert and the next non-frozen install runs a one-time PRESERVING
+     * re-resolve (versions seeded from this lockfile, so nothing bumps) purely
+     * to backfill the metadata. Kept as a marker on lockfileVersion 2 instead
+     * of a version bump: older CLIs read a marker-carrying lockfile just fine
+     * (unknown fields are ignored), while a version bump would make them treat
+     * it as MISSING — full re-resolve, version churn, `--immutable` hard fail.
+     */
+    platformMeta?: boolean;
     /** Top-level specs used to seed this lockfile (preserves user intent). */
     requested: string[];
     /** Pinned packages keyed by `installPath` (e.g. `node_modules/foo` or
@@ -158,10 +196,25 @@ async function installPackagesNativeLocked(
         }
         log('install: --immutable, using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
-    } else if (!opts.refreshLockfile && existingLock && lockfileMatchesRequest(existingLock, opts.specs)) {
+    } else if (
+        !opts.refreshLockfile &&
+        existingLock &&
+        existingLock.platformMeta === true &&
+        lockfileMatchesRequest(existingLock, opts.specs)
+    ) {
         log('install: using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
     } else {
+        if (existingLock && existingLock.platformMeta !== true && lockfileMatchesRequest(existingLock, opts.specs)) {
+            // One-time schema upgrade: the lockfile predates the per-entry
+            // platform metadata. Re-resolve WITH version preservation (the
+            // `preferred` seeding below keeps every pinned version) purely to
+            // backfill `os`/`cpu`/`libc`/`optional` — after this write the
+            // fast lockfile-reuse path above applies again.
+            console.log(
+                'gjsify install: upgrading gjsify-lock.json with platform metadata (one-time; pinned versions are preserved)',
+            );
+        }
         // A resolve has to run (new/changed/removed dep, or no lockfile yet).
         // Unless --refresh-lockfile was passed, seed it with the versions
         // already pinned in the existing lockfile so unchanged deps keep their
@@ -210,6 +263,54 @@ async function installPackagesNativeLocked(
         if (dropped > 0) {
             log('install: %d workspace-provided package(s) symlinked, not fetched', dropped);
         }
+    }
+
+    // Platform filter (npm parity): an OPTIONAL node whose `os`/`cpu`/`libc`
+    // declaration cannot match this host is dropped from the fetch/extract set
+    // — npm prunes exactly this set from its ideal tree before reify
+    // (arborist `#checkEngineAndPlatform` → `optionalSet` → inert). The node
+    // STAYS in the lockfile (written above / consumed by `--immutable`), so
+    // lockfiles remain cross-platform; only the materialisation is host-
+    // specific. Skipping the FETCH too is safe: nothing downstream assumes
+    // tarball-cache presence for a locked node — `extractOne` is the only
+    // reader and it runs per kept node; `linkBins`/`warnMissingNativeBuilds`
+    // iterate the same kept set. Escape hatch: `--no-platform-filter`
+    // (`platformFilter: false`) installs every locked node, mirroring npm's
+    // `--force` bypass of the platform check. A REQUIRED foreign-platform
+    // node is never skipped (npm would EBADPLATFORM; we stay permissive).
+    // Already-extracted foreign packages from a pre-filter install are left
+    // on disk untouched (an install never deletes what it did not write —
+    // ADR 0001); `gjsify run clear` + a fresh install drops them.
+    if (opts.platformFilter !== false) {
+        const env = currentPlatformEnv();
+        const kept: ResolvedNode[] = [];
+        let skippedForeign = 0;
+        for (const n of nodes) {
+            if (n.optional === true && !platformMatches(n, env)) {
+                skippedForeign++;
+                log(
+                    'skip: %s@%s wants os=%s cpu=%s libc=%s — foreign-platform optional dep, locked but not materialised',
+                    n.name,
+                    n.version,
+                    JSON.stringify(n.os ?? 'any'),
+                    JSON.stringify(n.cpu ?? 'any'),
+                    JSON.stringify(n.libc ?? 'any'),
+                );
+                continue;
+            }
+            kept.push(n);
+        }
+        if (skippedForeign > 0) {
+            log(
+                'install: %d foreign-platform optional package(s) kept in the lockfile but not fetched/extracted ' +
+                    '(host %s-%s%s; --no-platform-filter installs them all)',
+                skippedForeign,
+                env.os,
+                env.cpu,
+                env.libc ? `-${env.libc}` : '',
+            );
+        }
+        nodes = kept;
     }
 
     log('install: downloading %d tarball(s)', nodes.length);
@@ -402,6 +503,11 @@ async function resolveDeps(
         /** Whether failure to resolve should throw (false for optionalDeps). */
         required: boolean;
     }
+    // Resolved edge list (requester placement → target placement, with the
+    // edge's optionalDependencies-ness). Feeds `applyOptionalFlags` after the
+    // BFS — the dep-flag computation needs the full graph including the
+    // reuse edges the placement loop `continue`s over.
+    const resolvedEdges: ResolvedEdge[] = [];
     // Top-level range bookkeeping for the version-conflict warning:
     // `name → (applied range → requester labels)`. Only TOP-LEVEL specs
     // participate: conflicting transitive edges are resolved correctly by
@@ -479,7 +585,10 @@ async function resolveDeps(
             // resolver does this — each level of nesting acts as a fallback.
             const visible = findVisible(edge.from, edge.name, byPath);
             if (visible && satisfiesRange(visible.version, edge.range)) {
-                // Compatible placement reachable; reuse, no new install.
+                // Compatible placement reachable; reuse, no new install. The
+                // edge still counts for the dep-flag pass — a REQUIRED edge
+                // reusing an optionally-placed node promotes it to required.
+                resolvedEdges.push({ from: edge.from, to: visible.installPath, optional: !edge.required });
                 continue;
             }
 
@@ -517,8 +626,12 @@ async function resolveDeps(
                     dependencies: v.dependencies ?? {},
                     optionalDependencies: v.optionalDependencies ?? {},
                     bin: v.bin,
+                    os: normalizePlatformList(v.os),
+                    cpu: normalizePlatformList(v.cpu),
+                    libc: normalizePlatformList(v.libc),
                 };
                 byPath.set(installPath, node);
+                resolvedEdges.push({ from: edge.from, to: installPath, optional: !edge.required });
                 if (installPath === `node_modules/${edge.name}`) {
                     root.set(edge.name, node);
                 }
@@ -564,8 +677,69 @@ async function resolveDeps(
     }
 
     progress?.endPhase('resolve');
+    applyOptionalFlags(byPath, resolvedEdges);
     emitTopLevelConflictWarnings(topLevelRanges, root);
     return Array.from(byPath.values());
+}
+
+/**
+ * Sanitize a packument version's `os`/`cpu`/`libc` field. Wire data is
+ * untrusted: manifests in the wild carry an explicit `"os": null`, and a
+ * malformed non-string/array value must neither leak into the lockfile nor
+ * reach `checkList`. A string passes through; an array keeps only its string
+ * entries; anything else means "no constraint".
+ */
+function normalizePlatformList(value: unknown): PlatformList | undefined {
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string');
+    return undefined;
+}
+
+/** One resolved requester→target edge, keyed by placement paths. */
+export interface ResolvedEdge {
+    /** Requester's `installPath`; `null` = the project root (top-level specs). */
+    from: string | null;
+    /** Target node's `installPath` (new placement OR reused visible one). */
+    to: string;
+    /** True when this edge came from `optionalDependencies`. */
+    optional: boolean;
+}
+
+/**
+ * npm's `calc-dep-flags` in miniature (`refs/npm-cli/workspaces/arborist/lib/
+ * calc-dep-flags.js`): a node is OPTIONAL iff it is NOT reachable from the
+ * project root through a chain of non-optional edges. Top-level specs are the
+ * root's non-optional edges (`from === null`); an `optionalDependencies` edge
+ * never confers requiredness, so a whole subtree that hangs off one optional
+ * edge stays optional even where its INTERNAL edges are `dependencies`. The
+ * flag is what licenses the platform filter to skip a node — npm prunes
+ * exactly the optional set and hard-fails a required platform mismatch.
+ *
+ * Exported for unit-testing. Internal API.
+ */
+export function applyOptionalFlags(byPath: Map<string, ResolvedNode>, edges: ResolvedEdge[]): void {
+    const outgoing = new Map<string | null, ResolvedEdge[]>();
+    for (const e of edges) {
+        let list = outgoing.get(e.from);
+        if (!list) {
+            list = [];
+            outgoing.set(e.from, list);
+        }
+        list.push(e);
+    }
+    const required = new Set<string>();
+    const stack: Array<string | null> = [null];
+    while (stack.length > 0) {
+        const from = stack.pop()!;
+        for (const e of outgoing.get(from) ?? []) {
+            if (e.optional || required.has(e.to)) continue;
+            required.add(e.to);
+            stack.push(e.to);
+        }
+    }
+    for (const [installPath, node] of byPath) {
+        node.optional = !required.has(installPath);
+    }
 }
 
 /**
@@ -788,10 +962,19 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
             integrity: node.integrity,
             dependencies: Object.keys(node.dependencies).length > 0 ? node.dependencies : undefined,
             bin: node.bin,
+            // Platform metadata (npm-lockfile-style): foreign-platform entries
+            // are deliberately LOCKED — filtering happens at materialisation,
+            // never at resolution-persistence, so the lockfile stays
+            // cross-platform. `undefined` fields are dropped by JSON.stringify.
+            os: node.os,
+            cpu: node.cpu,
+            libc: node.libc,
+            optional: node.optional === true ? true : undefined,
         };
     }
     const lockfile: Lockfile = {
         lockfileVersion: LOCKFILE_VERSION,
+        platformMeta: true,
         requested: [...specs],
         packages,
     };
@@ -850,6 +1033,10 @@ function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
         dependencies: entry.dependencies ?? {},
         optionalDependencies: {},
         bin: entry.bin,
+        os: entry.os,
+        cpu: entry.cpu,
+        libc: entry.libc,
+        optional: entry.optional,
     }));
 }
 

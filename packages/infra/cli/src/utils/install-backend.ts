@@ -114,6 +114,17 @@ export interface InstallOptions {
      * warning falls back to the bare ranges.
      */
     specOrigins?: Map<string, string[]>;
+    /**
+     * Native backend only. Default ON (undefined = true): an OPTIONAL
+     * dependency whose declared `os`/`cpu`/`libc` cannot match this host is
+     * kept in `gjsify-lock.json` (lockfiles stay cross-platform) but is
+     * neither fetched nor extracted — npm/pnpm/yarn/bun all prune this set.
+     * Set `false` (`gjsify install --no-platform-filter`) to materialise
+     * every locked node regardless of platform — the escape hatch mirroring
+     * npm's `--force` bypass of its platform check. The `npm` backend ignores
+     * this (npm applies its own pruning).
+     */
+    platformFilter?: boolean;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';

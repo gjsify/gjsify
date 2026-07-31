@@ -301,9 +301,10 @@ gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/glo
 | `--save-peer` | `false` | Save to `peerDependencies`. |
 | `-O`, `--save-optional` | `false` | Save to `optionalDependencies`. |
 | `--immutable` | `false` | Refuse to update `gjsify-lock.json`; fail if it's missing or stale. Equivalent to `yarn --immutable` / `npm ci --frozen-lockfile`. |
+| `--platform-filter` | `true` | Materialise only optional dependencies whose declared `os`/`cpu`/`libc` match this host — the npm/pnpm/yarn default (foreign-platform prebuild siblings like `*-darwin-arm64` are the bulk of a cold install's bytes on the wrong host). Foreign-platform optional packages stay pinned in `gjsify-lock.json` (lockfiles are cross-platform, `--immutable` included) but are neither fetched nor extracted. Pass `--no-platform-filter` to install every locked package regardless of platform (mirrors npm `--force` bypassing its platform check). |
 | `--verbose` | `false` | Per-package install log. |
 
-Resolver mirrors npm v3+ semantics: each `(requester → dep → range)` edge is checked against the ancestor `node_modules` chain; compatible placements are reused, conflicting ones are nested. Supports `npm`-style `overrides` and `yarn`-style `resolutions` in `package.json`. Lockfile schema is v2 (path-keyed `packages` map).
+Resolver mirrors npm v3+ semantics: each `(requester → dep → range)` edge is checked against the ancestor `node_modules` chain; compatible placements are reused, conflicting ones are nested. Supports `npm`-style `overrides` and `yarn`-style `resolutions` in `package.json`. Lockfile schema is v2 (path-keyed `packages` map); entries carry npm-style `os`/`cpu`/`libc` + `optional` metadata so the platform filter is recomputable per host straight from the lockfile. A lockfile written before that metadata existed is upgraded in place on the next non-`--immutable` install (a one-time re-resolve that preserves every pinned version).
 
 ## `gjsify dlx`
 

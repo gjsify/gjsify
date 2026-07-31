@@ -91,6 +91,7 @@ interface InstallOptions {
     'save-optional'?: boolean;
     immutable?: boolean;
     'refresh-lockfile'?: boolean;
+    'platform-filter': boolean;
     verbose: boolean;
     quiet?: boolean;
     progress?: boolean;
@@ -138,6 +139,12 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     'Re-resolve every dependency to the newest version satisfying its range and rewrite the lockfile (bumps in-range transitive deps). Without it, a resolve preserves versions already pinned in the lockfile and only resolves new/changed deps — the npm/yarn/pnpm default. Mirrors yarn install --mode=update-lockfile.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('platform-filter', {
+                description:
+                    'Materialise only optional dependencies whose declared os/cpu/libc match this host (the npm/pnpm/yarn default). Foreign-platform optional packages stay pinned in gjsify-lock.json — the lockfile is cross-platform — but are neither fetched nor extracted. Pass --no-platform-filter to install every locked package regardless of platform (mirrors npm --force bypassing its platform check).',
+                type: 'boolean',
+                default: true,
             })
             .option('verbose', {
                 description: 'Verbose install logging.',
@@ -268,9 +275,11 @@ export const installCommand: Command<unknown, InstallOptions> = {
                       // two shapes apart, and claiming the rarer one sends the
                       // next reader after a bug that isn't there. Measured on a
                       // cold tree of this workspace: 1597 packages / ~4.8 GB
-                      // extracted, of which ~3.4 GB are foreign-platform
+                      // extracted, of which ~3.4 GB were foreign-platform
                       // optional deps (`os`/`cpu` excludes the host) that npm
-                      // would never place. That install was still making steady
+                      // would never place — the platform filter now skips that
+                      // set by default (`--no-platform-filter` restores it).
+                      // That install was still making steady
                       // progress when the 30-min budget elapsed, and a re-run
                       // finished the remainder in ~2 min. Extraction also has
                       // multi-second SYNCHRONOUS stretches (tar parse + file
@@ -539,6 +548,7 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
             lockfile: !args.immutable,
             frozen: args.immutable,
             refreshLockfile: args['refresh-lockfile'],
+            platformFilter: args['platform-filter'],
             signal,
             progress,
         });
@@ -921,6 +931,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             lockfile: !args.immutable,
             frozen: args.immutable,
             refreshLockfile: args['refresh-lockfile'],
+            platformFilter: args['platform-filter'],
             overrides,
             signal,
             progress,
@@ -955,6 +966,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             // package.json. Same `--immutable` semantics as the root install.
             lockfile: !args.immutable,
             frozen: args.immutable,
+            platformFilter: args['platform-filter'],
             signal,
             workspaceNames: new Set(byName.keys()),
         });
