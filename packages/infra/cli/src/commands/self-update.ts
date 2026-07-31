@@ -88,8 +88,7 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error(`Failed to fetch packument: ${msg}`);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
 
         const target = resolveTag(packument, args.tag);
@@ -98,8 +97,7 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
                 `Unknown dist-tag '${args.tag}' on ${PACKAGE_NAME}. ` +
                     `Known tags: ${Object.keys(packument['dist-tags'] ?? {}).join(', ') || '(none)'}`,
             );
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
 
         console.log(`Latest matching --tag ${args.tag}: v${target}`);
@@ -139,8 +137,7 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             console.log(
                 currentVersion ? `Update available: v${currentVersion} → v${target}` : `Install required: → v${target}`,
             );
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
 
         // `@gjsify/cli` ships two runtimes from one package: the Node `bin`
@@ -177,8 +174,7 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             const msg = err instanceof Error ? err.message : String(err);
             console.error(`self-update: install failed — ${msg}`);
             console.error(`Re-run \`gjsify self-update\` to retry.`);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
 
         // Lay down (or repair) the GJS-native engine bridges in lockstep with

@@ -84,7 +84,9 @@ export const whoamiCommand: Command<unknown, WhoamiOptions> = {
                     ].join('\n') + '\n',
                 );
             }
-            process.exit(1);
+            // `return` — a bare `process.exit()` is deferred under GJS and the
+            // handler would probe the registry without a token.
+            return process.exit(1);
         }
 
         let result: { username?: string };
@@ -101,8 +103,9 @@ export const whoamiCommand: Command<unknown, WhoamiOptions> = {
                 process.stderr.write(`gjsify whoami: ${message}\n`);
                 process.stderr.write(`Registry: ${registryClean}\n`);
             }
-            process.exit(1);
-            return; // unreachable but pleases the type narrower
+            // `return process.exit` also keeps the type narrower happy: the
+            // never-typed call marks this branch as terminated.
+            return process.exit(1);
         }
 
         if (result.username && result.username.length > 0) {

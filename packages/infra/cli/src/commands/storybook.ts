@@ -178,8 +178,24 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
 
         const initialCount = writeEntry();
         if (initialCount === 0) {
-            console.error(`No *.story.ts files found under ${relative(cwd, storiesDir) || storiesDir}`);
-            process.exit(1);
+            // `return process.exit()`: a bare `process.exit()` does NOT halt
+            // synchronously under GJS (no atexit, the GLib loop is still
+            // armed), so execution fell through to the "Found 0 story file(s)"
+            // log and on into the build — and the deferred exit never carried
+            // its code, so `gjsify storybook` in a directory with no stories
+            // printed BOTH messages and exited 0. Measured: exit 1 under bun,
+            // exit 0 under gjs, same command. Same trap as `showcase.ts`.
+            console.error(
+                `No *.story.ts files found under ${relative(cwd, storiesDir) || storiesDir}\n\n` +
+                    `  \`gjsify storybook\` renders the stories of the CURRENT project: it discovers\n` +
+                    `  \`*.story.ts\` files and launches a component browser over them. Point it at a\n` +
+                    `  different directory with --stories <dir> (or \`gjsify.storybook.stories\` in\n` +
+                    `  package.json) if yours live elsewhere.\n\n` +
+                    `  To SEE a storybook without authoring one first, run the curated Libadwaita\n` +
+                    `  component browser — it is a showcase, so it needs no project at all:\n\n` +
+                    `      gjsify showcase adwaita-storybook`,
+            );
+            return process.exit(1);
         }
         console.log(
             `Found ${initialCount} story file(s) under ${relative(cwd, storiesDir) || '.'} (runtime: ${runtime})`,

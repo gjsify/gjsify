@@ -91,8 +91,7 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
         if (args.builderLint !== false) {
             if (!existsSync(manifestPath)) {
                 console.error(`[gjsify flatpak check] manifest not found: ${manifestPath}`);
-                process.exit(1);
-                return;
+                return process.exit(1);
             }
             const ok = await runLinter('flatpak-builder-lint', ['manifest', manifestPath], args.verbose ?? false);
             if (!ok) failures++;
@@ -106,7 +105,9 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
 
         if (failures > 0) {
             console.error(`\n[gjsify flatpak check] ${failures} check(s) failed.`);
-            process.exit(1);
+            // `return` — the deferred GJS exit otherwise fell through and ALSO
+            // printed "all checks passed" after reporting failures.
+            return process.exit(1);
         }
         console.log('[gjsify flatpak check] all checks passed.');
     },

@@ -60,8 +60,7 @@ export const uninstallCommand: Command<unknown, UninstallOptions> = {
                 'gjsify uninstall currently only supports --global. ' +
                     'For project-local removal, edit package.json + re-run `gjsify install`.',
             );
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
 
         const layout = defaultGlobalLayout();

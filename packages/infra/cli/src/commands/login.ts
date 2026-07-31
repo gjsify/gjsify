@@ -106,7 +106,9 @@ export const loginCommand: Command<unknown, LoginOptions> = {
         } catch (err) {
             if (err instanceof LoginError) {
                 console.error(err.message);
-                process.exit(1);
+                // `return` — the deferred GJS exit otherwise fell through into
+                // the rethrow below and reported the login error twice.
+                return process.exit(1);
             }
             throw err;
         }

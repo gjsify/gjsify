@@ -177,24 +177,29 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     'gjsify install --immutable does not accept package arguments. ' +
                         'Remove the package names or drop --immutable.',
                 );
-                process.exit(1);
+                // `return` — a bare `process.exit()` is deferred under GJS and
+                // the install would proceed past a refused flag combination.
+                return process.exit(1);
             }
             if (args.global) {
                 console.error('gjsify install --immutable is incompatible with --global.');
-                process.exit(1);
+                // `return` — see the deferred-exit note above.
+                return process.exit(1);
             }
             if (args['refresh-lockfile']) {
                 console.error(
                     'gjsify install --immutable is incompatible with --refresh-lockfile ' +
                         '(--immutable forbids rewriting the lockfile). Drop one.',
                 );
-                process.exit(1);
+                // `return` — see the deferred-exit note above.
+                return process.exit(1);
             }
         }
         if (args.global) {
             if (!args.packages || args.packages.length === 0) {
                 console.error('gjsify install --global requires at least one <pkg> argument.');
-                process.exit(1);
+                // `return` — see the deferred-exit note above.
+                return process.exit(1);
             }
             for (const flag of ['save-dev', 'save-peer', 'save-optional'] as const) {
                 if (args[flag]) {
@@ -298,7 +303,10 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     `gjsify install: timed out after ${secs}s — likely a registry slowdown or a wedged extract.\n` +
                         `Re-run, or override with --timeout <ms> (set --timeout 0 to disable the overall budget).`,
                 );
-                process.exit(1);
+                // `return` — the deferred GJS exit otherwise fell through into
+                // the rethrow below and reported the timeout twice. The
+                // `finally` still runs on the way out and clears the timers.
+                return process.exit(1);
             }
             throw err;
         } finally {

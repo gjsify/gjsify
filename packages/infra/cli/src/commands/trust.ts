@@ -106,7 +106,9 @@ export const trustCommand: Command<unknown, TrustOptions> = {
 
         if (!hasAnyCredential(npmrc)) {
             console.error('gjsify trust: no npm token configured. Run `gjsify login` first.');
-            process.exit(1);
+            // `return` — a bare `process.exit()` is deferred under GJS and the
+            // handler would keep going without credentials.
+            return process.exit(1);
         }
 
         // Pre-flight: a present-but-DEAD token would otherwise surface as a
@@ -126,15 +128,15 @@ export const trustCommand: Command<unknown, TrustOptions> = {
                         'Your ~/.npmrc token is dead or revoked — refresh it with `npm login`, then re-run.\n' +
                         '(`gjsify trust` uses the ~/.npmrc bearer token directly — unlike `npm trust`, which logs in via the browser.)',
                 );
-                process.exit(1);
-                return;
+                return process.exit(1);
             }
             if (!who.username) {
                 console.error(
                     'gjsify trust: your npm token appears dead or revoked (registry returned an empty whoami).\n' +
                         'Refresh it with `npm login`, then re-run.',
                 );
-                process.exit(1);
+                // `return` — see the deferred-exit note on the guard above.
+                return process.exit(1);
             }
             console.log(`gjsify trust: authenticated as ${who.username}`);
         }
@@ -150,11 +152,13 @@ export const trustCommand: Command<unknown, TrustOptions> = {
                 'gjsify trust: could not determine the GitHub repository.\n' +
                     'Pass --repository owner/repo (no `origin` remote to infer from).',
             );
-            process.exit(1);
+            // `return` — see the deferred-exit note on the guard above.
+            return process.exit(1);
         }
         if (!validateRepository(repository)) {
             console.error(`gjsify trust: --repository must be "owner/repo", got "${repository}".`);
-            process.exit(1);
+            // `return` — see the deferred-exit note on the guard above.
+            return process.exit(1);
         }
 
         const workflow = normalizeWorkflowFile(args.workflow);
@@ -185,7 +189,8 @@ export const trustCommand: Command<unknown, TrustOptions> = {
 
         if (selected.length === 0) {
             console.error('gjsify trust: no publishable packages matched.');
-            process.exit(1);
+            // `return` — see the deferred-exit note on the guard above.
+            return process.exit(1);
         }
 
         console.log(`gjsify trust: ${selected.length} package(s) | repo=${repository} workflow=${workflow}`);

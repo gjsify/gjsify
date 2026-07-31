@@ -163,7 +163,9 @@ export const debugCommand: Command<unknown, DebugCliOptions> = {
             console.error(
                 'gjsify debug: no bus name — set package.json#gjsify.devtools.busNameBase or pass --bus-name <org.example.App>',
             );
-            process.exit(1);
+            // `return` — a bare `process.exit()` is deferred under GJS and the
+            // handler would continue without a bus name.
+            return process.exit(1);
         }
 
         const globals = args.globals ?? config.globals ?? 'auto';
