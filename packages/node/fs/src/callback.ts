@@ -30,6 +30,7 @@ import {
     truncateSync,
     chmodSync,
     chownSync,
+    linkSync,
     mkdirSync,
     rmdirSync,
     readFileSync,
@@ -812,20 +813,12 @@ export function writeFile(
 // --- link (callback) ---
 
 export function link(existingPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
-    const existingStr = normalizePath(existingPath);
-    const newStr = normalizePath(newPath);
+    // Delegate to linkSync — the canonical impl (argv-array spawn, Node
+    // ENOENT/EEXIST semantics). The former inline copy shelled out with
+    // unquoted paths (broken on spaces, command-injection hazard).
     Promise.resolve().then(() => {
         try {
-            const result = GLib.spawn_command_line_sync(`ln ${existingStr} ${newStr}`);
-            if (!result[0]) {
-                throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'`), {
-                    code: 'EPERM',
-                    errno: -1,
-                    syscall: 'link',
-                    path: existingStr,
-                    dest: newStr,
-                });
-            }
+            linkSync(existingPath, newPath);
             callback(null);
         } catch (err: unknown) {
             callback(err as NodeJS.ErrnoException);
