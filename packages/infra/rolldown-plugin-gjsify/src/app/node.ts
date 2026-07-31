@@ -118,7 +118,7 @@ export function enableGjsRegistersForNode(baseAliases: Record<string, string>): 
  * routing and the `@girs/*` emptying both stay, so a cross-platform package's
  * node bundle keeps loading on plain Node without node-gi installed.
  *
- * KNOWN NARROWNESS (pre-dates this predicate, tracked in STATUS.md): the
+ * KNOWN NARROWNESS (pre-dates this predicate, tracked in status/open-todos.md): the
  * `nodeGiGlobalsInject` detector keys on bare ambient globals + static
  * `@gjsify/node-gi/*` imports, so a genuine GJS source whose ONLY platform
  * reach is `gi://` (no ambient global, no bare `system`/`gettext`/`cairo`) is

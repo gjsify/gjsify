@@ -17,7 +17,7 @@
 // `node_modules/` and symlinks `workspace:*` / `workspace:^` / `workspace:~`
 // refs to their target source. Conflicting version ranges of the same
 // external dep from different workspaces still share ONE hoisted root copy
-// (a real per-workspace dedup pass is Phase D.8, see STATUS.md), but since
+// (a real per-workspace dedup pass is Phase D.8, see status/open-todos.md), but since
 // ADR 0001 step 3 the resolver surfaces every such conflict loudly —
 // `[gjsify] warning: version conflict for <pkg> …` names both ranges, the
 // workspaces that requested them, and the version that actually won.
@@ -606,7 +606,7 @@ function syncLockfileRequested(cwd: string, specs: string[]): void {
  *
  * Hoisting strategy is intentionally minimal — per-workspace dedup +
  * nested `node_modules/` for cross-workspace version conflicts are the
- * Phase D.8 follow-up tracked in STATUS.md.
+ * Phase D.8 follow-up tracked in status/open-todos.md.
  */
 async function workspaceInstall(cwd: string, args: InstallOptions, signal?: AbortSignal): Promise<void> {
     // Hold the root-prefix lock for the WHOLE workspace flow: bin shims,

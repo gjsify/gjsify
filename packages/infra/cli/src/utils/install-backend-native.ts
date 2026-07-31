@@ -579,7 +579,7 @@ async function resolveDeps(
  *
  * This makes the current single-root-slot behavior honest instead of silent;
  * the real fix — a per-workspace dedup pass that gives each conflicting
- * requester its own nested copy — is Phase D.8 (see STATUS.md).
+ * requester its own nested copy — is Phase D.8 (see status/open-todos.md).
  */
 function emitTopLevelConflictWarnings(
     topLevelRanges: Map<string, Map<string, Set<string>>>,

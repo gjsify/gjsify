@@ -10,7 +10,7 @@
 // build`, and `gjsify run build:types → gjsify tsc → gjs tsc.gjs.mjs`), so on
 // CI's few cores the multiplier oversubscribes and the build thrashes. Letting
 // `gjsify run` dispatch the inner `gjsify <cmd>` in-process collapses two gjs
-// into one. See STATUS.md.
+// into one. See status/open-todos.md.
 //
 // This module MUST NOT execute anything at load time (no top-level
 // `parseAsync`) — `run.ts` imports it, and a top-level run would re-dispatch
