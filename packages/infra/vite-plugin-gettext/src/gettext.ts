@@ -18,12 +18,14 @@ export function gettextPlugin(options: GettextPluginOptions): Plugin {
 
     async function compileMoFiles() {
         try {
-            // Check if PO directory exists
+            // Ensure the PO directory exists (mkdir -p — a missing directory
+            // is CREATED, not an error); only EACCES/ENOTDIR-class failures
+            // can land in the catch.
             try {
                 await ensureDirectory(poDirectory);
             } catch {
                 if (verbose) {
-                    console.log(`[${pluginName}] PO directory ${poDirectory} does not exist yet, skipping compilation`);
+                    console.log(`[${pluginName}] PO directory ${poDirectory} not creatable, skipping compilation`);
                 }
                 return;
             }

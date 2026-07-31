@@ -211,11 +211,11 @@ class ServerSideWebSocket extends EventEmitter {
     terminate(): void {
         if (this.readyState === CLOSED) return;
         this.readyState = CLOSING;
-        try {
-            this._conn.close(1006, null);
-        } catch {
-            /* tearing down */
-        }
+        // soup_websocket_connection_close has no throw path in the GIR (a
+        // double close is a g_return_if_fail warning) and both arguments are
+        // literals — unlike close() above, whose caller-supplied code can fail
+        // gushort marshalling and needs its catch.
+        this._conn.close(1006, null);
     }
 }
 

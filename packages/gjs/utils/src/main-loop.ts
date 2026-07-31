@@ -3,7 +3,7 @@
 
 import type GLib from '@girs/glib-2.0';
 
-/** Sentinel to prevent double-start (setMainLoopHook throws if called twice). */
+/** Sentinel to prevent double-start (a second runAsync() would reject — its main-loop hook is already registered). */
 let _started = false;
 
 /** The singleton MainLoop instance, if created. */
@@ -58,15 +58,16 @@ export function ensureMainLoop(): GLib.MainLoop | undefined {
     // setMainLoopHook whose loop.run() blocks forever after tests quit it
     // (g_main_loop_run resets the quit flag on entry).
     if (GLibModule.main_depth() === 0) {
-        try {
-            // GIR types `runAsync(): Promise<void>` since GJS 1.86. We discard the
-            // promise — the loop runs on the default GLib context for as long as
-            // `_started` is true; cancellation is via `quitMainLoop()`.
-            void _loop.runAsync();
-        } catch {
-            // setMainLoopHook throws if already called (e.g., Gtk.Application.runAsync()).
-            // In that case, a main loop hook is already registered — no action needed.
-        }
+        // GIR types `runAsync(): Promise<void>` since GJS 1.86; the promise
+        // settles when the loop quits. GJS's override arms `setMainLoopHook`
+        // INSIDE the Promise executor, so a hook that is already registered
+        // (e.g. Gtk.Application.runAsync()) surfaces as a REJECTION of this
+        // promise — never as a synchronous throw. Swallow exactly that case:
+        // an existing hook means async I/O already dispatches, no action
+        // needed. Cancellation is via `quitMainLoop()`.
+        _loop.runAsync().catch(() => {
+            /* main-loop hook already registered — nothing to do */
+        });
     }
 
     return _loop;

@@ -144,7 +144,9 @@ function signalTree(child: ChildProcess, descendants: readonly number[], signal:
     try {
         child.kill(signal);
     } catch {
-        // already gone — fine
+        // NOT the already-dead case — `ChildProcess.kill()` swallows ESRCH
+        // itself and returns false. This guards Node's residual throw paths
+        // (EPERM surfacing via an unhandled 'error' emit, unknown signal).
     }
 }
 

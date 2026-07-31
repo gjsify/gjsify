@@ -175,7 +175,8 @@ function applyEnvOverrides() {
         const r = parseInt(env.GJSIFY_RUN_TIMEOUT, 10);
         if (!isNaN(r) && r >= 0) timeoutConfig.runTimeout = r;
     } catch (_e) {
-        /* process.env may not be available */
+        /* Deno throws NotCapable on env property reads without --allow-env;
+           a missing process.env is the `if (!env)` early return, not a throw */
     }
 }
 
@@ -1181,11 +1182,10 @@ export const run = async (
     // callback does not terminate immediately)
     if (mainloop) {
         const exitCode = countTestsFailed > 0 ? 1 : 0;
-        try {
-            runtimeGlobals().imports?.system?.exit(exitCode);
-        } catch (_e) {
-            /* system.exit unavailable */
-        }
+        // Real-GJS-only path (see the `mainloop` gate above): `imports.system`
+        // is a native builtin that always resolves there, `exit()` never
+        // throws, and the `?.` chain already covers a host without it.
+        runtimeGlobals().imports?.system?.exit(exitCode);
     }
 };
 

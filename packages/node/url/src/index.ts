@@ -307,11 +307,9 @@ export class URL {
     static revokeObjectURL(url: string): void {
         const path = URL._objectURLPaths.get(url);
         if (!path) return;
-        try {
-            GLib.unlink(path);
-        } catch {
-            // best-effort cleanup
-        }
+        // Best-effort temp-file cleanup — GLib.unlink reports failure via its
+        // return value (-1); it has no throw path (no `throws` in the GIR).
+        GLib.unlink(path);
         URL._objectURLPaths.delete(url);
     }
 }
@@ -555,14 +553,10 @@ export function pathToFileURL(filepath: string): URL {
     if (filepath[0] !== '/') {
         if (typeof globalThis.process?.cwd === 'function') {
             resolved = globalThis.process.cwd() + '/' + filepath;
-        } else {
-            try {
-                if (GLib?.get_current_dir) {
-                    resolved = GLib.get_current_dir() + '/' + filepath;
-                }
-            } catch {
-                // Fall through
-            }
+        } else if (GLib?.get_current_dir) {
+            // g_get_current_dir has no throw path (no `throws` in the GIR);
+            // the presence guard covers non-GJS builds where GLib is stubbed.
+            resolved = GLib.get_current_dir() + '/' + filepath;
         }
     }
 

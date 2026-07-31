@@ -13,12 +13,14 @@ export function pemToString(value: PemInput): string {
         return value.map(pemToString).join('\n');
     }
     if (typeof value === 'string') return value;
-    if (value && typeof (value as Buffer).toString === 'function') {
-        try {
-            return (value as Buffer).toString('utf-8');
-        } catch {
-            return new TextDecoder('utf-8').decode(value as Uint8Array);
-        }
+    if (value instanceof Uint8Array) {
+        // Covers Buffer too (a Uint8Array subclass). The old
+        // `value.toString('utf-8')` + catch was wrong twice over: for a plain
+        // Uint8Array it silently produced "45,45,45,…" (TypedArrays inherit
+        // Array.prototype.toString, which ignores the encoding argument and
+        // never throws), so the TextDecoder fallback was unreachable AND the
+        // PEM got corrupted. TextDecoder decodes both shapes correctly.
+        return new TextDecoder('utf-8').decode(value);
     }
     return String(value);
 }
