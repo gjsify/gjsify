@@ -242,11 +242,19 @@ jobs:
           restore-keys: |
             node-modules-v1-
 
-      # Cache the transpiled polyfill libs (packages/*/*/lib) under a napi-scoped
-      # key (exact-only: lockfile + polyfill sources). An exact hit means the
-      # sources are unchanged, so the `build:gjsify` step below is SKIPPED (guarded
-      # on this step's cache-hit). NOT shared with main's build-vN cache, whose
-      # entries also carry the lib/types (.d.ts) this transpile-only build omits.
+      # Cache the transpiled workspace libs (packages/*/*/lib) under a napi-scoped
+      # key (exact-only: lockfile + sources). An exact hit means the sources are
+      # unchanged, so BOTH build steps below (the polyfill `build:gjsify` foreach
+      # and the rolldown-plugin-gjsify shim build) are SKIPPED — guarded on this
+      # step's cache-hit. That guard is only sound because every job saving under
+      # this key runs the SAME fill steps, so a hit always carries both outputs;
+      # the `consumer` and `nodegi-shim` jobs race to save the first entry per
+      # key, and an entry under a live key is immortal. v1 → v2 because v1
+      # entries predate the shim-build step: they hold the polyfill libs but NOT
+      # packages/infra/rolldown-plugin-gjsify/lib, and an exact v1 hit would skip
+      # the step that produces it and red the GJS-engine matrix below. NOT shared
+      # with main's build-vN cache, whose entries also carry the lib/types
+      # (.d.ts) the transpile-only polyfill build omits.
       - name: Cache workspace polyfill libs (lib/esm)
         id: napi-libs-cache
         uses: actions/cache@v4
@@ -255,7 +263,7 @@ jobs:
             packages/*/*/lib
             !packages/infra/tsc/lib
             !packages/infra/resolve-npm/lib
-          key: napi-libs-v1-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+          key: napi-libs-v2-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
 
       - name: Install the gjsify workspace (committed CLI bundle, Node-free)
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
@@ -306,6 +314,28 @@ jobs:
           # These jobs never use the tsc bundle, so skip building it.
           gjsify foreach build:gjsify --exclude '@gjsify/tsc'
 
+      # The committed dist/cli.gjs.mjs INLINES the build pipeline's CODE but not
+      # its runtime DATA files: `resolveShim()` (rolldown-plugin-gjsify's
+      # app/gjs.ts) hands rolldown FILE paths under
+      # packages/infra/rolldown-plugin-gjsify/lib/shims/ (unicorn-magic,
+      # console-gjs, module-resolve), resolved through the package's
+      # `./shims/<name>` subpath export at BUILD time and inlined into the
+      # OUTPUT bundle. That `lib/` is a plain-`tsc` build output the polyfill
+      # step above never produces (the package has no `build:gjsify` script), so
+      # without this step every `--app gjs` build driven by the committed bundle
+      # dies at config time with `cannot locate the "unicorn-magic" shim` — the
+      # first red of the GJS-engine transparent matrix. `--with-dependencies`
+      # tsc-builds the small workspace-dep closure the plugin's own `tsc` needs
+      # declarations from (console, deepkit, pnp, blueprint); deps without a
+      # `build` script are skipped. Runs in BOTH jobs that save the napi-libs
+      # cache so an entry always carries this output regardless of which job's
+      # post-job save wins the per-key race (see the cache step above).
+      - name: Build @gjsify/rolldown-plugin-gjsify lib (bundler shims)
+        if: steps.napi-libs-cache.outputs.cache-hit != 'true'
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/rolldown-plugin-gjsify build --with-dependencies
+
       # The consumer gate builds @gjsify/napi's L1 itself and drives the workout
       # build through a Node CLI entry — point it at the published @gjsify/cli
       # (npm rolldown), so no fragile in-repo workspace build is needed. The gate
@@ -350,10 +380,18 @@ jobs:
       # `@gjsify/napi` must be resolvable by BARE specifier for the emitted
       # shims, exactly as in a real consumer — the `gjsify install @gjsify/napi`
       # stand-in, since packages/napi is not a workspace member.
+      #
+      # GJSIFY_CLI_ENTRY covers only the gate's build-the-napi-L1 FALLBACK
+      # (normally a no-op — the consumer gate above already built lib/esm): the
+      # in-repo Node CLI is not built in this job, so without it that fallback
+      # would spawn a nonexistent packages/infra/cli/lib/index.js. The matrix
+      # BUILD itself is driven by the committed bundle (GJSIFY_GATE_ENGINE=gjs),
+      # never by this entry.
       - name: Transparent addon matrix (GJS engine, committed CLI bundle)
         working-directory: packages/napi/napi
         env:
           GJSIFY_GATE_ENGINE: gjs
+          GJSIFY_CLI_ENTRY: /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js
         run: |
           mkdir -p "$GITHUB_WORKSPACE/node_modules/@gjsify"
           ln -sfn "$GITHUB_WORKSPACE/packages/napi/napi" "$GITHUB_WORKSPACE/node_modules/@gjsify/napi"
@@ -440,11 +478,19 @@ jobs:
           restore-keys: |
             node-modules-v1-
 
-      # Cache the transpiled polyfill libs (packages/*/*/lib) under a napi-scoped
-      # key (exact-only: lockfile + polyfill sources). An exact hit means the
-      # sources are unchanged, so the `build:gjsify` step below is SKIPPED (guarded
-      # on this step's cache-hit). NOT shared with main's build-vN cache, whose
-      # entries also carry the lib/types (.d.ts) this transpile-only build omits.
+      # Cache the transpiled workspace libs (packages/*/*/lib) under a napi-scoped
+      # key (exact-only: lockfile + sources). An exact hit means the sources are
+      # unchanged, so BOTH build steps below (the polyfill `build:gjsify` foreach
+      # and the rolldown-plugin-gjsify shim build) are SKIPPED — guarded on this
+      # step's cache-hit. That guard is only sound because every job saving under
+      # this key runs the SAME fill steps, so a hit always carries both outputs;
+      # the `consumer` and `nodegi-shim` jobs race to save the first entry per
+      # key, and an entry under a live key is immortal. v1 → v2 because v1
+      # entries predate the shim-build step: they hold the polyfill libs but NOT
+      # packages/infra/rolldown-plugin-gjsify/lib, and an exact v1 hit would skip
+      # the step that produces it and red the GJS-engine matrix below. NOT shared
+      # with main's build-vN cache, whose entries also carry the lib/types
+      # (.d.ts) the transpile-only polyfill build omits.
       - name: Cache workspace polyfill libs (lib/esm)
         id: napi-libs-cache
         uses: actions/cache@v4
@@ -453,7 +499,7 @@ jobs:
             packages/*/*/lib
             !packages/infra/tsc/lib
             !packages/infra/resolve-npm/lib
-          key: napi-libs-v1-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+          key: napi-libs-v2-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
 
       - name: Install the gjsify workspace (committed CLI bundle, Node-free)
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
@@ -502,6 +548,28 @@ jobs:
           # tsc reaches fs through the alias substitution, not a declared dep.
           # These jobs never use the tsc bundle, so skip building it.
           gjsify foreach build:gjsify --exclude '@gjsify/tsc'
+
+      # The committed dist/cli.gjs.mjs INLINES the build pipeline's CODE but not
+      # its runtime DATA files: `resolveShim()` (rolldown-plugin-gjsify's
+      # app/gjs.ts) hands rolldown FILE paths under
+      # packages/infra/rolldown-plugin-gjsify/lib/shims/ (unicorn-magic,
+      # console-gjs, module-resolve), resolved through the package's
+      # `./shims/<name>` subpath export at BUILD time and inlined into the
+      # OUTPUT bundle. That `lib/` is a plain-`tsc` build output the polyfill
+      # step above never produces (the package has no `build:gjsify` script), so
+      # without this step every `--app gjs` build driven by the committed bundle
+      # dies at config time with `cannot locate the "unicorn-magic" shim` — the
+      # first red of the GJS-engine transparent matrix. `--with-dependencies`
+      # tsc-builds the small workspace-dep closure the plugin's own `tsc` needs
+      # declarations from (console, deepkit, pnp, blueprint); deps without a
+      # `build` script are skipped. Runs in BOTH jobs that save the napi-libs
+      # cache so an entry always carries this output regardless of which job's
+      # post-job save wins the per-key race (see the cache step above).
+      - name: Build @gjsify/rolldown-plugin-gjsify lib (bundler shims)
+        if: steps.napi-libs-cache.outputs.cache-hit != 'true'
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/rolldown-plugin-gjsify build --with-dependencies
 
       # Phase-1 node-gi gate: bundles nodegi-workout.mjs `--app gjs` (node-gi's
       # node:* → @gjsify/* polyfills; the addon pinned via NODE_GI_NATIVE + loaded
