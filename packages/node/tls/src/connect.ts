@@ -88,13 +88,10 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
                 }
             }
 
-            // ALPN
+            // ALPN — set_advertised_protocols is a plain property setter with
+            // no throw path in the GIR; an ALPN-less backend just ignores it.
             if (options.ALPNProtocols && options.ALPNProtocols.length > 0) {
-                try {
-                    tlsConn.set_advertised_protocols(options.ALPNProtocols);
-                } catch {
-                    // ALPN may not be supported
-                }
+                tlsConn.set_advertised_protocols(options.ALPNProtocols);
             }
 
             // Certificate validation: by default rely on system trust store +

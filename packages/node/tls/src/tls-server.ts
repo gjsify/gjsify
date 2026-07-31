@@ -234,13 +234,11 @@ export class TLSServer extends Server {
                             },
                         );
 
-                        // ALPN
+                        // ALPN — set_advertised_protocols is a plain property
+                        // setter with no throw path in the GIR; an ALPN-less
+                        // backend just ignores it.
                         if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
-                            try {
-                                tlsConn.set_advertised_protocols(this._tlsOptions.ALPNProtocols);
-                            } catch {
-                                // ALPN may not be supported
-                            }
+                            tlsConn.set_advertised_protocols(this._tlsOptions.ALPNProtocols);
                         }
 
                         const cancellable = new Gio.Cancellable();
