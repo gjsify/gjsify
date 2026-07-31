@@ -8,7 +8,7 @@ import GLib from '@girs/glib-2.0';
 import Stream from 'node:stream';
 
 import { parseDataUri } from './utils/data-uri.js';
-import { resolveRootRelativeUrl } from './utils/root-relative.js';
+import { resolveRootRelativeUrl } from './utils/root-relative-system.js';
 
 import { clone } from './body.js';
 import Response from './response.js';
@@ -28,8 +28,9 @@ export { FormData, Headers, Request, Response, FetchError, AbortError, isRedirec
 export { Blob, File };
 export { XMLHttpRequest, XMLHttpRequestUpload } from './xhr.js';
 // The shared program-dir rewrite — consumed by @gjsify/xmlhttprequest so fetch
-// and XHR cannot drift apart again (see utils/root-relative.ts).
-export { resolveRootRelativeUrl } from './utils/root-relative.js';
+// and XHR cannot drift apart again (see utils/root-relative.ts for the pure
+// logic + utils/root-relative-system.ts for the `system`-reading wrapper).
+export { resolveRootRelativeUrl } from './utils/root-relative-system.js';
 
 import type { SystemError } from './types/index.js';
 
@@ -45,7 +46,7 @@ interface _FetchRuntimeGlobals {
  * (`utils/root-relative.ts` — one copy for fetch AND XHR; two drifting copies
  * are what #869 was). Non-string inputs pass through untouched.
  */
-function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
+function rewriteFetchInput(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
     if (typeof input !== 'string') return input;
     const DEBUG = (globalThis as unknown as _FetchRuntimeGlobals).__GJSIFY_DEBUG_FETCH === true;
     try {
@@ -66,7 +67,7 @@ function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo
  */
 export default async function fetch(url: RequestInfo | URL | Request, init: RequestInit = {}): Promise<Response> {
     // Rewrite root-relative URLs before Request constructor parses them
-    url = rewriteRootRelativeUrl(url);
+    url = rewriteFetchInput(url);
 
     // Build request object
     const request = new Request(url, init);
