@@ -44,12 +44,26 @@ function runningAs(cliVersion: string | undefined): string {
     return cliVersion ? `[gjsify ${cliVersion}] ` : '';
 }
 
-/** Pinned invocations for the three runners that cache an unpinned bin. */
-const PIN_HINT =
+/**
+ * Pinned invocations for the three runners that cache an unpinned bin.
+ *
+ * The deno line carries TWO flags because deno stacks two independent refusals,
+ * and dropping either one leaves the hint broken in exactly the window where it
+ * is reached most: `--reload` busts the `DENO_DIR` copy, and `--min-dep-age 0`
+ * waives deno's supply-chain policy of refusing any version published within
+ * the last 24 h (`minimumDependencyAge`, default `24h`). Without the second
+ * flag `@latest` silently resolves to the newest release OLDER THAN A DAY — so
+ * a user who hits a bug, is told to run `@latest`, and does, gets the SAME
+ * pre-fix binary back and a stale error message with it. Measured twice on one
+ * day against 0.25.1 (minutes old) falling back to 0.24.1. `@latest` is kept
+ * rather than a baked version so the hint cannot go stale itself; the age
+ * waiver is what makes `@latest` mean latest.
+ */
+export const PIN_HINT =
     'A package runner reuses a CACHED copy of an unpinned bin. Force the current one:\n' +
     '    npx @gjsify/cli@latest showcase <name>\n' +
     '    bunx @gjsify/cli@latest showcase <name>\n' +
-    '    deno run -A --reload npm:@gjsify/cli@latest showcase <name>';
+    '    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest showcase <name>';
 
 interface ShowcaseOptions {
     name?: string;
