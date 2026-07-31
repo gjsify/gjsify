@@ -111,11 +111,8 @@ function getSharedSession(): Soup.Session {
         // body without removing the Content-Encoding header, causing
         // double-decompression when index.ts also runs DecompressionStream.
         // Remove it once here so our JS-level decompression handles everything.
-        try {
-            sharedSession.remove_feature_by_type(Soup.ContentDecoder.$gtype);
-        } catch {
-            /* not present */
-        }
+        // (No throw path: an absent feature is a documented silent no-op.)
+        sharedSession.remove_feature_by_type(Soup.ContentDecoder.$gtype);
     }
     return sharedSession;
 }

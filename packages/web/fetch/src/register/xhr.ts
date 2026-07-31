@@ -61,11 +61,9 @@ if (urlCtor && urlCtor.__gjsify_objecturl !== true) {
     urlCtor.revokeObjectURL = (url: string): void => {
         const path = objectUrlPaths.get(url);
         if (path) {
-            try {
-                GLib.unlink(path);
-            } catch {
-                // best-effort temp-file cleanup
-            }
+            // Best-effort temp-file cleanup — GLib.unlink reports failure via
+            // its return value (-1); it has no throw path (no `throws` in GIR).
+            GLib.unlink(path);
             objectUrlPaths.delete(url);
         } else if (nativeRevoke) {
             nativeRevoke(url);
