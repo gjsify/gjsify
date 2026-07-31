@@ -179,11 +179,10 @@ export class Http2NativeDispatcher {
     close(): void {
         if (this._service) {
             this._service.stop();
-            try {
-                this._service.close();
-            } catch {
-                // close() is missing on older Gio versions; the stop() above releases the listen socket.
-            }
+            // SocketListener.close() exists since GLib 2.22 (far below our
+            // floor) and has no throw path in the GIR — the old comment blamed
+            // "older Gio versions" that cannot occur on any supported runtime.
+            this._service.close();
             this._service = null;
         }
         for (const conn of this._connections) this._closeConnection(conn);
