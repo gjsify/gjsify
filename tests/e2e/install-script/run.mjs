@@ -230,9 +230,9 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
                 stderr += c;
             });
             const kill = setTimeout(() => {
-                try {
-                    child.kill('SIGKILL');
-                } catch {}
+                // ChildProcess.kill with a known signal never throws — failure
+                // to deliver just returns false (the process already exited).
+                child.kill('SIGKILL');
             }, 60_000);
             child.on('close', (code) => {
                 clearTimeout(kill);

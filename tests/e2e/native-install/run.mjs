@@ -77,9 +77,9 @@ function runHarness(cmd, args, cwd) {
             stderr += c;
         });
         const killTimer = setTimeout(() => {
-            try {
-                child.kill('SIGKILL');
-            } catch {}
+            // ChildProcess.kill with a known signal never throws — failure
+            // to deliver just returns false (the process already exited).
+            child.kill('SIGKILL');
         }, 60_000);
         child.on('close', (code) => {
             clearTimeout(killTimer);

@@ -39,9 +39,9 @@ function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
             stderr += c;
         });
         const kill = setTimeout(() => {
-            try {
-                child.kill('SIGKILL');
-            } catch {}
+            // ChildProcess.kill with a known signal never throws — failure
+            // to deliver just returns false (the process already exited).
+            child.kill('SIGKILL');
         }, timeoutMs);
         child.on('close', (code) => {
             clearTimeout(kill);
@@ -86,9 +86,9 @@ describe('gjsify install --timeout — slow-registry safety net', { timeout: 60_
     after(() => {
         // Yank any still-open sockets so the test process exits cleanly.
         for (const s of liveSockets) {
-            try {
-                s.destroy();
-            } catch {}
+            // net.Socket.destroy() never throws — errors surface on the
+            // socket's 'error' event, not synchronously.
+            s.destroy();
         }
         if (server) server.close();
     });
