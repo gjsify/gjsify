@@ -419,6 +419,27 @@ export function startMainLoop(): void;
 export function iterateMainContext(mayBlock?: boolean): boolean;
 
 /**
+ * Whether the default GLib main context holds work a *pumping* runtime must stay
+ * alive for: a scheduled source (an armed timeout/idle) or an in-flight
+ * scope=async GI callback. Pure GLib — the query half of the keep-alive contract
+ * the L1 `startMainContextPump` uses on Bun/Deno to decide whether its timer
+ * holds the runtime's event loop open. Node reads the same facts inline in the
+ * uv auto-pump.
+ */
+export function mainContextHasPending(): boolean;
+
+/**
+ * Create an `Int32Array(1)` view over the same JS-armed-work counter
+ * `mainContextHasPending()` reads (`view[0] > 0` is equivalent). Reading the
+ * view is a plain memory access — no call into the addon — which the Bun/Deno
+ * pump's idle beat depends on: on Deno, entering the addon from a timer tick
+ * during the between-test-files GC window reproduces the #47 boxed-handle
+ * teardown SIGSEGV. Lazy factory: the @gjsify/napi shim loud-stubs external
+ * arraybuffers and never arms the portable pump, so it must not run at Init.
+ */
+export function makePumpPendingCount(): Int32Array;
+
+/**
  * Drain ready GLib sources + re-arm the auto-pump's libuv wake-ups now (no-op
  * unless {@link startMainLoop} armed the pump on this env). The L1 layer wires
  * this to `process.on('beforeExit')` to bootstrap an otherwise-empty libuv loop;
@@ -548,6 +569,8 @@ declare const native: {
   isVariantHandle: typeof isVariantHandle;
   startMainLoop: typeof startMainLoop;
   iterateMainContext: typeof iterateMainContext;
+  mainContextHasPending: typeof mainContextHasPending;
+  makePumpPendingCount: typeof makePumpPendingCount;
   pumpKick: typeof pumpKick;
   setMicrotaskDrain: typeof setMicrotaskDrain;
   connectSignal: typeof connectSignal;

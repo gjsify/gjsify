@@ -635,6 +635,12 @@ Napi::Value BindingGroupBindFull(const Napi::CallbackInfo& info);
 // loop.cc
 Napi::Value StartMainLoop(const Napi::CallbackInfo& info);
 Napi::Value IterateMainContext(const Napi::CallbackInfo& info);
+Napi::Value MainContextHasPending(const Napi::CallbackInfo& info);
+// Factory for an Int32Array(1) view over the JS-armed-work counter (see
+// loop.cc) — lets the L1 pump answer "does the program own GLib work?" WITHOUT
+// a napi call. Lazy (a factory, not an Init-time export): the @gjsify/napi shim
+// loud-stubs napi_create_external_arraybuffer and never arms the pump.
+Napi::Value MakePumpPendingCount(const Napi::CallbackInfo& info);
 Napi::Value PumpKick(const Napi::CallbackInfo& info);
 Napi::Value SetMicrotaskDrain(const Napi::CallbackInfo& info);
 
@@ -643,8 +649,10 @@ Napi::Value SetMicrotaskDrain(const Napi::CallbackInfo& info);
 // In-flight scope=async keep-alive: while a GI scope=async callback (e.g. a
 // GAsyncReadyCallback) is pending, the pump holds a libuv ref so a plain Node
 // script survives until the completion dispatches (the top-level-await case).
-// Begin returns whether the callback was counted (only on the pump-owning env,
-// i.e. Node's main env after startMainLoop); the caller must call End exactly
+// The counter itself is runtime-independent (Bun/Deno's portable pump reads it
+// via MainContextHasPending); only the libuv ref is Node-only. Begin returns
+// whether the callback was counted (false only for a foreign env, i.e. a worker
+// thread once Node's main env owns the pump); the caller must call End exactly
 // once for each counted callback. Main-thread only.
 bool NodeGiPumpAsyncBegin(napi_env env);
 void NodeGiPumpAsyncEnd();

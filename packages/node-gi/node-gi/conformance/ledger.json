@@ -1,14 +1,3 @@
 {
-  "entries": [
-    {
-      "program": "async-gio-await",
-      "runtime": "bun",
-      "reason": "no auto main-context pump off-Node: the uv-driven pump needs libuv (Bun panics on uv_* symbols), so a loop-less top-level await on a GLib/Gio source never drains; Bun code drives GLib via startMainContextPump instead"
-    },
-    {
-      "program": "async-gio-await",
-      "runtime": "deno",
-      "reason": "no auto main-context pump off-Node: the uv-driven pump needs libuv (Deno exports no uv symbols), so a loop-less top-level await on a GLib/Gio source never drains; Deno code drives GLib via startMainContextPump instead"
-    }
-  ]
+  "entries": []
 }

@@ -662,6 +662,35 @@ export const startMainLoop = native.startMainLoop;
 export const iterateMainContext = native.iterateMainContext;
 
 /**
+ * Whether the default GLib main context holds work a *pumping* runtime must stay
+ * alive for: a scheduled source (an armed timeout/idle — the prepare/query
+ * timeout hint is >= 0) or an in-flight scope=async GI callback. Pure GLib —
+ * the companion of {@link iterateMainContext} and the query half of the
+ * keep-alive contract the L1 `startMainContextPump` applies on Bun/Deno (Node
+ * reads the same facts inline in the uv auto-pump). A `false` answer is what
+ * lets a sync-only program exit immediately.
+ * @returns {boolean}
+ */
+export const mainContextHasPending = native.mainContextHasPending;
+
+/**
+ * Create an `Int32Array(1)` view over the SAME JS-armed-work counter
+ * {@link mainContextHasPending} reads — `view[0] > 0` ⇔
+ * `mainContextHasPending()`. The zero-N-API spelling: reading the view is a
+ * plain V8 memory access, no call into the addon. Load-bearing for the Bun/Deno
+ * pump's IDLE beat — on Deno, merely ENTERING the addon from a timer tick
+ * during the between-test-files GC window reproduces the #47 boxed-handle
+ * teardown SIGSEGV (measured: a query-only tick crashed 3/3 where a tick that
+ * never touches the addon exited 0), so the beat must be able to answer "is
+ * there work?" without a single native call. A lazy FACTORY rather than an
+ * Init-time export: the @gjsify/napi shim (the gjs-napi conformance oracle)
+ * loud-stubs `napi_create_external_arraybuffer`, and the gjs host never arms
+ * the portable pump — called only on the first Bun/Deno pump arm.
+ * @returns {Int32Array}
+ */
+export const makePumpPendingCount = native.makePumpPendingCount;
+
+/**
  * Drain ready GLib sources + re-arm the auto-pump's libuv wake-ups NOW (no-op
  * unless {@link startMainLoop} armed the pump, i.e. Node's main env). The L1
  * layer wires this to `process.on('beforeExit')`: with only unref'd handles

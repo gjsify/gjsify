@@ -550,14 +550,31 @@ static void PumpArmWakeups() {
     if (g_pump_async_pending > 0 && (timeout < 0 || timeout > 32)) timeout = 32;
   }
 
+  // WAKE-UP and HOLD are separate decisions.
+  //
+  // Wake-up: whenever GLib has a deadline, arm the mirrored uv timer for it, so
+  // libuv's poll sleep ends exactly when GLib next has work.
+  //
+  // Hold (uv_ref): ONLY while JS-armed GLib work is outstanding — the
+  // scope=async/notified counter. Ref'ing whenever a deadline exists (what this
+  // used to do) makes any C-armed toolkit timer immortalize the process: GDK
+  // keeps a ~1 s repeating timeout armed for the process's whole life, so
+  // `node --test test/gtk-smoke.test.mjs` never exited once the GTK stack had
+  // been initialized. `gjs -m` exits when the module settles regardless of what
+  // GLib still has scheduled; keying the hold on the program's OWN outstanding
+  // GLib work is as close to that as a libuv-driven process can get, and it is
+  // what keeps a top-level `await` on a GLib timeout alive (the timeout's
+  // GSourceFunc is a scope=notified callback, counted until GLib drops it).
   if (timeout >= 0) {
     uv_timer_start(&g_pump_timer, PumpTimerCb, static_cast<uint64_t>(timeout), 0);
-    if (!g_pump_timer_reffed) {
-      uv_ref(reinterpret_cast<uv_handle_t*>(&g_pump_timer));
-      g_pump_timer_reffed = TRUE;
-    }
-  } else if (g_pump_timer_reffed) {
+  } else {
     uv_timer_stop(&g_pump_timer);
+  }
+  const gboolean hold = g_pump_async_pending > 0 && timeout >= 0;
+  if (hold && !g_pump_timer_reffed) {
+    uv_ref(reinterpret_cast<uv_handle_t*>(&g_pump_timer));
+    g_pump_timer_reffed = TRUE;
+  } else if (!hold && g_pump_timer_reffed) {
     uv_unref(reinterpret_cast<uv_handle_t*>(&g_pump_timer));
     g_pump_timer_reffed = FALSE;
   }
@@ -632,15 +649,72 @@ static void PumpInit(uv_loop_t* loop) {
   g_pump_inited = TRUE;
 }
 
+// mainContextHasPending() -> boolean
+//
+// Is there JS-armed GLib work a *pumping* runtime must stay alive for? True
+// while a GI callback the program handed to GLib is outstanding — a scope=async
+// completion (a GAsyncReadyCallback) or a scope=notified source
+// (`GLib.timeout_add`/`idle_add`), counted in calls.cc and released when GLib
+// drops it. The query half of the keep-alive contract for the Bun/Deno pump
+// (L1 `startMainContextPump`); Node reads the same counter inline in
+// PumpArmWakeups and never calls this.
+//
+// It deliberately does NOT ask whether the context has any scheduled source.
+// That probe (`g_main_context_prepare` + `_query`, timeout >= 0) reports the
+// timers a TOOLKIT arms in C as well, and GDK keeps a ~1 s repeating timeout
+// armed for the process's whole life: a finished GTK program then answers
+// "pending" forever while nothing is ever ready to dispatch, and never exits.
+// `gjs -m` would not stay alive for those either — it exits once the module
+// settles. A `false` answer is also what lets a sync-only program exit
+// immediately: the pump alone must never keep a finished program alive.
+Napi::Value MainContextHasPending(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  return Napi::Boolean::New(env, g_pump_async_pending > 0);
+}
+
+// makePumpPendingCount() -> Int32Array(1) OVER g_pump_async_pending (external,
+// zero copy). The JS pump's beat reads this view instead of calling
+// MainContextHasPending(): on Deno, merely ENTERING the addon from the pump's
+// timer tick during the between-test-files GC window reproduces the #47
+// boxed-handle teardown SIGSEGV — measured on the gtk-smoke leg, a query-only
+// tick (one napi call, no dispatch) crashed 3/3 while a tick that never touches
+// the addon exited 0. A typed-array read is a plain JS memory access, so the
+// beat's idle path stays native-silent. No atomics: the counter is written only
+// from the JS thread (Begin/End are main-thread only) and read from JS.
+//
+// A FACTORY, deliberately not created at addon Init: the @gjsify/napi shim
+// (the gjs-napi conformance oracle runs node-gi under it) loud-stubs
+// napi_create_external_arraybuffer, and the gjs host never arms the portable
+// pump — L1 calls this lazily on the first Bun/Deno pump arm, so the stub is
+// never reached where the view is never needed.
+Napi::Value MakePumpPendingCount(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  static_assert(sizeof(g_pump_async_pending) == sizeof(int32_t),
+                "the JS Int32Array view requires a 32-bit counter");
+  // External buffer over static storage — no finalizer needed, the counter
+  // outlives every env.
+  Napi::ArrayBuffer buf =
+      Napi::ArrayBuffer::New(env, &g_pump_async_pending, sizeof(g_pump_async_pending));
+  return Napi::TypedArrayOf<int32_t>::New(env, 1, buf, 0, napi_int32_array);
+}
+
 // In-flight scope=async keep-alive: while any GI scope=async callback (a
 // GAsyncReadyCallback) is pending, REF the (always-active) prepare handle so the
 // libuv loop stays alive until the completion arrives — the exact analogue of
 // Node's own in-flight I/O keeping the process alive, and the reason a plain
 // top-level `await` on a Gio async op settles instead of exiting with an
-// unsettled-TLA error. Main-thread only; counted only for the pump-owning env.
+// unsettled-TLA error.
+//
+// The COUNTER is maintained on every runtime, not just Node: it is the
+// "in-flight async work" half of the keep-alive contract, and Bun/Deno's
+// portable pump reads it through MainContextHasPending() to decide whether its
+// timer holds the runtime's event loop open. Only the uv ref/unref half is
+// Node-only (it needs the uv handles the uv pump owns). Main-thread only —
+// where a pump env is known (Node), a foreign env is not counted.
 bool NodeGiPumpAsyncBegin(napi_env env) {
-  if (!g_pump_inited || env != g_loop_env) return false;
-  if (++g_pump_async_pending == 1 && !g_pump_prepare_reffed) {
+  if (g_loop_env != nullptr && env != g_loop_env) return false;
+  ++g_pump_async_pending;
+  if (g_pump_inited && g_pump_async_pending == 1 && !g_pump_prepare_reffed) {
     uv_ref(reinterpret_cast<uv_handle_t*>(&g_pump_prepare));
     g_pump_prepare_reffed = TRUE;
   }
@@ -648,8 +722,9 @@ bool NodeGiPumpAsyncBegin(napi_env env) {
 }
 
 void NodeGiPumpAsyncEnd() {
-  if (!g_pump_inited || g_pump_async_pending == 0) return;
-  if (--g_pump_async_pending == 0 && g_pump_prepare_reffed) {
+  if (g_pump_async_pending == 0) return;
+  --g_pump_async_pending;
+  if (g_pump_inited && g_pump_async_pending == 0 && g_pump_prepare_reffed) {
     uv_unref(reinterpret_cast<uv_handle_t*>(&g_pump_prepare));
     g_pump_prepare_reffed = FALSE;
   }
