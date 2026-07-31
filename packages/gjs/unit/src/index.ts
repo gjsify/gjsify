@@ -706,13 +706,14 @@ const hasDisplay = (): boolean => {
     if (env) {
         return !!(env.DISPLAY || env.WAYLAND_DISPLAY);
     }
-    // GJS fallback via imports.gi.GLib (before process polyfill is available)
-    try {
-        const GLib = runtimeGlobals().imports?.gi?.GLib;
-        if (GLib) {
-            return !!(GLib.getenv('DISPLAY') || GLib.getenv('WAYLAND_DISPLAY'));
-        }
-    } catch (_) {}
+    // GJS fallback via imports.gi.GLib (before process polyfill is available).
+    // The optional-chained probe is non-throwing off GJS (`imports` is simply
+    // undefined), and on GJS the GLib typelib is the runtime's own hard
+    // dependency — no try/catch, which would only hide which runtime we are on.
+    const GLib = runtimeGlobals().imports?.gi?.GLib;
+    if (GLib) {
+        return !!(GLib.getenv('DISPLAY') || GLib.getenv('WAYLAND_DISPLAY'));
+    }
     return false;
 };
 
