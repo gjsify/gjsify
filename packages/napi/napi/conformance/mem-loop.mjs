@@ -42,7 +42,9 @@ const h = makeHarness({
     write: () => {}, // silence — valgrind's ERROR SUMMARY is the signal
     gc: () => system.gc(),
     tick: () => {
-        while (GLib.MainContext.default().iteration(false)) {}
+        while (GLib.MainContext.default().iteration(false)) {
+            // Drain pending GLib sources — the work happens in the condition.
+        }
         return Promise.resolve();
     },
 });

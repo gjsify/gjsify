@@ -19,6 +19,19 @@
         "reportUnusedDisableDirectives": "error"
     },
     "rules": {
+        // A bare `catch {}` with no body and no comment is the shape that hides
+        // bugs: `@gjsify/fetch`'s root-relative rewrite (#869 — a TypeError from
+        // `globalThis.imports.system` off gjs landed in a bare catch, so every
+        // `fetch('/res/…')` went out unrewritten with no error anywhere) and
+        // `@gjsify/crypto`'s `fillRandom` (a bare `imports.gi.GLib` inside a
+        // try — the ReferenceError was CAUGHT and silently degraded crypto
+        // bytes to `Math.random()`). A catch containing only a comment is not
+        // reported, so this enforces "a catch must state its reason": either
+        // the guarded call has a real failure mode and the comment says why
+        // ignoring it is right, or the try/catch has no throw path and must be
+        // deleted (best-effort is expressed by ignoring a RETURN VALUE, not by
+        // wrapping a non-throwing call).
+        "eslint/no-empty": "error",
         "typescript/consistent-type-imports": "warn",
         "typescript/no-explicit-any": "warn",
         // Our source is ESM — a bare `require(...)` is a latent ReferenceError

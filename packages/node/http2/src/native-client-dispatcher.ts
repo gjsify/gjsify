@@ -204,23 +204,35 @@ export class Http2NativeClientDispatcher {
     private _close(): void {
         if (this._closed) return;
         this._closed = true;
-        try {
-            this._bridge?.submit_goaway(0, 0);
-            this._flushOutput();
-        } catch {}
-        if (this._inSource) {
+        // Flush the GOAWAY inline (NOT via `_flushOutput`): `_flushOutput`
+        // early-returns once `this._closed` is set, so routing through it here
+        // silently skipped the flush and the GOAWAY never reached the server —
+        // the empty catch around it hid exactly that. submit_goaway itself is
+        // non-throwing (returns an nghttp2 error code).
+        this._bridge?.submit_goaway(0, 0);
+        if (this._bridge && this._connection) {
             try {
-                this._inSource.destroy();
-            } catch {}
+                const out = this._bridge.drain_output();
+                if (out.get_size() > 0) this._connection.get_output_stream().write(out.get_data() as Uint8Array, null);
+            } catch {
+                // The server may already be gone (write on a dead socket
+                // throws) — then FIN is all it can get; teardown continues.
+            }
+        }
+        if (this._inSource) {
+            // GLib.Source.destroy() has no throw path — call it bare.
+            this._inSource.destroy();
             this._inSource = null;
         }
         try {
             this._connection?.close(null);
-        } catch {}
+        } catch {
+            // Gio.IOStream.close throws when the peer already closed the
+            // connection; the remaining teardown must still run.
+        }
         this._connection = null;
-        try {
-            this._bridge?.close();
-        } catch {}
+        // SessionBridge.close() is non-throwing (idempotent Vala teardown).
+        this._bridge?.close();
         this._bridge = null;
         for (const state of this._streams.values()) {
             state.bodyClosed = true;

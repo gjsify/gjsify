@@ -404,9 +404,9 @@ export default async () => {
 
             // Cleanup. Best-effort — tmpdir lives under /tmp so test failures don't pollute.
             await it('cleanup', async () => {
-                try {
-                    rmSync(tmpDir, { recursive: true, force: true });
-                } catch {}
+                // `force: true` already makes this non-throwing for the only
+                // expected failure (tmpDir never created) — no catch needed.
+                rmSync(tmpDir, { recursive: true, force: true });
             });
         });
 
@@ -449,13 +449,16 @@ export default async () => {
                 (server as any).close();
                 try {
                     closeSync(fd);
-                } catch {}
+                } catch {
+                    // EBADF when the response path already closed the fd —
+                    // a double-close must not fail the teardown.
+                }
             });
 
             await it('cleanup', async () => {
-                try {
-                    rmSync(tmpDir, { recursive: true, force: true });
-                } catch {}
+                // `force: true` already makes this non-throwing for the only
+                // expected failure (tmpDir never created) — no catch needed.
+                rmSync(tmpDir, { recursive: true, force: true });
             });
         });
 

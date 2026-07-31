@@ -11,15 +11,15 @@ let cnt = 0;
 const testDir = join(tmpdir(), 'gjsify-sqlite-stmt-test-' + Date.now());
 
 function setup() {
-    try {
-        mkdirSync(testDir, { recursive: true });
-    } catch {}
+    // recursive:true already makes an existing dir a no-op — any other
+    // failure (EACCES) should fail the suite loudly, not vanish.
+    mkdirSync(testDir, { recursive: true });
 }
 
 function cleanup() {
-    try {
-        rmSync(testDir, { recursive: true, force: true });
-    } catch {}
+    // force:true already makes a missing dir a no-op — any other failure
+    // (EACCES) should fail the suite loudly, not vanish.
+    rmSync(testDir, { recursive: true, force: true });
 }
 
 function nextDb(): string {

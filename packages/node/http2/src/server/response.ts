@@ -225,9 +225,10 @@ export class ServerHttp2Stream extends EventEmitter {
         // bridge owns the wire I/O; flushing happens inside submit_rst_stream.
         const backend = this._res.nativeBackend;
         if (backend) {
-            try {
-                backend.reset(code ?? constants.NGHTTP2_NO_ERROR);
-            } catch {}
+            // NativeStreamBackend.reset() has no throw path — submit_rst_stream
+            // reports failure via its return code and the flush handles write
+            // errors internally.
+            backend.reset(code ?? constants.NGHTTP2_NO_ERROR);
         }
         this._res.end();
     }

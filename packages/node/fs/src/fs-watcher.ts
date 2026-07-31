@@ -206,9 +206,9 @@ export async function* watchAsync(
         }
     } finally {
         signal?.removeEventListener('abort', abortHandler);
-        try {
-            watcher.disconnect(signalId);
-        } catch {}
+        // GObject signal disconnect has no throw path (an invalid id only logs
+        // a GLib warning), and `watcher` is kept alive by this closure.
+        watcher.disconnect(signalId);
         if (!cancellable.is_cancelled()) cancellable.cancel();
     }
 }

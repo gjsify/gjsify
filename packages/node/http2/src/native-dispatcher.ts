@@ -235,16 +235,31 @@ export class Http2NativeDispatcher {
     ): void {
         const native = loadNativeHttp2();
         if (!native) {
+            // listen() already verified hasNativeHttp2(), so a null here is the
+            // typelib being present but failing to load — a real defect, not the
+            // legitimate "optional prebuild absent" case. Say so before dropping
+            // the connection; a silent reset points the user at the network.
+            console.error(
+                'Http2NativeDispatcher: @gjsify/http2-native loaded at listen() but failed here — dropping connection',
+            );
             try {
                 connection.close(null);
-            } catch {}
+            } catch {
+                // Best-effort drop; the peer may already have closed the stream.
+            }
             return;
         }
         const bridge = native.SessionBridge.new_server();
         if (!bridge) {
+            // new_server() returning null is nghttp2 failing to allocate a
+            // session with the typelib present — a defect worth surfacing, not
+            // the optional-prebuild-absent case listen() already handled.
+            console.error('Http2NativeDispatcher: SessionBridge.new_server() returned null — dropping connection');
             try {
                 connection.close(null);
-            } catch {}
+            } catch {
+                // Best-effort drop; the peer may already have closed the stream.
+            }
             return;
         }
 
@@ -439,9 +454,9 @@ export class Http2NativeDispatcher {
                 this._submitData(conn, streamId, chunk, endStream);
             },
             reset: (errorCode = 0) => {
-                try {
-                    conn.bridge.submit_rst_stream(streamId, errorCode);
-                } catch {}
+                // submit_rst_stream is non-throwing (returns an nghttp2 error
+                // code); best-effort is expressed by ignoring that return value.
+                conn.bridge.submit_rst_stream(streamId, errorCode);
                 this._flushOutput(conn);
             },
             pushPromise: (pushHeaders) => {
@@ -511,16 +526,21 @@ export class Http2NativeDispatcher {
         // Submit a GOAWAY frame and flush it onto the wire BEFORE we tear down
         // the streams. Without the explicit flush the peer would see only EOF
         // (kernel FIN) and never receive the GOAWAY frame nghttp2 just queued.
+        // The drain + write is inlined (NOT `_flushOutput`) on purpose:
+        // `_flushOutput` early-returns once `conn.closed` is set, so routing
+        // through it here silently skipped the flush and the GOAWAY never left
+        // the process — the empty catch around it hid exactly that.
+        conn.bridge.submit_goaway(0, 0);
         try {
-            conn.bridge.submit_goaway(0, 0);
-        } catch {}
-        try {
-            this._flushOutput(conn);
-        } catch {}
+            const out = conn.bridge.drain_output();
+            if (out.get_size() > 0) conn.outStream.write(out.get_data() as Uint8Array, null);
+        } catch {
+            // The peer may already be gone (write on a dead socket throws) —
+            // then FIN is all it can get, and teardown must still finish.
+        }
         if (conn.inSource) {
-            try {
-                conn.inSource.destroy();
-            } catch {}
+            // GLib.Source.destroy() has no throw path — call it bare.
+            conn.inSource.destroy();
             conn.inSource = null;
         }
         // Half-close the write side so the kernel sends FIN AFTER the GOAWAY
@@ -528,7 +548,10 @@ export class Http2NativeDispatcher {
         // shutdown the abrupt close might drop the buffered GOAWAY.
         try {
             (conn.socket as unknown as { shutdown: (read: boolean, write: boolean) => boolean }).shutdown(false, true);
-        } catch {}
+        } catch {
+            // Gio.Socket.shutdown throws when the socket is already closed by
+            // the peer; the FIN it would have sent is moot then.
+        }
         // Drain any pending body resolvers so awaiting iterators don't hang.
         for (const state of conn.streams.values()) {
             state.bodyClosed = true;
@@ -540,18 +563,27 @@ export class Http2NativeDispatcher {
         // bytes have time to leave our send buffer. shutdown alone doesn't
         // block; the peer is still reading at this point.
         const finalClose = () => {
+            // Each Gio close throws when the stream/socket is already closed
+            // (peer reset, or a sibling close cascaded) — every remaining
+            // teardown step must still run, so each failure is ignored
+            // individually.
             try {
                 conn.outStream.close(null);
-            } catch {}
+            } catch {
+                // Already closed — see above.
+            }
             try {
                 conn.inStream.close(null);
-            } catch {}
+            } catch {
+                // Already closed — see above.
+            }
             try {
                 conn.socket.close();
-            } catch {}
-            try {
-                conn.bridge.close();
-            } catch {}
+            } catch {
+                // Already closed — see above.
+            }
+            // SessionBridge.close() is non-throwing (idempotent Vala teardown).
+            conn.bridge.close();
         };
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             finalClose();

@@ -369,7 +369,10 @@ export class Worker extends EventEmitter {
                 const msg = JSON.stringify({ type: 'terminate' }) + '\n';
                 this._stdinPipe.write_all(_encoder.encode(msg), null);
             }
-        } catch {}
+        } catch {
+            // The child may already have exited (write on a broken pipe
+            // throws) — the force_exit timer below is the backstop either way.
+        }
 
         // Force-exit after timeout
         setTimeout(() => {
@@ -517,19 +520,24 @@ export class Worker extends EventEmitter {
         if (this._bootstrapFile) {
             try {
                 this._bootstrapFile.delete(null);
-            } catch {}
+            } catch {
+                // The bootstrap temp file may already be gone; failing to
+                // remove it must not derail the exit path.
+            }
             this._bootstrapFile = null;
         }
         if (this._stdinPipe) {
             try {
                 this._stdinPipe.close(null);
-            } catch {}
+            } catch {
+                // Already closed when the child died first — cleanup continues.
+            }
             this._stdinPipe = null;
         }
         if (this._sabSocketFd !== -1 && fdChannel?.closeFd) {
-            try {
-                fdChannel.closeFd(this._sabSocketFd);
-            } catch {}
+            // FdChannel.close_fd() is non-throwing (returns a bool the wrapper
+            // discards) — best-effort is ignoring that result, not a catch.
+            fdChannel.closeFd(this._sabSocketFd);
             this._sabSocketFd = -1;
         }
         // Drop every cross-process port the registry was holding. Each kept
