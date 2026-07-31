@@ -929,28 +929,24 @@ Root-cause fix surfaced by this suite: **`@gjsify/buffer` constructed `TextEncod
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-### 60 dead lint-disable directives; `--report-unused-disable-directives` is off
+### `@gjsify/webrtc`'s suite cannot fail — and 17 tests are red underneath
 
-oxlint supports `--report-unused-disable-directives`, which flags an
-`// eslint-disable-…` / `// oxlint-disable-…` comment that suppresses nothing.
-That is precisely the failure mode behind the bare-`require` incident: the
-`@typescript-eslint/no-require-imports` disables sitting at the offending sites
-were DECORATION, because the rule they named was never enabled. An
-unused-directive check would have said so out loud, years before a red main did.
-
-Measured on `c185bbaf4`: **60 unused directives** across the tree
-(`node-gi/globals.d.ts`, `zlib/src/browser.ts`, `worker-stress`,
-`http2/src/native-dispatcher.ts`, …). So the flag cannot just be switched on at
-`error` — that is a 60-site cleanup, and each site needs deciding individually
-(delete the directive, or repair the rule name it got wrong; a directive naming
-a rule oxlint does not implement is indistinguishable from one naming a rule
-that is merely disabled).
-
-Enabling it at `warn` alone is NOT worth doing: `gjsify lint` already emits
-warnings that nothing gates on, so it would add noise without adding a
-guarantee — the half-measure this whole class argues against. The useful shape
-is one change that sweeps the 60 AND turns it on as an ERROR, so it cannot
-regrow.
+`packages/web/webrtc/src/test.mts` awaits its four specs directly instead of
+routing them through `@gjsify/unit`'s `run()`, so the suite prints red ❌ marks
+and still exits 0 — the exact defect #872 fixed for `@gjsify/webaudio`
+("a suite that cannot fail"). Fixing the entry is one line, but doing it today
+surfaces **17 of 590 tests failing** (measured 2026-07-30 on Fedora/GJS
+1.88.1), so the entry fix is blocked on triaging them: setLocalDescription
+ROLLBACK (4: rollback to stable, signalingstatechange, pendingLocalDescription,
+stable-state no-op), two SCTP REGRESSION tests (`_setMaxMessageSize(0)` =
+unlimited per RFC 8841; send() > max-message-size throws OperationError),
+`getParameters()` codecs/rtcp (3), sender/receiver `transport`/`dtmf` null
+expectations (3), negotiationneeded lifecycle (2), tee multiplexer after second
+addTrack, `setConfiguration` NotSupportedError. Each needs an individual
+verdict (impl regression vs stale assertion) — do NOT weaken tests to get the
+entry green. `@gjsify/gamepad` had the same entry shape and was fixed (its
+suite is green); webrtc is the only remaining `src/test.mts` not calling
+`run()`.
 
 ### `@gjsify/http2` lazy native-dispatcher loads still use a bare `require`
 
@@ -1059,7 +1055,7 @@ things were deliberately left out of that refactor so it stayed a refactor.
 
 ### `--app node` genuine-GJS-source detection is narrower than the reverse bridge it gates
 
-`nodeGiGlobalsInject` keys on BARE ambient globals (`print`/`imports`/`ARGV`), so a genuine GJS source that uses `gi://` but logs via `console.log` — and passes no explicit `--globals` — is not recognised: its `@girs/*` value imports are emptied (`class extends undefined`) **and** its `/register` imports route to `@gjsify/empty`. Verified with both probes. This pre-dates ADR 0012 and hits `@girs/*` and registers equally; ADR 0012 only brought the two into parity via the single `isGjsSourceBuild` gate in `app/node.ts`. Fix by widening the SIGNAL itself — e.g. treat "a `gi://` specifier survived in the bundled graph" as a reverse-bridge build — which closes both at once.
+`nodeGiGlobalsInject` now keys on BARE ambient globals (`print`/`imports`/`ARGV`) **plus** a static `@gjsify/node-gi/*` import in the tree-shaken output (`detectNodeGiModuleImports` — the externalised spelling of the bare `system`/`gettext`/`cairo` built-ins; such a bundle is already bridge-bound at load, so the signal cannot cost plain-Node loadability). That closes the portable-spelling half: a GJS source whose only host reach is `system.programArgs` (no ambient global) is recognised again (`gjsify storybook --runtime node` regressed exactly there when the storybook stopped referencing `imports`/`ARGV`). REMAINING narrowness: a genuine GJS source whose ONLY platform reach is `gi://` (no ambient global, no bare built-in, no explicit `--globals`) is still not recognised — its `@girs/*` value imports are emptied (`class extends undefined`) and its `/register` imports route to `@gjsify/empty`. A surviving `gi://` import CANNOT simply become the third signal: its shim loads node-gi LAZILY precisely so a gjs-gated `gi://` import keeps a cross-platform package's node bundle loadable on plain Node (#641, pinned by `tests/e2e/node-gi-globals-inject`'s gated case) — closing this needs a signal that separates an unconditionally-evaluated namespace use from a gated one, which the emitted-chunk scan cannot express today.
 
 ### `@gjsify/node-gi` — a pointer struct FIELD whose length lives in a sibling field marshals EMPTY
 

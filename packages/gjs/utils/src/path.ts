@@ -1,9 +1,8 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-// The bare `system` built-in, not `imports.system`: `system` is external on the
-// gjs target and aliased to `@gjsify/node-gi/system` on the node target, so it
-// resolves on both — while `imports` only exists when the GJS ambient globals
-// are installed.
+// The bare `system` built-in, not `imports.system` — resolves on gjs AND the
+// `--app node` reverse bridge (AGENTS.md § The legacy imports.* object is NOT
+// an API).
 import system from 'system';
 const { File } = Gio;
 

@@ -7,7 +7,12 @@
 // now a return value, which is what makes it assertable at all.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { fillRandomBytes, isSecureRandomSource, type WebCryptoRandomSource } from './random.js';
+import {
+    _resetRandomSourceCache,
+    fillRandomBytes,
+    isSecureRandomSource,
+    type WebCryptoRandomSource,
+} from './random.js';
 
 /** A WebCrypto stand-in that records how it was called. */
 function recordingSource(): WebCryptoRandomSource & { calls: number[] } {
@@ -50,6 +55,9 @@ export default async () => {
         await it('skips the WebCrypto tier entirely when given null', () => {
             // The `@gjsify/webcrypto` case: the polyfill IS globalThis.crypto,
             // so it must be able to opt out rather than recurse into itself.
+            // Reset the module caches so this test probes the fallback tiers
+            // fresh instead of inheriting an earlier test's cached stream/warn.
+            _resetRandomSourceCache();
             const view = new Uint8Array(32);
             const source = fillRandomBytes(view, { webcrypto: null });
             expect(source === 'webcrypto').toBe(false);

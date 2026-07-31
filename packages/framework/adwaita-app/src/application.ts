@@ -10,6 +10,10 @@ import Gdk from '@girs/gdk-4.0';
 import Gio from '@girs/gio-2.0';
 import GObject from '@girs/gobject-2.0';
 import Gtk from '@girs/gtk-4.0';
+// The bare `system` built-in, not `imports.system`/`ARGV` (ARGV IS
+// `system.programArgs` on gjs) — resolves on gjs AND the `--app node` reverse
+// bridge (AGENTS.md § The legacy imports.* object is NOT an API).
+import system from 'system';
 import { type InstallDevtoolsOptions, installDevtools } from '@gjsify/devtools';
 import type { AboutInfo } from './types.js';
 
@@ -95,7 +99,8 @@ export class AdwaitaApp extends Adw.Application {
         const devtools = this._options.devtools;
         if (devtools === false) return;
         // Object → pass through; `true` → force-enable; omitted → env-gated no-op.
-        const opts: InstallDevtoolsOptions = typeof devtools === 'object' ? devtools : { enabled: devtools || undefined };
+        const opts: InstallDevtoolsOptions =
+            typeof devtools === 'object' ? devtools : { enabled: devtools || undefined };
         installDevtools(this, opts);
     }
 
@@ -137,7 +142,7 @@ export class AdwaitaApp extends Adw.Application {
  */
 export async function runAdwaitaApp(options: AdwaitaAppOptions): Promise<number> {
     const app = new AdwaitaApp(options);
-    return app.runAsync([imports.system.programInvocationName, ...ARGV]);
+    return app.runAsync([system.programInvocationName, ...system.programArgs]);
 }
 
 GObject.type_ensure(AdwaitaApp.$gtype);

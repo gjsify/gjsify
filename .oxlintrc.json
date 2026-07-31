@@ -47,6 +47,26 @@
             { "allowedNames": ["self", "el", "blob", "readable", "root", "node", "receivedThis"] }
         ],
         "unicorn/prefer-node-protocol": "error",
+        // The GJS ambient globals are seeded by the host (gjs) or by the
+        // `@gjsify/node-gi/globals` shim — a build-time PREDICTION about the
+        // consumer's bundle. A shipped package reaching for them bare tests
+        // green and throws a ReferenceError in a consumer on the reverse
+        // bridge (`@gjsify/canvas2d-core`'s `_toDataURL`, `@gjsify/fetch`'s
+        // root-relative rewrite, `@gjsify/crypto`'s `fillRandom` — one day,
+        // one class). Portable spellings exist for every one; the sanctioned
+        // runtime PROBE (`globalThis.imports?.gi`) is member access and stays
+        // silent here, as does an explicit in-file `declare`. See AGENTS.md
+        // § "The legacy `imports.*` object is NOT an API". Genuine GJS
+        // PROGRAM sources are scoped out in the override below.
+        "no-restricted-globals": [
+            "error",
+            { "name": "imports", "message": "GJS host object — a ReferenceError off gjs. Use gi://<Ns>, `import system from 'system'`, GLib.Bytes.toArray() or TextDecoder; a runtime PROBE is spelled `globalThis.imports?.gi`. See AGENTS.md § The legacy imports.* object is NOT an API." },
+            { "name": "ARGV", "message": "GJS ambient global — a ReferenceError off gjs. Use `system.programArgs` (import system from 'system'), which is what ARGV is defined as." },
+            { "name": "print", "message": "GJS ambient global — a ReferenceError off gjs. Use console.log, or declare the binding locally in a deliberate GJS-only module." },
+            { "name": "printerr", "message": "GJS ambient global — a ReferenceError off gjs. Use console.error, or declare the binding locally in a deliberate GJS-only module." },
+            { "name": "log", "message": "GJS ambient global — a ReferenceError off gjs. Use console.log, or declare the binding locally in a deliberate GJS-only module." },
+            { "name": "logError", "message": "GJS ambient global — a ReferenceError off gjs. Use console.error, or declare the binding locally in a deliberate GJS-only module." }
+        ],
         "eslint/no-unused-vars": [
             "warn",
             {
@@ -95,6 +115,29 @@
             "files": ["**/scripts/**", "tests/e2e/**", "packages/node-gi/**", "packages/napi/**"],
             "rules": {
                 "gjsify/deferred-process-exit": "off"
+            }
+        },
+        {
+            // Genuine GJS PROGRAM sources: app entries under examples/ and
+            // showcases/, e2e/repro fixtures, docs PoCs, the node-gi/napi
+            // engines with their conformance/golden programs, and the gjs-run
+            // bootstrap. The ambient globals are sanctioned there — these run
+            // under gjs, or through the reverse bridge where a bare
+            // `print`/`imports` is exactly the signal `--app node`
+            // auto-globals injection keys on. The rule exists for the SHIPPED
+            // packages, whose correctness must not depend on a build-time
+            // prediction about somebody else's bundle.
+            "files": [
+                "examples/**",
+                "showcases/**",
+                "tests/**",
+                "docs/**",
+                "packages/node-gi/**",
+                "packages/napi/**",
+                "install.mjs"
+            ],
+            "rules": {
+                "no-restricted-globals": "off"
             }
         }
     ],

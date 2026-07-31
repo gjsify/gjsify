@@ -7,6 +7,10 @@ import Adw from '@girs/adw-1';
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import GObject from '@girs/gobject-2.0';
+// The bare `system` built-in, not `imports.system`/`ARGV` (ARGV IS
+// `system.programArgs` on gjs) — resolves on gjs AND the `--app node` reverse
+// bridge (AGENTS.md § The legacy imports.* object is NOT an API).
+import system from 'system';
 
 import { installDevtools, type DevtoolsExtension } from '@gjsify/devtools';
 import { inspectorProtocolExtension } from '@gjsify/devtools-cdp';
@@ -148,5 +152,5 @@ GObject.type_ensure(BrowserApplication.$gtype);
  */
 export async function runBrowserDevtools(options: RunBrowserDevtoolsOptions): Promise<number> {
     const app = new BrowserApplication(options);
-    return app.runAsync([imports.system.programInvocationName, ...ARGV]);
+    return app.runAsync([system.programInvocationName, ...system.programArgs]);
 }

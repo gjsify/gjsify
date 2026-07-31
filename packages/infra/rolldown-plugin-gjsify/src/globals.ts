@@ -6,6 +6,11 @@
 // "Tree-shakeable Globals" section in AGENTS.md for the architecture.
 
 export { resolveGlobalsList, writeRegisterInjectFile, isRegisterPathResolvable, filterResolvableRegisterPaths } from './utils/scan-globals.js';
-export { detectFreeGlobals, detectGjsAmbientGlobals, GJS_AMBIENT_GLOBALS } from './utils/detect-free-globals.js';
+export {
+    detectFreeGlobals,
+    detectGjsAmbientGlobals,
+    detectNodeGiModuleImports,
+    GJS_AMBIENT_GLOBALS,
+} from './utils/detect-free-globals.js';
 export { detectAutoGlobals, detectNodeGiGlobals, describeGiBackedInjection } from './utils/auto-globals.js';
 export type { AutoGlobalsResult, DetectAutoGlobalsOptions, AnalysisOptions } from './utils/auto-globals.js';

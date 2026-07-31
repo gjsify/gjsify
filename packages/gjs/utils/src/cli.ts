@@ -1,7 +1,6 @@
 import GLib from '@girs/glib-2.0';
 
-// Standard `TextDecoder` instead of the legacy `imports.byteArray.toString()` —
-// see the note in `./file.ts`.
+// TextDecoder, not the legacy `imports.byteArray.toString()` — see ./file.ts.
 const decoder = new TextDecoder();
 
 export const cli = (commandLine: string): string => {

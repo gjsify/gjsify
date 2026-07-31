@@ -170,7 +170,7 @@ function warnInsecureOnce(source: RandomSource): void {
     if (warnedInsecure) return;
     warnedInsecure = true;
     console.warn(
-        `[@gjsify/utils] No cryptographically secure random source available — falling back to "${source}". ` +
+        `[@gjsify/webcrypto] No cryptographically secure random source available — falling back to "${source}". ` +
             'Neither GLib.Random nor Math.random is suitable for keys, tokens or IVs. ' +
             'Expected sources: WebCrypto (globalThis.crypto) or /dev/urandom via Gio on GJS.',
     );

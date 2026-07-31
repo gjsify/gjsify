@@ -369,10 +369,11 @@ function requireJsFile(filePath: string, cache: Record<string, unknown>): unknow
     globalThis.module = moduleObj as NodeModule;
 
     try {
-        // Evaluate the file via GJS imports system
+        // Evaluate the file via GJS imports system.
+        // oxlint-disable-next-line no-restricted-globals -- the GJS-native `imports` module system IS the CJS evaluator here; this path only runs under gjs (`node:module` is native on the node target, and the browser entry's `require` always throws)
         const { searchPath } = imports;
         searchPath.unshift(dir);
-        // oxlint-disable-next-line no-unused-expressions -- GJS: indexing `imports[name]` triggers the module load (side effect)
+        // oxlint-disable-next-line no-unused-expressions, no-restricted-globals -- GJS: indexing `imports[name]` triggers the module load (side effect); gjs-only path, see above
         imports[basename.replace(/\.(js|cjs)$/, '')];
         searchPath.shift();
 

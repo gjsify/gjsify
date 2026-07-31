@@ -9,6 +9,11 @@
 
 import '@gjsify/dom-events/register/event-target';
 
+// `gi://`, not the legacy `imports.gi` global — the portable spelling that also
+// resolves on the `--app node` reverse bridge (AGENTS.md § The legacy imports.*
+// object is NOT an API).
+import GLib from 'gi://GLib?version=2.0';
+
 import { ensureGstInit, Gst } from './gst-init.js';
 import { getUserMedia, type MediaStreamConstraints } from './get-user-media.js';
 import { MediaDeviceInfo, type MediaDeviceKind } from './media-device-info.js';
@@ -33,17 +38,11 @@ let _permissionGranted = false;
  * devices in containers anyway.
  */
 function isDeviceMonitorSafe(): boolean {
-    try {
-        // Import GLib to check environment — avoid crashing GStreamer APIs
-        const GLib = imports.gi.GLib;
-        // Skip in CI environments or headless containers
-        if (GLib.getenv('CI')) return false;
-        // No display = likely a container without devices
-        if (!GLib.getenv('DISPLAY') && !GLib.getenv('WAYLAND_DISPLAY')) return false;
-        return true;
-    } catch {
-        return false;
-    }
+    // Skip in CI environments or headless containers
+    if (GLib.getenv('CI')) return false;
+    // No display = likely a container without devices
+    if (!GLib.getenv('DISPLAY') && !GLib.getenv('WAYLAND_DISPLAY')) return false;
+    return true;
 }
 
 export class MediaDevices extends EventTarget {

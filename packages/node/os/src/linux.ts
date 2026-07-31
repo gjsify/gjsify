@@ -5,10 +5,9 @@ import GLib from '@girs/glib-2.0';
 import { createSubnet } from './createSubnet.js';
 import { cli } from '@gjsify/utils';
 
-// Standard `TextDecoder` (a GJS built-in) instead of the legacy
-// `imports.byteArray.toString()`: `imports` only exists when the GJS ambient
-// globals are present, so it throws a `ReferenceError` on a `--app node` bundle
-// built without the `@gjsify/node-gi/globals` shim.
+// TextDecoder, not the legacy `imports.byteArray.toString()` — bare `imports.*`
+// is a ReferenceError off gjs (AGENTS.md § The legacy imports.* object is NOT
+// an API; lint-enforced via no-restricted-globals).
 const decoder = new TextDecoder();
 
 const EOL = /\r\n|\n/;
