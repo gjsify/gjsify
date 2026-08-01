@@ -121,7 +121,9 @@ const imageArches = new Set(
         .filter(Boolean),
 );
 if (!imageArches.size) {
-    console.error(`::error::could not read a \`platforms:\` list from ${IMAGE_WORKFLOW} — the arch derivation is blind.`);
+    console.error(
+        `::error::could not read a \`platforms:\` list from ${IMAGE_WORKFLOW} — the arch derivation is blind.`,
+    );
     process.exit(1);
 }
 
@@ -155,7 +157,9 @@ for (const file of readdirSync(WORKFLOW_DIR).filter((f) => f.endsWith('.yml'))) 
         // to. Derived, so it needs no ledger entry and cannot go stale.
         const unbuilt = [...new Set(job.runners.map(runnerArch))].filter((a) => !imageArches.has(a));
         if (unbuilt.length) {
-            excused.push(`${job.id} — runs on ${unbuilt.join('+')}, ${BAKED_IMAGE} is built for ${[...imageArches].join('+')} only`);
+            excused.push(
+                `${job.id} — runs on ${unbuilt.join('+')}, ${BAKED_IMAGE} is built for ${[...imageArches].join('+')} only`,
+            );
             if (job.id in BARE_IMAGE_LEDGER) {
                 problems.push(
                     `BARE_IMAGE_LEDGER lists ${job.id}, but the arch derivation already excuses it ` +
