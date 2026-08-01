@@ -49,50 +49,50 @@ maybeReexecForGtkRuntime();
 
 // Files verified green on BOTH bun and deno (per-file). Keep alphabetical.
 const CONFORMANCE = [
-  'arrays',
-  'boxed-out',
-  'async-error',
-  'blocking-run-checkpoint',
-  'bytes',
-  'cairo',
-  'cairo-canvas2d',
-  'call-function',
-  'callbacks',
-  'closure-exception',
-  'construct-camelcase',
-  'dbus-async', // self-skips without a session bus; run the subset under dbus-run-session to cover it
-  'enums-constants',
-  'gclosure-in-args',
-  'gettext',
-  'gi',
-  'globals',
-  'gobject',
-  'gtype',
-  'int64',
-  'methods',
-  'multilevel-subclass',
-  'out-params',
-  'paramspec',
-  'paramspec-object',
-  'proxy-fallback',
-  'register-class',
-  'register-class-decorator',
-  'register-class-props',
-  'registerclass-inplace',
-  'signals',
-  'smoke',
-  'static-camel',
-  'struct-construct',
-  'system',
-  'variant',
-  'vfunc',
-  'vfunc-chainup',
+    'arrays',
+    'boxed-out',
+    'async-error',
+    'blocking-run-checkpoint',
+    'bytes',
+    'cairo',
+    'cairo-canvas2d',
+    'call-function',
+    'callbacks',
+    'closure-exception',
+    'construct-camelcase',
+    'dbus-async', // self-skips without a session bus; run the subset under dbus-run-session to cover it
+    'enums-constants',
+    'gclosure-in-args',
+    'gettext',
+    'gi',
+    'globals',
+    'gobject',
+    'gtype',
+    'int64',
+    'methods',
+    'multilevel-subclass',
+    'out-params',
+    'paramspec',
+    'paramspec-object',
+    'proxy-fallback',
+    'register-class',
+    'register-class-decorator',
+    'register-class-props',
+    'registerclass-inplace',
+    'signals',
+    'smoke',
+    'static-camel',
+    'struct-construct',
+    'system',
+    'variant',
+    'vfunc',
+    'vfunc-chainup',
 ];
 
 const runtime = process.argv[2];
 if (runtime !== 'node' && runtime !== 'bun' && runtime !== 'deno') {
-  console.error('usage: node scripts/cross-runtime.mjs <node|bun|deno> [--only a,b,c]');
-  process.exit(2);
+    console.error('usage: node scripts/cross-runtime.mjs <node|bun|deno> [--only a,b,c]');
+    process.exit(2);
 }
 
 // Optional `--only a,b,c` restricts the run to a subset (e.g. the env-free CORE
@@ -101,13 +101,16 @@ if (runtime !== 'node' && runtime !== 'bun' && runtime !== 'deno') {
 const onlyIdx = process.argv.indexOf('--only');
 let files = CONFORMANCE;
 if (onlyIdx >= 0) {
-  const wanted = (process.argv[onlyIdx + 1] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  const unknown = wanted.filter((w) => !CONFORMANCE.includes(w));
-  if (unknown.length) {
-    console.error(`--only: unknown conformance file(s): ${unknown.join(', ')}`);
-    process.exit(2);
-  }
-  files = CONFORMANCE.filter((f) => wanted.includes(f));
+    const wanted = (process.argv[onlyIdx + 1] ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    const unknown = wanted.filter((w) => !CONFORMANCE.includes(w));
+    if (unknown.length) {
+        console.error(`--only: unknown conformance file(s): ${unknown.join(', ')}`);
+        process.exit(2);
+    }
+    files = CONFORMANCE.filter((f) => wanted.includes(f));
 }
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -116,11 +119,11 @@ const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 // PATH binary. One process per file keeps Node's isolation identical to Bun/Deno,
 // which share a process across files by default.
 const argsFor = (file) =>
-  runtime === 'node'
-    ? ['--test', file]
-    : runtime === 'bun'
-      ? ['test', file]
-      : ['test', '-A', '--node-modules-dir=auto', file];
+    runtime === 'node'
+        ? ['--test', file]
+        : runtime === 'bun'
+          ? ['test', file]
+          : ['test', '-A', '--node-modules-dir=auto', file];
 const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 
 // Deno's N-API env teardown can abort a test FILE with a non-zero exit AFTER every
@@ -201,19 +204,26 @@ const denoTeardownCarveout = runtime === 'deno';
 // announced test ran and none failed (so a non-zero exit is the post-pass teardown
 // abort), false on any FAILED line or a short run (crash before all tests reported).
 function classifyDenoOutput(out) {
-  // oxlint-disable-next-line eslint/no-control-regex -- matching the ESC control character IS the point: this strips Deno's ANSI SGR colour codes before parsing its output
-  const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
-  let expected = 0;
-  // `tests?` — Deno prints "running 1 test from …" (singular) for a one-test file.
-  // Matching only the plural left `expected` at 0 there, which made the carve-out's
-  // `expected > 0` guard fail and hard-gated a file whose single test had PASSED
-  // (dbus-async, on a host that actually has a session bus).
-  for (const m of clean.matchAll(/running (\d+) tests? from /g)) expected += Number(m[1]);
-  const passed = (clean.match(/ \.\.\. ok \(/g) || []).length;
-  const ignored = (clean.match(/ \.\.\. ignored/g) || []).length;
-  const failed = (clean.match(/ \.\.\. FAILED/g) || []).length;
-  const ran = passed + ignored + failed;
-  return { expected, ran, passed, ignored, failed, teardownArtifact: expected > 0 && ran === expected && failed === 0 };
+    // oxlint-disable-next-line eslint/no-control-regex -- matching the ESC control character IS the point: this strips Deno's ANSI SGR colour codes before parsing its output
+    const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
+    let expected = 0;
+    // `tests?` — Deno prints "running 1 test from …" (singular) for a one-test file.
+    // Matching only the plural left `expected` at 0 there, which made the carve-out's
+    // `expected > 0` guard fail and hard-gated a file whose single test had PASSED
+    // (dbus-async, on a host that actually has a session bus).
+    for (const m of clean.matchAll(/running (\d+) tests? from /g)) expected += Number(m[1]);
+    const passed = (clean.match(/ \.\.\. ok \(/g) || []).length;
+    const ignored = (clean.match(/ \.\.\. ignored/g) || []).length;
+    const failed = (clean.match(/ \.\.\. FAILED/g) || []).length;
+    const ran = passed + ignored + failed;
+    return {
+        expected,
+        ran,
+        passed,
+        ignored,
+        failed,
+        teardownArtifact: expected > 0 && ran === expected && failed === 0,
+    };
 }
 
 // Which native binary the children load (see index.js nativeCandidates). Default
@@ -226,33 +236,34 @@ console.log(`node-gi: running ${files.length} conformance files on ${runtime} (o
 let failed = 0;
 let softFailed = 0;
 for (const base of files) {
-  const file = join('test', `${base}.test.mjs`);
-  const res = spawnSync(runtimeBin, argsFor(file), {
-    cwd: pkgRoot,
-    encoding: 'utf8',
-    env: { ...process.env, NODE_GI_NATIVE: nativePref },
-  });
-  const teardown = denoTeardownCarveout && res.status !== 0
-    ? classifyDenoOutput((res.stdout || '') + '\n' + (res.stderr || ''))
-    : null;
-  if (res.status === 0) {
-    console.log(`  ✓ ${base}`);
-  } else if (teardown?.teardownArtifact) {
-    softFailed++;
-    console.log(
-      `  ⚠ ${base} (known non-gating: deno teardown-exit after ${teardown.ran}/${teardown.expected} tests passed, 0 failed — see #47)`,
-    );
-  } else {
-    failed++;
-    console.log(`  ✗ ${base}`);
-    console.error((res.stdout || '') + '\n' + (res.stderr || ''));
-  }
+    const file = join('test', `${base}.test.mjs`);
+    const res = spawnSync(runtimeBin, argsFor(file), {
+        cwd: pkgRoot,
+        encoding: 'utf8',
+        env: { ...process.env, NODE_GI_NATIVE: nativePref },
+    });
+    const teardown =
+        denoTeardownCarveout && res.status !== 0
+            ? classifyDenoOutput((res.stdout || '') + '\n' + (res.stderr || ''))
+            : null;
+    if (res.status === 0) {
+        console.log(`  ✓ ${base}`);
+    } else if (teardown?.teardownArtifact) {
+        softFailed++;
+        console.log(
+            `  ⚠ ${base} (known non-gating: deno teardown-exit after ${teardown.ran}/${teardown.expected} tests passed, 0 failed — see #47)`,
+        );
+    } else {
+        failed++;
+        console.log(`  ✗ ${base}`);
+        console.error((res.stdout || '') + '\n' + (res.stderr || ''));
+    }
 }
 
 const green = files.length - failed - softFailed;
 console.log(
-  `\n${runtime}: ${green}/${files.length} conformance files green` +
-    (softFailed ? `, ${softFailed} known non-gating` : '') +
-    (failed ? `, ${failed} FAILED` : ''),
+    `\n${runtime}: ${green}/${files.length} conformance files green` +
+        (softFailed ? `, ${softFailed} known non-gating` : '') +
+        (failed ? `, ${failed} FAILED` : ''),
 );
 process.exit(failed === 0 ? 0 : 1);

@@ -265,96 +265,82 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     });
 
     // -- PR #18: gjsify gresource -------------------------------------------
-    it(
-        'gjsify gresource compiles XML descriptor into binary bundle',
-        () => {
-            assert.ok(
-                hasCommand('glib-compile-resources'),
-                '`glib-compile-resources` is required (provided by the `glib2` rpm / `libglib2.0-bin` deb). The gjsify e2e suite hard-requires the GNOME platform toolchain — silent skipping was hiding real coverage gaps in CI.',
-            );
-            const dataDir = join(projectDir, 'gresource-data');
-            mkdirSync(dataDir, { recursive: true });
-            writeFileSync(join(dataDir, 'hello.txt'), 'world\n');
-            writeFileSync(
-                join(dataDir, 'app.gresource.xml'),
-                `<?xml version="1.0" encoding="UTF-8"?>\n` +
-                    `<gresources>\n` +
-                    `  <gresource prefix="/test">\n` +
-                    `    <file>hello.txt</file>\n` +
-                    `  </gresource>\n` +
-                    `</gresources>\n`,
-            );
+    it('gjsify gresource compiles XML descriptor into binary bundle', () => {
+        assert.ok(
+            hasCommand('glib-compile-resources'),
+            '`glib-compile-resources` is required (provided by the `glib2` rpm / `libglib2.0-bin` deb). The gjsify e2e suite hard-requires the GNOME platform toolchain — silent skipping was hiding real coverage gaps in CI.',
+        );
+        const dataDir = join(projectDir, 'gresource-data');
+        mkdirSync(dataDir, { recursive: true });
+        writeFileSync(join(dataDir, 'hello.txt'), 'world\n');
+        writeFileSync(
+            join(dataDir, 'app.gresource.xml'),
+            `<?xml version="1.0" encoding="UTF-8"?>\n` +
+                `<gresources>\n` +
+                `  <gresource prefix="/test">\n` +
+                `    <file>hello.txt</file>\n` +
+                `  </gresource>\n` +
+                `</gresources>\n`,
+        );
 
-            const outFile = join(projectDir, 'dist', 'app.gresource');
-            mkdirSync(join(projectDir, 'dist'), { recursive: true });
+        const outFile = join(projectDir, 'dist', 'app.gresource');
+        mkdirSync(join(projectDir, 'dist'), { recursive: true });
 
-            execFileSync(
-                'npx',
-                [
-                    'gjsify',
-                    'gresource',
-                    join(dataDir, 'app.gresource.xml'),
-                    '--sourcedir',
-                    dataDir,
-                    '--target',
-                    outFile,
-                ],
-                {
-                    cwd: projectDir,
-                    stdio: 'pipe',
-                    timeout: 60 * 1000,
-                },
-            );
-
-            assert.ok(existsSync(outFile), 'binary .gresource missing');
-
-            // If the `gresource` inspection tool is available, verify the embedded path
-            // is actually present in the bundle. Usually shipped together with
-            // glib-compile-resources, so this is nearly always reachable.
-            if (hasCommand('gresource')) {
-                const listing = execFileSync('gresource', ['list', outFile], {
-                    encoding: 'utf-8',
-                    timeout: 30 * 1000,
-                });
-                assert.match(listing, /\/test\/hello\.txt/, 'embedded file should be listed');
-            }
-        },
-    );
-
-    // -- PR #18: gjsify gettext ---------------------------------------------
-    it(
-        'gjsify gettext --format mo produces a per-language locale tree',
-        () => {
-            assert.ok(
-                hasCommand('msgfmt'),
-                '`msgfmt` is required (provided by the `gettext` rpm / `gettext` deb). The gjsify e2e suite hard-requires the GNU gettext toolchain — silent skipping was hiding real coverage gaps in CI.',
-            );
-            const poDir = join(projectDir, 'po');
-            mkdirSync(poDir, { recursive: true });
-            writeFileSync(
-                join(poDir, 'de.po'),
-                'msgid ""\n' +
-                    'msgstr ""\n' +
-                    '"Content-Type: text/plain; charset=UTF-8\\n"\n' +
-                    '"Language: de\\n"\n\n' +
-                    'msgid "Hello"\n' +
-                    'msgstr "Hallo"\n',
-            );
-
-            const outDir = join(projectDir, 'gettext-out');
-            execFileSync('npx', ['gjsify', 'gettext', poDir, outDir, '--domain', 'com.test.app', '--format', 'mo'], {
+        execFileSync(
+            'npx',
+            ['gjsify', 'gresource', join(dataDir, 'app.gresource.xml'), '--sourcedir', dataDir, '--target', outFile],
+            {
                 cwd: projectDir,
                 stdio: 'pipe',
                 timeout: 60 * 1000,
+            },
+        );
+
+        assert.ok(existsSync(outFile), 'binary .gresource missing');
+
+        // If the `gresource` inspection tool is available, verify the embedded path
+        // is actually present in the bundle. Usually shipped together with
+        // glib-compile-resources, so this is nearly always reachable.
+        if (hasCommand('gresource')) {
+            const listing = execFileSync('gresource', ['list', outFile], {
+                encoding: 'utf-8',
+                timeout: 30 * 1000,
             });
+            assert.match(listing, /\/test\/hello\.txt/, 'embedded file should be listed');
+        }
+    });
 
-            const moFile = join(outDir, 'de', 'LC_MESSAGES', 'com.test.app.mo');
-            assert.ok(existsSync(moFile), 'compiled .mo file missing at expected locale path');
+    // -- PR #18: gjsify gettext ---------------------------------------------
+    it('gjsify gettext --format mo produces a per-language locale tree', () => {
+        assert.ok(
+            hasCommand('msgfmt'),
+            '`msgfmt` is required (provided by the `gettext` rpm / `gettext` deb). The gjsify e2e suite hard-requires the GNU gettext toolchain — silent skipping was hiding real coverage gaps in CI.',
+        );
+        const poDir = join(projectDir, 'po');
+        mkdirSync(poDir, { recursive: true });
+        writeFileSync(
+            join(poDir, 'de.po'),
+            'msgid ""\n' +
+                'msgstr ""\n' +
+                '"Content-Type: text/plain; charset=UTF-8\\n"\n' +
+                '"Language: de\\n"\n\n' +
+                'msgid "Hello"\n' +
+                'msgstr "Hallo"\n',
+        );
 
-            const moSize = statSync(moFile).size;
-            assert.ok(moSize > 0, 'compiled .mo file should be non-empty');
-        },
-    );
+        const outDir = join(projectDir, 'gettext-out');
+        execFileSync('npx', ['gjsify', 'gettext', poDir, outDir, '--domain', 'com.test.app', '--format', 'mo'], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 60 * 1000,
+        });
+
+        const moFile = join(outDir, 'de', 'LC_MESSAGES', 'com.test.app.mo');
+        assert.ok(existsSync(moFile), 'compiled .mo file missing at expected locale path');
+
+        const moSize = statSync(moFile).size;
+        assert.ok(moSize > 0, 'compiled .mo file should be non-empty');
+    });
 
     // -- Phase C: gjsify dlx (local-path mode) -------------------------------
     // Registry mode (`gjsify dlx <name>`) hits the npm registry and is unsuitable
@@ -373,123 +359,114 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
         assert.match(out, /--cache-max-age/, '--cache-max-age option missing');
     });
 
-    it(
-        'gjsify dlx <local-path> resolves gjsify.main and runs the bundle on gjs',
-        () => {
-            assert.ok(
-                hasCommand('gjs'),
-                '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
-            );
-            // Tiny standalone GJS bundle: prints a sentinel string and exits.
-            // GJS-native `print()` writes to fd1 directly — `console.log()` would go
-            // through GLib's logging facility (stderr-prefixed `Gjs-Console-Message`).
-            const dlxPkgDir = join(tmpDir, 'dlx-fixture-with-main');
-            mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
-            writeFileSync(
-                join(dlxPkgDir, 'package.json'),
-                JSON.stringify(
-                    {
-                        name: 'dlx-fixture-with-main',
-                        version: '0.0.0',
-                        private: true,
-                        type: 'module',
-                        gjsify: { main: 'dist/entry.js' },
-                    },
-                    null,
-                    2,
-                ),
-            );
-            writeFileSync(join(dlxPkgDir, 'dist', 'entry.js'), "print('DLX_OK_MAIN');\n");
+    it('gjsify dlx <local-path> resolves gjsify.main and runs the bundle on gjs', () => {
+        assert.ok(
+            hasCommand('gjs'),
+            '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
+        );
+        // Tiny standalone GJS bundle: prints a sentinel string and exits.
+        // GJS-native `print()` writes to fd1 directly — `console.log()` would go
+        // through GLib's logging facility (stderr-prefixed `Gjs-Console-Message`).
+        const dlxPkgDir = join(tmpDir, 'dlx-fixture-with-main');
+        mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+        writeFileSync(
+            join(dlxPkgDir, 'package.json'),
+            JSON.stringify(
+                {
+                    name: 'dlx-fixture-with-main',
+                    version: '0.0.0',
+                    private: true,
+                    type: 'module',
+                    gjsify: { main: 'dist/entry.js' },
+                },
+                null,
+                2,
+            ),
+        );
+        writeFileSync(join(dlxPkgDir, 'dist', 'entry.js'), "print('DLX_OK_MAIN');\n");
 
-            const out = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
-                cwd: projectDir,
-                encoding: 'utf-8',
-                stdio: ['ignore', 'pipe', 'ignore'],
-                timeout: 30 * 1000,
-            });
-            assert.match(out, /DLX_OK_MAIN/, 'bundle stdout missing the sentinel string');
-        },
-    );
+        const out = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
+            cwd: projectDir,
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+            timeout: 30 * 1000,
+        });
+        assert.match(out, /DLX_OK_MAIN/, 'bundle stdout missing the sentinel string');
+    });
 
-    it(
-        'gjsify dlx <local-path> bin auto-pick resolves a single-entry gjsify.bin',
-        () => {
-            assert.ok(
-                hasCommand('gjs'),
-                '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
-            );
-            const dlxPkgDir = join(tmpDir, 'dlx-fixture-single-bin');
-            mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
-            writeFileSync(
-                join(dlxPkgDir, 'package.json'),
-                JSON.stringify(
-                    {
-                        name: 'dlx-fixture-single-bin',
-                        version: '0.0.0',
-                        private: true,
-                        type: 'module',
-                        gjsify: { bin: { 'demo-only': 'dist/only.js' } },
-                    },
-                    null,
-                    2,
-                ),
-            );
-            writeFileSync(join(dlxPkgDir, 'dist', 'only.js'), "print('DLX_OK_SINGLE_BIN');\n");
+    it('gjsify dlx <local-path> bin auto-pick resolves a single-entry gjsify.bin', () => {
+        assert.ok(
+            hasCommand('gjs'),
+            '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
+        );
+        const dlxPkgDir = join(tmpDir, 'dlx-fixture-single-bin');
+        mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+        writeFileSync(
+            join(dlxPkgDir, 'package.json'),
+            JSON.stringify(
+                {
+                    name: 'dlx-fixture-single-bin',
+                    version: '0.0.0',
+                    private: true,
+                    type: 'module',
+                    gjsify: { bin: { 'demo-only': 'dist/only.js' } },
+                },
+                null,
+                2,
+            ),
+        );
+        writeFileSync(join(dlxPkgDir, 'dist', 'only.js'), "print('DLX_OK_SINGLE_BIN');\n");
 
-            const out = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
-                cwd: projectDir,
-                encoding: 'utf-8',
-                stdio: ['ignore', 'pipe', 'ignore'],
-                timeout: 30 * 1000,
-            });
-            assert.match(out, /DLX_OK_SINGLE_BIN/, 'single-bin auto-pick failed');
-        },
-    );
+        const out = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
+            cwd: projectDir,
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+            timeout: 30 * 1000,
+        });
+        assert.match(out, /DLX_OK_SINGLE_BIN/, 'single-bin auto-pick failed');
+    });
 
-    it(
-        'gjsify dlx <local-path> <bin-name> selects from multi-entry gjsify.bin',
-        () => {
-            assert.ok(
-                hasCommand('gjs'),
-                '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
-            );
-            const dlxPkgDir = join(tmpDir, 'dlx-fixture-multi-bin');
-            mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
-            writeFileSync(
-                join(dlxPkgDir, 'package.json'),
-                JSON.stringify(
-                    {
-                        name: 'dlx-fixture-multi-bin',
-                        version: '0.0.0',
-                        private: true,
-                        type: 'module',
-                        gjsify: { bin: { 'demo-a': 'dist/a.js', 'demo-b': 'dist/b.js' } },
-                    },
-                    null,
-                    2,
-                ),
-            );
-            writeFileSync(join(dlxPkgDir, 'dist', 'a.js'), "print('DLX_OK_A');\n");
-            writeFileSync(join(dlxPkgDir, 'dist', 'b.js'), "print('DLX_OK_B');\n");
+    it('gjsify dlx <local-path> <bin-name> selects from multi-entry gjsify.bin', () => {
+        assert.ok(
+            hasCommand('gjs'),
+            '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
+        );
+        const dlxPkgDir = join(tmpDir, 'dlx-fixture-multi-bin');
+        mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+        writeFileSync(
+            join(dlxPkgDir, 'package.json'),
+            JSON.stringify(
+                {
+                    name: 'dlx-fixture-multi-bin',
+                    version: '0.0.0',
+                    private: true,
+                    type: 'module',
+                    gjsify: { bin: { 'demo-a': 'dist/a.js', 'demo-b': 'dist/b.js' } },
+                },
+                null,
+                2,
+            ),
+        );
+        writeFileSync(join(dlxPkgDir, 'dist', 'a.js'), "print('DLX_OK_A');\n");
+        writeFileSync(join(dlxPkgDir, 'dist', 'b.js'), "print('DLX_OK_B');\n");
 
-            const outA = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir, 'demo-a'], {
-                cwd: projectDir,
-                encoding: 'utf-8',
-                stdio: ['ignore', 'pipe', 'ignore'],
-                timeout: 30 * 1000,
-            });
-            assert.match(outA, /DLX_OK_A/, 'demo-a not selected');
-            assert.doesNotMatch(outA, /DLX_OK_B/, 'demo-b unexpectedly ran');
+        const outA = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir, 'demo-a'], {
+            cwd: projectDir,
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+            timeout: 30 * 1000,
+        });
+        assert.match(outA, /DLX_OK_A/, 'demo-a not selected');
+        assert.doesNotMatch(outA, /DLX_OK_B/, 'demo-b unexpectedly ran');
 
-            const outB = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir, 'demo-b'], {
-                cwd: projectDir,
-                encoding: 'utf-8',
-                stdio: ['ignore', 'pipe', 'ignore'],
-                timeout: 30 * 1000,
-            });
-            assert.match(outB, /DLX_OK_B/, 'demo-b not selected');
-        },
-    );
+        const outB = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir, 'demo-b'], {
+            cwd: projectDir,
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+            timeout: 30 * 1000,
+        });
+        assert.match(outB, /DLX_OK_B/, 'demo-b not selected');
+    });
 
     it('gjsify dlx <local-path> hard-fails on multi-bin without a chosen name', () => {
         const dlxPkgDir = join(tmpDir, 'dlx-fixture-multi-bin-noname');
@@ -528,41 +505,38 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
         assert.match(stderr, /multiple GJS bins|pass one of/i, 'error message should explain the bin list');
     });
 
-    it(
-        'gjsify dlx <local-path> falls back to package.json#main with a warning',
-        () => {
-            assert.ok(
-                hasCommand('gjs'),
-                '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
-            );
-            const dlxPkgDir = join(tmpDir, 'dlx-fixture-fallback-main');
-            mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
-            writeFileSync(
-                join(dlxPkgDir, 'package.json'),
-                JSON.stringify(
-                    {
-                        name: 'dlx-fixture-fallback-main',
-                        version: '0.0.0',
-                        private: true,
-                        type: 'module',
-                        main: 'dist/legacy.js',
-                        // No `gjsify` field — exercise backwards-compat path.
-                    },
-                    null,
-                    2,
-                ),
-            );
-            writeFileSync(join(dlxPkgDir, 'dist', 'legacy.js'), "print('DLX_OK_FALLBACK');\n");
+    it('gjsify dlx <local-path> falls back to package.json#main with a warning', () => {
+        assert.ok(
+            hasCommand('gjs'),
+            '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
+        );
+        const dlxPkgDir = join(tmpDir, 'dlx-fixture-fallback-main');
+        mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+        writeFileSync(
+            join(dlxPkgDir, 'package.json'),
+            JSON.stringify(
+                {
+                    name: 'dlx-fixture-fallback-main',
+                    version: '0.0.0',
+                    private: true,
+                    type: 'module',
+                    main: 'dist/legacy.js',
+                    // No `gjsify` field — exercise backwards-compat path.
+                },
+                null,
+                2,
+            ),
+        );
+        writeFileSync(join(dlxPkgDir, 'dist', 'legacy.js'), "print('DLX_OK_FALLBACK');\n");
 
-            const result = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
-                cwd: projectDir,
-                encoding: 'utf-8',
-                stdio: ['ignore', 'pipe', 'pipe'],
-                timeout: 30 * 1000,
-            });
-            assert.match(result, /DLX_OK_FALLBACK/, 'fallback bundle did not run');
-        },
-    );
+        const result = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
+            cwd: projectDir,
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            timeout: 30 * 1000,
+        });
+        assert.match(result, /DLX_OK_FALLBACK/, 'fallback bundle did not run');
+    });
 
     it('gjsify dlx <local-path> hard-fails when package has no GJS entry', () => {
         const dlxPkgDir = join(tmpDir, 'dlx-fixture-no-entry');

@@ -81,15 +81,7 @@ describe('CLI bundle cross-cwd resolve', { timeout: 60_000 }, () => {
         // currently published as `lib/utils/resolve-npm-package.js` after
         // `gjsify run build:gjsify` — fall back to the lib path when
         // the source path isn't compiled.
-        const libPath = join(
-            REPO_ROOT,
-            'packages',
-            'infra',
-            'cli',
-            'lib',
-            'utils',
-            'resolve-npm-package.js',
-        );
+        const libPath = join(REPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'resolve-npm-package.js');
         const mod = await import(libPath);
         resolveNpmPackage = mod.resolveNpmPackage;
     });

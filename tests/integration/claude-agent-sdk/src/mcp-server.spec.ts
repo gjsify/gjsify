@@ -22,10 +22,7 @@ import { z } from 'zod';
 async function connectClient(serverInstance: { connect(t: unknown): Promise<void> }): Promise<Client> {
     const client = new Client({ name: 'test-client', version: '1.0.0' });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await Promise.all([
-        client.connect(clientTransport as never),
-        serverInstance.connect(serverTransport as never),
-    ]);
+    await Promise.all([client.connect(clientTransport as never), serverInstance.connect(serverTransport as never)]);
     return client;
 }
 
@@ -47,14 +44,9 @@ export default async () => {
 
         await describe('tool definition', async () => {
             await it('tool() produces a well-formed definition', async () => {
-                const add = tool(
-                    'add',
-                    'Add two numbers',
-                    { a: z.number(), b: z.number() },
-                    async (args) => ({
-                        content: [{ type: 'text', text: String(args.a + args.b) }],
-                    }),
-                );
+                const add = tool('add', 'Add two numbers', { a: z.number(), b: z.number() }, async (args) => ({
+                    content: [{ type: 'text', text: String(args.a + args.b) }],
+                }));
                 expect(add.name).toBe('add');
                 expect(add.description).toBe('Add two numbers');
                 expect(typeof add.handler).toBe('function');
@@ -64,14 +56,9 @@ export default async () => {
 
         await describe('protocol round-trip via InMemoryTransport', async () => {
             await it('lists the registered tool', async () => {
-                const add = tool(
-                    'add',
-                    'Add two numbers',
-                    { a: z.number(), b: z.number() },
-                    async (args) => ({
-                        content: [{ type: 'text', text: String(args.a + args.b) }],
-                    }),
-                );
+                const add = tool('add', 'Add two numbers', { a: z.number(), b: z.number() }, async (args) => ({
+                    content: [{ type: 'text', text: String(args.a + args.b) }],
+                }));
                 const server = createSdkMcpServer({ name: 'calc', version: '0.1.0', tools: [add] });
                 const client = await connectClient(server.instance);
                 try {
@@ -91,14 +78,9 @@ export default async () => {
             });
 
             await it('calls the tool and returns the computed result', async () => {
-                const add = tool(
-                    'add',
-                    'Add two numbers',
-                    { a: z.number(), b: z.number() },
-                    async (args) => ({
-                        content: [{ type: 'text', text: String(args.a + args.b) }],
-                    }),
-                );
+                const add = tool('add', 'Add two numbers', { a: z.number(), b: z.number() }, async (args) => ({
+                    content: [{ type: 'text', text: String(args.a + args.b) }],
+                }));
                 const server = createSdkMcpServer({ name: 'calc', version: '0.1.0', tools: [add] });
                 const client = await connectClient(server.instance);
                 try {
@@ -116,14 +98,9 @@ export default async () => {
             });
 
             await it('rejects a call with input that violates the zod schema', async () => {
-                const add = tool(
-                    'add',
-                    'Add two numbers',
-                    { a: z.number(), b: z.number() },
-                    async (args) => ({
-                        content: [{ type: 'text', text: String(args.a + args.b) }],
-                    }),
-                );
+                const add = tool('add', 'Add two numbers', { a: z.number(), b: z.number() }, async (args) => ({
+                    content: [{ type: 'text', text: String(args.a + args.b) }],
+                }));
                 const server = createSdkMcpServer({ name: 'calc', version: '0.1.0', tools: [add] });
                 const client = await connectClient(server.instance);
                 try {
@@ -146,18 +123,12 @@ export default async () => {
             });
 
             await it('supports multiple tools with distinct schemas', async () => {
-                const add = tool(
-                    'add',
-                    'Add two numbers',
-                    { a: z.number(), b: z.number() },
-                    async (args) => ({ content: [{ type: 'text', text: String(args.a + args.b) }] }),
-                );
-                const greet = tool(
-                    'greet',
-                    'Greet a person',
-                    { name: z.string() },
-                    async (args) => ({ content: [{ type: 'text', text: `Hello, ${args.name}!` }] }),
-                );
+                const add = tool('add', 'Add two numbers', { a: z.number(), b: z.number() }, async (args) => ({
+                    content: [{ type: 'text', text: String(args.a + args.b) }],
+                }));
+                const greet = tool('greet', 'Greet a person', { name: z.string() }, async (args) => ({
+                    content: [{ type: 'text', text: `Hello, ${args.name}!` }],
+                }));
                 const server = createSdkMcpServer({
                     name: 'multi',
                     version: '0.1.0',

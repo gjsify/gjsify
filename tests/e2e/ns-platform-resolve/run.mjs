@@ -91,7 +91,12 @@ describe('--app nativescript platform file resolution + defines', { timeout: 10 
         execFileSync(
             'npx',
             ['gjsify', 'build', 'src/entry.ts', '--app', 'nativescript', '--outfile', 'dist/android.mjs'],
-            { cwd: projectDir, stdio: 'pipe', timeout: 120 * 1000, env: { ...process.env, NATIVESCRIPT_PLATFORM: 'android' } },
+            {
+                cwd: projectDir,
+                stdio: 'pipe',
+                timeout: 120 * 1000,
+                env: { ...process.env, NATIVESCRIPT_PLATFORM: 'android' },
+            },
         );
 
         const outPath = join(projectDir, 'dist', 'android.mjs');

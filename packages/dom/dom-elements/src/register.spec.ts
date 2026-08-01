@@ -31,7 +31,10 @@ export default async () => {
             });
 
             await it('FontFace.load() via globalThis resolves and sets status=loaded', async () => {
-                const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => { status: string; load: () => Promise<void> };
+                const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => {
+                    status: string;
+                    load: () => Promise<void>;
+                };
                 const face = new FF('Round9x13', 'url(/res/fonts/Round9x13.ttf)');
                 expect(face.status).toBe('unloaded');
                 await face.load();
@@ -39,7 +42,10 @@ export default async () => {
             });
 
             await it('document.fonts.add() after load does not throw', async () => {
-                const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => { status: string; load: () => Promise<void> };
+                const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => {
+                    status: string;
+                    load: () => Promise<void>;
+                };
                 const face = new FF('Round9x13', 'url(/res/fonts/Round9x13.ttf)');
                 await face.load();
                 let threw = false;
@@ -60,7 +66,10 @@ export default async () => {
             const TTF = '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf';
 
             await it('load() with file:// URL registers font and sets status=loaded', async () => {
-                const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => { status: string; load: () => Promise<void> };
+                const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => {
+                    status: string;
+                    load: () => Promise<void>;
+                };
                 const face = new FF('DejaVuTestFont', `url(file://${TTF})`);
                 expect(face.status).toBe('unloaded');
                 await face.load();
@@ -77,7 +86,11 @@ export default async () => {
             // which must route through __gjsify_globalEventTarget (set in dom-elements/register.ts).
             await it('addEventListener stores listener on __gjsify_globalEventTarget', async () => {
                 const received: string[] = [];
-                type EventTargetLike = { addEventListener: (type: string, listener: unknown) => void; removeEventListener: (type: string, listener: unknown) => void; dispatchEvent: (evt: unknown) => void };
+                type EventTargetLike = {
+                    addEventListener: (type: string, listener: unknown) => void;
+                    removeEventListener: (type: string, listener: unknown) => void;
+                    dispatchEvent: (evt: unknown) => void;
+                };
                 (globalThis as unknown as EventTargetLike).addEventListener('keydown', (e: OurKeyboardEvent) => {
                     received.push(e.key);
                 });
@@ -87,30 +100,48 @@ export default async () => {
                     bubbles: true,
                     cancelable: true,
                 });
-                ((globalThis as Record<string, unknown>).__gjsify_globalEventTarget as EventTargetLike).dispatchEvent(evt);
+                ((globalThis as Record<string, unknown>).__gjsify_globalEventTarget as EventTargetLike).dispatchEvent(
+                    evt,
+                );
                 expect(received).toContain('ArrowRight');
             });
 
             await it('removeEventListener deregisters listener', async () => {
                 const received: string[] = [];
-                type EventTargetLike = { addEventListener: (type: string, listener: unknown) => void; removeEventListener: (type: string, listener: unknown) => void; dispatchEvent: (evt: unknown) => void };
+                type EventTargetLike = {
+                    addEventListener: (type: string, listener: unknown) => void;
+                    removeEventListener: (type: string, listener: unknown) => void;
+                    dispatchEvent: (evt: unknown) => void;
+                };
                 const handler = (e: OurKeyboardEvent) => received.push(e.key);
                 (globalThis as unknown as EventTargetLike).addEventListener('keydown', handler);
                 (globalThis as unknown as EventTargetLike).removeEventListener('keydown', handler);
                 const evt = new OurKeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
-                ((globalThis as Record<string, unknown>).__gjsify_globalEventTarget as EventTargetLike).dispatchEvent(evt);
+                ((globalThis as Record<string, unknown>).__gjsify_globalEventTarget as EventTargetLike).dispatchEvent(
+                    evt,
+                );
                 expect(received.length).toBe(0);
             });
 
             await it('__gjsify_globalEventTarget is exposed on globalThis', async () => {
-                type EventTargetLike = { addEventListener: (type: string, listener: unknown) => void; removeEventListener: (type: string, listener: unknown) => void; dispatchEvent: (evt: unknown) => void };
-                const target = (globalThis as Record<string, unknown>).__gjsify_globalEventTarget as EventTargetLike | undefined;
+                type EventTargetLike = {
+                    addEventListener: (type: string, listener: unknown) => void;
+                    removeEventListener: (type: string, listener: unknown) => void;
+                    dispatchEvent: (evt: unknown) => void;
+                };
+                const target = (globalThis as Record<string, unknown>).__gjsify_globalEventTarget as
+                    | EventTargetLike
+                    | undefined;
                 expect(target).toBeDefined();
                 expect(typeof target?.addEventListener).toBe('function');
             });
 
             await it('multiple listeners for the same event type all fire', async () => {
-                type EventTargetLike = { addEventListener: (type: string, listener: unknown) => void; removeEventListener: (type: string, listener: unknown) => void; dispatchEvent: (evt: unknown) => void };
+                type EventTargetLike = {
+                    addEventListener: (type: string, listener: unknown) => void;
+                    removeEventListener: (type: string, listener: unknown) => void;
+                    dispatchEvent: (evt: unknown) => void;
+                };
                 const log: number[] = [];
                 const a = () => log.push(1);
                 const b = () => log.push(2);
@@ -118,7 +149,9 @@ export default async () => {
                 gThis.addEventListener('keyup', a);
                 gThis.addEventListener('keyup', b);
                 const evt = new OurKeyboardEvent('keyup', { key: 'x', bubbles: true, cancelable: true });
-                ((globalThis as Record<string, unknown>).__gjsify_globalEventTarget as EventTargetLike).dispatchEvent(evt);
+                ((globalThis as Record<string, unknown>).__gjsify_globalEventTarget as EventTargetLike).dispatchEvent(
+                    evt,
+                );
                 expect(log).toContain(1);
                 expect(log).toContain(2);
                 gThis.removeEventListener('keyup', a);

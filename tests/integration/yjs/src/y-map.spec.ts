@@ -71,9 +71,7 @@ export default async () => {
             map.set('c', 3);
             const keys = [...map.keys()].sort();
             const values = [...map.values()].sort((a, b) => a - b);
-            const entries = [...map.entries()].sort((a, b) =>
-                a[0] < b[0] ? -1 : 1,
-            );
+            const entries = [...map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
             expect(keys).toStrictEqual(['a', 'b', 'c']);
             expect(values).toStrictEqual([1, 2, 3]);
             expect(entries).toStrictEqual([
@@ -111,9 +109,7 @@ export default async () => {
             map.observe((event) => {
                 events.push({
                     changedKeys: [...event.keysChanged].sort(),
-                    transactions: Array.from(event.changes.keys).keys
-                        ? null
-                        : null,
+                    transactions: Array.from(event.changes.keys).keys ? null : null,
                 });
             });
             map.set('a', 1);

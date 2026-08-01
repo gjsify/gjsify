@@ -37,9 +37,9 @@ const Gio = requireGi('Gio', '2.0');
 let Gtk = null;
 let gtkLoadError = null;
 try {
-  Gtk = requireGi('Gtk', '4.0');
+    Gtk = requireGi('Gtk', '4.0');
 } catch (err) {
-  gtkLoadError = err;
+    gtkLoadError = err;
 }
 const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 const gtkSkip = gtkLoadError ? `Gtk-4.0 typelib unavailable: ${gtkLoadError.message}` : false;
@@ -51,101 +51,98 @@ const widgetSkip = gtkSkip || (!haveDisplay ? 'no display (DISPLAY / WAYLAND_DIS
 // type G_TYPE_STRV, and GtkStringList is a plain GObject (GListModel) — no display
 // or gtk_init needed.
 test('GStrv construct prop: a JS string[] round-trips (Gtk.StringList:strings)', { skip: gtkSkip }, () => {
-  const list = new Gtk.StringList({ strings: ['alpha', 'beta', 'gamma'] });
-  assert.equal(list.get_n_items(), 3, 'all three strings were marshalled into the GStrv');
-  assert.equal(list.get_string(0), 'alpha');
-  assert.equal(list.get_string(1), 'beta');
-  assert.equal(list.get_string(2), 'gamma');
+    const list = new Gtk.StringList({ strings: ['alpha', 'beta', 'gamma'] });
+    assert.equal(list.get_n_items(), 3, 'all three strings were marshalled into the GStrv');
+    assert.equal(list.get_string(0), 'alpha');
+    assert.equal(list.get_string(1), 'beta');
+    assert.equal(list.get_string(2), 'gamma');
 });
 
 test('GStrv construct prop: an empty array yields an empty GStrv', { skip: gtkSkip }, () => {
-  const list = new Gtk.StringList({ strings: [] });
-  assert.equal(list.get_n_items(), 0);
+    const list = new Gtk.StringList({ strings: [] });
+    assert.equal(list.get_n_items(), 0);
 });
 
 test('GStrv construct prop: null/undefined clears it (empty list, no throw)', { skip: gtkSkip }, () => {
-  const fromNull = new Gtk.StringList({ strings: null });
-  assert.equal(fromNull.get_n_items(), 0);
-  const fromUndefined = new Gtk.StringList({ strings: undefined });
-  assert.equal(fromUndefined.get_n_items(), 0);
+    const fromNull = new Gtk.StringList({ strings: null });
+    assert.equal(fromNull.get_n_items(), 0);
+    const fromUndefined = new Gtk.StringList({ strings: undefined });
+    assert.equal(fromUndefined.get_n_items(), 0);
 });
 
 test('GStrv construct prop: a non-array value throws a clean TypeError', { skip: gtkSkip }, () => {
-  assert.throws(
-    () => new Gtk.StringList({ strings: 'not-an-array' }),
-    /expected a string\[\] for a GStrv property/,
-  );
+    assert.throws(() => new Gtk.StringList({ strings: 'not-an-array' }), /expected a string\[\] for a GStrv property/);
 });
 
 // The reported repro: a Gtk widget css_classes construct property. Needs a display
 // (gtk_init) so it is gated to the gtk-smoke leg, but it is the exact failing case
 // from the bug report (new Gtk.ScrolledWindow({ css_classes: ['foo'] })).
 test('GStrv construct prop: Gtk widget css_classes round-trips', { skip: widgetSkip }, () => {
-  if (typeof Gtk.init === 'function') Gtk.init();
-  const sw = new Gtk.ScrolledWindow({ css_classes: ['foo', 'bar'] });
-  assert.deepEqual(sw.get_css_classes(), ['foo', 'bar'], 'css_classes read back via get_css_classes()');
+    if (typeof Gtk.init === 'function') Gtk.init();
+    const sw = new Gtk.ScrolledWindow({ css_classes: ['foo', 'bar'] });
+    assert.deepEqual(sw.get_css_classes(), ['foo', 'bar'], 'css_classes read back via get_css_classes()');
 });
 
 // ---- FIX 2: a loop-dispatched handler exception must not wedge the loop -------
 
 test('FIX2: a throwing notify handler dispatched in the loop does not wedge it', () => {
-  // Gio.SimpleAction is a headless GObject; toggling :enabled emits notify::enabled
-  // and the handler is dispatched at g_syncEmitDepth == 0 (no JS emit() wrapping it)
-  // — exactly the signal-closure path that used to leave a pending exception.
-  const action = new Gio.SimpleAction({ name: 'strv-fix2' });
-  let handlerRan = false;
-  let secondFired = false;
-  action.connect('notify::enabled', () => {
-    handlerRan = true;
-    throw new Error('boom from a loop-dispatched notify handler');
-  });
+    // Gio.SimpleAction is a headless GObject; toggling :enabled emits notify::enabled
+    // and the handler is dispatched at g_syncEmitDepth == 0 (no JS emit() wrapping it)
+    // — exactly the signal-closure path that used to leave a pending exception.
+    const action = new Gio.SimpleAction({ name: 'strv-fix2' });
+    let handlerRan = false;
+    let secondFired = false;
+    action.connect('notify::enabled', () => {
+        handlerRan = true;
+        throw new Error('boom from a loop-dispatched notify handler');
+    });
 
-  const loop = GLib.MainLoop.new(null, false);
-  // T1: flips the property → notify::enabled fires → the handler throws.
-  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-    action.set_enabled(false);
-    return GLib.SOURCE_REMOVE;
-  });
-  // T2: must STILL fire after T1's handler threw → proves the loop kept running.
-  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 40, () => {
-    secondFired = true;
-    loop.quit();
-    return GLib.SOURCE_REMOVE;
-  });
-  // Backstop: a regression that wedges the loop hits this cap instead of hanging.
-  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
-    loop.quit();
-    return GLib.SOURCE_REMOVE;
-  });
+    const loop = GLib.MainLoop.new(null, false);
+    // T1: flips the property → notify::enabled fires → the handler throws.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+        action.set_enabled(false);
+        return GLib.SOURCE_REMOVE;
+    });
+    // T2: must STILL fire after T1's handler threw → proves the loop kept running.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 40, () => {
+        secondFired = true;
+        loop.quit();
+        return GLib.SOURCE_REMOVE;
+    });
+    // Backstop: a regression that wedges the loop hits this cap instead of hanging.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
+        loop.quit();
+        return GLib.SOURCE_REMOVE;
+    });
 
-  loop.run();
+    loop.run();
 
-  assert.equal(handlerRan, true, 'the throwing notify handler ran');
-  assert.equal(secondFired, true, 'the loop survived the throwing handler and dispatched the next source');
+    assert.equal(handlerRan, true, 'the throwing notify handler ran');
+    assert.equal(secondFired, true, 'the loop survived the throwing handler and dispatched the next source');
 });
 
 test('FIX2: a throwing timeout callback does not wedge the main loop', () => {
-  const loop = GLib.MainLoop.new(null, false);
-  let firstRan = false;
-  let secondFired = false;
-  // T1 throws from inside the loop dispatch (a NOTIFIED-scope GSourceFunc).
-  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-    firstRan = true;
-    throw new Error('boom from a loop-dispatched timeout');
-  });
-  // T2 must still fire AFTER T1 threw.
-  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 40, () => {
-    secondFired = true;
-    loop.quit();
-    return GLib.SOURCE_REMOVE;
-  });
-  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
-    loop.quit();
-    return GLib.SOURCE_REMOVE;
-  });
+    const loop = GLib.MainLoop.new(null, false);
+    let firstRan = false;
+    let secondFired = false;
+    // T1 throws from inside the loop dispatch (a NOTIFIED-scope GSourceFunc).
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+        firstRan = true;
+        throw new Error('boom from a loop-dispatched timeout');
+    });
+    // T2 must still fire AFTER T1 threw.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 40, () => {
+        secondFired = true;
+        loop.quit();
+        return GLib.SOURCE_REMOVE;
+    });
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
+        loop.quit();
+        return GLib.SOURCE_REMOVE;
+    });
 
-  loop.run();
+    loop.run();
 
-  assert.equal(firstRan, true, 'the throwing timeout callback ran');
-  assert.equal(secondFired, true, 'the loop survived the throwing callback');
+    assert.equal(firstRan, true, 'the throwing timeout callback ran');
+    assert.equal(secondFired, true, 'the loop survived the throwing callback');
 });

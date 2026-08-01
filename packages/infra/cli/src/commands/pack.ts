@@ -344,11 +344,7 @@ export function collectTypeDeclarationRefs(pkg: Record<string, unknown>): string
  * built yet (absent on disk) is left to `tsc`/the build to catch, so an unbuilt
  * dev tree doesn't produce a false positive.
  */
-function assertTypeDeclarationsShipped(
-    wsDir: string,
-    pkg: Record<string, unknown>,
-    packed: readonly string[],
-): void {
+function assertTypeDeclarationsShipped(wsDir: string, pkg: Record<string, unknown>, packed: readonly string[]): void {
     const packedSet = new Set(packed);
     const missing = collectTypeDeclarationRefs(pkg).filter((ref) => {
         const full = join(wsDir, ref);

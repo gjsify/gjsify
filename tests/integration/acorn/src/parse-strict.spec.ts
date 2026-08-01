@@ -10,7 +10,9 @@ import type { AnyNode, Program } from 'acorn';
 
 // Utility: navigate acorn AST nodes without `any` — all nodes share the
 // `type` discriminant and further fields vary by node kind.
-function node(n: AnyNode | Program | null | undefined): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
+function node(
+    n: AnyNode | Program | null | undefined,
+): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
     return n as unknown as Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined>;
 }
 

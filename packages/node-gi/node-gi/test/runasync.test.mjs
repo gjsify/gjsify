@@ -35,96 +35,96 @@ let GLib;
 let Gio;
 let loadError = null;
 try {
-  GLib = requireGi('GLib', '2.0');
-  Gio = requireGi('Gio', '2.0');
+    GLib = requireGi('GLib', '2.0');
+    Gio = requireGi('Gio', '2.0');
 } catch (err) {
-  loadError = err;
+    loadError = err;
 }
 const skip = loadError ? `GLib/Gio typelib unavailable: ${loadError.message}` : false;
 
 // A fresh NON_UNIQUE application per test (unique id → no session-bus collisions).
 let idCounter = 0;
 function makeApp() {
-  return new Gio.Application({
-    application_id: `eu.jumplink.NodeGiRunAsync${idCounter++}`,
-    flags: Gio.ApplicationFlags.NON_UNIQUE,
-  });
+    return new Gio.Application({
+        application_id: `eu.jumplink.NodeGiRunAsync${idCounter++}`,
+        flags: Gio.ApplicationFlags.NON_UNIQUE,
+    });
 }
 
 test('runAsync returns a Promise that resolves with the exit status', { skip }, async () => {
-  const app = makeApp();
-  let activated = false;
-  app.connect('activate', () => {
-    activated = true;
-    app.hold(); // keep g_application_run iterating until the timeout quits it
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-      app.quit();
-      return GLib.SOURCE_REMOVE;
+    const app = makeApp();
+    let activated = false;
+    app.connect('activate', () => {
+        activated = true;
+        app.hold(); // keep g_application_run iterating until the timeout quits it
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+            app.quit();
+            return GLib.SOURCE_REMOVE;
+        });
     });
-  });
 
-  const pending = app.runAsync([]);
-  assert.equal(typeof pending.then, 'function', 'runAsync returns a Promise (does not block)');
+    const pending = app.runAsync([]);
+    assert.equal(typeof pending.then, 'function', 'runAsync returns a Promise (does not block)');
 
-  const status = await pending;
-  assert.equal(status, 0, 'resolves with the integer exit status (0)');
-  assert.equal(activated, true, 'the activate handler ran during the run');
+    const status = await pending;
+    assert.equal(status, 0, 'resolves with the integer exit status (0)');
+    assert.equal(activated, true, 'the activate handler ran during the run');
 });
 
 test('runAsync keeps the Node event loop pumped while the app runs', { skip }, async () => {
-  const app = makeApp();
-  let appQuit = false;
-  let timerFiredDuringRun = false;
-  let promiseSettledDuringRun = false;
+    const app = makeApp();
+    let appQuit = false;
+    let timerFiredDuringRun = false;
+    let promiseSettledDuringRun = false;
 
-  // Scheduled BEFORE runAsync — both must run WHILE the app is running (before the
-  // 150ms GLib timeout quits it). If the blocking run() starved Node (the bare
-  // run() caveat), neither would settle until run() returned (after appQuit).
-  setTimeout(() => {
-    timerFiredDuringRun = !appQuit;
-  }, 15);
-  const continuation = new Promise((resolve) => setTimeout(resolve, 25)).then(() => {
-    promiseSettledDuringRun = !appQuit;
-  });
-
-  app.connect('activate', () => {
-    app.hold();
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-      appQuit = true;
-      app.quit();
-      return GLib.SOURCE_REMOVE;
+    // Scheduled BEFORE runAsync — both must run WHILE the app is running (before the
+    // 150ms GLib timeout quits it). If the blocking run() starved Node (the bare
+    // run() caveat), neither would settle until run() returned (after appQuit).
+    setTimeout(() => {
+        timerFiredDuringRun = !appQuit;
+    }, 15);
+    const continuation = new Promise((resolve) => setTimeout(resolve, 25)).then(() => {
+        promiseSettledDuringRun = !appQuit;
     });
-  });
 
-  const status = await app.runAsync([]);
-  await continuation;
+    app.connect('activate', () => {
+        app.hold();
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+            appQuit = true;
+            app.quit();
+            return GLib.SOURCE_REMOVE;
+        });
+    });
 
-  assert.equal(status, 0);
-  assert.equal(timerFiredDuringRun, true, 'a setTimeout scheduled before runAsync fired DURING the run');
-  assert.equal(
-    promiseSettledDuringRun,
-    true,
-    'a Promise continuation scheduled before runAsync settled DURING the run (loop not starved)',
-  );
+    const status = await app.runAsync([]);
+    await continuation;
+
+    assert.equal(status, 0);
+    assert.equal(timerFiredDuringRun, true, 'a setTimeout scheduled before runAsync fired DURING the run');
+    assert.equal(
+        promiseSettledDuringRun,
+        true,
+        'a Promise continuation scheduled before runAsync settled DURING the run (loop not starved)',
+    );
 });
 
 test('the blocking run() is unchanged', { skip }, () => {
-  const app = makeApp();
-  let fired = false;
-  // Scheduled before the synchronous, top-level blocking run() — the bridge
-  // co-pumps libuv so this timer fires during the run, exactly as before.
-  setTimeout(() => {
-    fired = true;
-  }, 10);
-  app.connect('activate', () => {
-    app.hold();
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
-      app.quit();
-      return GLib.SOURCE_REMOVE;
+    const app = makeApp();
+    let fired = false;
+    // Scheduled before the synchronous, top-level blocking run() — the bridge
+    // co-pumps libuv so this timer fires during the run, exactly as before.
+    setTimeout(() => {
+        fired = true;
+    }, 10);
+    app.connect('activate', () => {
+        app.hold();
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
+            app.quit();
+            return GLib.SOURCE_REMOVE;
+        });
     });
-  });
 
-  const status = app.run([]); // top-level blocking run (no async wrapper)
-  assert.equal(status, 0, 'blocking run([]) still exits 0');
-  assert.equal(fired, true, 'libuv timer fired during the blocking run() (bridge unchanged)');
+    const status = app.run([]); // top-level blocking run (no async wrapper)
+    assert.equal(status, 0, 'blocking run([]) still exits 0');
+    assert.equal(fired, true, 'libuv timer fired during the blocking run() (bridge unchanged)');
 });

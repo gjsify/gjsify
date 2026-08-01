@@ -127,10 +127,7 @@ test('many concurrent Gio async ops all settle', async () => {
             );
         }
         const all = await withTimeout(Promise.all(jobs), 15000, '8 concurrent load_contents_async');
-        assert.deepEqual(
-            all.sort(),
-            Array.from({ length: 8 }, (_v, i) => `content-${i}`).sort(),
-        );
+        assert.deepEqual(all.sort(), Array.from({ length: 8 }, (_v, i) => `content-${i}`).sort());
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

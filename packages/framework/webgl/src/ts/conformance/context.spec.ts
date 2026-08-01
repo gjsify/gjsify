@@ -281,7 +281,9 @@ export default async () => {
             });
 
             await it('WebGLRenderingContext should exist in globalThis', async () => {
-                expect(typeof (globalThis as { WebGLRenderingContext?: unknown }).WebGLRenderingContext !== 'undefined').toBeTruthy();
+                expect(
+                    typeof (globalThis as { WebGLRenderingContext?: unknown }).WebGLRenderingContext !== 'undefined',
+                ).toBeTruthy();
             });
 
             await it('gl should be an instance of WebGLRenderingContext', async () => {

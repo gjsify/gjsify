@@ -413,7 +413,9 @@ export default async () => {
                                             callback(null);
                                             process.stdout.write('callback(null) returned OK\n');
                                         } catch (e) {
-                                            process.stdout.write('callback(null) THREW: ' + (e as Error).message + '\n');
+                                            process.stdout.write(
+                                                'callback(null) THREW: ' + (e as Error).message + '\n',
+                                            );
                                         }
                                         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
                                             process.stdout.write('AFTER_CALLBACK TIMEOUT_ADD(0) FIRED\n');

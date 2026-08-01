@@ -65,20 +65,13 @@ export default async () => {
             const text = doc.getText('t');
             text.insert(0, 'abc', { bold: true });
             expect(text.toString()).toBe('abc');
-            expect(text.toDelta()).toStrictEqual([
-                { insert: 'abc', attributes: { bold: true } },
-            ]);
+            expect(text.toDelta()).toStrictEqual([{ insert: 'abc', attributes: { bold: true } }]);
             text.delete(0, 1);
             expect(text.toString()).toBe('bc');
-            expect(text.toDelta()).toStrictEqual([
-                { insert: 'bc', attributes: { bold: true } },
-            ]);
+            expect(text.toDelta()).toStrictEqual([{ insert: 'bc', attributes: { bold: true } }]);
             // Mixing a plain insert in front of the formatted run.
             text.insert(0, 'y');
-            expect(text.toDelta()).toStrictEqual([
-                { insert: 'y' },
-                { insert: 'bc', attributes: { bold: true } },
-            ]);
+            expect(text.toDelta()).toStrictEqual([{ insert: 'y' }, { insert: 'bc', attributes: { bold: true } }]);
             // Removing the bold attribute on a range produces an
             // attributes: { bold: null } retain op.
             text.format(1, 2, { bold: null });
@@ -90,9 +83,7 @@ export default async () => {
             const doc = new Y.Doc();
             const text = doc.getText('t');
             text.insert(0, 'abcde', { falsy: false });
-            expect(text.toDelta()).toStrictEqual([
-                { insert: 'abcde', attributes: { falsy: false } },
-            ]);
+            expect(text.toDelta()).toStrictEqual([{ insert: 'abcde', attributes: { falsy: false } }]);
         });
 
         await it('multiline format applies attributes to every newline run', async () => {
@@ -102,9 +93,7 @@ export default async () => {
             const text = doc.getText('t');
             text.insert(0, 'Hello\nWorld');
             text.format(0, 11, { bold: true });
-            expect(text.toDelta()).toStrictEqual([
-                { insert: 'Hello\nWorld', attributes: { bold: true } },
-            ]);
+            expect(text.toDelta()).toStrictEqual([{ insert: 'Hello\nWorld', attributes: { bold: true } }]);
         });
 
         await it('toJSON returns the visible text', async () => {

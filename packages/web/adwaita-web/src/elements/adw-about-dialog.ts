@@ -330,7 +330,11 @@ export class AdwAboutDialog extends HTMLElement {
     }
 
     /** A navigation page wrapping a header bar (with the close button) + content. */
-    private _buildPage(tag: string, title: string, showClose: boolean): {
+    private _buildPage(
+        tag: string,
+        title: string,
+        showClose: boolean,
+    ): {
         page: HTMLElement;
         body: HTMLDivElement;
         header: HTMLElement;

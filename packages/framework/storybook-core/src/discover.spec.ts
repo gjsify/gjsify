@@ -45,7 +45,10 @@ export default async () => {
         class MockStory implements StoryInstanceLike {
             private _args: StoryArgs = {};
             private _listeners = new Set<(a: StoryArgs) => void>();
-            constructor(readonly meta: { title: string; controls?: StoryControl[] }, readonly story = 'Default') {}
+            constructor(
+                readonly meta: { title: string; controls?: StoryControl[] },
+                readonly story = 'Default',
+            ) {}
             initialize(): void {}
             get args(): StoryArgs {
                 return this._args;
@@ -136,7 +139,9 @@ export default async () => {
             const ext = buildStorybookDevtoolsExtension(setup());
             const byName = Object.fromEntries(ext.methods.map((m) => [m.name, m.handler]));
             (byName.OpenStory as (t: string) => boolean)('Rows/Action');
-            const status = ext.contributeStatus() as { storybook: { currentStory: { title: string }; storyCount: number } };
+            const status = ext.contributeStatus() as {
+                storybook: { currentStory: { title: string }; storyCount: number };
+            };
             expect(status.storybook.currentStory.title).toBe('Rows/Action');
             expect(status.storybook.storyCount).toBe(1);
         });

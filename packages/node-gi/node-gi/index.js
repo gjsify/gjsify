@@ -61,33 +61,33 @@ const here = dirname(fileURLToPath(import.meta.url)); // package root
  * @type {'bun' | 'deno' | 'gjs' | 'node'}
  */
 export const RUNTIME =
-  typeof globalThis.imports !== 'undefined' && typeof globalThis.print === 'function'
-    ? 'gjs'
-    : typeof globalThis.Bun !== 'undefined'
-      ? 'bun'
-      : typeof globalThis.Deno !== 'undefined'
-        ? 'deno'
-        : 'node';
+    typeof globalThis.imports !== 'undefined' && typeof globalThis.print === 'function'
+        ? 'gjs'
+        : typeof globalThis.Bun !== 'undefined'
+          ? 'bun'
+          : typeof globalThis.Deno !== 'undefined'
+            ? 'deno'
+            : 'node';
 
 /** Whether we are on Node.js (the only runtime with the libuv main-loop bridge). */
 export const isNodeRuntime = RUNTIME === 'node';
 
 function nativeCandidates() {
-  const prebuild = join(here, 'prebuilds', `${process.platform}-${process.arch}`, 'node_gi.node');
-  const release = join(here, 'build', 'Release', 'node_gi.node');
-  const debug = join(here, 'build', 'Debug', 'node_gi.node');
-  // NODE_GI_NATIVE pins which binary loads. The package's own test scripts set
-  // `build` so local verification always exercises the JUST-BUILT addon — a stale
-  // staged prebuild would otherwise shadow build/Release and silently validate
-  // the wrong binary (the consumer-facing default below prefers the prebuild).
-  const prefer = process.env.NODE_GI_NATIVE;
-  if (prefer === 'build') return [release, debug, prebuild];
-  if (prefer === 'prebuild') return [prebuild];
-  if (prefer) return [prefer]; // an explicit path to a node_gi.node
-  // Default: prefer a shipped prebuild so a consumer needs no C toolchain and no
-  // node-gyp — the only install path Deno supports (it runs no postinstall build
-  // script). Fall back to a locally built addon (Release, then Debug).
-  return [prebuild, release, debug];
+    const prebuild = join(here, 'prebuilds', `${process.platform}-${process.arch}`, 'node_gi.node');
+    const release = join(here, 'build', 'Release', 'node_gi.node');
+    const debug = join(here, 'build', 'Debug', 'node_gi.node');
+    // NODE_GI_NATIVE pins which binary loads. The package's own test scripts set
+    // `build` so local verification always exercises the JUST-BUILT addon — a stale
+    // staged prebuild would otherwise shadow build/Release and silently validate
+    // the wrong binary (the consumer-facing default below prefers the prebuild).
+    const prefer = process.env.NODE_GI_NATIVE;
+    if (prefer === 'build') return [release, debug, prebuild];
+    if (prefer === 'prebuild') return [prebuild];
+    if (prefer) return [prefer]; // an explicit path to a node_gi.node
+    // Default: prefer a shipped prebuild so a consumer needs no C toolchain and no
+    // node-gyp — the only install path Deno supports (it runs no postinstall build
+    // script). Fall back to a locally built addon (Release, then Debug).
+    return [prebuild, release, debug];
 }
 
 // GJS host mode: the addon is loaded through the @gjsify/napi shim, not
@@ -97,40 +97,40 @@ function nativeCandidates() {
 // GjsifyNapi typelib must be resolvable (GI_TYPELIB_PATH/LD_LIBRARY_PATH →
 // the shim prebuild).
 function gjsLoadAddon(path) {
-  let load = globalThis.__gjsifyNapiLoadAddon;
-  if (typeof load !== 'function') {
-    const GjsifyNapi = globalThis.imports?.gi?.GjsifyNapi;
-    if (!GjsifyNapi || !GjsifyNapi.init()) {
-      throw new Error(
-        '@gjsify/node-gi: GJS host mode needs the @gjsify/napi shim — the GjsifyNapi ' +
-          'typelib is not loadable (point GI_TYPELIB_PATH and LD_LIBRARY_PATH at its prebuild).',
-      );
-    }
-    load = globalThis.__gjsifyNapiLoadAddon;
+    let load = globalThis.__gjsifyNapiLoadAddon;
     if (typeof load !== 'function') {
-      throw new Error('@gjsify/node-gi: GjsifyNapi.init() did not install the addon loader.');
+        const GjsifyNapi = globalThis.imports?.gi?.GjsifyNapi;
+        if (!GjsifyNapi || !GjsifyNapi.init()) {
+            throw new Error(
+                '@gjsify/node-gi: GJS host mode needs the @gjsify/napi shim — the GjsifyNapi ' +
+                    'typelib is not loadable (point GI_TYPELIB_PATH and LD_LIBRARY_PATH at its prebuild).',
+            );
+        }
+        load = globalThis.__gjsifyNapiLoadAddon;
+        if (typeof load !== 'function') {
+            throw new Error('@gjsify/node-gi: GjsifyNapi.init() did not install the addon loader.');
+        }
+        // Capture-then-delete, the same no-side-channel discipline as the L1.
+        delete globalThis.__gjsifyNapiLoadAddon;
     }
-    // Capture-then-delete, the same no-side-channel discipline as the L1.
-    delete globalThis.__gjsifyNapiLoadAddon;
-  }
-  return load(path);
+    return load(path);
 }
 
 function loadNative() {
-  for (const candidate of nativeCandidates()) {
-    if (existsSync(candidate)) {
-      return RUNTIME === 'gjs' ? gjsLoadAddon(candidate) : require(candidate);
+    for (const candidate of nativeCandidates()) {
+        if (existsSync(candidate)) {
+            return RUNTIME === 'gjs' ? gjsLoadAddon(candidate) : require(candidate);
+        }
     }
-  }
-  throw new Error(
-    `@gjsify/node-gi: native addon not found for ${RUNTIME} on ${process.platform}-${process.arch}. ` +
-      `Expected a prebuild at prebuilds/${process.platform}-${process.arch}/node_gi.node or a local build. ` +
-      'Run `node-gyp rebuild` in ' +
-      here +
-      ' (requires a C++ toolchain and the girepository-2.0 / glib-2.0 development headers), ' +
-      'or install a package build that ships a prebuild for your platform. ' +
-      'Under a bundled GJS app (import.meta anchors at the bundle), set NODE_GI_NATIVE to the addon path.',
-  );
+    throw new Error(
+        `@gjsify/node-gi: native addon not found for ${RUNTIME} on ${process.platform}-${process.arch}. ` +
+            `Expected a prebuild at prebuilds/${process.platform}-${process.arch}/node_gi.node or a local build. ` +
+            'Run `node-gyp rebuild` in ' +
+            here +
+            ' (requires a C++ toolchain and the girepository-2.0 / glib-2.0 development headers), ' +
+            'or install a package build that ships a prebuild for your platform. ' +
+            'Under a bundled GJS app (import.meta anchors at the bundle), set NODE_GI_NATIVE to the addon path.',
+    );
 }
 
 const native = loadNative();
@@ -145,9 +145,9 @@ const native = loadNative();
 // none is present (the addon then uses the host's GTK as before). Darwin-only
 // today — see gtk-runtime.js + @gjsify/gtk-runtime-darwin-arm64.
 try {
-  activateBundledGtkRuntime(native);
+    activateBundledGtkRuntime(native);
 } catch {
-  // Never fatal: a missing/partial bundle just leaves the host GTK in charge.
+    // Never fatal: a missing/partial bundle just leaves the host GTK in charge.
 }
 
 // ---- cross-runtime microtask checkpoint (Bun/Deno) --------------------------
@@ -172,47 +172,47 @@ try {
 // own main-loop source whenever the last JS frame exits — the exact semantic
 // this checkpoint recreates for Bun/Deno.
 if (!isNodeRuntime && RUNTIME !== 'gjs') {
-  try {
-    let drain = null;
-    if (RUNTIME === 'bun') {
-      // JSC: drains the VM's microtask queue; callable mid-stack by design
-      // (Bun's own processTicksAndRejections calls it from JS).
-      ({ drainMicrotasks: drain } = require('bun:jsc'));
-    } else if (typeof globalThis.Deno?.internal === 'symbol') {
-      // V8: the checkpoint needs BOTH queues. core.runMicrotasks is only
-      // Isolate::PerformMicrotaskCheckpoint; Deno's node-compat
-      // process.nextTick queue is a SEPARATE deno_core queue
-      // (ext:deno_node/_next_tick.ts → core.queueNextTick) that only the
-      // runtime's own event loop drains — and that loop is paused for the
-      // whole lifetime of a blocking run(). node:stream delivers stream
-      // 'end' via process.nextTick (endReadableNT), so with a
-      // microtask-only drain any body consumption over a Readable
-      // (@gjsify/fetch consumeBody → XHR arrayBuffer/text) got its chunks
-      // (microtask-delivered) but never the end: every asset load hung at
-      // readyState 3 forever on Deno while the SAME bundle settled on Bun,
-      // whose nextTick rides JSC's microtask queue (bun:jsc
-      // drainMicrotasks covers it). core.runNextTicks mirrors node's
-      // task_queues.js runNextTicks: microtask checkpoint when no ticks
-      // are scheduled, full processTicksAndRejections (ticks + microtasks
-      // interleaved) when there are — one call, both queues. Regression:
-      // test/blocking-run-checkpoint.test.mjs.
-      const core = globalThis.Deno[globalThis.Deno.internal]?.core;
-      if (typeof core?.runNextTicks === 'function') {
-        drain = () => core.runNextTicks();
-      } else if (typeof core?.runMicrotasks === 'function') {
-        // Older deno_core without runNextTicks: microtask-only drain
-        // (pre-fix behaviour — promise continuations settle, nextTick
-        // consumers like node:stream 'end' still starve).
-        drain = () => core.runMicrotasks();
-      }
+    try {
+        let drain = null;
+        if (RUNTIME === 'bun') {
+            // JSC: drains the VM's microtask queue; callable mid-stack by design
+            // (Bun's own processTicksAndRejections calls it from JS).
+            ({ drainMicrotasks: drain } = require('bun:jsc'));
+        } else if (typeof globalThis.Deno?.internal === 'symbol') {
+            // V8: the checkpoint needs BOTH queues. core.runMicrotasks is only
+            // Isolate::PerformMicrotaskCheckpoint; Deno's node-compat
+            // process.nextTick queue is a SEPARATE deno_core queue
+            // (ext:deno_node/_next_tick.ts → core.queueNextTick) that only the
+            // runtime's own event loop drains — and that loop is paused for the
+            // whole lifetime of a blocking run(). node:stream delivers stream
+            // 'end' via process.nextTick (endReadableNT), so with a
+            // microtask-only drain any body consumption over a Readable
+            // (@gjsify/fetch consumeBody → XHR arrayBuffer/text) got its chunks
+            // (microtask-delivered) but never the end: every asset load hung at
+            // readyState 3 forever on Deno while the SAME bundle settled on Bun,
+            // whose nextTick rides JSC's microtask queue (bun:jsc
+            // drainMicrotasks covers it). core.runNextTicks mirrors node's
+            // task_queues.js runNextTicks: microtask checkpoint when no ticks
+            // are scheduled, full processTicksAndRejections (ticks + microtasks
+            // interleaved) when there are — one call, both queues. Regression:
+            // test/blocking-run-checkpoint.test.mjs.
+            const core = globalThis.Deno[globalThis.Deno.internal]?.core;
+            if (typeof core?.runNextTicks === 'function') {
+                drain = () => core.runNextTicks();
+            } else if (typeof core?.runMicrotasks === 'function') {
+                // Older deno_core without runNextTicks: microtask-only drain
+                // (pre-fix behaviour — promise continuations settle, nextTick
+                // consumers like node:stream 'end' still starve).
+                drain = () => core.runMicrotasks();
+            }
+        }
+        if (typeof drain === 'function') native.setMicrotaskDrain(drain);
+    } catch {
+        // Unregistered ⇒ pre-fix behaviour on this runtime build: promise
+        // continuations drain only when the runtime's own loop runs
+        // (startMainContextPump); async DBus replies inside a BLOCKING run stay
+        // unavailable. Never fatal — the sync surface is unaffected.
     }
-    if (typeof drain === 'function') native.setMicrotaskDrain(drain);
-  } catch {
-    // Unregistered ⇒ pre-fix behaviour on this runtime build: promise
-    // continuations drain only when the runtime's own loop runs
-    // (startMainContextPump); async DBus replies inside a BLOCKING run stay
-    // unavailable. Never fatal — the sync surface is unaffected.
-  }
 }
 
 /**

@@ -516,7 +516,12 @@ export default async () => {
             });
 
             await it('getActiveAttrib with null program throws', async () => {
-                expect(() => (gl as { getActiveAttrib: (p: WebGLProgram | null, i: number) => unknown }).getActiveAttrib(null, 0)).toThrow();
+                expect(() =>
+                    (gl as { getActiveAttrib: (p: WebGLProgram | null, i: number) => unknown }).getActiveAttrib(
+                        null,
+                        0,
+                    ),
+                ).toThrow();
             });
         });
 
@@ -551,7 +556,12 @@ export default async () => {
             });
 
             await it('getActiveUniform with null program throws', async () => {
-                expect(() => (gl as { getActiveUniform: (p: WebGLProgram | null, i: number) => unknown }).getActiveUniform(null, 0)).toThrow();
+                expect(() =>
+                    (gl as { getActiveUniform: (p: WebGLProgram | null, i: number) => unknown }).getActiveUniform(
+                        null,
+                        0,
+                    ),
+                ).toThrow();
             });
         });
 

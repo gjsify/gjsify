@@ -455,7 +455,9 @@ export default async () => {
         await it('should throw on reserved event', async () => {
             // new Server() without a port never binds, so engine is not initialized — do not call io.close()
             const io = new Server();
-            expect(() => (io as unknown as { emit: (ev: string) => void }).emit('connect')).toThrow(/"connect" is a reserved event name/);
+            expect(() => (io as unknown as { emit: (ev: string) => void }).emit('connect')).toThrow(
+                /"connect" is a reserved event name/,
+            );
         });
 
         await it('should exclude a specific socket when emitting', async () => {

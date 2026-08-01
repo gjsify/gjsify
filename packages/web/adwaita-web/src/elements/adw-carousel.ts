@@ -180,7 +180,9 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
     }
 
     private _emitPosition(): void {
-        this.dispatchEvent(new CustomEvent('notify::position', { bubbles: true, detail: { position: this._position } }));
+        this.dispatchEvent(
+            new CustomEvent('notify::position', { bubbles: true, detail: { position: this._position } }),
+        );
     }
 }
 

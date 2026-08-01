@@ -29,7 +29,7 @@ function makeFakeIceCandidate(i: number): string {
     // Sizes: 166-204 bytes when serialized.
     return JSON.stringify({
         type: 'ice-candidate',
-        payload: { candidate: `candidate:${i} 1 UDP 2015363327 192.168.0.${i % 254 + 1} ${40000 + i} typ host` },
+        payload: { candidate: `candidate:${i} 1 UDP 2015363327 192.168.0.${(i % 254) + 1} ${40000 + i} typ host` },
     });
 }
 
@@ -252,38 +252,48 @@ export default async () => {
                 await new Promise<void>((r) => wss.once('listening', () => r()));
                 const port = (wss.address() as { port: number }).port;
 
-                let received = ''
+                let received = '';
                 await new Promise<void>((resolve, reject) => {
-                    const timer = setTimeout(() => reject(new Error('raw-client timed out')), 3_000)
+                    const timer = setTimeout(() => reject(new Error('raw-client timed out')), 3_000);
                     wss.on('connection', (peer) => {
-                        peer.on('message', (msg: Buffer | string) => peer.send(String(msg)))
-                    })
-                    const session = new Soup3.Session()
-                    const uri = GLib2.Uri.parse(`ws://127.0.0.1:${port}/`, GLib2.UriFlags.NONE)
-                    const soupMsg = new Soup3.Message({ method: 'GET', uri })
-                    session.websocket_connect_async(soupMsg, null, null, GLib2.PRIORITY_DEFAULT, null, (_self: unknown, asyncRes: never) => {
-                        try {
-                            const conn = session.websocket_connect_finish(asyncRes as never)
-                            conn.connect('message', (_c: never, type: number, bytes: never) => {
-                                const data = (bytes as { get_data(): Uint8Array | null }).get_data()
-                                if (type === Soup3.WebsocketDataType.TEXT && data) {
-                                    received = new TextDecoder().decode(data)
-                                    clearTimeout(timer)
-                                    conn.close(1_000, null)
-                                    wss.close()
-                                    resolve()
-                                }
-                            })
-                            // raw client sends 'rawping' — server echoes
-                            conn.send_message(Soup3.WebsocketDataType.TEXT, new GLib2.Bytes(new TextEncoder().encode('rawping')))
-                        } catch (err) {
-                            clearTimeout(timer)
-                            reject(err instanceof Error ? err : new Error(String(err)))
-                        }
-                    })
-                })
-                expect(received).toBe('rawping')
-            })
+                        peer.on('message', (msg: Buffer | string) => peer.send(String(msg)));
+                    });
+                    const session = new Soup3.Session();
+                    const uri = GLib2.Uri.parse(`ws://127.0.0.1:${port}/`, GLib2.UriFlags.NONE);
+                    const soupMsg = new Soup3.Message({ method: 'GET', uri });
+                    session.websocket_connect_async(
+                        soupMsg,
+                        null,
+                        null,
+                        GLib2.PRIORITY_DEFAULT,
+                        null,
+                        (_self: unknown, asyncRes: never) => {
+                            try {
+                                const conn = session.websocket_connect_finish(asyncRes as never);
+                                conn.connect('message', (_c: never, type: number, bytes: never) => {
+                                    const data = (bytes as { get_data(): Uint8Array | null }).get_data();
+                                    if (type === Soup3.WebsocketDataType.TEXT && data) {
+                                        received = new TextDecoder().decode(data);
+                                        clearTimeout(timer);
+                                        conn.close(1_000, null);
+                                        wss.close();
+                                        resolve();
+                                    }
+                                });
+                                // raw client sends 'rawping' — server echoes
+                                conn.send_message(
+                                    Soup3.WebsocketDataType.TEXT,
+                                    new GLib2.Bytes(new TextEncoder().encode('rawping')),
+                                );
+                            } catch (err) {
+                                clearTimeout(timer);
+                                reject(err instanceof Error ? err : new Error(String(err)));
+                            }
+                        },
+                    );
+                });
+                expect(received).toBe('rawping');
+            });
 
             await it('server sends 12 small + 1 large TEXT frame interleaved over multiple ticks — client receives ALL 13', async () => {
                 // Closest match to the actual map-editor sequence:

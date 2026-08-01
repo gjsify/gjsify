@@ -39,77 +39,80 @@ const Gio = requireGi('Gio', '2.0');
 let Gtk = null;
 let gtkLoadError = null;
 try {
-  Gtk = requireGi('Gtk', '4.0');
+    Gtk = requireGi('Gtk', '4.0');
 } catch (err) {
-  gtkLoadError = err;
+    gtkLoadError = err;
 }
 let Adw = null;
 try {
-  Adw = requireGi('Adw', '1');
+    Adw = requireGi('Adw', '1');
 } catch {
-  // Adwaita is optional — the ComboRow repro self-skips without it.
+    // Adwaita is optional — the ComboRow repro self-skips without it.
 }
 const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 const gtkSkip = gtkLoadError ? `Gtk-4.0 typelib unavailable: ${gtkLoadError.message}` : false;
-const widgetSkip = gtkSkip || (!Adw ? 'Adwaita-1 typelib unavailable' : false) ||
-  (!haveDisplay ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)' : false);
+const widgetSkip =
+    gtkSkip ||
+    (!Adw ? 'Adwaita-1 typelib unavailable' : false) ||
+    (!haveDisplay ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)' : false);
 
 // A fresh Gio.ListStore (a plain GObject implementing GListModel) to feed into a
 // GListModel-typed property.
 function makeListStore(n) {
-  const store = Gio.ListStore.new(Gio.SimpleAction.$gtype);
-  for (let i = 0; i < n; i++) store.append(new Gio.SimpleAction({ name: `a${i}` }));
-  return store;
+    const store = Gio.ListStore.new(Gio.SimpleAction.$gtype);
+    for (let i = 0; i < n; i++) store.append(new Gio.SimpleAction({ name: `a${i}` }));
+    return store;
 }
 
-test('interface prop: a GListModel impl round-trips at construction (Gtk.SingleSelection:model)', { skip: gtkSkip }, () => {
-  const store = makeListStore(3);
-  const sel = new Gtk.SingleSelection({ model: store });
-  assert.equal(sel.get_n_items(), 3, 'the GListModel was marshalled into the interface-typed property');
-});
+test(
+    'interface prop: a GListModel impl round-trips at construction (Gtk.SingleSelection:model)',
+    { skip: gtkSkip },
+    () => {
+        const store = makeListStore(3);
+        const sel = new Gtk.SingleSelection({ model: store });
+        assert.equal(sel.get_n_items(), 3, 'the GListModel was marshalled into the interface-typed property');
+    },
+);
 
 test('interface prop: reads back the identical wrapper', { skip: gtkSkip }, () => {
-  const store = makeListStore(2);
-  const sel = new Gtk.SingleSelection({ model: store });
-  const back = sel.model;
-  assert.equal(back === store, true, 'the interface-typed property reads back the identical wrapper');
-  assert.equal(back.get_n_items(), 2, 'the round-tripped GListModel is the real instance');
+    const store = makeListStore(2);
+    const sel = new Gtk.SingleSelection({ model: store });
+    const back = sel.model;
+    assert.equal(back === store, true, 'the interface-typed property reads back the identical wrapper');
+    assert.equal(back.get_n_items(), 2, 'the round-tripped GListModel is the real instance');
 });
 
 test('interface prop: assignment replaces the model and reads back', { skip: gtkSkip }, () => {
-  const sel = new Gtk.SingleSelection({ model: makeListStore(1) });
-  const other = makeListStore(4);
-  sel.model = other;
-  assert.equal(sel.model === other, true);
-  assert.equal(sel.model.get_n_items(), 4);
+    const sel = new Gtk.SingleSelection({ model: makeListStore(1) });
+    const other = makeListStore(4);
+    sel.model = other;
+    assert.equal(sel.model === other, true);
+    assert.equal(sel.model.get_n_items(), 4);
 });
 
 test('interface prop: null clears it (model reads back as null)', { skip: gtkSkip }, () => {
-  const sel = new Gtk.SingleSelection({ model: makeListStore(1) });
-  sel.model = null;
-  assert.equal(sel.model, null, 'null cleared the interface-typed property');
+    const sel = new Gtk.SingleSelection({ model: makeListStore(1) });
+    sel.model = null;
+    assert.equal(sel.model, null, 'null cleared the interface-typed property');
 });
 
 test('interface prop: a non-implementing GObject throws a clean TypeError', { skip: gtkSkip }, () => {
-  // Gio.SimpleAction is a GObject that does NOT implement GListModel.
-  assert.throws(
-    () => new Gtk.SingleSelection({ model: new Gio.SimpleAction({ name: 'x' }) }),
-    /expected an object implementing GListModel, got GSimpleAction/,
-  );
+    // Gio.SimpleAction is a GObject that does NOT implement GListModel.
+    assert.throws(
+        () => new Gtk.SingleSelection({ model: new Gio.SimpleAction({ name: 'x' }) }),
+        /expected an object implementing GListModel, got GSimpleAction/,
+    );
 });
 
 test('interface prop: a non-GObject value throws a clean TypeError', { skip: gtkSkip }, () => {
-  assert.throws(
-    () => new Gtk.SingleSelection({ model: 'not-a-gobject' }),
-    /expected a node-gi GObject handle/,
-  );
+    assert.throws(() => new Gtk.SingleSelection({ model: 'not-a-gobject' }), /expected a node-gi GObject handle/);
 });
 
 // The exact storybook repro: Adw.ComboRow:model is a GListModel-typed construct
 // property. This is a widget, so it needs a display (gtk_init).
 test('interface prop: the storybook repro — Adw.ComboRow({ model: Gtk.StringList })', { skip: widgetSkip }, () => {
-  if (typeof Gtk.init === 'function') Gtk.init();
-  const list = new Gtk.StringList({ strings: ['alpha', 'beta', 'gamma'] });
-  const combo = new Adw.ComboRow({ model: list });
-  assert.equal(combo.model.get_n_items(), 3, 'Adw.ComboRow accepted the GListModel-typed model and reads it back');
+    if (typeof Gtk.init === 'function') Gtk.init();
+    const list = new Gtk.StringList({ strings: ['alpha', 'beta', 'gamma'] });
+    const combo = new Adw.ComboRow({ model: list });
+    assert.equal(combo.model.get_n_items(), 3, 'Adw.ComboRow accepted the GListModel-typed model and reads it back');
 });

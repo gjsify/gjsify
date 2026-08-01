@@ -25,12 +25,7 @@
 // on for graceful fallback regardless of bridge availability.
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import {
-    TLSSocket,
-    hasTlsSessionAccess,
-    TlsChannelBindingType,
-    connect,
-} from '@gjsify/tls';
+import { TLSSocket, hasTlsSessionAccess, TlsChannelBindingType, connect } from '@gjsify/tls';
 import type { TlsConnectOptions } from '@gjsify/tls';
 import { Buffer } from 'node:buffer';
 

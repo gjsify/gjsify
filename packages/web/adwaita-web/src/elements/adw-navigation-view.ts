@@ -223,7 +223,9 @@ export class AdwNavigationView extends HTMLElement {
         this._render();
         this.dispatchEvent(new CustomEvent('popped', { bubbles: true, detail: { tag: popped.tag } }));
         const next = this.visiblePage;
-        this.dispatchEvent(new CustomEvent('notify::visible-page', { bubbles: true, detail: { tag: next?.tag ?? null } }));
+        this.dispatchEvent(
+            new CustomEvent('notify::visible-page', { bubbles: true, detail: { tag: next?.tag ?? null } }),
+        );
         return true;
     }
 

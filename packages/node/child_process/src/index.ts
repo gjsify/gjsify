@@ -185,11 +185,7 @@ interface ExecError extends Error {
  * comparison correctly) and the message text (fallback for environments
  * where the JS error object only carries `.message` after marshalling).
  */
-function _gioErrorToNodeError(
-    err: unknown,
-    file: string,
-    args: string[],
-): ExecError {
+function _gioErrorToNodeError(err: unknown, file: string, args: string[]): ExecError {
     // CRITICAL: do NOT wrap the GLib error in `new Error(String(err))` —
     // GJS's `GLib.SpawnError` is NOT `instanceof Error` (it derives from
     // an internal `GLib_Error` shim) yet IT carries the `.matches()` GError
@@ -457,9 +453,7 @@ function _normalizeCwd(cwd: unknown): string | undefined {
     ) {
         const url = cwd as URL;
         if (url.protocol !== 'file:') {
-            throw new TypeError(
-                `The URL must be of scheme file:; received '${url.protocol}' for 'options.cwd'`,
-            );
+            throw new TypeError(`The URL must be of scheme file:; received '${url.protocol}' for 'options.cwd'`);
         }
         return fileURLToPath(url);
     }
@@ -533,11 +527,7 @@ interface _SpawnResult {
     pid: number;
 }
 
-function _spawnSubprocess(
-    argv: string[],
-    flags: Gio.SubprocessFlags,
-    options?: _SpawnLowOptions,
-): _SpawnResult {
+function _spawnSubprocess(argv: string[], flags: Gio.SubprocessFlags, options?: _SpawnLowOptions): _SpawnResult {
     const launcher = new Gio.SubprocessLauncher({ flags });
     const cwd = _normalizeCwd(options?.cwd);
     // Distinguish "no cwd supplied" (undefined → don't call set_cwd) from
@@ -734,12 +724,11 @@ export function execSync(command: string, options?: ExecSyncOptions): Buffer | s
         : null;
 
     const timeoutMs = options?.timeout && options.timeout > 0 ? options.timeout : 0;
-    const { stdout: stdoutBytes, stderr: stderrBytes, timedOut } = _communicateSync(
-        proc,
-        stdinBytes,
-        timeoutMs,
-        options?.killSignal,
-    );
+    const {
+        stdout: stdoutBytes,
+        stderr: stderrBytes,
+        timedOut,
+    } = _communicateSync(proc, stdinBytes, timeoutMs, options?.killSignal);
     if (timedOut) {
         throw _syncTimeoutError(command, stdoutBytes, stderrBytes, encoding, options?.killSignal);
     }
@@ -1018,12 +1007,7 @@ function _execImpl(
                     maxBufErr = new RangeError('stdout maxBuffer length exceeded') as ExecError;
                     maxBufErr.code = 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
                 }
-                if (
-                    !maxBufErr &&
-                    ctx.maxBuffer !== Infinity &&
-                    stderrData &&
-                    stderrData.length > ctx.maxBuffer
-                ) {
+                if (!maxBufErr && ctx.maxBuffer !== Infinity && stderrData && stderrData.length > ctx.maxBuffer) {
                     didKillForMaxBuffer = true;
                     stderrData = stderrData.subarray(0, ctx.maxBuffer);
                     maxBufErr = new RangeError('stderr maxBuffer length exceeded') as ExecError;
@@ -1034,7 +1018,11 @@ function _execImpl(
                 const stderr = _decodeExecOutput(stderrData, ctx.encoding);
                 const exitedNormally = proc.get_if_exited();
                 const exitStatus = exitedNormally ? proc.get_exit_status() : null;
-                const signal = proc.get_if_signaled() ? (typeof ctx.killSignal === 'string' ? ctx.killSignal : 'SIGTERM') : null;
+                const signal = proc.get_if_signaled()
+                    ? typeof ctx.killSignal === 'string'
+                        ? ctx.killSignal
+                        : 'SIGTERM'
+                    : null;
                 child.exitCode = exitStatus;
                 child.signalCode = signal;
 
@@ -1129,9 +1117,7 @@ export function execFile(
 ): ChildProcess {
     let _args: string[] = [];
     let _opts: ExecOptions = {};
-    let _callback:
-        | ((error: ExecError | null, stdout: string | Buffer, stderr: string | Buffer) => void)
-        | undefined;
+    let _callback: ((error: ExecError | null, stdout: string | Buffer, stderr: string | Buffer) => void) | undefined;
 
     if (typeof args === 'function') {
         _callback = args;
@@ -1209,12 +1195,11 @@ export function execFileSync(
         : null;
 
     const timeoutMs = _options?.timeout && _options.timeout > 0 ? _options.timeout : 0;
-    const { stdout: stdoutBytes, stderr: stderrBytes, timedOut } = _communicateSync(
-        proc,
-        stdinBytes,
-        timeoutMs,
-        _options?.killSignal,
-    );
+    const {
+        stdout: stdoutBytes,
+        stderr: stderrBytes,
+        timedOut,
+    } = _communicateSync(proc, stdinBytes, timeoutMs, _options?.killSignal);
     if (timedOut) {
         throw _syncTimeoutError(
             `${file} ${_args.join(' ')}`.trim(),
@@ -1275,9 +1260,7 @@ export function spawn(
         // Node's `normalizeSpawnArguments` throws ERR_INVALID_ARG_TYPE when
         // the second positional is neither an array nor an object. Match.
         if (typeof argsOrOptions !== 'object') {
-            throw new TypeError(
-                `The "args" argument must be of type object. Received type ${typeof argsOrOptions}`,
-            );
+            throw new TypeError(`The "args" argument must be of type object. Received type ${typeof argsOrOptions}`);
         }
         args = undefined;
         options = argsOrOptions;
@@ -1287,9 +1270,7 @@ export function spawn(
     }
     // `options` must be an object when present — Node throws on string/number.
     if (options !== undefined && options !== null && typeof options !== 'object') {
-        throw new TypeError(
-            `The "options" argument must be of type object. Received type ${typeof options}`,
-        );
+        throw new TypeError(`The "options" argument must be of type object. Received type ${typeof options}`);
     }
     // argv0 type validation — synchronous throw (matches Node).
     if (options?.argv0 !== undefined && options.argv0 !== null && typeof options.argv0 !== 'string') {
@@ -1464,7 +1445,7 @@ export function spawn(
         // `err.code === 'ENOENT'` / `err.errno === -2` etc. The spawn-side
         // error MUST identify the real binary (`argv[0]` for non-shell,
         // `command` for shell), not the wrapping `/bin/sh`.
-        const spawnFile = useShell ? command : argv[0] ?? '';
+        const spawnFile = useShell ? command : (argv[0] ?? '');
         const spawnArgs = useShell ? _args : argv.slice(1);
         deferEmit(child, 'error', _gioErrorToNodeError(err, spawnFile, spawnArgs));
     }
@@ -1490,9 +1471,7 @@ export function spawnSync(
         options = maybeOptions;
     } else if (argsOrOptions !== undefined && argsOrOptions !== null) {
         if (typeof argsOrOptions !== 'object') {
-            throw new TypeError(
-                `The "args" argument must be of type object. Received type ${typeof argsOrOptions}`,
-            );
+            throw new TypeError(`The "args" argument must be of type object. Received type ${typeof argsOrOptions}`);
         }
         args = undefined;
         options = argsOrOptions;
@@ -1501,9 +1480,7 @@ export function spawnSync(
         options = argsOrOptions;
     }
     if (options !== undefined && options !== null && typeof options !== 'object') {
-        throw new TypeError(
-            `The "options" argument must be of type object. Received type ${typeof options}`,
-        );
+        throw new TypeError(`The "options" argument must be of type object. Received type ${typeof options}`);
     }
     // argv0 type-validation happens here (NOT inside `_spawnSubprocess`)
     // because `spawnSync` wraps the spawn call in a try/catch that turns
@@ -1580,7 +1557,7 @@ export function spawnSync(
         // Surface spawn-time failure (most commonly ENOENT for a missing
         // binary) as Node does — a SpawnSyncResult with `error` set, never
         // throw. Map the GIO error to the Node ErrnoException shape.
-        const spawnFile = useShell ? command : argv[0] ?? '';
+        const spawnFile = useShell ? command : (argv[0] ?? '');
         const spawnArgs = useShell ? _args : argv.slice(1);
         return {
             pid: 0,

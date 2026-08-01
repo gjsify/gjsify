@@ -244,7 +244,9 @@ export function activateBundledGtkRuntime(native) {
     } else {
         const existing = process.env.DYLD_FALLBACK_LIBRARY_PATH;
         if (!existing || !existing.split(':').includes(bundle.libDir)) {
-            process.env.DYLD_FALLBACK_LIBRARY_PATH = existing ? `${bundle.libDir}:${existing}` : `${bundle.libDir}:/usr/lib`;
+            process.env.DYLD_FALLBACK_LIBRARY_PATH = existing
+                ? `${bundle.libDir}:${existing}`
+                : `${bundle.libDir}:/usr/lib`;
         }
     }
 

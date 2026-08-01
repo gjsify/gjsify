@@ -16,16 +16,17 @@ type ErrCb<T = void> = (err: NodeJS.ErrnoException | null, value?: T) => void;
 
 function defer<T>(impl: () => T, cb?: ErrCb<T>): void {
     queueMicrotask(() => {
-        try { cb?.(null, impl()); }
-        catch (e) { cb?.(e as NodeJS.ErrnoException); }
+        try {
+            cb?.(null, impl());
+        } catch (e) {
+            cb?.(e as NodeJS.ErrnoException);
+        }
     });
 }
 
 /** Resolve a `(...args, cb)` Node-shape signature where the callback can also
  *  appear at the position of an optional preceding argument. */
-function pickCb<T extends (...a: unknown[]) => unknown>(
-    ...candidates: Array<T | unknown>
-): T | undefined {
+function pickCb<T extends (...a: unknown[]) => unknown>(...candidates: Array<T | unknown>): T | undefined {
     for (const c of candidates) if (typeof c === 'function') return c as T;
     return undefined;
 }
@@ -75,11 +76,7 @@ export function lstat(path: Parameters<typeof sync.lstatSync>[0], cb?: ErrCb<Sta
 export function exists(path: Parameters<typeof sync.existsSync>[0], cb?: (exists: boolean) => void): void {
     queueMicrotask(() => cb?.(sync.existsSync(path)));
 }
-export function access(
-    path: Parameters<typeof sync.accessSync>[0],
-    modeOrCb?: number | ErrCb,
-    maybeCb?: ErrCb,
-): void {
+export function access(path: Parameters<typeof sync.accessSync>[0], modeOrCb?: number | ErrCb, maybeCb?: ErrCb): void {
     const cb = pickCb(modeOrCb, maybeCb) as ErrCb | undefined;
     const mode = typeof modeOrCb === 'number' ? modeOrCb : 0;
     defer(() => sync.accessSync(path, mode), cb);
@@ -239,7 +236,9 @@ export function read(
         try {
             const n = sync.readSync(fd, buf, offset, length, position);
             cb?.(null, n, buf);
-        } catch (e) { cb?.(e as NodeJS.ErrnoException, 0, buf); }
+        } catch (e) {
+            cb?.(e as NodeJS.ErrnoException, 0, buf);
+        }
     });
 }
 
@@ -260,6 +259,8 @@ export function write(
         try {
             const n = sync.writeSync(fd, buf, offset, length, position);
             cb?.(null, n);
-        } catch (e) { cb?.(e as NodeJS.ErrnoException, 0); }
+        } catch (e) {
+            cb?.(e as NodeJS.ErrnoException, 0);
+        }
     });
 }

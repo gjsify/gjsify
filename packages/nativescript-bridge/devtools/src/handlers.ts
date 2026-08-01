@@ -194,7 +194,8 @@ export function createNativescriptRegistry(ctx: NsDevtoolsContext): MethodRegist
         name: 'ActivateAction',
         kind: kind('ActivateAction'),
         handler: (params) => {
-            const path = typeof params.path === 'string' ? params.path : (typeof params.name === 'string' ? params.name : '');
+            const path =
+                typeof params.path === 'string' ? params.path : typeof params.name === 'string' ? params.name : '';
             const resolved = resolveRoot(ctx, path);
             const view = resolved.view as NsView & { notify?: (e: { eventName: string; object: NsView }) => void };
             if (typeof view.notify !== 'function') {

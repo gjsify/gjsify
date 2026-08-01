@@ -18,16 +18,33 @@ import GObject from 'gi://GObject?version=2.0';
 
 // The fundamental set (task list + the standard GLib fundamentals). Order fixed.
 const NAMES = [
-  'TYPE_NONE', 'TYPE_INTERFACE', 'TYPE_CHAR', 'TYPE_UCHAR', 'TYPE_BOOLEAN',
-  'TYPE_INT', 'TYPE_UINT', 'TYPE_LONG', 'TYPE_ULONG', 'TYPE_INT64', 'TYPE_UINT64',
-  'TYPE_ENUM', 'TYPE_FLAGS', 'TYPE_FLOAT', 'TYPE_DOUBLE', 'TYPE_STRING',
-  'TYPE_POINTER', 'TYPE_BOXED', 'TYPE_PARAM', 'TYPE_OBJECT', 'TYPE_VARIANT',
-  'TYPE_GTYPE',
+    'TYPE_NONE',
+    'TYPE_INTERFACE',
+    'TYPE_CHAR',
+    'TYPE_UCHAR',
+    'TYPE_BOOLEAN',
+    'TYPE_INT',
+    'TYPE_UINT',
+    'TYPE_LONG',
+    'TYPE_ULONG',
+    'TYPE_INT64',
+    'TYPE_UINT64',
+    'TYPE_ENUM',
+    'TYPE_FLAGS',
+    'TYPE_FLOAT',
+    'TYPE_DOUBLE',
+    'TYPE_STRING',
+    'TYPE_POINTER',
+    'TYPE_BOXED',
+    'TYPE_PARAM',
+    'TYPE_OBJECT',
+    'TYPE_VARIANT',
+    'TYPE_GTYPE',
 ];
 
 for (const name of NAMES) {
-  const gt = GObject[name];
-  print(`${name}: ${GObject.type_name(gt)} typeof=${typeof gt} defined=${gt !== undefined}`);
+    const gt = GObject[name];
+    print(`${name}: ${GObject.type_name(gt)} typeof=${typeof gt} defined=${gt !== undefined}`);
 }
 
 // A GType is never a number (the whole point — matches GJS's opaque GType object).

@@ -18,43 +18,43 @@ const DEFAULT_IDLE_PRIORITY = 200; // GLib.PRIORITY_DEFAULT_IDLE
  * @returns {{ run(name?: string): void, quit(name?: string): void, idle_add: Function, timeout_add: Function, timeout_add_seconds: Function, source_remove: Function }}
  */
 export function createMainloop(GLib) {
-  const _mainLoops = Object.create(null);
+    const _mainLoops = Object.create(null);
 
-  function run(name = '') {
-    if (!_mainLoops[name]) _mainLoops[name] = GLib.MainLoop.new(null, false);
-    _mainLoops[name].run();
-  }
+    function run(name = '') {
+        if (!_mainLoops[name]) _mainLoops[name] = GLib.MainLoop.new(null, false);
+        _mainLoops[name].run();
+    }
 
-  function quit(name = '') {
-    if (!_mainLoops[name]) throw new Error('No main loop with this id');
+    function quit(name = '') {
+        if (!_mainLoops[name]) throw new Error('No main loop with this id');
 
-    const loop = _mainLoops[name];
-    _mainLoops[name] = null;
+        const loop = _mainLoops[name];
+        _mainLoops[name] = null;
 
-    if (!loop.is_running()) throw new Error('Main loop was stopped already');
+        if (!loop.is_running()) throw new Error('Main loop was stopped already');
 
-    loop.quit();
-  }
+        loop.quit();
+    }
 
-  // GJS signature is `idle_add(handler, priority)` — handler first — whereas the
-  // introspected GLib.idle_add is `(priority, handler)`; bridge the argument order.
-  function idle_add(handler, priority = DEFAULT_IDLE_PRIORITY) {
-    return GLib.idle_add(priority, handler);
-  }
+    // GJS signature is `idle_add(handler, priority)` — handler first — whereas the
+    // introspected GLib.idle_add is `(priority, handler)`; bridge the argument order.
+    function idle_add(handler, priority = DEFAULT_IDLE_PRIORITY) {
+        return GLib.idle_add(priority, handler);
+    }
 
-  function timeout_add(timeout, handler, priority = GLib.PRIORITY_DEFAULT) {
-    return GLib.timeout_add(priority, timeout, handler);
-  }
+    function timeout_add(timeout, handler, priority = GLib.PRIORITY_DEFAULT) {
+        return GLib.timeout_add(priority, timeout, handler);
+    }
 
-  function timeout_add_seconds(timeout, handler, priority = GLib.PRIORITY_DEFAULT) {
-    return GLib.timeout_add_seconds(priority, timeout, handler);
-  }
+    function timeout_add_seconds(timeout, handler, priority = GLib.PRIORITY_DEFAULT) {
+        return GLib.timeout_add_seconds(priority, timeout, handler);
+    }
 
-  function source_remove(id) {
-    return GLib.source_remove(id);
-  }
+    function source_remove(id) {
+        return GLib.source_remove(id);
+    }
 
-  return { run, quit, idle_add, timeout_add, timeout_add_seconds, source_remove };
+    return { run, quit, idle_add, timeout_add, timeout_add_seconds, source_remove };
 }
 
 export default createMainloop;

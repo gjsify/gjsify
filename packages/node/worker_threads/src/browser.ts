@@ -193,7 +193,8 @@ function makeParentPort(): NodeParentPort {
         },
         on(event, listener) {
             const type = event === 'close' ? 'close' : event === 'messageerror' ? 'messageerror' : 'message';
-            const wrapped = type === 'message' ? makeForwarder(listener) : (e: unknown) => listener((e as { data?: unknown }).data);
+            const wrapped =
+                type === 'message' ? makeForwarder(listener) : (e: unknown) => listener((e as { data?: unknown }).data);
             (listener as Listener & { __wrapped?: (e: unknown) => void }).__wrapped = wrapped;
             w.addEventListener(type, wrapped);
             return this;
@@ -206,7 +207,8 @@ function makeParentPort(): NodeParentPort {
         },
         once(event, listener) {
             const type = event === 'close' ? 'close' : event === 'messageerror' ? 'messageerror' : 'message';
-            const forward = type === 'message' ? makeForwarder(listener) : (e: unknown) => listener((e as { data?: unknown }).data);
+            const forward =
+                type === 'message' ? makeForwarder(listener) : (e: unknown) => listener((e as { data?: unknown }).data);
             const wrapped = (e: unknown) => {
                 if (type === 'message' && isWorkerDataEnvelope((e as { data?: unknown }).data)) return;
                 w.removeEventListener(type, wrapped);

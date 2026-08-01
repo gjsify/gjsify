@@ -223,11 +223,9 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
     });
 
     it('foreach --include failure names ALL bad patterns, even beside good ones', async () => {
-        const r = await runCli(
-            cliEntry,
-            ['foreach', 'mark', '--include', '@test/utils', '--include', '@test/ghost'],
-            { cwd: root },
-        );
+        const r = await runCli(cliEntry, ['foreach', 'mark', '--include', '@test/utils', '--include', '@test/ghost'], {
+            cwd: root,
+        });
         assert.notEqual(r.status, 0, 'one bad pattern must fail the whole run');
         assert.match(r.stdout + r.stderr, /@test\/ghost/);
     });
@@ -244,11 +242,9 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         // The include matched; --exclude then removed everything. Legitimate —
         // this is the case the fatal rule must NOT swallow, or every small
         // sharded CI job would go red.
-        const r = await runCli(
-            cliEntry,
-            ['foreach', 'mark', '--include', '@test/utils', '--exclude', '@test/utils'],
-            { cwd: root },
-        );
+        const r = await runCli(cliEntry, ['foreach', 'mark', '--include', '@test/utils', '--exclude', '@test/utils'], {
+            cwd: root,
+        });
         assert.equal(r.status, 0, `narrowing to empty must stay a clean no-op: ${r.stderr}`);
         assert.match(r.stdout + r.stderr, /no workspaces match/i);
     });

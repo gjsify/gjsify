@@ -18,12 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 /** Absolute path to the bundled `tsc` GJS module, relative to this file. */
-export const TSC_BUNDLE_PATH: string = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    '..',
-    'dist',
-    'tsc.gjs.mjs',
-);
+export const TSC_BUNDLE_PATH: string = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'tsc.gjs.mjs');
 
 /** Pinned upstream TypeScript version the shipped bundle was built from.
  *

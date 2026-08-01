@@ -17,9 +17,9 @@ export function pgettext(context: string, msgid: string): string;
 export function dpgettext(domain: string | null, context: string, msgid: string): string;
 /** Domain-bound gettext bindings. */
 export function domain(domainName: string): {
-  gettext(msgid: string): string;
-  ngettext(msgid1: string, msgid2: string, n: number): string;
-  pgettext(context: string, msgid: string): string;
+    gettext(msgid: string): string;
+    ngettext(msgid1: string, msgid2: string, n: number): string;
+    pgettext(context: string, msgid: string): string;
 };
 /** Set the locale for `category` (no-op on Node). */
 export function setlocale(category: number, locale: string | null): null;
@@ -31,34 +31,34 @@ export function bindtextdomain(domainName: string, dirName: string | null): null
 export function bindtextdomainCodeset(domainName: string, codeset: string | null): null;
 /** The standard POSIX locale category constants. */
 export const LocaleCategory: {
-  CTYPE: number;
-  NUMERIC: number;
-  TIME: number;
-  COLLATE: number;
-  MONETARY: number;
-  MESSAGES: number;
-  ALL: number;
+    CTYPE: number;
+    NUMERIC: number;
+    TIME: number;
+    COLLATE: number;
+    MONETARY: number;
+    MESSAGES: number;
+    ALL: number;
 };
 
 /** The GJS `Gettext` module object (`import Gettext from 'gettext'`). */
 export interface GettextModule {
-  gettext(msgid: string): string;
-  dgettext(domain: string | null, msgid: string): string;
-  dcgettext(domain: string | null, msgid: string, category: number): string;
-  ngettext(msgid1: string, msgid2: string, n: number): string;
-  dngettext(domain: string | null, msgid1: string, msgid2: string, n: number): string;
-  pgettext(context: string, msgid: string): string;
-  dpgettext(domain: string | null, context: string, msgid: string): string;
-  domain(domainName: string): {
     gettext(msgid: string): string;
+    dgettext(domain: string | null, msgid: string): string;
+    dcgettext(domain: string | null, msgid: string, category: number): string;
     ngettext(msgid1: string, msgid2: string, n: number): string;
+    dngettext(domain: string | null, msgid1: string, msgid2: string, n: number): string;
     pgettext(context: string, msgid: string): string;
-  };
-  setlocale(category: number, locale: string | null): null;
-  textdomain(domainName: string | null): null;
-  bindtextdomain(domainName: string, dirName: string | null): null;
-  bindtextdomainCodeset(domainName: string, codeset: string | null): null;
-  LocaleCategory: typeof LocaleCategory;
+    dpgettext(domain: string | null, context: string, msgid: string): string;
+    domain(domainName: string): {
+        gettext(msgid: string): string;
+        ngettext(msgid1: string, msgid2: string, n: number): string;
+        pgettext(context: string, msgid: string): string;
+    };
+    setlocale(category: number, locale: string | null): null;
+    textdomain(domainName: string | null): null;
+    bindtextdomain(domainName: string, dirName: string | null): null;
+    bindtextdomainCodeset(domainName: string, codeset: string | null): null;
+    LocaleCategory: typeof LocaleCategory;
 }
 
 declare const Gettext: GettextModule;

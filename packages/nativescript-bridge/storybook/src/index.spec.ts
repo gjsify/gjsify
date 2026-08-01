@@ -43,7 +43,15 @@ export default async () => {
                         ],
                         defaultValue: 'folder',
                     },
-                    { type: ControlType.NUMBER, name: 'count', label: 'Count', min: 0, max: 10, step: 1, defaultValue: 3 },
+                    {
+                        type: ControlType.NUMBER,
+                        name: 'count',
+                        label: 'Count',
+                        min: 0,
+                        max: 10,
+                        step: 1,
+                        defaultValue: 3,
+                    },
                 ]),
             ).toStrictEqual({
                 title: 'Hello',

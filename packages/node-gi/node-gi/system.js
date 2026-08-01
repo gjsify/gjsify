@@ -35,14 +35,14 @@
 // module is loaded from `@gjsify/node-gi/globals`, before any bundle body (and
 // therefore before any register side effect) runs.
 const runtimeProcess = (() => {
-  const hostProcess = typeof process !== 'undefined' ? process : undefined;
-  try {
-    const builtin = hostProcess?.getBuiltinModule?.('node:process');
-    if (builtin && typeof builtin.exit === 'function') return builtin;
-  } catch {
-    // getBuiltinModule missing or refusing the specifier — use the captured one.
-  }
-  return hostProcess;
+    const hostProcess = typeof process !== 'undefined' ? process : undefined;
+    try {
+        const builtin = hostProcess?.getBuiltinModule?.('node:process');
+        if (builtin && typeof builtin.exit === 'function') return builtin;
+    } catch {
+        // getBuiltinModule missing or refusing the specifier — use the captured one.
+    }
+    return hostProcess;
 })();
 
 const runtimeExit = typeof runtimeProcess?.exit === 'function' ? runtimeProcess.exit.bind(runtimeProcess) : undefined;
@@ -50,17 +50,17 @@ const runtimeExit = typeof runtimeProcess?.exit === 'function' ? runtimeProcess.
 // `programArgs` mirrors GJS's ARGV: the script arguments, excluding the
 // interpreter (argv[0]) and the script path (argv[1]).
 function readProgramArgs() {
-  return Array.isArray(runtimeProcess?.argv) ? runtimeProcess.argv.slice(2) : [];
+    return Array.isArray(runtimeProcess?.argv) ? runtimeProcess.argv.slice(2) : [];
 }
 
 // `programInvocationName` / `programPath` track the running script — Node's
 // `process.argv[1]`.
 function readProgramInvocationName() {
-  return runtimeProcess?.argv?.[1] || '';
+    return runtimeProcess?.argv?.[1] || '';
 }
 
 function readProgramPath() {
-  return runtimeProcess?.argv?.[1] || null;
+    return runtimeProcess?.argv?.[1] || null;
 }
 
 /**
@@ -74,12 +74,12 @@ function readProgramPath() {
  * `conformance/programs/system-exit-lifetime.conf.mjs`).
  */
 export function exit(code) {
-  if (runtimeExit !== undefined) runtimeExit(code ?? 0);
+    if (runtimeExit !== undefined) runtimeExit(code ?? 0);
 }
 
 /** Trigger a garbage collection if the host exposed `globalThis.gc` (`--expose-gc`). */
 export function gc() {
-  if (typeof globalThis.gc === 'function') globalThis.gc();
+    if (typeof globalThis.gc === 'function') globalThis.gc();
 }
 
 /** The SpiderMonkey/mozjs version number — no equivalent on Node, reported as 0. */
@@ -96,17 +96,17 @@ export const programPath = readProgramPath();
 
 /** Return the address of a JS object as a string. No Node equivalent — stub. */
 export function addressOf() {
-  return '0x0';
+    return '0x0';
 }
 
 /** Return the address of a GObject as a string. No Node equivalent — stub. */
 export function addressOfGObject() {
-  return '0x0';
+    return '0x0';
 }
 
 /** Return the refcount of a GObject. No Node equivalent — stub. */
 export function refcount() {
-  return 0;
+    return 0;
 }
 
 /** Trigger a debugger breakpoint. No-op on Node. */
@@ -128,25 +128,25 @@ export function dumpMemoryInfo() {}
  * track the running script.
  */
 const System = {
-  exit,
-  gc,
-  version,
-  addressOf,
-  addressOfGObject,
-  refcount,
-  breakpoint,
-  clearDateCaches,
-  dumpHeap,
-  dumpMemoryInfo,
-  get programArgs() {
-    return readProgramArgs();
-  },
-  get programInvocationName() {
-    return readProgramInvocationName();
-  },
-  get programPath() {
-    return readProgramPath();
-  },
+    exit,
+    gc,
+    version,
+    addressOf,
+    addressOfGObject,
+    refcount,
+    breakpoint,
+    clearDateCaches,
+    dumpHeap,
+    dumpMemoryInfo,
+    get programArgs() {
+        return readProgramArgs();
+    },
+    get programInvocationName() {
+        return readProgramInvocationName();
+    },
+    get programPath() {
+        return readProgramPath();
+    },
 };
 
 export default System;

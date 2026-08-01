@@ -44,7 +44,9 @@ function gc() {
 function pump() {
     // Drain pending idle sources (the §5c finalizer drain).
     const ctx = GLib.MainContext.default();
-    while (ctx.iteration(false)) { /* drain */ }
+    while (ctx.iteration(false)) {
+        /* drain */
+    }
 }
 
 const t = loadAddon('test/lifetime-addon/build/Release/lifetime.node');
@@ -120,9 +122,9 @@ check('unwrap', t.unwrapId(wrapped), 11);
 // Double wrap = napi_invalid_arg(1).
 check('double wrap -> invalid_arg', t.wrapStatus(wrapped, 12), 1);
 wrapped = null;
-gc();     // death detected at sweep → finalizer QUEUED, not run
+gc(); // death detected at sweep → finalizer QUEUED, not run
 checkArr('finalizer queued not run during GC', t.finalizeLog(), []);
-pump();   // idle drain runs it
+pump(); // idle drain runs it
 checkArr('wrap finalizer ran once after pump', t.finalizeLog(), [11]);
 gc();
 pump();
@@ -186,7 +188,7 @@ checkArr('foreign wrap finalized once', t.finalizeLog(), [41]);
 t.resetLog();
 t.setInstanceData(51);
 check('instance data get', t.getInstanceData(), 51);
-t.setInstanceData(52);  // old holder deleted WITHOUT finalizing
+t.setInstanceData(52); // old holder deleted WITHOUT finalizing
 check('instance data overwritten', t.getInstanceData(), 52);
 checkArr('overwrite did not finalize old', t.finalizeLog(), []);
 // id 52's finalizer fires at TEARDOWN (asserted post-exit by the runner).

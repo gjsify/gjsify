@@ -13,13 +13,28 @@ export default async function run(h) {
     h.emit('readwrite=1', o.readwriteValue);
     o.readwriteValue = 2;
     h.emit('readwrite=2', o.readwriteValue);
-    h.emit('readonly-write!', h.caughtName(() => { o.readonlyValue = 3; }));
+    h.emit(
+        'readonly-write!',
+        h.caughtName(() => {
+            o.readonlyValue = 3;
+        }),
+    );
     h.emit('hiddenValue.truthy', !!o.hiddenValue);
 
     // napi_enumerable reflected in for-in (incl. a string-name-keyed value).
     const names = [];
     for (const n in o) names.push(n);
-    for (const k of ['echo', 'readwriteValue', 'readonlyValue', 'hiddenValue', 'NameKeyValue', 'readwriteAccessor1', 'readwriteAccessor2', 'readonlyAccessor1', 'readonlyAccessor2'])
+    for (const k of [
+        'echo',
+        'readwriteValue',
+        'readonlyValue',
+        'hiddenValue',
+        'NameKeyValue',
+        'readwriteAccessor1',
+        'readwriteAccessor2',
+        'readonlyAccessor1',
+        'readonlyAccessor2',
+    ])
         h.emit('enum', k, names.includes(k));
 
     // Symbol-keyed properties: plain symbol, descriptionless symbol, and a
@@ -37,10 +52,20 @@ export default async function run(h) {
 
     o.readwriteAccessor1 = 1;
     h.emit('rwAccessor1', o.readwriteAccessor1, o.readonlyAccessor1);
-    h.emit('roAccessor1-write!', h.caughtName(() => { o.readonlyAccessor1 = 3; }));
+    h.emit(
+        'roAccessor1-write!',
+        h.caughtName(() => {
+            o.readonlyAccessor1 = 3;
+        }),
+    );
     o.readwriteAccessor2 = 2;
     h.emit('rwAccessor2', o.readwriteAccessor2, o.readonlyAccessor2);
-    h.emit('roAccessor2-write!', h.caughtName(() => { o.readonlyAccessor2 = 3; }));
+    h.emit(
+        'roAccessor2-write!',
+        h.caughtName(() => {
+            o.readonlyAccessor2 = 3;
+        }),
+    );
 
     // napi_has_named_property.
     h.emit('has.echo', o.hasNamedProperty(o, 'echo'));

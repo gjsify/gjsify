@@ -10,7 +10,9 @@ export default async function run(h) {
     const t = h.loadAddon('test_general');
 
     // napi_strict_equals.
-    const v1 = '1'; const v2 = 1; const v3 = 1;
+    const v1 = '1';
+    const v2 = 1;
+    const v3 = 1;
     h.emit('strictEquals(v1,v1)', t.testStrictEquals(v1, v1));
     h.emit('strictEquals(v1,v2)', t.testStrictEquals(v1, v2));
     h.emit('strictEquals(v2,v3)', t.testStrictEquals(v2, v3));
@@ -25,7 +27,16 @@ export default async function run(h) {
     h.emit('getVersion', t.testGetVersion());
 
     // napi_typeof over the value kinds.
-    for (const [lbl, v] of [['undefined', undefined], ['null', null], ['true', true], ['1', 1], ["'s'", 's'], ['sym', Symbol('s')], ['{}', {}], ['fn', () => {}]])
+    for (const [lbl, v] of [
+        ['undefined', undefined],
+        ['null', null],
+        ['true', true],
+        ['1', 1],
+        ["'s'", 's'],
+        ['sym', Symbol('s')],
+        ['{}', {}],
+        ['fn', () => {}],
+    ])
         h.emit('typeof', lbl, t.testNapiTypeof(v) === typeof v);
 
     // napi_get_undefined / napi_get_null.

@@ -30,172 +30,172 @@ const Gio = requireGi('Gio', '2.0');
 const RW = GObject.ParamFlags.READWRITE;
 
 test('static{} registerClass(meta, X) makes X itself the registered GType', () => {
-  class InPlaceStatic extends GObject.Object {
-    static {
-      // The return is DISCARDED — the GJS static-block idiom. X must still BE the
-      // registered GType.
-      GObject.registerClass(
-        {
-          GTypeName: 'NodeGiInPlaceStatic',
-          Properties: {
-            label: GObject.ParamSpec.string('label', 'Label', 'a label', RW, 'def'),
-          },
-          Signals: { pinged: { param_types: ['int'] } },
-        },
-        InPlaceStatic,
-      );
+    class InPlaceStatic extends GObject.Object {
+        static {
+            // The return is DISCARDED — the GJS static-block idiom. X must still BE the
+            // registered GType.
+            GObject.registerClass(
+                {
+                    GTypeName: 'NodeGiInPlaceStatic',
+                    Properties: {
+                        label: GObject.ParamSpec.string('label', 'Label', 'a label', RW, 'def'),
+                    },
+                    Signals: { pinged: { param_types: ['int'] } },
+                },
+                InPlaceStatic,
+            );
+        }
+        greet() {
+            return 'hi ' + this.label;
+        }
     }
-    greet() {
-      return 'hi ' + this.label;
-    }
-  }
 
-  // X itself carries the registered GType identity (return discarded).
-  assert.equal(InPlaceStatic.$gtypeName, 'NodeGiInPlaceStatic');
-  assert.equal(GObject.type_name(InPlaceStatic.$gtype), 'NodeGiInPlaceStatic');
+    // X itself carries the registered GType identity (return discarded).
+    assert.equal(InPlaceStatic.$gtypeName, 'NodeGiInPlaceStatic');
+    assert.equal(GObject.type_name(InPlaceStatic.$gtype), 'NodeGiInPlaceStatic');
 
-  // `new X(props)` constructs the REGISTERED type (not a plain GObject.Object).
-  const obj = new InPlaceStatic({ label: 'world' });
-  assert.equal(native.getTypeName(unwrap(obj)), 'NodeGiInPlaceStatic');
+    // `new X(props)` constructs the REGISTERED type (not a plain GObject.Object).
+    const obj = new InPlaceStatic({ label: 'world' });
+    assert.equal(native.getTypeName(unwrap(obj)), 'NodeGiInPlaceStatic');
 
-  // Custom property + user prototype method.
-  assert.equal(obj.label, 'world');
-  assert.equal(obj.greet(), 'hi world');
-  obj.label = 'changed';
-  assert.equal(obj.greet(), 'hi changed');
+    // Custom property + user prototype method.
+    assert.equal(obj.label, 'world');
+    assert.equal(obj.greet(), 'hi world');
+    obj.label = 'changed';
+    assert.equal(obj.greet(), 'hi changed');
 
-  // The declared signal connects + emits on the registered type. GJS parity: the
-  // handler receives the emitter first, then the signal's own params.
-  let received = null;
-  const id = obj.connect('pinged', (emitter, n) => {
-    assert.equal(emitter, obj, 'the emitter is the connected-to instance');
-    received = n;
-  });
-  obj.emit('pinged', 7);
-  assert.equal(received, 7);
-  obj.disconnect(id);
-  obj.emit('pinged', 99);
-  assert.equal(received, 7, 'a disconnected handler does not fire again');
+    // The declared signal connects + emits on the registered type. GJS parity: the
+    // handler receives the emitter first, then the signal's own params.
+    let received = null;
+    const id = obj.connect('pinged', (emitter, n) => {
+        assert.equal(emitter, obj, 'the emitter is the connected-to instance');
+        received = n;
+    });
+    obj.emit('pinged', 7);
+    assert.equal(received, 7);
+    obj.disconnect(id);
+    obj.emit('pinged', 99);
+    assert.equal(received, 7, 'a disconnected handler does not fire again');
 });
 
 test('registerClass returns the SAME class (mutate-in-place)', () => {
-  class InPlaceReturn extends GObject.Object {}
-  const ret = GObject.registerClass({ GTypeName: 'NodeGiInPlaceReturn' }, InPlaceReturn);
-  // GJS-faithful: the returned constructor IS the class passed in.
-  assert.equal(ret === InPlaceReturn, true);
-  // The const-assignment form still constructs the registered type.
-  const obj = new ret();
-  assert.equal(native.getTypeName(unwrap(obj)), 'NodeGiInPlaceReturn');
+    class InPlaceReturn extends GObject.Object {}
+    const ret = GObject.registerClass({ GTypeName: 'NodeGiInPlaceReturn' }, InPlaceReturn);
+    // GJS-faithful: the returned constructor IS the class passed in.
+    assert.equal(ret === InPlaceReturn, true);
+    // The const-assignment form still constructs the registered type.
+    const obj = new ret();
+    assert.equal(native.getTypeName(unwrap(obj)), 'NodeGiInPlaceReturn');
 });
 
 test('the JS constructor body RUNS against the canonical wrapper', () => {
-  let thisInCtor = null;
-  class InPlaceCtor extends GObject.Object {
-    static {
-      GObject.registerClass({ GTypeName: 'NodeGiInPlaceCtor' }, InPlaceCtor);
+    let thisInCtor = null;
+    class InPlaceCtor extends GObject.Object {
+        static {
+            GObject.registerClass({ GTypeName: 'NodeGiInPlaceCtor' }, InPlaceCtor);
+        }
+        constructor() {
+            super();
+            this.tag = 'ran'; // a plain JS expando written in the ctor body
+            thisInCtor = this;
+        }
     }
-    constructor() {
-      super();
-      this.tag = 'ran'; // a plain JS expando written in the ctor body
-      thisInCtor = this;
-    }
-  }
-  const obj = new InPlaceCtor();
-  // The ctor body executed (reversing the old "ctor body not run" caveat) and its
-  // expando survives on the canonical wrapper.
-  assert.equal(obj.tag, 'ran');
-  // `this` inside the ctor IS the constructed instance.
-  assert.equal(thisInCtor === obj, true);
+    const obj = new InPlaceCtor();
+    // The ctor body executed (reversing the old "ctor body not run" caveat) and its
+    // expando survives on the canonical wrapper.
+    assert.equal(obj.tag, 'ran');
+    // `this` inside the ctor IS the constructed instance.
+    assert.equal(thisInCtor === obj, true);
 });
 
 test('super(args) chaining applies construct props passed to the base', () => {
-  class InPlaceSuper extends GObject.Object {
-    static {
-      GObject.registerClass(
-        {
-          GTypeName: 'NodeGiInPlaceSuper',
-          Properties: {
-            title: GObject.ParamSpec.string('title', 'Title', 't', RW, 'untitled'),
-          },
-        },
-        InPlaceSuper,
-      );
+    class InPlaceSuper extends GObject.Object {
+        static {
+            GObject.registerClass(
+                {
+                    GTypeName: 'NodeGiInPlaceSuper',
+                    Properties: {
+                        title: GObject.ParamSpec.string('title', 'Title', 't', RW, 'untitled'),
+                    },
+                },
+                InPlaceSuper,
+            );
+        }
+        constructor(title) {
+            // A subclass ctor passing args UP to the introspected base via super(): the
+            // base ctor must apply the construct prop, then return the wrapper.
+            super(title === undefined ? {} : { title });
+        }
     }
-    constructor(title) {
-      // A subclass ctor passing args UP to the introspected base via super(): the
-      // base ctor must apply the construct prop, then return the wrapper.
-      super(title === undefined ? {} : { title });
-    }
-  }
-  const obj = new InPlaceSuper('chained');
-  assert.equal(obj.title, 'chained', 'the prop passed through super({...}) was applied');
-  // A super({}) with no title still falls back to the declared default.
-  const def = new InPlaceSuper(undefined);
-  assert.equal(def.title, 'untitled');
+    const obj = new InPlaceSuper('chained');
+    assert.equal(obj.title, 'chained', 'the prop passed through super({...}) was applied');
+    // A super({}) with no title still falls back to the declared default.
+    const def = new InPlaceSuper(undefined);
+    assert.equal(def.title, 'untitled');
 });
 
 test('toggle-ref identity: ctor `this`, vfunc `this`, and the instance are all ===', () => {
-  let thisInCtor = null;
-  let thisInVfunc = null;
-  class InPlaceIdentity extends GObject.Object {
-    static {
-      GObject.registerClass({ GTypeName: 'NodeGiInPlaceIdentity' }, InPlaceIdentity);
+    let thisInCtor = null;
+    let thisInVfunc = null;
+    class InPlaceIdentity extends GObject.Object {
+        static {
+            GObject.registerClass({ GTypeName: 'NodeGiInPlaceIdentity' }, InPlaceIdentity);
+        }
+        constructor() {
+            super();
+            this.marker = 'M';
+            thisInCtor = this;
+        }
+        self() {
+            return this;
+        }
+        vfunc_constructed() {
+            // Fires DURING construction; `this` must be the same canonical wrapper.
+            thisInVfunc = this;
+        }
     }
-    constructor() {
-      super();
-      this.marker = 'M';
-      thisInCtor = this;
-    }
-    self() {
-      return this;
-    }
-    vfunc_constructed() {
-      // Fires DURING construction; `this` must be the same canonical wrapper.
-      thisInVfunc = this;
-    }
-  }
-  const obj = new InPlaceIdentity();
-  // The ctor `this`, the constructed instance, a method returning `this`, and the
-  // vfunc `this` are ALL the one canonical toggle-ref wrapper (===).
-  assert.equal(thisInCtor === obj, true, 'ctor `this` === the instance');
-  assert.equal(obj.self() === obj, true, 'a method returning `this` === the instance');
-  assert.equal(thisInVfunc === obj, true, 'vfunc `this` === the instance');
-  assert.equal(obj.marker, 'M');
+    const obj = new InPlaceIdentity();
+    // The ctor `this`, the constructed instance, a method returning `this`, and the
+    // vfunc `this` are ALL the one canonical toggle-ref wrapper (===).
+    assert.equal(thisInCtor === obj, true, 'ctor `this` === the instance');
+    assert.equal(obj.self() === obj, true, 'a method returning `this` === the instance');
+    assert.equal(thisInVfunc === obj, true, 'vfunc `this` === the instance');
+    assert.equal(obj.marker, 'M');
 });
 
 test('a 2-level registered hierarchy registers + constructs (G2)', () => {
-  class InPlaceMultiBase extends GObject.Object {
-    static {
-      GObject.registerClass({ GTypeName: 'NodeGiInPlaceMultiBase' }, InPlaceMultiBase);
+    class InPlaceMultiBase extends GObject.Object {
+        static {
+            GObject.registerClass({ GTypeName: 'NodeGiInPlaceMultiBase' }, InPlaceMultiBase);
+        }
     }
-  }
-  // The base registered fine (single-level over an introspected parent).
-  assert.equal(GObject.type_name(InPlaceMultiBase.$gtype), 'NodeGiInPlaceMultiBase');
+    // The base registered fine (single-level over an introspected parent).
+    assert.equal(GObject.type_name(InPlaceMultiBase.$gtype), 'NodeGiInPlaceMultiBase');
 
-  // Registering a subclass of a REGISTERED class is now supported (G2): the static
-  // block runs at class-definition time and registers the child's GType, subclassing
-  // from the registered base's runtime GType handle.
-  class InPlaceMultiChild extends InPlaceMultiBase {
-    static {
-      GObject.registerClass({ GTypeName: 'NodeGiInPlaceMultiChild' }, InPlaceMultiChild);
+    // Registering a subclass of a REGISTERED class is now supported (G2): the static
+    // block runs at class-definition time and registers the child's GType, subclassing
+    // from the registered base's runtime GType handle.
+    class InPlaceMultiChild extends InPlaceMultiBase {
+        static {
+            GObject.registerClass({ GTypeName: 'NodeGiInPlaceMultiChild' }, InPlaceMultiChild);
+        }
     }
-  }
-  assert.equal(GObject.type_name(InPlaceMultiChild.$gtype), 'NodeGiInPlaceMultiChild');
+    assert.equal(GObject.type_name(InPlaceMultiChild.$gtype), 'NodeGiInPlaceMultiChild');
 
-  // `new Child()` builds the CHILD's GType (the leaf), not the base's.
-  const obj = new InPlaceMultiChild();
-  assert.equal(native.getTypeName(unwrap(obj)), 'NodeGiInPlaceMultiChild');
+    // `new Child()` builds the CHILD's GType (the leaf), not the base's.
+    const obj = new InPlaceMultiChild();
+    assert.equal(native.getTypeName(unwrap(obj)), 'NodeGiInPlaceMultiChild');
 });
 
 test('#667: a raw (unregistered) subclass does not inherit the parent GType', () => {
-  // An introspected class resolves its real $gtype on a direct read.
-  assert.notEqual(Gio.SimpleAction.$gtype, undefined);
-  // A raw subclass that NEVER called registerClass is not a GType — an inherited
-  // read must NOT leak the parent's GType.
-  class RawUnregistered extends Gio.SimpleAction {}
-  assert.equal(RawUnregistered.$gtype, undefined);
-  // A registered subclass DOES carry its own $gtype.
-  const Registered = GObject.registerClass(class NodeGiInPlace667 extends Gio.SimpleAction {});
-  assert.notEqual(Registered.$gtype, undefined);
-  assert.equal(GObject.type_name(Registered.$gtype), 'NodeGiInPlace667');
+    // An introspected class resolves its real $gtype on a direct read.
+    assert.notEqual(Gio.SimpleAction.$gtype, undefined);
+    // A raw subclass that NEVER called registerClass is not a GType — an inherited
+    // read must NOT leak the parent's GType.
+    class RawUnregistered extends Gio.SimpleAction {}
+    assert.equal(RawUnregistered.$gtype, undefined);
+    // A registered subclass DOES carry its own $gtype.
+    const Registered = GObject.registerClass(class NodeGiInPlace667 extends Gio.SimpleAction {});
+    assert.notEqual(Registered.$gtype, undefined);
+    assert.equal(GObject.type_name(Registered.$gtype), 'NodeGiInPlace667');
 });

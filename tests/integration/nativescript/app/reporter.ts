@@ -79,9 +79,7 @@ export function expect(actual: unknown) {
         },
         toContain(v: unknown) {
             const ok =
-                typeof actual === 'string'
-                    ? actual.includes(String(v))
-                    : Array.isArray(actual) && actual.includes(v);
+                typeof actual === 'string' ? actual.includes(String(v)) : Array.isArray(actual) && actual.includes(v);
             if (!ok) fail(`expected ${JSON.stringify(actual)} to contain ${String(v)}`);
         },
     };

@@ -20,7 +20,9 @@ export default async function run(h) {
     // thus the callback) to run.
     let called = false;
     (() => {
-        const obj = addon.objectWithFinalizer(() => { called = true; });
+        const obj = addon.objectWithFinalizer(() => {
+            called = true;
+        });
         h.emit('typeof obj', typeof obj);
     })();
     await h.gcUntil(() => called, 'finalizer callback via instance data');

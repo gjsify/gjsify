@@ -95,9 +95,7 @@ function writeRuntimeTwin(srcFile, outfile) {
         (_m, ident, ns, ver) => `const ${ident} = requireGi('${ns}', '${ver}');`,
     );
     const body =
-        "import '@gjsify/node-gi/globals';\n" +
-        "import { requireGi } from '@gjsify/node-gi/gi';\n" +
-        rewritten;
+        "import '@gjsify/node-gi/globals';\n" + "import { requireGi } from '@gjsify/node-gi/gi';\n" + rewritten;
     mkdirSync(join(here, 'dist'), { recursive: true });
     const out = join(here, outfile);
     writeFileSync(out, body);

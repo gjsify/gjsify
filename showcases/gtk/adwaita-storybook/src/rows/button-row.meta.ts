@@ -4,8 +4,7 @@ import { ControlType, type StoryMeta } from '@gjsify/stories';
 
 export const buttonRowMeta: StoryMeta = {
     title: 'Boxed Lists/Button Row',
-    description:
-        'Adw.ButtonRow — a full-width row that acts as a button, with an optional icon and style class.',
+    description: 'Adw.ButtonRow — a full-width row that acts as a button, with an optional icon and style class.',
     controls: [
         { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Add account' },
         {

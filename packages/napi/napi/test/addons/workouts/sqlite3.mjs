@@ -26,9 +26,21 @@ const log = (...p) => out.push(p.join(' '));
 log('=== node-sqlite3 workout ===');
 log('sqlite3.VERSION', sqlite3.VERSION);
 log('sqlite3.VERSION_NUMBER', sqlite3.VERSION_NUMBER);
-log('OPEN_READONLY', sqlite3.OPEN_READONLY, 'OPEN_READWRITE', sqlite3.OPEN_READWRITE, 'OPEN_CREATE', sqlite3.OPEN_CREATE);
+log(
+    'OPEN_READONLY',
+    sqlite3.OPEN_READONLY,
+    'OPEN_READWRITE',
+    sqlite3.OPEN_READWRITE,
+    'OPEN_CREATE',
+    sqlite3.OPEN_CREATE,
+);
 log('OK', sqlite3.OK, 'CONSTRAINT', sqlite3.CONSTRAINT);
-log('Database is fn', typeof sqlite3.Database === 'function', 'Statement is fn', typeof sqlite3.Statement === 'function');
+log(
+    'Database is fn',
+    typeof sqlite3.Database === 'function',
+    'Statement is fn',
+    typeof sqlite3.Statement === 'function',
+);
 log('Database.prototype.run is fn', typeof sqlite3.Database.prototype.run === 'function');
 
 // --- Phase B: async surface (the async_work probe) ---

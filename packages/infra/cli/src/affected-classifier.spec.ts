@@ -302,10 +302,7 @@ export default async (): Promise<void> => {
         });
 
         await it('napi alongside a real src change → napi ignored, no full run', async () => {
-            const r = await runClassify(root, [
-                'packages/napi/napi/src/cc/value.cc',
-                'packages/node/fs/src/index.ts',
-            ]);
+            const r = await runClassify(root, ['packages/napi/napi/src/cc/value.cc', 'packages/node/fs/src/index.ts']);
             expect(r.global).toBe(false);
             expect(r.skipAll).toBe(false);
         });
@@ -314,10 +311,7 @@ export default async (): Promise<void> => {
             // A README in a GLOBAL_TRIGGERS path (packages/infra/cli/,
             // workspace/, …) must NOT force a full run — IGNORE is applied
             // before the global-trigger check.
-            const r = await runClassify(root, [
-                'packages/infra/cli/README.md',
-                'packages/infra/workspace/README.md',
-            ]);
+            const r = await runClassify(root, ['packages/infra/cli/README.md', 'packages/infra/workspace/README.md']);
             expect(r.skipAll).toBe(true);
             expect(r.global).toBe(false);
         });
@@ -430,9 +424,7 @@ export default async (): Promise<void> => {
             // `packages/infra/manifest-conformance/lib/**` — so that half must
             // keep behaving like the ordinary workspace it is. A regex widened
             // to `manifest-conformance` anywhere would silence a real input.
-            const r = await runClassify(root, [
-                'packages/infra/manifest-conformance/lib/rules/field-coverage.mjs',
-            ]);
+            const r = await runClassify(root, ['packages/infra/manifest-conformance/lib/rules/field-coverage.mjs']);
             expect(r.skipAll).toBe(false);
         });
 

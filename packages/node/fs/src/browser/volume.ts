@@ -25,12 +25,26 @@ interface BaseNode {
     ino: number;
     nlink: number;
 }
-interface FileNode extends BaseNode { kind: 'file'; data: Uint8Array }
-interface DirNode extends BaseNode { kind: 'dir'; children: Map<string, AnyNode> }
-interface SymlinkNode extends BaseNode { kind: 'symlink'; target: string }
+interface FileNode extends BaseNode {
+    kind: 'file';
+    data: Uint8Array;
+}
+interface DirNode extends BaseNode {
+    kind: 'dir';
+    children: Map<string, AnyNode>;
+}
+interface SymlinkNode extends BaseNode {
+    kind: 'symlink';
+    target: string;
+}
 type AnyNode = FileNode | DirNode | SymlinkNode;
 
-interface FdEntry { node: FileNode; path: string; position: number; flags: string }
+interface FdEntry {
+    node: FileNode;
+    path: string;
+    position: number;
+    flags: string;
+}
 
 const EMPTY = new Uint8Array(0);
 const now = (): number => Date.now();
@@ -72,13 +86,19 @@ export class Volume {
      */
     subscribe(listener: () => void): () => void {
         this.mutationListeners.add(listener);
-        return () => { this.mutationListeners.delete(listener); };
+        return () => {
+            this.mutationListeners.delete(listener);
+        };
     }
 
     /** Notify all mutation listeners. A listener failure never breaks the fs op. */
     notifyMutation(): void {
         for (const l of this.mutationListeners) {
-            try { l(); } catch { /* a persistence flush failure must not break fs */ }
+            try {
+                l();
+            } catch {
+                /* a persistence flush failure must not break fs */
+            }
         }
     }
 
@@ -86,9 +106,14 @@ export class Volume {
         const t = now();
         return {
             mode: modeFor(kind, perm),
-            uid: 0, gid: 0,
-            atimeMs: t, mtimeMs: t, ctimeMs: t, birthtimeMs: t,
-            ino: this.nextIno++, nlink: 1,
+            uid: 0,
+            gid: 0,
+            atimeMs: t,
+            mtimeMs: t,
+            ctimeMs: t,
+            birthtimeMs: t,
+            ino: this.nextIno++,
+            nlink: 1,
         };
     }
 
@@ -124,7 +149,12 @@ export class Volume {
     // ───────────── Existence / probes ────────────────────────────────────────
 
     existsSync(path: string): boolean {
-        try { this.lookup(path, 'stat'); return true; } catch { return false; }
+        try {
+            this.lookup(path, 'stat');
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     statSync(path: string): StatFields {
@@ -133,7 +163,9 @@ export class Volume {
         return toStatFields(node);
     }
 
-    lstatSync(path: string): StatFields { return this.statSync(path); }
+    lstatSync(path: string): StatFields {
+        return this.statSync(path);
+    }
 
     accessSync(path: string, _mode: number): void {
         this.lookup(path, 'access');
@@ -273,8 +305,9 @@ export class Volume {
     rmSync(path: string, opts: { recursive?: boolean; force?: boolean } = {}): void {
         const abs = resolve(path);
         let node: AnyNode;
-        try { node = this.lookup(abs, 'unlink'); }
-        catch (e) {
+        try {
+            node = this.lookup(abs, 'unlink');
+        } catch (e) {
             if (opts.force && (e as { code?: string }).code === 'ENOENT') return;
             throw e;
         }
@@ -312,7 +345,7 @@ export class Volume {
     copyFileSync(src: string, dest: string, flags = 0): void {
         const srcNode = this.lookup(src, 'copyfile');
         if (srcNode.kind !== 'file') throw EISDIR('copyfile', resolve(src));
-        if ((flags & 1) && this.existsSync(dest)) throw EEXIST('copyfile', resolve(dest));
+        if (flags & 1 && this.existsSync(dest)) throw EEXIST('copyfile', resolve(dest));
         this.writeFileSync(dest, srcNode.data, srcNode.mode & 0o777);
     }
 
@@ -391,7 +424,10 @@ export class Volume {
             if (existing.kind !== 'file') throw EISDIR('open', abs);
             if (exclusive) throw EEXIST('open', abs);
             node = existing;
-            if (wantTruncate) { node.data = EMPTY; node.mtimeMs = node.ctimeMs = now(); }
+            if (wantTruncate) {
+                node.data = EMPTY;
+                node.mtimeMs = node.ctimeMs = now();
+            }
         } catch (e) {
             if ((e as { code?: string }).code !== 'ENOENT' || !wantCreate) throw e;
             const { parent, name } = this.lookupParent(abs, 'open');
@@ -462,7 +498,11 @@ export class Volume {
             const abs = resolve(cwd, path);
             this.mkdirSync(dirname(abs), { recursive: true });
             if (content === null) {
-                try { this.mkdirSync(abs, { recursive: true }); } catch { /* exists */ }
+                try {
+                    this.mkdirSync(abs, { recursive: true });
+                } catch {
+                    /* exists */
+                }
             } else {
                 const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
                 this.writeFileSync(abs, bytes);

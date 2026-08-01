@@ -222,7 +222,9 @@ export class AdwAlertDialog extends HTMLElement {
             // Keep the headless model a complete description of the dialog; the
             // attribute stays the source of truth for the rendered heading.
             this._model.heading = this.heading;
-            this.dispatchEvent(new CustomEvent('notify::heading', { bubbles: true, detail: { heading: this.heading } }));
+            this.dispatchEvent(
+                new CustomEvent('notify::heading', { bubbles: true, detail: { heading: this.heading } }),
+            );
         } else if (name === 'body') {
             this._model.body = this.body;
             this.dispatchEvent(new CustomEvent('notify::body', { bubbles: true, detail: { body: this.body } }));

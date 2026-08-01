@@ -126,7 +126,9 @@ const descriptors = {
     },
 
     returnedCalls: {
-        get: function returnedCalls(this: Spy.CallInformation<AnyFunction>): ReadonlyArray<Spy.ReturnedCall<AnyFunction>> {
+        get: function returnedCalls(
+            this: Spy.CallInformation<AnyFunction>,
+        ): ReadonlyArray<Spy.ReturnedCall<AnyFunction>> {
             return this.calls.filter(isReturned);
         },
         configurable: true,

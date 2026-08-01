@@ -25,14 +25,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-    mkdtempSync,
-    mkdirSync,
-    rmSync,
-    existsSync,
-    writeFileSync,
-    readFileSync,
-} from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -357,11 +350,7 @@ describe('gjsify install — non-destructive (ADR 0001)', { timeout: 120_000 }, 
         assert.equal(r.status, 0, `--immutable install failed: ${r.stderr}\n${r.stdout}`);
 
         assertMarkers(markerChecks(root));
-        assert.deepEqual(
-            porcelain(root, env),
-            [],
-            'a frozen --immutable install must not modify ANY tracked file',
-        );
+        assert.deepEqual(porcelain(root, env), [], 'a frozen --immutable install must not modify ANY tracked file');
     });
 
     it('add-package touches only package.json + lockfile, never build artifacts', async () => {

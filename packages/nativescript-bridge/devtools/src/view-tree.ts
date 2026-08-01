@@ -153,7 +153,9 @@ export function rootView(app: NsApplicationLike | null, frame: NsFrameLike | nul
  * matching the GTK adapter's `ListToplevels` shape so the same MCP tool renders
  * both runtimes.
  */
-export function listToplevels(root: NsView | null): Array<{ path: string; type: string; title: string | null; mapped: boolean; focused: boolean }> {
+export function listToplevels(
+    root: NsView | null,
+): Array<{ path: string; type: string; title: string | null; mapped: boolean; focused: boolean }> {
     if (!root) return [];
     return [
         {

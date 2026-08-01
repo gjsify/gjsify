@@ -8,10 +8,7 @@
 // warnings for confusing patterns).
 
 import { describe, it, expect } from '@gjsify/unit';
-import {
-    validateToolName,
-    validateAndWarnToolName,
-} from '@modelcontextprotocol/sdk/shared/toolNameValidation.js';
+import { validateToolName, validateAndWarnToolName } from '@modelcontextprotocol/sdk/shared/toolNameValidation.js';
 
 export default async () => {
     await describe('validateToolName — valid tool names', async () => {
@@ -36,12 +33,20 @@ export default async () => {
     await describe('validateToolName — invalid tool names', async () => {
         const invalidCases: Array<[string, string, string]> = [
             ['empty names', '', 'Tool name cannot be empty'],
-            ['names longer than 128 characters', 'a'.repeat(129), 'Tool name exceeds maximum length of 128 characters (current: 129)'],
+            [
+                'names longer than 128 characters',
+                'a'.repeat(129),
+                'Tool name exceeds maximum length of 128 characters (current: 129)',
+            ],
             ['names with spaces', 'get user profile', 'Tool name contains invalid characters: " "'],
             ['names with commas', 'get,user,profile', 'Tool name contains invalid characters: ","'],
             ['names with forward slashes', 'user/profile/update', 'Tool name contains invalid characters: "/"'],
             ['names with @ characters', 'user@domain.com', 'Tool name contains invalid characters: "@"'],
-            ['names with multiple invalid chars', 'user name@domain,com', 'Tool name contains invalid characters: " ", "@", ","'],
+            [
+                'names with multiple invalid chars',
+                'user name@domain,com',
+                'Tool name contains invalid characters: " ", "@", ","',
+            ],
             ['names with unicode characters', 'user-ñame', 'Tool name contains invalid characters: "ñ"'],
         ];
         for (const [desc, name, expectedWarning] of invalidCases) {

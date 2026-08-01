@@ -8,22 +8,26 @@ import GLib from 'gi://GLib?version=2.0';
 // Local stable stringify (sorted object keys) so dict iteration order can
 // never flavor the output — the program owns its determinism.
 function stableStringify(value) {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  const keys = Object.keys(value).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`;
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`;
 }
 
 const dict = new GLib.Variant('a{sv}', {
-  name: new GLib.Variant('s', 'Ada'),
-  age: new GLib.Variant('i', 36),
+    name: new GLib.Variant('s', 'Ada'),
+    age: new GLib.Variant('i', 36),
 });
 print('dict type:', dict.get_type_string());
 
 const deep = dict.deepUnpack();
 print('deep keys:', JSON.stringify(Object.keys(deep).sort()));
 // deepUnpack: `v` values stay Variants — unwrap each explicitly.
-print('deep values are Variants:', typeof deep.name.deepUnpack === 'function', typeof deep.age.deepUnpack === 'function');
+print(
+    'deep values are Variants:',
+    typeof deep.name.deepUnpack === 'function',
+    typeof deep.age.deepUnpack === 'function',
+);
 print('deep name:', deep.name.deepUnpack(), deep.name.get_type_string());
 print('deep age:', deep.age.deepUnpack(), deep.age.get_type_string());
 

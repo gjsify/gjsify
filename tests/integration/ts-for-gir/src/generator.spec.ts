@@ -21,7 +21,14 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect } from '@gjsify/unit';
-import { DependencyManager, GirModule, NSRegistry, IntrospectedRecord, type IntrospectedClassFunction, type OptionsGeneration } from '@ts-for-gir/lib';
+import {
+    DependencyManager,
+    GirModule,
+    NSRegistry,
+    IntrospectedRecord,
+    type IntrospectedClassFunction,
+    type OptionsGeneration,
+} from '@ts-for-gir/lib';
 import { ModuleGenerator } from '@ts-for-gir/generator-typescript';
 
 // Minimal GIR: one record with two methods and one constant, no <include> deps.

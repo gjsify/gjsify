@@ -22,8 +22,7 @@ export class ClampWebStory extends StoryElement {
         inner.style.width = '100%';
         inner.style.boxSizing = 'border-box';
         inner.style.padding = '18px';
-        inner.textContent =
-            'This content is clamped — it stops growing past the maximum size and stays centred.';
+        inner.textContent = 'This content is clamped — it stops growing past the maximum size and stays centred.';
 
         this._clamp = document.createElement('adw-clamp');
         this._clamp.append(inner);

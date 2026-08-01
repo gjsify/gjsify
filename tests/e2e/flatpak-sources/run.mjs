@@ -126,9 +126,13 @@ describe('gjsify flatpak sources', () => {
         const y = sri('yarn-pkg');
         const sources = runOn(
             'yarn.lock',
-            ['y@^1.0.0:', '  version "1.0.0"', '  resolved "https://registry.yarnpkg.com/y/-/y-1.0.0.tgz#deadbeef"', `  integrity ${y.integrity}`, ''].join(
-                '\n',
-            ),
+            [
+                'y@^1.0.0:',
+                '  version "1.0.0"',
+                '  resolved "https://registry.yarnpkg.com/y/-/y-1.0.0.tgz#deadbeef"',
+                `  integrity ${y.integrity}`,
+                '',
+            ].join('\n'),
         );
         assert.equal(sources.length, 1);
         assert.equal(sources[0].sha512, y.hex);
@@ -162,7 +166,10 @@ describe('gjsify flatpak sources', () => {
     it('rejects a Yarn Berry (v2+) lockfile with a clear message', () => {
         let threw = false;
         try {
-            runOn('yarn.lock', ['__metadata:', '  version: 8', '"pkg@npm:1.0.0":', '  checksum: 10c0/abc', ''].join('\n'));
+            runOn(
+                'yarn.lock',
+                ['__metadata:', '  version: 8', '"pkg@npm:1.0.0":', '  checksum: 10c0/abc', ''].join('\n'),
+            );
         } catch (err) {
             threw = true;
             assert.match(`${err.stderr ?? ''}${err.stdout ?? ''}`, /Yarn Berry/i);

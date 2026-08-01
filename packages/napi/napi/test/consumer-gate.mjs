@@ -49,7 +49,9 @@ const stage = (msg) => console.error(`[gate] ${msg}`);
 // --- prereqs ---
 if (!existsSync(BSQ_INDEX)) die(`better-sqlite3 not installed at ${BSQ} (see header for fetch command)`);
 if (!existsSync(BSQ_ADDON)) {
-    die(`better-sqlite3 addon not built at ${BSQ_ADDON} — run: (cd ${BSQ} && npm exec -- node-gyp rebuild --force_build=1)`);
+    die(
+        `better-sqlite3 addon not built at ${BSQ_ADDON} — run: (cd ${BSQ} && npm exec -- node-gyp rebuild --force_build=1)`,
+    );
 }
 if (!existsSync(NAPI_LIB)) {
     stage('building @gjsify/napi L1 lib …');
@@ -63,11 +65,23 @@ const rc = join(CONSUMER, '.gjsifyrc.mjs'); // ephemeral (gitignored)
 let prebuildsMoved = false;
 
 function cleanup() {
-    try { rmSync(rc, { force: true }); } catch { /* ignore */ }
-    if (prebuildsMoved) {
-        try { renameSync(`${BSQ_PREBUILDS}.disabled`, BSQ_PREBUILDS); } catch { /* ignore */ }
+    try {
+        rmSync(rc, { force: true });
+    } catch {
+        /* ignore */
     }
-    try { rmSync(tmp, { recursive: true, force: true }); } catch { /* ignore */ }
+    if (prebuildsMoved) {
+        try {
+            renameSync(`${BSQ_PREBUILDS}.disabled`, BSQ_PREBUILDS);
+        } catch {
+            /* ignore */
+        }
+    }
+    try {
+        rmSync(tmp, { recursive: true, force: true });
+    } catch {
+        /* ignore */
+    }
 }
 process.on('exit', cleanup);
 
@@ -89,10 +103,10 @@ try {
 
     // --- build the GJS bundle ---
     stage('bundling workout for --app gjs …');
-    runGjsify(
-        ['build', WORKOUT, '--app', 'gjs', '--outfile', bundle, '--alias', `better-sqlite3=${BSQ_INDEX}`],
-        { cwd: CONSUMER, stdio: ['ignore', 'inherit', 'inherit'] },
-    );
+    runGjsify(['build', WORKOUT, '--app', 'gjs', '--outfile', bundle, '--alias', `better-sqlite3=${BSQ_INDEX}`], {
+        cwd: CONSUMER,
+        stdio: ['ignore', 'inherit', 'inherit'],
+    });
     if (!existsSync(bundle)) die('gjsify build produced no bundle');
 
     // --- golden: Node ---

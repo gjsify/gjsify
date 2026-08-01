@@ -134,9 +134,7 @@ export class AdwAlertDialog extends Observable {
      * sheet.
      */
     async present(): Promise<string> {
-        const chosen = this._responses.usesActionSheet
-            ? await this._presentAction()
-            : await this._presentConfirm();
+        const chosen = this._responses.usesActionSheet ? await this._presentAction() : await this._presentConfirm();
         this.notify({ eventName: NOTIFY_RESPONSE, object: this, response: chosen } as NotifyResponseEventData);
         return chosen;
     }

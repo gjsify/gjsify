@@ -25,7 +25,17 @@
 // Reference: GJS ships no relocation; the technique mirrors macOS app-bundle
 // dylib fix-up (install_name_tool + @loader_path + ad-hoc codesign).
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+    copyFileSync,
+    cpSync,
+    existsSync,
+    mkdirSync,
+    readdirSync,
+    realpathSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -129,7 +139,9 @@ function resolveInBrew(leaf) {
 }
 
 // --- 1. discover the closure ----------------------------------------------
-console.log(`build-gtk-runtime: brew prefix ${brewPrefix}${WINDOWING ? ' (windowing superset — + libadwaita + libgtksourceview)' : ' (display-free)'}`);
+console.log(
+    `build-gtk-runtime: brew prefix ${brewPrefix}${WINDOWING ? ' (windowing superset — + libadwaita + libgtksourceview)' : ' (display-free)'}`,
+);
 const seedPatterns = WINDOWING ? [...SEED_PATTERNS, ...WINDOWING_SEED_PATTERNS] : SEED_PATTERNS;
 const seeds = readdirSync(brewLib).filter((f) => seedPatterns.some((re) => re.test(f)));
 if (seeds.length === 0) {
@@ -230,9 +242,13 @@ if (WINDOWING) {
             console.warn(`build-gtk-runtime: WARNING — glib-compile-schemas failed: ${err?.message ?? err}`);
         }
         windowing.schemas = existsSync(join(schemasOut, 'gschemas.compiled'));
-        console.log(`build-gtk-runtime: GSettings schemas ${windowing.schemas ? 'compiled' : 'copied (no gschemas.compiled!)'}`);
+        console.log(
+            `build-gtk-runtime: GSettings schemas ${windowing.schemas ? 'compiled' : 'copied (no gschemas.compiled!)'}`,
+        );
     } else {
-        console.warn(`build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled (Gio.Settings will fail)`);
+        console.warn(
+            `build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled (Gio.Settings will fail)`,
+        );
     }
 
     // 3b-b. Icon themes (Adwaita symbolic + hicolor) + caches, loaded from
@@ -267,7 +283,9 @@ if (WINDOWING) {
             }
         }
         windowing.gtksource = copied > 0;
-        console.log(`build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied} files)` : 'empty'}`);
+        console.log(
+            `build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied} files)` : 'empty'}`,
+        );
     } else {
         console.warn(`build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 data NOT bundled`);
     }

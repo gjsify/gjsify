@@ -30,7 +30,9 @@ for (const len of [0, 1, 3, 4, 5, 8, 17, 64]) {
     // round-trip: unmask the masked slice back to plaintext
     const slice = masked.subarray(offset, offset + len);
     unmask(slice, maskKey);
-    log(`len=${len} off=${offset} maskedHex=${hex(masked.subarray(offset, offset + len))} refOk=${refOk} roundtrip=${hex(slice) === hex(src)}`);
+    log(
+        `len=${len} off=${offset} maskedHex=${hex(masked.subarray(offset, offset + len))} refOk=${refOk} roundtrip=${hex(slice) === hex(src)}`,
+    );
 }
 
 // unmask twice with the same key is identity (XOR involution)

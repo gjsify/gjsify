@@ -114,7 +114,13 @@ function nthChild(widget: Gtk.Widget, index: number): Gtk.Widget | null {
 }
 
 /** Enumerate live toplevel windows as `{ path, type, title, mapped, focused }`. */
-export function listToplevels(): Array<{ path: string; type: string; title: string | null; mapped: boolean; focused: boolean }> {
+export function listToplevels(): Array<{
+    path: string;
+    type: string;
+    title: string | null;
+    mapped: boolean;
+    focused: boolean;
+}> {
     const model = Gtk.Window.get_toplevels();
     const count = model.get_n_items();
     const out: Array<{ path: string; type: string; title: string | null; mapped: boolean; focused: boolean }> = [];

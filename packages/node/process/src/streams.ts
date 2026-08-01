@@ -260,9 +260,7 @@ export class ProcessReadStream extends EventEmitter {
     }
 
     override removeAllListeners(type?: string | symbol): this {
-        const hadData = type === undefined || type === 'data'
-            ? this.listenerCount('data') > 0
-            : false;
+        const hadData = type === undefined || type === 'data' ? this.listenerCount('data') > 0 : false;
         super.removeAllListeners(type);
         if (hadData && this.listenerCount('data') === 0) this.pause();
         return this;

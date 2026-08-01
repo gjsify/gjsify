@@ -72,7 +72,10 @@ function mockCtx(resolveMap: Record<string, string | null> = {}): {
     warnings: string[];
 } {
     const warnings: string[] = [];
-    const map: Record<string, string | null> = { '@gjsify/napi': '/fake/node_modules/@gjsify/napi/lib/esm/index.js', ...resolveMap };
+    const map: Record<string, string | null> = {
+        '@gjsify/napi': '/fake/node_modules/@gjsify/napi/lib/esm/index.js',
+        ...resolveMap,
+    };
     return {
         async resolve(s: string) {
             const hit = map[s];
@@ -320,9 +323,9 @@ export default async () => {
             const siblingNode = touch(join(root, 'node_modules', sibling), 'lightningcss.linux-x64-gnu.node');
             const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
             const handler = handlerOf(plugin);
-            expect(await handler.call(mockCtx({ [sibling]: siblingNode, '@gjsify/napi': null }), entry, undefined)).toBe(
-                null,
-            );
+            expect(
+                await handler.call(mockCtx({ [sibling]: siblingNode, '@gjsify/napi': null }), entry, undefined),
+            ).toBe(null);
             rmSync(root, { recursive: true, force: true });
         });
     });
@@ -354,9 +357,9 @@ export default async () => {
             // A napi field that is a STRING (not the napi-rs build object) is not a signal.
             expect(isNapiRsPackageJson({ name: 'weird', napi: 'v8' } as never)).toBe(false);
             // A sibling-looking dep that does NOT start with the package's own name.
-            expect(
-                isNapiRsPackageJson({ name: 'alpha', optionalDependencies: { 'beta-linux-x64-gnu': '1' } }),
-            ).toBe(false);
+            expect(isNapiRsPackageJson({ name: 'alpha', optionalDependencies: { 'beta-linux-x64-gnu': '1' } })).toBe(
+                false,
+            );
         });
     });
 
@@ -414,7 +417,10 @@ export default async () => {
             // The regression: none of these siblings starts with the package's own
             // name, so the `<self>-` test alone found nothing and the entry was
             // left unrewritten.
-            const rolldown = { name: 'rolldown', napi: { binaryName: 'rolldown-binding', packageName: '@rolldown/binding' } };
+            const rolldown = {
+                name: 'rolldown',
+                napi: { binaryName: 'rolldown-binding', packageName: '@rolldown/binding' },
+            };
             expect(isNapiRsSibling(rolldown, '@rolldown/binding-linux-x64-gnu')).toBe(true);
             expect(isNapiRsSibling(rolldown, '@rolldown/binding-win32-x64-msvc')).toBe(true);
             const oxfmt = { name: 'oxfmt', napi: { binaryName: 'oxfmt', packageName: '@oxfmt/binding' } };

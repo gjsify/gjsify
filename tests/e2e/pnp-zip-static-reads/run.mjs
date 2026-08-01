@@ -223,67 +223,61 @@ describe('PnP zip-resident static reads E2E', { timeout: 10 * 60 * 1000 }, () =>
         return bundlePath;
     }
 
-    it(
-        'inlines static readFileSync(URL) calls from PnP zip-resident files (--app node)',
-        () => {
-            const bundlePath = buildAndAssert('node', 'app.node.mjs');
+    it('inlines static readFileSync(URL) calls from PnP zip-resident files (--app node)', () => {
+        const bundlePath = buildAndAssert('node', 'app.node.mjs');
 
-            if (!hasCommand('node')) return;
+        if (!hasCommand('node')) return;
 
-            // Run from build location.
-            const out1 = execFileSync('node', [bundlePath], {
-                stdio: 'pipe',
-                timeout: 30 * 1000,
-            }).toString();
-            assert.match(
-                out1,
-                /^OK:inlined-from-pnp-zip:@fixture\/pnp-zip-reads@4\.2\.0/,
-                `node bundle produced unexpected output. Got: ${out1}`,
-            );
+        // Run from build location.
+        const out1 = execFileSync('node', [bundlePath], {
+            stdio: 'pipe',
+            timeout: 30 * 1000,
+        }).toString();
+        assert.match(
+            out1,
+            /^OK:inlined-from-pnp-zip:@fixture\/pnp-zip-reads@4\.2\.0/,
+            `node bundle produced unexpected output. Got: ${out1}`,
+        );
 
-            // Move bundle out of the PnP project entirely — proves the bundle no
-            // longer depends on the .yarn/cache/ zip existing on disk. This is
-            // the original ts-for-gir / typedoc / mini-shiki crash scenario.
-            const isolatedDir = '/tmp/gjsify-pnp-zip-isolated-' + Date.now();
-            mkdirSync(isolatedDir, { recursive: true });
-            cpSync(bundlePath, join(isolatedDir, 'app.mjs'));
-            const out2 = execFileSync('node', [join(isolatedDir, 'app.mjs')], {
-                stdio: 'pipe',
-                timeout: 30 * 1000,
-            }).toString();
-            assert.match(
-                out2,
-                /^OK:inlined-from-pnp-zip:@fixture\/pnp-zip-reads@4\.2\.0/,
-                `bundle in isolated dir failed — bundle is not self-contained. Got: ${out2}`,
-            );
-            rmSync(isolatedDir, { recursive: true, force: true });
-        },
-    );
+        // Move bundle out of the PnP project entirely — proves the bundle no
+        // longer depends on the .yarn/cache/ zip existing on disk. This is
+        // the original ts-for-gir / typedoc / mini-shiki crash scenario.
+        const isolatedDir = '/tmp/gjsify-pnp-zip-isolated-' + Date.now();
+        mkdirSync(isolatedDir, { recursive: true });
+        cpSync(bundlePath, join(isolatedDir, 'app.mjs'));
+        const out2 = execFileSync('node', [join(isolatedDir, 'app.mjs')], {
+            stdio: 'pipe',
+            timeout: 30 * 1000,
+        }).toString();
+        assert.match(
+            out2,
+            /^OK:inlined-from-pnp-zip:@fixture\/pnp-zip-reads@4\.2\.0/,
+            `bundle in isolated dir failed — bundle is not self-contained. Got: ${out2}`,
+        );
+        rmSync(isolatedDir, { recursive: true, force: true });
+    });
 
-    it(
-        'inlines static readFileSync(URL) calls from PnP zip-resident files (--app gjs)',
-        () => {
-            assert.ok(
-                gjsRunnable(),
-                'gjs is required + must run a one-liner (`gjs -c \'"ok"\'`) — see the before() yarn check for context on why the PnP suite hard-requires the GNOME toolchain.',
-            );
-            const bundlePath = buildAndAssert('gjs', 'app.gjs.js');
+    it('inlines static readFileSync(URL) calls from PnP zip-resident files (--app gjs)', () => {
+        assert.ok(
+            gjsRunnable(),
+            'gjs is required + must run a one-liner (`gjs -c \'"ok"\'`) — see the before() yarn check for context on why the PnP suite hard-requires the GNOME toolchain.',
+        );
+        const bundlePath = buildAndAssert('gjs', 'app.gjs.js');
 
-            // Move out of the PnP project before running under gjs.
-            const isolatedDir = '/tmp/gjsify-pnp-zip-gjs-' + Date.now();
-            mkdirSync(isolatedDir, { recursive: true });
-            cpSync(bundlePath, join(isolatedDir, 'app.js'));
-            const out = execFileSync('gjs', ['-m', join(isolatedDir, 'app.js')], {
-                encoding: 'utf-8',
-                stdio: ['ignore', 'pipe', 'pipe'],
-                timeout: 30 * 1000,
-            });
-            assert.match(
-                out,
-                /^OK:inlined-from-pnp-zip:@fixture\/pnp-zip-reads@4\.2\.0/,
-                `gjs bundle produced unexpected output. Got: ${out}`,
-            );
-            rmSync(isolatedDir, { recursive: true, force: true });
-        },
-    );
+        // Move out of the PnP project before running under gjs.
+        const isolatedDir = '/tmp/gjsify-pnp-zip-gjs-' + Date.now();
+        mkdirSync(isolatedDir, { recursive: true });
+        cpSync(bundlePath, join(isolatedDir, 'app.js'));
+        const out = execFileSync('gjs', ['-m', join(isolatedDir, 'app.js')], {
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            timeout: 30 * 1000,
+        });
+        assert.match(
+            out,
+            /^OK:inlined-from-pnp-zip:@fixture\/pnp-zip-reads@4\.2\.0/,
+            `gjs bundle produced unexpected output. Got: ${out}`,
+        );
+        rmSync(isolatedDir, { recursive: true, force: true });
+    });
 });

@@ -71,9 +71,9 @@ describe('--app routing via package.json#gjsify.runtimes', { timeout: 10 * 60 * 
             join(projectDir, 'src', 'app-assert.ts'),
             [
                 "import { ok, strictEqual, AssertionError } from '@gjsify/assert';",
-                "ok(true);",
-                "strictEqual(1, 1);",
-                "console.log(AssertionError.name);",
+                'ok(true);',
+                'strictEqual(1, 1);',
+                'console.log(AssertionError.name);',
                 '',
             ].join('\n'),
         );
@@ -136,7 +136,7 @@ describe('--app routing via package.json#gjsify.runtimes', { timeout: 10 * 60 * 
             [
                 "import { format, inspect } from '@gjsify/util';",
                 "console.log(format('%s', 'x'));",
-                "console.log(inspect({a:1}));",
+                'console.log(inspect({a:1}));',
                 '',
             ].join('\n'),
         );
@@ -167,22 +167,14 @@ describe('--app routing via package.json#gjsify.runtimes', { timeout: 10 * 60 * 
                 // Reading the named export — what `@gjsify/webcrypto/globals.mjs`
                 // surfaces. The bundle must read it from globalThis.crypto.
                 "import { subtle } from 'webcrypto';",
-                "console.log(typeof subtle);",
+                'console.log(typeof subtle);',
                 '',
             ].join('\n'),
         );
 
         execFileSync(
             'npx',
-            [
-                'gjsify',
-                'build',
-                'src/app-webcrypto.ts',
-                '--app',
-                'node',
-                '--outfile',
-                'dist/app-webcrypto.node.mjs',
-            ],
+            ['gjsify', 'build', 'src/app-webcrypto.ts', '--app', 'node', '--outfile', 'dist/app-webcrypto.node.mjs'],
             { cwd: projectDir, stdio: 'pipe', timeout: 90 * 1000 },
         );
 
@@ -209,7 +201,7 @@ describe('--app routing via package.json#gjsify.runtimes', { timeout: 10 * 60 * 
             join(projectDir, 'src', 'app-events.ts'),
             [
                 "import { EventEmitter } from '@gjsify/events';",
-                "const ee = new EventEmitter();",
+                'const ee = new EventEmitter();',
                 "ee.on('x', () => {});",
                 "ee.emit('x');",
                 '',

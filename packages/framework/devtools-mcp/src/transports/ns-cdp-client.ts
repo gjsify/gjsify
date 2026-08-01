@@ -187,7 +187,9 @@ export class NsCdpClient {
         if (!pending) return;
         this._pending.delete(frame.id);
         if (frame.error) {
-            pending.reject(new Error(`CDP error ${frame.error.code ?? ''}: ${frame.error.message ?? 'unknown'}`.trim()));
+            pending.reject(
+                new Error(`CDP error ${frame.error.code ?? ''}: ${frame.error.message ?? 'unknown'}`.trim()),
+            );
         } else {
             pending.resolve(frame.result);
         }

@@ -11,7 +11,9 @@ import { findAvailableLanguages, ensureDirectory } from './utils.js';
  * @param translations The parsed PO file from gettext-parser
  * @returns A simplified object with just the translations
  */
-function simplifyTranslations(translations: { translations: Record<string, Record<string, { msgid: string; msgstr: string[] }>> }): Record<string, string> {
+function simplifyTranslations(translations: {
+    translations: Record<string, Record<string, { msgid: string; msgstr: string[] }>>;
+}): Record<string, string> {
     const result: Record<string, string> = {};
 
     // Go through all translation contexts

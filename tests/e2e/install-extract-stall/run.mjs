@@ -141,7 +141,13 @@ describe('gjsify install — per-extract stall guard', { timeout: 60_000 }, () =
             writeFileSync(
                 join(dir, 'package.json'),
                 JSON.stringify(
-                    { name: 'stall-test', version: '0.1.0', type: 'module', private: true, dependencies: { 'leaf-dep': '^1.0.0' } },
+                    {
+                        name: 'stall-test',
+                        version: '0.1.0',
+                        type: 'module',
+                        private: true,
+                        dependencies: { 'leaf-dep': '^1.0.0' },
+                    },
                     null,
                     2,
                 ) + '\n',

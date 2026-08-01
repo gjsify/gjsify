@@ -54,16 +54,11 @@ export function makeSpy<Args extends unknown[]>(): Spy<Args> {
     }) as Spy<Args>;
     Object.defineProperty(fn, 'callCount', { get: () => calls.length });
     fn.calls = calls;
-    fn.calledWith = (...needle: unknown[]) =>
-        calls.some((args) => needle.every((n, i) => args[i] === n));
+    fn.calledWith = (...needle: unknown[]) => calls.some((args) => needle.every((n, i) => args[i] === n));
     return fn;
 }
 
-export async function waitFor<A extends unknown[]>(
-    spy: Spy<A>,
-    minCount = 1,
-    timeoutMs = 4000,
-): Promise<void> {
+export async function waitFor<A extends unknown[]>(spy: Spy<A>, minCount = 1, timeoutMs = 4000): Promise<void> {
     const start = Date.now();
     while (spy.callCount < minCount) {
         if (Date.now() - start > timeoutMs) {

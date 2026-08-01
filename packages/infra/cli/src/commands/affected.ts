@@ -569,9 +569,7 @@ function runGitDiff(cwd: string, base: string, head: string): string[] {
     if (r.status !== 0) {
         // Surface a clear error — caller (CI) will fall back to full run
         // via `continue-on-error: true` on the classify step.
-        process.stderr.write(
-            `gjsify affected: git diff failed (${r.status}): ${r.stderr.trim()}\n`,
-        );
+        process.stderr.write(`gjsify affected: git diff failed (${r.status}): ${r.stderr.trim()}\n`);
         // Under GJS `process.exit()` is DEFERRED (no atexit — the call
         // returns), so in this synchronous, value-returning helper a bare
         // exit fell through to the `return` below and handed the caller a

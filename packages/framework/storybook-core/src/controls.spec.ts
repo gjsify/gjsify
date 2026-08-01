@@ -3,12 +3,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { ControlType, type StoryArgs, type StoryArgValue, type StoryControl } from '@gjsify/stories';
-import {
-    bindControl,
-    type BindableStory,
-    type ControlWidget,
-    type ControlWidgetFactory,
-} from './controls.js';
+import { bindControl, type BindableStory, type ControlWidget, type ControlWidgetFactory } from './controls.js';
 
 /** A mock story that records setArg writes and serves an args bag. */
 class MockStory implements BindableStory {
@@ -49,7 +44,14 @@ class MockWidget<V> implements ControlWidget<string, V> {
 
 /** A factory that hands back fresh MockWidgets and records the last built one per kind. */
 class MockFactory implements ControlWidgetFactory<string> {
-    last: { text?: MockWidget<string>; boolean?: MockWidget<boolean>; number?: MockWidget<number>; range?: MockWidget<number>; select?: MockWidget<number>; color?: MockWidget<string> } = {};
+    last: {
+        text?: MockWidget<string>;
+        boolean?: MockWidget<boolean>;
+        number?: MockWidget<number>;
+        range?: MockWidget<number>;
+        select?: MockWidget<number>;
+        color?: MockWidget<string>;
+    } = {};
     text(): ControlWidget<string, string> {
         return (this.last.text = new MockWidget(''));
     }

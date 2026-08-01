@@ -75,11 +75,7 @@ export default async () => {
                 const server = new Soup.Server({});
                 server.add_handler(null, (_srv: unknown, msg: SoupNS.ServerMessage) => {
                     msg.set_status(200, null);
-                    msg.set_response(
-                        'application/json',
-                        Soup.MemoryUse.COPY,
-                        new TextEncoder().encode('{"ok":true}'),
-                    );
+                    msg.set_response('application/json', Soup.MemoryUse.COPY, new TextEncoder().encode('{"ok":true}'));
                 });
                 server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
                 const base = server.get_uris()[0].to_string();

@@ -21,36 +21,36 @@ import assert from 'node:assert/strict';
 import { requireGi } from '../gi.js';
 
 test('GLib.MainLoop.new returns a boxed handle, not a GObject', () => {
-  const GLib = requireGi('GLib', '2.0');
-  const loop = GLib.MainLoop.new(null, false);
-  assert.equal(typeof loop, 'object');
-  assert.equal(loop.is_running(), false); // boxed method routing
+    const GLib = requireGi('GLib', '2.0');
+    const loop = GLib.MainLoop.new(null, false);
+    assert.equal(typeof loop, 'object');
+    assert.equal(loop.is_running(), false); // boxed method routing
 });
 
 test('blocking GLib.MainLoop.run keeps a libuv timer firing', () => {
-  const GLib = requireGi('GLib', '2.0');
-  const loop = GLib.MainLoop.new(null, false);
-  let fired = false;
-  // Scheduled on libuv; without the bridge a blocking GLib loop would starve it
-  // and run() would never return.
-  setTimeout(() => {
-    fired = true;
-    loop.quit();
-  }, 50);
-  loop.run(); // blocks here until the timer above calls quit()
-  assert.equal(fired, true);
+    const GLib = requireGi('GLib', '2.0');
+    const loop = GLib.MainLoop.new(null, false);
+    let fired = false;
+    // Scheduled on libuv; without the bridge a blocking GLib loop would starve it
+    // and run() would never return.
+    setTimeout(() => {
+        fired = true;
+        loop.quit();
+    }, 50);
+    loop.run(); // blocks here until the timer above calls quit()
+    assert.equal(fired, true);
 });
 
 test('new GLib.MainLoop(...) + camelCase aliases drive the same loop', () => {
-  const GLib = requireGi('GLib', '2.0');
-  // `new GLib.MainLoop(null, false)` maps to the `new` constructor.
-  const loop = new GLib.MainLoop(null, false);
-  assert.equal(loop.isRunning(), false); // camelCase alias for is_running()
-  let fired = false;
-  setTimeout(() => {
-    fired = true;
-    loop.quit();
-  }, 10);
-  loop.run();
-  assert.equal(fired, true);
+    const GLib = requireGi('GLib', '2.0');
+    // `new GLib.MainLoop(null, false)` maps to the `new` constructor.
+    const loop = new GLib.MainLoop(null, false);
+    assert.equal(loop.isRunning(), false); // camelCase alias for is_running()
+    let fired = false;
+    setTimeout(() => {
+        fired = true;
+        loop.quit();
+    }, 10);
+    loop.run();
+    assert.equal(fired, true);
 });

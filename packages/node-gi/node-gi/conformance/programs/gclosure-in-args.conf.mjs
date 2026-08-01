@@ -16,12 +16,12 @@ import Gio from 'gi://Gio?version=2.0';
 const action = new Gio.SimpleAction({ name: 'x', enabled: true });
 const seen = [];
 const id = GObject.signal_connect_closure(
-  action,
-  'notify::enabled',
-  (obj, pspec) => {
-    seen.push([obj === action, pspec.name]);
-  },
-  false,
+    action,
+    'notify::enabled',
+    (obj, pspec) => {
+        seen.push([obj === action, pspec.name]);
+    },
+    false,
 );
 print('id is number:', typeof id === 'number' && id > 0);
 action.set_enabled(false);
@@ -32,27 +32,20 @@ print('after disconnect:', JSON.stringify(seen));
 
 // ---- bind_property_full ----------------------------------------------------
 const T = GObject.registerClass(
-  {
-    GTypeName: 'NodeGiConfBindFull',
-    Properties: {
-      bool: GObject.ParamSpec.boolean('bool', 'Bool', 'B', GObject.ParamFlags.READWRITE, true),
-      num: GObject.ParamSpec.int('num', 'Num', 'N', GObject.ParamFlags.READWRITE, -1000, 1000, 0),
-      string: GObject.ParamSpec.string('string', 'String', 'S', GObject.ParamFlags.READWRITE, ''),
+    {
+        GTypeName: 'NodeGiConfBindFull',
+        Properties: {
+            bool: GObject.ParamSpec.boolean('bool', 'Bool', 'B', GObject.ParamFlags.READWRITE, true),
+            num: GObject.ParamSpec.int('num', 'Num', 'N', GObject.ParamFlags.READWRITE, -1000, 1000, 0),
+            string: GObject.ParamSpec.string('string', 'String', 'S', GObject.ParamFlags.READWRITE, ''),
+        },
     },
-  },
-  class NodeGiConfBindFull extends GObject.Object {},
+    class NodeGiConfBindFull extends GObject.Object {},
 );
 
 const a = new T();
 const b = new T();
-a.bind_property_full(
-  'bool',
-  b,
-  'string',
-  GObject.BindingFlags.NONE,
-  (_binding, source) => [true, `${source}`],
-  null,
-);
+a.bind_property_full('bool', b, 'string', GObject.BindingFlags.NONE, (_binding, source) => [true, `${source}`], null);
 a.bool = true;
 print('transform-to result:', JSON.stringify(b.string));
 
@@ -66,12 +59,12 @@ print('false-return keeps target:', JSON.stringify(d.string));
 const e = new T();
 const f = new T();
 e.bind_property_full(
-  'num',
-  f,
-  'string',
-  GObject.BindingFlags.BIDIRECTIONAL,
-  (_binding, src) => [true, `n:${src}`],
-  (_binding, src) => [true, parseInt(String(src).replace('n:', ''), 10) + 1],
+    'num',
+    f,
+    'string',
+    GObject.BindingFlags.BIDIRECTIONAL,
+    (_binding, src) => [true, `n:${src}`],
+    (_binding, src) => [true, parseInt(String(src).replace('n:', ''), 10) + 1],
 );
 e.num = 5;
 print('bidirectional to:', JSON.stringify(f.string));

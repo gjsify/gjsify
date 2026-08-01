@@ -41,19 +41,19 @@ const _hasNativeImmediate = typeof globalThis.setImmediate === 'function';
 
 export const setImmediate = _hasNativeImmediate
     ? globalThis.setImmediate.bind(globalThis)
-    : ((cb, ...args) => {
+    : (cb, ...args) => {
           const handle = { __cancelled: false };
           Promise.resolve().then(() => {
               if (!handle.__cancelled) cb(...args);
           });
           return handle;
-      });
+      };
 
 export const clearImmediate = _hasNativeImmediate
     ? globalThis.clearImmediate.bind(globalThis)
-    : ((handle) => {
+    : (handle) => {
           if (handle && typeof handle === 'object') handle.__cancelled = true;
-      });
+      };
 
 // Default-export shape — every named timer exported as a property so
 // `import timers from '@gjsify/timers'; timers.setTimeout(...)` resolves.

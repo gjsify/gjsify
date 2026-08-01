@@ -200,7 +200,11 @@ describe('gjsify self-update E2E', { timeout: 60_000 }, () => {
         mkdirSync(enginePkgDir, { recursive: true });
         writeFileSync(
             join(enginePkgDir, 'package.json'),
-            JSON.stringify({ name: '@gjsify/rolldown-native', version: currentVersion, gjsify: { prebuilds: 'prebuilds' } }) + '\n',
+            JSON.stringify({
+                name: '@gjsify/rolldown-native',
+                version: currentVersion,
+                gjsify: { prebuilds: 'prebuilds' },
+            }) + '\n',
         );
 
         // Empty prefix (no @gjsify/cli).
@@ -643,7 +647,10 @@ globalThis.fetch = async (input, init = {}) => {
         const prefixEmptyEngine = join(tmpRoot, 'global-cli-no-engine');
         const ceDir = join(prefixEmptyEngine, 'node_modules', PACKAGE_NAME);
         mkdirSync(ceDir, { recursive: true });
-        writeFileSync(join(ceDir, 'package.json'), JSON.stringify({ name: PACKAGE_NAME, version: currentVersion }) + '\n');
+        writeFileSync(
+            join(ceDir, 'package.json'),
+            JSON.stringify({ name: PACKAGE_NAME, version: currentVersion }) + '\n',
+        );
 
         const result = await runSelfUpdate(['--skip-deps'], {
             preloadPath,

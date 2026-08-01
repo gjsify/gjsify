@@ -18,11 +18,7 @@
 // No Claude API key or network access required.
 
 import { describe, expect, it } from '@gjsify/unit';
-import {
-    getSessionInfo,
-    getSessionMessages,
-    listSessions,
-} from '@anthropic-ai/claude-agent-sdk';
+import { getSessionInfo, getSessionMessages, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

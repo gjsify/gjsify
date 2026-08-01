@@ -100,8 +100,12 @@ export default async () => {
 
                 const capabilities = client.getServerCapabilities();
                 expect(capabilities?.extensions).toBeDefined();
-                const extensions = (capabilities?.extensions as Record<string, ServerCapabilities['extensions']> | undefined);
-                const ext = extensions?.['io.modelcontextprotocol/test-extension'] as Record<string, unknown> | undefined;
+                const extensions = capabilities?.extensions as
+                    | Record<string, ServerCapabilities['extensions']>
+                    | undefined;
+                const ext = extensions?.['io.modelcontextprotocol/test-extension'] as
+                    | Record<string, unknown>
+                    | undefined;
                 expect(ext).toBeDefined();
                 expect(ext!.listChanged).toBe(true);
 
@@ -130,8 +134,10 @@ export default async () => {
 
                 const capabilities = mcpServer.server.getClientCapabilities();
                 expect(capabilities?.extensions).toBeDefined();
-                const extensions2 = (capabilities?.extensions as Record<string, unknown> | undefined);
-                const ext2 = extensions2?.['io.modelcontextprotocol/test-extension'] as Record<string, unknown> | undefined;
+                const extensions2 = capabilities?.extensions as Record<string, unknown> | undefined;
+                const ext2 = extensions2?.['io.modelcontextprotocol/test-extension'] as
+                    | Record<string, unknown>
+                    | undefined;
                 expect(ext2).toBeDefined();
                 expect(ext2!.streaming).toBe(true);
 

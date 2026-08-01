@@ -22,5 +22,8 @@ export default async function run(h) {
     h.emit('no-arg.description', h.fmt(s2.description));
 
     // Non-string description is a caught addon assertion.
-    h.emit('non-string!', h.caughtFull(() => t.New(42)));
+    h.emit(
+        'non-string!',
+        h.caughtFull(() => t.New(42)),
+    );
 }

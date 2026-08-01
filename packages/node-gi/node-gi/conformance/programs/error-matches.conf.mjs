@@ -8,9 +8,9 @@ import Gio from 'gi://Gio?version=2.0';
 
 let caught = null;
 try {
-  Gio.File.new_for_path('/nonexistent-node-gi-conf').load_contents(null);
+    Gio.File.new_for_path('/nonexistent-node-gi-conf').load_contents(null);
 } catch (e) {
-  caught = e;
+    caught = e;
 }
 
 print('threw:', caught !== null);

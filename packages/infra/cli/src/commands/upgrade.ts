@@ -364,14 +364,10 @@ function splitRange(range: string): { prefix: string; version: string | null } {
 function runCheckMode(groups: readonly DependencyGroup[]): void {
     const inconsistencies = findInconsistencies(groups);
     if (inconsistencies.length === 0) {
-        console.log(
-            `gjsify upgrade --check: OK. ${groups.length} dep(s) consistently declared across workspaces.`,
-        );
+        console.log(`gjsify upgrade --check: OK. ${groups.length} dep(s) consistently declared across workspaces.`);
         return;
     }
-    console.error(
-        `gjsify upgrade --check: FAIL. ${inconsistencies.length} dep(s) declared at inconsistent ranges:\n`,
-    );
+    console.error(`gjsify upgrade --check: FAIL. ${inconsistencies.length} dep(s) declared at inconsistent ranges:\n`);
     for (const g of inconsistencies) {
         const byRange = new Map<string, string[]>();
         for (const occ of g.occurrences) {
@@ -384,18 +380,14 @@ function runCheckMode(groups: readonly DependencyGroup[]): void {
             console.error(`    ${range.padEnd(16)} — ${holders.join(', ')}`);
         }
     }
-    console.error(
-        `\nFix: run \`gjsify upgrade --align\` (offline; aligns each dep to its highest declared range).`,
-    );
+    console.error(`\nFix: run \`gjsify upgrade --align\` (offline; aligns each dep to its highest declared range).`);
     process.exit(1);
 }
 
 function runAlignMode(groups: readonly DependencyGroup[], args: UpgradeOptions): void {
     const inconsistencies = findInconsistencies(groups);
     if (inconsistencies.length === 0) {
-        console.log(
-            `gjsify upgrade --align: nothing to do. ${groups.length} dep(s) already consistent.`,
-        );
+        console.log(`gjsify upgrade --align: nothing to do. ${groups.length} dep(s) already consistent.`);
         return;
     }
     // For each inconsistency, the alignment target is the highest declared version
@@ -416,9 +408,7 @@ function runAlignMode(groups: readonly DependencyGroup[], args: UpgradeOptions):
         });
     }
     if (updates.length === 0) {
-        console.log(
-            'gjsify upgrade --align: inconsistencies present but no parseable target version. No-op.',
-        );
+        console.log('gjsify upgrade --align: inconsistencies present but no parseable target version. No-op.');
         return;
     }
     console.log(
@@ -524,10 +514,7 @@ function colorForDiff(diff: ReleaseType): string {
 
 function printTable(candidates: readonly UpgradeGroup[]): void {
     const nameW = Math.max(...candidates.map((c) => c.name.length), 4);
-    const fanW = Math.max(
-        ...candidates.map((c) => `${c.occurrences.length}`.length + 2),
-        3,
-    );
+    const fanW = Math.max(...candidates.map((c) => `${c.occurrences.length}`.length + 2), 3);
     const curW = Math.max(...candidates.map((c) => declaredCellWidth(c)), 7);
     const newW = Math.max(...candidates.map((c) => c.latestVersion.length), 6);
     const idxW = String(candidates.length).length + 2;
@@ -546,12 +533,7 @@ function printTable(candidates: readonly UpgradeGroup[]): void {
         'kind' +
         ANSI.reset;
     console.log(head);
-    console.log(
-        ' '.repeat(idxW + 2) +
-            ANSI.dim +
-            '─'.repeat(nameW + fanW + curW + newW + 16) +
-            ANSI.reset,
-    );
+    console.log(' '.repeat(idxW + 2) + ANSI.dim + '─'.repeat(nameW + fanW + curW + newW + 16) + ANSI.reset);
     for (let i = 0; i < candidates.length; i++) {
         const c = candidates[i]!;
         const idx = `${i + 1}.`.padEnd(idxW);
@@ -683,11 +665,7 @@ function applyToFiles(updates: readonly UpgradeGroup[]): number {
         }
         if (changed) {
             const indent = detectIndent(raw);
-            writeFileSync(
-                pkgJsonPath,
-                JSON.stringify(pkg, null, indent) + (raw.endsWith('\n') ? '\n' : ''),
-                'utf-8',
-            );
+            writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, indent) + (raw.endsWith('\n') ? '\n' : ''), 'utf-8');
             touched++;
         }
     }

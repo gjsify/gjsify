@@ -25,33 +25,106 @@ import { EventEmitter } from '@gjsify/events';
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 export const METHODS = [
-    'ACL', 'BIND', 'CHECKOUT', 'CONNECT', 'COPY', 'DELETE', 'GET', 'HEAD',
-    'LINK', 'LOCK', 'M-SEARCH', 'MERGE', 'MKACTIVITY', 'MKCALENDAR', 'MKCOL',
-    'MOVE', 'NOTIFY', 'OPTIONS', 'PATCH', 'POST', 'PROPFIND', 'PROPPATCH',
-    'PURGE', 'PUT', 'REBIND', 'REPORT', 'SEARCH', 'SOURCE', 'SUBSCRIBE',
-    'TRACE', 'UNBIND', 'UNLINK', 'UNLOCK', 'UNSUBSCRIBE',
+    'ACL',
+    'BIND',
+    'CHECKOUT',
+    'CONNECT',
+    'COPY',
+    'DELETE',
+    'GET',
+    'HEAD',
+    'LINK',
+    'LOCK',
+    'M-SEARCH',
+    'MERGE',
+    'MKACTIVITY',
+    'MKCALENDAR',
+    'MKCOL',
+    'MOVE',
+    'NOTIFY',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PROPFIND',
+    'PROPPATCH',
+    'PURGE',
+    'PUT',
+    'REBIND',
+    'REPORT',
+    'SEARCH',
+    'SOURCE',
+    'SUBSCRIBE',
+    'TRACE',
+    'UNBIND',
+    'UNLINK',
+    'UNLOCK',
+    'UNSUBSCRIBE',
 ];
 
 export const STATUS_CODES: Record<number, string> = {
-    100: 'Continue', 101: 'Switching Protocols', 102: 'Processing', 103: 'Early Hints',
-    200: 'OK', 201: 'Created', 202: 'Accepted', 203: 'Non-Authoritative Information',
-    204: 'No Content', 205: 'Reset Content', 206: 'Partial Content', 207: 'Multi-Status',
-    208: 'Already Reported', 226: 'IM Used',
-    300: 'Multiple Choices', 301: 'Moved Permanently', 302: 'Found', 303: 'See Other',
-    304: 'Not Modified', 305: 'Use Proxy', 307: 'Temporary Redirect', 308: 'Permanent Redirect',
-    400: 'Bad Request', 401: 'Unauthorized', 402: 'Payment Required', 403: 'Forbidden',
-    404: 'Not Found', 405: 'Method Not Allowed', 406: 'Not Acceptable',
-    407: 'Proxy Authentication Required', 408: 'Request Timeout', 409: 'Conflict',
-    410: 'Gone', 411: 'Length Required', 412: 'Precondition Failed', 413: 'Payload Too Large',
-    414: 'URI Too Long', 415: 'Unsupported Media Type', 416: 'Range Not Satisfiable',
-    417: 'Expectation Failed', 418: 'I\'m a Teapot', 421: 'Misdirected Request',
-    422: 'Unprocessable Entity', 423: 'Locked', 424: 'Failed Dependency', 425: 'Too Early',
-    426: 'Upgrade Required', 428: 'Precondition Required', 429: 'Too Many Requests',
-    431: 'Request Header Fields Too Large', 451: 'Unavailable For Legal Reasons',
-    500: 'Internal Server Error', 501: 'Not Implemented', 502: 'Bad Gateway',
-    503: 'Service Unavailable', 504: 'Gateway Timeout', 505: 'HTTP Version Not Supported',
-    506: 'Variant Also Negotiates', 507: 'Insufficient Storage', 508: 'Loop Detected',
-    509: 'Bandwidth Limit Exceeded', 510: 'Not Extended', 511: 'Network Authentication Required',
+    100: 'Continue',
+    101: 'Switching Protocols',
+    102: 'Processing',
+    103: 'Early Hints',
+    200: 'OK',
+    201: 'Created',
+    202: 'Accepted',
+    203: 'Non-Authoritative Information',
+    204: 'No Content',
+    205: 'Reset Content',
+    206: 'Partial Content',
+    207: 'Multi-Status',
+    208: 'Already Reported',
+    226: 'IM Used',
+    300: 'Multiple Choices',
+    301: 'Moved Permanently',
+    302: 'Found',
+    303: 'See Other',
+    304: 'Not Modified',
+    305: 'Use Proxy',
+    307: 'Temporary Redirect',
+    308: 'Permanent Redirect',
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    402: 'Payment Required',
+    403: 'Forbidden',
+    404: 'Not Found',
+    405: 'Method Not Allowed',
+    406: 'Not Acceptable',
+    407: 'Proxy Authentication Required',
+    408: 'Request Timeout',
+    409: 'Conflict',
+    410: 'Gone',
+    411: 'Length Required',
+    412: 'Precondition Failed',
+    413: 'Payload Too Large',
+    414: 'URI Too Long',
+    415: 'Unsupported Media Type',
+    416: 'Range Not Satisfiable',
+    417: 'Expectation Failed',
+    418: "I'm a Teapot",
+    421: 'Misdirected Request',
+    422: 'Unprocessable Entity',
+    423: 'Locked',
+    424: 'Failed Dependency',
+    425: 'Too Early',
+    426: 'Upgrade Required',
+    428: 'Precondition Required',
+    429: 'Too Many Requests',
+    431: 'Request Header Fields Too Large',
+    451: 'Unavailable For Legal Reasons',
+    500: 'Internal Server Error',
+    501: 'Not Implemented',
+    502: 'Bad Gateway',
+    503: 'Service Unavailable',
+    504: 'Gateway Timeout',
+    505: 'HTTP Version Not Supported',
+    506: 'Variant Also Negotiates',
+    507: 'Insufficient Storage',
+    508: 'Loop Detected',
+    509: 'Bandwidth Limit Exceeded',
+    510: 'Not Extended',
+    511: 'Network Authentication Required',
 };
 
 export const maxHeaderSize = 16384;
@@ -257,18 +330,32 @@ export class IncomingMessage extends EventEmitter {
         let done = false;
         let err: Error | null = null;
         let wake: (() => void) | null = null;
-        const onData = (c: Uint8Array | string): void => { queue.push(c); wake?.(); };
-        const onEnd = (): void => { done = true; wake?.(); };
-        const onError = (e: Error): void => { err = e; wake?.(); };
+        const onData = (c: Uint8Array | string): void => {
+            queue.push(c);
+            wake?.();
+        };
+        const onEnd = (): void => {
+            done = true;
+            wake?.();
+        };
+        const onError = (e: Error): void => {
+            err = e;
+            wake?.();
+        };
         this.on('data', onData as (...a: unknown[]) => void);
         this.once('end', onEnd);
         this.once('error', onError as (...a: unknown[]) => void);
         try {
             while (true) {
                 if (err) throw err;
-                if (queue.length > 0) { yield queue.shift() as Uint8Array | string; continue; }
+                if (queue.length > 0) {
+                    yield queue.shift() as Uint8Array | string;
+                    continue;
+                }
                 if (done) return;
-                await new Promise<void>((res) => { wake = res; });
+                await new Promise<void>((res) => {
+                    wake = res;
+                });
             }
         } finally {
             this.removeListener('data', onData as (...a: unknown[]) => void);
@@ -378,9 +465,7 @@ export class ClientRequest extends EventEmitter {
         if (this._started) return;
         this._started = true;
         const hasBody = this._bodyChunks.length > 0;
-        const body = hasBody
-            ? new Blob(this._bodyChunks as BlobPart[])
-            : undefined;
+        const body = hasBody ? new Blob(this._bodyChunks as BlobPart[]) : undefined;
         try {
             const response = await fetch(this._url, {
                 method: this.method,
@@ -464,7 +549,11 @@ export function get(
 // pretending to work — faking it would hide the real platform limit.
 
 function notSupported(syscall: string): never {
-    const err = new Error(`http.${syscall} is not supported in the browser`) as Error & { code: string; errno: number; syscall: string };
+    const err = new Error(`http.${syscall} is not supported in the browser`) as Error & {
+        code: string;
+        errno: number;
+        syscall: string;
+    };
     err.code = 'ENOTSUP';
     err.errno = -45;
     err.syscall = syscall;

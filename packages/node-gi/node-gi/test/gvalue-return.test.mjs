@@ -29,9 +29,9 @@ import { requireGi } from '../gi.js';
 let Gda = null;
 let gdaError = '';
 try {
-  Gda = requireGi('Gda', '6.0');
+    Gda = requireGi('Gda', '6.0');
 } catch (e) {
-  gdaError = String(e?.message ?? e);
+    gdaError = String(e?.message ?? e);
 }
 const skip = Gda ? false : `libgda (Gda-6.0) unavailable: ${gdaError}`;
 
@@ -39,77 +39,89 @@ const skip = Gda ? false : `libgda (Gda-6.0) unavailable: ${gdaError}`;
 // below, which embeds this exact `.toString()`). Only `gi://` + plain JS, so it is
 // runtime-neutral; it returns the formatted lines and lets the caller print them.
 function probeGValues(GdaNs) {
-  const cnc = GdaNs.Connection.open_from_string(
-    'SQLite', 'DB_DIR=.;DB_NAME=:memory:', null, GdaNs.ConnectionOptions.NONE);
-  cnc.execute_non_select_command('CREATE TABLE t (i INTEGER, s TEXT, d REAL, b BOOLEAN)');
-  cnc.execute_non_select_command("INSERT INTO t VALUES (42, 'hi', 3.5, 1)");
-  cnc.execute_non_select_command('INSERT INTO t VALUES (NULL, NULL, NULL, NULL)');
-  const model = cnc.execute_select_command('SELECT i, s, d, b FROM t');
-  const labels = ['INTEGER', 'TEXT', 'REAL', 'BOOLEAN'];
-  const out = [];
-  for (let row = 0; row < model.get_n_rows(); row++) {
-    for (let col = 0; col < model.get_n_columns(); col++) {
-      const v = model.get_value_at(col, row);
-      out.push(`row${row} ${labels[col]}: ${v === null ? 'null' : v} (${typeof v})`);
+    const cnc = GdaNs.Connection.open_from_string(
+        'SQLite',
+        'DB_DIR=.;DB_NAME=:memory:',
+        null,
+        GdaNs.ConnectionOptions.NONE,
+    );
+    cnc.execute_non_select_command('CREATE TABLE t (i INTEGER, s TEXT, d REAL, b BOOLEAN)');
+    cnc.execute_non_select_command("INSERT INTO t VALUES (42, 'hi', 3.5, 1)");
+    cnc.execute_non_select_command('INSERT INTO t VALUES (NULL, NULL, NULL, NULL)');
+    const model = cnc.execute_select_command('SELECT i, s, d, b FROM t');
+    const labels = ['INTEGER', 'TEXT', 'REAL', 'BOOLEAN'];
+    const out = [];
+    for (let row = 0; row < model.get_n_rows(); row++) {
+        for (let col = 0; col < model.get_n_columns(); col++) {
+            const v = model.get_value_at(col, row);
+            out.push(`row${row} ${labels[col]}: ${v === null ? 'null' : v} (${typeof v})`);
+        }
     }
-  }
-  return out;
+    return out;
 }
 
 test('GValue return unboxes to the contained JS primitive (Gda.DataModel.get_value_at)', { skip }, () => {
-  const cnc = Gda.Connection.open_from_string(
-    'SQLite', 'DB_DIR=.;DB_NAME=:memory:', null, Gda.ConnectionOptions.NONE);
-  cnc.execute_non_select_command('CREATE TABLE t (i INTEGER, s TEXT, d REAL, b BOOLEAN)');
-  cnc.execute_non_select_command("INSERT INTO t VALUES (42, 'hi', 3.5, 1)");
-  cnc.execute_non_select_command('INSERT INTO t VALUES (NULL, NULL, NULL, NULL)');
-  const model = cnc.execute_select_command('SELECT i, s, d, b FROM t');
+    const cnc = Gda.Connection.open_from_string(
+        'SQLite',
+        'DB_DIR=.;DB_NAME=:memory:',
+        null,
+        Gda.ConnectionOptions.NONE,
+    );
+    cnc.execute_non_select_command('CREATE TABLE t (i INTEGER, s TEXT, d REAL, b BOOLEAN)');
+    cnc.execute_non_select_command("INSERT INTO t VALUES (42, 'hi', 3.5, 1)");
+    cnc.execute_non_select_command('INSERT INTO t VALUES (NULL, NULL, NULL, NULL)');
+    const model = cnc.execute_select_command('SELECT i, s, d, b FROM t');
 
-  // int → a JS number (NOT a boxed GObject.Value handle: typeof 'object' would be
-  // the pre-fix regression).
-  const i = model.get_value_at(0, 0);
-  assert.equal(i, 42);
-  assert.equal(typeof i, 'number');
+    // int → a JS number (NOT a boxed GObject.Value handle: typeof 'object' would be
+    // the pre-fix regression).
+    const i = model.get_value_at(0, 0);
+    assert.equal(i, 42);
+    assert.equal(typeof i, 'number');
 
-  // string → a JS string.
-  const s = model.get_value_at(1, 0);
-  assert.equal(s, 'hi');
-  assert.equal(typeof s, 'string');
+    // string → a JS string.
+    const s = model.get_value_at(1, 0);
+    assert.equal(s, 'hi');
+    assert.equal(typeof s, 'string');
 
-  // double → a JS number.
-  const d = model.get_value_at(2, 0);
-  assert.equal(d, 3.5);
-  assert.equal(typeof d, 'number');
+    // double → a JS number.
+    const d = model.get_value_at(2, 0);
+    assert.equal(d, 3.5);
+    assert.equal(typeof d, 'number');
 
-  // boolean → a JS boolean (a BOOLEAN column pins G_TYPE_BOOLEAN → true, not 1).
-  const b = model.get_value_at(3, 0);
-  assert.equal(b, true);
-  assert.equal(typeof b, 'boolean');
+    // boolean → a JS boolean (a BOOLEAN column pins G_TYPE_BOOLEAN → true, not 1).
+    const b = model.get_value_at(3, 0);
+    assert.equal(b, true);
+    assert.equal(typeof b, 'boolean');
 
-  // NULL / unset GValue → null (every column of the second, all-NULL row).
-  for (let col = 0; col < 4; col++) {
-    assert.equal(model.get_value_at(col, 1), null, `NULL column ${col} unboxes to null`);
-  }
+    // NULL / unset GValue → null (every column of the second, all-NULL row).
+    for (let col = 0; col < 4; col++) {
+        assert.equal(model.get_value_at(col, 1), null, `NULL column ${col} unboxes to null`);
+    }
 });
 
-test('GValue unbox is byte-identical to gjs (gold standard)', {
-  skip: skip || (spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0 ? false : 'gjs not on PATH'),
-}, () => {
-  const ours = probeGValues(Gda).join('\n');
+test(
+    'GValue unbox is byte-identical to gjs (gold standard)',
+    {
+        skip: skip || (spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0 ? false : 'gjs not on PATH'),
+    },
+    () => {
+        const ours = probeGValues(Gda).join('\n');
 
-  // Run the IDENTICAL probe body under `gjs -m` (native gi:// + GValue unbox) and
-  // compare its stdout line-for-line — the exactness oracle.
-  const dir = mkdtempSync(join(tmpdir(), 'nodegi-gvalue-gjs-'));
-  try {
-    const script = join(dir, 'probe.js');
-    const src =
-      `import Gda from 'gi://Gda?version=6.0';\n` +
-      `const probeGValues = ${probeGValues.toString()};\n` +
-      `for (const line of probeGValues(Gda)) print(line);\n`;
-    writeFileSync(script, src);
-    const res = spawnSync('gjs', ['-m', script], { encoding: 'utf8' });
-    assert.equal(res.status, 0, `gjs probe failed: ${res.stderr}`);
-    assert.equal(ours, res.stdout.trimEnd(), 'node-gi and gjs GValue unbox output are byte-identical');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
+        // Run the IDENTICAL probe body under `gjs -m` (native gi:// + GValue unbox) and
+        // compare its stdout line-for-line — the exactness oracle.
+        const dir = mkdtempSync(join(tmpdir(), 'nodegi-gvalue-gjs-'));
+        try {
+            const script = join(dir, 'probe.js');
+            const src =
+                `import Gda from 'gi://Gda?version=6.0';\n` +
+                `const probeGValues = ${probeGValues.toString()};\n` +
+                `for (const line of probeGValues(Gda)) print(line);\n`;
+            writeFileSync(script, src);
+            const res = spawnSync('gjs', ['-m', script], { encoding: 'utf8' });
+            assert.equal(res.status, 0, `gjs probe failed: ${res.stderr}`);
+            assert.equal(ours, res.stdout.trimEnd(), 'node-gi and gjs GValue unbox output are byte-identical');
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    },
+);

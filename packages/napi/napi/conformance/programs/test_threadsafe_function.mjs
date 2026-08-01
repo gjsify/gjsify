@@ -45,12 +45,19 @@ export default async function run(h) {
     async function runJS(starter, maxQueueSize) {
         const array = [];
         let resolved = false;
-        binding[starter](function testCallback(value) {
-            array.push(value);
-            if (array.length === N) {
-                binding.StopThread(() => { resolved = true; }, false);
-            }
-        }, false /* abort */, false /* launchSecondary */, maxQueueSize);
+        binding[starter](
+            function testCallback(value) {
+                array.push(value);
+                if (array.length === N) {
+                    binding.StopThread(() => {
+                        resolved = true;
+                    }, false);
+                }
+            },
+            false /* abort */,
+            false /* launchSecondary */,
+            maxQueueSize,
+        );
         const ok = await drainUntil(() => resolved);
         const inOrder = array.length === expected.length && array.every((v, i) => v === expected[i]);
         return { finished: ok, len: array.length, inOrder, first: array[0], last: array[array.length - 1] };
@@ -70,13 +77,20 @@ export default async function run(h) {
         let count = 0;
         let zeroArgs = true;
         let resolved = false;
-        binding.StartThreadNoNative(function testCallback() {
-            count++;
-            if (arguments.length !== 0) zeroArgs = false;
-            if (count === N) {
-                binding.StopThread(() => { resolved = true; }, false);
-            }
-        }, false, false, binding.MAX_QUEUE_SIZE);
+        binding.StartThreadNoNative(
+            function testCallback() {
+                count++;
+                if (arguments.length !== 0) zeroArgs = false;
+                if (count === N) {
+                    binding.StopThread(() => {
+                        resolved = true;
+                    }, false);
+                }
+            },
+            false,
+            false,
+            binding.MAX_QUEUE_SIZE,
+        );
         const ok = await drainUntil(() => resolved);
         h.emit('no-native', ok, count, zeroArgs);
     }

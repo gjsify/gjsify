@@ -128,11 +128,7 @@ const headerMethods: HeaderMethods & ThisType<Http2ServerResponse> = {
         if (callback) Promise.resolve().then(callback);
     },
 
-    writeEarlyHints(
-        this: Http2ServerResponse,
-        _hints: Record<string, string | string[]>,
-        callback?: () => void,
-    ): void {
+    writeEarlyHints(this: Http2ServerResponse, _hints: Record<string, string | string[]>, callback?: () => void): void {
         if (callback) Promise.resolve().then(callback);
     },
 

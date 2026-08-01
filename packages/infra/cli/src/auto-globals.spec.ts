@@ -51,9 +51,7 @@ export default async () => {
         await it('recognises the bare and resolved-disk-path shapes', () => {
             expect(isGjsifyShim(SHIM)).toBe(true);
             expect(isGjsifyShim('@gjsify/rolldown-plugin-gjsify/shims/console-gjs')).toBe(true);
-            expect(
-                isGjsifyShim('/x/node_modules/@gjsify/rolldown-plugin-gjsify/lib/shims/console-gjs.js'),
-            ).toBe(true);
+            expect(isGjsifyShim('/x/node_modules/@gjsify/rolldown-plugin-gjsify/lib/shims/console-gjs.js')).toBe(true);
             expect(isGjsifyShim('/x/packages/infra/rolldown-plugin-gjsify/src/shims/module-resolve.ts')).toBe(true);
         });
 
@@ -96,15 +94,9 @@ export default async () => {
         await it('recognizes resolved on-disk register paths', () => {
             // Rolldown sees these after the alias plugin walks the
             // `<pkg>/register` specifier through node_modules.
-            expect(
-                isRegisterSubpath('/repo/node_modules/@gjsify/buffer/lib/esm/register.js'),
-            ).toBe(true);
-            expect(
-                isRegisterSubpath('/repo/node_modules/@gjsify/node-globals/lib/esm/register/buffer.js'),
-            ).toBe(true);
-            expect(
-                isRegisterSubpath('/repo/packages/web/fetch/lib/esm/register/xhr.js'),
-            ).toBe(true);
+            expect(isRegisterSubpath('/repo/node_modules/@gjsify/buffer/lib/esm/register.js')).toBe(true);
+            expect(isRegisterSubpath('/repo/node_modules/@gjsify/node-globals/lib/esm/register/buffer.js')).toBe(true);
+            expect(isRegisterSubpath('/repo/packages/web/fetch/lib/esm/register/xhr.js')).toBe(true);
         });
 
         await it('does NOT match unrelated specifiers', () => {
@@ -199,14 +191,7 @@ export default async () => {
         const pluginOpts = { app: 'gjs', format: 'esm' } as never;
 
         await it('expands pass-1 detection through the committed closure map by default', async () => {
-            const { detected } = await detectAutoGlobals(
-                analysis,
-                pluginOpts,
-                legacyFactory,
-                false,
-                {},
-                fakeBundler,
-            );
+            const { detected } = await detectAutoGlobals(analysis, pluginOpts, legacyFactory, false, {}, fakeBundler);
             expect(detected.has('ReadableStream')).toBe(true);
             // The web-streams register closure pulls shared infra globals.
             expect(detected.size > 1).toBe(true);
@@ -362,9 +347,7 @@ export default async () => {
             // Bundle output: `document` appears only in a typeof guard.
             // Fix (b) suppresses the detection; fix (a) provides the second
             // layer in case the detection somehow slips through.
-            const fakeBundler = async () => [
-                `if (typeof document !== 'undefined') { /* dead guard */ }\n`,
-            ];
+            const fakeBundler = async () => [`if (typeof document !== 'undefined') { /* dead guard */ }\n`];
             const { injectPath } = await detectAutoGlobals(
                 { input: 'entry.ts', format: 'esm' },
                 pluginOpts,
@@ -384,8 +367,8 @@ export default async () => {
             // caused a Rolldown ImportError on the analysis bundle.
             const fakeBundler = async () => [
                 `// simulated npm dep with browser compat guard\n` +
-                `var __guard = typeof document !== 'undefined';\n` +
-                `if (__guard) { console.log('browser'); }\n`,
+                    `var __guard = typeof document !== 'undefined';\n` +
+                    `if (__guard) { console.log('browser'); }\n`,
             ];
             // Should complete without throwing.
             let threw = false;
@@ -565,7 +548,9 @@ export default async () => {
         });
 
         await it('does not flag locally-declared shadows', () => {
-            const got = detectGjsAmbientGlobals('const imports = {}; function print() {} print(); console.log(imports);');
+            const got = detectGjsAmbientGlobals(
+                'const imports = {}; function print() {} print(); console.log(imports);',
+            );
             expect(got.has('imports')).toBe(false);
             expect(got.has('print')).toBe(false);
         });
@@ -621,9 +606,7 @@ export default async () => {
         });
 
         await it('returns false for a plain cross-platform bundle', () => {
-            expect(detectNodeGiModuleImports('import { readFile } from "node:fs"; console.log(readFile);')).toBe(
-                false,
-            );
+            expect(detectNodeGiModuleImports('import { readFile } from "node:fs"; console.log(readFile);')).toBe(false);
         });
 
         await it('REGRESSION GUARD: blind to the lazy gi:// shim require() call (#641)', () => {

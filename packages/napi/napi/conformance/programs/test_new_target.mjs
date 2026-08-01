@@ -22,6 +22,5 @@ export default async function run(h) {
     h.emit('instanceof', new Class() instanceof binding.BaseClass);
     h.emit('method-ran', new Class().ok);
     h.emit('ordinary', binding.OrdinaryFunction());
-    h.emit('ctor-new.target',
-        new binding.Constructor(binding.Constructor) instanceof binding.Constructor);
+    h.emit('ctor-new.target', new binding.Constructor(binding.Constructor) instanceof binding.Constructor);
 }

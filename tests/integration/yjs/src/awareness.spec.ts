@@ -11,12 +11,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import * as Y from 'yjs';
-import {
-    Awareness,
-    encodeAwarenessUpdate,
-    applyAwarenessUpdate,
-    removeAwarenessStates,
-} from 'y-protocols/awareness';
+import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness';
 
 export default async () => {
     await describe('y-protocols/awareness — peer presence protocol', async () => {
@@ -30,19 +25,8 @@ export default async () => {
             // Wire aw1 → aw2: every update on aw1 gets encoded + applied to aw2.
             aw1.on(
                 'update',
-                ({
-                    added,
-                    updated,
-                    removed,
-                }: {
-                    added: number[];
-                    updated: number[];
-                    removed: number[];
-                }) => {
-                    const enc = encodeAwarenessUpdate(
-                        aw1,
-                        added.concat(updated).concat(removed),
-                    );
+                ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
+                    const enc = encodeAwarenessUpdate(aw1, added.concat(updated).concat(removed));
                     applyAwarenessUpdate(aw2, enc, 'custom');
                 },
             );

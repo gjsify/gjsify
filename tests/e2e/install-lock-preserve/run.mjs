@@ -173,7 +173,13 @@ describe('gjsify install — lockfile preservation', { timeout: 90_000 }, () => 
         writeFileSync(
             join(projectDir, 'package.json'),
             JSON.stringify(
-                { name: 'preserve-test', version: '0.1.0', type: 'commonjs', private: true, dependencies: { 'dep-a': '^1.0.0' } },
+                {
+                    name: 'preserve-test',
+                    version: '0.1.0',
+                    type: 'commonjs',
+                    private: true,
+                    dependencies: { 'dep-a': '^1.0.0' },
+                },
                 null,
                 2,
             ) + '\n',

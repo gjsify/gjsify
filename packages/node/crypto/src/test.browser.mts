@@ -94,9 +94,7 @@ run({
                 const salt = Buffer.from('000102030405060708090a0b0c', 'hex');
                 const info = Buffer.from('f0f1f2f3f4f5f6f7f8f9', 'hex');
                 const expected =
-                    '3cb25f25faacd57a90434f64d0362f2a' +
-                    '2d2d0a90cf1a5a4c5db02d56ecc4c5bf' +
-                    '34007208d5b887185865';
+                    '3cb25f25faacd57a90434f64d0362f2a' + '2d2d0a90cf1a5a4c5db02d56ecc4c5bf' + '34007208d5b887185865';
                 await new Promise<void>((resolve, reject) => {
                     hkdf('sha256', ikm, salt, info, 42, (err, derived) => {
                         try {

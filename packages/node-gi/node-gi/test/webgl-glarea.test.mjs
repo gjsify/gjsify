@@ -49,14 +49,7 @@ const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 
 // The committed gwebgl Vala prebuild (typelib + .so) @gjsify/webgl ships —
 // puts Gwebgl-0.1 on GI_TYPELIB_PATH/LD_LIBRARY_PATH for BOTH runtimes.
-const gwebglDir = join(
-    repoRoot,
-    'packages',
-    'framework',
-    'webgl',
-    'prebuilds',
-    `linux-${process.arch}`,
-);
+const gwebglDir = join(repoRoot, 'packages', 'framework', 'webgl', 'prebuilds', `linux-${process.arch}`);
 const haveGwebgl = existsSync(join(gwebglDir, 'Gwebgl-0.1.typelib'));
 
 // Locate the workspace `gjsify` CLI: an explicit override, else the nearest
@@ -84,10 +77,10 @@ const gjsify = haveDisplay ? findGjsify() : null;
 const skip = !haveDisplay
     ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)'
     : !haveGwebgl
-        ? `Gwebgl prebuild missing (${gwebglDir})`
-        : !gjsify
-            ? 'gjsify CLI not found (workspace not installed)'
-            : false;
+      ? `Gwebgl prebuild missing (${gwebglDir})`
+      : !gjsify
+        ? 'gjsify CLI not found (workspace not installed)'
+        : false;
 
 // The gjs gold-standard leg re-proves the committed GOLDEN below IS exactly
 // gjs's own byte-output. Skippable via NODE_GI_WEBGL_SKIP_GJS=1 (the
@@ -100,9 +93,10 @@ const skip = !haveDisplay
 // loadable gjs bundle — probe one register lib the entry wrapper always pulls.
 // NB the NODE leg has no such requirement: the fixture imports only gi://.
 const workspaceBuilt = existsSync(join(repoRoot, 'packages', 'node', 'buffer', 'lib', 'esm', 'register.js'));
-const haveGjs = !process.env.NODE_GI_WEBGL_SKIP_GJS
-    && workspaceBuilt
-    && spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
+const haveGjs =
+    !process.env.NODE_GI_WEBGL_SKIP_GJS &&
+    workspaceBuilt &&
+    spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
 
 // The fixed sequence of lines both runtimes must print, in order — the committed
 // golden. It IS gjs's own output (asserted by the local gjs leg below). The
@@ -239,13 +233,9 @@ function assertDualRuntimeGolden(entry, golden) {
     }
 }
 
-test(
-    'Gtk.GLArea realizes with a CURRENT GL context + WebGL draw on node-gi',
-    { skip },
-    () => {
-        assertDualRuntimeGolden(fixture, GOLDEN);
-    },
-);
+test('Gtk.GLArea realizes with a CURRENT GL context + WebGL draw on node-gi', { skip }, () => {
+    assertDualRuntimeGolden(fixture, GOLDEN);
+});
 
 // ---- the FULL @gjsify/webgl WebGLBridge (TS WebGL stack) on node-gi ---------
 
@@ -277,10 +267,6 @@ const BRIDGE_GOLDEN = [
     'done',
 ].join('\n');
 
-test(
-    'the full @gjsify/webgl WebGLBridge draws + reads back on node-gi',
-    { skip: bridgeSkip },
-    () => {
-        assertDualRuntimeGolden(bridgeFixture, BRIDGE_GOLDEN);
-    },
-);
+test('the full @gjsify/webgl WebGLBridge draws + reads back on node-gi', { skip: bridgeSkip }, () => {
+    assertDualRuntimeGolden(bridgeFixture, BRIDGE_GOLDEN);
+});

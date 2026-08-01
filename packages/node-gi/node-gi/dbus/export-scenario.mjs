@@ -121,17 +121,29 @@ export function runExportScenario({ Gio, GLib }) {
             // Property GET via org.freedesktop.DBus.Properties (async — the
             // get-property closure runs on this same loop).
             conn.call(
-                dest, OBJ_PATH, 'org.freedesktop.DBus.Properties', 'Get',
+                dest,
+                OBJ_PATH,
+                'org.freedesktop.DBus.Properties',
+                'Get',
                 new GLib.Variant('(ss)', [IFACE, 'Level']),
-                new GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, -1, null,
+                new GLib.VariantType('(v)'),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
                 (_s1, res1) => {
                     result.levelBefore = conn.call_finish(res1).deepUnpack()[0].deepUnpack();
                     // Property SET: the set-property closure writes through to
                     // the JS object.
                     conn.call(
-                        dest, OBJ_PATH, 'org.freedesktop.DBus.Properties', 'Set',
+                        dest,
+                        OBJ_PATH,
+                        'org.freedesktop.DBus.Properties',
+                        'Set',
                         new GLib.Variant('(ssv)', [IFACE, 'Level', new GLib.Variant('i', 99)]),
-                        null, Gio.DBusCallFlags.NONE, -1, null,
+                        null,
+                        Gio.DBusCallFlags.NONE,
+                        -1,
+                        null,
                         (_s2, res2) => {
                             conn.call_finish(res2);
                             result.levelAfterSet = service.Level;

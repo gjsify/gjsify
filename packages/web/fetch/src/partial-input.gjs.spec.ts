@@ -91,9 +91,7 @@ export default async () => {
          * the bound origin and a stop() fn. The framing is entirely up to the
          * caller — that is the whole point.
          */
-        const startRawServer = (
-            responseBytes: Uint8Array,
-        ): { base: string; stop: () => void } => {
+        const startRawServer = (responseBytes: Uint8Array): { base: string; stop: () => void } => {
             const service = new Gio.SocketService();
             const port = service.add_any_inet_port(null);
             service.connect('incoming', (_svc: GioNS.SocketService, conn: GioNS.SocketConnection) => {
@@ -106,25 +104,20 @@ export default async () => {
                     } catch {
                         /* ignore request-read errors */
                     }
-                    output.write_bytes_async(
-                        new GLib.Bytes(responseBytes),
-                        GLib.PRIORITY_DEFAULT,
-                        null,
-                        (os, or) => {
-                            try {
-                                (os as GioNS.OutputStream).write_bytes_finish(or);
-                            } catch {
-                                /* ignore */
-                            }
-                            // Close WITHOUT any graceful HTTP framing beyond what the
-                            // caller put in responseBytes.
-                            try {
-                                conn.close(null);
-                            } catch {
-                                /* ignore */
-                            }
-                        },
-                    );
+                    output.write_bytes_async(new GLib.Bytes(responseBytes), GLib.PRIORITY_DEFAULT, null, (os, or) => {
+                        try {
+                            (os as GioNS.OutputStream).write_bytes_finish(or);
+                        } catch {
+                            /* ignore */
+                        }
+                        // Close WITHOUT any graceful HTTP framing beyond what the
+                        // caller put in responseBytes.
+                        try {
+                            conn.close(null);
+                        } catch {
+                            /* ignore */
+                        }
+                    });
                 });
                 return false;
             });

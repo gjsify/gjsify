@@ -333,7 +333,8 @@ export default async () => {
         await it('should getElementsByTagName', async () => {
             const root = new Element();
             const div = new Element();
-            (div as unknown as Record<string | symbol, unknown>)[Symbol.for ? Symbol.for('tagName') : 'tagName'] = 'DIV';
+            (div as unknown as Record<string | symbol, unknown>)[Symbol.for ? Symbol.for('tagName') : 'tagName'] =
+                'DIV';
             // Use internal symbol access via setting attribute approach
             // Instead, test with the proper API
             root.appendChild(div);
@@ -350,7 +351,9 @@ export default async () => {
                 listenerCalled = true;
             });
 
-            (el as unknown as Record<string | symbol, unknown>)[Symbol.for ? Symbol.for('propertyEventListeners') : 'propertyEventListeners'] = new Map();
+            (el as unknown as Record<string | symbol, unknown>)[
+                Symbol.for ? Symbol.for('propertyEventListeners') : 'propertyEventListeners'
+            ] = new Map();
             // Use the propertyEventListeners through proper API in HTMLElement
             // For Element, test addEventListener only
             el.dispatchEvent(new Event('click'));

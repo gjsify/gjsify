@@ -15,9 +15,15 @@ export default async function run(h) {
 
     const sab = new SharedArrayBuffer(16);
     const ab = new ArrayBuffer(16);
-    h.emit('is-sab', t.TestIsSharedArrayBuffer(sab), t.TestIsSharedArrayBuffer(ab),
-        t.TestIsSharedArrayBuffer({}), t.TestIsSharedArrayBuffer([]),
-        t.TestIsSharedArrayBuffer(null), t.TestIsSharedArrayBuffer(undefined));
+    h.emit(
+        'is-sab',
+        t.TestIsSharedArrayBuffer(sab),
+        t.TestIsSharedArrayBuffer(ab),
+        t.TestIsSharedArrayBuffer({}),
+        t.TestIsSharedArrayBuffer([]),
+        t.TestIsSharedArrayBuffer(null),
+        t.TestIsSharedArrayBuffer(undefined),
+    );
 
     const created = t.TestCreateSharedArrayBuffer(16);
     h.emit('create', created instanceof SharedArrayBuffer, created.byteLength);
@@ -34,5 +40,8 @@ export default async function run(h) {
     const zero = t.TestCreateSharedArrayBuffer(0);
     h.emit('zero', zero instanceof SharedArrayBuffer, zero.byteLength);
 
-    h.emit('invalid', h.caughtFull(() => t.TestGetSharedArrayBufferInfo({})));
+    h.emit(
+        'invalid',
+        h.caughtFull(() => t.TestGetSharedArrayBufferInfo({})),
+    );
 }

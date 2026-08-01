@@ -30,19 +30,19 @@ export function dumpMemoryInfo(): void;
 
 /** The GJS `System` module object (`import System from 'system'`). */
 export interface SystemModule {
-  exit(code?: number): void;
-  gc(): void;
-  version: number;
-  readonly programArgs: string[];
-  readonly programInvocationName: string;
-  readonly programPath: string | null;
-  addressOf(): string;
-  addressOfGObject(): string;
-  refcount(): number;
-  breakpoint(): void;
-  clearDateCaches(): void;
-  dumpHeap(): void;
-  dumpMemoryInfo(): void;
+    exit(code?: number): void;
+    gc(): void;
+    version: number;
+    readonly programArgs: string[];
+    readonly programInvocationName: string;
+    readonly programPath: string | null;
+    addressOf(): string;
+    addressOfGObject(): string;
+    refcount(): number;
+    breakpoint(): void;
+    clearDateCaches(): void;
+    dumpHeap(): void;
+    dumpMemoryInfo(): void;
 }
 
 declare const System: SystemModule;

@@ -150,9 +150,7 @@ if (!canBuild || !sdkInstalled) {
         const wsVersion = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
 
         if (has('gjs')) {
-            const reported = execFileSync('gjs', ['-m', bundle, '--version'], { env: giEnv })
-                .toString()
-                .trim();
+            const reported = execFileSync('gjs', ['-m', bundle, '--version'], { env: giEnv }).toString().trim();
             assert(reported === wsVersion, `gjsify --version is ${wsVersion} (got "${reported}")`);
 
             // A realistic consumer dir: gjsify build walks up for a package.json.

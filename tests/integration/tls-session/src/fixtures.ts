@@ -32,4 +32,4 @@ export function readKey(): string {
 /** True when running under GJS — checked once at module load. */
 export const isGjs: boolean =
     typeof (globalThis as { imports?: unknown }).imports === 'object' &&
-    typeof ((globalThis as { imports?: { gi?: unknown } }).imports?.gi) === 'object';
+    typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi === 'object';

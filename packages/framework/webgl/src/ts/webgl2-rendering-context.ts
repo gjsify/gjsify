@@ -194,7 +194,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             target === 0x8a11 /* UNIFORM_BUFFER */ ||
             target === 0x8c8e /* TRANSFORM_FEEDBACK_BUFFER */ ||
             target === 0x8f36 /* COPY_READ_BUFFER */ ||
-            target === 0x8f37 /* COPY_WRITE_BUFFER */;
+            target === 0x8f37; /* COPY_WRITE_BUFFER */
         if (isWebGL2Target) {
             // Bypass WebGL1 validation that only accepts ARRAY_BUFFER/ELEMENT_ARRAY_BUFFER.
             const id = buffer ? (buffer as unknown as OurWebGLBuffer)._ | 0 : 0;
@@ -272,7 +272,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             target === 0x8a11 /* UNIFORM_BUFFER */ ||
             target === 0x8c8e /* TRANSFORM_FEEDBACK_BUFFER */ ||
             target === 0x8f36 /* COPY_READ_BUFFER */ ||
-            target === 0x8f37 /* COPY_WRITE_BUFFER */;
+            target === 0x8f37; /* COPY_WRITE_BUFFER */
 
         // Remap READ/COPY usages to STATIC_DRAW — WebGL1 tracking only accepts DRAW hints.
         const isReadOrCopy =
@@ -281,7 +281,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             usage === 0x88e5 /* STREAM_READ */ ||
             usage === 0x88e2 /* STATIC_COPY */ ||
             usage === 0x88e4 /* DYNAMIC_COPY */ ||
-            usage === 0x88e6 /* STREAM_COPY */;
+            usage === 0x88e6; /* STREAM_COPY */
         const remappedUsage = isReadOrCopy ? this.STATIC_DRAW : usage;
 
         if (isWebGL2Target) {
@@ -307,7 +307,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             target === 0x8a11 /* UNIFORM_BUFFER */ ||
             target === 0x8c8e /* TRANSFORM_FEEDBACK_BUFFER */ ||
             target === 0x8f36 /* COPY_READ_BUFFER */ ||
-            target === 0x8f37 /* COPY_WRITE_BUFFER */;
+            target === 0x8f37; /* COPY_WRITE_BUFFER */
         if (isWebGL2Target) {
             if (offset < 0) {
                 this.setError(this.INVALID_VALUE);
@@ -359,7 +359,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             pname === 0x813c /* TEXTURE_BASE_LEVEL */ ||
             pname === 0x813d /* TEXTURE_MAX_LEVEL */ ||
             pname === 0x813b /* TEXTURE_MIN_LOD */ ||
-            pname === 0x813a /* TEXTURE_MAX_LOD */;
+            pname === 0x813a; /* TEXTURE_MAX_LOD */
         if (isWebGL2Pname) {
             this._gl.texParameteri(target, pname, param);
             return;

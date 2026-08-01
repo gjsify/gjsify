@@ -27,7 +27,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const index = Number(process.argv[2]);
 const total = Number(process.argv[3]);
 if (!Number.isInteger(index) || !Number.isInteger(total) || total < 1 || index < 1 || index > total) {
-    console.error(`e2e-shard: invalid shard "${process.argv[2]}/${process.argv[3]}" — expected <index>/<total> (1-based, 1 <= index <= total).`);
+    console.error(
+        `e2e-shard: invalid shard "${process.argv[2]}/${process.argv[3]}" — expected <index>/<total> (1-based, 1 <= index <= total).`,
+    );
     process.exit(1);
 }
 

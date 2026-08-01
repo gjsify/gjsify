@@ -14,16 +14,7 @@
 // event-driven assertions resolve via Promises.
 
 import { describe, it, expect } from '@gjsify/unit';
-import {
-    Stream,
-    Readable,
-    Writable,
-    Duplex,
-    Transform,
-    PassThrough,
-    pipeline,
-    finished,
-} from './browser.js';
+import { Stream, Readable, Writable, Duplex, Transform, PassThrough, pipeline, finished } from './browser.js';
 
 export default async () => {
     await describe('stream (browser)', async () => {

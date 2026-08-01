@@ -39,12 +39,21 @@ export { Stats, BigIntStats, Dirent } from './browser/types.js';
 export * from './browser/sync.js';
 export * from './browser/async.js';
 export {
-    createReadStream, ReadStream, createWriteStream, WriteStream,
-    FSWatcher, StatWatcher, watch, watchFile, unwatchFile,
+    createReadStream,
+    ReadStream,
+    createWriteStream,
+    WriteStream,
+    FSWatcher,
+    StatWatcher,
+    watch,
+    watchFile,
+    unwatchFile,
 } from './browser/stream.js';
 export {
-    enableOpfsPersistence, hasOpfs,
-    type OpfsPersistenceOptions, type OpfsPersistenceController,
+    enableOpfsPersistence,
+    hasOpfs,
+    type OpfsPersistenceOptions,
+    type OpfsPersistenceController,
 } from './browser/opfs.js';
 
 import * as promises from './browser/promises.js';

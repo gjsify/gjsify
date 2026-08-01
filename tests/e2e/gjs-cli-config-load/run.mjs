@@ -137,7 +137,11 @@ describe('gjsify.config.js under the GJS CLI', { skip: SKIP, timeout: 5 * 60 * 1
         // INSIDE the config; its presence in the output proves the config truly
         // loaded + ran (not silently ignored / defaulted).
         const out = readFileSync(join(dir, 'out.gjs.mjs'), 'utf-8');
-        assert.match(out, /9\.9\.9-gjs-loaded/, 'the config define (read via node:fs) must land in the GJS-bundle output');
+        assert.match(
+            out,
+            /9\.9\.9-gjs-loaded/,
+            'the config define (read via node:fs) must land in the GJS-bundle output',
+        );
     });
 
     it('the same node:-importing config also loads on the Node CLI', () => {

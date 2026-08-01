@@ -120,7 +120,9 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
                             // Only utils + cli declare `only-some` — used to
                             // test --if-present skipping.
                             ...(w.dir === 'utils' || w.dir === 'cli'
-                                ? { 'only-some': `node -e "require('fs').writeFileSync('${markPath.replace('.txt', '-only.txt')}', 'ok')"` }
+                                ? {
+                                      'only-some': `node -e "require('fs').writeFileSync('${markPath.replace('.txt', '-only.txt')}', 'ok')"`,
+                                  }
                                 : {}),
                         },
                     },
@@ -212,9 +214,18 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
         assert.ok(m['@test/unrelated'] === undefined, 'unrelated workspace must NOT be in the closure');
         // Topological order: utils ≤ core ≤ plugin ≤ cli (sleep 20ms ensures
         // strict <, but filesystems sometimes coalesce mtime so allow ≤).
-        assert.ok(m['@test/utils'] <= m['@test/core'], `utils(${m['@test/utils']}) must come before core(${m['@test/core']})`);
-        assert.ok(m['@test/core'] <= m['@test/plugin'], `core(${m['@test/core']}) must come before plugin(${m['@test/plugin']})`);
-        assert.ok(m['@test/plugin'] <= m['@test/cli'], `plugin(${m['@test/plugin']}) must come before cli(${m['@test/cli']})`);
+        assert.ok(
+            m['@test/utils'] <= m['@test/core'],
+            `utils(${m['@test/utils']}) must come before core(${m['@test/core']})`,
+        );
+        assert.ok(
+            m['@test/core'] <= m['@test/plugin'],
+            `core(${m['@test/core']}) must come before plugin(${m['@test/plugin']})`,
+        );
+        assert.ok(
+            m['@test/plugin'] <= m['@test/cli'],
+            `plugin(${m['@test/plugin']}) must come before cli(${m['@test/cli']})`,
+        );
     });
 
     it('-d short alias works identically to --with-dependencies', async () => {
@@ -274,11 +285,9 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
         // the command runs every workspace in the closure (utils, core,
         // plugin, cli) and exits 1 after reporting.
         clearMarks();
-        const r = await runCli(
-            cliEntry,
-            ['workspace', '@test/cli', 'fail', '-d', '--continue-on-error'],
-            { cwd: root },
-        );
+        const r = await runCli(cliEntry, ['workspace', '@test/cli', 'fail', '-d', '--continue-on-error'], {
+            cwd: root,
+        });
         assert.notEqual(r.status, 0, 'expected non-zero exit even with --continue-on-error');
         // The error summary should name multiple workspaces.
         const combined = r.stdout + r.stderr;

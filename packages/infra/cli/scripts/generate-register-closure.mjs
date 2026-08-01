@@ -107,7 +107,9 @@ if (process.argv.includes('--check')) {
     const { readFile } = await import('node:fs/promises');
     const current = await readFile(outFile, 'utf-8').catch(() => '');
     if (current === body) {
-        console.log(`\nregister-globals-closure map is up to date (checked in ${((Date.now() - started) / 1000).toFixed(1)}s).`);
+        console.log(
+            `\nregister-globals-closure map is up to date (checked in ${((Date.now() - started) / 1000).toFixed(1)}s).`,
+        );
     } else {
         console.error(
             `\nregister-globals-closure map is STALE — regenerate + commit:\n` +

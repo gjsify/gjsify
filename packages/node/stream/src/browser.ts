@@ -412,7 +412,8 @@ export class Transform extends Duplex {
                 done();
             }
         };
-        if (chunk !== undefined && chunk !== null) this.write(chunk, typeof encOrCb === 'string' ? encOrCb : undefined, finishOut);
+        if (chunk !== undefined && chunk !== null)
+            this.write(chunk, typeof encOrCb === 'string' ? encOrCb : undefined, finishOut);
         else finishOut();
         return this;
     }
@@ -456,7 +457,11 @@ export function pipeline(...args: (AnyStream | Callback)[]): AnyStream {
     return last;
 }
 
-export function finished(stream: AnyStream, cbOrOpts: Callback | { signal?: AbortSignal }, maybeCb?: Callback): () => void {
+export function finished(
+    stream: AnyStream,
+    cbOrOpts: Callback | { signal?: AbortSignal },
+    maybeCb?: Callback,
+): () => void {
     const callback = typeof cbOrOpts === 'function' ? cbOrOpts : maybeCb;
     let done = false;
     const finish = (err?: Error | null): void => {
@@ -491,9 +496,11 @@ export function addAbortSignal<T extends AnyStream>(signal: AbortSignal, stream:
 
 export const isReadable = (s: unknown): boolean => s instanceof Readable && (s as Readable).readable;
 export const isWritable = (s: unknown): boolean => s instanceof Writable && (s as Writable).writable;
-export const isDestroyed = (s: unknown): boolean => Boolean(s && typeof s === 'object' && (s as { destroyed?: boolean }).destroyed);
+export const isDestroyed = (s: unknown): boolean =>
+    Boolean(s && typeof s === 'object' && (s as { destroyed?: boolean }).destroyed);
 export const isDisturbed = (s: unknown): boolean => isDestroyed(s);
-export const isErrored = (s: unknown): boolean => Boolean(s && typeof s === 'object' && (s as { errored?: unknown }).errored);
+export const isErrored = (s: unknown): boolean =>
+    Boolean(s && typeof s === 'object' && (s as { errored?: unknown }).errored);
 
 let _hwm = 16 * 1024;
 export const getDefaultHighWaterMark = (_objectMode?: boolean): number => _hwm;
