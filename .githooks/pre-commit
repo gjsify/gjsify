@@ -88,6 +88,38 @@ if [ ! -d "$REPO_ROOT/node_modules" ]; then
     exit 0
 fi
 
+# --- Rebuild failure is a WARNING, never a lost commit --------------------
+#
+# The two guards above are preconditions the hook can TEST. This is the one it
+# cannot: a tree with node_modules and a resolvable CLI can still be unable to
+# build the bundle, because `build:gjs-bundle` bundles the whole workspace-dep
+# closure and dies on the first package whose `lib/` is absent.
+#
+# Measured on the win32 test VM: a fresh checkout + `gjsify install --immutable`
+# + a change under `packages/infra/cli/src/` reached this point and failed with
+#
+#   [plugin gjsify-unresolved-workspace-import] cannot resolve `@gjsify/fs`
+#
+# — three unbuilt polyfill packages. Building them first is not a workaround a
+# contributor can reach for on that host either (the `--library` builds those
+# packages use are the slow path there), so the hook turned "your bundle is
+# stale" into "you cannot commit at all" on the platform with the fewest ways
+# out. Same shape as the git-worktree failure documented above, which is why
+# the answer is the same one this hook already chose twice: degrade loudly.
+#
+# The warning names the exact CI check and the exact commands, so the stale
+# bundle is a known, actionable follow-up rather than a surprise.
+rebuild_failed() {
+    echo "::warning::[gjsify pre-commit] bundle rebuild FAILED in this tree — committing WITHOUT refreshing it."
+    echo "::warning::[gjsify pre-commit] failing step: $1"
+    echo "::warning::[gjsify pre-commit] CI (verify-committed-bundles.mjs) WILL flag the stale bundle."
+    echo "::warning::[gjsify pre-commit] Rebuild on a host that can complete the full build, then amend:"
+    echo "::warning::[gjsify pre-commit]   gjsify run build:infra"
+    echo "::warning::[gjsify pre-commit]   gjsify workspace @gjsify/cli build && gjsify workspace @gjsify/cli build:gjs-bundle"
+    echo "::warning::[gjsify pre-commit]   gjsify workspace @gjsify/cli build:affected-bundle"
+    exit 0
+}
+
 # --- Detect what changed -------------------------------------------------
 #
 # `--diff-filter=ACMR` includes Added / Copied / Modified / Renamed entries.
@@ -137,13 +169,13 @@ if [ -n "$CLI_SRC_CHANGED" ]; then
     # Two-step: tsc-build the workspace lib/, then bundle it into the
     # committed dist/cli.gjs.mjs. Both steps mirror what the GJS workflow
     # does for the freshness verifier in main.yml.
-    $GJSIFY workspace @gjsify/cli build
-    $GJSIFY workspace @gjsify/cli build:gjs-bundle
+    $GJSIFY workspace @gjsify/cli build || rebuild_failed "gjsify workspace @gjsify/cli build"
+    $GJSIFY workspace @gjsify/cli build:gjs-bundle || rebuild_failed "gjsify workspace @gjsify/cli build:gjs-bundle"
     git add packages/infra/cli/dist/cli.gjs.mjs
     echo "[gjsify pre-commit] staged packages/infra/cli/dist/cli.gjs.mjs"
     # The dedicated, Soup-free classifier bundle the CI `changes` job boots —
     # rebuilt from the same src/ so it can't drift from the affected logic.
-    $GJSIFY workspace @gjsify/cli build:affected-bundle
+    $GJSIFY workspace @gjsify/cli build:affected-bundle || rebuild_failed "gjsify workspace @gjsify/cli build:affected-bundle"
     git add packages/infra/cli/dist/affected.gjs.mjs
     echo "[gjsify pre-commit] staged packages/infra/cli/dist/affected.gjs.mjs"
 fi
@@ -154,7 +186,7 @@ if [ -n "$TSC_SRC_CHANGED" ]; then
     echo "[gjsify pre-commit] rebuilding @gjsify/tsc bundle..."
     # The tsc package's `build` script already wraps build-bundle.mjs (no
     # separate :gjs-bundle phase) — its dist/tsc.gjs.mjs is the only artifact.
-    $GJSIFY workspace @gjsify/tsc build
+    $GJSIFY workspace @gjsify/tsc build || rebuild_failed "gjsify workspace @gjsify/tsc build"
     git add packages/infra/tsc/dist/tsc.gjs.mjs
     echo "[gjsify pre-commit] staged packages/infra/tsc/dist/tsc.gjs.mjs"
 fi
