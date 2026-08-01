@@ -79,6 +79,12 @@ export class DevtoolsService {
             for (const [name, kind] of Object.entries(ext.methodKinds)) this._kinds.set(name, kind);
             for (const [name, fn] of Object.entries(ext.handlers)) {
                 const impl = fn as (...args: unknown[]) => unknown;
+                // Extension handlers are attached under the bare method name, so a
+                // handler that RETURNS A PROMISE hits gjs 1.86.0's broken
+                // `_handleDBusReply` path (see ScreenshotAsync). Every extension
+                // handler today is synchronous; an async one must register itself
+                // as `<Name>Async(params, invocation, fdList)` and reply manually
+                // until the upstream fix lands (status/upstream-patch-candidates.md).
                 (this as unknown as Record<string, (...args: unknown[]) => unknown>)[name] = (...args: unknown[]) => {
                     this._guard(name);
                     return impl(...args);
@@ -124,17 +130,47 @@ export class DevtoolsService {
         return JSON.stringify(status);
     }
 
-    /** `Screenshot(scope) -> ay` — PNG bytes of the active window via the GSK renderer. */
-    async Screenshot(_scope: string): Promise<Uint8Array> {
+    /**
+     * `Screenshot(scope) -> ay` — PNG bytes of the active window via the GSK renderer.
+     *
+     * Implemented with the `<Name>Async` manual-reply convention (the method
+     * gets the raw `invocation` and calls `return_value()` itself) rather than a
+     * plain `async Screenshot(): Promise<Uint8Array>` ON PURPOSE. On gjs 1.86.0 a
+     * Promise-returning exported DBus method mis-marshals its resolved value and
+     * the caller sees `org.gnome.gjs.JSError.ValueError: Service implementation
+     * returned an incorrect value type` — the `_handleDBusReply` continuation in
+     * the Gio override fails for EVERY resolved type (a bare `s`, a pre-packed
+     * `GLib.Variant`, an `ay`), not just byte arrays; only Screenshot surfaced it
+     * because it is the sole async method in the interface. Replying manually
+     * through the invocation is unaffected. The wire method stays `Screenshot`
+     * (the interface XML is unchanged) — `wrapJSObject` falls back to
+     * `<Name>Async` when the bare name is absent. Tracked upstream in
+     * status/upstream-patch-candidates.md; collapse back to a plain `async
+     * Screenshot` once the gjs fix ships.
+     */
+    async ScreenshotAsync(_params: unknown[], invocation: Gio.DBusMethodInvocation): Promise<void> {
+        try {
+            const png = await this._captureActiveWindowPng();
+            invocation.return_value(new GLib.Variant('(ay)', [png]));
+        } catch (error) {
+            invocation.return_dbus_error(
+                'org.gjsify.Devtools.Error.Screenshot',
+                error instanceof Error ? error.message : String(error),
+            );
+        }
+    }
+
+    /**
+     * Capture the active window to PNG, warming up across frames when needed. A
+     * just-launched or mid-layout window yields a zero-size GSK frame, so the
+     * first `captureWidgetPng` can be empty; presenting it and retrying across a
+     * few main-loop iterations turns that into a real screenshot. The empty-bytes
+     * contract is preserved as the genuine-failure signal (window truly never
+     * realises / is occluded).
+     */
+    private async _captureActiveWindowPng(): Promise<Uint8Array> {
         const win = this._app.get_active_window();
         if (!win) return new Uint8Array(0);
-        // Fast path: already renderable. Otherwise present it and retry across a
-        // few frames — a just-launched or mid-layout window yields a zero-size
-        // GSK frame. Previously that returned empty bytes on the very first try,
-        // so callers (the MCP bridge, gdbus, screenshot scripts) saw spurious
-        // "empty screenshot" results during window warm-up. Waiting here makes a
-        // successful capture the norm; the empty-bytes contract is preserved as
-        // the genuine-failure signal (window truly never realises / is occluded).
         let png = captureWidgetPng(win);
         if (!png) {
             win.present();

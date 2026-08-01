@@ -98,9 +98,15 @@ if gdbus introspect --session --dest ${DEST} --object-path ${BASE} 2>&1 | grep -
 # (b) the interface actually present at <base>/devtools
 if gdbus introspect --session --dest ${DEST} --object-path ${BASE}/devtools 2>&1 | grep -qE "interface org.gjsify.Devtools"; then
   echo "IFACE=yes"; else echo "IFACE=no"; fi
-# (c) a method call returns data
+# (c) a SYNC method call returns data
 status="$(gdbus call --session --dest ${DEST} --object-path ${BASE}/devtools --method org.gjsify.Devtools.GetStatus 2>&1)"
 echo "GETSTATUS_BEGIN"; echo "$status"; echo "GETSTATUS_END"
+# (d) the ONLY ASYNC method — regression guard for the gjs 1.86.0 broken
+# Promise-return marshaling (see ScreenshotAsync). Returns an (ay) tuple, empty
+# here because the fixture maps no window; a plain async method would instead
+# fail with org.gnome.gjs.JSError.ValueError "incorrect value type".
+shot="$(gdbus call --session --dest ${DEST} --object-path ${BASE}/devtools --method org.gjsify.Devtools.Screenshot "" 2>&1)"
+echo "SCREENSHOT_BEGIN"; echo "$shot"; echo "SCREENSHOT_END"
 # the installDevtools confirmation log (observability)
 if grep -q "gjsify-devtools] exported org.gjsify.Devtools" "$log"; then echo "EXPORT_LOG=yes"; else echo "EXPORT_LOG=no"; fi
 grep -q "\[repro\] installDevtools -> service" "$log" && echo "INSTALL_RETURNED=service" || echo "INSTALL_RETURNED=null"
@@ -115,7 +121,8 @@ function parse(out) {
         if (m) kv[m[1]] = m[2];
     }
     const status = out.match(/GETSTATUS_BEGIN\n([\s\S]*?)\nGETSTATUS_END/)?.[1] ?? '';
-    return { kv, status };
+    const screenshot = out.match(/SCREENSHOT_BEGIN\n([\s\S]*?)\nSCREENSHOT_END/)?.[1] ?? '';
+    return { kv, status, screenshot };
 }
 
 describe('@gjsify/devtools export over DBus', { skip: SKIP, timeout: 5 * 60 * 1000 }, () => {
@@ -160,7 +167,7 @@ describe('@gjsify/devtools export over DBus', { skip: SKIP, timeout: 5 * 60 * 10
         });
         const out = `${r.stdout ?? ''}`;
         const err = `${r.stderr ?? ''}`;
-        const { kv, status } = parse(out);
+        const { kv, status, screenshot } = parse(out);
         const ctx = `\n--- driver stdout ---\n${out}\n--- driver stderr (bus noise) ---\n${err}`;
 
         assert.equal(kv.APP_ON_BUS, 'yes', `the fixture must register on the session bus.${ctx}`);
@@ -169,6 +176,15 @@ describe('@gjsify/devtools export over DBus', { skip: SKIP, timeout: 5 * 60 * 10
         assert.equal(kv.CHILD_DEVTOOLS, 'yes', `'devtools' must be a REAL exported child object of ${BASE}.${ctx}`);
         assert.equal(kv.IFACE, 'yes', `org.gjsify.Devtools interface must be present at ${BASE}/devtools.${ctx}`);
         assert.match(status, /"appId":"org\.example\.reprotest"/, `Devtools.GetStatus must return live JSON.${ctx}`);
+        // The async method (Screenshot) must marshal its reply — the gjs 1.86.0
+        // Promise-return path is broken, so it uses the <Name>Async manual-reply
+        // convention. A plain `async` method fails here with JSError.ValueError.
+        assert.doesNotMatch(
+            screenshot,
+            /ValueError|incorrect value type/,
+            `Screenshot (async DBus method) must not hit the gjs Promise-return marshaling bug.${ctx}`,
+        );
+        assert.match(screenshot, /^\(/, `Screenshot must return an (ay) tuple reply.${ctx}`);
         // Observability: installDevtools confirms a successful export on stderr.
         assert.equal(kv.EXPORT_LOG, 'yes', `installDevtools must log the successful export.${ctx}`);
     });
