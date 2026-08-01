@@ -21,6 +21,9 @@
         "src/napi-headers"
     ],
     "gjsify": {
+        "glibcRequires": {
+            "linux-x64": "2.34"
+        },
         "platforms": [
             "linux-x64",
             "darwin-arm64"

@@ -106,6 +106,45 @@ export declare function readLibrary(file: string): LibInfo | null;
 export declare function readTypelibSharedLibraries(file: string): string[] | null;
 export declare function checkPrebuildDir(dir: string, options?: { verbose?: boolean }): string[];
 
+/**
+ * `null` means NOT MEASURED (not an ELF, or a stripped section table); `[]` means
+ * measured and the image records no dependency. Collapsing the two turns an
+ * unread file into a claim — see `binary.mjs`.
+ */
+export declare function readElfNeeded(file: string): string[] | null;
+/** Highest required `GLIBC_<x.y[.z]>`, bare version; null when none/unreadable. */
+export declare function readElfGlibcRequires(file: string): string | null;
+/** Component-wise NUMERIC comparison — `'2.9'` must not sort above `'2.34'`. */
+export declare function compareGlibcVersions(a: string, b: string): number;
+
+/** Which C library an ELF's DT_NEEDED list names; null = libc-agnostic. */
+export type PrebuildLibc = 'glibc' | 'musl';
+export declare function libcFlavourOfNeeded(needed: readonly string[]): PrebuildLibc | null;
+/** Split `<os>-<arch>[-musl]`; `libc` is only ever set when `os === 'linux'`. */
+export declare function parsePrebuildTarget(token: string): { os: string; arch: string; libc: 'musl' | null };
+/** Canonical `<os>-<arch>[-musl]` — libc-AWARE, unlike `canonicalPlatform`. */
+export declare function canonicalPrebuildTarget(token: string): string;
+/** The ONE target a build on this host may stage into (write side; exact). */
+export declare function hostPrebuildTarget(platform: string, arch: string, libc?: PrebuildLibc | null): string;
+export declare function measurePrebuildLibc(dir: string): {
+    flavour: PrebuildLibc | null;
+    glibcRequires: string | null;
+    libs: string[];
+    mixed: boolean;
+    unreadable: string[];
+};
+export declare function auditPrebuildLibc(nativePkgs: Array<Record<string, any>>): {
+    failures: string[];
+    notes: string[];
+    stats: Record<string, unknown>;
+};
+export declare function collectLibcPackages(ctx: ConformanceContext): Array<Record<string, any>>;
+export declare function renderPrebuildLibcSummary(result: {
+    failures: string[];
+    notes: string[];
+    stats: Record<string, unknown>;
+}): string;
+
 export declare const PLATFORM_RE: RegExp;
 export declare const ARCH_ALIASES: Record<string, string>;
 export declare const KNOWN_ARCH_TOKENS: Set<string>;
@@ -115,5 +154,6 @@ export declare function canonicalPlatform(token: string): string;
 
 export declare const packageOutputsRule: Rule;
 export declare const prebuildArtifactsRule: Rule;
+export declare const prebuildLibcRule: Rule;
 export declare const headlessRule: Rule;
 export declare const fieldCoverageRule: Rule;

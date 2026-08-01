@@ -15,10 +15,15 @@ name: Build Native Prebuilds
 #                  the repository, which is a main-branch act and must never be
 #                  reachable from a PR. Guarded twice over; see the job.
 #
-# WHICH legs run on a PR: every Linux one — native x64 + arm64 and the three
-# QEMU legs. Only `build-prebuilds-macos` is held back (10x billing, a scarce
-# shared concurrency pool, and the slowest leg here), with main.yml's `ci:macos`
-# label as the opt-in. That is wider than the "native x86_64, Vala-only" shape
+# WHICH legs run on a PR: every Linux glibc one — native x64 + arm64 and the
+# three QEMU legs. Only `build-prebuilds-macos` is held back (10x billing, a
+# scarce shared concurrency pool, and the slowest leg here), with main.yml's
+# `ci:macos` label as the opt-in. The two EXPLORATORY legs
+# (`build-prebuilds-macos-experimental`, `build-prebuilds-musl`) are
+# workflow_dispatch-only and nothing depends on them: each builds a target that
+# is not yet declared in any `gjsify.platforms`, and this repo's
+# declared-vs-built invariant is symmetric, so the leg proves itself first and
+# the declaration follows. That is wider than the "native x86_64, Vala-only" shape
 # the status notes once proposed, for two measured reasons:
 #   • A Vala-only leg would have been GREEN on the very break that motivated
 #     this — #827 was a Rust dependency-resolution failure in oxfmt-native. A PR
@@ -51,7 +56,7 @@ name: Build Native Prebuilds
 # while checking out the PR's head code — precisely the combination that must
 # not exist in a workflow that contains a job which pushes commits. Plain
 # `pull_request` runs with a token GitHub forces to read-only for fork PRs, and
-# the build legs need nothing more: they pull the PUBLIC `fedora:43` image, so
+# the build legs need nothing more: they pull the PUBLIC `fedora:44` image, so
 # unlike main.yml's private `ghcr.io/gjsify/ci-fedora` they also work on a fork
 # PR. Least privilege backs that up rather than relying on it — see
 # `permissions` below.
@@ -315,7 +320,7 @@ jobs:
     needs: [changes]
     runs-on: ${{ matrix.runner }}
     container:
-      image: fedora:43
+      image: fedora:44
 
     strategy:
       fail-fast: false
@@ -692,9 +697,9 @@ jobs:
   # emulation, registered at a PINNED version (see the step below) and driven
   # by a plain `docker run --platform`.
   #
-  # ppc64 + s390x: fedora:43 has official images for both → same dnf
+  # ppc64 + s390x: fedora:44 has official images for both → same dnf
   #   package names as the native job above.
-  # riscv64: fedora:43 has no riscv64 image → ubuntu:26.04 is used
+  # riscv64: fedora:44 has no riscv64 image → ubuntu:26.04 is used
   #   instead (package names differ; auto-detected via command -v dnf).
   #
   # Node.js process.arch values used as the prebuilds/ dir suffix:
@@ -733,12 +738,12 @@ jobs:
           # IBM POWER9/10 workstations and servers (e.g. Raptor Computing Talos II)
           - arch: ppc64
             platform: linux/ppc64le
-            base_image: fedora:43
+            base_image: fedora:44
 
           # IBM Z mainframes — enterprise Linux servers
           - arch: s390x
             platform: linux/s390x
-            base_image: fedora:43
+            base_image: fedora:44
 
           # RISC-V boards (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …)
           # ubuntu:26.04 because Fedora publishes no riscv64 image.
@@ -1471,6 +1476,454 @@ jobs:
           ls -lh "prebuilds/${PREBUILD}/"
 
   # ----------------------------------------------------------------
+  # Alpine / musl — prebuilds/linux-{x64,arm64}-musl
+  #
+  # MANUAL DISPATCH ONLY, and deliberately absent from every `needs` in this
+  # file — the same posture `build-prebuilds-macos-experimental` above takes,
+  # for the same reason plus one that is specific to this axis.
+  #
+  # WHY IT CANNOT SIMPLY BE ADDED TO THE REQUIRED LEGS. No `-musl` token is
+  # declared in any package's `gjsify.platforms`, and the declared-vs-built
+  # invariant is SYMMETRIC: `audit-runtimes --check` fails a declared target no
+  # CI job produces AND a CI-produced target no package declares. So the
+  # declaration, the leg and the artifact have to land in ONE change — and the
+  # honest order is leg first, green run, then the other two. That order is
+  # available precisely because `parseCiPlatforms()` EXCLUDES jobs gated on
+  # `github.event_name == 'workflow_dispatch'` (a manually-dispatched
+  # exploratory job is not a platform CI produces), so while this leg is
+  # unproven it contributes nothing to the audit in either direction. The `if:`
+  # line below is what that parser matches, character for character — do not
+  # rewrite it into an equivalent expression without teaching the parser first.
+  #
+  # WHY MUSL. postmarketOS v26.06 ("Alpen Avocado", 2026-06-21) is based on
+  # Alpine 3.24, which is the target that makes a GJS/GNOME phone able to use
+  # these bridges at all. (That mapping is the one claim here taken from the
+  # web rather than from a container.)
+  #
+  # EVIDENCE. Everything else below was measured in a container probe on
+  # `alpine:3.24.1`, x86_64 natively and aarch64 under qemu-user, against this
+  # repo's own sources and committed artifacts. Where a line rests on inference
+  # rather than an observed run it says so — and here are the two that do:
+  #   • THE aarch64 BUILDS ARE INFERRED. On aarch64 the probe verified the apk
+  #     toolchain, `gjs`, and which committed glibc artifacts load; it compiled
+  #     ONE Vala bridge there, not these two packages. Their aarch64 musl build
+  #     rests on the x86_64 build plus a toolchain that is the same package set.
+  #     A first dispatch is what turns that into evidence.
+  #   • THE JOB SHAPE IS INFERRED — see the last paragraph of this comment.
+  #
+  # ── WHICH PACKAGES, AND THE MEASURED REASON FOR EACH ──────────────────────
+  #
+  # The scope rule is NOT "everything that compiles". A committed glibc artifact
+  # that already loads on musl needs no musl sibling, and building one would
+  # spend CI minutes producing a second copy of something that works. What the
+  # probe measured — `dlopen(RTLD_NOW)` of every committed `linux-x64` and
+  # `linux-arm64` library inside Alpine, with all their system dependencies
+  # installed, so a failure means "incompatible with musl" and not "I forgot
+  # gst-plugins-bad":
+  #
+  #   IN — the committed glibc build genuinely does not load:
+  #     • @gjsify/sab-native — FAILS on BOTH arches, and by SYMBOL:
+  #       `fcntl64` (x64), `__cmsg_nxthdr` (arm64). It is the one bridge that
+  #       calls libc directly (memfd_create, SCM_RIGHTS, futex), so this is
+  #       expected rather than surprising. Built against musl it is fine —
+  #       verified building, dlopening and importing under gjs on Alpine x86_64
+  #       with no change to its meson.build; `linux-headers` is what its C shim
+  #       needs and is in the apk list below for exactly that.
+  #     • @gjsify/lightningcss-native — FAILS on both, for two different
+  #       reasons: on x64 its cargo cdylib records the glibc LOADER
+  #       (`ld-linux-x86-64.so.2`) in DT_NEEDED, which musl cannot supply under
+  #       any name; on arm64 it is the `gnu_get_libc_version` symbol. It also
+  #       carries the highest glibc floor in the tree (GLIBC_2.39), i.e. it is
+  #       the single artifact that decides which distros this toolchain runs on.
+  #       The whole pipeline — cargo cdylib → Vala library → GIR → typelib — was
+  #       verified end to end on Alpine x86_64 through its own unmodified
+  #       meson.build in ~3 min, with `CI=true` set so the `${CI:+--locked}`
+  #       enforcement was live: the committed `src/rust/Cargo.lock` resolved
+  #       UNCHANGED on musl, so no per-libc lockfile is needed.
+  #
+  #   OUT — the committed glibc build already loads on musl (six for six, x64
+  #   and aarch64): @gjsify/webgl, @gjsify/http-soup-bridge,
+  #   @gjsify/http2-native, @gjsify/terminal-native, @gjsify/tls-native,
+  #   @gjsify/webrtc-native. This is not a guess about `libc.so.6`: musl's
+  #   loader treats a DT_NEEDED of `libc.so.6` as a request for ITSELF (a
+  #   reserved name it refuses to reload), so glibc PROVENANCE is not
+  #   unloadability — the correction `packages/infra/manifest-conformance/lib/
+  #   rules/prebuild-libc.mjs` now encodes in `muslVerdictOfNeeded()`.
+  #     THE CAVEAT, stated because it is the reason this list could grow: musl
+  #     ignores ELF symbol versioning entirely, so a reference to a
+  #     `GLIBC_2.x`-versioned symbol binds to musl's unversioned one with no
+  #     compatibility check. "Loads" is therefore weaker than "behaves". Only
+  #     tls-native was function-verified on musl (a real `parse_ocsp_response`
+  #     call returning the right answer). If a musl user ever reports a WRONG
+  #     ANSWER rather than a load failure from one of the other five, that is
+  #     the reason, and the fix is to move it into this leg.
+  #
+  #   OUT — unproven, not known-good: @gjsify/oxfmt-native and
+  #   @gjsify/rolldown-native. Their committed x64 artifacts DO fail on musl
+  #   (glibc loader again) while their arm64 ones load, so a musl build is
+  #   wanted — but neither was ever COMPILED on musl. Both path-dep into a
+  #   `refs/` submodule whose `[patch.crates-io]` crate-identity graph is the
+  #   part most likely to break, and the emulated legs exclude them for cost
+  #   reasons already. Prove one locally first (see the reproduce line below),
+  #   then add it here with its measured build time.
+  #
+  #   OUT — not this workflow's package: @gjsify/napi (built by napi.yml). Its
+  #   Alpine blocker is not libc at all but a SONAME: Fedora links
+  #   `libmozjs-140.so.0`, Alpine ships `libmozjs-140.so`. `mozjs-dev` provides
+  #   `mozjs-140.pc`, so a from-source build there is plausible; untested.
+  #
+  # ── THE TOOLCHAIN, AND THE APK TRAPS A COPY OF THE FEDORA LIST FALLS INTO ─
+  #
+  # `alpine:3.24` is pinned like every other image here (it resolves to 3.24.1
+  # today). Every package the Fedora legs use has an Alpine equivalent and all
+  # of them resolved; the traps a copy of the Fedora list walks into:
+  #   • `ninja` is NOT a package name on Alpine — it is `ninja-build`.
+  #   • the Vala compiler is `vala`, not `valac`/`vala-dev`.
+  #   • `g-ir-compiler` DOES exist (`/usr/bin/g-ir-compiler`, from
+  #     `gobject-introspection-dev`, alongside GLib's newer
+  #     `gi-compile-repository`), so `find_program('g-ir-compiler')` in every
+  #     meson.build resolves unchanged. This was the single likeliest blocker
+  #     for the whole idea and it is not one.
+  #   • `gjs` and `nodejs` live in the **community** repository, which is
+  #     enabled in the official image — gjs 1.88.1 exactly matches this repo's
+  #     GJS 1.86+/SpiderMonkey 140 target, which is what lets this leg GATE
+  #     itself rather than merely compile.
+  # Alpine has no weak/recommended dependencies at all, so the
+  # `--setopt=install_weak_deps=False` reasoning `emulated-build.sh` documents
+  # (574 packages, a build dying inside wireplumber's `%posttrans`) cannot arise
+  # here. The list below is the probe's list minus the entries that belong to
+  # bridges this leg does not build (gnutls-dev → tls, gtk4.0-dev/gdk-pixbuf-dev/
+  # libepoxy-dev → webgl, gstreamer* → webrtc, libsoup3-dev → http-soup-bridge,
+  # nghttp2-dev → http2, json-glib-dev → rolldown); re-add the matching line
+  # when a bridge moves into this leg. `git` is the one addition (for
+  # actions/checkout).
+  #
+  # ── RUST: USE APK'S, AND DO NOT PASS `--target` ───────────────────────────
+  #
+  # The Fedora legs install rustup because Fedora's rustc is too old for the
+  # `edition2024` crates in the graph. Alpine's apk rustc is 1.96.1, so that
+  # step is not merely unnecessary here, it is HARMFUL: rustup's musl target is
+  # `*-unknown-linux-musl`, which defaults to `crt-static` ON and therefore
+  # **cannot produce a cdylib at all** ("error: cannot produce cdylib for `p` as
+  # the target `x86_64-unknown-linux-musl` does not support these crate types").
+  # Alpine's own host triple is `x86_64-alpine-linux-musl` /
+  # `aarch64-alpine-linux-musl`, both with `crt-static` OFF, so a plain
+  # `cargo build --release` — which is what meson runs — produces exactly the
+  # cdylib the Vala half links. `musl-dev` supplies the link-time libc; the
+  # runtime `libgcc_s.so.1` arrives as a dependency.
+  #
+  # ── STAGING: `stage-prebuild.mjs`, AND WHY THAT IS THE SAFETY GUARD ───────
+  #
+  # A hand-written `mkdir -p prebuilds/linux-$ARCH && cp` in an Alpine container
+  # OVERWRITES THE COMMITTED GLIBC ARTIFACT with a musl one, and every
+  # downstream declaration check stays green — the same shape as the
+  # `run-on-arch-action` incident (right directory, wrong machine), except this
+  # one destroys a committed binary. `scripts/stage-prebuild.mjs` cannot do that:
+  # it derives the directory from the HOST (`hostPrebuildTarget()` plus a
+  # musl-loader probe) and refuses to fall back from `<os>-<arch>-musl` to
+  # `<os>-<arch>`. The "Confirm this container resolves as a musl target" step
+  # below asserts that resolution BEFORE anything is built, using the very
+  # function the stager calls, so a node that mis-detected the host fails loudly
+  # instead of clobbering. `--allow-undeclared` is the documented flag for
+  # exactly this state — CI leg now, declaration later, symmetry never broken —
+  # and it prints its own warning that the result must not be committed.
+  #
+  # NOTHING IS WIRED INTO `commit-prebuilds`, and no `gjsify.platforms` /
+  # `libc` / `optionalDependencies` entry is added. The artifacts are uploaded
+  # so a dispatch can be inspected and diffed; committing them is the promotion
+  # step, together with the declaration.
+  #   WHAT THAT PROMOTION HAS TO INCLUDE, because it is not obvious and it is
+  #   easy to ship a prebuild nobody can install: both packages here declare
+  #   `libc: ["glibc"]` today (npm, yarn and pnpm all honour it as an install
+  #   FILTER), which is correct while the only artifact is a glibc one — and
+  #   which would keep every musl host from ever receiving the `-musl` sibling.
+  #   Promotion is therefore four things in one change: the `-musl` tokens in
+  #   `gjsify.platforms`, `libc: ["glibc","musl"]`, this job losing its
+  #   dispatch-only gate, and the matching download + `git add` in
+  #   `commit-prebuilds`. `PLATFORM_RE`/`canonicalPlatform` in
+  #   manifest-conformance's `lib/platforms.mjs` must learn the optional suffix
+  #   in that same change — they are libc-blind today, which `prebuild-libc.mjs`
+  #   records as its own follow-up.
+  #
+  # ── REPRODUCE BY HAND ─────────────────────────────────────────────────────
+  #
+  #   podman run --rm -it --security-opt label=disable \
+  #     -v "$PWD:/repo:ro" alpine:3.24 sh
+  #   # then, inside: apk add … ; cp -r /repo/packages/<pkg> /work ; cd /work ;
+  #   #               meson setup build . && meson compile -C build
+  #
+  # `--security-opt label=disable`, NEVER `-v …:Z`. On an SELinux host `:Z`
+  # relabels the work tree into a container-private MCS category; two concurrent
+  # `:Z` mounts then lock each other out and the symptom is a `Permission
+  # denied` that reads like a broken build, plus a work tree left relabelled
+  # afterwards. `label=disable` relabels nothing. The `:ro` and the copy are the
+  # other half of the same caution: a container build must not be able to write
+  # a musl artifact into your checkout.
+  #
+  # ── THE SECOND INFERENCE: THIS JOB'S SHAPE ────────────────────────────────
+  #
+  # The probe ran its builds with `podman run`; it never ran a GitHub Actions
+  # CONTAINER JOB on a musl image. What is therefore assumed here is that the
+  # runner can execute its JavaScript actions
+  # (actions/checkout, actions/upload-artifact) inside an Alpine container,
+  # i.e. that it supplies a musl node for them. If that assumption is wrong the
+  # run dies before the first `run:` step with something like
+  # `/__e/node20/bin/node: not found`, which is unmistakable.
+  # THE FALLBACK, if so: keep this job's steps but move the compile into a
+  # `docker run --platform … alpine:3.24` from an ordinary ubuntu runner, the
+  # way `build-prebuilds-qemu` already does (no QEMU needed — both arches have
+  # native runners). That means teaching `.github/prebuild-toolchain/
+  # emulated-build.sh` an apk branch and a libc-carrying target token, NOT
+  # adding a second build script beside it; the refusal branch that file now
+  # carries names both prerequisites.
+  # ----------------------------------------------------------------
+  build-prebuilds-musl:
+    name: Build prebuilds (linux-${{ matrix.arch }}-musl) [experimental — Alpine/musl]
+    needs: [changes]
+    runs-on: ${{ matrix.runner }}
+    if: github.event_name == 'workflow_dispatch'
+    container:
+      image: alpine:3.24
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        # THE ALPINE BASE IMAGE HAS NO BASH — only busybox `sh` (ash). GitHub's
+        # default is `bash -e {0}` with a documented fallback to `sh`, but an
+        # implicit fallback is not something to build a leg on: say `sh` and
+        # keep every script below POSIX. Verified in `alpine:3.24` that busybox
+        # ash takes everything these steps use — `set -euo pipefail`, the
+        # `case`-based `built()` helper, `while IFS='|' read` over a heredoc,
+        # `${var%%pattern}`, `env -u`. No arrays anywhere, which is the one
+        # bashism the macOS legs above rely on.
+        shell: sh
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Both arches have a NATIVE runner, so nothing here is emulated. The
+          # probe measured an emulated Alpine aarch64 leg at ~3.5 min wall
+          # (Alpine's package set is tiny), so emulation stays a viable
+          # fallback if `ubuntu-24.04-arm` is ever unavailable — but a native
+          # runner is cheaper and needs no binfmt pinning.
+          #
+          # `arch` carries the bare CPU token, exactly as in `build-prebuilds`;
+          # the `-musl` suffix is composed into `PREBUILD` below rather than
+          # smuggled into this key, so the value stays the one
+          # `${process.arch}` computes. (It is inert for the audit either way:
+          # `parseCiPlatforms()` skips this job entirely, see the header.)
+          #
+          # `machine` is `file(1)`'s spelling of the ELF e_machine this leg must
+          # produce. The committed tree's machine-vs-directory invariant is held
+          # by `readLibrary()` in manifest-conformance's `lib/binary.mjs` via
+          # `audit-runtimes --check`; these artifacts are never committed, so
+          # they never reach that audit and this leg has to assert it itself —
+          # the same way `emulated-build.sh` reports `file` on what it just
+          # produced, and for the same incident.
+          - arch: x64
+            runner: ubuntu-latest
+            machine: x86-64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            machine: aarch64
+
+    env:
+      # `${process.platform}-${process.arch}` + the libc suffix — the token
+      # `stage-prebuild.mjs` will independently derive from the host. The two
+      # agreeing is asserted, not assumed (see the confirm step).
+      PREBUILD: linux-${{ matrix.arch }}-musl
+      # Matrix values reach the scripts through `env:`, the way the Fedora leg
+      # passes `ARCH` — a value interpolated into a shell body is a value the
+      # shell never gets to quote.
+      MACHINE: ${{ matrix.machine }}
+      # The `changes` job's decision, for the steps that walk a LIST of package
+      # directories and therefore cannot carry a step-level `if:`. Same helper,
+      # same quoting rule as the macOS legs above.
+      PREBUILD_SKIP: ${{ needs.changes.outputs.skip }}
+
+    steps:
+      - name: Install the Alpine toolchain
+        run: |
+          set -eux
+          apk add --no-cache \
+            meson ninja-build gcc build-base pkgconf file binutils linux-headers \
+            vala glib-dev gobject-introspection-dev \
+            cargo rust musl-dev \
+            gjs nodejs git
+          cat /etc/alpine-release
+          valac --version
+          meson --version
+          cargo --version
+          rustc --version
+          # The host triple decides the crt-static default, which decides
+          # whether a cdylib can be produced at all — print it, so a log alone
+          # answers the question if this ever fails.
+          rustc -vV | grep '^host:'
+          gjs --version
+          node --version
+          command -v g-ir-compiler
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Confirm this container resolves as a musl target
+        # The clobber guard, run BEFORE anything is built. `hostStagingTarget()`
+        # is the exact function `stage-prebuild.mjs` uses to pick the directory
+        # it will `rmSync` and rewrite; if node ever failed to see this host as
+        # musl it would resolve `linux-<arch>` — a DECLARED, COMMITTED target —
+        # and the leg would silently replace a shipped glibc prebuild with a
+        # musl one. Importing the module runs no `main()` (it is guarded on
+        # `process.argv[1]`), so this is a pure read.
+        run: |
+          set -euo pipefail
+          resolved="$(node -e 'import("./scripts/stage-prebuild.mjs").then((m) => console.log(m.hostStagingTarget()))')"
+          echo "stage-prebuild.mjs resolves this host as: ${resolved}"
+          if [ "$resolved" != "$PREBUILD" ]; then
+            echo "::error::this container resolves as \`${resolved}\`, not \`${PREBUILD}\`. Refusing to build:"
+            echo "::error::staging would write into a committed glibc prebuild directory and overwrite it."
+            exit 1
+          fi
+
+      # -------- @gjsify/sab-native (GjsifySabNative) --------
+      - name: Build @gjsify/sab-native against musl
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
+        working-directory: packages/node/sab-native
+        run: |
+          set -euo pipefail
+          meson setup build .
+          meson compile -C build
+          node "$GITHUB_WORKSPACE/scripts/stage-prebuild.mjs" . --allow-undeclared
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
+      - name: Build @gjsify/lightningcss-native against musl (Rust cdylib + Vala bridge)
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
+        working-directory: packages/infra/lightningcss-native
+        run: |
+          set -euo pipefail
+          meson setup build .
+          meson compile -C build
+          # Matching by EXTENSION is what picks up both halves of the pair here
+          # (`libgjsifylightningcss.so` + the `libgjsify_lightningcss.so` cdylib
+          # it links), and the stager then runs `checkPrebuildDir()` over what it
+          # wrote — the staged-sibling + `$ORIGIN` invariant, verified on musl.
+          node "$GITHUB_WORKSPACE/scripts/stage-prebuild.mjs" . --allow-undeclared
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      - name: Verify each staged artifact's machine matches its directory
+        run: |
+          set -euo pipefail
+          # Did THIS run build it? Keyed on the directory basename, the key
+          # `changed-packages.mjs` emits, quoted so `"sab-native"` cannot match
+          # a longer key. An unset/empty PREBUILD_SKIP verifies everything —
+          # the same fail-open direction the `if:` gates take.
+          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
+          rc=0
+          for dir in packages/node/sab-native packages/infra/lightningcss-native; do
+            built "$dir" || { echo "--- $dir: not built by this run, not verified"; continue; }
+            out="$dir/prebuilds/${PREBUILD}"
+            if [ ! -d "$out" ]; then
+              echo "::error::$out does not exist — the build ran but staged somewhere else"
+              rc=1
+              continue
+            fi
+            for lib in "$out"/*.so; do
+              desc="$(file -b "$lib")"
+              echo "$lib: $desc"
+              case "$desc" in
+                *"$MACHINE"*) ;;
+                *) echo "::error file=$lib::expected a $MACHINE object in ${PREBUILD}, got: $desc"; rc=1 ;;
+              esac
+            done
+          done
+          exit $rc
+
+      - name: Load-test every musl prebuild under Alpine gjs
+        # The protocol the Fedora and macOS legs use, unchanged: resolving a
+        # GObject class forces GI to call the class's `…_get_type` symbol, which
+        # is what dlopens the recorded shared library. A typelib that is merely
+        # FOUND resolves the namespace and then throws here.
+        #
+        # LD_LIBRARY_PATH is set on purpose and is NOT a workaround for a musl
+        # defect: a typelib records the BARE leaf name of its library, so a
+        # GI_TYPELIB_PATH-only load fails identically for every bridge on glibc
+        # (verified on both). The CLI's `buildNativeEnv()` exports exactly this
+        # variable for exactly this reason, so passing it here makes the test
+        # match what a real `gjsify` run does — do not "fix" the non-bug.
+        run: |
+          set -euo pipefail
+          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
+          rc=0
+          while IFS='|' read -r dir ns sym; do
+            [ -n "$dir" ] || continue
+            built "$dir" || { echo "--- ${ns}: not built by this run, not load-tested"; continue; }
+            abs="$PWD/${dir}/prebuilds/${PREBUILD}"
+            echo "--- ${ns}.${sym} from ${abs}"
+            # `< /dev/null`: the loop's stdin is the heredoc below, and a child
+            # that reads it would eat the remaining rows.
+            if GI_TYPELIB_PATH="$abs" LD_LIBRARY_PATH="$abs" gjs -c \
+                 "const T = imports.gi.${ns}.${sym};
+                  if (typeof T !== 'function') { throw new Error('${ns}.${sym} did not resolve to a class'); }
+                  print('${ns}.${sym} resolved — shared library loaded');" < /dev/null
+            then :; else
+              echo "::error::${ns} prebuild in ${abs} does not load under gjs"
+              rc=1
+            fi
+          done <<'EOF'
+          packages/node/sab-native|GjsifySabNative|SharedBuffer
+          packages/infra/lightningcss-native|GjsifyLightningcss|Engine
+          EOF
+          exit $rc
+
+      - name: Prove every relocation resolves with no library-path variable
+        # The stricter half, and the one that makes this leg worth running: GI
+        # opens a library with G_MODULE_BIND_LAZY, so the gjs step above binds
+        # only what it touches — and a missing symbol is precisely why both
+        # packages in this leg need a musl build in the first place
+        # (`fcntl64`, `__cmsg_nxthdr`, `gnu_get_libc_version`). RTLD_NOW binds
+        # everything. With LD_LIBRARY_PATH unset, the only way the Vala half of
+        # lightningcss-native can find its sibling cdylib is its own `$ORIGIN`
+        # RUNPATH — the dynamic twin of `check-prebuild-loader-path.mjs`.
+        run: |
+          set -euo pipefail
+          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
+          # No `-ldl`: musl has no separate libdl.
+          cc -o /tmp/dlopen-rtld-now .github/prebuild-toolchain/dlopen-rtld-now.c
+          rc=0
+          for lib in \
+            "packages/node/sab-native/prebuilds/${PREBUILD}/libgjsifysabnative.so" \
+            "packages/infra/lightningcss-native/prebuilds/${PREBUILD}/libgjsifylightningcss.so"
+          do
+            pkg="${lib%%/prebuilds/*}"
+            built "$pkg" || { echo "--- $pkg: not built by this run, not dlopened"; continue; }
+            echo "--- dlopen(RTLD_NOW) $lib with LD_LIBRARY_PATH unset"
+            if env -u LD_LIBRARY_PATH /tmp/dlopen-rtld-now "$PWD/$lib"; then :; else
+              echo "::error::$lib does not fully resolve on musl"
+              rc=1
+            fi
+          done
+          exit $rc
+
+      - name: Upload @gjsify/sab-native musl prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: sab-native-prebuilds-linux-${{ matrix.arch }}-musl
+          path: packages/node/sab-native/prebuilds/linux-${{ matrix.arch }}-musl/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/lightningcss-native musl prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: lightningcss-native-prebuilds-linux-${{ matrix.arch }}-musl
+          path: packages/infra/lightningcss-native/prebuilds/linux-${{ matrix.arch }}-musl/
+          if-no-files-found: error
+          retention-days: 30
+
+  # ----------------------------------------------------------------
   # Commit all prebuilds back to the repo — main only, and never from a PR
   #
   # This job pushes binaries into the repository, so "a PR cannot reach it" must
@@ -1525,8 +1978,13 @@ jobs:
   # ----------------------------------------------------------------
   commit-prebuilds:
     name: Commit prebuilds to repo
-    # build-prebuilds-macos-experimental is deliberately absent: it is
-    # workflow_dispatch-only, and a skipped job in `needs` would skip this one too.
+    # build-prebuilds-macos-experimental and build-prebuilds-musl are
+    # deliberately absent: both are workflow_dispatch-only, and a skipped job in
+    # `needs` would skip this one too. For the musl leg that absence is doubly
+    # deliberate — it produces `-musl` artifacts no package declares, and
+    # committing an undeclared target is exactly what the `prebuild-artifacts`
+    # rule fails on. It gets wired in here in the same change that adds the
+    # declaration, not before.
     #
     # `changes` is here because every download step below is gated on ITS
     # decision — the same decision the build legs used. Deciding once and
@@ -1948,6 +2406,35 @@ jobs:
           fi
           echo "no committed prebuild would be deleted."
 
+      # THE SECOND guard, and the one that closes a hole the first cannot see: a
+      # rebuilt binary that is perfectly well-formed but needs a NEWER glibc than
+      # the package promises.
+      #
+      # `gjsify.glibcRequires` is a per-target floor measured out of
+      # `SHT_GNU_verneed`, and `audit-runtimes --check`'s `prebuild-libc` rule
+      # fails when a rebuild has outgrown it. That rule already runs — in
+      # `audit-runtimes.yml`, on push and pull_request. It just never ran on the
+      # commit that can CHANGE the floor: this job commits with `[skip ci]`, so
+      # the audit workflow is not triggered by it, and the drift surfaces on the
+      # next unrelated push instead — attributed to whatever that push touched.
+      #
+      # Raising the floor is not cosmetic. `lightningcss-native` at GLIBC_2.39
+      # alone decides whether this toolchain runs on Ubuntu 24.04 / Debian 13 or
+      # only on something newer, and a base-image bump (fedora:43 → 44 → …) is
+      # exactly the change that moves that number without touching one line of
+      # source. Gating HERE makes the job that produced the binary fail, naming
+      # both numbers, rather than committing it and reporting it elsewhere later.
+      #
+      # Cheap by construction: `audit-runtimes.mjs` is pure Node with zero deps
+      # beyond builtins (see audit-runtimes.yml, which relies on the same fact),
+      # so this needs no install and no build. It runs on the STAGED tree — after
+      # every download, before the commit — which is the only moment the new
+      # binaries and the old declarations exist side by side.
+      - name: Gate on the measured glibc floor + libc flavour
+        run: |
+          set -euo pipefail
+          node scripts/audit-runtimes.mjs --check
+
       - name: Commit prebuilds
         run: |
           set -euo pipefail
@@ -1985,6 +2472,7 @@ jobs:
       - build-prebuilds-qemu
       - build-prebuilds-macos
       - build-prebuilds-macos-experimental
+      - build-prebuilds-musl
       - commit-prebuilds
     if: always()
     runs-on: ubuntu-latest
@@ -2047,8 +2535,10 @@ jobs:
               echo 'A green result above therefore does not extend to those. On a pull request the'
               echo 'skipped leg that matters is `build-prebuilds-macos` — every Linux target in'
               echo '`package.json#gjsify.platforms` is built, `darwin-arm64` is not. Label the PR'
-              echo '`ci:macos` to add it. (`build-prebuilds-macos-experimental` is dispatch-only by'
-              echo 'design, and `commit-prebuilds` is main-only by design.)'
+              echo '`ci:macos` to add it. (`build-prebuilds-macos-experimental` and'
+              echo '`build-prebuilds-musl` are dispatch-only by design — the musl leg builds targets'
+              echo 'no package declares yet, so it proves itself before the declaration exists —'
+              echo 'and `commit-prebuilds` is main-only by design.)'
             else
               echo '**Every prebuild leg in this workflow ran.**'
             fi

@@ -47,10 +47,11 @@
 // Rust rule subset. Lint stays Node-spawned until that trade-off is decided
 // (tracked in status/open-todos.md).
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { hostLibc } from './platform-check.js';
 import { findWorkspaceRoot } from './workspace-root.js';
 import { resolveNpmPackage } from './resolve-npm-package.js';
 import { nodeBinary } from './run-node.js';
@@ -85,23 +86,23 @@ function oxcBindingSuffix(): string {
 
     if (plat === 'linux') {
         // musl detection on Linux — oxc ships separate musl/gnu bindings.
-        // Same approach as biome's launcher: probe for the musl loader.
-        // glibc systems have `/lib/ld-linux-*`, musl has `/lib/ld-musl-*`.
-        let libc = 'gnu';
-        try {
-            // `readdirSync` is imported STATICALLY at the top of this file. It
-            // used to be a lazy `require('node:fs')` inside this try — a bare
-            // `require` in an ESM module, so it threw ReferenceError, the catch
-            // below swallowed it, and `libc` silently stayed 'gnu': a musl host
-            // would be told to install the WRONG binding package. Same defect
-            // class as commands/affected.ts, and even quieter.
-            const libEntries = readdirSync('/lib');
-            if (libEntries.some((e) => e.startsWith('ld-musl-'))) {
-                libc = 'musl';
-            }
-        } catch {
-            // /lib unreadable — fall through, glibc is the safer default
-        }
+        //
+        // ONE DEFINITION, in `platform-check.ts`. This used to be a local
+        // `readdirSync('/lib')` scan for `ld-musl-*`, which is the same question
+        // the install backend asks about a package's `libc` field — and the local
+        // copy is the one that broke: its `readdirSync` was a lazy
+        // `require('node:fs')`, a bare `require` in an ESM module, so it threw
+        // ReferenceError, the surrounding catch swallowed it, and every host was
+        // silently told to install the `-gnu` binding. `hostLibc()` is the shared
+        // probe (ldd text → process.report → loader scan), memoized and unit-
+        // tested with injected hosts, so a musl box gets the right answer here
+        // and in the resolver from the same code.
+        //
+        // Vocabulary hop: npm spells the families `glibc`/`musl`, napi-rs target
+        // triples spell them `gnu`/`musl`. An UNKNOWN libc maps to `gnu` — this
+        // string only names a package in an install HINT, and gnu is the right
+        // guess for the overwhelming majority of hosts we cannot probe.
+        const libc = hostLibc('linux') === 'musl' ? 'musl' : 'gnu';
         return `${plat}-${a}-${libc}`;
     }
 

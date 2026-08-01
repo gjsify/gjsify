@@ -240,9 +240,13 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
             const lockPath = join(prefix, 'gjsify-lock.json');
             assert.ok(existsSync(lockPath), `expected ${lockPath} to be written`);
             const lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
-            // Phase D.7b: lockfile schema v2, keyed by install path so nested
-            // entries (for version conflicts) can coexist with hoisted ones.
-            assert.equal(lock.lockfileVersion, 2);
+            // Keyed by install path since Phase D.7b, so nested entries (the
+            // version-conflict case) coexist with hoisted ones in one map. v3
+            // since the platform filter added the per-entry `os`/`cpu`/`libc`
+            // and `optional` fields. This pins what the CLI WRITES; a v2 file is
+            // still READ (READABLE_LOCKFILE_VERSIONS) precisely so upgrading the
+            // CLI does not discard everyone's pins and re-resolve the tree.
+            assert.equal(lock.lockfileVersion, 3);
             assert.deepEqual(lock.requested, ['root@^0.1.0']);
             for (const name of ['root', 'middle', 'leaf']) {
                 const entry = lock.packages[`node_modules/${name}`];

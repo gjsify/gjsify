@@ -34,6 +34,12 @@ const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CHECKER = join(MONOREPO_ROOT, 'scripts', 'check-prebuild-loader-path.mjs');
 
 const { checkPrebuildDir, readLibrary, readTypelibSharedLibraries } = await import(`file://${CHECKER}`);
+// The libc-axis readers live in the SAME parser (AGENTS.md: extend `binary.mjs`,
+// never add a second) but are not part of the loader-path CLI's surface, so they
+// come from the package directly.
+const { readElfNeeded, readElfGlibcRequires, compareGlibcVersions } = await import(
+    `file://${join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs')}`
+);
 
 /** @param {string[]} parts */
 const pkgDir = (...parts) => join(MONOREPO_ROOT, 'packages', ...parts);
@@ -49,9 +55,22 @@ const PAIRS = [
     },
 ];
 
+/**
+ * Every target token this suite knows how to inspect, in the CURRENT grammar
+ * `<os>-<arch>[-musl]`.
+ *
+ * `linux-*-musl` is listed although nothing commits one yet: each loop below
+ * skips a target whose library is absent, so the day a musl leg lands its
+ * artifacts are checked with no fixture edit. Listing it is also the cheap half
+ * of the standing "fixtures recompose the target name" item in
+ * `status/open-todos.md` — the token shape appears once here instead of inline at
+ * three loop heads.
+ */
+const TARGETS = ['linux-x64', 'linux-x64-musl', 'linux-arm64', 'linux-arm64-musl', 'darwin-arm64'];
+
 describe('check-prebuild-loader-path: committed prebuilds', () => {
     for (const { dir, vala, rust } of PAIRS) {
-        for (const target of ['linux-x64', 'linux-arm64', 'darwin-arm64']) {
+        for (const target of TARGETS) {
             const staged = join(dir, target);
             const ext = target.startsWith('darwin') ? '.dylib' : '.so';
             if (!existsSync(join(staged, `${vala}${ext}`))) continue; // target not shipped (yet)
@@ -178,5 +197,130 @@ describe('typelib shared-library records', () => {
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    });
+});
+
+describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
+    // These two facts used to be hand-maintained (which is to say: absent). The
+    // readers exist so `libc` and `gjsify.glibcRequires` are MEASURED, and the
+    // committed prebuilds are the fixtures for the same reason the loader-path
+    // checks use them: real linked artifacts, on five architectures, two byte
+    // orders, none of which this x86-64 host can execute.
+    const TERMINAL = (target) => pkgDir('node', 'terminal-native', 'prebuilds', target, 'libgjsifyterminal.so');
+    const TLS = (target) => pkgDir('node', 'tls-native', 'prebuilds', target, 'libgjsifytls.so');
+
+    it('reports libc.so.6 for a bridge that links it — on every arch, both byte orders', () => {
+        // `linux-s390x` is the big-endian one. The ELF header carries its own
+        // byte order, so this is not a guess — but it IS the case a
+        // little-endian-only reader gets silently wrong, exactly as the typelib
+        // reader above did before it learned to probe.
+        for (const target of ['linux-x64', 'linux-arm64', 'linux-ppc64', 'linux-s390x', 'linux-riscv64']) {
+            const needed = readElfNeeded(TERMINAL(target));
+            assert.ok(Array.isArray(needed), `${target}: expected a measurement, got null`);
+            assert.ok(needed.includes('libc.so.6'), `${target}: expected libc.so.6, got ${needed.join(', ')}`);
+            // Leaf names, not raw strings — the question is always "does it need
+            // libc", which is a question about the leaf.
+            assert.ok(
+                needed.every((n) => !n.includes('/')),
+                `${target}: expected leaf names, got ${needed.join(', ')}`,
+            );
+        }
+    });
+
+    it('reports NO libc soname for a bridge that reaches libc only through GLib', () => {
+        // `@gjsify/tls-native` on x64 calls into GLib/GIO/GnuTLS and nothing
+        // else, so it loads against whatever libc the host's GLib was built for.
+        // That third state — not glibc, not musl — is why an unsuffixed target
+        // means "default build" rather than "glibc build".
+        const needed = readElfNeeded(TLS('linux-x64'));
+        assert.ok(Array.isArray(needed));
+        assert.ok(!needed.includes('libc.so.6'), `expected no libc.so.6, got ${needed.join(', ')}`);
+        assert.ok(needed.includes('libgnutls.so.30'), needed.join(', '));
+    });
+
+    it('reports the SAME package as glibc-linked on riscv64 — the requirement is per TARGET', () => {
+        // Measured, and it is the finding that shaped the `libc` rule: Fedora's
+        // riscv64 toolchain records libc + the interpreter explicitly, so
+        // `@gjsify/tls-native` is libc-agnostic on four targets and glibc-only on
+        // this one. npm's package-level `libc` field cannot express that, which
+        // is why `prebuild-libc` leaves it absent and says so in a note.
+        const needed = readElfNeeded(TLS('linux-riscv64'));
+        assert.ok(needed.includes('libc.so.6'), needed.join(', '));
+    });
+
+    it('returns NULL — not [] — for a file that is not an ELF at all', () => {
+        // The contract the whole audit rests on: null is "not measured", `[]` is
+        // "measured, records nothing". A caller that collapses them concludes
+        // "no libc.so.6, therefore musl-safe" about a file nobody parsed.
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-elf-'));
+        try {
+            const file = join(dir, 'libnothing.so');
+            writeFileSync(file, 'x'.repeat(512));
+            assert.equal(readElfNeeded(file), null);
+            assert.equal(readElfGlibcRequires(file), null);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('returns null rather than throwing on a Mach-O image', () => {
+        // The darwin artifacts are legitimate files this reader does not speak.
+        // Throwing would abort a whole audit run over a platform it never
+        // claimed to inspect.
+        const dylib = pkgDir('infra', 'oxfmt-native', 'prebuilds', 'darwin-arm64', 'libgjsifyoxfmt.dylib');
+        assert.equal(readElfNeeded(dylib), null);
+        assert.equal(readElfGlibcRequires(dylib), null);
+    });
+});
+
+describe('libc axis — the glibc floor, read from SHT_GNU_verneed', () => {
+    it('reads the floor the dynamic linker will actually enforce', () => {
+        // Spot-checked against the two extremes in the tree. The low one is a
+        // pure-Vala bridge using only ancient symbols; the high one is a Rust
+        // cdylib and single-handedly sets this repo's Linux baseline
+        // (glibc 2.39 = Ubuntu 24.04 / Debian 13), which is precisely the fact
+        // no declaration revealed before it was measured.
+        assert.equal(
+            readElfGlibcRequires(pkgDir('node', 'terminal-native', 'prebuilds', 'linux-x64', 'libgjsifyterminal.so')),
+            '2.2.5',
+        );
+        assert.equal(
+            readElfGlibcRequires(
+                pkgDir('infra', 'lightningcss-native', 'prebuilds', 'linux-x64', 'libgjsify_lightningcss.so'),
+            ),
+            '2.39',
+        );
+    });
+
+    it('reads a BIG-endian .gnu.version_r — the s390x case', () => {
+        // Same trap as the big-endian typelib above, one section over.
+        assert.equal(
+            readElfGlibcRequires(pkgDir('node', 'terminal-native', 'prebuilds', 'linux-s390x', 'libgjsifyterminal.so')),
+            '2.2',
+        );
+    });
+
+    it('reports null for a library that requires no versioned glibc symbol', () => {
+        // The Vala half of a Rust pair records no libc at all, so it has no
+        // floor. This is why the rule takes the MAXIMUM over the whole staged
+        // directory: reading only the typelib-named library would report "no
+        // glibc requirement" for the three packages with the highest floors.
+        assert.equal(
+            readElfGlibcRequires(
+                pkgDir('infra', 'lightningcss-native', 'prebuilds', 'linux-x64', 'libgjsifylightningcss.so'),
+            ),
+            null,
+        );
+    });
+
+    it('compares versions numerically, so 2.9 does not outrank 2.34', () => {
+        // The one comparison a lexical sort gets wrong on the actual data — and
+        // it appears twice: picking the maximum inside a `.gnu.version_r` table,
+        // and comparing a measurement against a declared floor.
+        assert.ok(compareGlibcVersions('2.34', '2.9') > 0);
+        assert.ok(compareGlibcVersions('2.9', '2.34') < 0);
+        assert.equal(compareGlibcVersions('2.34', '2.34.0'), 0);
+        assert.ok(compareGlibcVersions('2.2.5', '2.2') > 0);
+        assert.ok(compareGlibcVersions('2.39', '2.28') > 0);
     });
 });

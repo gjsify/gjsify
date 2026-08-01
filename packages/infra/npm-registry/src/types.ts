@@ -30,6 +30,22 @@ export interface PackumentVersion {
     optionalDependencies?: Record<string, string>;
     bin?: string | Record<string, string>;
     deprecated?: string;
+    /**
+     * Platform restrictions, declared as a bare string or an array (npm accepts
+     * both). Typed explicitly — they used to be reachable only through the index
+     * signature as `unknown`, which is how the installer came to place 183
+     * foreign-platform packages: nothing in the type surface said these fields
+     * existed. Consumed by the CLI's `utils/platform-check.ts`.
+     *
+     * `libc` is NOT served in the abbreviated (`corgi`) document — verified
+     * against the live registry: `lightningcss-linux-x64-musl@1.33.0` returns
+     * `{os,cpu}` under `application/vnd.npm.install-v1+json` and
+     * `{os,cpu,libc}` under `application/json`. A consumer that needs it must
+     * re-request with {@link FetchOptions.fullMetadata}.
+     */
+    os?: string | string[];
+    cpu?: string | string[];
+    libc?: string | string[];
     [key: string]: unknown;
 }
 
@@ -49,6 +65,25 @@ export interface FetchOptions {
     npmrc?: NpmrcConfig;
     /** Pre-built header map (overrides anything else). */
     headers?: Record<string, string>;
+    /**
+     * Request the FULL packument (`accept: application/json`) instead of the
+     * abbreviated "corgi" install document. Packument fetches only.
+     *
+     * The abbreviated document is what every resolver should use — it is an
+     * order of magnitude smaller and carries everything version selection
+     * needs. Set this ONLY for a field the registry omits from it; today that
+     * means `libc` (see {@link PackumentVersion.libc}). A full document for a
+     * popular package can be several MB, so escalate per package, never
+     * globally.
+     *
+     * The two shapes are DIFFERENT DOCUMENTS for the same URL, so anything
+     * caching them must key on the shape as well — pacote prefixes its cache
+     * key with `full:`/`corgi:` for exactly this reason, and so does the CLI's
+     * `install-packument-cache.ts`. Serving a cached abbreviated body to a
+     * full-document read makes `libc` silently disappear: a wrong answer that
+     * looks like a cache hit.
+     */
+    fullMetadata?: boolean;
     /** AbortSignal forwarded to fetch. */
     signal?: AbortSignal;
     /** Custom fetch implementation; default = globalThis.fetch. */
