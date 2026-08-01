@@ -6,6 +6,7 @@ import type { Stats, BigIntStats } from './stats.js';
 import { statSync, truncateSync, chmodSync, chownSync, readFileSync } from './sync.js';
 import { utimesSync } from './utimes.js';
 import { normalizePath } from './utils.js';
+import { isStdFd, readStdFdSync, writeStdFdSync } from './std-fd.js';
 
 import type { PathLike, TimeLike, StatOptions } from 'node:fs';
 
@@ -154,6 +155,8 @@ export async function futimesAsync(fd: number, atime: TimeLike, mtime: TimeLike)
 // ─── closeSync ────────────────────────────────────────────────────────────────
 
 export function closeSync(fd: number): void {
+    // Never close the process's own stdin/stdout/stderr underneath it.
+    if (isStdFd(fd)) return;
     getFH(fd)._closeSync();
 }
 
@@ -187,6 +190,7 @@ export function readSync(
         offset = (offsetOrOptions as number | null | undefined) ?? 0;
         length = length ?? buffer.byteLength - offset;
     }
+    if (isStdFd(fd)) return readStdFdSync(fd, buffer, offset, length!);
     return getFH(fd)._readSync(buffer, offset, length!, position ?? null);
 }
 
@@ -221,6 +225,7 @@ export function writeSync(
         const len = typeof lengthOrEncoding === 'number' ? lengthOrEncoding : bufferOrString.byteLength - offset;
         data = new Uint8Array(bufferOrString.buffer as ArrayBuffer, bufferOrString.byteOffset + offset, len);
     }
+    if (isStdFd(fd)) return writeStdFdSync(fd, data);
     return getFH(fd)._writeSync(data, position ?? null);
 }
 

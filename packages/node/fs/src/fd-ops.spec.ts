@@ -3,7 +3,7 @@
 // Original: MIT, Node.js contributors.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import {
     openSync,
     closeSync,
@@ -259,6 +259,37 @@ export default async () => {
             expect(blob.size).toBe(8);
             expect(blob instanceof Blob).toBe(true);
             unlinkSync(f);
+        });
+
+        // Standard descriptors (stdin=0, stdout=1, stderr=2). Regression: a
+        // numeric std fd used to be coerced to the relative PATH "0"/"1"/"2"
+        // and thrown as ENOENT ("No instance found for fd!"), breaking the Node
+        // stdin idiom `readFileSync(0)` every bundled npm package relies on.
+        // The read side (fd 0) needs a real pipe → tests/e2e/fs-std-fd; the
+        // write side is asserted here on both runtimes (Node's real fs and, via
+        // the `node:fs`→`@gjsify/fs` alias, our GJS impl).
+        await it('writeSync to a std fd (stderr) returns the byte count', async () => {
+            expect(writeSync(2, Buffer.alloc(0))).toBe(0);
+            expect(writeSync(2, Buffer.from('gjsify-std-fd\n'))).toBe(14);
+        });
+
+        await on('Gjs', async () => {
+            const { isStdFd, STDIN_FD, STDOUT_FD, STDERR_FD } = await import('./std-fd.js');
+
+            await it('isStdFd recognises only 0/1/2', async () => {
+                expect(isStdFd(STDIN_FD)).toBeTruthy();
+                expect(isStdFd(STDOUT_FD)).toBeTruthy();
+                expect(isStdFd(STDERR_FD)).toBeTruthy();
+                expect(isStdFd(3)).toBeFalsy();
+                expect(isStdFd(-1)).toBeFalsy();
+            });
+
+            await it('closeSync on a std fd is a no-op — never closes the process stdio', async () => {
+                // On Node this would close real stdout and take down the runner,
+                // so it is a GJS-only assertion against our impl.
+                closeSync(STDOUT_FD);
+                expect(writeSync(STDOUT_FD, Buffer.alloc(0))).toBe(0);
+            });
         });
     });
 };
