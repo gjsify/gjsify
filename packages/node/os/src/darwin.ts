@@ -10,11 +10,22 @@ const getIPv6Subnet = createSubnet(128, 16, 16, ':');
 
 const parseInterfaces = function (info) {
     info = info.trim();
-    if (info.length < 1 || !/\binet\b/.test(info)) return;
+    // `\binet\b` does NOT match `inet6` (no word boundary between `t` and `6`),
+    // so keying the guard on it dropped every IPv6-ONLY interface — on a stock
+    // macOS that is every `utun*` VPN/tunnel device, which Node reports.
+    if (info.length < 1 || !/\binet6?\b/.test(info)) return;
     const lines = info.split('\n');
     const iface = [];
     const length = lines.length;
     let mac = NOMAC;
+    // Node derives `internal` from the interface's IFF_LOOPBACK flag, not from
+    // the address. `ifconfig` prints those flags in the group's header line
+    // (`lo0: flags=8049<UP,LOOPBACK,…>`), which is the only place the loopback
+    // property is stated for BOTH families — a loopback interface carries no
+    // `ether` line, so the previous `mac !== NOMAC` test reported the exact
+    // inverse for every IPv6 address: `::1` came back external while a real
+    // NIC's `fe80::` came back internal.
+    const internal = /<[^>]*\bLOOPBACK\b[^>]*>/.test(lines[0] ?? '');
     for (let line, i = 0; i < length; i++) {
         line = lines[i];
         switch (true) {
@@ -32,16 +43,20 @@ const parseInterfaces = function (info) {
                     ].join('.'),
                     family: 'IPv4',
                     mac: mac,
-                    internal: RegExp.$1 === '127.0.0.1',
+                    internal,
                 });
                 break;
-            case /inet6\s+((?:\S{0,4}:)+\S{1,4}).+?prefixlen\s+(\d+)/.test(line):
+            // The address is captured up to the zone index, which `ifconfig`
+            // appends for link-local addresses (`fe80::1%lo0`). The previous
+            // `\S{1,4}` tail swallowed it into the address itself, yielding the
+            // malformed `fe80::1%lo`; Node reports the bare `fe80::1`.
+            case /inet6\s+([^\s%]+)(?:%\S+)?\s+prefixlen\s+(\d+)/.test(line):
                 iface.push({
                     address: RegExp.$1,
                     netmask: getIPv6Subnet(RegExp.$2),
                     family: 'IPv6',
                     mac: mac,
-                    internal: mac !== NOMAC,
+                    internal,
                 });
                 break;
         }
@@ -49,14 +64,40 @@ const parseInterfaces = function (info) {
     this[info.slice(0, info.indexOf(':'))] = iface;
 };
 
+/**
+ * Read one `sysctl` key, or `null` when the host does not have it.
+ *
+ * `cli()` throws whenever the child writes ANYTHING to stderr, and `sysctl`
+ * does exactly that for an unknown key (`sysctl: unknown oid '…'`). Two of the
+ * keys below are Intel-only — Apple Silicon publishes neither
+ * `machdep.cpu.brand_string` nor `hw.cpufrequency` — so calling `cli()` bare
+ * made `os.cpus()` THROW on every arm64 Mac rather than degrade.
+ */
+const sysctl = (key: string): string | null => {
+    try {
+        const value = cli(`sysctl -n ${key}`).trim();
+        return value.length > 0 ? value : null;
+    } catch {
+        return null;
+    }
+};
+
 // PORTED TO deno runtime
 export const cpus = () => {
-    let cores = parseFloat(cli('sysctl -n hw.ncpu'));
+    const cores = parseFloat(cli('sysctl -n hw.ncpu'));
+    // Hoisted out of the loop: these are per-MACHINE facts, so querying them
+    // per core spawned one `sysctl` per CPU (64 subprocesses on a Mac Pro) to
+    // recompute the same two strings.
+    const model = sysctl('machdep.cpu.brand_string')?.replace(/\s+/g, ' ') ?? 'unknown';
+    // Node reports MHz. Apple Silicon exposes no frequency oid at all and Node
+    // reports 0 there, so an absent key degrades to 0 rather than NaN.
+    const hz = sysctl('hw.cpufrequency');
+    const speed = hz ? parseFloat(hz) / 1000 / 1000 : 0;
     const cpus = [];
-    while (cores--) {
+    for (let i = 0; i < cores; i++) {
         cpus.push({
-            model: cli('sysctl -n machdep.cpu.brand_string').replace(/\s+/g, ' '),
-            speed: parseFloat(cli('sysctl -n hw.cpufrequency')) / 1000 / 1000,
+            model,
+            speed,
             get times() {
                 console.warn('cpus.times is not supported');
                 return {};
@@ -109,12 +150,16 @@ export const freemem = () => {
 };
 
 // PORTED TO deno runtime
-export const loadavg = () =>
-    /load\s+averages:\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))/.test(cli('uptime')) && [
-        parseFloat(RegExp.$1),
-        parseFloat(RegExp.$2),
-        parseFloat(RegExp.$3),
-    ];
+/**
+ * Node's `os.loadavg()` is typed `number[]` and documented to always yield the
+ * 1/5/15-minute triple. The `&&` form returned the BOOLEAN `false` whenever the
+ * `uptime` output did not match, so a caller doing `loadavg()[0]` crashed
+ * instead of reading a zero.
+ */
+export const loadavg = (): number[] =>
+    /load\s+averages:\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/.test(cli('uptime'))
+        ? [parseFloat(RegExp.$1), parseFloat(RegExp.$2), parseFloat(RegExp.$3)]
+        : [0, 0, 0];
 
 export const networkInterfaces = () => {
     const ifaces = {};

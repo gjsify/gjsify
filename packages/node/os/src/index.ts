@@ -53,7 +53,23 @@ export const hostname = () => GLib.get_host_name();
 
 export const release = () => cli('uname -r').trim();
 
-export const tmpdir = () => GLib.get_tmp_dir();
+/**
+ * Node strips a trailing separator from the temp dir (`lib/os.js`: drop a
+ * trailing `/` whenever the path is longer than one character, so `/` itself
+ * survives). `g_get_tmp_dir()` returns `$TMPDIR` verbatim, and on macOS that
+ * value ALWAYS ends in a slash — a per-user
+ * `/var/folders/<…>/T/` — so this divergence is invisible on Linux, where
+ * `$TMPDIR` is usually unset and GLib falls back to a bare `/tmp`.
+ *
+ * The consequence is not cosmetic: `path.join(os.tmpdir(), name)` yields a
+ * doubled separator, and any code comparing a normalised path against
+ * `os.tmpdir()` stops matching.
+ */
+export const tmpdir = () => {
+    const dir = GLib.get_tmp_dir();
+    const sep = getPathSeparator();
+    return dir.length > 1 && dir.endsWith(sep) ? dir.slice(0, -1) : dir;
+};
 
 export const type = () => cli('uname').trim();
 
