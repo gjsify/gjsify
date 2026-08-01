@@ -27,14 +27,13 @@
     "gtk"
   ],
   "gjsify": {
-    "artifactOf": "@gjsify/node-gi",
     "runtimes": {
       "gjs": "none",
       "node": "polyfill",
       "browser": "none",
       "nativescript": "none"
     },
-    "tier": 2
+    "tier": 3
   },
   "scripts": {
     "build:bundle": "node scripts/build-gtk-runtime.mjs"
