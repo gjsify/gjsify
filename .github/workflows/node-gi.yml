@@ -119,13 +119,10 @@ jobs:
       # Tier-B typelib oracle: the GJS installed-tests port (gimarshalling/)
       # runs against the purpose-built GIMarshallingTests-1.0 typelib compiled
       # from the pinned gobject-introspection-tests revision (the same pin
-      # refs/gjs tests against). meson + ninja are installed in a dedicated
-      # step (the shared dnf line at the top of the job stays stable), and the
+      # refs/gjs tests against). meson + ninja come from the baked image, and the
       # built .gi-tests/ tree is cached keyed by that pin — a hit makes the
       # typelib build a stamped no-op. The rev in the key MUST match PINNED_REV
       # in scripts/build-gi-test-typelibs.mjs.
-      - name: Install meson + ninja (typelib oracle build deps)
-
       - name: Cache GI test typelibs (pinned rev)
         uses: actions/cache@v4
         with:

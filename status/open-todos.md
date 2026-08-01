@@ -330,3 +330,25 @@ change, and that push moved `main` out from under an already-verified sweep
 mid-release. Worth fixing at the source (reproducible flags) rather than by
 suppressing the commit, since byte-reproducibility is what would let a future
 check compare a committed prebuild against a CI-built one at all.
+
+### A workflow GitHub refuses to load reports the PR as GREEN
+
+When GitHub rejects a workflow file it creates a run with ZERO jobs, hence zero
+check runs — so the pull request shows green while the workflow never ran. The
+only visible trace is a run oddly named after the file path instead of the
+workflow name.
+
+Measured: moving nine jobs onto the baked CI image deleted a single-line `run:`
+and left a step carrying only a `name:`. GitHub refused the whole file, six
+node-gi jobs silently did not run, and the PR reported **24 green checks**. It
+was caught by asking why the expected job names were missing, not by any signal.
+
+Another workflow CAN see what the broken one cannot report — `audit-runtimes.yml`
+already runs pure-Node repo checks on every PR with no install — so the gate has
+an obvious home. The trap is the checker itself: a hand-rolled YAML outline
+scanner written for this produced 17 false positives on `prebuilds.yml` and
+`release.yml`, both of which GitHub loads fine, and a check that cries wolf is
+worse than none. Node ships no YAML parser, so the real options are `actionlint`
+(purpose-built, one Go binary, catches far more) or python3 + PyYAML, which the
+ubuntu runners already have and which gave the correct answer — exactly one
+offending step — when used ad hoc. Pick one deliberately; do not hand-roll.
