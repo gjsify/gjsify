@@ -1334,13 +1334,49 @@ export function buildBinShim(
         // package and oversubscribes CI's few cores. Verified: the faithful
         // `foreach build -tp --jobs 4` over @gjsify/* with a piped stdout
         // completes in ~83s under GJS (was a multi-hour hang).
-        return (
-            `#!/bin/sh\n` +
+        // …EXCEPT on macOS and Windows, where the order is inverted — and not
+        // as a preference but as a capability. GJS is a GNOME-desktop host: on
+        // those two platforms it is at best a Homebrew/MSYS afterthought, while
+        // Node is what a developer already has. The tooling agrees:
+        //
+        //   - macOS: the only bundler engine under GJS is
+        //     `@gjsify/rolldown-native` (npm `rolldown` is a Rust napi crate
+        //     GJS cannot load), and it declares `linux-x64`/`linux-arm64` only.
+        //     So the gjs branch cannot run `gjsify build`, nor any script that
+        //     ends in one — it dies with "no usable bundler engine under GJS",
+        //     whose own closing line is "Running the build under Node also
+        //     works". Preferring gjs routed the user into a dead end the error
+        //     message tells them to leave while the shim offered no way out.
+        //     Measured on a cold macOS tree: root `build:infra` fails at the
+        //     first `gjsify build --library` (`@gjsify/utils`) with the
+        //     gjs-first shim and completes with this one.
+        //   - Windows: there is no prebuilt `libgjs` at all (see
+        //     `website/src/content/docs/platform-support.md`), so the gjs probe
+        //     can never succeed. This also makes the `sh` shim — the git-bash /
+        //     MSYS entry point — agree with the `.cmd`/`.ps1` companions
+        //     {@link buildLauncherShims} already writes as Node-only, instead
+        //     of leading with a branch that is dead by construction.
+        //
+        // The probe stays symmetric with the gjs one — `command -v node`, not a
+        // bare file test — so a host carrying the bundle but no Node still
+        // falls through to gjs and keeps every non-build command working. That
+        // is what keeps GJS on these platforms supported-and-tested rather than
+        // merely absent. Revert a platform to the shared gjs-first form once it
+        // has a working engine (macOS: status/open-todos.md,
+        // "@gjsify/rolldown-native's darwin-arm64 leg is PROVEN but not
+        // promoted").
+        const nodeFirstPlatform = platform === 'darwin' || platform === 'win32';
+        const gjsFirst =
             `if command -v gjs >/dev/null 2>&1 && [ -f "${gjsAbs}" ]; then\n` +
             `${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n` +
             `fi\n` +
-            `exec node "${nodeAbs}" "$@"\n`
-        );
+            `exec node "${nodeAbs}" "$@"\n`;
+        const nodeFirst =
+            `if command -v node >/dev/null 2>&1 && [ -f "${nodeAbs}" ]; then\n` +
+            `exec node "${nodeAbs}" "$@"\n` +
+            `fi\n` +
+            `${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
+        return `#!/bin/sh\n` + (nodeFirstPlatform ? nodeFirst : gjsFirst);
     }
     if (nodeAbs) return `#!/bin/sh\nexec node "${nodeAbs}" "$@"\n`;
     if (gjsAbs) return `#!/bin/sh\n${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
