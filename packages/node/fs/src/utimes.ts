@@ -70,10 +70,18 @@ export async function lutimesAsync(path: PathLike, atime: TimeLike, mtime: TimeL
 }
 
 // ─── lchown ───────────────────────────────────────────────────────────────────
-// chown -h changes the ownership of the symlink itself, not its target.
+// NOFOLLOW_SYMLINKS changes the ownership of the symlink itself, not its
+// target — the Gio equivalent of `chown -h`. The previous impl shelled out
+// with unquoted paths (broken on spaces, command-injection hazard) and
+// swallowed every failure.
 
 export function lchownSync(path: PathLike, uid: number, gid: number): void {
-    GLib.spawn_command_line_sync(`chown -h ${uid}:${gid} ${normalizePath(path)}`);
+    const pathStr = normalizePath(path);
+    const file = Gio.File.new_for_path(pathStr);
+    const info = new Gio.FileInfo();
+    if (uid !== -1) info.set_attribute_uint32('unix::uid', uid);
+    if (gid !== -1) info.set_attribute_uint32('unix::gid', gid);
+    file.set_attributes_from_info(info, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
 }
 
 export function lchown(
