@@ -267,3 +267,66 @@ explicit acknowledgement path (a `Revert-Of:` trailer, or a label), never a hard
 gate. Cheapest home: a step in the `check` job over `git diff --merge-base`,
 scoped to `*.md` first, since prose is where the class actually bites — source
 regressions of this shape are usually caught by tsc, lint or a test.
+
+### node-gi + napi jobs still `dnf install` from Docker Hub every run
+
+Ten jobs — seven in `node-gi.yml`, three in `napi.yml` — run `container:
+image: fedora:44` and then `dnf install` their package set on every run.
+`main.yml` stopped doing that long ago: `build-ci-image.yml` bakes the packages
+into `ghcr.io/gjsify/ci-fedora:<major>`, and its own header says why ("saves
+3-5 minutes per matrix entry"). These ten never adopted it.
+
+During the v0.26.0 release sweep the cost was not three minutes. `napi` failed
+outright when `docker pull fedora:44` timed out against registry-1.docker.io
+three times before the container existed, and the storybook bundle job was
+killed by its 45-minute timeout TWICE with ~41 of those minutes inside a single
+`dnf install` — a step that takes 22 seconds on a good day. Neither failure had
+anything to do with the code; the same commit was green on the PR.
+
+Not a one-line switch to `ci-fedora`, which is why this is a TODO and not a
+drive-by: several of these jobs are minimal ON PURPOSE (the Node-free install
+proof, "no system GTK" conformance), and `ci-fedora` carries gjs, GTK and the
+blueprint toolchain. The shape that keeps the property is a SECOND baked image
+holding exactly this package set, built by the same workflow. Per-job judgement
+needed on which of the ten want which image.
+
+### The squash subject is what lands on main, and nothing lints it
+
+`commitlint.yml` runs `wagoid/commitlint-github-action`, which lints the PR's
+COMMITS. With squash merges, what actually lands is the PR TITLE — a string no
+check inspects. `f51fa0f57 Run the transparent addon matrix in CI (#849)` has
+no conventional prefix and is therefore absent from the generated CHANGELOG
+entirely; the work shipped in v0.26.0 with no release note. The workflow
+already triggers on `edited` (title/body changes), which only re-runs the
+commit lint today — the intent was there, the check never was.
+
+The trap when fixing it: a hand-rolled title regex is a partial reimplementation
+of commitlint (`config-conventional` also enforces `subject-case`,
+`subject-full-stop`, `header-max-length`), so it would pass titles the real
+linter rejects — the exact drift the rule exists to prevent. Running
+`@commitlint/cli` against `commitlint.config.cjs` needs `config-conventional`
+resolvable from the repo, which is precisely what the action avoids by bringing
+its own. Decide deliberately between a purpose-built title action and making
+the config self-contained; do not hand-roll the regex.
+
+### CHANGELOG links break on `#nnn` written inside commit bodies
+
+conventional-changelog scans commit BODIES for issue references, so prose like
+"pre-#885" or "#870/#873" becomes a link to `github.com/gjsify/pre-/issues/885`
+and `github.com/870/gjsify/issues/873`. Both are in the published v0.26.0
+changelog. Either stop writing bare `#nnn` mid-sentence in commit bodies (a
+convention nothing enforces, so it will regress), or configure the parser's
+`issuePrefixes`/reference handling so only trailer-style references count.
+
+### Nothing byte-compares a committed prebuild, and macOS re-commits noise
+
+AGENTS.md already records that committed `prebuilds/**` binaries are unguarded
+(provenance proves the inputs; nothing compares the bytes). The v0.26.0 sweep
+showed the other half of that gap: `commit-prebuilds` pushed six darwin-arm64
+dylibs whose sizes were IDENTICAL to their predecessors (37144 -> 37144, and so
+on) but whose bytes differed — non-reproducible Mach-O output (timestamps,
+UUIDs). So every macOS prebuild run commits binary churn with no semantic
+change, and that push moved `main` out from under an already-verified sweep
+mid-release. Worth fixing at the source (reproducible flags) rather than by
+suppressing the commit, since byte-reproducibility is what would let a future
+check compare a committed prebuild against a CI-built one at all.
