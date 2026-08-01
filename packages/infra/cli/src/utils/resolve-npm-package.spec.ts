@@ -11,10 +11,25 @@
 // strictly required but is still expected to succeed when invoked.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { resolveNpmPackage } from './resolve-npm-package.js';
+
+/**
+ * `mkdtempSync` under a CANONICALISED tmp root.
+ *
+ * On macOS `os.tmpdir()` is a per-user `/var/folders/…`, and `/var` is a
+ * symlink to `/private/var`. `resolveNpmPackage` resolves through
+ * `createRequire`, which canonicalises, so it returns `/private/var/…` while a
+ * path this fixture builds from `tmpdir()` still spells it `/var/…`. Every
+ * comparison below would then fail on a Mac for a reason that has nothing to do
+ * with resolution. Canonicalising the root once keeps the two sides
+ * apples-to-apples, and is a no-op wherever `/tmp` is already a real directory.
+ */
+function mkdtempReal(prefix: string): string {
+    return realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+}
 
 /**
  * Set up a tiny synthetic project layout under a unique tmp dir:
@@ -29,7 +44,7 @@ import { resolveNpmPackage } from './resolve-npm-package.js';
  * so tests can compare resolved paths directly.
  */
 function setupFixture(): { root: string; entry: string } {
-    const root = mkdtempSync(join(tmpdir(), 'gjsify-resolve-npm-'));
+    const root = mkdtempReal('gjsify-resolve-npm-');
     const pkgDir = join(root, 'node_modules', 'fake-pkg');
     mkdirSync(pkgDir, { recursive: true });
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'host', type: 'module' }));
@@ -59,7 +74,7 @@ export default async () => {
         });
 
         await it('returns null when no anchor has the package', () => {
-            const root = mkdtempSync(join(tmpdir(), 'gjsify-resolve-empty-'));
+            const root = mkdtempReal('gjsify-resolve-empty-');
             try {
                 // Force an isolated cwd with no node_modules, no bundleUrl,
                 // no env override — every anchor must miss.
@@ -76,7 +91,7 @@ export default async () => {
             // bundle URL (has the package). This is the cross-cwd case
             // from the task — the CLI bundle lives next to a populated
             // node_modules, but is invoked from an unrelated directory.
-            const emptyCwd = mkdtempSync(join(tmpdir(), 'gjsify-resolve-empty-'));
+            const emptyCwd = mkdtempReal('gjsify-resolve-empty-');
             const { root: bundleRoot, entry } = setupFixture();
             try {
                 delete process.env['GJSIFY_NODE_PATH'];
@@ -112,7 +127,7 @@ export default async () => {
             //   <root>/                  ← anchor: deep cwd
             //     node_modules/fake-pkg/
             //     nested/a/b/c/          ← actual cwd, no local node_modules
-            const root = mkdtempSync(join(tmpdir(), 'gjsify-resolve-nested-'));
+            const root = mkdtempReal('gjsify-resolve-nested-');
             const pkgDir = join(root, 'node_modules', 'fake-pkg');
             const deepCwd = join(root, 'nested', 'a', 'b', 'c');
             mkdirSync(pkgDir, { recursive: true });

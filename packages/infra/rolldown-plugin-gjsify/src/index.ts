@@ -54,6 +54,7 @@ export {
     isNapiRsPackageJson,
     isNapiRsSibling,
     detectNapiRsEntry,
+    hostNapiRsTriple,
     AddonNotBuiltError,
 } from './plugins/napi-node-addon.js';
 export type { NapiNodeAddonPluginOptions, AddonPackageJson } from './plugins/napi-node-addon.js';
