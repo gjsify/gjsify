@@ -462,9 +462,7 @@ jobs:
           # every single release. A recurring, self-resolving red teaches people
           # to ignore the signal. Same guard napi.yml already carries.
           ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && ( npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null \
-                 || { echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."; \
-                      npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save; } ) )
+            && "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}" )
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           echo "Bootstrap bundler: $(node_modules/.bin/gjsify --version)"
 
@@ -837,9 +835,7 @@ jobs:
           # every single release. A recurring, self-resolving red teaches people
           # to ignore the signal. Same guard napi.yml already carries.
           ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && ( npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null \
-                 || { echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."; \
-                      npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save; } ) )
+            && "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}" )
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           mkdir -p node_modules/@gjsify
           ln -sfn ../../packages/node-gi/node-gi node_modules/@gjsify/node-gi
@@ -1745,9 +1741,7 @@ jobs:
           # every single release. A recurring, self-resolving red teaches people
           # to ignore the signal. Same guard napi.yml already carries.
           ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && ( npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null \
-                 || { echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."; \
-                      npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save; } ) )
+            && "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}" )
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           echo "Bootstrap bundler: $(node_modules/.bin/gjsify --version)"
 
