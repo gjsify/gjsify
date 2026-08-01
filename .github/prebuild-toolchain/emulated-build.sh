@@ -61,6 +61,39 @@ needs_rust() {
 
 # Detect the package manager: dnf for Fedora (ppc64/s390x), apt for Ubuntu
 # (riscv64 — Fedora publishes no riscv64 image).
+#
+# THE THIRD BRANCH IS A REFUSAL, NOT A GAP. This used to be a two-way
+# `if dnf … else apt-get …`, i.e. "not dnf means Debian". Run inside
+# `alpine:3.24` it therefore did:
+#
+#     + command -v dnf          (no output, not found)
+#     + apt-get update
+#     .../emulated-build.sh: line 79: apt-get: not found
+#
+# — dying in a confusing place, several lines after the real cause. Alpine is a
+# REAL target for this repo (postmarketOS is Alpine-based), it just is not this
+# script's: musl prebuilds are built by `prebuilds.yml`'s `build-prebuilds-musl`
+# leg, in a native `alpine:3.24` container, because both arches that matter have
+# native runners and nothing there needs emulating.
+#
+# IF a musl build ever does have to come through here, THREE things must land in
+# the same change — an apk branch alone would be worse than this refusal:
+#   1. the apk package names, which are not the Fedora ones: `ninja-build` (there
+#      is no `ninja`), `vala` (no `valac`), `gobject-introspection-dev` for
+#      `g-ir-compiler`, `libsoup3-dev`, `nghttp2-dev`, `linux-headers`,
+#      `musl-dev`. Alpine has no weak dependencies, so the
+#      `install_weak_deps=False` reasoning above simply does not apply.
+#   2. `needs_rust()` must NOT install rustup on Alpine. apk's rustc is current
+#      enough, and rustup's musl target `*-unknown-linux-musl` defaults to
+#      `crt-static` ON, under which cargo CANNOT emit a cdylib at all — the
+#      artifact every Rust bridge here is.
+#   3. a libc-carrying target token. `build_pkg` stages into
+#      `prebuilds/linux-${ARCH}`, so with `ARCH=arm64` on Alpine it would
+#      OVERWRITE the committed glibc artifact with a musl one, and every
+#      declaration check downstream would stay green. Pass the full
+#      `<arch>-musl` token or add a `LIBC_SUFFIX`; `prebuilds.yml`'s musl leg
+#      sidesteps this entirely by staging through `scripts/stage-prebuild.mjs`,
+#      which derives the directory from the host it is running on.
 if command -v dnf > /dev/null 2>&1; then
     dnf install -y --setopt=install_weak_deps=False \
         git tar xz findutils curl file \
@@ -75,7 +108,7 @@ if command -v dnf > /dev/null 2>&1; then
         libnghttp2-devel \
         gnutls-devel \
         json-glib-devel
-else
+elif command -v apt-get > /dev/null 2>&1; then
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         git tar xz-utils findutils curl ca-certificates file \
@@ -90,6 +123,10 @@ else
         libnghttp2-dev \
         libgnutls28-dev \
         libjson-glib-dev
+else
+    # Name the host instead of failing later inside a command it does not have.
+    echo "::error::no supported package manager in this image ($(cat /etc/os-release 2>/dev/null | grep -m1 '^PRETTY_NAME=' || echo 'unknown OS')) — this script installs via dnf (Fedora) or apt-get (Debian/Ubuntu). See the note above before adding a third." >&2
+    exit 1
 fi
 
 # `meson.build` finds the typelib compiler via `find_program('g-ir-compiler')`,
