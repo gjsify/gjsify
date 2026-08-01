@@ -18,5 +18,12 @@ export default async function run(h) {
     h.emit('NewScopeEscapeTwice', 'ok');
 
     // An exception thrown inside the scoped callback propagates out.
-    h.emit('NewScopeWithException', h.caught(() => t.NewScopeWithException(() => { throw new RangeError('boom'); })));
+    h.emit(
+        'NewScopeWithException',
+        h.caught(() =>
+            t.NewScopeWithException(() => {
+                throw new RangeError('boom');
+            }),
+        ),
+    );
 }

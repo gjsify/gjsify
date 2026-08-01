@@ -40,7 +40,9 @@ export default async () => {
                     {},
                     {
                         get() {
-                            throw new Error("Requiring GjsifySabNative, version none: Typelib file for namespace 'GjsifySabNative' not found");
+                            throw new Error(
+                                "Requiring GjsifySabNative, version none: Typelib file for namespace 'GjsifySabNative' not found",
+                            );
                         },
                     },
                 ) as Record<string, unknown>;

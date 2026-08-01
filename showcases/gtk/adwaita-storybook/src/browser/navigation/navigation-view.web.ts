@@ -27,10 +27,7 @@ export class NavigationViewWebStory extends StoryElement {
         this._view = document.createElement('adw-navigation-view') as AdwNavigationViewEl;
         this._view.style.width = '480px';
         this._view.style.height = '340px';
-        this._view.setAttribute(
-            'animate-transitions',
-            (this.args.animateTransitions as boolean) ? 'true' : 'false',
-        );
+        this._view.setAttribute('animate-transitions', (this.args.animateTransitions as boolean) ? 'true' : 'false');
 
         // --- Detail page: a status page describing the contact. ---
         this._detailTitle = document.createElement('adw-window-title');
@@ -89,10 +86,7 @@ export class NavigationViewWebStory extends StoryElement {
 
     updateArgs(_args: StoryArgs): void {
         if (!this._view) return;
-        this._view.setAttribute(
-            'animate-transitions',
-            (this.args.animateTransitions as boolean) ? 'true' : 'false',
-        );
+        this._view.setAttribute('animate-transitions', (this.args.animateTransitions as boolean) ? 'true' : 'false');
         this._rootTitle?.setAttribute('title', this.args.rootTitle as string);
         const detailTitle = this.args.detailTitle as string;
         this._detailTitle?.setAttribute('title', detailTitle);

@@ -15,14 +15,26 @@ export default async function run(h) {
     const pod = Object.getOwnPropertyDescriptor(addon.MyObject.prototype, 'plusOne');
     h.emit('value.desc', typeof vd.get, typeof vd.set, vd.value === undefined, vd.enumerable, vd.configurable);
     h.emit('valueReadonly.desc', typeof vrd.get, vrd.set === undefined, vrd.enumerable, vrd.configurable);
-    h.emit('plusOne.desc', pod.get === undefined, pod.set === undefined, typeof pod.value, pod.enumerable, pod.configurable);
+    h.emit(
+        'plusOne.desc',
+        pod.get === undefined,
+        pod.set === undefined,
+        typeof pod.value,
+        pod.enumerable,
+        pod.configurable,
+    );
 
     // Wrapped instance: constructor arg, accessor round-trip, getter-only throw.
     const obj = new addon.MyObject(9);
     h.emit('ctor', obj.value);
     obj.value = 10;
     h.emit('set', obj.value, obj.valueReadonly);
-    h.emit('valueReadonly-write!', h.caughtName(() => { obj.valueReadonly = 14; }));
+    h.emit(
+        'valueReadonly-write!',
+        h.caughtName(() => {
+            obj.valueReadonly = 14;
+        }),
+    );
 
     // Method mutating wrapped native state.
     h.emit('plusOne', obj.plusOne(), obj.plusOne(), obj.plusOne());

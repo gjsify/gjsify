@@ -32,7 +32,12 @@ import {
     viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
 import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
-import { folderDownloadSymbolic, folderMusicSymbolic, folderSymbolic, userTrashSymbolic } from '@gjsify/adwaita-icons/places';
+import {
+    folderDownloadSymbolic,
+    folderMusicSymbolic,
+    folderSymbolic,
+    userTrashSymbolic,
+} from '@gjsify/adwaita-icons/places';
 import { avatarDefaultSymbolic, mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';

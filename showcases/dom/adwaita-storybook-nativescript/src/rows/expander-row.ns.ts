@@ -3,13 +3,7 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import {
-    AdwClamp,
-    AdwEntryRow,
-    AdwExpanderRow,
-    AdwPreferencesGroup,
-    AdwSwitchRow,
-} from '@gjsify/adwaita-nativescript';
+import { AdwClamp, AdwEntryRow, AdwExpanderRow, AdwPreferencesGroup, AdwSwitchRow } from '@gjsify/adwaita-nativescript';
 import { expanderRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class ExpanderRowNsStory extends StoryView {

@@ -16,8 +16,18 @@
 import * as sync from './sync.js';
 import { __defaultVolume as vol, absolutise } from './volume.js';
 
-export interface ReadOpts { encoding?: string; start?: number; end?: number; highWaterMark?: number; flags?: string }
-export interface WriteOpts { encoding?: string; mode?: number; flags?: string }
+export interface ReadOpts {
+    encoding?: string;
+    start?: number;
+    end?: number;
+    highWaterMark?: number;
+    flags?: string;
+}
+export interface WriteOpts {
+    encoding?: string;
+    mode?: number;
+    flags?: string;
+}
 
 class EventBus {
     private listeners = new Map<string, Array<(...args: unknown[]) => void>>();
@@ -28,7 +38,10 @@ class EventBus {
         return this;
     }
     once(event: string, fn: (...args: unknown[]) => void): this {
-        const wrapper = (...args: unknown[]) => { this.off(event, wrapper); fn(...args); };
+        const wrapper = (...args: unknown[]) => {
+            this.off(event, wrapper);
+            fn(...args);
+        };
         return this.on(event, wrapper);
     }
     off(event: string, fn: (...args: unknown[]) => void): this {
@@ -91,8 +104,12 @@ export class ReadStream extends EventBus {
     }
 
     pipe<W extends { write(chunk: Uint8Array): boolean | unknown; end?: () => void }>(dest: W): W {
-        this.on('data', (chunk: unknown) => { dest.write(chunk as Uint8Array); });
-        this.on('end', () => { dest.end?.(); });
+        this.on('data', (chunk: unknown) => {
+            dest.write(chunk as Uint8Array);
+        });
+        this.on('end', () => {
+            dest.end?.();
+        });
         return dest;
     }
 
@@ -110,10 +127,15 @@ export class ReadStream extends EventBus {
             chunks.push(chunk as Uint8Array | string);
             resolve?.();
         });
-        this.on('end', () => { done = true; resolve?.(); });
+        this.on('end', () => {
+            done = true;
+            resolve?.();
+        });
         while (!done || chunks.length > 0) {
             if (chunks.length === 0) {
-                await new Promise<void>(r => { resolve = r; });
+                await new Promise<void>((r) => {
+                    resolve = r;
+                });
                 resolve = null;
                 continue;
             }
@@ -123,7 +145,9 @@ export class ReadStream extends EventBus {
     }
 
     // Node ReadStream getters
-    get bytesRead(): number { return this.position; }
+    get bytesRead(): number {
+        return this.position;
+    }
 }
 
 export function createReadStream(path: string | URL, opts?: ReadOpts): ReadStream {
@@ -149,7 +173,11 @@ export class WriteStream extends EventBus {
         queueMicrotask(() => this.emit('open', -1));
     }
 
-    write(chunk: Uint8Array | string, encOrCb?: string | ((err: Error | null) => void), maybeCb?: (err: Error | null) => void): boolean {
+    write(
+        chunk: Uint8Array | string,
+        encOrCb?: string | ((err: Error | null) => void),
+        maybeCb?: (err: Error | null) => void,
+    ): boolean {
         if (this.destroyed || this.ended) return false;
         const cb = typeof encOrCb === 'function' ? encOrCb : maybeCb;
         const bytes = typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk;
@@ -167,7 +195,10 @@ export class WriteStream extends EventBus {
             try {
                 const merged = new Uint8Array(this.parts.reduce((s, p) => s + p.byteLength, 0));
                 let off = 0;
-                for (const p of this.parts) { merged.set(p, off); off += p.byteLength; }
+                for (const p of this.parts) {
+                    merged.set(p, off);
+                    off += p.byteLength;
+                }
                 if (this.flags === 'a' || this.flags === 'a+') sync.appendFileSync(this.path, merged);
                 else sync.writeFileSync(this.path, merged, { mode: this.mode });
                 this.emit('finish');
@@ -211,8 +242,12 @@ export class FSWatcher extends EventBus {
         this.emit('close');
     }
 
-    ref(): this { return this; }
-    unref(): this { return this; }
+    ref(): this {
+        return this;
+    }
+    unref(): this {
+        return this;
+    }
 }
 
 export function watch(
@@ -224,13 +259,21 @@ export function watch(
 }
 
 export class StatWatcher extends EventBus {
-    close(): void { this.emit('close'); }
-    ref(): this { return this; }
-    unref(): this { return this; }
+    close(): void {
+        this.emit('close');
+    }
+    ref(): this {
+        return this;
+    }
+    unref(): this {
+        return this;
+    }
 }
 
 export function watchFile(_path: string | URL): StatWatcher {
     return new StatWatcher();
 }
 
-export function unwatchFile(_path: string | URL): void { /* no-op */ }
+export function unwatchFile(_path: string | URL): void {
+    /* no-op */
+}

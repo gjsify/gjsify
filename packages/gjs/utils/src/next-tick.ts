@@ -81,10 +81,16 @@ function drainOnce(GLib: GLibShape): void {
 // numeric source ID (no BoxedInstance, no GC race). GLib.idle_add has the same
 // GC-race hazard as the old GLib.Source BoxedInstance approach fixed in
 // @gjsify/node-globals timers.
-type GLibShape = { timeout_add: (priority: number, delay: number, cb: () => boolean) => number; PRIORITY_DEFAULT: number; LogLevelFlags: { LEVEL_WARNING: number }; log_default_handler: (domain: string, flags: number, msg: string, data: null) => void };
+type GLibShape = {
+    timeout_add: (priority: number, delay: number, cb: () => boolean) => number;
+    PRIORITY_DEFAULT: number;
+    LogLevelFlags: { LEVEL_WARNING: number };
+    log_default_handler: (domain: string, flags: number, msg: string, data: null) => void;
+};
 
 function tryGLibTimeout(cb: () => void): boolean {
-    const GLib = (globalThis as Record<string, unknown> & { imports?: { gi?: { GLib?: GLibShape } } }).imports?.gi?.GLib;
+    const GLib = (globalThis as Record<string, unknown> & { imports?: { gi?: { GLib?: GLibShape } } }).imports?.gi
+        ?.GLib;
     if (!GLib?.timeout_add) return false;
     _queue.push(cb);
     if (!_drainerArmed) {

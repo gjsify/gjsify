@@ -100,7 +100,9 @@ export class DbusDevtoolsClient {
                 null,
                 (conn, r) => {
                     try {
-                        const names = ((conn as Gio.DBusConnection).call_finish(r).recursiveUnpack() as unknown[])[0] as string[];
+                        const names = (
+                            (conn as Gio.DBusConnection).call_finish(r).recursiveUnpack() as unknown[]
+                        )[0] as string[];
                         const base = this.busNameBase;
                         res(
                             names

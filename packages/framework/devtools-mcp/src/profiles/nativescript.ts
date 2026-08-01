@@ -240,7 +240,9 @@ export async function runNativescriptMcp(profile: NativescriptToolProfile): Prom
     client.connect().then(
         () => console.error(`[gjsify-devtools-mcp] ${profile.name} connected to the NativeScript inspector`),
         (error: unknown) =>
-            console.error(`[gjsify-devtools-mcp] NS inspector not reachable yet (tools will retry): ${messageOf(error)}`),
+            console.error(
+                `[gjsify-devtools-mcp] NS inspector not reachable yet (tools will retry): ${messageOf(error)}`,
+            ),
     );
 
     server.connect(transport).then(

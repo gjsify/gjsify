@@ -4,8 +4,7 @@ import { ControlType, type StoryMeta } from '@gjsify/stories';
 
 export const wrapBoxMeta: StoryMeta = {
     title: 'Layout/Wrap Box',
-    description:
-        'Adw.WrapBox flows its children horizontally and wraps them onto new lines when they run out of room.',
+    description: 'Adw.WrapBox flows its children horizontally and wraps them onto new lines when they run out of room.',
     controls: [
         {
             name: 'childSpacing',

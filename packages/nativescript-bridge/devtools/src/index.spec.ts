@@ -95,7 +95,11 @@ export default async () => {
         await it('GetProperty reads a nested view property by path', async () => {
             // toplevel:0/child:1/child:0 = the Label inside the StackLayout.
             const json = await agent.dispatch(
-                JSON.stringify({ method: 'GetProperty', params: { path: 'toplevel:0/child:1/child:0', prop: 'text' }, id: 3 }),
+                JSON.stringify({
+                    method: 'GetProperty',
+                    params: { path: 'toplevel:0/child:1/child:0', prop: 'text' },
+                    id: 3,
+                }),
             );
             const res = JSON.parse(json) as DevtoolsResponse;
             expect(res.ok).toBe(true);

@@ -104,10 +104,10 @@ const gjsify = haveDisplay ? findGjsify() : null;
 const skip = !haveDisplay
     ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)'
     : !gjsify
-        ? 'gjsify CLI not found (workspace not installed)'
-        : !eventBridgeResolvable()
-            ? '@gjsify/event-bridge not resolvable (workspace not built)'
-            : false;
+      ? 'gjsify CLI not found (workspace not installed)'
+      : !eventBridgeResolvable()
+        ? '@gjsify/event-bridge not resolvable (workspace not built)'
+        : false;
 
 // The gjs gold-standard leg re-proves the committed GOLDEN below IS exactly gjs's
 // own byte-output. It is ON by default (a local run); set NODE_GI_EB_SKIP_GJS=1 for a
@@ -117,8 +117,7 @@ const skip = !haveDisplay
 // register-subpath-inline bundler (AGENTS.md: `@gjsify/<pkg>/register` MUST NOT be
 // externalized for --app gjs — GJS's ESM loader can't resolve it), so run it with a
 // current-source `gjsify` (see the header).
-const haveGjs = !process.env.NODE_GI_EB_SKIP_GJS
-    && spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
+const haveGjs = !process.env.NODE_GI_EB_SKIP_GJS && spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
 
 // The fixed sequence of lines both runtimes must print, in order — the committed
 // golden. It IS gjs's own output (asserted by the local gjs leg below).
@@ -216,39 +215,35 @@ function run(cmd, args) {
         .join('\n');
 }
 
-test(
-    'event-bridge dispatches DOM events on node-gi (byte-identical to the golden)',
-    { skip },
-    () => {
-        // Build INSIDE the monorepo (not os tmpdir): the --app node bundle keeps
-        // `@gjsify/node-gi` external, so it must run from a tree where that package
-        // resolves (the root node_modules/@gjsify/node-gi symlink). /tmp has no such
-        // node_modules → ERR_MODULE_NOT_FOUND at run time. Kept at the package root
-        // (not under test/) so a stray dir never trips node --test's glob.
-        const dir = mkdtempSync(join(pkgRoot, '.tmp-eb-'));
-        try {
-            // --- node-gi: the real `--app node` bundle (the authoritative check) ---
-            const nodeBundle = build('node', join(dir, 'app.node.mjs'));
-            // The bridge pulls @gjsify/event-bridge + its gi:// graph, so the build
-            // MUST have rewritten gi:// → requireGi. A CLI predating that rewrite is
-            // a hard failure here, not a skip.
-            assert.ok(
-                readFileSync(nodeBundle, 'utf-8').includes('requireGi'),
-                'the --app node bundle did not rewrite gi:// → requireGi (gjsify CLI too old)',
-            );
-            const nodeOut = run('node', [nodeBundle]);
-            assert.equal(nodeOut, GOLDEN, 'node-gi output diverged from the committed golden');
+test('event-bridge dispatches DOM events on node-gi (byte-identical to the golden)', { skip }, () => {
+    // Build INSIDE the monorepo (not os tmpdir): the --app node bundle keeps
+    // `@gjsify/node-gi` external, so it must run from a tree where that package
+    // resolves (the root node_modules/@gjsify/node-gi symlink). /tmp has no such
+    // node_modules → ERR_MODULE_NOT_FOUND at run time. Kept at the package root
+    // (not under test/) so a stray dir never trips node --test's glob.
+    const dir = mkdtempSync(join(pkgRoot, '.tmp-eb-'));
+    try {
+        // --- node-gi: the real `--app node` bundle (the authoritative check) ---
+        const nodeBundle = build('node', join(dir, 'app.node.mjs'));
+        // The bridge pulls @gjsify/event-bridge + its gi:// graph, so the build
+        // MUST have rewritten gi:// → requireGi. A CLI predating that rewrite is
+        // a hard failure here, not a skip.
+        assert.ok(
+            readFileSync(nodeBundle, 'utf-8').includes('requireGi'),
+            'the --app node bundle did not rewrite gi:// → requireGi (gjsify CLI too old)',
+        );
+        const nodeOut = run('node', [nodeBundle]);
+        assert.equal(nodeOut, GOLDEN, 'node-gi output diverged from the committed golden');
 
-            // --- gjs gold-standard (LOCAL/dev gate): re-prove the golden IS gjs's ---
-            // Off with NODE_GI_EB_SKIP_GJS=1 — see the haveGjs note above.
-            if (haveGjs) {
-                const gjsBundle = build('gjs', join(dir, 'app.gjs.mjs'));
-                const gjsOut = run('gjs', ['-m', gjsBundle]);
-                assert.equal(gjsOut, GOLDEN, 'gjs gold-standard diverged from the committed golden');
-                assert.equal(gjsOut, nodeOut, 'gjs and node-gi outputs are not byte-identical');
-            }
-        } finally {
-            rmSync(dir, { recursive: true, force: true });
+        // --- gjs gold-standard (LOCAL/dev gate): re-prove the golden IS gjs's ---
+        // Off with NODE_GI_EB_SKIP_GJS=1 — see the haveGjs note above.
+        if (haveGjs) {
+            const gjsBundle = build('gjs', join(dir, 'app.gjs.mjs'));
+            const gjsOut = run('gjs', ['-m', gjsBundle]);
+            assert.equal(gjsOut, GOLDEN, 'gjs gold-standard diverged from the committed golden');
+            assert.equal(gjsOut, nodeOut, 'gjs and node-gi outputs are not byte-identical');
         }
-    },
-);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

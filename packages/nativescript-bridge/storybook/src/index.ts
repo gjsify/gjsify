@@ -39,11 +39,6 @@ export { collectStoryModules, type StorybookController } from '@gjsify/storybook
 export { StoryView, type StoryArgsListener } from './story-view.js';
 export { StoryRegistry } from './registry.js';
 export { createControlRow, type ControlRow } from './controls.js';
-export {
-    StorybookNativeApp,
-    runStorybook,
-    type StorybookNativeOptions,
-    type StorySummary,
-} from './app.js';
+export { StorybookNativeApp, runStorybook, type StorybookNativeOptions, type StorySummary } from './app.js';
 export { buildStorybookNsExtension, installStorybookDevtools } from './devtools.js';
 export { isNsStoryModule, type NsStoryConstructor, type NsStoryDecorator, type NsStoryModule } from './types.js';

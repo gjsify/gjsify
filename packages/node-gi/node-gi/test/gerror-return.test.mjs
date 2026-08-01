@@ -35,31 +35,31 @@ import { requireGi } from '../gi.js';
 const Gio = requireGi('Gio', '2.0');
 
 test('GError-typed return marshals as a field-readable GLib.Error boxed', () => {
-  // Returns a GError (transfer full) — the SAME GI_TYPE_TAG_ERROR return path a
-  // `Gtk.GLArea.get_error()` non-null result takes, but headless.
-  const err = Gio.dbus_error_new_for_dbus_error('org.freedesktop.DBus.Error.Failed', 'boom');
-  assert.ok(err !== null && err !== undefined, 'a GError return must not be null');
-  assert.match(String(err.message), /boom/, 'the message FIELD must read back');
-  const domain = Gio.dbus_error_quark();
-  assert.equal(err.domain, domain, 'the domain FIELD must read back (g-dbus-error-quark)');
-  assert.equal(err.code, Gio.DBusError.FAILED, 'the code FIELD must read back (registered name → FAILED)');
-  // Boxed METHODS resolve too.
-  assert.equal(err.matches(domain, Gio.DBusError.FAILED), true);
-  assert.equal(err.matches(domain, Gio.DBusError.NO_MEMORY), false);
-  const copy = err.copy();
-  assert.match(String(copy.message), /boom/, 'copy() returns another usable GLib.Error');
+    // Returns a GError (transfer full) — the SAME GI_TYPE_TAG_ERROR return path a
+    // `Gtk.GLArea.get_error()` non-null result takes, but headless.
+    const err = Gio.dbus_error_new_for_dbus_error('org.freedesktop.DBus.Error.Failed', 'boom');
+    assert.ok(err !== null && err !== undefined, 'a GError return must not be null');
+    assert.match(String(err.message), /boom/, 'the message FIELD must read back');
+    const domain = Gio.dbus_error_quark();
+    assert.equal(err.domain, domain, 'the domain FIELD must read back (g-dbus-error-quark)');
+    assert.equal(err.code, Gio.DBusError.FAILED, 'the code FIELD must read back (registered name → FAILED)');
+    // Boxed METHODS resolve too.
+    assert.equal(err.matches(domain, Gio.DBusError.FAILED), true);
+    assert.equal(err.matches(domain, Gio.DBusError.NO_MEMORY), false);
+    const copy = err.copy();
+    assert.match(String(copy.message), /boom/, 'copy() returns another usable GLib.Error');
 });
 
 test('instance methods resolve the literal name first, snake alias second', () => {
-  const action = new Gio.SimpleAction({ name: 'greet' });
-  // Literal introspected (snake_case) name — resolved verbatim, no conversion.
-  assert.equal(action.get_name(), 'greet');
-  // camelCase ALIAS — misses the literal lookup, resolved via the engine's
-  // snake_case fallback (the path that must keep working after literal-first).
-  assert.equal(action.getName(), 'greet');
-  // A genuinely unknown name is `undefined` (GJS parity — feature detection
-  // like `typeof gl.clearBufferfv === 'function'` must not lie), so calling
-  // it throws the same TypeError gjs produces, not a node-gi method-miss.
-  assert.equal(action.noSuchMethodAtAll, undefined);
-  assert.throws(() => action.noSuchMethodAtAll(), /is not a function/);
+    const action = new Gio.SimpleAction({ name: 'greet' });
+    // Literal introspected (snake_case) name — resolved verbatim, no conversion.
+    assert.equal(action.get_name(), 'greet');
+    // camelCase ALIAS — misses the literal lookup, resolved via the engine's
+    // snake_case fallback (the path that must keep working after literal-first).
+    assert.equal(action.getName(), 'greet');
+    // A genuinely unknown name is `undefined` (GJS parity — feature detection
+    // like `typeof gl.clearBufferfv === 'function'` must not lie), so calling
+    // it throws the same TypeError gjs produces, not a node-gi method-miss.
+    assert.equal(action.noSuchMethodAtAll, undefined);
+    assert.throws(() => action.noSuchMethodAtAll(), /is not a function/);
 });

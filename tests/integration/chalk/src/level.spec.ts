@@ -69,9 +69,7 @@ export default async () => {
             try {
                 expect(chalk.red('foo')).toBe(`${E}31mfoo${E}39m`);
                 expect(chalk.hex('#FF0000')('foo')).toBe(`${E}38;2;255;0;0mfoo${E}39m`);
-                expect(chalk.rgb(0, 128, 255).bold('go')).toBe(
-                    `${E}38;2;0;128;255m${E}1mgo${E}22m${E}39m`,
-                );
+                expect(chalk.rgb(0, 128, 255).bold('go')).toBe(`${E}38;2;0;128;255m${E}1mgo${E}22m${E}39m`);
             } finally {
                 chalk.level = oldLevel;
             }
@@ -114,9 +112,7 @@ export default async () => {
             try {
                 // The whole point of the level=0 contract — every chain stage
                 // becomes a no-op and the final output equals the input.
-                const decorated = chalk.red.bgGreen.underline.bold(
-                    'multi-style payload',
-                );
+                const decorated = chalk.red.bgGreen.underline.bold('multi-style payload');
                 expect(decorated).toBe('multi-style payload');
                 // Make sure the ESC char () appears nowhere.
                 expect(decorated.indexOf('')).toBe(-1);

@@ -19,7 +19,16 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+    mkdtempSync,
+    rmSync,
+    existsSync,
+    writeFileSync,
+    mkdirSync,
+    readFileSync,
+    readdirSync,
+    statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -284,7 +293,13 @@ describe('gjsify build cache — the dual emit must not clobber itself', { timeo
         writeFileSync(
             join(root, 'package.json'),
             JSON.stringify(
-                { name: 'dual-emit-monorepo', version: '0.0.0', private: true, type: 'module', workspaces: ['packages/*'] },
+                {
+                    name: 'dual-emit-monorepo',
+                    version: '0.0.0',
+                    private: true,
+                    type: 'module',
+                    workspaces: ['packages/*'],
+                },
                 null,
                 2,
             ) + '\n',

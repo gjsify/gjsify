@@ -19,37 +19,37 @@
 
 /** Look up `msgid` in the default domain. Passthrough — returns `msgid`. */
 export function gettext(msgid) {
-  return msgid;
+    return msgid;
 }
 
 /** Look up `msgid` in `domain`. Passthrough — returns `msgid`. */
 export function dgettext(_domain, msgid) {
-  return msgid;
+    return msgid;
 }
 
 /** Look up `msgid` in `domain`/`category`. Passthrough — returns `msgid`. */
 export function dcgettext(_domain, msgid, _category) {
-  return msgid;
+    return msgid;
 }
 
 /** Plural lookup in the default domain. Passthrough — singular for n===1, else plural. */
 export function ngettext(msgid1, msgid2, n) {
-  return n === 1 ? msgid1 : msgid2;
+    return n === 1 ? msgid1 : msgid2;
 }
 
 /** Plural lookup in `domain`. Passthrough — singular for n===1, else plural. */
 export function dngettext(_domain, msgid1, msgid2, n) {
-  return n === 1 ? msgid1 : msgid2;
+    return n === 1 ? msgid1 : msgid2;
 }
 
 /** Context lookup in the default domain. Passthrough — returns `msgid`. */
 export function pgettext(_context, msgid) {
-  return msgid;
+    return msgid;
 }
 
 /** Context lookup in `domain`. Passthrough — returns `msgid`. */
 export function dpgettext(_domain, _context, msgid) {
-  return msgid;
+    return msgid;
 }
 
 /**
@@ -58,37 +58,37 @@ export function dpgettext(_domain, _context, msgid) {
  * `pgettext` bound to `domainName` (passthrough here).
  */
 export function domain(_domainName) {
-  return {
-    gettext(msgid) {
-      return msgid;
-    },
-    ngettext(msgid1, msgid2, n) {
-      return n === 1 ? msgid1 : msgid2;
-    },
-    pgettext(_context, msgid) {
-      return msgid;
-    },
-  };
+    return {
+        gettext(msgid) {
+            return msgid;
+        },
+        ngettext(msgid1, msgid2, n) {
+            return n === 1 ? msgid1 : msgid2;
+        },
+        pgettext(_context, msgid) {
+            return msgid;
+        },
+    };
 }
 
 /** Set the locale for `category`. No-op on Node — returns null. */
 export function setlocale(_category, _locale) {
-  return null;
+    return null;
 }
 
 /** Set the default text domain. No-op on Node — returns null. */
 export function textdomain(_domainName) {
-  return null;
+    return null;
 }
 
 /** Bind a text domain to a directory. No-op on Node — returns null. */
 export function bindtextdomain(_domainName, _dirName) {
-  return null;
+    return null;
 }
 
 /** Set the output codeset for a text domain. No-op on Node — returns null. */
 export function bindtextdomainCodeset(_domainName, _codeset) {
-  return null;
+    return null;
 }
 
 /**
@@ -96,13 +96,13 @@ export function bindtextdomainCodeset(_domainName, _codeset) {
  * surfaces via `GjsPrivate.LocaleCategory`.
  */
 export const LocaleCategory = {
-  CTYPE: 0,
-  NUMERIC: 1,
-  TIME: 2,
-  COLLATE: 3,
-  MONETARY: 4,
-  MESSAGES: 5,
-  ALL: 6,
+    CTYPE: 0,
+    NUMERIC: 1,
+    TIME: 2,
+    COLLATE: 3,
+    MONETARY: 4,
+    MESSAGES: 5,
+    ALL: 6,
 };
 
 /**
@@ -110,19 +110,19 @@ export const LocaleCategory = {
  * `import Gettext from 'gettext'` returns.
  */
 const Gettext = {
-  gettext,
-  dgettext,
-  dcgettext,
-  ngettext,
-  dngettext,
-  pgettext,
-  dpgettext,
-  domain,
-  setlocale,
-  textdomain,
-  bindtextdomain,
-  bindtextdomainCodeset,
-  LocaleCategory,
+    gettext,
+    dgettext,
+    dcgettext,
+    ngettext,
+    dngettext,
+    pgettext,
+    dpgettext,
+    domain,
+    setlocale,
+    textdomain,
+    bindtextdomain,
+    bindtextdomainCodeset,
+    LocaleCategory,
 };
 
 export default Gettext;

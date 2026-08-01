@@ -26,39 +26,39 @@ const GObject = requireGi('GObject', '2.0');
 const Gio = requireGi('Gio', '2.0');
 
 test('$typeName is the concrete runtime GType name of an introspected instance', () => {
-  const action = new Gio.SimpleAction({ name: 'greet', enabled: true });
-  // Byte-equal to gjs `action.constructor.$gtype.name`.
-  assert.equal(action.$typeName, 'GSimpleAction');
+    const action = new Gio.SimpleAction({ name: 'greet', enabled: true });
+    // Byte-equal to gjs `action.constructor.$gtype.name`.
+    assert.equal(action.$typeName, 'GSimpleAction');
 });
 
 test('$typeName reports the RUNTIME type even for a generically-wrapped handle', () => {
-  // GObject.Object.new(gtype, props) constructs by GType and hands back a GENERIC
-  // wrapper (no concrete-class prototype) — exactly the DumpTree scenario where a
-  // widget arrives via get_first_child / get_item, un-downcast. The runtime type
-  // must still be concrete, not the generic 'GObject'.
-  const made = GObject.Object.new(Gio.SimpleAction.$gtype, { name: 'made' });
-  assert.equal(made.$typeName, 'GSimpleAction');
-  assert.notEqual(made.$typeName, 'GObject');
+    // GObject.Object.new(gtype, props) constructs by GType and hands back a GENERIC
+    // wrapper (no concrete-class prototype) — exactly the DumpTree scenario where a
+    // widget arrives via get_first_child / get_item, un-downcast. The runtime type
+    // must still be concrete, not the generic 'GObject'.
+    const made = GObject.Object.new(Gio.SimpleAction.$gtype, { name: 'made' });
+    assert.equal(made.$typeName, 'GSimpleAction');
+    assert.notEqual(made.$typeName, 'GObject');
 });
 
 test('$typeName is the registered GTypeName of a registerClass subclass instance', () => {
-  const Sub = GObject.registerClass(
-    { GTypeName: 'NodeGiTypeNameSub' },
-    class NodeGiTypeNameSub extends Gio.SimpleAction {},
-  );
-  const inst = new Sub({ name: 'x' });
-  assert.equal(inst.$typeName, 'NodeGiTypeNameSub');
+    const Sub = GObject.registerClass(
+        { GTypeName: 'NodeGiTypeNameSub' },
+        class NodeGiTypeNameSub extends Gio.SimpleAction {},
+    );
+    const inst = new Sub({ name: 'x' });
+    assert.equal(inst.$typeName, 'NodeGiTypeNameSub');
 
-  // The bug this fixes: a GENERICALLY re-wrapped instance of the subclass (as if
-  // returned from a list / signal) still reports the concrete registered type,
-  // whereas `constructor.$gtype.name` on the generic wrapper cannot.
-  const generic = GObject.Object.new(Sub.$gtype, { name: 'y' });
-  assert.equal(generic.$typeName, 'NodeGiTypeNameSub');
+    // The bug this fixes: a GENERICALLY re-wrapped instance of the subclass (as if
+    // returned from a list / signal) still reports the concrete registered type,
+    // whereas `constructor.$gtype.name` on the generic wrapper cannot.
+    const generic = GObject.Object.new(Sub.$gtype, { name: 'y' });
+    assert.equal(generic.$typeName, 'NodeGiTypeNameSub');
 });
 
 test('the class-level $gtypeName stays the DECLARED namespaced string (unchanged)', () => {
-  // Guards the distinction: instance `$typeName` = raw runtime name ('GSimpleAction'),
-  // class `$gtypeName` = declared namespaced name ('Gio.SimpleAction'). They differ
-  // by design; adding the instance getter must not perturb the class accessor.
-  assert.equal(Gio.SimpleAction.$gtypeName, 'Gio.SimpleAction');
+    // Guards the distinction: instance `$typeName` = raw runtime name ('GSimpleAction'),
+    // class `$gtypeName` = declared namespaced name ('Gio.SimpleAction'). They differ
+    // by design; adding the instance getter must not perturb the class accessor.
+    assert.equal(Gio.SimpleAction.$gtypeName, 'Gio.SimpleAction');
 });

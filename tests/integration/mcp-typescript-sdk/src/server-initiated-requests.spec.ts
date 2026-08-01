@@ -20,10 +20,7 @@ export default async () => {
     await describe('Server-initiated sampling (createMessage)', async () => {
         await it('should round-trip a createMessage request to a client sampling handler', async () => {
             const mcpServer = new McpServer({ name: 'test-server', version: '1.0' });
-            const client = new Client(
-                { name: 'test-client', version: '1.0' },
-                { capabilities: { sampling: {} } },
-            );
+            const client = new Client({ name: 'test-client', version: '1.0' }, { capabilities: { sampling: {} } });
 
             let receivedParams: unknown;
             client.setRequestHandler(CreateMessageRequestSchema, async (request) => {
@@ -65,10 +62,7 @@ export default async () => {
 
         await it('should propagate handler errors back to the server caller', async () => {
             const mcpServer = new McpServer({ name: 'test-server', version: '1.0' });
-            const client = new Client(
-                { name: 'test-client', version: '1.0' },
-                { capabilities: { sampling: {} } },
-            );
+            const client = new Client({ name: 'test-client', version: '1.0' }, { capabilities: { sampling: {} } });
 
             client.setRequestHandler(CreateMessageRequestSchema, async () => {
                 throw new Error('sampling refused');

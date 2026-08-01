@@ -216,7 +216,10 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
                         name,
                         version: CLI_VERSION,
                         dependencies: {},
-                        dist: { tarball: `__BASE__/-/${encodeURIComponent(name)}/${CLI_VERSION}.tgz`, integrity: sriSha512(tgz) },
+                        dist: {
+                            tarball: `__BASE__/-/${encodeURIComponent(name)}/${CLI_VERSION}.tgz`,
+                            integrity: sriSha512(tgz),
+                        },
                         _tgz: tgz,
                     },
                 },
@@ -283,7 +286,11 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
         mkdirSync(join(cliPkgDir, 'dist'), { recursive: true });
         writeFileSync(
             join(cliPkgDir, 'package.json'),
-            JSON.stringify({ name: '@gjsify/cli', version: CLI_VERSION, gjsify: { bin: { gjsify: './dist/cli.gjs.mjs' } } }),
+            JSON.stringify({
+                name: '@gjsify/cli',
+                version: CLI_VERSION,
+                gjsify: { bin: { gjsify: './dist/cli.gjs.mjs' } },
+            }),
         );
         writeFileSync(join(cliPkgDir, 'dist', 'cli.gjs.mjs'), '#!/usr/bin/env -S gjs -m\n');
 
@@ -409,7 +416,11 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
         mkdirSync(prefix, { recursive: true });
         writeFileSync(harnessFile, harness);
         const out = await runHarness('node', ['--no-warnings', harnessFile], MONOREPO_ROOT);
-        assert.equal(out.status, 0, `degrade harness should not throw:\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}`);
+        assert.equal(
+            out.status,
+            0,
+            `degrade harness should not throw:\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}`,
+        );
         const parsed = JSON.parse(out.stdout.trim().split('\n').pop());
         assert.ok(
             parsed.installed.some((s) => s.startsWith('@gjsify/rolldown-native')),
@@ -430,7 +441,11 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
         mkdirSync(join(cliPkgDir, 'dist'), { recursive: true });
         writeFileSync(
             join(cliPkgDir, 'package.json'),
-            JSON.stringify({ name: '@gjsify/cli', version: CLI_VERSION, gjsify: { bin: { gjsify: './dist/cli.gjs.mjs' } } }),
+            JSON.stringify({
+                name: '@gjsify/cli',
+                version: CLI_VERSION,
+                gjsify: { bin: { gjsify: './dist/cli.gjs.mjs' } },
+            }),
         );
         writeFileSync(join(cliPkgDir, 'dist', 'cli.gjs.mjs'), '#!/usr/bin/env -S gjs -m\n');
 
@@ -460,24 +475,20 @@ globalThis.fetch = async (input, init = {}) => {
 `,
         );
 
-        const result = await execFileAsync(
-            process.execPath,
-            ['--import', preloadPath, CLI_ENTRY, 'self-update'],
-            {
-                timeout: 60_000,
-                env: {
-                    ...process.env,
-                    GJSIFY_GLOBAL_PREFIX: prefix,
-                    GJSIFY_GLOBAL_BIN_DIR: binDir,
-                    // Force the install backend's resolver at the mock registry too.
-                    npm_config_registry: registryUrl,
-                    GJSIFY_CLI_PACKAGE_JSON: join(cliPkgDir, 'package.json'),
-                    // Isolate the disk packument/tarball caches (see before()).
-                    XDG_CACHE_HOME: cacheHome,
-                },
-                encoding: 'utf8',
+        const result = await execFileAsync(process.execPath, ['--import', preloadPath, CLI_ENTRY, 'self-update'], {
+            timeout: 60_000,
+            env: {
+                ...process.env,
+                GJSIFY_GLOBAL_PREFIX: prefix,
+                GJSIFY_GLOBAL_BIN_DIR: binDir,
+                // Force the install backend's resolver at the mock registry too.
+                npm_config_registry: registryUrl,
+                GJSIFY_CLI_PACKAGE_JSON: join(cliPkgDir, 'package.json'),
+                // Isolate the disk packument/tarball caches (see before()).
+                XDG_CACHE_HOME: cacheHome,
             },
-        ).then(
+            encoding: 'utf8',
+        }).then(
             ({ stdout, stderr }) => ({ status: 0, stdout, stderr }),
             (err) => ({ status: err.code ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' }),
         );

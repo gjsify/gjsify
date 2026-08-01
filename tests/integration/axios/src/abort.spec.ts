@@ -67,9 +67,9 @@ export default async () => {
                     if (e && typeof e === 'object' && 'message' in e) thrown = e as CancelLike;
                 }
                 expect(thrown).toBeDefined();
-                expect(thrown!.code === 'ERR_CANCELED' || thrown!.code === 'ECONNABORTED' || axios.isCancel(thrown)).toBe(
-                    true,
-                );
+                expect(
+                    thrown!.code === 'ERR_CANCELED' || thrown!.code === 'ECONNABORTED' || axios.isCancel(thrown),
+                ).toBe(true);
             } finally {
                 await stopHTTPServer(srv);
             }

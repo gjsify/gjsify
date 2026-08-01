@@ -48,7 +48,9 @@ function pat(i) {
 function pump() {
     // Drain pending idle sources (the §5c finalizer drain).
     const ctx = GLib.MainContext.default();
-    while (ctx.iteration(false)) { /* drain */ }
+    while (ctx.iteration(false)) {
+        /* drain */
+    }
 }
 
 const t = loadAddon('test/buffer-addon/build/Release/buffer.node');
@@ -177,8 +179,14 @@ const loop = GLib.MainLoop.new(null, false);
 function settle() {
     if (--pending === 0) loop.quit();
 }
-promRes.then((v) => { resolvedVal = v; settle(); });
-promRej.catch((e) => { rejectedReason = e; settle(); });
+promRes.then((v) => {
+    resolvedVal = v;
+    settle();
+});
+promRej.catch((e) => {
+    rejectedReason = e;
+    settle();
+});
 // Backstop: never let a broken promise hang the gate.
 const guard = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
     loop.quit();

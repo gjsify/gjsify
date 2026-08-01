@@ -274,7 +274,9 @@ export class WritableStreamDefaultController {
 
 export const isWritableStream = isBrandCheck<WritableStream>('WritableStream');
 export const isWritableStreamDefaultWriter = isBrandCheck<WritableStreamDefaultWriter>('WritableStreamDefaultWriter');
-export const isWritableStreamDefaultController = isBrandCheck<WritableStreamDefaultController>('WritableStreamDefaultController');
+export const isWritableStreamDefaultController = isBrandCheck<WritableStreamDefaultController>(
+    'WritableStreamDefaultController',
+);
 
 // ---- Internal state factory ----
 
@@ -608,7 +610,10 @@ function writableStreamDefaultWriterGetDesiredSize(writer: WritableStreamDefault
     return writableStreamDefaultControllerGetDesiredSize(stream[kState].controller);
 }
 
-function writableStreamDefaultWriterEnsureReadyPromiseRejected(writer: WritableStreamDefaultWriter, error: unknown): void {
+function writableStreamDefaultWriterEnsureReadyPromiseRejected(
+    writer: WritableStreamDefaultWriter,
+    error: unknown,
+): void {
     if (writer[kState].ready.reject) {
         writer[kState].ready.reject(error);
         writer[kState].ready.resolve = undefined;
@@ -623,7 +628,10 @@ function writableStreamDefaultWriterEnsureReadyPromiseRejected(writer: WritableS
     setPromiseHandled(writer[kState].ready.promise);
 }
 
-function writableStreamDefaultWriterEnsureClosedPromiseRejected(writer: WritableStreamDefaultWriter, error: unknown): void {
+function writableStreamDefaultWriterEnsureClosedPromiseRejected(
+    writer: WritableStreamDefaultWriter,
+    error: unknown,
+): void {
     if (writer[kState].close.reject) {
         writer[kState].close.reject(error);
         writer[kState].close.resolve = undefined;
@@ -638,7 +646,9 @@ function writableStreamDefaultWriterEnsureClosedPromiseRejected(writer: Writable
     setPromiseHandled(writer[kState].close.promise);
 }
 
-export function writableStreamDefaultWriterCloseWithErrorPropagation(writer: WritableStreamDefaultWriter): Promise<void> {
+export function writableStreamDefaultWriterCloseWithErrorPropagation(
+    writer: WritableStreamDefaultWriter,
+): Promise<void> {
     const { stream } = writer[kState];
     const { state } = stream[kState];
     if (writableStreamCloseQueuedOrInFlight(stream) || state === 'closed') {
@@ -658,7 +668,11 @@ function writableStreamDefaultWriterAbort(writer: WritableStreamDefaultWriter, r
 
 // ---- Controller internals ----
 
-function writableStreamDefaultControllerWrite(controller: WritableStreamDefaultController, chunk: unknown, chunkSize: number): void {
+function writableStreamDefaultControllerWrite(
+    controller: WritableStreamDefaultController,
+    chunk: unknown,
+    chunkSize: number,
+): void {
     try {
         enqueueValueWithSize(controller, chunk, chunkSize);
     } catch (error) {
@@ -672,7 +686,10 @@ function writableStreamDefaultControllerWrite(controller: WritableStreamDefaultC
     writableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
 }
 
-function writableStreamDefaultControllerProcessWrite(controller: WritableStreamDefaultController, chunk: unknown): void {
+function writableStreamDefaultControllerProcessWrite(
+    controller: WritableStreamDefaultController,
+    chunk: unknown,
+): void {
     const { stream, writeAlgorithm } = controller[kState];
     writableStreamMarkFirstWriteRequestInFlight(stream);
 
@@ -711,7 +728,10 @@ function writableStreamDefaultControllerGetDesiredSize(controller: WritableStrea
     return controller[kState].highWaterMark - controller[kState].queueTotalSize;
 }
 
-function writableStreamDefaultControllerGetChunkSize(controller: WritableStreamDefaultController, chunk: unknown): number {
+function writableStreamDefaultControllerGetChunkSize(
+    controller: WritableStreamDefaultController,
+    chunk: unknown,
+): number {
     const { sizeAlgorithm } = controller[kState];
     if (sizeAlgorithm === undefined) return 1;
     try {
@@ -722,7 +742,10 @@ function writableStreamDefaultControllerGetChunkSize(controller: WritableStreamD
     }
 }
 
-export function writableStreamDefaultControllerErrorIfNeeded(controller: WritableStreamDefaultController, error: unknown): void {
+export function writableStreamDefaultControllerErrorIfNeeded(
+    controller: WritableStreamDefaultController,
+    error: unknown,
+): void {
     if (controller[kState].stream[kState].state === 'writable') {
         writableStreamDefaultControllerError(controller, error);
     }

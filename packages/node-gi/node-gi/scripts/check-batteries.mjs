@@ -34,4 +34,6 @@ for (const [ns, type] of [
     if (g == null) throw new Error(`${ns}.${type}: getGType returned null — leaf g_module_open failed env-free`);
 }
 
-console.log('batteries-included probe OK: registerClass(Gio.SimpleAction) + Pango/Graphene/Gdk get_type resolved with no system/Homebrew/gvsbuild GTK');
+console.log(
+    'batteries-included probe OK: registerClass(Gio.SimpleAction) + Pango/Graphene/Gdk get_type resolved with no system/Homebrew/gvsbuild GTK',
+);

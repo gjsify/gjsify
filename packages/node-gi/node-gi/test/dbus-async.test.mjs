@@ -30,11 +30,11 @@ let Gio;
 let GLib;
 let busSkip = false;
 try {
-  Gio = requireGi('Gio', '2.0');
-  GLib = requireGi('GLib', '2.0');
-  Gio.bus_get_sync(Gio.BusType.SESSION, null);
+    Gio = requireGi('Gio', '2.0');
+    GLib = requireGi('GLib', '2.0');
+    Gio.bus_get_sync(Gio.BusType.SESSION, null);
 } catch (e) {
-  busSkip = `no session bus (${e.message}) — run under dbus-run-session (npm run test:dbus)`;
+    busSkip = `no session bus (${e.message}) — run under dbus-run-session (npm run test:dbus)`;
 }
 
 const IFACE = 'org.gjsify.NodeGiDbusAsyncTest';
@@ -46,80 +46,80 @@ const XML = `<node><interface name="${IFACE}">
 </interface></node>`;
 
 test('async exported methods reply during a blocking MainLoop.run()', { skip: busSkip }, async () => {
-  // Bun's node:test shim ignores the `skip` option and runs the body anyway —
-  // bail imperatively when no session bus is reachable.
-  if (busSkip) return;
+    // Bun's node:test shim ignores the `skip` option and runs the body anyway —
+    // bail imperatively when no session bus is reachable.
+    if (busSkip) return;
 
-  const service = {
-    SyncEcho(s) {
-      return `sync:${s}`;
-    },
-    async AsyncMicro(s) {
-      // Pure microtask — isolates the checkpoint from any GLib timer.
-      await Promise.resolve();
-      return `micro:${s}`;
-    },
-    async AsyncTimeout(s) {
-      // The reply's `.then` is queued by a GLib-timeout GI callback — the
-      // calls.cc trampoline boundary (the signals.cc closure boundary is
-      // covered by AsyncMicro).
-      await new Promise((resolve) => {
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
-          resolve();
-          return false;
-        });
-      });
-      return `timer:${s}`;
-    },
-  };
-
-  // The whole scenario runs from a MACROTASK: a blocking run() entered inside a
-  // live async scope defers V8's microtask checkpoint on Node (node-gtk
-  // #442/#121 — see mainloop.test.mjs), which would fail this test for an
-  // unrelated, Node-only reason. setImmediate is exactly how runAsync defers
-  // its blocking run.
-  const results = await new Promise((resolveOuter) => {
-    setImmediate(() => {
-      const out = {};
-      const conn = Gio.bus_get_sync(Gio.BusType.SESSION, null);
-      const impl = Gio.DBusExportedObject.wrapJSObject(XML, service);
-      impl.export(conn, OBJ);
-      const dest = conn.get_unique_name();
-      const loop = GLib.MainLoop.new(null, false);
-      const ProxyClass = Gio.DBusProxy.makeProxyWrapper(XML);
-      // Async proxy + Remote calls throughout — a sync self-call would deadlock
-      // the single main loop that must also service the incoming request.
-      new ProxyClass(conn, dest, OBJ, (proxy, err) => {
-        if (err) {
-          out.proxyError = String(err);
-          loop.quit();
-          return;
-        }
-        proxy.SyncEchoRemote('a', (r, e) => {
-          out.sync = e ? `error:${e}` : r[0];
-          proxy.AsyncMicroRemote('b', (r2, e2) => {
-            out.micro = e2 ? `error:${e2}` : r2[0];
-            proxy.AsyncTimeoutRemote('c', (r3, e3) => {
-              out.timer = e3 ? `error:${e3}` : r3[0];
-              loop.quit();
+    const service = {
+        SyncEcho(s) {
+            return `sync:${s}`;
+        },
+        async AsyncMicro(s) {
+            // Pure microtask — isolates the checkpoint from any GLib timer.
+            await Promise.resolve();
+            return `micro:${s}`;
+        },
+        async AsyncTimeout(s) {
+            // The reply's `.then` is queued by a GLib-timeout GI callback — the
+            // calls.cc trampoline boundary (the signals.cc closure boundary is
+            // covered by AsyncMicro).
+            await new Promise((resolve) => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
+                    resolve();
+                    return false;
+                });
             });
-          });
-        });
-      });
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
-        out.timedOut = true;
-        loop.quit();
-        return false;
-      });
-      loop.run(); // BLOCKING — every reply must arrive while this owns the thread
-      impl.unexport();
-      resolveOuter(out);
-    });
-  });
+            return `timer:${s}`;
+        },
+    };
 
-  assert.equal(results.proxyError, undefined);
-  assert.equal(results.timedOut, undefined, 'every reply must arrive before the safety timeout');
-  assert.equal(results.sync, 'sync:a');
-  assert.equal(results.micro, 'micro:b', 'a pure-microtask async reply must drain during the blocking run');
-  assert.equal(results.timer, 'timer:c', 'a timer-backed async reply must drain during the blocking run');
+    // The whole scenario runs from a MACROTASK: a blocking run() entered inside a
+    // live async scope defers V8's microtask checkpoint on Node (node-gtk
+    // #442/#121 — see mainloop.test.mjs), which would fail this test for an
+    // unrelated, Node-only reason. setImmediate is exactly how runAsync defers
+    // its blocking run.
+    const results = await new Promise((resolveOuter) => {
+        setImmediate(() => {
+            const out = {};
+            const conn = Gio.bus_get_sync(Gio.BusType.SESSION, null);
+            const impl = Gio.DBusExportedObject.wrapJSObject(XML, service);
+            impl.export(conn, OBJ);
+            const dest = conn.get_unique_name();
+            const loop = GLib.MainLoop.new(null, false);
+            const ProxyClass = Gio.DBusProxy.makeProxyWrapper(XML);
+            // Async proxy + Remote calls throughout — a sync self-call would deadlock
+            // the single main loop that must also service the incoming request.
+            new ProxyClass(conn, dest, OBJ, (proxy, err) => {
+                if (err) {
+                    out.proxyError = String(err);
+                    loop.quit();
+                    return;
+                }
+                proxy.SyncEchoRemote('a', (r, e) => {
+                    out.sync = e ? `error:${e}` : r[0];
+                    proxy.AsyncMicroRemote('b', (r2, e2) => {
+                        out.micro = e2 ? `error:${e2}` : r2[0];
+                        proxy.AsyncTimeoutRemote('c', (r3, e3) => {
+                            out.timer = e3 ? `error:${e3}` : r3[0];
+                            loop.quit();
+                        });
+                    });
+                });
+            });
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
+                out.timedOut = true;
+                loop.quit();
+                return false;
+            });
+            loop.run(); // BLOCKING — every reply must arrive while this owns the thread
+            impl.unexport();
+            resolveOuter(out);
+        });
+    });
+
+    assert.equal(results.proxyError, undefined);
+    assert.equal(results.timedOut, undefined, 'every reply must arrive before the safety timeout');
+    assert.equal(results.sync, 'sync:a');
+    assert.equal(results.micro, 'micro:b', 'a pure-microtask async reply must drain during the blocking run');
+    assert.equal(results.timer, 'timer:c', 'a timer-backed async reply must drain during the blocking run');
 });

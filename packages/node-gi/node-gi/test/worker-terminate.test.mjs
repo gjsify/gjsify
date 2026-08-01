@@ -57,13 +57,13 @@ const indexUrl = new URL('../index.js', import.meta.url).href;
 // callStaticMethod + string marshalling (the MakeGObjectHandle funnel); `construct`
 // = newObject with props (the object.cc ConstructGObject/JsToGValue funnels).
 const LOOP_BODY = {
-  method: `
+    method: `
       const f = callStaticMethod('Gio', 'File', 'new_for_path', ['/tmp/node-gi-stress']);
       callMethod(f, 'get_path', []);
       callMethod(f, 'get_basename', []);
       const g = callMethod(f, 'get_parent', []);
       if (g) callMethod(g, 'get_path', []);`,
-  construct: `
+    construct: `
       const g = newObject('Gio', 'SimpleActionGroup', {});
       const a = newObject('Gio', 'SimpleAction', { name: 'x', enabled: true });
       callMethod(g, 'add_action', [a]);`,
@@ -75,14 +75,15 @@ const LOOP_BODY = {
 // repro — MakeGObjectHandle's owner path); true → the main thread claims first and
 // the worker takes the plain strong-ref wrap path.
 function runChild(terminates, mainClaims, shape) {
-  const claim = shape === 'construct'
-    ? `newObject('Gio', 'SimpleActionGroup', {});`
-    : `callStaticMethod('Gio', 'File', 'new_for_path', ['/tmp']);`;
-  const script = `
+    const claim =
+        shape === 'construct'
+            ? `newObject('Gio', 'SimpleActionGroup', {});`
+            : `callStaticMethod('Gio', 'File', 'new_for_path', ['/tmp']);`;
+    const script = `
 import { Worker } from 'node:worker_threads';
 ${
     mainClaims
-      ? `
+        ? `
 // Non-owner-worker leg: main claims the toggle machinery first.
 {
   const { newObject, callStaticMethod, requireNamespace } = await import(${JSON.stringify(indexUrl)});
@@ -90,8 +91,8 @@ ${
   ${claim}
 }
 `
-      : ''
-  }
+        : ''
+}
 const code = \`
   const { workerData, parentPort } = require('node:worker_threads');
   (async () => {
@@ -112,25 +113,25 @@ for (let i = 0; i < ${terminates}; i++) {
 }
 process.exit(0);
 `;
-  const file = join(
-    tmpdir(),
-    `node-gi-worker-terminate-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.mjs`,
-  );
-  writeFileSync(file, script);
-  try {
-    // Disable core dumps in the child (POSIX) so a tolerated SIGSEGV dies instantly
-    // rather than blocking on a core-dump handler and risking a spawn timeout on CI.
-    // Fall back to a direct spawn where a POSIX shell isn't available (e.g. Windows).
-    if (process.platform === 'win32') {
-      return spawnSync(process.execPath, [file], { timeout: 60000, encoding: 'utf8' });
+    const file = join(
+        tmpdir(),
+        `node-gi-worker-terminate-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.mjs`,
+    );
+    writeFileSync(file, script);
+    try {
+        // Disable core dumps in the child (POSIX) so a tolerated SIGSEGV dies instantly
+        // rather than blocking on a core-dump handler and risking a spawn timeout on CI.
+        // Fall back to a direct spawn where a POSIX shell isn't available (e.g. Windows).
+        if (process.platform === 'win32') {
+            return spawnSync(process.execPath, [file], { timeout: 60000, encoding: 'utf8' });
+        }
+        return spawnSync('/bin/sh', ['-c', 'ulimit -c 0; exec "$0" "$1"', process.execPath, file], {
+            timeout: 60000,
+            encoding: 'utf8',
+        });
+    } finally {
+        rmSync(file, { force: true });
     }
-    return spawnSync('/bin/sh', ['-c', 'ulimit -c 0; exec "$0" "$1"', process.execPath, file], {
-      timeout: 60000,
-      encoding: 'utf8',
-    });
-  } finally {
-    rmSync(file, { force: true });
-  }
 }
 
 // The ONLY deterministic pass condition: the isolated child must not die of the
@@ -139,33 +140,33 @@ process.exit(0);
 // (the pre-existing terminate-mid-GLib-C-call residual — see the header). A SIGABRT
 // means the funnel this fix closed has regressed.
 function assertNoSigabrt(r, tag) {
-  assert.notEqual(
-    r.signal,
-    'SIGABRT',
-    `${tag}: the Error::New(napi_get_last_error_info) funnel must stay closed (got SIGABRT). stderr: ${r.stderr}`,
-  );
-  assert.notEqual(
-    r.status,
-    134,
-    `${tag}: the Error::New funnel must stay closed (got exit 134 = SIGABRT). stderr: ${r.stderr}`,
-  );
+    assert.notEqual(
+        r.signal,
+        'SIGABRT',
+        `${tag}: the Error::New(napi_get_last_error_info) funnel must stay closed (got SIGABRT). stderr: ${r.stderr}`,
+    );
+    assert.notEqual(
+        r.status,
+        134,
+        `${tag}: the Error::New funnel must stay closed (got exit 134 = SIGABRT). stderr: ${r.stderr}`,
+    );
 }
 
 // METHOD/STATIC-CALL loop — the MakeGObjectHandle (toggle.cc) + string-marshalling
 // funnels. Owner-env worker (the named repro path) + non-owner (plain strong-ref).
 test('terminate: worker.terminate() mid method/static GI-call never SIGABRTs', () => {
-  for (let i = 0; i < 3; i++) {
-    assertNoSigabrt(runChild(8, false, 'method'), `method owner-worker child ${i}`);
-  }
-  for (let i = 0; i < 2; i++) {
-    assertNoSigabrt(runChild(8, true, 'method'), `method non-owner-worker child ${i}`);
-  }
+    for (let i = 0; i < 3; i++) {
+        assertNoSigabrt(runChild(8, false, 'method'), `method owner-worker child ${i}`);
+    }
+    for (let i = 0; i < 2; i++) {
+        assertNoSigabrt(runChild(8, true, 'method'), `method non-owner-worker child ${i}`);
+    }
 });
 
 // CONSTRUCTION loop — the object.cc ConstructGObject/JsToGValue funnels (pre-fix
 // 188/200 SIGABRT). Owner + non-owner env.
 test('terminate: worker.terminate() mid-newObject never SIGABRTs (object.cc funnel closed)', () => {
-  for (let i = 0; i < 3; i++) {
-    assertNoSigabrt(runChild(8, i === 1, 'construct'), `construct child ${i}`);
-  }
+    for (let i = 0; i < 3; i++) {
+        assertNoSigabrt(runChild(8, i === 1, 'construct'), `construct child ${i}`);
+    }
 });

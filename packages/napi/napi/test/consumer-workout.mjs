@@ -31,9 +31,7 @@ const db = new Database(':memory:');
 log('open :memory: ok, better-sqlite3', Database.prototype.constructor.name);
 
 // --- schema + typed columns (text/int/real/null/blob) ---
-db.exec(
-    'CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER, price REAL, note TEXT, data BLOB)',
-);
+db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER, price REAL, note TEXT, data BLOB)');
 
 const blobIn = Buffer.from([0xde, 0xad, 0xbe, 0xef, 0x00, 0x7f]);
 
@@ -92,7 +90,10 @@ const bump = db.transaction((rows) => {
     for (const [id, delta] of rows) n += st.run(delta, id).changes;
     return n;
 });
-const bumped = bump([[1, 5], [2, 5]]);
+const bumped = bump([
+    [1, 5],
+    [2, 5],
+]);
 log('transaction changed', bumped, 'qty1', db.prepare('SELECT qty FROM t WHERE id=1').get().qty);
 
 // --- custom scalar function (sync JS callback during step) ---

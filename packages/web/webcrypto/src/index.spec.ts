@@ -1821,10 +1821,13 @@ export default async () => {
                 .toUpperCase();
 
         await it('matches the RFC 3394 §4.1 128-bit key-wrap test vector', async () => {
-            const kek = await subtle.importKey('raw', fromHex('000102030405060708090A0B0C0D0E0F'), { name: 'AES-KW' }, false, [
-                'wrapKey',
-                'unwrapKey',
-            ] as KeyUsage[]);
+            const kek = await subtle.importKey(
+                'raw',
+                fromHex('000102030405060708090A0B0C0D0E0F'),
+                { name: 'AES-KW' },
+                false,
+                ['wrapKey', 'unwrapKey'] as KeyUsage[],
+            );
             const keyToWrap = await subtle.importKey(
                 'raw',
                 fromHex('00112233445566778899AABBCCDDEEFF'),
@@ -1866,10 +1869,13 @@ export default async () => {
                 'wrapKey',
                 'unwrapKey',
             ] as KeyUsage[])) as CryptoKey;
-            const keyToWrap = await subtle.importKey('raw', crypto.getRandomValues(new Uint8Array(16)), { name: 'AES-GCM' }, true, [
-                'encrypt',
-                'decrypt',
-            ] as KeyUsage[]);
+            const keyToWrap = await subtle.importKey(
+                'raw',
+                crypto.getRandomValues(new Uint8Array(16)),
+                { name: 'AES-GCM' },
+                true,
+                ['encrypt', 'decrypt'] as KeyUsage[],
+            );
             const wrapped = new Uint8Array(await subtle.wrapKey('raw', keyToWrap, kek, { name: 'AES-KW' }));
             wrapped[0] ^= 0xff;
             let threw = false;

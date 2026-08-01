@@ -64,7 +64,7 @@ function startServer(): Promise<{ proc: ChildProcess; kill: () => void }> {
                 clearTimeout(timer);
                 clearInterval(check);
                 resolve({ proc, kill: () => proc.kill('SIGTERM') });
-            // oxlint-disable-next-line typescript/no-explicit-any -- ChildProcess.exitCode exists at runtime but TypeScript types it as number | null only after 'close' event
+                // oxlint-disable-next-line typescript/no-explicit-any -- ChildProcess.exitCode exists at runtime but TypeScript types it as number | null only after 'close' event
             } else if ((proc as any).exitCode !== null) {
                 clearTimeout(timer);
                 clearInterval(check);

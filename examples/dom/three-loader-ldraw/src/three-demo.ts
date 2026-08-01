@@ -132,7 +132,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
             model.rotation.x = Math.PI;
             scene.add(model);
 
-            numBuildingSteps = (model.userData as Record<string, unknown>).numBuildingSteps as number ?? 1;
+            numBuildingSteps = ((model.userData as Record<string, unknown>).numBuildingSteps as number) ?? 1;
             effectController.buildingStep = numBuildingSteps - 1;
 
             updateObjectsVisibility();

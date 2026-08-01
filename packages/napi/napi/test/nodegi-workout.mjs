@@ -92,9 +92,7 @@ native.__stressRefUnrefOffThread(churned, CHURN);
 pump(50);
 System.gc();
 pump(50);
-console.log(
-    `churn-survivor=${native.isGObjectHandle(churned)} name=${native.callMethod(churned, 'get_name', [])}`,
-);
+console.log(`churn-survivor=${native.isGObjectHandle(churned)} name=${native.callMethod(churned, 'get_name', [])}`);
 
 // ---- wrapper collection → tsfn-dispatched teardown ----
 // Drop every JS ref, force a full GC, and give the two idle hops their loop

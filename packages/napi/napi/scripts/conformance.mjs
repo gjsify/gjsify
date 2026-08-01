@@ -57,7 +57,13 @@ const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
 // binary. Under GJS we preload the system libuv so those references resolve at
 // dlopen — the host's job, exactly as Node embeds libuv; it is NOT a napi
 // weakening. Resolved once; programs opt in via meta.libuv.
-const LIBUV_PATH = ['/lib64/libuv.so.1', '/usr/lib64/libuv.so.1', '/usr/lib/x86_64-linux-gnu/libuv.so.1', '/lib/x86_64-linux-gnu/libuv.so.1'].find((p) => existsSync(p)) ?? '';
+const LIBUV_PATH =
+    [
+        '/lib64/libuv.so.1',
+        '/usr/lib64/libuv.so.1',
+        '/usr/lib/x86_64-linux-gnu/libuv.so.1',
+        '/lib/x86_64-linux-gnu/libuv.so.1',
+    ].find((p) => existsSync(p)) ?? '';
 
 const usage = 'usage: node scripts/conformance.mjs [--filter=<substr>] [--update-golden] [--rebuild] [--list]';
 
@@ -100,7 +106,9 @@ for (const name of programFiles) {
     }
     const suite = mod.meta.suite ?? 'js-native-api';
     if (!REFS_SUITES[suite]) {
-        console.error(`conformance: ${name}.mjs has unknown meta.suite '${suite}' (want ${Object.keys(REFS_SUITES).join('/')})`);
+        console.error(
+            `conformance: ${name}.mjs has unknown meta.suite '${suite}' (want ${Object.keys(REFS_SUITES).join('/')})`,
+        );
         process.exit(2);
     }
     programs.push({ name, meta: { ...mod.meta, suite } });
@@ -164,7 +172,10 @@ function buildAddonDir(suite, dir) {
     });
     const ok = r.status === 0;
     if (ok) builtDirs.add(key);
-    else process.stderr.write(`conformance: node-gyp failed for '${key}':\n${(r.stderr || r.stdout || '').slice(-800)}\n`);
+    else
+        process.stderr.write(
+            `conformance: node-gyp failed for '${key}':\n${(r.stderr || r.stdout || '').slice(-800)}\n`,
+        );
     return ok;
 }
 
@@ -319,14 +330,20 @@ for (const { name, meta } of programs) {
         results.set(name, { verdict: '✓' });
     } else if (gjsPass && excuse) {
         results.set(name, { verdict: '✗' });
-        failures.push(`${name}: GJS PASSES but has a ledger entry — stale ledger entry, remove it (reason was: ${excuse.reason})`);
+        failures.push(
+            `${name}: GJS PASSES but has a ledger entry — stale ledger entry, remove it (reason was: ${excuse.reason})`,
+        );
     } else if (!gjsPass && excuse) {
         results.set(name, { verdict: 'LEDGERED' });
     } else {
         results.set(name, { verdict: '✗' });
         const detail = gjsRun.ok
             ? `stdout != golden\n${firstDiff(gjsRun.stdout, golden)}`
-            : `gjs exit ${gjsRun.status}\n--- gjs stdout ---\n${gjsRun.stdout.trim()}\n--- gjs stderr ---\n${gjsRun.stderr.trim().split('\n').filter((l) => !l.includes('TEARDOWN PROBE')).join('\n')}`;
+            : `gjs exit ${gjsRun.status}\n--- gjs stdout ---\n${gjsRun.stdout.trim()}\n--- gjs stderr ---\n${gjsRun.stderr
+                  .trim()
+                  .split('\n')
+                  .filter((l) => !l.includes('TEARDOWN PROBE'))
+                  .join('\n')}`;
         failures.push(`${name}: ${detail}`);
     }
 }

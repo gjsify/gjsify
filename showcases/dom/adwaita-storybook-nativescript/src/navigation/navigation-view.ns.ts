@@ -3,7 +3,13 @@
 // GTK showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwButton, AdwHeaderBar, AdwNavigationView, AdwStatusPage, AdwToolbarView } from '@gjsify/adwaita-nativescript';
+import {
+    AdwButton,
+    AdwHeaderBar,
+    AdwNavigationView,
+    AdwStatusPage,
+    AdwToolbarView,
+} from '@gjsify/adwaita-nativescript';
 import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 import { navigationViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 

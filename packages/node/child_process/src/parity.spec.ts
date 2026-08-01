@@ -223,19 +223,19 @@ export default async () => {
                 });
             });
             expect(stdout instanceof Uint8Array).toBeTruthy();
-            expect(Buffer.from(stdout as Uint8Array).toString().trim()).toBe('buf_encoding_test');
+            expect(
+                Buffer.from(stdout as Uint8Array)
+                    .toString()
+                    .trim(),
+            ).toBe('buf_encoding_test');
         });
 
         await it('exec with `encoding: null` also returns Buffer in callback', async () => {
             const stdout = await new Promise<unknown>((resolve, reject) => {
-                exec(
-                    'echo null_encoding_test',
-                    { encoding: null as unknown as undefined },
-                    (err, out) => {
-                        if (err) reject(err);
-                        else resolve(out);
-                    },
-                );
+                exec('echo null_encoding_test', { encoding: null as unknown as undefined }, (err, out) => {
+                    if (err) reject(err);
+                    else resolve(out);
+                });
             });
             expect(stdout instanceof Uint8Array).toBeTruthy();
         });
@@ -253,7 +253,11 @@ export default async () => {
         await it('execSync with `encoding: "buffer"` returns Buffer', async () => {
             const out = execSync('echo execsync_buf', { encoding: 'buffer' });
             expect(out instanceof Uint8Array).toBeTruthy();
-            expect(Buffer.from(out as Buffer).toString().trim()).toBe('execsync_buf');
+            expect(
+                Buffer.from(out as Buffer)
+                    .toString()
+                    .trim(),
+            ).toBe('execsync_buf');
         });
     });
 
@@ -287,14 +291,10 @@ export default async () => {
         await it('`maxBuffer: Infinity` disables the cap', async () => {
             // 100 KiB output — would trip a 1KiB default cap.
             const stdout = await new Promise<string>((resolve, reject) => {
-                exec(
-                    'printf "%.s." $(seq 1 102400)',
-                    { maxBuffer: Infinity },
-                    (err, out) => {
-                        if (err) reject(err);
-                        else resolve(out.toString());
-                    },
-                );
+                exec('printf "%.s." $(seq 1 102400)', { maxBuffer: Infinity }, (err, out) => {
+                    if (err) reject(err);
+                    else resolve(out.toString());
+                });
             });
             expect(stdout.length).toBe(102400);
         });
@@ -572,9 +572,7 @@ export default async () => {
         });
 
         await it('throws on plain-object input', async () => {
-            expect(() =>
-                spawnSync('cat', [], { input: { foo: 'bar' } as unknown as string }),
-            ).toThrow();
+            expect(() => spawnSync('cat', [], { input: { foo: 'bar' } as unknown as string })).toThrow();
         });
 
         await it('accepts Uint8Array input', async () => {
@@ -622,10 +620,7 @@ export default async () => {
         await it('uid option of current user does not throw', async () => {
             // Use current user's uid (process.getuid() or 0 fallback). Don't
             // try a different uid — needs privilege.
-            const myUid =
-                typeof process !== 'undefined' && typeof process.getuid === 'function'
-                    ? process.getuid()
-                    : 0;
+            const myUid = typeof process !== 'undefined' && typeof process.getuid === 'function' ? process.getuid() : 0;
             const result = spawnSync('echo', ['uid_test'], {
                 encoding: 'utf8',
                 uid: myUid,

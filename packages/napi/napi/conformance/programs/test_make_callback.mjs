@@ -29,17 +29,29 @@ export default async function run(h) {
 
     // One-arg call.
     let b = { args: -1, thisOk: null, x: null };
-    const r1 = makeCallback(resource, recv, function (x) {
-        b = { args: arguments.length, thisOk: this === recv, x };
-        return 42;
-    }, 1337);
+    const r1 = makeCallback(
+        resource,
+        recv,
+        function (x) {
+            b = { args: arguments.length, thisOk: this === recv, x };
+            return 42;
+        },
+        1337,
+    );
     h.emit('one-arg', r1, 'args', b.args, 'this===recv', b.thisOk, 'x', b.x);
 
     // Multi-arg call.
     let c = { args: -1, thisOk: null, vals: null };
-    const r3 = makeCallback(resource, recv, function (arg1, arg2, arg3) {
-        c = { args: arguments.length, thisOk: this === recv, vals: [arg1, arg2, arg3] };
-        return 42;
-    }, 1, 2, 3);
+    const r3 = makeCallback(
+        resource,
+        recv,
+        function (arg1, arg2, arg3) {
+            c = { args: arguments.length, thisOk: this === recv, vals: [arg1, arg2, arg3] };
+            return 42;
+        },
+        1,
+        2,
+        3,
+    );
     h.emit('multi-arg', r3, 'args', c.args, 'this===recv', c.thisOk, 'vals', c.vals);
 }

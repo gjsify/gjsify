@@ -10,16 +10,7 @@
 // and are valid `inherits()` super-constructors.
 
 import { describe, it, expect } from '@gjsify/unit';
-import zlib, {
-    Gzip,
-    Gunzip,
-    Deflate,
-    Inflate,
-    DeflateRaw,
-    InflateRaw,
-    Unzip,
-    createGzip,
-} from 'node:zlib';
+import zlib, { Gzip, Gunzip, Deflate, Inflate, DeflateRaw, InflateRaw, Unzip, createGzip } from 'node:zlib';
 import { Transform } from 'node:stream';
 import { inherits } from 'node:util';
 import { Buffer } from 'node:buffer';

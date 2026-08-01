@@ -533,8 +533,7 @@ export function linkSync(existingPath: PathLike, newPath: PathLike): void {
         if (detail === '' && err instanceof Error) detail = err.message;
         throw Object.assign(
             new Error(
-                `EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'` +
-                    (detail ? ` (${detail})` : ''),
+                `EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'` + (detail ? ` (${detail})` : ''),
             ),
             {
                 code: 'EPERM',

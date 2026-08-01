@@ -17,7 +17,9 @@
 type ErrnoLike = Error & { code?: string; syscall?: string };
 
 function notSupportedInBrowser(syscall: string): ErrnoLike {
-    const err: ErrnoLike = new Error(`${syscall} is not available in the browser — ws's server surface has no browser equivalent. Use the native @gjsify/ws on GJS / Node.`);
+    const err: ErrnoLike = new Error(
+        `${syscall} is not available in the browser — ws's server surface has no browser equivalent. Use the native @gjsify/ws on GJS / Node.`,
+    );
     err.code = 'ENOTSUP';
     err.syscall = syscall;
     return err;

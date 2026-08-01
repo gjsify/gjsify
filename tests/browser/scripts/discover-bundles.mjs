@@ -14,8 +14,8 @@ const REPO_ROOT = join(__dirname, '..', '..', '..');
 // never executed. Until a package has a `dist/test.browser.mjs`, an entry here
 // is a no-op. Keep in sync with `build-bundles.mjs`' PACKAGE_DIRS.
 const PACKAGE_DIRS = [
-    { dir: join(REPO_ROOT, 'packages', 'web'),  urlBase: '/packages/web' },
-    { dir: join(REPO_ROOT, 'packages', 'dom'),  urlBase: '/packages/dom' },
+    { dir: join(REPO_ROOT, 'packages', 'web'), urlBase: '/packages/web' },
+    { dir: join(REPO_ROOT, 'packages', 'dom'), urlBase: '/packages/dom' },
     { dir: join(REPO_ROOT, 'packages', 'node'), urlBase: '/packages/node' },
     { dir: join(REPO_ROOT, 'packages', 'framework'), urlBase: '/packages/framework' },
 ];

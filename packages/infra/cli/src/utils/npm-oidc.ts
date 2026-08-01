@@ -211,7 +211,9 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
             // Network-level failure (DNS, connection reset, TLS): transient.
             if (attempt < maxRetries) {
                 const delay = Math.min(retryBaseMs * 2 ** attempt, 8000);
-                log?.(`gjsify oidc: network error for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`);
+                log?.(
+                    `gjsify oidc: network error for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
+                );
                 await sleep(delay);
                 continue;
             }
@@ -233,7 +235,9 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
             // still fire on the first response.
             if (TRANSIENT_EXCHANGE_STATUSES.has(res.status) && attempt < maxRetries) {
                 const delay = Math.min(retryBaseMs * 2 ** attempt, 8000);
-                log?.(`gjsify oidc: transient ${res.status} ${res.statusText} for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`);
+                log?.(
+                    `gjsify oidc: transient ${res.status} ${res.statusText} for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
+                );
                 await sleep(delay);
                 continue;
             }

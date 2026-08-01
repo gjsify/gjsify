@@ -79,17 +79,27 @@ checkThrows('method after dispose throws', () => counter2.increment(), TypeError
 // ---- call/construct + §6 must-not-abort ----
 check('callAndCatch normal', c.callAndCatch((x) => x + 1, 41).value, 42);
 check('callAndCatch receives arg', c.callAndCatch((x) => x, 'y').value, 'y');
-const thrownNull = c.callAndCatch(() => { throw null; });
+const thrownNull = c.callAndCatch(() => {
+    throw null;
+});
 check('thrown null caught', thrownNull.threw, true);
 check('thrown null EXACT', thrownNull.value, null);
-const thrownUndef = c.callAndCatch(() => { throw undefined; });
+const thrownUndef = c.callAndCatch(() => {
+    throw undefined;
+});
 check('thrown undefined caught', thrownUndef.threw, true);
 check('thrown undefined EXACT', thrownUndef.value, undefined);
-const thrownErr = c.callAndCatch(() => { throw new RangeError('boom'); });
+const thrownErr = c.callAndCatch(() => {
+    throw new RangeError('boom');
+});
 check('thrown error caught', thrownErr.threw, true);
 check('thrown error identity', thrownErr.value instanceof RangeError, true);
 check('callStatus non-fn = napi_function_expected(5)', c.callStatus(42), 5);
-class JsPoint { constructor(x) { this.x = x; } }
+class JsPoint {
+    constructor(x) {
+        this.x = x;
+    }
+}
 check('construct JS class', c.construct(JsPoint, 7).x, 7);
 check('construct napi class', c.construct(Counter, 3).increment(), 4);
 
@@ -155,9 +165,15 @@ check('instanceOf true', c.instanceOf(counter, Counter), true);
 check('instanceOf false', c.instanceOf({}, Counter), false);
 check('instanceOf Error subclass', c.instanceOf(new RangeError('x'), Error), true);
 checkThrows('instanceOf throwing hasInstance propagates', () =>
-    c.instanceOf({}, new Proxy(function () {}, {
-        get() { throw new Error('trap'); },
-    })));
+    c.instanceOf(
+        {},
+        new Proxy(function () {}, {
+            get() {
+                throw new Error('trap');
+            },
+        }),
+    ),
+);
 check('runScript expression', c.runScript('6 * 7'), 42);
 c.runScript("globalThis.__p02marker = 'set'");
 check('runScript side effect', globalThis.__p02marker, 'set');
@@ -175,7 +191,7 @@ check('property key utf16', c.propertyKey(), 'pk');
 const bare = c.thisKind;
 check('sloppy this -> global', bare(), 'global');
 check('primitive this boxed', bare.call(42), 'boxed:object');
-check('napi fn constructible', typeof new (c.thisKind)(), 'object');
+check('napi fn constructible', typeof new c.thisKind(), 'object');
 
 // ---- GC stress across the new surface ----
 imports.system.gc();

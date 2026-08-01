@@ -30,9 +30,7 @@ export default async () => {
         });
 
         await it('chalk.rgb chains with modifiers (underline)', () => {
-            expect(chalk.rgb(255, 0, 0).underline('text')).toBe(
-                `${E}38;2;255;0;0m${E}4mtext${E}24m${E}39m`,
-            );
+            expect(chalk.rgb(255, 0, 0).underline('text')).toBe(`${E}38;2;255;0;0m${E}4mtext${E}24m${E}39m`);
         });
 
         await it('chalk.bgRgb emits 24-bit background SGR sequence', () => {
@@ -65,35 +63,23 @@ export default async () => {
         });
 
         await it('hex chained with .bold composes the modifier reset', () => {
-            expect(chalk.hex('#00FF00').bold('go')).toBe(
-                `${E}38;2;0;255;0m${E}1mgo${E}22m${E}39m`,
-            );
+            expect(chalk.hex('#00FF00').bold('go')).toBe(`${E}38;2;0;255;0m${E}1mgo${E}22m${E}39m`);
         });
 
         await it('downsamples 24-bit hex to 4-bit on a level=1 instance', () => {
             // #FF0000 → bright red → SGR 91. Background → SGR 101.
-            expect(new Chalk({ level: 1 }).hex('#FF0000')('hello')).toBe(
-                `${E}91mhello${E}39m`,
-            );
-            expect(new Chalk({ level: 1 }).bgHex('#FF0000')('hello')).toBe(
-                `${E}101mhello${E}49m`,
-            );
+            expect(new Chalk({ level: 1 }).hex('#FF0000')('hello')).toBe(`${E}91mhello${E}39m`);
+            expect(new Chalk({ level: 1 }).bgHex('#FF0000')('hello')).toBe(`${E}101mhello${E}49m`);
         });
 
         await it('downsamples 24-bit hex to 8-bit on a level=2 instance', () => {
             // #FF0000 → ANSI-256 index 196.
-            expect(new Chalk({ level: 2 }).hex('#FF0000')('hello')).toBe(
-                `${E}38;5;196mhello${E}39m`,
-            );
-            expect(new Chalk({ level: 2 }).bgHex('#FF0000')('hello')).toBe(
-                `${E}48;5;196mhello${E}49m`,
-            );
+            expect(new Chalk({ level: 2 }).hex('#FF0000')('hello')).toBe(`${E}38;5;196mhello${E}39m`);
+            expect(new Chalk({ level: 2 }).bgHex('#FF0000')('hello')).toBe(`${E}48;5;196mhello${E}49m`);
         });
 
         await it('keeps 24-bit hex intact on a level=3 instance', () => {
-            expect(new Chalk({ level: 3 }).bgHex('#FF0000')('hello')).toBe(
-                `${E}48;2;255;0;0mhello${E}49m`,
-            );
+            expect(new Chalk({ level: 3 }).bgHex('#FF0000')('hello')).toBe(`${E}48;2;255;0;0mhello${E}49m`);
         });
     });
 };

@@ -52,8 +52,7 @@
 
 const MODULE = 'child_process';
 const RUNTIME = 'browser';
-const REASON =
-    'a browser sandbox has no process model — no Web API can create, signal or reap an OS process';
+const REASON = 'a browser sandbox has no process model — no Web API can create, signal or reap an OS process';
 
 interface UnsupportedError extends Error {
     code: string;

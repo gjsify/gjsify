@@ -106,8 +106,7 @@ export function processStubPlugin(options: ProcessStubPluginOptions = {}): Plugi
     // well-known-symbols polyfill must also run before any module init, so it
     // joins the byte-1 banner. All three pieces are single-line (no source-map
     // drift) and idempotent.
-    const stub =
-        (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') + GJS_WELLKNOWN_SYMBOLS_STUB + GJS_PROCESS_STUB;
+    const stub = (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') + GJS_WELLKNOWN_SYMBOLS_STUB + GJS_PROCESS_STUB;
     const banner = composeBanner(stub, options.userBanner ?? '');
     return {
         name: 'gjsify-process-stub',

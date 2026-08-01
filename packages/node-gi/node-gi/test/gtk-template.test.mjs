@@ -42,21 +42,21 @@ let Gio;
 let GLib;
 let loadError = null;
 if (haveDisplay) {
-  try {
-    GLib = requireGi('GLib', '2.0');
-    Gio = requireGi('Gio', '2.0');
-    GObject = requireGi('GObject', '2.0');
-    Gtk = requireGi('Gtk', '4.0');
-  } catch (err) {
-    loadError = err;
-  }
+    try {
+        GLib = requireGi('GLib', '2.0');
+        Gio = requireGi('Gio', '2.0');
+        GObject = requireGi('GObject', '2.0');
+        Gtk = requireGi('Gtk', '4.0');
+    } catch (err) {
+        loadError = err;
+    }
 }
 
 const skip = !haveDisplay
-  ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)'
-  : loadError
-    ? `Gtk-4.0 typelib unavailable: ${loadError.message}`
-    : false;
+    ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)'
+    : loadError
+      ? `Gtk-4.0 typelib unavailable: ${loadError.message}`
+      : false;
 
 // Inline composite-template UI-XML: a vertical GtkBox subclass carrying a labelled
 // child (id "title", public) and a button child (id "btn", internal). The
@@ -80,92 +80,92 @@ const TEMPLATE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 </interface>`;
 
 test('Gtk.Template composite template works on Node', { skip }, () => {
-  // Register the templated subclass. class_init (set_template + bind children)
-  // fires on first construction, below in activate.
-  const TemplateBox = GObject.registerClass(
-    {
-      GTypeName: 'NodeGiTemplateBox',
-      Template: new TextEncoder().encode(TEMPLATE_XML), // inline UI-XML bytes
-      Children: ['title'],
-      InternalChildren: ['btn'],
-      CssName: 'nodegitemplatebox',
-    },
-    class TemplateBox extends Gtk.Box {
-      // A user method to confirm the user prototype still composes with templates.
-      titleText() {
-        return this.title.label;
-      }
-    },
-  );
+    // Register the templated subclass. class_init (set_template + bind children)
+    // fires on first construction, below in activate.
+    const TemplateBox = GObject.registerClass(
+        {
+            GTypeName: 'NodeGiTemplateBox',
+            Template: new TextEncoder().encode(TEMPLATE_XML), // inline UI-XML bytes
+            Children: ['title'],
+            InternalChildren: ['btn'],
+            CssName: 'nodegitemplatebox',
+        },
+        class TemplateBox extends Gtk.Box {
+            // A user method to confirm the user prototype still composes with templates.
+            titleText() {
+                return this.title.label;
+            }
+        },
+    );
 
-  const app = new Gtk.Application({
-    application_id: 'eu.jumplink.NodeGiGtkTemplate',
-    flags: Gio.ApplicationFlags.NON_UNIQUE, // no session-bus uniqueness round-trip
-  });
+    const app = new Gtk.Application({
+        application_id: 'eu.jumplink.NodeGiGtkTemplate',
+        flags: Gio.ApplicationFlags.NON_UNIQUE, // no session-bus uniqueness round-trip
+    });
 
-  const results = {};
-  let activateError = null;
+    const results = {};
+    let activateError = null;
 
-  app.connect('activate', () => {
-    try {
-      const widget = new TemplateBox();
+    app.connect('activate', () => {
+        try {
+            const widget = new TemplateBox();
 
-      // The instance is the registered templated type.
-      results.widgetType = native.getTypeName(unwrap(widget));
+            // The instance is the registered templated type.
+            results.widgetType = native.getTypeName(unwrap(widget));
 
-      // Public child: this.title is the bound GtkLabel, with its template label.
-      results.title = widget.title;
-      results.titleType = widget.title != null ? native.getTypeName(unwrap(widget.title)) : null;
-      results.titleLabel = widget.title != null ? widget.title.label : null;
-      results.titleViaUserMethod = widget.titleText();
+            // Public child: this.title is the bound GtkLabel, with its template label.
+            results.title = widget.title;
+            results.titleType = widget.title != null ? native.getTypeName(unwrap(widget.title)) : null;
+            results.titleLabel = widget.title != null ? widget.title.label : null;
+            results.titleViaUserMethod = widget.titleText();
 
-      // Property round-trip through the wrapped child.
-      widget.title.label = 'Updated from JS';
-      results.titleLabelAfterSet = widget.title.label;
+            // Property round-trip through the wrapped child.
+            widget.title.label = 'Updated from JS';
+            results.titleLabelAfterSet = widget.title.label;
 
-      // Internal child: this._btn is the bound GtkButton, with its template label.
-      results.btn = widget._btn;
-      results.btnType = widget._btn != null ? native.getTypeName(unwrap(widget._btn)) : null;
-      results.btnLabel = widget._btn != null ? widget._btn.label : null;
+            // Internal child: this._btn is the bound GtkButton, with its template label.
+            results.btn = widget._btn;
+            results.btnType = widget._btn != null ? native.getTypeName(unwrap(widget._btn)) : null;
+            results.btnLabel = widget._btn != null ? widget._btn.label : null;
 
-      // CssName installed on the type via gtk_widget_class_set_css_name.
-      results.cssName = widget.get_css_name();
+            // CssName installed on the type via gtk_widget_class_set_css_name.
+            results.cssName = widget.get_css_name();
 
-      // Put the widget in a window + present, then quit from inside the loop.
-      const win = new Gtk.ApplicationWindow({ application: app });
-      win.set_child(widget);
-      win.present();
+            // Put the widget in a window + present, then quit from inside the loop.
+            const win = new Gtk.ApplicationWindow({ application: app });
+            win.set_child(widget);
+            win.present();
 
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-        app.quit();
-        return GLib.SOURCE_REMOVE;
-      });
-    } catch (err) {
-      activateError = err;
-      app.quit();
-    }
-  });
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                app.quit();
+                return GLib.SOURCE_REMOVE;
+            });
+        } catch (err) {
+            activateError = err;
+            app.quit();
+        }
+    });
 
-  const status = app.run([]); // top-level blocking run (no async wrapper)
+    const status = app.run([]); // top-level blocking run (no async wrapper)
 
-  assert.equal(activateError, null, `activate handler threw: ${activateError && activateError.stack}`);
-  assert.equal(status, 0, 'app.run([]) should exit 0');
+    assert.equal(activateError, null, `activate handler threw: ${activateError && activateError.stack}`);
+    assert.equal(status, 0, 'app.run([]) should exit 0');
 
-  assert.equal(results.widgetType, 'NodeGiTemplateBox', 'the instance is the registered type');
+    assert.equal(results.widgetType, 'NodeGiTemplateBox', 'the instance is the registered type');
 
-  // Public child exposed as this.title, a real GtkLabel with its template label.
-  assert.notEqual(results.title, undefined, 'this.title should be defined');
-  assert.notEqual(results.title, null, 'this.title should be a bound child, not null');
-  assert.equal(results.titleType, 'GtkLabel', 'this.title is a Gtk.Label');
-  assert.equal(results.titleLabel, 'Hello from a template', 'this.title carries its template label');
-  assert.equal(results.titleViaUserMethod, 'Hello from a template', 'user method reads this.title');
-  assert.equal(results.titleLabelAfterSet, 'Updated from JS', 'child property set/get round-trips');
+    // Public child exposed as this.title, a real GtkLabel with its template label.
+    assert.notEqual(results.title, undefined, 'this.title should be defined');
+    assert.notEqual(results.title, null, 'this.title should be a bound child, not null');
+    assert.equal(results.titleType, 'GtkLabel', 'this.title is a Gtk.Label');
+    assert.equal(results.titleLabel, 'Hello from a template', 'this.title carries its template label');
+    assert.equal(results.titleViaUserMethod, 'Hello from a template', 'user method reads this.title');
+    assert.equal(results.titleLabelAfterSet, 'Updated from JS', 'child property set/get round-trips');
 
-  // Internal child exposed as this._btn, a real GtkButton with its template label.
-  assert.notEqual(results.btn, null, 'this._btn should be a bound internal child, not null');
-  assert.equal(results.btnType, 'GtkButton', 'this._btn is a Gtk.Button');
-  assert.equal(results.btnLabel, 'Click me', 'this._btn carries its template label');
+    // Internal child exposed as this._btn, a real GtkButton with its template label.
+    assert.notEqual(results.btn, null, 'this._btn should be a bound internal child, not null');
+    assert.equal(results.btnType, 'GtkButton', 'this._btn is a Gtk.Button');
+    assert.equal(results.btnLabel, 'Click me', 'this._btn carries its template label');
 
-  // CssName took effect.
-  assert.equal(results.cssName, 'nodegitemplatebox', 'CssName installed via set_css_name');
+    // CssName took effect.
+    assert.equal(results.cssName, 'nodegitemplatebox', 'CssName installed via set_css_name');
 });

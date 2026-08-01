@@ -362,9 +362,7 @@ export async function detectAutoGlobals(
     let currentInject: string | undefined = undefined;
 
     if (extraRegisterPaths.size > 0) {
-        const resolvableExtra = cwd
-            ? filterResolvableRegisterPaths(extraRegisterPaths, cwd)
-            : extraRegisterPaths;
+        const resolvableExtra = cwd ? filterResolvableRegisterPaths(extraRegisterPaths, cwd) : extraRegisterPaths;
         currentInject = (await writeRegisterInjectFile(resolvableExtra, cwd)) ?? undefined;
     }
 
@@ -513,9 +511,7 @@ export async function detectAutoGlobals(
         // Union with the previously-injected set keeps growth monotonic
         // (an over-approximated superset must never shrink, or the subset
         // convergence check could oscillate).
-        const expanded = options.disableClosureExpansion
-            ? newDetected
-            : expandWithClosure(newDetected, excludeSet);
+        const expanded = options.disableClosureExpansion ? newDetected : expandWithClosure(newDetected, excludeSet);
         if (verbose && expanded.size > newDetected.size) {
             console.debug(
                 `[gjsify] --globals auto: closure map expanded ${newDetected.size} → ${expanded.size} global(s)`,

@@ -82,9 +82,6 @@ describe('gjsify pack — files allowlist overrides .gitignore', () => {
         assert.ok(entries.includes('src/index.ts'), 'src/index.ts must be packed');
         assert.ok(entries.includes('package.json'), 'package.json always included');
         // node_modules must NEVER ship, even nested under an allowlisted dir.
-        assert.ok(
-            !entries.some((e) => e.includes('node_modules')),
-            'node_modules must be excluded from the tarball',
-        );
+        assert.ok(!entries.some((e) => e.includes('node_modules')), 'node_modules must be excluded from the tarball');
     });
 });

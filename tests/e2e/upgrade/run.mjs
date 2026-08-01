@@ -312,15 +312,12 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     it('workspace mode: --check exits non-zero on inconsistency', async () => {
         const root = scaffoldMonorepo('mono-check-fail');
-        await assert.rejects(
-            runCli(['--check'], { cwd: root }),
-            (err) => {
-                assert.equal(err.code, 1);
-                assert.match(err.stderr ?? '', /lib-a/);
-                assert.match(err.stderr ?? '', /declared at inconsistent ranges/);
-                return true;
-            },
-        );
+        await assert.rejects(runCli(['--check'], { cwd: root }), (err) => {
+            assert.equal(err.code, 1);
+            assert.match(err.stderr ?? '', /lib-a/);
+            assert.match(err.stderr ?? '', /declared at inconsistent ranges/);
+            return true;
+        });
     });
 
     it('workspace mode: --check exits 0 when all consistent', async () => {
@@ -361,9 +358,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         // lib-a was ^1.0.0 (alpha, beta) + ^0.9.0 (gamma) → align to highest = ^1.0.0
         assert.match(out, /aligning 1 inconsistent dep/);
         assert.match(out, /lib-a/);
-        const gamma = JSON.parse(
-            readFileSync(join(root, 'packages', 'gamma', 'package.json'), 'utf-8'),
-        );
+        const gamma = JSON.parse(readFileSync(join(root, 'packages', 'gamma', 'package.json'), 'utf-8'));
         assert.equal(gamma.dependencies['lib-a'], '^1.0.0');
     });
 

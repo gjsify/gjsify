@@ -70,7 +70,12 @@ function parseArgs(argv) {
         // Ledger of packages whose `--app browser` build is KNOWN broken: they
         // are still attempted (so a fix is noticed) but do not fail the run.
         // Accepts a repeated flag and/or a comma/space-separated list.
-        else if (a === '--known-broken') opts.knownBroken.push(...String(argv[++i] ?? '').split(/[\s,]+/).filter(Boolean));
+        else if (a === '--known-broken')
+            opts.knownBroken.push(
+                ...String(argv[++i] ?? '')
+                    .split(/[\s,]+/)
+                    .filter(Boolean),
+            );
     }
     return opts;
 }

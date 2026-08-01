@@ -23,22 +23,22 @@
 // covered separately in dbus.test.mjs.
 
 export const EXPECTED = {
-  surface: {
-    GetIdSync: 'function',
-    GetIdRemote: 'function',
-    GetIdAsync: 'function',
-    NameHasOwnerSync: 'function',
-    ListNamesSync: 'function',
-    connectSignal: 'function',
-    disconnectSignal: 'function',
-  },
-  getIdSyncHex: true,
-  hasOwnerBefore: false,
-  hasOwnerAfter: true,
-  getIdRemoteHex: true,
-  listNamesHasDBus: true,
-  signalReceived: [true, true],
-  acquiredFired: true,
+    surface: {
+        GetIdSync: 'function',
+        GetIdRemote: 'function',
+        GetIdAsync: 'function',
+        NameHasOwnerSync: 'function',
+        ListNamesSync: 'function',
+        connectSignal: 'function',
+        disconnectSignal: 'function',
+    },
+    getIdSyncHex: true,
+    hasOwnerBefore: false,
+    hasOwnerAfter: true,
+    getIdRemoteHex: true,
+    listNamesHasDBus: true,
+    signalReceived: [true, true],
+    acquiredFired: true,
 };
 
 const DBUS_XML = `<node>
@@ -61,63 +61,71 @@ const HEX32 = /^[0-9a-f]{32}$/;
  * @returns {object}
  */
 export function runScenario({ Gio, GLib }) {
-  const uniqueName = `org.gjsify.nodegi.DBusTest.p${(typeof process !== 'undefined' && process.pid) || 0}n${Math.floor(Math.random() * 1e6)}`;
+    const uniqueName = `org.gjsify.nodegi.DBusTest.p${(typeof process !== 'undefined' && process.pid) || 0}n${Math.floor(Math.random() * 1e6)}`;
 
-  const ProxyClass = Gio.DBusProxy.makeProxyWrapper(DBUS_XML);
-  const proxy = new ProxyClass(Gio.DBus.session, 'org.freedesktop.DBus', '/org/freedesktop/DBus');
+    const ProxyClass = Gio.DBusProxy.makeProxyWrapper(DBUS_XML);
+    const proxy = new ProxyClass(Gio.DBus.session, 'org.freedesktop.DBus', '/org/freedesktop/DBus');
 
-  const result = {
-    surface: {},
-    getIdSyncHex: null,
-    hasOwnerBefore: null,
-    hasOwnerAfter: null,
-    getIdRemoteHex: null,
-    listNamesHasDBus: null,
-    signalReceived: null,
-    acquiredFired: false,
-  };
-  for (const k of ['GetIdSync', 'GetIdRemote', 'GetIdAsync', 'NameHasOwnerSync', 'ListNamesSync', 'connectSignal', 'disconnectSignal']) {
-    result.surface[k] = typeof proxy[k];
-  }
-
-  const [id] = proxy.GetIdSync();
-  result.getIdSyncHex = HEX32.test(id);
-  result.hasOwnerBefore = proxy.NameHasOwnerSync(uniqueName)[0];
-
-  const loop = GLib.MainLoop.new(null, false);
-
-  const handlerId = proxy.connectSignal('NameOwnerChanged', (_proxy, _senderName, args) => {
-    if (args[0] === uniqueName) {
-      // [old owner was empty, new owner is non-empty] → we just acquired it.
-      result.signalReceived = [args[1] === '', args[2] !== ''];
+    const result = {
+        surface: {},
+        getIdSyncHex: null,
+        hasOwnerBefore: null,
+        hasOwnerAfter: null,
+        getIdRemoteHex: null,
+        listNamesHasDBus: null,
+        signalReceived: null,
+        acquiredFired: false,
+    };
+    for (const k of [
+        'GetIdSync',
+        'GetIdRemote',
+        'GetIdAsync',
+        'NameHasOwnerSync',
+        'ListNamesSync',
+        'connectSignal',
+        'disconnectSignal',
+    ]) {
+        result.surface[k] = typeof proxy[k];
     }
-  });
 
-  Gio.DBus.own_name(
-    Gio.BusType.SESSION,
-    uniqueName,
-    Gio.BusNameOwnerFlags.NONE,
-    null,
-    () => {
-      result.acquiredFired = true;
-    },
-    null,
-  );
+    const [id] = proxy.GetIdSync();
+    result.getIdSyncHex = HEX32.test(id);
+    result.hasOwnerBefore = proxy.NameHasOwnerSync(uniqueName)[0];
 
-  // Give the async name acquisition + signal delivery a moment, then finish the
-  // round-trip with an array method + a raw-callback async method, and quit.
-  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
-    result.hasOwnerAfter = proxy.NameHasOwnerSync(uniqueName)[0];
-    const names = proxy.ListNamesSync()[0];
-    result.listNamesHasDBus = Array.isArray(names) && names.includes('org.freedesktop.DBus');
-    proxy.GetIdRemote((res, err) => {
-      result.getIdRemoteHex = !err && HEX32.test(res[0]);
-      proxy.disconnectSignal(handlerId);
-      loop.quit();
+    const loop = GLib.MainLoop.new(null, false);
+
+    const handlerId = proxy.connectSignal('NameOwnerChanged', (_proxy, _senderName, args) => {
+        if (args[0] === uniqueName) {
+            // [old owner was empty, new owner is non-empty] → we just acquired it.
+            result.signalReceived = [args[1] === '', args[2] !== ''];
+        }
     });
-    return false; // G_SOURCE_REMOVE
-  });
 
-  loop.run();
-  return result;
+    Gio.DBus.own_name(
+        Gio.BusType.SESSION,
+        uniqueName,
+        Gio.BusNameOwnerFlags.NONE,
+        null,
+        () => {
+            result.acquiredFired = true;
+        },
+        null,
+    );
+
+    // Give the async name acquisition + signal delivery a moment, then finish the
+    // round-trip with an array method + a raw-callback async method, and quit.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+        result.hasOwnerAfter = proxy.NameHasOwnerSync(uniqueName)[0];
+        const names = proxy.ListNamesSync()[0];
+        result.listNamesHasDBus = Array.isArray(names) && names.includes('org.freedesktop.DBus');
+        proxy.GetIdRemote((res, err) => {
+            result.getIdRemoteHex = !err && HEX32.test(res[0]);
+            proxy.disconnectSignal(handlerId);
+            loop.quit();
+        });
+        return false; // G_SOURCE_REMOVE
+    });
+
+    loop.run();
+    return result;
 }

@@ -16,7 +16,11 @@ import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
-import { GJS_GLOBALS_MAP, GJS_GLOBALS_GROUPS, REVERSE_BRIDGE_NATIVE_OVERRIDE_IDENTS } from '@gjsify/resolve-npm/globals-map';
+import {
+    GJS_GLOBALS_MAP,
+    GJS_GLOBALS_GROUPS,
+    REVERSE_BRIDGE_NATIVE_OVERRIDE_IDENTS,
+} from '@gjsify/resolve-npm/globals-map';
 import { ALIASES_WEB_FOR_GJS } from '@gjsify/resolve-npm';
 
 const GLOBALS_MAP: Record<string, string> = GJS_GLOBALS_MAP;
@@ -154,10 +158,7 @@ export function isRegisterPathResolvable(registerPath: string, fromDir: string):
  * dep, and that polyfill is not a direct/transitive dep, the warn makes
  * the gap visible so the developer can add the dep explicitly.
  */
-export function filterResolvableRegisterPaths(
-    registerPaths: Set<string>,
-    fromDir: string,
-): Set<string> {
+export function filterResolvableRegisterPaths(registerPaths: Set<string>, fromDir: string): Set<string> {
     const out = new Set<string>();
     for (const p of registerPaths) {
         if (isRegisterPathResolvable(p, fromDir)) {
@@ -165,8 +166,8 @@ export function filterResolvableRegisterPaths(
         } else {
             console.warn(
                 `[gjsify] --globals auto: skipping register import '${p}' — ` +
-                `package '${packageNameFromRegisterPath(p)}' is not installed in this project. ` +
-                `If you need this global, add the package as a dependency or use --exclude-globals to suppress this warning.`,
+                    `package '${packageNameFromRegisterPath(p)}' is not installed in this project. ` +
+                    `If you need this global, add the package as a dependency or use --exclude-globals to suppress this warning.`,
             );
         }
     }

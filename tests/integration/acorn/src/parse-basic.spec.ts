@@ -14,7 +14,9 @@ const PARSE_OPTS = { ecmaVersion: 2024 as const, sourceType: 'module' as const }
 // Utility: navigate acorn AST nodes without `any` — all nodes share the
 // `type` discriminant and further fields vary by node kind.
 // Using `AnyNode` (the union of all acorn node types) for intermediate values.
-function node(n: AnyNode | Program | null | undefined): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
+function node(
+    n: AnyNode | Program | null | undefined,
+): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
     return n as unknown as Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined>;
 }
 
@@ -141,7 +143,7 @@ export default async () => {
         await it('parseExpressionAt extracts an expression from an offset', async () => {
             const src = '/* lead */ 1 + 2 * 3';
             const expr = node(parseExpressionAt(src, 11, PARSE_OPTS));
-            expect((parseExpressionAt(src, 11, PARSE_OPTS)).type).toBe('BinaryExpression');
+            expect(parseExpressionAt(src, 11, PARSE_OPTS).type).toBe('BinaryExpression');
             expect(expr.operator).toBe('+');
             expect(node(expr.right as AnyNode).type).toBe('BinaryExpression');
             expect(node(expr.right as AnyNode).operator).toBe('*');

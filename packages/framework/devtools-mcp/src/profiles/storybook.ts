@@ -53,12 +53,7 @@ export function registerStorybookTools(ctx: McpToolContext): void {
         },
         async ({ title, instance }) => {
             try {
-                const reply = await client.control(
-                    instance,
-                    'OpenStory',
-                    GLib.Variant.new_tuple([strv(title)]),
-                    '(b)',
-                );
+                const reply = await client.control(instance, 'OpenStory', GLib.Variant.new_tuple([strv(title)]), '(b)');
                 const [opened] = reply.recursiveUnpack() as [boolean];
                 return ok(opened ? `Opened "${title}".` : `No story titled "${title}".`);
             } catch (error) {
@@ -70,7 +65,8 @@ export function registerStorybookTools(ctx: McpToolContext): void {
     server.registerTool(
         'set_story_arg',
         {
-            description: "Set one arg on the active story (drives the same path as the control panel; the row refreshes).",
+            description:
+                'Set one arg on the active story (drives the same path as the control panel; the row refreshes).',
             inputSchema: z.object({
                 name: z.string(),
                 value: z.union([z.string(), z.number(), z.boolean(), z.null()]),

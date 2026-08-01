@@ -172,8 +172,11 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             mkdirSync(dir, { recursive: true });
             writeFileSync(
                 join(dir, 'package.json'),
-                JSON.stringify({ name, version: '1.0.0', type: 'module', main: 'index.js', files: ['index.js'] }, null, 2) +
-                    '\n',
+                JSON.stringify(
+                    { name, version: '1.0.0', type: 'module', main: 'index.js', files: ['index.js'] },
+                    null,
+                    2,
+                ) + '\n',
             );
             writeFileSync(join(dir, 'index.js'), 'export const ok = true;\n');
         };
@@ -273,7 +276,10 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             const publishedNames = publishPuts.map((p) => p.name).sort();
             assert.deepEqual(publishedNames, ['@onb/unpublished-a', '@onb/unpublished-b']);
             // Every publish carried the shared OTP.
-            assert.ok(publishPuts.every((p) => p.otp === OTP_CODE), 'every publish PUT must carry the shared OTP');
+            assert.ok(
+                publishPuts.every((p) => p.otp === OTP_CODE),
+                'every publish PUT must carry the shared OTP',
+            );
 
             // Trust was configured for the two new ones + the untrusted one, NOT the done one.
             const trustedNames = trustPosts.map((p) => p.name).sort();

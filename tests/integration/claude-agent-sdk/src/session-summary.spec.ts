@@ -110,10 +110,7 @@ export default async () => {
 
             await it('works with entries that have no uuid field', async () => {
                 const key = makeKey();
-                const entries: SessionStoreEntry[] = [
-                    { type: 'title' },
-                    { type: 'tag', tag: 'important' },
-                ];
+                const entries: SessionStoreEntry[] = [{ type: 'title' }, { type: 'tag', tag: 'important' }];
                 const summary = foldSessionSummary(undefined, key, entries, { mtime: 1 });
                 expect(summary.sessionId).toBe(SESSION_ID);
             });

@@ -247,11 +247,10 @@ describe('gjsify install — version-conflict warning (ADR 0001 step 3)', { time
         assert.ok(line.includes('@fixture/ws-a'), `warning must attribute ^1.0.0 to @fixture/ws-a: ${line}`);
         assert.ok(line.includes('@fixture/ws-b'), `warning must attribute ^2.0.0 to @fixture/ws-b: ${line}`);
         // The violated range must be flagged as unsatisfied, next to its requester.
-        const loser = installed.version.startsWith('2.') ? '^1.0.0 (requested by @fixture/ws-a)' : '^2.0.0 (requested by @fixture/ws-b)';
-        assert.ok(
-            line.includes(`does NOT satisfy ${loser}`),
-            `warning must flag the violated range ${loser}: ${line}`,
-        );
+        const loser = installed.version.startsWith('2.')
+            ? '^1.0.0 (requested by @fixture/ws-a)'
+            : '^2.0.0 (requested by @fixture/ws-b)';
+        assert.ok(line.includes(`does NOT satisfy ${loser}`), `warning must flag the violated range ${loser}: ${line}`);
     });
 
     it('does NOT warn for compatible ranges of the same package', () => {

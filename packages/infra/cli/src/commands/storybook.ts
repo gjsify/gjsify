@@ -116,7 +116,8 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
                 type: 'string',
             })
             .option('app-id', {
-                description: 'GApplication id (default: gjsify.storybook.applicationId or derived from the package name)',
+                description:
+                    'GApplication id (default: gjsify.storybook.applicationId or derived from the package name)',
                 type: 'string',
             })
             .option('title', { description: 'Window title', type: 'string' })
@@ -145,7 +146,11 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
                 type: 'boolean',
                 default: false,
             })
-            .option('build-only', { description: 'Build the bundle but do not launch it', type: 'boolean', default: false }),
+            .option('build-only', {
+                description: 'Build the bundle but do not launch it',
+                type: 'boolean',
+                default: false,
+            }),
     handler: async (args) => {
         const cwd = process.cwd();
         const pkg = readPackage(cwd);

@@ -12,11 +12,7 @@
 //
 // Original implementation.
 
-import {
-    type DevtoolsRequest,
-    errResponse,
-    type MethodRegistry,
-} from '@gjsify/devtools-protocol';
+import { type DevtoolsRequest, errResponse, type MethodRegistry } from '@gjsify/devtools-protocol';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
 import { createNativescriptRegistry, type NsDevtoolsContext, type NsDevtoolsExtension } from './handlers.js';
 import type { NsApplicationLike, NsFrameLike } from './view-tree.js';
@@ -95,9 +91,7 @@ export function createAgent(registry: MethodRegistry, ctx: NsDevtoolsContext): N
             try {
                 req = JSON.parse(reqJson) as DevtoolsRequest;
             } catch {
-                return JSON.stringify(
-                    errResponse({ code: 'invalid-params', message: 'request is not valid JSON' }),
-                );
+                return JSON.stringify(errResponse({ code: 'invalid-params', message: 'request is not valid JSON' }));
             }
             const response = await registry.dispatch(req, { paused: ctx.paused?.() ?? false });
             return JSON.stringify(response);

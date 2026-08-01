@@ -99,7 +99,17 @@ function build(app, outfile) {
 // lifecycle lines: a headless GTK/dbus session prints assorted portal / a11y /
 // gvfs warnings to stdout+stderr that vary by host, so the assertion is on the
 // app's own deterministic lines (each carries a known prefix), not the raw stream.
-const GOLDEN_PREFIXES = ['gtk-dual:', 'activated', 'child:', 'title:', 'css:', 'action:', 'quit', 'done', 'activate-error:'];
+const GOLDEN_PREFIXES = [
+    'gtk-dual:',
+    'activated',
+    'child:',
+    'title:',
+    'css:',
+    'action:',
+    'quit',
+    'done',
+    'activate-error:',
+];
 function run(cmd, args) {
     const raw = exec(cmd, args, 60 * 1000, RUN_ENV);
     return raw
@@ -121,9 +131,7 @@ function writeRuntimeTwin() {
         (_m, ident, ns, ver) => `const ${ident} = requireGi('${ns}', '${ver}');`,
     );
     const body =
-        "import '@gjsify/node-gi/globals';\n" +
-        "import { requireGi } from '@gjsify/node-gi/gi';\n" +
-        rewritten;
+        "import '@gjsify/node-gi/globals';\n" + "import { requireGi } from '@gjsify/node-gi/gi';\n" + rewritten;
     mkdirSync(join(here, 'dist'), { recursive: true });
     const out = join(here, 'dist', 'app.node-runtime.mjs');
     writeFileSync(out, body);

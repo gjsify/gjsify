@@ -190,9 +190,10 @@ function repointMistargetedCoreAlias(config: UserConfig): void {
     let realRoot: string;
     try {
         const req = createRequire(import.meta.url);
-        realRoot = dirname(
-            req.resolve('@nativescript/core/package.json', { paths: [process.cwd()] }),
-        ).replace(/\\/g, '/');
+        realRoot = dirname(req.resolve('@nativescript/core/package.json', { paths: [process.cwd()] })).replace(
+            /\\/g,
+            '/',
+        );
     } catch {
         return; // @nativescript/core not resolvable from the project — leave config as-is
     }
@@ -376,7 +377,10 @@ function collectNamedImports(root: string, spec: string): string[] {
                 re.lastIndex = 0;
                 while ((m = re.exec(code)) !== null) {
                     for (const raw of m[1].split(',')) {
-                        const imported = raw.trim().split(/\s+as\s+/)[0]?.trim();
+                        const imported = raw
+                            .trim()
+                            .split(/\s+as\s+/)[0]
+                            ?.trim();
                         if (imported && /^[A-Za-z_$][\w$]*$/.test(imported)) names.add(imported);
                     }
                 }
@@ -441,11 +445,7 @@ function stubMissingFrameworkPeers(): void {
     }
 
     registerHooks({
-        resolve(
-            specifier: string,
-            context: unknown,
-            nextResolve: (s: string, c: unknown) => unknown,
-        ): unknown {
+        resolve(specifier: string, context: unknown, nextResolve: (s: string, c: unknown) => unknown): unknown {
             if (missingSet.has(specifier)) {
                 return { url: STUB_PEER_SCHEME + encodeURIComponent(specifier), shortCircuit: true };
             }

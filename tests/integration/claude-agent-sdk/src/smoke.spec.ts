@@ -9,12 +9,7 @@
 // No Claude API key is needed — these tests exercise pure-JS exports only.
 
 import { describe, expect, it } from '@gjsify/unit';
-import {
-    AbortError,
-    EXIT_REASONS,
-    HOOK_EVENTS,
-    SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
-} from '@anthropic-ai/claude-agent-sdk';
+import { AbortError, EXIT_REASONS, HOOK_EVENTS, SYSTEM_PROMPT_DYNAMIC_BOUNDARY } from '@anthropic-ai/claude-agent-sdk';
 
 export default async () => {
     await describe('@anthropic-ai/claude-agent-sdk — smoke', async () => {

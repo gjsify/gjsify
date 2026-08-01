@@ -1122,9 +1122,7 @@ const printRuntime = async () => {
 
 export const run = async (
     namespaces: Namespaces,
-    options?:
-        | { timeout?: number; testTimeout?: number; suiteTimeout?: number; skip?: Record<string, string> }
-        | number,
+    options?: { timeout?: number; testTimeout?: number; suiteTimeout?: number; skip?: Record<string, string> } | number,
 ) => {
     applyEnvOverrides();
     runStartTime = now();

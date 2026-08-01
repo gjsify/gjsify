@@ -30,13 +30,27 @@ export interface StatFields {
 /** Shared `is*` mixin used by `Stats`, `BigIntStats`, and `Dirent`. */
 abstract class KindTests {
     protected abstract _kind(): NodeKind;
-    isFile(): boolean { return this._kind() === 'file'; }
-    isDirectory(): boolean { return this._kind() === 'dir'; }
-    isSymbolicLink(): boolean { return this._kind() === 'symlink'; }
-    isBlockDevice(): boolean { return false; }
-    isCharacterDevice(): boolean { return false; }
-    isFIFO(): boolean { return false; }
-    isSocket(): boolean { return false; }
+    isFile(): boolean {
+        return this._kind() === 'file';
+    }
+    isDirectory(): boolean {
+        return this._kind() === 'dir';
+    }
+    isSymbolicLink(): boolean {
+        return this._kind() === 'symlink';
+    }
+    isBlockDevice(): boolean {
+        return false;
+    }
+    isCharacterDevice(): boolean {
+        return false;
+    }
+    isFIFO(): boolean {
+        return false;
+    }
+    isSocket(): boolean {
+        return false;
+    }
 }
 
 export class Stats extends KindTests {
@@ -79,7 +93,9 @@ export class Stats extends KindTests {
         this.ctime = new Date(f.ctimeMs);
         this.birthtime = new Date(f.birthtimeMs);
     }
-    protected _kind(): NodeKind { return this.kind; }
+    protected _kind(): NodeKind {
+        return this.kind;
+    }
 }
 
 export class BigIntStats extends KindTests {
@@ -130,7 +146,9 @@ export class BigIntStats extends KindTests {
         this.ctime = new Date(f.ctimeMs);
         this.birthtime = new Date(f.birthtimeMs);
     }
-    protected _kind(): NodeKind { return this.kind; }
+    protected _kind(): NodeKind {
+        return this.kind;
+    }
 }
 
 export class Dirent extends KindTests {
@@ -146,7 +164,9 @@ export class Dirent extends KindTests {
         this.path = parentPath;
         this.kind = kind;
     }
-    protected _kind(): NodeKind { return this.kind; }
+    protected _kind(): NodeKind {
+        return this.kind;
+    }
 }
 
 /** mode bits for a `kind`, OR'd with the user-supplied permission bits. */

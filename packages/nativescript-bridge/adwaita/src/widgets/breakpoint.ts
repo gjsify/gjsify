@@ -22,11 +22,7 @@ import type { AdwBreakpoint, BreakpointSize } from '@gjsify/adwaita-core';
 
 // Re-export the headless surface so existing consumers keep importing it from
 // `@gjsify/adwaita-nativescript` unchanged.
-export {
-    AdwBreakpoint,
-    evaluateBreakpointCondition,
-    parseBreakpointCondition,
-} from '@gjsify/adwaita-core';
+export { AdwBreakpoint, evaluateBreakpointCondition, parseBreakpointCondition } from '@gjsify/adwaita-core';
 export type {
     AdwBreakpointHandlers,
     BreakpointBound,

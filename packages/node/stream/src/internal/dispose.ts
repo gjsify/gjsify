@@ -40,10 +40,7 @@ function createAbortError(): Error {
  * stream from a cleanly completed one — then resolve once it has fully closed.
  * Only an error *other* than the one we injected rejects the dispose.
  */
-export async function streamAsyncDispose(
-    stream: Readable_ | Writable_,
-    alreadyEnded: boolean,
-): Promise<void> {
+export async function streamAsyncDispose(stream: Readable_ | Writable_, alreadyEnded: boolean): Promise<void> {
     let injected: Error | undefined;
     if (!stream.destroyed) {
         injected = alreadyEnded ? undefined : createAbortError();

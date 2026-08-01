@@ -100,17 +100,9 @@ type LookupAddress = { address: string; family: 4 | 6 };
 // (no overload tuple) so the structural callback shape matches every Node-typed
 // consumer — overload-narrowed signatures clash with the W3C/Node `(err, addr,
 // family) | (err, addrs[])` union the audit's strict-probe expects.
-type LookupCb = (
-    err: ErrnoLike | null,
-    addressOrAddresses: string | LookupAddress[],
-    family?: number,
-) => void;
+type LookupCb = (err: ErrnoLike | null, addressOrAddresses: string | LookupAddress[], family?: number) => void;
 
-export function lookup(
-    hostname: string,
-    optsOrCb: number | LookupOptions | LookupCb,
-    cb?: LookupCb,
-): void {
+export function lookup(hostname: string, optsOrCb: number | LookupOptions | LookupCb, cb?: LookupCb): void {
     let opts: LookupOptions = {};
     let callback = cb;
     if (typeof optsOrCb === 'function') {
@@ -159,10 +151,7 @@ export function lookupService(
 }
 
 function _throwingAsync(syscall: string) {
-    return (
-        hostname: string,
-        cb?: (err: ErrnoLike | null, result?: unknown) => void,
-    ): void => {
+    return (hostname: string, cb?: (err: ErrnoLike | null, result?: unknown) => void): void => {
         const fn = typeof cb === 'function' ? cb : undefined;
         if (!fn) {
             // Node's API requires a callback — mirror its TypeError.
@@ -197,8 +186,7 @@ export const getDefaultResultOrder = (): 'verbatim' => 'verbatim';
 // ─── Promises surface ────────────────────────────────────────────────────
 
 function _throwingPromise(syscall: string) {
-    return (hostname?: string): Promise<never> =>
-        Promise.reject(makeNotSupported(syscall, hostname));
+    return (hostname?: string): Promise<never> => Promise.reject(makeNotSupported(syscall, hostname));
 }
 
 export const promises = {

@@ -25,7 +25,14 @@ print('LineCap.ROUND:', cairo.LineCap.ROUND);
 const W = 64;
 const H = 48;
 const surface = new cairo.ImageSurface(cairo.Format.ARGB32, W, H);
-print('surface:', surface.getWidth() + 'x' + surface.getHeight(), 'stride', surface.getStride(), 'format', surface.getFormat());
+print(
+    'surface:',
+    surface.getWidth() + 'x' + surface.getHeight(),
+    'stride',
+    surface.getStride(),
+    'format',
+    surface.getFormat(),
+);
 print('surface type:', surface.getType());
 
 const cr = new cairo.Context(surface);
@@ -118,9 +125,9 @@ print('dash count:', cr3.getDashCount());
 cr3.setDash([1, undefined, 2], 0);
 print('dash count skip-undefined:', cr3.getDashCount());
 try {
-  cr3.setDash([1, -1], 0);
+    cr3.setDash([1, -1], 0);
 } catch (e) {
-  print('dash error:', e.message);
+    print('dash error:', e.message);
 }
 cr3.setDash([], 0);
 print('dash count off:', cr3.getDashCount());

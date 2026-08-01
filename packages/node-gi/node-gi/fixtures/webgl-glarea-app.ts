@@ -80,7 +80,9 @@ app.connect('activate', () => {
             const ctx = area.get_context();
             const [major, minor] = ctx ? ctx.get_version() : [0, 0];
             const es32 = major > 3 || (major === 3 && minor >= 2);
-            print(`realize: context ${ctx ? 'non-null' : 'NULL'} es=${ctx ? ctx.get_use_es() : false} version>=3.2 ${es32}`);
+            print(
+                `realize: context ${ctx ? 'non-null' : 'NULL'} es=${ctx ? ctx.get_use_es() : false} version>=3.2 ${es32}`,
+            );
             // THE headline probe: is the GLArea's GL context CURRENT for JS?
             const current = Gdk.GLContext.get_current();
             print(`realize: current ${current !== null ? 'yes' : 'NO'}`);
@@ -102,7 +104,9 @@ app.connect('activate', () => {
             printerr(`[webgl-glarea] GL_RENDERER=${renderer}`);
             printerr(`[webgl-glarea] GL_VENDOR=${vendor}`);
             printerr(`[webgl-glarea] GLSL=${glsl}`);
-            print(`gl-strings: ${version.length > 0 && renderer.length > 0 && vendor.length > 0 && glsl.length > 0 ? 'ok' : 'EMPTY'}`);
+            print(
+                `gl-strings: ${version.length > 0 && renderer.length > 0 && vendor.length > 0 && glsl.length > 0 ? 'ok' : 'EMPTY'}`,
+            );
 
             // GVariant-returning method round-trip (the webgl-context-base.ts
             // getParameterx path).

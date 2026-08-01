@@ -188,7 +188,9 @@ export class TransformStreamDefaultController {
 // ---- Brand checks ----
 
 export const isTransformStream = isBrandCheck<TransformStream>('TransformStream');
-export const isTransformStreamDefaultController = isBrandCheck<TransformStreamDefaultController>('TransformStreamDefaultController');
+export const isTransformStreamDefaultController = isBrandCheck<TransformStreamDefaultController>(
+    'TransformStreamDefaultController',
+);
 
 // ---- Internal functions ----
 
@@ -328,7 +330,10 @@ function transformStreamDefaultControllerError(controller: TransformStreamDefaul
     transformStreamError(controller[kState].stream, error);
 }
 
-async function transformStreamDefaultControllerPerformTransform(controller: TransformStreamDefaultController, chunk: unknown): Promise<void> {
+async function transformStreamDefaultControllerPerformTransform(
+    controller: TransformStreamDefaultController,
+    chunk: unknown,
+): Promise<void> {
     try {
         const transformAlgorithm = controller[kState].transformAlgorithm;
         if (transformAlgorithm === undefined) return;
@@ -375,7 +380,10 @@ async function transformStreamDefaultSinkAbortAlgorithm(stream: TransformStream,
             if (readable[kState].state === 'errored') {
                 reject(readable[kState].storedError);
             } else {
-                readableStreamDefaultControllerError(readable[kState].controller as ReadableStreamDefaultController, reason);
+                readableStreamDefaultControllerError(
+                    readable[kState].controller as ReadableStreamDefaultController,
+                    reason,
+                );
                 resolve();
             }
         },

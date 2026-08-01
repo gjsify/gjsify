@@ -99,9 +99,7 @@ export default async () => {
             }
             expect(collected).toStrictEqual([0, 1, 2, 3]);
             // And the materialized toArray() agrees.
-            const viaToArray = arr
-                .toArray()
-                .map((m) => m.get('i') as number);
+            const viaToArray = arr.toArray().map((m) => m.get('i') as number);
             expect(viaToArray).toStrictEqual([0, 1, 2, 3]);
         });
 
@@ -118,12 +116,7 @@ export default async () => {
             const update = Y.encodeStateAsUpdate(doc1);
             const doc2 = new Y.Doc();
             Y.applyUpdate(doc2, update);
-            expect(doc2.getArray('a').toJSON()).toStrictEqual([
-                1,
-                true,
-                'x',
-                { k: 'v' },
-            ]);
+            expect(doc2.getArray('a').toJSON()).toStrictEqual([1, true, 'x', { k: 'v' }]);
         });
     });
 };

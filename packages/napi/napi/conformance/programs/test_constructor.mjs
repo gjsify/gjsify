@@ -19,27 +19,57 @@ export default async function run(h) {
     h.emit('readwrite=2', o.readwriteValue);
 
     // read-only data property → TypeError on write (engine message differs).
-    h.emit('readonly-write!', h.caughtName(() => { o.readonlyValue = 3; }));
+    h.emit(
+        'readonly-write!',
+        h.caughtName(() => {
+            o.readonlyValue = 3;
+        }),
+    );
     h.emit('hiddenValue.truthy', !!o.hiddenValue);
 
     // napi_enumerable attribute reflected in for-in.
     const names = [];
     for (const n in o) names.push(n);
-    for (const k of ['echo', 'readwriteValue', 'readonlyValue', 'hiddenValue', 'readwriteAccessor1', 'readwriteAccessor2', 'readonlyAccessor1', 'readonlyAccessor2'])
+    for (const k of [
+        'echo',
+        'readwriteValue',
+        'readonlyValue',
+        'hiddenValue',
+        'readwriteAccessor1',
+        'readwriteAccessor2',
+        'readonlyAccessor1',
+        'readonlyAccessor2',
+    ])
         h.emit('enum', k, names.includes(k));
 
     // Accessors ignore napi_writable; getter-only throws on write.
     o.readwriteAccessor1 = 1;
     h.emit('rwAccessor1', o.readwriteAccessor1, o.readonlyAccessor1);
-    h.emit('roAccessor1-write!', h.caughtName(() => { o.readonlyAccessor1 = 3; }));
+    h.emit(
+        'roAccessor1-write!',
+        h.caughtName(() => {
+            o.readonlyAccessor1 = 3;
+        }),
+    );
     o.readwriteAccessor2 = 2;
     h.emit('rwAccessor2', o.readwriteAccessor2, o.readonlyAccessor2);
-    h.emit('roAccessor2-write!', h.caughtName(() => { o.readonlyAccessor2 = 3; }));
+    h.emit(
+        'roAccessor2-write!',
+        h.caughtName(() => {
+            o.readonlyAccessor2 = 3;
+        }),
+    );
 
     // Static property lives on the class, not the instance.
     h.emit('static', TestConstructor.staticReadonlyAccessor1, o.staticReadonlyAccessor1);
 
     // NULL-argument matrix for napi_define_class.
     const m = TestConstructor.TestDefineClass();
-    h.emit('TestDefineClass', Object.keys(m).sort().map((k) => `${k}=${m[k]}`).join('|'));
+    h.emit(
+        'TestDefineClass',
+        Object.keys(m)
+            .sort()
+            .map((k) => `${k}=${m[k]}`)
+            .join('|'),
+    );
 }

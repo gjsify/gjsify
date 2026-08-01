@@ -65,9 +65,7 @@ export default async () => {
         });
 
         await it('yields null for a SELECT with no options', async () => {
-            const controls: StoryControl[] = [
-                { name: 'empty', label: 'Empty', type: ControlType.SELECT, options: [] },
-            ];
+            const controls: StoryControl[] = [{ name: 'empty', label: 'Empty', type: ControlType.SELECT, options: [] }];
             expect(argsFromControls(controls)).toStrictEqual({ empty: null });
         });
     });

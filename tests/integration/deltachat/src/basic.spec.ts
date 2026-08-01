@@ -18,9 +18,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-async function withDeltaChat<T>(
-    fn: (dc: ReturnType<typeof startDeltaChat>) => Promise<T>,
-): Promise<T> {
+async function withDeltaChat<T>(fn: (dc: ReturnType<typeof startDeltaChat>) => Promise<T>): Promise<T> {
     const accountsDir = await mkdtemp(join(tmpdir(), 'gjsify-deltachat-basic-'));
     const dc = startDeltaChat(accountsDir, { muteStdErr: true });
     try {
@@ -41,9 +39,7 @@ export default async () => {
                 ];
                 const invalidAddresses = ['email@', 'example.com', 'emai221'];
 
-                const validResults = await Promise.all(
-                    validAddresses.map((email) => dc.rpc.checkEmailValidity(email)),
-                );
+                const validResults = await Promise.all(validAddresses.map((email) => dc.rpc.checkEmailValidity(email)));
                 expect(validResults).not.toContain(false);
 
                 const invalidResults = await Promise.all(
@@ -101,11 +97,7 @@ export default async () => {
                     // Cannot send sync messages to self as we do not have a self address (upstream comment).
                     await dc.rpc.setConfig(accountId, 'sync_msgs', '0');
 
-                    const contactId = await dc.rpc.createContact(
-                        accountId,
-                        'example@delta.chat',
-                        null,
-                    );
+                    const contactId = await dc.rpc.createContact(accountId, 'example@delta.chat', null);
                     expect((await dc.rpc.getContact(accountId, contactId)).isBlocked).toBe(false);
                     await dc.rpc.blockContact(accountId, contactId);
                     expect((await dc.rpc.getContact(accountId, contactId)).isBlocked).toBe(true);

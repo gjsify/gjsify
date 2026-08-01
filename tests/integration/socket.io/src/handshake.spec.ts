@@ -65,7 +65,10 @@ export default async () => {
 
         await it('should allow request if allowRequest returns true', async () => {
             const io = new Server(0, {
-                allowRequest: (_req: IncomingMessage, callback: (err: string | null | undefined, success: boolean) => void) => callback(null, true),
+                allowRequest: (
+                    _req: IncomingMessage,
+                    callback: (err: string | null | undefined, success: boolean) => void,
+                ) => callback(null, true),
                 transports: ['polling', 'websocket'],
             });
 
@@ -78,7 +81,10 @@ export default async () => {
 
         await it('should disallow request if allowRequest returns false', async () => {
             const io = new Server(0, {
-                allowRequest: (_req: IncomingMessage, callback: (err: string | null | undefined, success: boolean) => void) => callback(null, false),
+                allowRequest: (
+                    _req: IncomingMessage,
+                    callback: (err: string | null | undefined, success: boolean) => void,
+                ) => callback(null, false),
                 transports: ['polling', 'websocket'],
             });
 

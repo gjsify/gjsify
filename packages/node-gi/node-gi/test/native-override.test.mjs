@@ -12,21 +12,21 @@ import { test } from 'node:test';
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function loadWith(nativeEnv) {
-  return spawnSync(process.execPath, ['-e', "import('./index.js').then(() => console.log('LOADED'))"], {
-    cwd: pkgRoot,
-    encoding: 'utf8',
-    env: { ...process.env, NODE_GI_NATIVE: nativeEnv },
-  });
+    return spawnSync(process.execPath, ['-e', "import('./index.js').then(() => console.log('LOADED'))"], {
+        cwd: pkgRoot,
+        encoding: 'utf8',
+        env: { ...process.env, NODE_GI_NATIVE: nativeEnv },
+    });
 }
 
 test('NODE_GI_NATIVE=build loads the locally built addon', () => {
-  const res = loadWith('build');
-  assert.equal(res.status, 0, res.stderr);
-  assert.match(res.stdout, /LOADED/);
+    const res = loadWith('build');
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /LOADED/);
 });
 
 test('NODE_GI_NATIVE=<bogus path> fails loudly instead of falling back', () => {
-  const res = loadWith(join(pkgRoot, 'no', 'such', 'node_gi.node'));
-  assert.notEqual(res.status, 0);
-  assert.match(res.stderr, /native addon not found/);
+    const res = loadWith(join(pkgRoot, 'no', 'such', 'node_gi.node'));
+    assert.notEqual(res.status, 0);
+    assert.match(res.stderr, /native addon not found/);
 });

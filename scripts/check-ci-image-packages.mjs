@@ -36,9 +36,12 @@ const BAKED_IMAGE = 'ghcr.io/gjsify/ci-fedora';
 // uses a bare image is a FAILURE, so this cannot rot into a stale list.
 const BARE_IMAGE_LEDGER = {
     'node-gi.yml/arm64': 'runs under QEMU on a foreign arch — needs a multi-arch image build first',
-    'release.yml/node-gi-prebuild-linux': 'ON THE RELEASE PATH — deferred only to avoid editing release.yml while #900 has it open',
-    'release.yml/napi-prebuild-linux': 'ON THE RELEASE PATH — deferred only to avoid editing release.yml while #900 has it open',
-    'prebuilds.yml/build-prebuilds': 'pins fedora:43 while the baked image tracks 43+44 — confirm the pin still matters',
+    'release.yml/node-gi-prebuild-linux':
+        'ON THE RELEASE PATH — deferred only to avoid editing release.yml while #900 has it open',
+    'release.yml/napi-prebuild-linux':
+        'ON THE RELEASE PATH — deferred only to avoid editing release.yml while #900 has it open',
+    'prebuilds.yml/build-prebuilds':
+        'pins fedora:43 while the baked image tracks 43+44 — confirm the pin still matters',
 };
 
 /** Packages a `dnf install` line asks for, with line continuations joined. */

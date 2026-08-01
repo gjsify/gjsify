@@ -29,8 +29,7 @@ function parseCipherName(name: string): ParsedCipherName {
     const match = lower.match(/^aes-(128|192|256)-(cbc|ctr|gcm)$/);
     if (!match) {
         const err: NodeJS.ErrnoException = new Error(
-            `Unsupported cipher in browser builds: ${name}. ` +
-                `Supported: aes-{128,192,256}-{cbc,ctr,gcm}.`,
+            `Unsupported cipher in browser builds: ${name}. ` + `Supported: aes-{128,192,256}-{cbc,ctr,gcm}.`,
         );
         err.code = 'ENOTSUP_CIPHER';
         throw err;
@@ -149,7 +148,9 @@ export class Cipher extends CipherBase {
         }
         this._finalized = true;
         const subtle = getWebSubtle();
-        const cryptoKey = await subtle.importKey('raw', this._key as BufferSource, this._parsed.webMode, false, ['encrypt']);
+        const cryptoKey = await subtle.importKey('raw', this._key as BufferSource, this._parsed.webMode, false, [
+            'encrypt',
+        ]);
         const cipherText = await subtle.encrypt(this._algorithmParams(), cryptoKey, this._allBytes() as BufferSource);
         const buf = Buffer.from(cipherText);
         if (this._parsed.aesMode === 'aes-gcm') {
@@ -187,7 +188,9 @@ export class Decipher extends CipherBase {
         }
         this._finalized = true;
         const subtle = getWebSubtle();
-        const cryptoKey = await subtle.importKey('raw', this._key as BufferSource, this._parsed.webMode, false, ['decrypt']);
+        const cryptoKey = await subtle.importKey('raw', this._key as BufferSource, this._parsed.webMode, false, [
+            'decrypt',
+        ]);
 
         // For GCM, WebCrypto expects ciphertext || tag concatenated; Node API
         // splits the tag via setAuthTag(). Recombine before calling subtle.decrypt.
@@ -246,5 +249,15 @@ export function createDecipher(_algorithm: string, _password: string | Buffer | 
 }
 
 export function getCiphers(): string[] {
-    return ['aes-128-cbc', 'aes-192-cbc', 'aes-256-cbc', 'aes-128-ctr', 'aes-192-ctr', 'aes-256-ctr', 'aes-128-gcm', 'aes-192-gcm', 'aes-256-gcm'];
+    return [
+        'aes-128-cbc',
+        'aes-192-cbc',
+        'aes-256-cbc',
+        'aes-128-ctr',
+        'aes-192-ctr',
+        'aes-256-ctr',
+        'aes-128-gcm',
+        'aes-192-gcm',
+        'aes-256-gcm',
+    ];
 }

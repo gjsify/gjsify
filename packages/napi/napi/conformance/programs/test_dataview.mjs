@@ -16,5 +16,8 @@ export default async function run(h) {
     h.emit('fromJSDataView', dv instanceof DataView);
 
     // Invalid range → RangeError.
-    h.emit('oob-range!', h.caughtName(() => t.CreateDataView(buffer, 10, 200)));
+    h.emit(
+        'oob-range!',
+        h.caughtName(() => t.CreateDataView(buffer, 10, 200)),
+    );
 }

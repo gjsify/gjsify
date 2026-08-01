@@ -3,12 +3,12 @@
 
 /** Result of requiring a GObject-Introspection namespace. */
 export interface RequiredNamespace {
-  /** The namespace name, e.g. "GLib". */
-  namespace: string;
-  /** The resolved typelib version, e.g. "2.0". */
-  version: string;
-  /** Number of top-level introspection infos in the namespace. */
-  infoCount: number;
+    /** The namespace name, e.g. "GLib". */
+    namespace: string;
+    /** The resolved typelib version, e.g. "2.0". */
+    version: string;
+    /** Number of top-level introspection infos in the namespace. */
+    infoCount: number;
 }
 
 /**
@@ -22,16 +22,16 @@ export function listInfoNames(namespace: string): string[];
 
 /** The introspection kind of a top-level namespace member. */
 export type InfoKind =
-  | 'function'
-  | 'object'
-  | 'interface'
-  | 'struct'
-  | 'union'
-  | 'enum'
-  | 'flags'
-  | 'constant'
-  | 'callback'
-  | 'other';
+    | 'function'
+    | 'object'
+    | 'interface'
+    | 'struct'
+    | 'union'
+    | 'enum'
+    | 'flags'
+    | 'constant'
+    | 'callback'
+    | 'other';
 
 /**
  * Classify a top-level namespace member so the L1 wrapper can decide how to
@@ -53,17 +53,14 @@ export function getEnumValues(namespace: string, name: string): Record<string, n
  * For an enum type registered as a GError domain (e.g. `Gio.IOErrorEnum`), report
  * its domain quark name + numeric quark; `null` for a plain enum.
  */
-export function getErrorDomain(
-  namespace: string,
-  name: string,
-): { name: string; quark: number } | null;
+export function getErrorDomain(namespace: string, name: string): { name: string; quark: number } | null;
 
 /**
  * Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so
  * a failed sync call throws a real `GLib.Error` (instanceof, with `.matches()`).
  */
 export function setErrorBuilder(
-  builder: (domainName: string, domainQuark: number, code: number, message: string) => Error,
+    builder: (domainName: string, domainQuark: number, code: number, message: string) => Error,
 ): void;
 
 /** Prepend a directory to the GIRepository typelib search path. */
@@ -106,12 +103,7 @@ export function hasMethod(handle: GObjectHandle, methodName: string): boolean;
  * twin of `Ns.Class.method(...)`. OUT/INOUT params follow {@link callFunction}'s
  * return-tuple convention.
  */
-export function callStaticMethod(
-  namespace: string,
-  typeName: string,
-  methodName: string,
-  args?: unknown[],
-): unknown;
+export function callStaticMethod(namespace: string, typeName: string, methodName: string, args?: unknown[]): unknown;
 
 /**
  * Construct a boxed/plain struct instance — the `new <Struct>()` path (GJS
@@ -133,11 +125,7 @@ export type GObjectHandle = { readonly __nodeGiGObject: unique symbol };
  * properties. Milestone 1: fundamental-typed properties (numbers, booleans,
  * strings, enums/flags).
  */
-export function newObject(
-  namespace: string,
-  typeName: string,
-  props?: Record<string, unknown>,
-): GObjectHandle;
+export function newObject(namespace: string, typeName: string, props?: Record<string, unknown>): GObjectHandle;
 
 /**
  * Opaque handle to a registered GType (from {@link registerClass}). Pass it to
@@ -147,30 +135,30 @@ export type TypeHandle = { readonly __nodeGiGType: unique symbol };
 
 /** A custom GObject property declaration for {@link registerClass}. */
 export interface PropertySpec {
-  /** Property name (canonical, e.g. "my-prop"). */
-  name: string;
-  /** Value type. */
-  type: 'string' | 'boolean' | 'int' | 'uint' | 'int64' | 'uint64' | 'double' | 'float';
-  /** `GParamFlags` bitfield (default `G_PARAM_READWRITE`). */
-  flags?: number;
-  /** Default value (type-appropriate). */
-  default?: string | number | boolean;
-  /** Minimum (numeric types). */
-  minimum?: number;
-  /** Maximum (numeric types). */
-  maximum?: number;
+    /** Property name (canonical, e.g. "my-prop"). */
+    name: string;
+    /** Value type. */
+    type: 'string' | 'boolean' | 'int' | 'uint' | 'int64' | 'uint64' | 'double' | 'float';
+    /** `GParamFlags` bitfield (default `G_PARAM_READWRITE`). */
+    flags?: number;
+    /** Default value (type-appropriate). */
+    default?: string | number | boolean;
+    /** Minimum (numeric types). */
+    minimum?: number;
+    /** Maximum (numeric types). */
+    maximum?: number;
 }
 
 /** A custom GObject signal declaration for {@link registerClass}. */
 export interface SignalSpec {
-  /** Signal name (e.g. "my-signal"). */
-  name: string;
-  /** Parameter types (same vocabulary as {@link PropertySpec.type}, plus "object"). */
-  paramTypes?: string[];
-  /** Return type ("void" by default). */
-  returnType?: string;
-  /** `GSignalFlags` bitfield (default `G_SIGNAL_RUN_LAST`). */
-  flags?: number;
+    /** Signal name (e.g. "my-signal"). */
+    name: string;
+    /** Parameter types (same vocabulary as {@link PropertySpec.type}, plus "object"). */
+    paramTypes?: string[];
+    /** Return type ("void" by default). */
+    returnType?: string;
+    /** `GSignalFlags` bitfield (default `G_SIGNAL_RUN_LAST`). */
+    flags?: number;
 }
 
 /**
@@ -185,23 +173,23 @@ export type VFuncMap = Record<string, (this: GObjectHandle, ...args: unknown[]) 
 
 /** Custom properties, signals + vfunc overrides installed on a {@link registerClass} subtype. */
 export interface RegisterClassOptions {
-  properties?: PropertySpec[];
-  signals?: SignalSpec[];
-  vfuncs?: VFuncMap;
-  /**
-   * A Gtk.Widget composite template. Either inline UI-XML (a `Uint8Array`/Buffer
-   * or a string) installed via `gtk_widget_class_set_template`, or a
-   * `"resource:///…"` path string installed via
-   * `gtk_widget_class_set_template_from_resource`. Installed in the subtype's
-   * `class_init`; `gtk_widget_init_template` runs at construction.
-   */
-  template?: Uint8Array | string;
-  /** `gtk_widget_class_set_css_name` for the subtype (optional). */
-  cssName?: string;
-  /** Template child ids to bind + expose publicly (via `gtk_widget_get_template_child`). */
-  children?: string[];
-  /** Template child ids to bind as internal children + expose privately. */
-  internalChildren?: string[];
+    properties?: PropertySpec[];
+    signals?: SignalSpec[];
+    vfuncs?: VFuncMap;
+    /**
+     * A Gtk.Widget composite template. Either inline UI-XML (a `Uint8Array`/Buffer
+     * or a string) installed via `gtk_widget_class_set_template`, or a
+     * `"resource:///…"` path string installed via
+     * `gtk_widget_class_set_template_from_resource`. Installed in the subtype's
+     * `class_init`; `gtk_widget_init_template` runs at construction.
+     */
+    template?: Uint8Array | string;
+    /** `gtk_widget_class_set_css_name` for the subtype (optional). */
+    cssName?: string;
+    /** Template child ids to bind + expose publicly (via `gtk_widget_get_template_child`). */
+    children?: string[];
+    /** Template child ids to bind as internal children + expose privately. */
+    internalChildren?: string[];
 }
 
 /**
@@ -214,10 +202,10 @@ export interface RegisterClassOptions {
  * parent vtable pointer it displaces, so it can chain up via {@link callParentVfunc}.
  */
 export function registerClass(
-  name: string,
-  parentNamespace: string,
-  parentTypeName: string,
-  options?: RegisterClassOptions,
+    name: string,
+    parentNamespace: string,
+    parentTypeName: string,
+    options?: RegisterClassOptions,
 ): TypeHandle;
 
 /**
@@ -231,11 +219,7 @@ export function registerClass(
  * OUT/INOUT argument (chain-up of those is not yet supported — a catchable throw,
  * never a crash).
  */
-export function callParentVfunc(
-  handle: GObjectHandle,
-  vfuncName: string,
-  args?: unknown[],
-): unknown;
+export function callParentVfunc(handle: GObjectHandle, vfuncName: string, args?: unknown[]): unknown;
 
 /**
  * Construct a GObject of a registered type handle (from {@link registerClass})
@@ -463,10 +447,10 @@ export function setMicrotaskDrain(drain: () => void): void;
  * milestone).
  */
 export function connectSignal(
-  handle: GObjectHandle,
-  signalName: string,
-  callback: (...args: unknown[]) => unknown,
-  after?: boolean,
+    handle: GObjectHandle,
+    signalName: string,
+    callback: (...args: unknown[]) => unknown,
+    after?: boolean,
 ): number;
 
 /** Emit a signal; returns the signal's return value (undefined for void signals). */
@@ -480,10 +464,7 @@ export function disconnectSignal(handle: GObjectHandle, handlerId: number): void
  * name to the instance's bound JS method (engine template-callback scope).
  */
 export function setTemplateCallbackResolver(
-  resolver: (
-    handle: GObjectHandle,
-    handlerName: string,
-  ) => ((...args: unknown[]) => unknown) | undefined,
+    resolver: (handle: GObjectHandle, handlerName: string) => ((...args: unknown[]) => unknown) | undefined,
 ): void;
 
 /**
@@ -494,7 +475,7 @@ export function setTemplateCallbackResolver(
  * process (a second aborts in GLib).
  */
 export function logSetWriterFunc(
-  writer: ((logLevel: number, fields: Record<string, Uint8Array | null>) => number) | null,
+    writer: ((logLevel: number, fields: Record<string, Uint8Array | null>) => number) | null,
 ): void;
 
 /** Route structured logs back to the default writer (GLib.log_set_writer_default). */
@@ -506,13 +487,13 @@ export function logSetWriterDefault(): void;
  * `(binding, sourceValue) => [ok: boolean, targetValue]`. Returns the GBinding handle.
  */
 export function bindPropertyFull(
-  source: GObjectHandle,
-  sourceProperty: string,
-  target: GObjectHandle,
-  targetProperty: string,
-  flags: number,
-  transformTo: ((...args: unknown[]) => unknown) | null,
-  transformFrom: ((...args: unknown[]) => unknown) | null,
+    source: GObjectHandle,
+    sourceProperty: string,
+    target: GObjectHandle,
+    targetProperty: string,
+    flags: number,
+    transformTo: ((...args: unknown[]) => unknown) | null,
+    transformFrom: ((...args: unknown[]) => unknown) | null,
 ): GObjectHandle;
 
 /**
@@ -520,66 +501,66 @@ export function bindPropertyFull(
  * GObject.BindingGroup.bind_full). Same transform contract as {@link bindPropertyFull}.
  */
 export function bindingGroupBindFull(
-  group: GObjectHandle,
-  sourceProperty: string,
-  target: GObjectHandle,
-  targetProperty: string,
-  flags: number,
-  transformTo: ((...args: unknown[]) => unknown) | null,
-  transformFrom: ((...args: unknown[]) => unknown) | null,
+    group: GObjectHandle,
+    sourceProperty: string,
+    target: GObjectHandle,
+    targetProperty: string,
+    flags: number,
+    transformTo: ((...args: unknown[]) => unknown) | null,
+    transformFrom: ((...args: unknown[]) => unknown) | null,
 ): void;
 
 declare const native: {
-  requireNamespace: typeof requireNamespace;
-  listInfoNames: typeof listInfoNames;
-  findInfo: typeof findInfo;
-  getConstantValue: typeof getConstantValue;
-  getEnumValues: typeof getEnumValues;
-  getErrorDomain: typeof getErrorDomain;
-  setErrorBuilder: typeof setErrorBuilder;
-  prependSearchPath: typeof prependSearchPath;
-  callFunction: typeof callFunction;
-  callMethod: typeof callMethod;
-  hasMethod: typeof hasMethod;
-  callStaticMethod: typeof callStaticMethod;
-  constructStruct: typeof constructStruct;
-  newObject: typeof newObject;
-  registerClass: typeof registerClass;
-  constructType: typeof constructType;
-  getTemplateChild: typeof getTemplateChild;
-  getProperty: typeof getProperty;
-  setProperty: typeof setProperty;
-  hasProperty: typeof hasProperty;
-  getTypeName: typeof getTypeName;
-  getGType: typeof getGType;
-  isInstanceOf: typeof isInstanceOf;
-  isGObjectHandle: typeof isGObjectHandle;
-  newGValue: typeof newGValue;
-  callBoxedMethod: typeof callBoxedMethod;
-  isBoxedHandle: typeof isBoxedHandle;
-  boxedMemberKind: typeof boxedMemberKind;
-  getBoxedField: typeof getBoxedField;
-  setBoxedField: typeof setBoxedField;
-  boxedTypeName: typeof boxedTypeName;
-  isParamSpecHandle: typeof isParamSpecHandle;
-  paramSpecProp: typeof paramSpecProp;
-  variantNew: typeof variantNew;
-  variantUnpack: typeof variantUnpack;
-  variantGetTypeString: typeof variantGetTypeString;
-  isVariantHandle: typeof isVariantHandle;
-  startMainLoop: typeof startMainLoop;
-  iterateMainContext: typeof iterateMainContext;
-  mainContextHasPending: typeof mainContextHasPending;
-  makePumpPendingCount: typeof makePumpPendingCount;
-  pumpKick: typeof pumpKick;
-  setMicrotaskDrain: typeof setMicrotaskDrain;
-  connectSignal: typeof connectSignal;
-  emitSignal: typeof emitSignal;
-  disconnectSignal: typeof disconnectSignal;
-  setTemplateCallbackResolver: typeof setTemplateCallbackResolver;
-  logSetWriterFunc: typeof logSetWriterFunc;
-  logSetWriterDefault: typeof logSetWriterDefault;
-  bindPropertyFull: typeof bindPropertyFull;
-  bindingGroupBindFull: typeof bindingGroupBindFull;
+    requireNamespace: typeof requireNamespace;
+    listInfoNames: typeof listInfoNames;
+    findInfo: typeof findInfo;
+    getConstantValue: typeof getConstantValue;
+    getEnumValues: typeof getEnumValues;
+    getErrorDomain: typeof getErrorDomain;
+    setErrorBuilder: typeof setErrorBuilder;
+    prependSearchPath: typeof prependSearchPath;
+    callFunction: typeof callFunction;
+    callMethod: typeof callMethod;
+    hasMethod: typeof hasMethod;
+    callStaticMethod: typeof callStaticMethod;
+    constructStruct: typeof constructStruct;
+    newObject: typeof newObject;
+    registerClass: typeof registerClass;
+    constructType: typeof constructType;
+    getTemplateChild: typeof getTemplateChild;
+    getProperty: typeof getProperty;
+    setProperty: typeof setProperty;
+    hasProperty: typeof hasProperty;
+    getTypeName: typeof getTypeName;
+    getGType: typeof getGType;
+    isInstanceOf: typeof isInstanceOf;
+    isGObjectHandle: typeof isGObjectHandle;
+    newGValue: typeof newGValue;
+    callBoxedMethod: typeof callBoxedMethod;
+    isBoxedHandle: typeof isBoxedHandle;
+    boxedMemberKind: typeof boxedMemberKind;
+    getBoxedField: typeof getBoxedField;
+    setBoxedField: typeof setBoxedField;
+    boxedTypeName: typeof boxedTypeName;
+    isParamSpecHandle: typeof isParamSpecHandle;
+    paramSpecProp: typeof paramSpecProp;
+    variantNew: typeof variantNew;
+    variantUnpack: typeof variantUnpack;
+    variantGetTypeString: typeof variantGetTypeString;
+    isVariantHandle: typeof isVariantHandle;
+    startMainLoop: typeof startMainLoop;
+    iterateMainContext: typeof iterateMainContext;
+    mainContextHasPending: typeof mainContextHasPending;
+    makePumpPendingCount: typeof makePumpPendingCount;
+    pumpKick: typeof pumpKick;
+    setMicrotaskDrain: typeof setMicrotaskDrain;
+    connectSignal: typeof connectSignal;
+    emitSignal: typeof emitSignal;
+    disconnectSignal: typeof disconnectSignal;
+    setTemplateCallbackResolver: typeof setTemplateCallbackResolver;
+    logSetWriterFunc: typeof logSetWriterFunc;
+    logSetWriterDefault: typeof logSetWriterDefault;
+    bindPropertyFull: typeof bindPropertyFull;
+    bindingGroupBindFull: typeof bindingGroupBindFull;
 };
 export default native;

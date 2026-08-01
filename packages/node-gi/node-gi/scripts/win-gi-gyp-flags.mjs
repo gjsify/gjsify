@@ -108,8 +108,7 @@ if (mode === '--includes') {
         // Last resort: locate ffi.h anywhere under the tree and add its dir.
         if (!dirs.some((d) => existsSync(join(d, 'ffi.h')))) {
             const ffiDir =
-                findHeaderDir(join(prefix, 'include'), 'ffi.h') ??
-                findHeaderDir(join(prefix, 'lib'), 'ffi.h');
+                findHeaderDir(join(prefix, 'include'), 'ffi.h') ?? findHeaderDir(join(prefix, 'lib'), 'ffi.h');
             if (ffiDir) dirs.push(ffiDir);
         }
     }
@@ -127,15 +126,7 @@ if (mode === '--includes') {
     //   cairo  the native cairo foreign-struct binding (src/cairo.cc)
     // Pango/GdkPixbuf/Graphene are NOT linked — the conformance programs load their
     // typelibs at RUNTIME (girepository dlopens the DLL by soname), not at link time.
-    const DIRECT_LIBS = [
-        'girepository-2.0',
-        'gio-2.0',
-        'gobject-2.0',
-        'gmodule-2.0',
-        'glib-2.0',
-        'ffi',
-        'cairo',
-    ];
+    const DIRECT_LIBS = ['girepository-2.0', 'gio-2.0', 'gobject-2.0', 'gmodule-2.0', 'glib-2.0', 'ffi', 'cairo'];
     // Locate the import-lib dir: GTK_PREFIX/lib, else pkg-config's -L.
     const searchDirs = [];
     if (process.env.GTK_PREFIX) searchDirs.push(join(process.env.GTK_PREFIX, 'lib'));

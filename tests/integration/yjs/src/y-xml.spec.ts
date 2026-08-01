@@ -86,9 +86,7 @@ export default async () => {
             Y.applyUpdate(doc2, Y.encodeStateAsUpdate(doc1));
             const restored = doc2.getXmlFragment('frag');
             expect(restored.length).toBe(2);
-            const names = restored
-                .toArray()
-                .map((n) => (n instanceof Y.XmlElement ? n.nodeName : '?'));
+            const names = restored.toArray().map((n) => (n instanceof Y.XmlElement ? n.nodeName : '?'));
             expect(names).toStrictEqual(['p', 'p']);
         });
     });

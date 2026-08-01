@@ -142,5 +142,17 @@ export function makeHarness({ loadAddon, write, gc, tick }) {
         for (let i = 0; i < turns; i++) await tickFn();
     }
 
-    return { loadAddon, emit, gc: gcFn, gcUntil, tick: tickFn, drain, assert, caught, caughtName, caughtFull, fmt: fmtArg };
+    return {
+        loadAddon,
+        emit,
+        gc: gcFn,
+        gcUntil,
+        tick: tickFn,
+        drain,
+        assert,
+        caught,
+        caughtName,
+        caughtFull,
+        fmt: fmtArg,
+    };
 }

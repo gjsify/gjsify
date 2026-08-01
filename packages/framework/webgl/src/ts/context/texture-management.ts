@@ -45,7 +45,8 @@ export type { TextureIntrospectionMethods } from './texture-management/introspec
  * compiling.
  */
 export interface TextureManagementMethods
-    extends TextureLifecycleMethods,
+    extends
+        TextureLifecycleMethods,
         TexImage2DMethods,
         CopyAndCompressedTextureMethods,
         TextureParameterMethods,

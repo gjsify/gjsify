@@ -65,8 +65,10 @@ const [firstOk, secondFull] = addon.callPair(() => pairHits++);
 check('coalescing: first nonblocking call is napi_ok', firstOk);
 check('coalescing: second nonblocking call is napi_queue_full', secondFull);
 // The queued item is still delivered before the natural-close finalize.
-check('coalescing: queued item delivered on the loop turn',
-      drainUntil(() => pairHits === 1));
+check(
+    'coalescing: queued item delivered on the loop turn',
+    drainUntil(() => pairHits === 1),
+);
 check('coalescing: delivered exactly once', pairHits === 1);
 
 // ---- leg 2: nonblocking flood from 8 threads + GC churn ----
@@ -75,15 +77,19 @@ const CALLS = Math.max(50, Math.floor(5000 / SCALE));
 addon.resetStats();
 let floodHits = 0;
 addon.start(() => floodHits++, THREADS, CALLS);
-check('flood: all items delivered under GC churn',
-      drainUntil(() => {
-          const [delivered, , finalized] = addon.stats();
-          return delivered === THREADS * CALLS && finalized === 1;
-      }, { gcEvery: 7 }));
+check(
+    'flood: all items delivered under GC churn',
+    drainUntil(
+        () => {
+            const [delivered, , finalized] = addon.stats();
+            return delivered === THREADS * CALLS && finalized === 1;
+        },
+        { gcEvery: 7 },
+    ),
+);
 {
     const [delivered, dropped] = addon.stats();
-    check('flood: exact delivery (no loss, no dupes)',
-          delivered === THREADS * CALLS);
+    check('flood: exact delivery (no loss, no dupes)', delivered === THREADS * CALLS);
     check('flood: JS callback hit for every item', floodHits === delivered);
     check('flood: nothing dropped', dropped === 0);
 }
@@ -93,11 +99,16 @@ addon.resetStats();
 let blockHits = 0;
 const BCALLS = Math.max(20, Math.floor(500 / SCALE));
 addon.startBlocking(() => blockHits++, 4, BCALLS);
-check('blocking: all items delivered through the bounded queue',
-      drainUntil(() => {
-          const [delivered, , finalized] = addon.stats();
-          return delivered === 4 * BCALLS && finalized === 1;
-      }, { gcEvery: 13 }));
+check(
+    'blocking: all items delivered through the bounded queue',
+    drainUntil(
+        () => {
+            const [delivered, , finalized] = addon.stats();
+            return delivered === 4 * BCALLS && finalized === 1;
+        },
+        { gcEvery: 13 },
+    ),
+);
 check('blocking: JS callback hit for every item', blockHits === 4 * BCALLS);
 
 // ---- leg 4: release(abort) racing active producers ----
@@ -112,8 +123,10 @@ while (GLib.get_monotonic_time() < spinUntil) {
     if (++spins % 17 === 0) System.gc();
 }
 addon.abortSpin();
-check('abort: finalizer runs after aborting under load',
-      drainUntil(() => addon.stats()[3] === 1, { gcEvery: 11 }));
+check(
+    'abort: finalizer runs after aborting under load',
+    drainUntil(() => addon.stats()[3] === 1, { gcEvery: 11 }),
+);
 print(`abort: delivered=${addon.stats()[0]} dropped=${addon.stats()[1]} jsHits=${spinHits}`);
 
 // Post-abort settle: any straggler sources must be inert.
