@@ -248,3 +248,22 @@ Libgda does not expose session/changeset, WAL-mode toggles, backup or VFS APIs, 
 ### WebRTC showcases (extended)
 
 `webrtc-loopback` is a published showcase. Open follow-ups: `webrtc-video` could be a second showcase (getUserMedia + media pipeline; needs camera-permission UX — separate workstream); `webrtc-dtmf` / `webrtc-states` / `webrtc-trickle-ice` remain private reference implementations for specific spec behaviors, not end-user showcases.
+
+### Doc-revert detection — a non-conflicting revert of a `main`-only edit
+
+`a9e5ba63d` (on the status-as-data branch) rewrote the AGENTS.md governance
+block against a copy of the file that predated #885's consolidation. Git merged
+it without a conflict, because "replace one line with five" is a legitimate edit
+on a region the other side had already rewritten — the merge base simply had
+neither version. The result silently restored ~5 duplicated paragraphs that #885
+had removed, and nothing in the pipeline could see it: prose has no test, no
+type, and no conformance rule.
+
+The generalisable check is cheap and does not need to understand prose: for each
+line a PR REMOVES, ask whether that exact line was ADDED to the base branch after
+the PR's merge base. A hit means the PR is reverting work it never saw. Real
+reverts and genuine rewrites both trip it, so it must be a warning with an
+explicit acknowledgement path (a `Revert-Of:` trailer, or a label), never a hard
+gate. Cheapest home: a step in the `check` job over `git diff --merge-base`,
+scoped to `*.md` first, since prose is where the class actually bites — source
+regressions of this shape are usually caught by tsc, lint or a test.
