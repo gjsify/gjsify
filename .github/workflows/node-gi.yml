@@ -35,15 +35,10 @@ jobs:
     # libuv↔GLib bridge could hang run(), so cap the job rather than wait 6h.
     timeout-minutes: 20
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      - name: Install toolchain + GObject-Introspection dev headers
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel \
-            dbus-daemon \
-            pango gdk-pixbuf2 dejavu-sans-fonts
           # pango (Pango/PangoCairo typelibs) + gdk-pixbuf2 (GdkPixbuf typelib) back the
           # caller-alloc-struct-out + bytes-in conformance programs; dejavu supplies a
           # real font so Pango layout relations (width > 0) hold deterministically.
@@ -130,7 +125,6 @@ jobs:
       # typelib build a stamped no-op. The rev in the key MUST match PINNED_REV
       # in scripts/build-gi-test-typelibs.mjs.
       - name: Install meson + ninja (typelib oracle build deps)
-        run: dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 meson ninja-build
 
       - name: Cache GI test typelibs (pinned rev)
         uses: actions/cache@v4
@@ -167,13 +161,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      - name: Install toolchain + GObject-Introspection dev headers
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            glib2-devel gobject-introspection-devel gobject-introspection cairo-devel
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
 
       # Official Node builds the addon (node-gyp) and orchestrates the runner, which
@@ -246,15 +237,10 @@ jobs:
     # windows-gtk-storybook capstone (same bundle, both platforms).
     needs: storybook-node-gi-bundle
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      - name: Install toolchain + GTK4/Adwaita + Xvfb + dbus
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip gjs \
-            glib2-devel gobject-introspection-devel gobject-introspection \
-            gtk4-devel libadwaita-devel adwaita-icon-theme gtksourceview5-devel \
-            xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
           gjs --version
           echo "gtk4: $(pkg-config --modversion gtk4)"
           echo "libadwaita: $(pkg-config --modversion libadwaita-1)"
@@ -429,16 +415,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      - name: Install toolchain + GI dev headers + cairo + libgda (Gda-6.0 typelib) + gjs
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            glib2-devel gobject-introspection-devel gobject-introspection gjs \
-            cairo-devel cairo-gobject-devel \
-            libgda libgda-sqlite \
-            libsoup3
           gjs --version
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
           echo "Gda typelib: $(ls /usr/lib64/girepository-1.0/Gda-6.0.typelib 2>/dev/null || echo MISSING)"
@@ -769,9 +749,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      - name: Install toolchain + GI dev headers + cairo + libgda + libsoup + gjs
+      - name: Verify the baked toolchain
         run: |
           # glib-networking = the GIO TLS backend @gjsify/tls runs on;
           # gdk-pixbuf2 = the GdkPixbuf typelib behind @gjsify/dom-elements'
@@ -797,13 +777,6 @@ jobs:
           # still drag graphene/vulkan-loader into a 20-minute job, so promoting
           # it into this proof set is a separate cost decision, not a blocked
           # one.
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            glib2-devel gobject-introspection-devel gobject-introspection gjs \
-            cairo-devel cairo-gobject-devel \
-            libgda libgda-sqlite \
-            libsoup3 glib-networking \
-            gdk-pixbuf2 pango dejavu-sans-fonts
           gjs --version
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
 
@@ -1729,19 +1702,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
       # libsoup3 supplies the Soup-3.0 typelib the committed `cli.gjs.mjs` GJS
       # bundle EAGERLY imports at load (the network commands' fetch chain) — any
       # `gjsify` CLI invocation via the GJS bundle crashes without it, so the
       # `gjsify install` step below needs it (same as the other CLI-running jobs).
-      - name: Install toolchain + gjs + libsoup (Node-free workspace install)
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            glib2-devel gobject-introspection-devel gobject-introspection gjs \
-            cairo-devel cairo-gobject-devel \
-            libsoup3
           gjs --version
 
       # Official nodejs.org build, NOT Fedora's dnf node (which crashes rolldown's
