@@ -58,6 +58,7 @@ import libraryOutputSuite from './utils/library-output.spec.js';
 import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
+import win32CommandSuite from './utils/win32-command.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
 import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
@@ -113,6 +114,7 @@ run({
     suggestSuite,
     runtimesSuite,
     spawnSuite,
+    win32CommandSuite,
     gjsBundleGuardSuite,
     nodeBundleGuardSuite,
     unresolvedWorkspaceImportSuite,
