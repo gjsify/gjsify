@@ -35,14 +35,22 @@ on:
   pull_request:
     paths:
       - '.github/workflows/cli-cross-platform.yml'
-  # A release is the moment this job's answer CHANGES — it measures the PUBLISHED
-  # CLI, so every finding here is about an artifact that already exists. Waiting
-  # for the Monday cron means a platform can be broken for users for up to seven
-  # days before anything notices, which is exactly what happened with the Windows
-  # `EPERM` and the missing node-gi prebuilds: both were live in a published
-  # release, and the weekly run was the only thing that would ever have asked.
-  release:
-    types: [published]
+  # NOT a `release: published` trigger — it cannot fire, and it would be wrong
+  # if it could. Measured on the v0.26.1 cut:
+  #
+  #   1. The release record is created by `release-cut.yml` using GITHUB_TOKEN,
+  #      and GitHub deliberately does not let a token-driven event start further
+  #      workflow runs. This workflow did not run on that release at all. It is
+  #      the same wall #895 hit, which is why `release.yml` is DISPATCHED.
+  #   2. Even firing, it would be too EARLY: this job installs the PUBLISHED
+  #      `@gjsify/cli`, and the release record exists before `release.yml` has
+  #      pushed anything to npm — so it would measure the PREVIOUS version while
+  #      appearing to check the new one. A green run against the wrong artifact
+  #      is the worst of the three outcomes.
+  #
+  # So `release.yml` dispatches this workflow at the END of its publish job,
+  # where the thing being measured actually exists. The cron below stays as the
+  # independent net.
   schedule:
     # Weekly drift check (Mondays 05:00 UTC) so a released regression surfaces
     # even when no release happened — a registry-side or runner-image change can
