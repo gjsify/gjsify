@@ -51,7 +51,7 @@ name: Build Native Prebuilds
 # while checking out the PR's head code — precisely the combination that must
 # not exist in a workflow that contains a job which pushes commits. Plain
 # `pull_request` runs with a token GitHub forces to read-only for fork PRs, and
-# the build legs need nothing more: they pull the PUBLIC `fedora:43` image, so
+# the build legs need nothing more: they pull the PUBLIC `fedora:44` image, so
 # unlike main.yml's private `ghcr.io/gjsify/ci-fedora` they also work on a fork
 # PR. Least privilege backs that up rather than relying on it — see
 # `permissions` below.
@@ -315,7 +315,7 @@ jobs:
     needs: [changes]
     runs-on: ${{ matrix.runner }}
     container:
-      image: fedora:43
+      image: fedora:44
 
     strategy:
       fail-fast: false
@@ -692,9 +692,9 @@ jobs:
   # emulation, registered at a PINNED version (see the step below) and driven
   # by a plain `docker run --platform`.
   #
-  # ppc64 + s390x: fedora:43 has official images for both → same dnf
+  # ppc64 + s390x: fedora:44 has official images for both → same dnf
   #   package names as the native job above.
-  # riscv64: fedora:43 has no riscv64 image → ubuntu:26.04 is used
+  # riscv64: fedora:44 has no riscv64 image → ubuntu:26.04 is used
   #   instead (package names differ; auto-detected via command -v dnf).
   #
   # Node.js process.arch values used as the prebuilds/ dir suffix:
@@ -733,12 +733,12 @@ jobs:
           # IBM POWER9/10 workstations and servers (e.g. Raptor Computing Talos II)
           - arch: ppc64
             platform: linux/ppc64le
-            base_image: fedora:43
+            base_image: fedora:44
 
           # IBM Z mainframes — enterprise Linux servers
           - arch: s390x
             platform: linux/s390x
-            base_image: fedora:43
+            base_image: fedora:44
 
           # RISC-V boards (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …)
           # ubuntu:26.04 because Fedora publishes no riscv64 image.
@@ -1947,6 +1947,35 @@ jobs:
             exit 1
           fi
           echo "no committed prebuild would be deleted."
+
+      # THE SECOND guard, and the one that closes a hole the first cannot see: a
+      # rebuilt binary that is perfectly well-formed but needs a NEWER glibc than
+      # the package promises.
+      #
+      # `gjsify.glibcRequires` is a per-target floor measured out of
+      # `SHT_GNU_verneed`, and `audit-runtimes --check`'s `prebuild-libc` rule
+      # fails when a rebuild has outgrown it. That rule already runs — in
+      # `audit-runtimes.yml`, on push and pull_request. It just never ran on the
+      # commit that can CHANGE the floor: this job commits with `[skip ci]`, so
+      # the audit workflow is not triggered by it, and the drift surfaces on the
+      # next unrelated push instead — attributed to whatever that push touched.
+      #
+      # Raising the floor is not cosmetic. `lightningcss-native` at GLIBC_2.39
+      # alone decides whether this toolchain runs on Ubuntu 24.04 / Debian 13 or
+      # only on something newer, and a base-image bump (fedora:43 → 44 → …) is
+      # exactly the change that moves that number without touching one line of
+      # source. Gating HERE makes the job that produced the binary fail, naming
+      # both numbers, rather than committing it and reporting it elsewhere later.
+      #
+      # Cheap by construction: `audit-runtimes.mjs` is pure Node with zero deps
+      # beyond builtins (see audit-runtimes.yml, which relies on the same fact),
+      # so this needs no install and no build. It runs on the STAGED tree — after
+      # every download, before the commit — which is the only moment the new
+      # binaries and the old declarations exist side by side.
+      - name: Gate on the measured glibc floor + libc flavour
+        run: |
+          set -euo pipefail
+          node scripts/audit-runtimes.mjs --check
 
       - name: Commit prebuilds
         run: |
