@@ -1,0 +1,37 @@
+{
+    "name": "@gjsify/http-soup-bridge-linux-x64",
+    "version": "0.26.0",
+    "description": "linux-x64 prebuilt native library + GObject-Introspection typelib for @gjsify/http-soup-bridge. Installed automatically on linux/x64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
+    "license": "MIT",
+    "os": [
+        "linux"
+    ],
+    "cpu": [
+        "x64"
+    ],
+    "files": [
+        "prebuilds"
+    ],
+    "gjsify": {
+        "platforms": [
+            "linux-x64"
+        ],
+        "prebuilds": "prebuilds",
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "echo 'nothing to do'",
+        "build": "echo 'nothing to do'",
+        "test": "echo 'nothing to do'"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node/http-soup-bridge-linux-x64"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http-soup-bridge-linux-x64#readme"
+}

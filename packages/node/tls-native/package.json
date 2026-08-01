@@ -14,7 +14,6 @@
     },
     "files": [
         "lib",
-        "prebuilds",
         "meson.build",
         "src/vala"
     ],
@@ -31,7 +30,6 @@
             "darwin-arm64",
             "darwin-x64"
         ],
-        "prebuilds": "prebuilds",
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
@@ -68,7 +66,7 @@
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build:meson": "gjsify run init:meson && meson compile -C build",
         "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
-        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyTls-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=../tls-native-linux-x64/prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyTls-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
     },
     "dependencies": {
         "@girs/glib-2.0": "^4.1.0",
@@ -90,5 +88,13 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/tls-native#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/tls-native#readme",
+    "optionalDependencies": {
+        "@gjsify/tls-native-darwin-arm64": "workspace:*",
+        "@gjsify/tls-native-linux-arm64": "workspace:*",
+        "@gjsify/tls-native-linux-ppc64": "workspace:*",
+        "@gjsify/tls-native-linux-riscv64": "workspace:*",
+        "@gjsify/tls-native-linux-s390x": "workspace:*",
+        "@gjsify/tls-native-linux-x64": "workspace:*"
+    }
 }

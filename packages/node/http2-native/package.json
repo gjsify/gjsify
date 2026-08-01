@@ -14,7 +14,6 @@
     },
     "files": [
         "lib",
-        "prebuilds",
         "meson.build",
         "src/vala"
     ],
@@ -35,7 +34,6 @@
             "darwin-arm64",
             "darwin-x64"
         ],
-        "prebuilds": "prebuilds",
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
@@ -57,7 +55,7 @@
         "build:meson": "gjsify run init:meson && meson compile -C build",
         "build:types": "gjsify tsc",
         "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
-        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyHttp2-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true",
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=../http2-native-linux-x64/prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyHttp2-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true",
         "build:test": "gjsify run build:test:gjs",
         "build:test:gjs": "gjsify build src/ts/test.mts --app gjs --outfile test.gjs.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
@@ -94,5 +92,13 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http2-native#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http2-native#readme",
+    "optionalDependencies": {
+        "@gjsify/http2-native-darwin-arm64": "workspace:*",
+        "@gjsify/http2-native-linux-arm64": "workspace:*",
+        "@gjsify/http2-native-linux-ppc64": "workspace:*",
+        "@gjsify/http2-native-linux-riscv64": "workspace:*",
+        "@gjsify/http2-native-linux-s390x": "workspace:*",
+        "@gjsify/http2-native-linux-x64": "workspace:*"
+    }
 }

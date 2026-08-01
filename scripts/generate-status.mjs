@@ -70,6 +70,8 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { isPlatformPackageManifest } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
+
 // ─── Authored-data model ────────────────────────────────────────────────────
 
 /** Legal values for an authored package `status`. */
@@ -237,6 +239,14 @@ export function collectPackageFacts(root) {
     for (const dir of packagesUnder(join(root, 'packages'))) {
         const manifest = readManifest(dir);
         if (!manifest) continue;
+        // Per-target platform packages (ADR 0017) are excluded from the status
+        // model entirely — from the counts, from the tables and from the authored
+        // coverage requirement. Requiring an entry would mean 51 hand-written
+        // notes whose only possible content is "the linux-x64 binary of
+        // <bridge>", i.e. the derivable fact this file explicitly forbids
+        // authoring. The bridge's own entry is the status of its artifacts; a
+        // second row per target adds no judgement a human made.
+        if (isPlatformPackageManifest(manifest)) continue;
         const rel = relative(root, dir).replaceAll('\\', '/');
         const pillar = rel.split('/')[1];
         const gjsify = manifest.gjsify && typeof manifest.gjsify === 'object' ? manifest.gjsify : {};

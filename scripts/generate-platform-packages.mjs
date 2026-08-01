@@ -1,0 +1,866 @@
+#!/usr/bin/env node
+/**
+ * Generate the per-target platform packages of every native bridge — ADR 0017.
+ *
+ * WHAT AND WHY
+ *
+ * A native bridge used to ship every `<os>-<arch>` prebuild it promises inside
+ * ONE tarball. Measured on this tree: 97.3 MB of committed binaries, of which a
+ * `linux-x64` consumer could load 31.5 MB. 68 % of the bytes were downloaded and
+ * never loadable, and the number grows with every emulated architecture the
+ * project adds — each new target taxing the 95 % of users who are not on it.
+ *
+ * ADR 0017 adopts the ecosystem answer (esbuild has 26 of these, napi-rs,
+ * rolldown, oxc and lightningcss upstream all do the same): the bridge keeps its
+ * name, API and loader contract, declares one `optionalDependencies` entry per
+ * target, and each target's binary lives in a package that declares `os`/`cpu`.
+ * A package manager installs the one that fits and SILENTLY skips the rest —
+ * silently, because a platform mismatch on an OPTIONAL dependency is not an
+ * error (on a required one it is `EBADPLATFORM`).
+ *
+ * WHY THE MANIFESTS ARE GENERATED RATHER THAN WRITTEN
+ *
+ * 51 manifests × 12 fields is not a review surface a human can hold correct, and
+ * every field in them is DERIVABLE: the name from the parent plus the token, the
+ * `os`/`cpu` from the token, the version from the parent, the tier from the
+ * parent, the glibc floor from the ELF. A hand-written set would drift on the
+ * first release bump and on every new target, and the drift would be silent in
+ * the worst possible shape — a bridge searching at runtime for a sibling package
+ * that was never published, reporting "typelib not found".
+ *
+ * So the set is emitted from one function, and `--check` re-emits it and compares.
+ * `audit-runtimes.mjs --check` runs that comparison as the `platform-packages`
+ * rule, which additionally holds ADR 0017 step 2: every declared target has a
+ * platform package AND an `optionalDependencies` entry whose `os`/`cpu` match the
+ * token — "otherwise we trade one silent drift for another".
+ *
+ * WHAT A GENERATED PACKAGE DELIBERATELY DOES NOT HAVE
+ *
+ *   · No `main`, `types`, `module` or `exports`. These are DATA packages; the
+ *     loader (`detectNativePackages()`) finds them by scanning node_modules for
+ *     `gjsify.prebuilds` + `prebuilds/<target>/`, exactly the mechanism that
+ *     found the bundled directory before the split — which is why ADR 0017 needs
+ *     no new runtime code path at all. Declaring an entry point that does not
+ *     exist would (correctly) fail the `package-outputs` rule.
+ *   · No `gjsify.runtimes`. That quadruplet describes the cross-runtime reach of
+ *     an API; a package with no JavaScript has none. `runtimes-drift` skips these
+ *     packages on the same signal the generator writes them with — see
+ *     `isPlatformPackageManifest()`.
+ *   · No sources, no build, no tests. The four lifecycle scripts are no-ops so
+ *     that `gjsify foreach {build,check,clear,test}` — which derives its package
+ *     set from the workspace rather than from a list — walks them without
+ *     special-casing.
+ *
+ * THE ONE FIELD THIS BASE CANNOT MEASURE YET
+ *
+ * ADR 0017's manifests should also carry the npm `libc` filter and
+ * `gjsify.glibcRequires`, MEASURED out of the ELF rather than guessed. The
+ * readers that do that (`readElfNeeded`, `readElfGlibcRequires` in
+ * `@gjsify/manifest-conformance`'s `lib/binary.mjs`) arrive with the libc-axis
+ * work (`feat/platform-filter-and-prebuild-libc`, PR #897) and are NOT in this
+ * base. `measureLibcFields()` below is written against them and activates the
+ * moment they exist; until then it reports UNAVAILABLE, every run prints that it
+ * did, and no libc field is invented. A guessed `libc: ["glibc"]` would make
+ * every package manager refuse the install on musl hosts where six of these
+ * bridges provably load — so the honest omission is the safe one, and the
+ * omission is itself caught, because after the rebase `--check` reports every
+ * manifest as out of date until `--write` fills the measurement in.
+ *
+ * A GENUINE IMPROVEMENT THE SPLIT BUYS ON THAT AXIS: npm's `libc` is ONE
+ * package-level filter while the requirement is per TARGET —
+ * `@gjsify/tls-native` records no libc soname on x64/arm64/ppc64/s390x and DOES
+ * record the glibc interpreter on riscv64, because Fedora's riscv64 toolchain
+ * links it explicitly. One tarball could not state that. Per-target packages can:
+ * the riscv64 package declares the restriction, the others correctly declare
+ * nothing.
+ *
+ * Usage:
+ *   node scripts/generate-platform-packages.mjs            # --check (default)
+ *   node scripts/generate-platform-packages.mjs --check
+ *   node scripts/generate-platform-packages.mjs --write
+ *   node scripts/generate-platform-packages.mjs --write --only @gjsify/webgl
+ *
+ * `--write` MOVES the committed prebuild directories with `git mv`, so their
+ * history follows them, and patches the parent manifest (drops `gjsify.prebuilds`
+ * and the `prebuilds` entry from `files`, adds the `optionalDependencies`). It is
+ * idempotent: a second run reports nothing to do.
+ */
+
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import {
+    canonicalPlatform,
+    collectNativePackages,
+    createContext,
+    isPlatformPackageManifest,
+    osCpuForTarget,
+    platformPackageDirName,
+    platformPackageName,
+    prebuildOwnership,
+    LIB_EXT,
+} from '../packages/infra/manifest-conformance/lib/index.mjs';
+import * as binary from '../packages/infra/manifest-conformance/lib/binary.mjs';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** JSON written the way every manifest in this repo is written: 4 spaces, trailing newline. */
+const stringifyManifest = (obj) => `${JSON.stringify(obj, null, 4)}\n`;
+
+// ─── the generated content ──────────────────────────────────────────────────
+
+/**
+ * The npm `libc` + `gjsify.glibcRequires` values MEASURED from the committed
+ * artifacts of one target.
+ *
+ * Both are properties of the BINARY, so both are read out of the binary — the
+ * same reason `prebuild-artifacts` reads the machine out of `e_machine` instead
+ * of trusting the directory name. A hand-maintained fact about a committed
+ * binary is a fact that has already drifted; you just do not know when.
+ *
+ * The `libc` verdict uses the one criterion that is a DIRECT read rather than an
+ * inference: a recorded glibc dynamic loader (`ld-linux-*.so.*`) means the image
+ * cannot load under musl's loader at all, so the filter is required. The absence
+ * of one does NOT imply the opposite — musl treats a `DT_NEEDED` of `libc.so.6`
+ * as a request for itself and loads such an image happily, which a container
+ * probe on `alpine:3.24.1` confirmed for six of this repo's bridges. Declaring
+ * `libc: ["glibc"]` there would refuse the install on exactly the platform the
+ * axis exists to support, so this function declares nothing in that case and
+ * leaves the three-tier judgement to the `prebuild-libc` rule, which is where it
+ * belongs.
+ *
+ * @param {string} dir absolute path to the target's prebuild directory
+ * @param {string} target the `<os>-<arch>` token
+ * @returns {{available: boolean, libc: string[] | null, glibcRequires: string | null, why?: string}}
+ */
+export function measureLibcFields(dir, target) {
+    const os = target.slice(0, target.indexOf('-'));
+    // npm defines `libc` as Linux-only and glibc symbol versioning is an
+    // ELF/Linux concept: a darwin or win32 directory is out of scope, not
+    // unverified. Saying otherwise would imply a check that cannot exist.
+    if (os !== 'linux') return { available: true, libc: null, glibcRequires: null };
+
+    const readNeeded = binary.readElfNeeded;
+    const readFloor = binary.readElfGlibcRequires;
+    const compare = binary.compareGlibcVersions;
+    if (typeof readNeeded !== 'function' || typeof readFloor !== 'function' || typeof compare !== 'function') {
+        return {
+            available: false,
+            libc: null,
+            glibcRequires: null,
+            why:
+                '`@gjsify/manifest-conformance`\'s ELF readers (`readElfNeeded`, `readElfGlibcRequires`) are not in this ' +
+                'base — they land with the libc axis (feat/platform-filter-and-prebuild-libc, PR #897). No `libc` / ' +
+                '`gjsify.glibcRequires` is written rather than guessed; re-run `--write` after that rebase.',
+        };
+    }
+
+    let needsGlibcLoader = false;
+    /** @type {string|null} */ let floor = null;
+    for (const file of readdirSync(dir).sort()) {
+        if (!file.endsWith(LIB_EXT.linux)) continue;
+        const needed = readNeeded(join(dir, file));
+        if (needed === null) continue; // unreadable: `prebuild-artifacts` owns that failure
+        if (needed.some((soname) => /^ld-linux[\w.-]*\.so(\.\d+)?$/.test(soname))) needsGlibcLoader = true;
+        const own = readFloor(join(dir, file));
+        if (own !== null && (floor === null || compare(own, floor) > 0)) floor = own;
+    }
+    return { available: true, libc: needsGlibcLoader ? ['glibc'] : null, glibcRequires: floor };
+}
+
+/**
+ * The complete manifest of one platform package.
+ *
+ * Every value is derived from the parent plus the target — there is nothing here
+ * a human is expected to keep in sync, which is the point.
+ *
+ * @param {object} parent `{ name, version, dir, tier, description }` of the bridge
+ * @param {string} target the `<os>-<arch>` token, VERBATIM as `gjsify.platforms` spells it
+ * @param {{libc: string[]|null, glibcRequires: string|null}} measured see {@link measureLibcFields}
+ * @returns {Record<string, unknown>}
+ */
+export function platformManifest(parent, target, measured) {
+    const osCpu = osCpuForTarget(target);
+    if (!osCpu) throw new Error(`generate-platform-packages: ${parent.name} declares an invalid target \`${target}\``);
+    const name = platformPackageName(parent.name, target);
+    const dirName = platformPackageDirName(basename(parent.dir), target);
+    const repoDir = `${relative(ROOT, dirname(parent.dir)).replaceAll('\\', '/')}/${dirName}`;
+
+    /** @type {Record<string, unknown>} */
+    const manifest = {
+        name,
+        version: parent.version,
+        description:
+            `${target} prebuilt native library + GObject-Introspection typelib for ${parent.name}. ` +
+            `Installed automatically on ${osCpu.os[0]}/${osCpu.cpu[0]} as an optionalDependency of that package ` +
+            '(ADR 0017) and skipped everywhere else. Contains no JavaScript.',
+        license: 'MIT',
+        os: osCpu.os,
+        cpu: osCpu.cpu,
+    };
+    // npm's `libc` is a Linux-only install filter, honoured by npm, yarn and
+    // pnpm. Present ONLY when measurement proved the artifact cannot load under
+    // musl — see `measureLibcFields`.
+    if (measured.libc) manifest.libc = measured.libc;
+    // No `main`/`module`/`types`/`exports`: see the header. The prebuild
+    // directory is the entire payload, so it is the entire `files` list.
+    manifest.files = ['prebuilds'];
+    manifest.gjsify = {
+        // Per-target, even though this package has exactly one target: the
+        // `prebuild-libc` rule's own vocabulary is a target → floor map, and a
+        // bare string here would need translating at every comparison.
+        ...(measured.glibcRequires ? { glibcRequires: { [target]: measured.glibcRequires } } : {}),
+        // The one-element list is what puts THIS tarball under the
+        // `prebuild-artifacts` contract — existence, machine-matches-directory,
+        // typelib-named siblings staged, host `dlopen`. See ADR 0017's resolved
+        // open question and `lib/platform-packages.mjs` for why the redundancy
+        // is not a second source of truth.
+        platforms: [target],
+        prebuilds: 'prebuilds',
+        // Inherited, never chosen: the stability this artifact promises IS the
+        // stability of the bridge it belongs to (ADR 0003). A different tier here
+        // would let the tier rule's dependency-direction check pass on an edge
+        // that is really a downgrade.
+        tier: parent.tier,
+    };
+    manifest.scripts = {
+        // `gjsify foreach {build,check,clear,test}` derives its package set from
+        // the workspace, not from a list. No-ops keep a data package walkable
+        // without teaching four call sites about a special case.
+        clear: "echo 'nothing to do'",
+        check: "echo 'nothing to do'",
+        build: "echo 'nothing to do'",
+        test: "echo 'nothing to do'",
+    };
+    manifest.repository = {
+        type: 'git',
+        url: 'git+https://github.com/gjsify/gjsify.git',
+        directory: repoDir,
+    };
+    manifest.bugs = { url: 'https://github.com/gjsify/gjsify/issues' };
+    manifest.homepage = `https://github.com/gjsify/gjsify/tree/main/${repoDir}#readme`;
+    return manifest;
+}
+
+/**
+ * The README a platform package ships.
+ *
+ * npm always includes README, LICENSE and package.json regardless of `files`, so
+ * this is the page a human lands on when a lockfile or an install log points them
+ * at a package name they have never heard of. Saying "this is not the package you
+ * want, here is the one that is" costs four paragraphs and saves the confusion
+ * ADR 0017 predicts: "a consumer whose platform package genuinely failed to
+ * install now gets a missing sibling rather than a missing directory".
+ *
+ * @param {object} parent
+ * @param {string} target
+ */
+export function platformReadme(parent, target) {
+    const name = platformPackageName(parent.name, target);
+    const osCpu = /** @type {{os: string[], cpu: string[]}} */ (osCpuForTarget(target));
+    return `# ${name}
+
+The **${target}** native artifacts of [\`${parent.name}\`](https://www.npmjs.com/package/${parent.name}) — a shared
+library plus its GObject-Introspection typelib, and nothing else. There is no
+JavaScript in this package and nothing to import from it.
+
+You do not install this directly. \`${parent.name}\` declares it as an
+\`optionalDependencies\` entry and this package declares \`os: ["${osCpu.os[0]}"]\`,
+\`cpu: ["${osCpu.cpu[0]}"]\`, so your package manager installs the one build that fits your
+machine and silently skips the rest — the same model \`esbuild\`, \`rolldown\` and
+\`lightningcss\` use. Before this split every consumer downloaded every platform's
+binary: 97.3 MB of which a linux-x64 machine could load 31.5 MB.
+
+\`@gjsify/cli\` finds the artifacts at run time by scanning \`node_modules\` for
+packages declaring \`gjsify.prebuilds\`, and puts this directory on
+\`GI_TYPELIB_PATH\` plus the host loader's own search path. If a \`gi://Gjsify…\`
+import fails with "typelib not found", check that this package is present in
+\`node_modules\` — an optional dependency that failed to install is skipped without
+an error, by design.
+
+Generated by \`scripts/generate-platform-packages.mjs\`; see
+[ADR 0017](https://github.com/gjsify/gjsify/blob/main/docs/adr/0017-native-package-distribution.md).
+
+License: MIT
+`;
+}
+
+/**
+ * The parent manifest as it must look after the split, given the targets that
+ * were split out.
+ *
+ * Three edits, and each one is load-bearing:
+ *
+ *   1. `gjsify.prebuilds` is REMOVED. It names a committed prebuild directory
+ *      that this package no longer has, and it is the field
+ *      `prebuild-artifacts` uses to decide whether a package is under the
+ *      committed-artifact contract. Leaving it would fail that rule for every
+ *      declared target — correctly, since the directory really is gone.
+ *   2. `prebuilds` is dropped from `files`. This is the byte saving; without it
+ *      the tarball is unchanged and the whole exercise buys nothing.
+ *   3. `optionalDependencies` gains one entry per split target. The RANGE is
+ *      `workspace:*` for a workspace member — the repository's convention (283
+ *      of 285 sibling runtime edges use the workspace protocol) and it resolves
+ *      to the EXACT sibling version at pack time, which is the pin the esbuild
+ *      model needs and which no release bump can forget. `@gjsify/napi` and
+ *      `@gjsify/node-gi` are deliberately NOT workspace members (their own CI,
+ *      their own carve-outs), and `gjsify pack` throws on a `workspace:` range
+ *      it cannot resolve, so those get the literal version — kept honest by the
+ *      audit rule rather than by memory.
+ *
+ * `gjsify.platforms` is untouched: ADR 0017 step 2 keeps it as the single
+ * declaration, and every child's one-element list is derived from it.
+ *
+ * @param {Record<string, any>} manifest the parent's current manifest
+ * @param {{name: string, range: string}[]} optionalDeps sorted
+ * @returns {Record<string, unknown>}
+ */
+export function patchedParentManifest(manifest, optionalDeps) {
+    const out = JSON.parse(JSON.stringify(manifest));
+    if (Array.isArray(out.files)) out.files = out.files.filter((f) => f !== 'prebuilds');
+    if (out.gjsify && typeof out.gjsify === 'object') delete out.gjsify.prebuilds;
+
+    const existing = out.optionalDependencies ?? {};
+    /** @type {Record<string, string>} */
+    const merged = {};
+    // Sorted, and platform entries first: 51 generated lines are diff noise if
+    // their order can float, and a stable order is what makes a hand edit to one
+    // of them visible in review.
+    for (const { name, range } of optionalDeps) merged[name] = range;
+    for (const [name, range] of Object.entries(existing)) {
+        if (name in merged) continue;
+        merged[name] = range;
+    }
+    out.optionalDependencies = merged;
+
+    return out;
+}
+
+/**
+ * Rewrite a parent's own `./prebuilds/<target>` script references to the sibling
+ * package the directory moved into.
+ *
+ * Kept separate from {@link patchedParentManifest} because it needs the parent's
+ * DIRECTORY name, and because it is a string rewrite rather than a structural
+ * edit — the audit asserts the absence of the old form instead of re-deriving
+ * the new one, so a hand-written variant that also points somewhere valid is
+ * not fought over.
+ *
+ * @param {Record<string, any>} manifest patched parent manifest (mutated)
+ * @param {string} parentDirName
+ * @param {readonly string[]} targets
+ */
+export function rewriteParentPrebuildPaths(manifest, parentDirName, targets) {
+    if (!manifest.scripts || typeof manifest.scripts !== 'object') return manifest;
+    for (const [key, value] of Object.entries(manifest.scripts)) {
+        if (typeof value !== 'string') continue;
+        let next = value;
+        for (const target of targets) {
+            next = next.replaceAll(
+                `./prebuilds/${target}`,
+                `../${platformPackageDirName(parentDirName, target)}/prebuilds/${target}`,
+            );
+        }
+        manifest.scripts[key] = next;
+    }
+    return manifest;
+}
+
+// ─── the plan ───────────────────────────────────────────────────────────────
+
+/**
+ * What the split looks like for one native bridge.
+ *
+ * @typedef {object} PlannedTarget
+ * @property {string} target
+ * @property {string} name expected platform package name
+ * @property {string} dir expected absolute directory
+ * @property {string} rel repo-relative directory
+ * @property {string} range the `optionalDependencies` range the parent must carry
+ * @property {'plan'|'uncommitted'|'missing-artifact'} state
+ * @property {string} [why] why a non-`plan` target is not generated
+ */
+
+/**
+ * Which bridges are in scope, and what each one's platform packages must be.
+ *
+ * Scope is DERIVED from the same two signals `prebuild-artifacts` uses, so the
+ * two rules cannot disagree about a package: a bridge is in scope when it
+ * declares `gjsify.platforms` and its artifacts are this repository's to commit
+ * — either still in its own tarball (`gjsify.prebuilds`, the pre-split state) or
+ * already split out (a native build system in-tree and no prebuild directory).
+ * `@gjsify/node-gi` builds with node-gyp at install time and is out of scope on
+ * exactly the signal that exempts it there too.
+ *
+ * @param {import('../packages/infra/manifest-conformance/lib/context.mjs').ConformanceContext} ctx
+ */
+export function planPlatformPackages(ctx) {
+    const native = collectNativePackages(ctx);
+    const parents = [];
+    /** @type {string[]} */ const notes = [];
+    let measurementUnavailable = null;
+
+    for (const row of native) {
+        const pkg = ctx.get(row.name);
+        // Never `continue` on a miss. `collectNativePackages()` iterates
+        // `ctx.allPackages`, so every row it produced HAS a record; a lookup that
+        // came back empty means the context's index and its iteration disagree,
+        // and skipping quietly is how this generator once audited ten of eleven
+        // bridges and printed OK (`@gjsify/napi` is not a workspace member, and
+        // `byName` used to index only the workspace globs).
+        if (!pkg) {
+            throw new Error(
+                `generate-platform-packages: \`${row.name}\` (${row.path}) is a native package the context cannot look up by ` +
+                    'name. That means `createContext`’s index no longer covers everything `collectNativePackages` iterates — ' +
+                    'fix the context, do not skip the package.',
+            );
+        }
+        if (isPlatformPackageManifest(pkg.manifest)) continue; // a child, not a bridge
+        const ownership = prebuildOwnership(row);
+        if (ownership === 'install-time') continue;
+        if (!row.declared) continue; // `platforms-ci` already fails a missing/invalid declaration
+
+        const isWorkspaceMember = ctx.packages.some((p) => p.name === row.name);
+        const uncommitted =
+            row.uncommitted && typeof row.uncommitted === 'object' && !Array.isArray(row.uncommitted)
+                ? row.uncommitted
+                : {};
+        const shippedCanon = new Set(row.shipped.map(canonicalPlatform));
+
+        /** @type {PlannedTarget[]} */
+        const targets = [];
+        for (const target of row.declared) {
+            const name = platformPackageName(row.name, target);
+            const dirName = platformPackageDirName(basename(row.dir ?? pkg.dir), target);
+            const dir = join(dirname(pkg.dir), dirName);
+            const rel = relative(ctx.root, dir).replaceAll('\\', '/');
+            const range = isWorkspaceMember ? 'workspace:*' : pkg.manifest.version;
+            const exemption = Object.entries(uncommitted).find(
+                ([t]) => canonicalPlatform(t) === canonicalPlatform(target),
+            );
+            if (exemption) {
+                targets.push({
+                    target,
+                    name,
+                    dir,
+                    rel,
+                    range,
+                    state: 'uncommitted',
+                    why: String(exemption[1]),
+                });
+                continue;
+            }
+            // Pre-split bridge with a declared target and no directory: a
+            // promised platform with no artifact behind it. `prebuild-artifacts`
+            // fails that with an actionable message; inventing an empty package
+            // for it here would turn a caught gap into a published one.
+            if (ownership === 'committed-here' && !shippedCanon.has(canonicalPlatform(target))) {
+                targets.push({
+                    target,
+                    name,
+                    dir,
+                    rel,
+                    range,
+                    state: 'missing-artifact',
+                    why: 'declared, no committed prebuild directory and no `gjsify.platformsUncommitted` exemption',
+                });
+                continue;
+            }
+            targets.push({ target, name, dir, rel, range, state: 'plan' });
+        }
+
+        parents.push({
+            name: row.name,
+            path: row.path,
+            dir: pkg.dir,
+            version: pkg.manifest.version,
+            tier: row.tier,
+            manifest: pkg.manifest,
+            ownership,
+            isWorkspaceMember,
+            prebuildDir: row.prebuildDir,
+            prebuildsField: row.prebuildsField,
+            targets,
+        });
+    }
+
+    // One note for the whole run rather than one per package: the libc axis is
+    // absent or present for the tree, not per bridge, and 51 identical lines
+    // would bury everything else.
+    for (const parent of parents) {
+        for (const t of parent.targets) {
+            if (t.state !== 'plan' || measurementUnavailable) continue;
+            const dir = artifactDir(parent, t);
+            if (!dir) continue;
+            const m = measureLibcFields(dir, t.target);
+            if (!m.available) measurementUnavailable = m.why;
+        }
+    }
+    if (measurementUnavailable) notes.push(`libc axis NOT measured — ${measurementUnavailable}`);
+
+    return { parents, notes };
+}
+
+/**
+ * The directory holding a target's artifacts, wherever it currently lives.
+ *
+ * Before the split that is `<parent>/prebuilds/<target>`; after it,
+ * `<parent>-<target>/prebuilds/<target>`. Both are checked because the generator
+ * has to work on a half-migrated tree — a `--write` interrupted between two
+ * packages must be resumable, and `--check` must describe what is actually there.
+ *
+ * @param {object} parent a row from {@link planPlatformPackages}
+ * @param {PlannedTarget} planned
+ * @returns {string | null}
+ */
+function artifactDir(parent, planned) {
+    const inChild = join(planned.dir, 'prebuilds', planned.target);
+    if (existsSync(inChild)) return inChild;
+    if (parent.prebuildDir) {
+        const inParent = join(parent.prebuildDir, planned.target);
+        if (existsSync(inParent)) return inParent;
+    }
+    return null;
+}
+
+/**
+ * The files a platform package must contain, as strings, ready to compare or write.
+ *
+ * @param {object} parent
+ * @param {PlannedTarget} planned
+ */
+export function expectedFiles(parent, planned) {
+    const dir = artifactDir(parent, planned);
+    const measured = dir
+        ? measureLibcFields(dir, planned.target)
+        : { available: true, libc: null, glibcRequires: null };
+    return {
+        'package.json': stringifyManifest(
+            platformManifest(
+                {
+                    name: parent.name,
+                    version: parent.version,
+                    dir: parent.dir,
+                    tier: parent.tier,
+                },
+                planned.target,
+                measured,
+            ),
+        ),
+        'README.md': platformReadme({ name: parent.name }, planned.target),
+    };
+}
+
+// ─── the audit ──────────────────────────────────────────────────────────────
+
+/**
+ * Hold the generated set to what the generator would emit now, and hold the
+ * parents to ADR 0017 step 2.
+ *
+ * Exported so the `platform-packages` conformance rule is a thin wrapper: the
+ * check that runs in CI and the check `--check` prints are the same code, which
+ * is the only way "the generator and the audit agree" is a fact rather than a
+ * hope.
+ *
+ * @param {import('../packages/infra/manifest-conformance/lib/context.mjs').ConformanceContext} ctx
+ */
+export function auditPlatformPackages(ctx) {
+    const { parents, notes } = planPlatformPackages(ctx);
+    /** @type {string[]} */ const failures = [];
+    const stats = { parents: parents.length, packages: 0, targets: 0, uncommitted: 0, unsplitParents: 0 };
+
+    for (const parent of parents) {
+        if (parent.ownership === 'committed-here') {
+            stats.unsplitParents++;
+            failures.push(
+                `${parent.name} (${parent.path}): still ships its prebuilds in its own tarball (\`gjsify.prebuilds\`), but ADR 0017 ` +
+                    `splits every native package into per-target packages. Run \`node scripts/generate-platform-packages.mjs --write\` ` +
+                    `to move ${parent.targets.filter((t) => t.state === 'plan').length} committed target(s) into ` +
+                    `${parent.targets
+                        .filter((t) => t.state === 'plan')
+                        .map((t) => `\`${t.name}\``)
+                        .join(', ')}.`,
+            );
+            continue;
+        }
+
+        const optional = parent.manifest.optionalDependencies ?? {};
+        for (const planned of parent.targets) {
+            stats.targets++;
+            if (planned.state === 'uncommitted') {
+                stats.uncommitted++;
+                // An exempted target has no artifact to package, so it must not
+                // have an optionalDependencies entry either: a dependency on a
+                // name that was never published resolves to nothing on every
+                // install, and an OPTIONAL one does it silently.
+                if (planned.name in optional) {
+                    failures.push(
+                        `${parent.name} (${parent.path}): \`optionalDependencies["${planned.name}"]\` exists, but \`${planned.target}\` is ` +
+                            `exempted by \`gjsify.platformsUncommitted\` (${planned.why}) and therefore has no platform package. ` +
+                            'An optional dependency on an unpublished name fails silently on every install — either commit the ' +
+                            'artifact and generate the package, or drop the entry with the exemption.',
+                    );
+                }
+                notes.push(
+                    `${parent.name}: \`${planned.target}\` declared but NOT split out — ${planned.why}. After the split the parent ` +
+                        'tarball carries no `prebuilds/`, so nothing ships that target today.',
+                );
+                continue;
+            }
+            if (planned.state === 'missing-artifact') {
+                failures.push(
+                    `${parent.name} (${parent.path}): declares \`${planned.target}\` with no committed artifact and no ` +
+                        '`gjsify.platformsUncommitted` exemption, so no platform package can be generated for it. ' +
+                        '`prebuild-artifacts` reports the same gap with the command that fixes it.',
+                );
+                continue;
+            }
+
+            // ── the package itself ────────────────────────────────────────
+            const child = ctx.get(planned.name);
+            if (!child) {
+                failures.push(
+                    `${parent.name} (${parent.path}): declares \`${planned.target}\` but there is no \`${planned.name}\` package ` +
+                        `(expected at \`${planned.rel}/\`). Every declared target needs one — run ` +
+                        '`node scripts/generate-platform-packages.mjs --write`.',
+                );
+                continue;
+            }
+            stats.packages++;
+            const expected = expectedFiles(parent, planned);
+            for (const [file, want] of Object.entries(expected)) {
+                const path = join(child.dir, file);
+                const have = existsSync(path) ? readFileSync(path, 'utf8') : null;
+                if (have === want) continue;
+                failures.push(
+                    `${planned.name} (${planned.rel}): \`${file}\` is not what the generator emits now` +
+                        `${have === null ? ' (the file is missing)' : ''}. Every field in it is derived from ` +
+                        `\`${parent.name}\` plus the target — a hand edit here is a value nothing keeps true. ` +
+                        'Run `node scripts/generate-platform-packages.mjs --write`.' +
+                        (have === null ? '' : `\n${firstDifference(have, want)}`),
+                );
+            }
+
+            // ── ADR 0017 step 2: the entry, and its os/cpu ────────────────
+            const range = optional[planned.name];
+            if (range === undefined) {
+                failures.push(
+                    `${parent.name} (${parent.path}): \`${planned.name}\` exists but is not in \`optionalDependencies\`. ` +
+                        'Without the entry no package manager ever installs it, and the bridge fails at run time looking ' +
+                        'for a sibling that is not there — the hardest-to-diagnose shape ADR 0017 step 4 warns about.',
+                );
+            } else if (range !== planned.range) {
+                failures.push(
+                    `${parent.name} (${parent.path}): \`optionalDependencies["${planned.name}"]\` is \`${range}\`, expected ` +
+                        `\`${planned.range}\`. ${
+                            parent.isWorkspaceMember
+                                ? 'The workspace protocol is what pins the published range to the EXACT sibling version at pack ' +
+                                  'time, so a version bump cannot leave a 0.26.0 binary paired with a 0.27.0 bridge.'
+                                : 'This package is not a workspace member (its own CI, its own carve-out), so `gjsify pack` cannot ' +
+                                  'resolve a `workspace:` range for it and the literal version is the only pin available. It must be ' +
+                                  'the parent version, and this check is what keeps a release bump from forgetting it.'
+                        }`,
+                );
+            }
+            const osCpu = osCpuForTarget(planned.target);
+            const childOs = child.manifest.os;
+            const childCpu = child.manifest.cpu;
+            if (
+                !osCpu ||
+                !Array.isArray(childOs) ||
+                !Array.isArray(childCpu) ||
+                childOs.join() !== osCpu.os.join() ||
+                childCpu.join() !== osCpu.cpu.join()
+            ) {
+                failures.push(
+                    `${planned.name} (${planned.rel}): declares os=${JSON.stringify(childOs)} cpu=${JSON.stringify(childCpu)}, but its ` +
+                        `target \`${planned.target}\` means os=${JSON.stringify(osCpu?.os)} cpu=${JSON.stringify(osCpu?.cpu)}. ` +
+                        'ADR 0017 step 2 requires these to match the token: a mismatch installs the package on machines that ' +
+                        'cannot load it and skips the machines that can, and neither shows up as an error.',
+                );
+            }
+            const childTargets = child.manifest.gjsify?.platforms;
+            if (!Array.isArray(childTargets) || childTargets.length !== 1 || childTargets[0] !== planned.target) {
+                failures.push(
+                    `${planned.name} (${planned.rel}): \`gjsify.platforms\` is ${JSON.stringify(childTargets)}, expected exactly ` +
+                        `\`["${planned.target}"]\`. The one-element list is what puts this tarball under the \`prebuild-artifacts\` ` +
+                        'contract (machine matches directory, typelib siblings staged, host dlopen) — see ADR 0017’s resolved ' +
+                        'open question.',
+                );
+            }
+        }
+
+        // ── the parent's own post-split shape ─────────────────────────────
+        if (Array.isArray(parent.manifest.files) && parent.manifest.files.includes('prebuilds')) {
+            failures.push(
+                `${parent.name} (${parent.path}): \`files\` still lists \`prebuilds\`, but the directory moved into the platform ` +
+                    'packages. The whole saving of ADR 0017 is that this entry is gone; with it the tarball is unchanged.',
+            );
+        }
+        for (const [key, value] of Object.entries(parent.manifest.scripts ?? {})) {
+            if (typeof value === 'string' && value.includes('./prebuilds/')) {
+                failures.push(
+                    `${parent.name} (${parent.path}): script \`${key}\` still points at \`./prebuilds/…\`, a directory this package no ` +
+                        'longer has. Point it at the platform package that now owns the artifacts ' +
+                        `(\`../${basename(parent.dir)}-<target>/prebuilds/<target>\`).`,
+                );
+            }
+        }
+        // An optionalDependencies entry naming a platform package of THIS parent
+        // that no declared target asks for: the reverse drift — a target dropped
+        // from `gjsify.platforms` while its package (and its entry) stayed.
+        const wanted = new Set(parent.targets.filter((t) => t.state === 'plan').map((t) => t.name));
+        for (const name of Object.keys(parent.manifest.optionalDependencies ?? {})) {
+            if (!name.startsWith(`${parent.name}-`)) continue;
+            if (wanted.has(name)) continue;
+            failures.push(
+                `${parent.name} (${parent.path}): \`optionalDependencies["${name}"]\` names a platform package of this bridge, but ` +
+                    `\`gjsify.platforms\` (${(parent.manifest.gjsify?.platforms ?? []).join(', ')}) does not ask for that target. ` +
+                    'Either declare the target or delete the entry and the package — an installed artifact nothing promises is ' +
+                    'exactly the drift ADR 0017 step 2 exists to prevent.',
+            );
+        }
+    }
+
+    return {
+        failures,
+        notes,
+        stats,
+        summary:
+            `platform packages (ADR 0017): OK. ${stats.packages} per-target package(s) across ${stats.parents} native ` +
+            `bridge(s) match what the generator emits, each with an \`optionalDependencies\` entry whose \`os\`/\`cpu\` match its ` +
+            `token${stats.uncommitted > 0 ? `; ${stats.uncommitted} declared target(s) are exempt and NOT packaged (see notes)` : ''}.`,
+    };
+}
+
+/** The first differing line of two strings, so a mismatch names itself. */
+function firstDifference(have, want) {
+    const a = have.split('\n');
+    const b = want.split('\n');
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if (a[i] === b[i]) continue;
+        return `    line ${i + 1}: have ${JSON.stringify(a[i] ?? null)}\n    line ${i + 1}: want ${JSON.stringify(b[i] ?? null)}`;
+    }
+    return '    (files differ only in trailing content)';
+}
+
+// ─── --write ────────────────────────────────────────────────────────────────
+
+/** `git mv`, so the binaries' history follows them into their new package. */
+function gitMv(from, to) {
+    execFileSync('git', ['mv', relative(ROOT, from), relative(ROOT, to)], { cwd: ROOT, stdio: 'pipe' });
+}
+
+/**
+ * Perform the split.
+ *
+ * @param {import('../packages/infra/manifest-conformance/lib/context.mjs').ConformanceContext} ctx
+ * @param {string[]} only package names to narrow to, empty = all
+ */
+function write(ctx, only) {
+    const { parents, notes } = planPlatformPackages(ctx);
+    const actions = [];
+
+    for (const parent of parents) {
+        if (only.length > 0 && !only.includes(parent.name)) continue;
+        /** @type {{name: string, range: string}[]} */ const optionalDeps = [];
+        const movedTargets = [];
+
+        for (const planned of parent.targets) {
+            if (planned.state !== 'plan') continue;
+            optionalDeps.push({ name: planned.name, range: planned.range });
+            mkdirSync(join(planned.dir, 'prebuilds'), { recursive: true });
+
+            const inParent = parent.prebuildDir ? join(parent.prebuildDir, planned.target) : null;
+            const inChild = join(planned.dir, 'prebuilds', planned.target);
+            if (inParent && existsSync(inParent) && !existsSync(inChild)) {
+                gitMv(inParent, inChild);
+                actions.push(`moved ${relative(ROOT, inParent)} → ${relative(ROOT, inChild)}`);
+                movedTargets.push(planned.target);
+            }
+
+            for (const [file, content] of Object.entries(expectedFiles(parent, planned))) {
+                const path = join(planned.dir, file);
+                if (existsSync(path) && readFileSync(path, 'utf8') === content) continue;
+                writeFileSync(path, content);
+                actions.push(`${existsSync(path) ? 'updated' : 'wrote'} ${relative(ROOT, path)}`);
+            }
+        }
+
+        if (optionalDeps.length === 0) continue;
+        const patched = rewriteParentPrebuildPaths(
+            patchedParentManifest(parent.manifest, optionalDeps),
+            basename(parent.dir),
+            parent.targets.map((t) => t.target),
+        );
+        const parentPath = join(parent.dir, 'package.json');
+        const before = readFileSync(parentPath, 'utf8');
+        const after = stringifyManifest(patched);
+        if (before !== after) {
+            writeFileSync(parentPath, after);
+            actions.push(`patched ${relative(ROOT, parentPath)}`);
+        }
+        // The now-empty `prebuilds/` in the parent. Empty directories are not
+        // tracked by git, so this is a working-tree tidy-up, not a commit —
+        // but leaving it invites the next local build to stage into a directory
+        // nothing ships.
+        if (parent.prebuildDir && existsSync(parent.prebuildDir) && readdirSync(parent.prebuildDir).length === 0) {
+            rmdirSync(parent.prebuildDir);
+            actions.push(`removed empty ${relative(ROOT, parent.prebuildDir)}/`);
+        }
+    }
+
+    for (const note of notes) console.log(`  · ${note}`);
+    if (actions.length === 0) {
+        console.log('generate-platform-packages --write: nothing to do (already split).');
+        return;
+    }
+    for (const a of actions) console.log(`  ${a}`);
+    console.log(
+        `generate-platform-packages --write: ${actions.length} change(s). Re-run \`--check\` and \`node scripts/audit-runtimes.mjs --check\`.`,
+    );
+}
+
+// ─── entry ──────────────────────────────────────────────────────────────────
+
+const IS_ENTRY = Boolean(process.argv[1]) && resolve(process.argv[1]).endsWith('generate-platform-packages.mjs');
+
+/** The context the generator and the rule both read. */
+export function generatorContext(root = ROOT) {
+    return createContext({
+        root,
+        // `packages/napi/*` and `packages/node-gi/*` are deliberately not
+        // workspace members, yet `@gjsify/napi` is a native bridge with declared
+        // platforms. Narrowing to the workspace globs would silently drop it.
+        discoveryRoots: ['packages'],
+    });
+}
+
+if (IS_ENTRY) {
+    const argv = process.argv.slice(2);
+    const WRITE = argv.includes('--write');
+    const only = argv.flatMap((a, i) => (a === '--only' && argv[i + 1] ? [argv[i + 1]] : []));
+    const unknown = argv.filter((a, i) => a.startsWith('--') && !['--write', '--check', '--only'].includes(a) && argv[i - 1] !== '--only');
+    if (unknown.length > 0) {
+        console.error(`generate-platform-packages: unknown argument(s) ${unknown.join(', ')}`);
+        process.exit(2);
+    }
+
+    const ctx = generatorContext();
+    if (WRITE) {
+        write(ctx, only);
+    } else {
+        const { failures, notes, summary } = auditPlatformPackages(ctx);
+        for (const note of notes) console.log(`  · ${note}`);
+        if (failures.length === 0) {
+            console.log(summary);
+            process.exit(0);
+        }
+        console.error(`generate-platform-packages --check: ${failures.length} problem(s).\n`);
+        for (const f of failures) console.error(`  ✗ ${f}\n`);
+        console.error('Fix with `node scripts/generate-platform-packages.mjs --write` (see ADR 0017).');
+        process.exit(1);
+    }
+}

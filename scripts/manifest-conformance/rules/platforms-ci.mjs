@@ -30,7 +30,9 @@ import {
     canonicalPlatform,
     collectNativePackages,
     defineRule,
+    isPlatformPackageManifest,
     KNOWN_ARCH_TOKENS,
+    platformPackageName,
     PLATFORM_RE,
 } from '../../../packages/infra/manifest-conformance/lib/index.mjs';
 
@@ -384,11 +386,66 @@ export function renderPlatformMatrix(rows, { markdown = false } = {}) {
     return [head, sep, ...body, '', legendParts.join('   ')].join('\n');
 }
 
+/**
+ * Credit each per-target platform package (ADR 0017) with its PARENT's CI
+ * coverage, narrowed to its own target.
+ *
+ * A platform package is a re-tarballing of one directory the parent's build
+ * produced; no workflow mentions it by name, and nothing should — the job that
+ * produces the binary is the parent's, identified by the parent's name and path.
+ * Without this the `platforms-ci` rule reaches its last branch for all 51 of them
+ * ("ships prebuilds but no CI job produces any of them — a hand-built binary
+ * nothing reproduces"), which is exactly backwards: the artifact is the single
+ * most reproducible thing in the tree.
+ *
+ * NARROWED, not inherited wholesale, because the rule checks CI coverage in both
+ * directions and an unnarrowed set would report `@gjsify/webgl-linux-x64` as
+ * building four targets it does not declare. Narrowing makes the child's own
+ * ci-vs-declared check vacuous — deliberately: the child's declaration is
+ * GENERATED from the parent's list and audited against it by the
+ * `platform-packages` rule, while the parent keeps the full both-directions
+ * contract against the workflow matrix. Coverage moves, it does not disappear.
+ *
+ * @param {Array<object>} nativePkgs rows from `collectNativePackages()`
+ * @param {Map<string, Set<string>>} byPackage from {@link parseCiPlatforms}
+ * @param {import('../../../packages/infra/manifest-conformance/lib/context.mjs').ConformanceContext} ctx
+ */
+export function creditPlatformPackages(nativePkgs, byPackage, ctx) {
+    for (const pkg of nativePkgs) {
+        const record = ctx.get(pkg.name);
+        if (!record || !isPlatformPackageManifest(record.manifest)) continue;
+        if (byPackage.has(pkg.name)) continue; // a workflow named it explicitly — take it at its word
+        const target = record.manifest.gjsify.platforms[0];
+        // Find the bridge this package belongs to by the ONE naming derivation,
+        // rather than by string-stripping the suffix here: the parent is whichever
+        // native package the derivation reproduces this name from.
+        const parent = nativePkgs.find((p) => platformPackageName(p.name, target) === pkg.name);
+        const parentCi = parent ? byPackage.get(parent.name) : undefined;
+        if (!parentCi) continue;
+        const canon = canonicalPlatform(target);
+        if (parentCi.has(canon)) byPackage.set(pkg.name, new Set([canon]));
+    }
+    return byPackage;
+}
+
 /** Shared by the rule and by `--platforms`, so both see the same rows. */
 export async function platformRows(ctx) {
     const nativePkgs = collectNativePackages(ctx);
-    const ciPlatforms = await parseCiPlatforms(ctx.root, nativePkgs);
-    return auditPlatforms(nativePkgs, ciPlatforms);
+    const ciPlatforms = creditPlatformPackages(nativePkgs, await parseCiPlatforms(ctx.root, nativePkgs), ctx);
+    const { failures, rows } = auditPlatforms(nativePkgs, ciPlatforms);
+    return {
+        failures,
+        rows,
+        // The MATRIX answers "can I install this bridge there?" — one row per
+        // bridge. 51 single-cell platform-package rows would say nothing the
+        // parent's row does not already say and would bury the twelve rows a
+        // reader came for, so they are filtered from the report while staying
+        // fully in the failure set above.
+        matrixRows: rows.filter((r) => {
+            const record = ctx.get(r.name);
+            return !record || !isPlatformPackageManifest(record.manifest);
+        }),
+    };
 }
 
 export const platformsCiRule = defineRule({
@@ -397,12 +454,12 @@ export const platformsCiRule = defineRule({
     fields: ['gjsify.platforms', 'gjsify.prebuilds'],
     description: 'declared `<os>-<arch>` targets, committed prebuild dirs and the CI matrix that builds them agree',
     async run(ctx) {
-        const { failures, rows } = await platformRows(ctx);
+        const { failures, rows, matrixRows } = await platformRows(ctx);
         const unverified = rows.filter((r) => !r.ci).length;
         return {
             failures,
             stats: { packages: rows.length, unverified },
-            rows,
+            rows: matrixRows,
             summary:
                 `platform audit: OK. ${rows.length} native package(s) declare \`gjsify.platforms\`; ` +
                 'committed prebuilds and CI-produced targets agree with every declaration' +
