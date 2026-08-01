@@ -161,16 +161,59 @@ jobs:
       # `workflow_ref` would name THIS file instead and the OIDC exchange would
       # be rejected. A dispatch keeps release.yml a top-level run, so the claim
       # still matches what npmjs.com is configured to trust.
+      # THE LOAD-BEARING STEP. A `release: published` event created with the
+      # workflow's own GITHUB_TOKEN does NOT trigger other workflows (GitHub's
+      # recursion guard), so `release.yml` only ever runs because of this
+      # dispatch. If it does not fire, the release is committed, tagged and
+      # visible on GitHub while NOTHING reaches npm — and the job goes red only
+      # AFTER all of that is already written, which reads like "the cut failed"
+      # when in fact only publishing did.
+      #
+      # It used to call `gh`, which exists on a bare runner image but NOT in
+      # this job's container (ghcr.io/gjsify/ci-fedora:44). The v0.26.0 cut is
+      # where that surfaced: `gh: command not found`, release cut, npm empty,
+      # recovered by dispatching by hand. So dispatch through `node`, which this
+      # job provably has (setup-node ran, and release-it above went through
+      # npx) rather than through a CLI the image is not required to carry.
       - name: Dispatch the npm publish
         if: ${{ !inputs.dry_run }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           TAG="$(git describe --tags --abbrev=0)"
           echo "dispatching release.yml for $TAG"
-          gh workflow run release.yml --ref main \
-            -f release_tag="$TAG" -f skip_publish=false -f verify_only=false
           echo "PUBLISH_TAG=$TAG" >> "$GITHUB_ENV"
+          TAG="$TAG" node --input-type=module -e '
+            const { GITHUB_TOKEN, REPO, TAG } = process.env;
+            const url = `https://api.github.com/repos/${REPO}/actions/workflows/release.yml/dispatches`;
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    authorization: `Bearer ${GITHUB_TOKEN}`,
+                    accept: "application/vnd.github+json",
+                    "x-github-api-version": "2022-11-28",
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({
+                    ref: "main",
+                    inputs: { release_tag: TAG, skip_publish: "false", verify_only: "false" },
+                }),
+            });
+            // 204 is the documented success. Anything else means the release is
+            // already cut but unpublished, so say exactly how to finish it by
+            // hand instead of leaving the operator to reconstruct the call.
+            if (res.status !== 204) {
+                console.error(`::error::dispatch failed: HTTP ${res.status} ${await res.text()}`);
+                console.error(
+                    `::error::${TAG} is cut and tagged but NOT on npm. Recover with: ` +
+                        `gh workflow run release.yml --ref main -f release_tag=${TAG} ` +
+                        `-f skip_publish=false -f verify_only=false`,
+                );
+                process.exit(1);
+            }
+            console.log(`dispatched release.yml for ${TAG} (HTTP 204)`);
+          '
 
       - name: Summary
         if: always()
