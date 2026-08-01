@@ -58,15 +58,10 @@ jobs:
     # job rather than wait the default 6h.
     timeout-minutes: 30
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      - name: Install toolchain + mozjs-140 + GJS + GI dev headers + valgrind
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            mozjs140-devel gjs gjs-devel libsoup3 libuv \
-            gobject-introspection gobject-introspection-devel glib2-devel \
-            vala meson ninja-build valgrind
           gjs --version
           echo "mozjs-140: $(pkg-config --modversion mozjs-140)"
           echo "gjs-1.0:   $(pkg-config --modversion gjs-1.0)"
@@ -184,16 +179,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      - name: Install toolchain + mozjs-140 + GJS + GI dev headers
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            mozjs140-devel gjs gjs-devel libsoup3 \
-            gobject-introspection gobject-introspection-devel glib2-devel \
-            vala meson ninja-build \
-            json-glib
           gjs --version
 
       - name: Use official Node.js (Fedora's dnf node crashes the bundler)
@@ -282,10 +271,10 @@ jobs:
           # asks npm for a version that provably does not exist and reddens main
           # on every single release. A recurring, self-resolving red teaches
           # people to ignore the signal.
-          if ! npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null; then
-            echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."
-            npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save
-          fi
+          # The train publishes serially, so for minutes after a release npm holds
+          # an INCOMPLETE set and BOTH the declared version and @latest can fail —
+          # the latter on a transitive ETARGET. Retries instead of reddening.
+          "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}"
           cd - >/dev/null
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           echo "Node bundler: $(node_modules/.bin/gjsify --version)"
@@ -410,7 +399,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: fedora:44
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
       # Consumer-gate toolchain (mozjs-140 + GJS + Vala/meson shim deps + libsoup3,
       # which the committed cli.gjs.mjs eager-imports via gi://Soup) PLUS
@@ -418,14 +407,8 @@ jobs:
       # node-gyp build (binding.gyp: pkg-config girepository-2.0 cairo) and the
       # cairo/Pango/GdkPixbuf conformance programs; dejavu supplies a real font so
       # Pango layout relations hold deterministically. Same names node-gi.yml uses.
-      - name: Install toolchain + mozjs-140 + GJS + GI dev headers + node-gi GObject deps
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            mozjs140-devel gjs gjs-devel libsoup3 \
-            gobject-introspection gobject-introspection-devel glib2-devel \
-            vala meson ninja-build \
-            cairo cairo-devel cairo-gobject-devel pango gdk-pixbuf2 dejavu-sans-fonts
           gjs --version
 
       - name: Use official Node.js (Fedora's dnf node crashes the bundler)
@@ -518,10 +501,10 @@ jobs:
           # asks npm for a version that provably does not exist and reddens main
           # on every single release. A recurring, self-resolving red teaches
           # people to ignore the signal.
-          if ! npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null; then
-            echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."
-            npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save
-          fi
+          # The train publishes serially, so for minutes after a release npm holds
+          # an INCOMPLETE set and BOTH the declared version and @latest can fail —
+          # the latter on a transitive ETARGET. Retries instead of reddening.
+          "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}"
           cd - >/dev/null
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           echo "Node bundler: $(node_modules/.bin/gjsify --version)"

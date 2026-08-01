@@ -35,18 +35,11 @@ const BAKED_IMAGE = 'ghcr.io/gjsify/ci-fedora';
 // same change that switches the job over; an entry for a job that no longer
 // uses a bare image is a FAILURE, so this cannot rot into a stale list.
 const BARE_IMAGE_LEDGER = {
-    'node-gi.yml/build-test': 'pending switch to the baked image (packages landed, jobs not yet moved)',
-    'node-gi.yml/cross-runtime': 'pending switch to the baked image',
-    'node-gi.yml/gtk-smoke': 'pending switch to the baked image',
-    'node-gi.yml/consumer-sqlite': 'pending switch to the baked image',
     'node-gi.yml/arm64': 'runs under QEMU on a foreign arch — needs a multi-arch image build first',
-    'node-gi.yml/consumer-suites': 'pending switch to the baked image',
-    'node-gi.yml/storybook-node-gi-bundle': 'pending switch to the baked image',
-    'napi.yml/build-test': 'pending switch to the baked image',
-    'napi.yml/consumer': 'pending switch to the baked image',
-    'napi.yml/nodegi-shim': 'pending switch to the baked image',
-    'release.yml/node-gi-prebuild-linux': 'pending switch — ON THE RELEASE PATH, do this one first',
-    'release.yml/napi-prebuild-linux': 'pending switch — ON THE RELEASE PATH, do this one first',
+    'release.yml/node-gi-prebuild-linux':
+        'ON THE RELEASE PATH — deferred only to avoid editing release.yml while #900 has it open',
+    'release.yml/napi-prebuild-linux':
+        'ON THE RELEASE PATH — deferred only to avoid editing release.yml while #900 has it open',
     'prebuilds.yml/build-prebuilds':
         'pins fedora:43 while the baked image tracks 43+44 — confirm the pin still matters',
 };
