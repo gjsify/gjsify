@@ -23,7 +23,7 @@ the TODO records the *what's left*.
 |---|---|---|
 | [0001](0001-install-clean-separation.md) | `gjsify install` is non-destructive — install/clean separation | Accepted |
 | [0002](0002-bootstrap-bundle-minimization.md) | Minimize committed bootstrap bundles | Accepted |
-| [0003](0003-package-tiering.md) | Explicit package tiering (stability contract) | Accepted |
+| [0003](0003-package-tiering.md) | Explicit package tiering (stability contract) — a platform-gated artifact package inherits the tier of the package whose artifacts it carries (amended) | Accepted |
 | [0004](0004-headless-adwaita-core.md) | Headless Adwaita core — share widget behavior across renderers | Accepted |
 | [0005](0005-node-gi-scope.md) | node-gi (Axis 5) stays experimental and dependency-isolated | Accepted |
 | [0006](0006-per-package-build-artifacts.md) | Per-package build cache; publish-time-only lib builds (spike) | Accepted |
@@ -37,6 +37,7 @@ the TODO records the *what's left*.
 | [0014](0014-utils-core-subpath-and-platform-entry-routing.md) | Cross-runtime reachability — `@gjsify/utils/core` subpath, `polyfill`-slot platform-entry routing, machine-checked invariant | Accepted |
 | [0015](0015-headless-package-contract.md) | Headless package contract — `gjsify.headless` as a declared, machine-checked promise about the root entry | Accepted |
 | [0016](0016-status-as-data.md) | Status as data — authored status data (`status/`) + derived facts, gated by the `status-data` conformance rule; the rendered STATUS.md is generated, not committed (amended) | Accepted |
+| [0017](0017-native-package-distribution.md) | Distribution of platform-specific native builds — the esbuild model (`optionalDependencies` per target) for all 11 native packages | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
