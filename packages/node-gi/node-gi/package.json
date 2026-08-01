@@ -55,6 +55,7 @@
     "overrides",
     "src",
     "binding.gyp",
+        "scripts/win-gi-gyp-flags.mjs",
     "prebuilds"
   ],
   "gjsify": {

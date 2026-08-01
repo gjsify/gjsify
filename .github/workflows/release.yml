@@ -452,16 +452,42 @@ jobs:
   # once for this repo + release.yml (a maintainer runs `gjsify trust`, exactly like
   # the gtk-runtime bootstrap) — OIDC cannot self-bootstrap its own trust.
   #
-  # Build the linux node-gi prebuilds (x64 + arm64) so the published tarball SHIPS
-  # them. node-gi's `files` includes `prebuilds`, `index.js` prefers a prebuild, and
-  # Deno (which runs NO install script) can only load a prebuild — but nothing staged
-  # one, so 0.20/0.21 shipped none: node/bun consumers had to `node-gyp rebuild` at
-  # install time and a `gjsify install` consumer (which does not run the `install`
-  # script) or Deno got no binary at all. Built in the SAME Fedora container node-gi.yml
-  # uses (proven GLib/GI ABI) via `npm install` (runs node-gi's `install` = node-gyp
-  # rebuild) + stage-prebuild, on a native runner per arch (x64 = ubuntu-latest, arm64 =
-  # ubuntu-24.04-arm — no QEMU), then handed to publish-node-gi as artifacts staged into
-  # prebuilds/ before publish.
+  # Build the node-gi prebuilds so the published tarball SHIPS them. node-gi's
+  # `files` includes `prebuilds`, `index.js` prefers a prebuild, and Deno (which runs
+  # NO install script) can only load a prebuild — but nothing staged one, so 0.20/0.21
+  # shipped none: node/bun consumers had to `node-gyp rebuild` at install time and a
+  # `gjsify install` consumer (which does not run the `install` script) or Deno got no
+  # binary at all.
+  #
+  # ONE LEG PER DECLARED TARGET. `gjsify.platforms` promises four
+  # (linux-x64, linux-arm64, darwin-arm64, win32-x64) and only the two linux ones were
+  # ever wired up here, so 0.26.0 shipped a tarball with `prebuilds/linux-*` only and
+  # `npx @gjsify/cli showcase … --runtime node` died on Windows and macOS with
+  # "native addon not found for node on win32-x64" — a promised platform that
+  # `audit-runtimes --check` reported as GREEN, because node-gi.yml genuinely BUILDS
+  # win32-x64 and darwin-arm64 on every node-gi PR. "Built in CI" was never the same
+  # claim as "published to consumers", and until the `platforms-ci` rule grew the
+  # release-staging half (see scripts/manifest-conformance/rules/platforms-ci.mjs)
+  # nothing compared the second.
+  #
+  # WHY THE WIN32/DARWIN LEGS ARE REBUILT HERE rather than reused from node-gi.yml: a
+  # GitHub artifact belongs to the workflow RUN that produced it and cannot be
+  # downloaded from another workflow's run, so node-gi.yml's uploads (whose own comment
+  # says it stages them "so a release can ship prebuilds/win32-x64/") are unreachable
+  # from this workflow. Each leg is derived from that workflow's proven recipe, minus
+  # its conformance gates — node-gi.yml runs those on every packages/node-gi/** push
+  # and PR, so re-running them at release time would only re-prove a commit that is
+  # already green.
+  #
+  # SHAPE — mirrors napi-prebuild-{linux,darwin-arm64} -> publish-napi below: every leg
+  # builds on a NATIVE runner (no QEMU, no cross), stages via the package's own
+  # scripts/stage-prebuild.mjs (never a hand-written cp — the target dir comes from
+  # `${process.platform}-${process.arch}`), LOAD-TESTS the staged artifact through the
+  # prebuild path, and uploads ONLY its own triple directory. publish-node-gi then
+  # downloads each artifact into its own explicit destination. A leg that fails fails
+  # publish-node-gi with it (it is in `needs:`, and the job carries no `always()`), so
+  # a platform can never be silently dropped from a release — the failure mode that
+  # produced this gap in the first place.
   node-gi-prebuild-linux:
     name: Build @gjsify/node-gi linux-${{ matrix.arch }} prebuild
     needs: publish
@@ -501,16 +527,246 @@ jobs:
           npm install --no-audit --no-fund --foreground-scripts
           node scripts/stage-prebuild.mjs
           ls -la prebuilds/*/node_gi.node
+      # Load-test the staged artifact through the PREBUILD path (index.js prefers
+      # prebuilds/<target>/ over build/Release/), not the build/ path npm install just
+      # exercised: a prebuild never loaded in CI is a prebuild nobody tested, and the
+      # two paths differ in exactly the way that breaks — stage-prebuild copying the
+      # wrong file, or copying it to a directory name the resolver does not probe.
+      # Same step node-gi.yml runs after its own staging.
+      - name: Verify the staged prebuild loads (Node)
+        working-directory: packages/node-gi/node-gi
+        run: node --test test/smoke.test.mjs
+        env:
+          NODE_GI_NATIVE: prebuild
+      # Upload ONLY this leg's own triple directory, so publish-node-gi can download
+      # each artifact into an explicit destination (the napi shape) instead of
+      # flattening a wildcard. The triple then appears LITERALLY in both workflows,
+      # which is what the `platforms-ci` release-staging check reads.
       - name: Upload the prebuild artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-gi-prebuild-linux-${{ matrix.arch }}
-          path: packages/node-gi/node-gi/prebuilds/
+          path: packages/node-gi/node-gi/prebuilds/linux-${{ matrix.arch }}
+          if-no-files-found: error
+
+  # win32-x64 leg. Derived from node-gi.yml's `windows` job (Windows build +
+  # conformance), whose comments record why each step exists; the conformance subset
+  # is dropped here (that job gates it on every node-gi PR), the staging + load test
+  # are not.
+  #
+  # NO gvsbuild CACHE, unlike node-gi.yml: Actions cache entries are scoped to the ref
+  # that wrote them plus the default branch, and this workflow runs on a TAG. A restore
+  # would be a coin flip, and a release that silently depends on a warm cache is worse
+  # than one that always spends the ~1 min download. publish-gtk-runtime-win32-x64
+  # above downloads unconditionally for the same reason.
+  node-gi-prebuild-win32-x64:
+    name: Build @gjsify/node-gi win32-x64 prebuild
+    needs: publish
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      GVSBUILD_VERSION: '2026.6.0'
+      # Extract to gvsbuild's canonical build prefix so its .pc files' baked
+      # absolute `prefix=` is correct with no relocation needed.
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+    steps:
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # Node 24 builds the addon (node-gyp) and runs the load test — the same version
+      # node-gi.yml's Windows and macOS legs pin.
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Download + extract gvsbuild GTK4 (MSVC-ABI, girepository-2.0)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          # tar.exe (bsdtar) extracts zip; the zip holds the CONTENTS of release\
+          # (bin/ lib/ include/ share/ …) at its root.
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      - name: Put GTK on PATH + set GI/PKG env
+        shell: pwsh
+        run: |
+          # GTK bin/ carries the DLLs the addon links (glib/gobject/gio/girepository/
+          # cairo/ffi/intl) AND pkgconf.exe + pkg-config.exe (gvsbuild bundles them).
+          # PATH is also the DLL search path at load time, so the same line is what
+          # lets the staged prebuild load in the smoke test below.
+          "$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "PKG_CONFIG_PATH=$env:GTK_PREFIX\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # The typelib DIRECTORY is historically named girepository-1.0 even for
+          # the girepository-2.0 API.
+          "GI_TYPELIB_PATH=$env:GTK_PREFIX\lib\girepository-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GSETTINGS_SCHEMA_DIR=$env:GTK_PREFIX\share\glib-2.0\schemas" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # gvsbuild's libffi meson build ships ffi.lib + the DLL but NOT ffi.h/
+      # ffitarget.h (its meson.build has `install: true` on the library() but no
+      # install_headers()), yet GLib's girffi.h — which gvsbuild DOES install — does
+      # `#include <ffi.h>`, so the addon won't compile (C1083). Supply the two headers
+      # from vcpkg's libffi (preinstalled vcpkg; MSVC-native x64 headers). libffi's
+      # public ABI (ffi_type/ffi_cif/ffi_closure) is frozen across 3.x, so the vcpkg
+      # header + gvsbuild's 3.5.2 ffi.lib are compatible.
+      - name: Supply libffi headers (gvsbuild omits ffi.h)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install libffi:x64-windows
+          $inc = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include"
+          Copy-Item "$inc\ffi.h","$inc\ffitarget.h" -Destination "$env:GTK_PREFIX\include" -Force
+          Write-Host "ffi.h -> $env:GTK_PREFIX\include (from vcpkg libffi)"
+
+      # A HARD gate, unlike node-gi.yml's advisory diagnostics: if girepository-2.0 is
+      # unresolvable the node-gyp run below fails several minutes later inside cl.exe
+      # with a C1083 that names a header, not the missing .pc. `--exists` signals via
+      # exit code, not stdout — a bare `if (pkg-config ...)` tests stdout and
+      # false-reports MISSING.
+      - name: Verify pkg-config sees girepository-2.0 + cairo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "pkg-config: $((Get-Command pkg-config).Source)"
+          pkg-config --define-prefix --exists girepository-2.0 cairo
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "girepository-2.0 / cairo not resolvable — the addon build cannot succeed"
+            exit 1
+          }
+          Write-Host "girepository-2.0: $(pkg-config --define-prefix --modversion girepository-2.0)"
+          Write-Host "--- helper: include_dirs ---"
+          node packages/node-gi/node-gi/scripts/win-gi-gyp-flags.mjs --includes
+          Write-Host "--- helper: libraries ---"
+          node packages/node-gi/node-gi/scripts/win-gi-gyp-flags.mjs --libs
+
+      # `npm install --foreground-scripts` runs node-gi's `install` (node-gyp rebuild)
+      # → build/Release/node_gi.node via binding.gyp's OS=="win" branch (the helper
+      # above feeds cl.exe include dirs + link.exe .lib paths); stage-prebuild then
+      # copies it to prebuilds/win32-x64 (`${process.platform}-${process.arch}` on this
+      # runner).
+      - name: Build + stage the win32-x64 prebuild
+        working-directory: packages/node-gi/node-gi
+        run: |
+          npm install --no-audit --no-fund --foreground-scripts
+          node scripts/stage-prebuild.mjs
+
+      - name: Verify the staged prebuild loads (Node)
+        working-directory: packages/node-gi/node-gi
+        run: node --test test/smoke.test.mjs
+        env:
+          NODE_GI_NATIVE: prebuild
+
+      - name: Upload the prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: packages/node-gi/node-gi/prebuilds/win32-x64
+          if-no-files-found: error
+
+  # darwin-arm64 leg. Same gap, same shape: `gjsify.platforms` promises darwin-arm64,
+  # node-gi.yml's `macos` job builds + load-tests + uploads it, and release.yml never
+  # picked it up — so every macOS `--runtime node` consumer of a published tarball hit
+  # the identical "native addon not found" as Windows. Derived from that job, minus its
+  # Node/Bun/Deno conformance legs (gated there on every node-gi PR).
+  #
+  # The brew line is kept VERBATIM rather than trimmed to the addon's actual link
+  # closure (girepository-2.0 + cairo, per binding.gyp). Trimming would probably work
+  # and would save minutes on a scarce macOS runner — but a release-blocking job is the
+  # wrong place to discover that a trimmed formula list dropped a transitive, and a
+  # release happens far less often than node-gi.yml proves this exact list green.
+  node-gi-prebuild-darwin-arm64:
+    name: Build @gjsify/node-gi darwin-arm64 prebuild
+    needs: publish
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      - name: Install GTK4 + GObject-Introspection (Homebrew)
+        run: |
+          # gtk4/libadwaita pull graphene/pango/gdk-pixbuf/cairo/glib transitively,
+          # but name them so a slimmer future job (core subset only) still resolves.
+          # glib provides libgirepository-2.0 + girepository-2.0.pc (the merged API);
+          # gobject-introspection provides the GLib/GObject/Gio typelibs (Homebrew
+          # builds them there to break the glib<->g-i circular dep) + g-ir tools.
+          brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme
+          BREW_PREFIX="$(brew --prefix)"
+          # brew symlinks each keg's lib/ — incl. girepository-1.0/*.typelib and
+          # pkgconfig/*.pc — into $BREW_PREFIX/lib, so one dir covers every formula.
+          # (The typelib DIRECTORY is historically named girepository-1.0 even for
+          # the girepository-2.0 API.) DYLD_FALLBACK_LIBRARY_PATH lets the addon's
+          # g_module_open() find the Homebrew dylibs a typelib names by leaf soname.
+          {
+            echo "BREW_PREFIX=$BREW_PREFIX"
+            echo "PKG_CONFIG_PATH=$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+            echo "GI_TYPELIB_PATH=$BREW_PREFIX/lib/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+            echo "DYLD_FALLBACK_LIBRARY_PATH=$BREW_PREFIX/lib:/usr/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify pkg-config sees girepository-2.0 + cairo
+        run: |
+          set -eu
+          echo "pkg-config: $(command -v pkg-config) ($(pkg-config --version))"
+          pkg-config --exists girepository-2.0 cairo
+          echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+          echo "cairo: $(pkg-config --modversion cairo)"
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # binding.gyp's non-win branch feeds `pkg-config --cflags/--libs
+      # girepository-2.0 cairo` through xcode_settings.OTHER_CFLAGS →
+      # darwin-arm64 build/Release/node_gi.node; stage-prebuild copies it to
+      # prebuilds/darwin-arm64.
+      - name: Build + stage the darwin-arm64 prebuild
+        working-directory: packages/node-gi/node-gi
+        run: |
+          npm install --no-audit --no-fund --foreground-scripts
+          node scripts/stage-prebuild.mjs
+
+      - name: Verify the staged prebuild loads (Node)
+        working-directory: packages/node-gi/node-gi
+        run: node --test test/smoke.test.mjs
+        env:
+          NODE_GI_NATIVE: prebuild
+
+      - name: Upload the prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-prebuild-darwin-arm64
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64
           if-no-files-found: error
 
   publish-node-gi:
     name: Publish @gjsify/node-gi (Node GI reverse bridge)
-    needs: [publish, node-gi-prebuild-linux]
+    # EVERY prebuild leg is a hard dependency. There is no `always()` and no
+    # `continue-on-error` anywhere in this chain on purpose: if one platform's build
+    # breaks, this job is SKIPPED and nothing is published, rather than publishing a
+    # tarball that is quietly missing that platform. A partial publish is the exact
+    # shape of the defect this wiring exists to close — 0.26.0 went out believing it
+    # shipped four targets and shipped two.
+    needs:
+      - publish
+      - node-gi-prebuild-linux
+      - node-gi-prebuild-win32-x64
+      - node-gi-prebuild-darwin-arm64
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -525,18 +781,51 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
 
-      # Stage the linux prebuilds (x64 + arm64, from the node-gi-prebuild-linux matrix)
-      # into the package's prebuilds/ dir BEFORE publish, so the tarball ships them
-      # (prebuilds is in node-gi's `files`). merge-multiple flattens both artifacts into
-      # prebuilds/{linux-x64,linux-arm64}/node_gi.node.
-      - name: Download + stage the linux prebuilds (x64 + arm64)
+      # Stage EVERY prebuild leg's artifact into the package's prebuilds/ dir BEFORE
+      # publish, so the tarball ships them (`prebuilds` is in node-gi's `files`).
+      # merge-multiple lands each artifact at prebuilds/<target>/node_gi.node.
+      #
+      # The pattern is `node-gi-prebuild-*`, NOT `…-linux-*`. It was the linux-only
+      # form, and that single character is what made the win32 and darwin legs
+      # pointless: `node-gi.yml` has built, load-tested and uploaded a win32-x64
+      # addon for months — its own comment says it does so "so a release can ship
+      # prebuilds/win32-x64/" — and this step never asked for it. Verified against
+      # the shipped artifact: `@gjsify/node-gi@0.26.0`'s tarball contains exactly
+      # `prebuilds/{linux-x64,linux-arm64}/node_gi.node` and nothing else, so
+      # `--runtime node` could not work on Windows or macOS at all.
+      - name: Download + stage every prebuild (linux x64/arm64, win32-x64, darwin-arm64)
         uses: actions/download-artifact@v4
         with:
-          pattern: node-gi-prebuild-linux-*
+          pattern: node-gi-prebuild-*
           merge-multiple: true
           path: packages/node-gi/node-gi/prebuilds/
-      - name: Confirm the prebuilds are staged
-        run: ls -la packages/node-gi/node-gi/prebuilds/*/node_gi.node
+
+      # DERIVED from the package's own `gjsify.platforms`, never a list written here.
+      # The old form was `ls prebuilds/*/node_gi.node`, which passes as soon as ANY
+      # single target is present — so it was green for the whole time two of the four
+      # declared platforms were missing. A check that cannot fail on the defect it
+      # guards is worse than no check, because it reads as coverage.
+      #
+      # This is the last line of defence before the tarball is built: `audit-runtimes
+      # --check` holds "a declared target is produced by a CI job", and node-gi.yml
+      # genuinely produces all four — the invariant never asks whether the RELEASE
+      # ships them, which is exactly the gap that shipped.
+      - name: Confirm every declared platform is staged
+        run: |
+          set -euo pipefail
+          cd packages/node-gi/node-gi
+          missing=0
+          for target in $(node -p "require('./package.json').gjsify.platforms.join('\n')"); do
+            if [ -f "prebuilds/$target/node_gi.node" ]; then
+              echo "  ok      $target"
+            else
+              echo "::error::@gjsify/node-gi declares $target in gjsify.platforms but prebuilds/$target/node_gi.node was not staged — the tarball would ship a platform that cannot load"
+              missing=1
+            fi
+          done
+          if [ "$missing" != "0" ]; then exit 1; fi
+          echo "every declared platform staged:"
+          ls -la prebuilds/*/node_gi.node
 
       # No `registry-url` (it would inject a placeholder NODE_AUTH_TOKEN and defeat
       # OIDC — see the ubuntu `publish` job's rationale).
