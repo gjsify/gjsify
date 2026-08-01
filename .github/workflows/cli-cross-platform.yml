@@ -222,7 +222,19 @@ jobs:
         run: |
           set -eux
           TARGET="$(node -p "process.platform + '-' + process.arch")"
-          npm install --no-audit --no-fund --no-save "@gjsify/node-gi@${NODE_GI_VERSION:-latest}"
+          # The install is ALLOWED to fail and is a finding in its own right. It
+          # declares `scripts.install: node-gyp rebuild`, so npm ALWAYS runs a
+          # source build here — independent of whether a prebuild ships — and a
+          # tarball missing a file that `binding.gyp` calls makes `npm install`
+          # itself fail. Letting `set -e` kill the step would report that as a raw
+          # node-gyp trace with no attribution.
+          install_ok=1
+          npm install --no-audit --no-fund --no-save "@gjsify/node-gi@latest" > npm-nodegi.log 2>&1 || install_ok=0
+          tail -40 npm-nodegi.log
+          if [ ! -f node_modules/@gjsify/node-gi/package.json ]; then
+            echo "::error::npm could not even place @gjsify/node-gi on $TARGET — see the log above"
+            exit 1
+          fi
           ADDON="node_modules/@gjsify/node-gi/prebuilds/$TARGET/node_gi.node"
           ls -la node_modules/@gjsify/node-gi/prebuilds/ || true
           INSTALLED="$(node -p "require('./node_modules/@gjsify/node-gi/package.json').version")"
@@ -232,8 +244,19 @@ jobs:
             const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
             process.stdout.write(cmp >= 0 ? "1" : "0");
           ')"
-          if [ -f "$ADDON" ]; then
-            echo "prebuild present for $TARGET"
+          if [ -f "$ADDON" ] && [ "$install_ok" = "1" ]; then
+            echo "prebuild present for $TARGET and the install completed"
+            exit 0
+          fi
+          # Report the two failure modes separately — they have different causes
+          # and different fixes, and collapsing them would send the next reader
+          # after the wrong one.
+          if [ "$install_ok" = "0" ]; then
+            if [ "$HAS_FIX" = "1" ]; then
+              echo "::error::@gjsify/node-gi $INSTALLED failed to install on $TARGET — its install script runs node-gyp unconditionally, so a file binding.gyp calls that the tarball omits breaks every install here"
+              exit 1
+            fi
+            echo "::warning::@gjsify/node-gi $INSTALLED failed to install on $TARGET and predates the fix (< $LOWEST_FIXED) — known gap, not failing"
             exit 0
           fi
           # It is declared but not shipped — report which, so the message names the
