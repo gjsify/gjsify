@@ -35,8 +35,18 @@ on:
   pull_request:
     paths:
       - '.github/workflows/cli-cross-platform.yml'
+  # A release is the moment this job's answer CHANGES — it measures the PUBLISHED
+  # CLI, so every finding here is about an artifact that already exists. Waiting
+  # for the Monday cron means a platform can be broken for users for up to seven
+  # days before anything notices, which is exactly what happened with the Windows
+  # `EPERM` and the missing node-gi prebuilds: both were live in a published
+  # release, and the weekly run was the only thing that would ever have asked.
+  release:
+    types: [published]
   schedule:
-    # Weekly drift check (Mondays 05:00 UTC) so a released regression surfaces.
+    # Weekly drift check (Mondays 05:00 UTC) so a released regression surfaces
+    # even when no release happened — a registry-side or runner-image change can
+    # break a published CLI that nobody republished.
     - cron: '0 5 * * 1'
 
 permissions:
@@ -188,6 +198,126 @@ jobs:
           fi
           echo "$out" | grep -q "does not support --runtime node"
 
+      # The PUBLISH-side question no other gate asks. `audit-runtimes --check` holds
+      # "a declared target is produced by a CI job", and `node-gi.yml` genuinely
+      # produces win32-x64 and darwin-arm64 — load test included. Nothing asked
+      # whether the RELEASE ships them, and it did not: `@gjsify/node-gi@0.26.0`'s
+      # tarball carried only the two linux targets, so `--runtime node` could not
+      # work on this runner at all.
+      #
+      # This is the cheapest possible form of that check and needs no GTK and no
+      # display: install the package and look for the addon for THIS host triple.
+      # Only a cross-platform job can ask it, because only here is the host triple
+      # something other than linux-x64.
+      #
+      # Version-bound like the showcase step below: a published CLI predating the
+      # fix reports a KNOWN gap; from the first release carrying it, the same
+      # absence fails. The gate arms itself, with no edit here.
+      - name: 'node-gi: a prebuild exists for this platform'
+        id: nodegiprebuild
+        continue-on-error: true
+        working-directory: gjsify-diag
+        env:
+          LOWEST_FIXED: '0.26.1'
+        run: |
+          set -eux
+          TARGET="$(node -p "process.platform + '-' + process.arch")"
+          npm install --no-audit --no-fund --no-save "@gjsify/node-gi@${NODE_GI_VERSION:-latest}"
+          ADDON="node_modules/@gjsify/node-gi/prebuilds/$TARGET/node_gi.node"
+          ls -la node_modules/@gjsify/node-gi/prebuilds/ || true
+          INSTALLED="$(node -p "require('./node_modules/@gjsify/node-gi/package.json').version")"
+          HAS_FIX="$(INSTALLED="$INSTALLED" node -e '
+            const parse = (v) => v.split("-")[0].split(".").map(Number);
+            const [a, b] = [process.env.INSTALLED, process.env.LOWEST_FIXED].map(parse);
+            const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+            process.stdout.write(cmp >= 0 ? "1" : "0");
+          ')"
+          if [ -f "$ADDON" ]; then
+            echo "prebuild present for $TARGET"
+            exit 0
+          fi
+          # It is declared but not shipped — report which, so the message names the
+          # contradiction rather than just the missing file.
+          DECLARED="$(node -p "require('./node_modules/@gjsify/node-gi/package.json').gjsify.platforms.join(' ')")"
+          if [ "$HAS_FIX" = "1" ]; then
+            echo "::error::@gjsify/node-gi $INSTALLED declares [$DECLARED] but ships no prebuild for $TARGET — every --runtime node command fails at the addon load"
+            exit 1
+          fi
+          echo "::warning::@gjsify/node-gi $INSTALLED ships no $TARGET prebuild (declares [$DECLARED]) and predates the fix (< $LOWEST_FIXED) — known gap, not failing"
+
+      # The FULL end-user journey, run to completion. The step above it asserts a
+      # correct EARLY EXIT for a gjs-only showcase; that assertion is valuable and
+      # stays, but it terminates before the dlx cache, before any install and before
+      # the addon load — which is precisely why a directory-symlink `EPERM` in the
+      # dlx cache shipped to Windows users unnoticed. A probe that stops one step
+      # before the code that breaks cannot see the break.
+      #
+      # `express-webserver` is the showcase for this, deliberately not the
+      # canvas/GTK ones: it declares `node` in `gjsify.example.runtimes` AND is
+      # headless, so it proves dlx cache -> install -> node bundle -> real HTTP
+      # response with no display and no GTK on the runner. The GUI showcases need
+      # a windowing GTK bundle that is a separate, still-open concern.
+      #
+      # It serves forever (`app.listen`), so the run is BOUNDED: start detached,
+      # poll until it answers, assert the payload, then kill it. A hang must fail
+      # the step rather than burn the job timeout, which is what the poll ceiling
+      # is for.
+      - name: 'Showcase: the full --runtime node journey'
+        id: journey
+        continue-on-error: true
+        working-directory: gjsify-diag
+        env:
+          LOWEST_FIXED: '0.26.1'
+          PORT: '3123'
+        run: |
+          set -eux
+          npx gjsify showcase express-webserver --runtime node > journey.log 2>&1 &
+          SHOWCASE_PID=$!
+          ok=0
+          # ~90s ceiling: a cold dlx tree installs the showcase + node-gi first.
+          # Counter loop, not `seq`: `seq` is coreutils and not something to assume
+          # of every runner image's bash (git-bash on windows-latest included).
+          tries=0
+          while [ "$tries" -lt 90 ]; do
+            if curl -fsS "http://127.0.0.1:${PORT}/api/posts" -o payload.json 2>/dev/null; then ok=1; break; fi
+            # If the child is already gone, stop waiting — it failed to start, and
+            # polling a dead process for 90s would hide the reason in the timeout.
+            kill -0 "$SHOWCASE_PID" 2>/dev/null || break
+            tries=$((tries + 1))
+            sleep 1
+          done
+          kill "$SHOWCASE_PID" 2>/dev/null || true
+          wait "$SHOWCASE_PID" 2>/dev/null || true
+          cat journey.log
+          INSTALLED="$(node -p "require('./node_modules/@gjsify/cli/package.json').version")"
+          HAS_FIX="$(INSTALLED="$INSTALLED" node -e '
+            const parse = (v) => v.split("-")[0].split(".").map(Number);
+            const [a, b] = [process.env.INSTALLED, process.env.LOWEST_FIXED].map(parse);
+            const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+            process.stdout.write(cmp >= 0 ? "1" : "0");
+          ')"
+          if [ "$ok" = "1" ]; then
+            # Assert something is really answering with JSON — deliberately NOT a
+            # shape assertion: the showcase's payload contract is not pinned
+            # anywhere, and inventing one here would fail on a harmless change to
+            # the demo data. `readFileSync`, not `require`, because the scaffold's
+            # module type is not ours to assume.
+            node -e "
+              const { readFileSync } = require('node:fs');
+              const raw = readFileSync('payload.json', 'utf8');
+              const parsed = JSON.parse(raw);
+              if (raw.length === 0 || parsed === null) { console.error('empty payload'); process.exit(1); }
+              console.log('payload parsed,', raw.length, 'bytes');
+            "
+            echo "the journey completed and the showcase served a response"
+            exit 0
+          fi
+          if [ "$HAS_FIX" = "1" ]; then
+            echo "::error::@gjsify/cli $INSTALLED could not run a node-declared showcase to completion on this platform — see journey.log above"
+            exit 1
+          fi
+          echo "::warning::@gjsify/cli $INSTALLED predates the Windows/dlx fixes (< $LOWEST_FIXED) — known gap, not failing"
+
       - name: Diagnostic summary
         run: |
           echo "## gjsify CLI on ${{ matrix.os }} (Node)" >> "$GITHUB_STEP_SUMMARY"
@@ -199,6 +329,8 @@ jobs:
           echo "| gjsify install (backend) | ${{ steps.install.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| .bin shim created + runnable | ${{ steps.binshim.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| showcase --runtime node (no gjs) | ${{ steps.showcase.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| node-gi prebuild for this platform | ${{ steps.nodegiprebuild.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| showcase --runtime node (full journey) | ${{ steps.journey.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "--- outcomes: version=${{ steps.version.outcome }} build=${{ steps.build.outcome }} run=${{ steps.run.outcome }} install=${{ steps.install.outcome }} binshim=${{ steps.binshim.outcome }}"
           # Every substantive step stays continue-on-error so ONE run still maps
           # ALL the gaps; the gate lives here, at the end.
@@ -222,6 +354,24 @@ jobs:
           # a CLI predating the fix warns and passes; from the first release
           # carrying it, the same demand fails. Nothing to remember later.
           if [ "${{ steps.showcase.outcome }}" != "success" ]; then FAILED=1; fi
+          # The two publish-side probes gate the same way, and for the same reason
+          # the others do: they are the only steps in this repository that can ask
+          # whether a RELEASED artifact works on a platform nobody here runs.
+          #
+          # `nodegiprebuild` asks the question no declaration invariant covers —
+          # `audit-runtimes --check` proves a CI job BUILDS a target, never that the
+          # release SHIPS it, and two of node-gi's four declared platforms were
+          # missing from the tarball while every check stayed green.
+          #
+          # `journey` is the end-user path run to completion. The `showcase` step
+          # above asserts a correct early exit for a gjs-only showcase; this one
+          # goes all the way through the dlx cache, the install and the bundle, and
+          # is what would have caught the directory-symlink EPERM on Windows.
+          #
+          # Both are version-bound in their steps, so they report against a CLI
+          # predating the fix and fail from the first release that carries it.
+          if [ "${{ steps.nodegiprebuild.outcome }}" != "success" ]; then FAILED=1; fi
+          if [ "${{ steps.journey.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "$FAILED" = "0" ]; then
             echo "CLI PATH GREEN on ${{ matrix.os }} (toolchain + install backend)"
           else
