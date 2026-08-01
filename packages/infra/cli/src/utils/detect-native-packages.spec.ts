@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Unit tests for native-prebuild resolution across operating systems.
 //
-// The whole point of this file: the darwin and win32 branches are exercised
-// HERE, on a Linux CI host, by injecting foreign `platform`/`arch` values into
-// pure functions. Before the OS-axis fix these branches did not exist —
-// `checkPackage` interpolated a literal `linux-` prefix and `buildNativeEnv`
+// The whole point of this file: the darwin, win32 AND musl branches are exercised
+// HERE, on a glibc Linux CI host, by injecting foreign `platform`/`arch`/`libc`
+// values into pure functions. Before the OS-axis fix these branches did not exist
+// — `checkPackage` interpolated a literal `linux-` prefix and `buildNativeEnv`
 // only ever emitted `LD_LIBRARY_PATH`, so the `darwin-arm64` prebuilds
-// `.github/workflows/prebuilds.yml` produces were unreachable.
+// `.github/workflows/prebuilds.yml` produces were unreachable. The libc axis has
+// the same shape and a sharper version of the same problem: there is no musl
+// runner in this repo's CI at all, so an injected `libc: 'musl'` is the ONLY way
+// its branch is ever executed.
 //
 // What is NOT covered here (and cannot be, off-host): whether `dyld` actually
-// honours the `DYLD_LIBRARY_PATH` we emit, and whether Windows' `LoadLibrary`
-// picks the DLL up off `PATH`. Those are CI-only, on the real OS.
+// honours the `DYLD_LIBRARY_PATH` we emit, whether Windows' `LoadLibrary` picks
+// the DLL up off `PATH`, and whether a musl host's dynamic loader accepts a
+// `-musl` prebuild. Those are CI-only, on the real OS.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -21,14 +25,26 @@ import {
     buildNativeEnv,
     canonicalPlatformToken,
     detectNativePackages,
+    hostPlatformTokens,
     libraryPathVar,
+    parsePlatformToken,
+    platformPackageName,
     prebuildDirCandidates,
+    resolveHostLibc,
     resolvePrebuildDirName,
 } from './detect-native-packages.js';
 
 /** Lay down `<root>/node_modules/<name>/` with a gjsify manifest + prebuild dirs. */
-function seedPackage(root: string, name: string, opts: { prebuildDirs: string[]; platforms?: string[] }): void {
-    const pkgDir = join(root, 'node_modules', ...name.split('/'));
+function seedPackage(
+    root: string,
+    name: string,
+    opts: { prebuildDirs: string[]; platforms?: string[]; nodeModulesOf?: string },
+): void {
+    // `nodeModulesOf` seeds an ISOLATED layout: the package lands inside ANOTHER
+    // package's `node_modules`, which is where pnpm's virtual store puts a
+    // per-platform companion and where the CWD up-walk can never see it.
+    const base = opts.nodeModulesOf ? join(root, 'node_modules', ...opts.nodeModulesOf.split('/')) : root;
+    const pkgDir = join(base, 'node_modules', ...name.split('/'));
     mkdirSync(pkgDir, { recursive: true });
     writeFileSync(
         join(pkgDir, 'package.json'),
@@ -57,6 +73,102 @@ export default async () => {
             expect(canonicalPlatformToken('darwin-arm64')).toBe('darwin-arm64');
             expect(canonicalPlatformToken('win32-x64')).toBe('win32-x64');
             expect(canonicalPlatformToken('linux-riscv64')).toBe('linux-riscv64');
+        });
+
+        await it('carries the -musl suffix through, arch alias and all', async () => {
+            // The grammar is `<os>-<arch>[-musl]`, so canonicalisation must
+            // normalise the arch WITHOUT losing the libc half — folding
+            // `linux-x86_64-musl` down to `linux-x64` would make a musl
+            // declaration compare equal to the glibc one and silently resolve a
+            // glibc directory on a musl host.
+            expect(canonicalPlatformToken('linux-x64-musl')).toBe('linux-x64-musl');
+            expect(canonicalPlatformToken('linux-x86_64-musl')).toBe('linux-x64-musl');
+            expect(canonicalPlatformToken('linux-aarch64-musl')).toBe('linux-arm64-musl');
+        });
+
+        await it('does NOT drop a -musl suffix off a non-Linux token', async () => {
+            // `darwin-arm64-musl` is malformed, not exotic. Canonicalising it to
+            // a VALID token would hide it from the audit that rejects it — the
+            // same failure shape as folding the retired uname spelling on a
+            // write path.
+            expect(canonicalPlatformToken('darwin-arm64-musl')).toBe('darwin-arm64-musl');
+            expect(canonicalPlatformToken('win32-x64-musl')).toBe('win32-x64-musl');
+        });
+    });
+
+    await describe('parsePlatformToken', async () => {
+        await it('splits the three axes and only honours -musl on linux', async () => {
+            expect(parsePlatformToken('linux-x64')).toStrictEqual({ os: 'linux', arch: 'x64', libc: null });
+            expect(parsePlatformToken('linux-x64-musl')).toStrictEqual({ os: 'linux', arch: 'x64', libc: 'musl' });
+            // musl targets no other kernel, and npm's own `libc` field is
+            // documented Linux-only — so `libc` stays null and the caller
+            // reports the token instead of half-honouring it.
+            expect(parsePlatformToken('darwin-arm64-musl')).toStrictEqual({
+                os: 'darwin',
+                arch: 'arm64',
+                libc: null,
+            });
+        });
+    });
+
+    await describe('hostPlatformTokens', async () => {
+        await it('prefers the -musl token on a musl host and keeps the plain one behind it', async () => {
+            // The unsuffixed directory is the DEFAULT build, and for the bridges
+            // that record no `libc.so.6` at all (tls-native, webrtc-native on
+            // most arches) it genuinely loads on musl — so it stays reachable as
+            // a fallback rather than being excluded.
+            expect(hostPlatformTokens('linux', 'x64', 'musl')).toStrictEqual(['linux-x64-musl', 'linux-x64']);
+        });
+
+        await it('never offers a -musl token on glibc', async () => {
+            // A musl artifact cannot load against glibc, so probing for one can
+            // only ever produce a false positive.
+            expect(hostPlatformTokens('linux', 'x64', 'glibc')).toStrictEqual(['linux-x64']);
+            expect(hostPlatformTokens('linux', 'x64')).toStrictEqual(['linux-x64']);
+            expect(hostPlatformTokens('linux', 'x64', null)).toStrictEqual(['linux-x64']);
+        });
+
+        await it('ignores a musl claim on an OS that has no musl', async () => {
+            // The caller's host facts do not get to invent a target the grammar
+            // does not have.
+            expect(hostPlatformTokens('darwin', 'arm64', 'musl')).toStrictEqual(['darwin-arm64']);
+            expect(hostPlatformTokens('win32', 'x64', 'musl')).toStrictEqual(['win32-x64']);
+        });
+    });
+
+    await describe('resolveHostLibc', async () => {
+        await it('trusts the glibc runtime version when the process exposes one', async () => {
+            expect(resolveHostLibc({ platform: 'linux', glibcVersionRuntime: '2.42' })).toBe('glibc');
+        });
+
+        await it('falls back to the musl loader probe — the only one GJS can answer', async () => {
+            // Under the committed GJS bundle `@gjsify/process` has no `report`,
+            // so on this project's PRIMARY runtime the glibc probe never
+            // answers and this branch is the whole detection.
+            expect(resolveHostLibc({ platform: 'linux', muslLoaderPresent: true })).toBe('musl');
+            expect(resolveHostLibc({ platform: 'linux', muslLoaderPresent: false })).toBe('glibc');
+            expect(resolveHostLibc({ platform: 'linux' })).toBe('glibc');
+        });
+
+        await it('reports no libc axis off Linux', async () => {
+            // npm's `libc` field is Linux-only; every other OS has one C library.
+            expect(resolveHostLibc({ platform: 'darwin', muslLoaderPresent: true })).toBe(null);
+            expect(resolveHostLibc({ platform: 'win32' })).toBe(null);
+        });
+    });
+
+    await describe('platformPackageName', async () => {
+        await it('derives the companion package name for a target', async () => {
+            // The `@gjsify/gtk-runtime-darwin-arm64` pattern, and napi-rs's
+            // `<pkg>-<triple>` siblings. ONE definition, shared by the sibling
+            // resolution and by the audit.
+            expect(platformPackageName('@gjsify/rolldown-native', 'linux-x64')).toBe(
+                '@gjsify/rolldown-native-linux-x64',
+            );
+            expect(platformPackageName('@gjsify/rolldown-native', 'linux-x64-musl')).toBe(
+                '@gjsify/rolldown-native-linux-x64-musl',
+            );
+            expect(platformPackageName('some-native', 'darwin-arm64')).toBe('some-native-darwin-arm64');
         });
     });
 
@@ -106,6 +218,42 @@ export default async () => {
             expect(prebuildDirCandidates('darwin', 'arm64', ['linux-x64', 'win32-x64'])).toStrictEqual([
                 'darwin-arm64',
                 'darwin-aarch64',
+            ]);
+        });
+
+        await it('puts the -musl directory ahead of the default build on a musl host', async () => {
+            expect(prebuildDirCandidates('linux', 'x64', undefined, 'musl')).toStrictEqual([
+                'linux-x64-musl',
+                'linux-x64',
+                'linux-x86_64',
+            ]);
+        });
+
+        await it('never offers a -musl directory on glibc, however it is declared', async () => {
+            // Not merely "prefers the glibc one": a musl artifact CANNOT load
+            // against glibc, so the suffixed name must not appear at all — even
+            // when the package declares it, which it does on every dual-libc
+            // package.
+            expect(prebuildDirCandidates('linux', 'x64', ['linux-x64', 'linux-x64-musl'], 'glibc')).toStrictEqual([
+                'linux-x64',
+                'linux-x86_64',
+            ]);
+            expect(prebuildDirCandidates('linux', 'x64', ['linux-x64-musl'])).toStrictEqual([
+                'linux-x64',
+                'linux-x86_64',
+            ]);
+        });
+
+        await it('keeps the libc preference ahead of the declaration probe', async () => {
+            // The declared-spelling probe exists for pre-rename tarballs, and
+            // within ONE host token it still wins (a tarball that declares AND
+            // ships `linux-x86_64` loads without the CLI guessing). What it must
+            // NOT be able to do is REORDER the libc axis: a musl host takes the
+            // musl directory before any spelling of the default build.
+            expect(prebuildDirCandidates('linux', 'x64', ['linux-x86_64', 'linux-x64-musl'], 'musl')).toStrictEqual([
+                'linux-x64-musl',
+                'linux-x86_64',
+                'linux-x64',
             ]);
         });
     });
@@ -174,6 +322,60 @@ export default async () => {
                     existingDirs: ['linux-x64', 'linux-arm64'],
                 }),
             ).toBe(null);
+        });
+
+        await it('picks the -musl directory on a musl host when one is shipped', async () => {
+            expect(
+                resolvePrebuildDirName({
+                    platform: 'linux',
+                    arch: 'x64',
+                    declaredPlatforms: ['linux-x64', 'linux-x64-musl', 'linux-arm64'],
+                    existingDirs: ['linux-x64', 'linux-x64-musl', 'linux-arm64'],
+                    libc: 'musl',
+                }),
+            ).toBe('linux-x64-musl');
+        });
+
+        await it('falls back to the default build on a musl host with no -musl artifact', async () => {
+            // Correct for the libc-AGNOSTIC bridges (no `libc.so.6` in
+            // DT_NEEDED at all), which is why the fallback exists rather than
+            // returning null. Whether a given package may be installed on musl
+            // is the `libc` manifest field's job, and `prebuild-libc` holds that
+            // field to what the binaries actually record.
+            expect(
+                resolvePrebuildDirName({
+                    platform: 'linux',
+                    arch: 'x64',
+                    declaredPlatforms: ['linux-x64'],
+                    existingDirs: ['linux-x64'],
+                    libc: 'musl',
+                }),
+            ).toBe('linux-x64');
+        });
+
+        await it('refuses a -musl directory on a glibc host', async () => {
+            // The one directional guarantee: a glibc host must never be handed a
+            // musl artifact. With only the musl build shipped the answer is
+            // "nothing here" — a clean miss, then the package's own graceful
+            // no-native path, never a library that cannot be dlopen'ed.
+            expect(
+                resolvePrebuildDirName({
+                    platform: 'linux',
+                    arch: 'x64',
+                    declaredPlatforms: ['linux-x64-musl'],
+                    existingDirs: ['linux-x64-musl'],
+                    libc: 'glibc',
+                }),
+            ).toBe(null);
+            expect(
+                resolvePrebuildDirName({
+                    platform: 'linux',
+                    arch: 'x64',
+                    declaredPlatforms: ['linux-x64', 'linux-x64-musl'],
+                    existingDirs: ['linux-x64', 'linux-x64-musl'],
+                    libc: 'glibc',
+                }),
+            ).toBe('linux-x64');
         });
     });
 
@@ -308,6 +510,83 @@ export default async () => {
 
             await it('finds nothing for a host no package ships for', async () => {
                 expect(detectNativePackages(root, { platform: 'linux', arch: 's390x' })).toStrictEqual([]);
+            });
+
+            await it('takes the -musl artifact on a musl host and the default build on glibc', async () => {
+                // Same tree, same walk, one injected host fact — the only way
+                // this branch runs at all, since there is no musl runner in CI.
+                seedPackage(root, '@gjsify/duallibc-native', {
+                    prebuildDirs: ['linux-x64', 'linux-x64-musl'],
+                    platforms: ['linux-x64', 'linux-x64-musl'],
+                });
+                const onMusl = byName(detectNativePackages(root, { platform: 'linux', arch: 'x64', libc: 'musl' }));
+                expect(onMusl['@gjsify/duallibc-native']).toBe(
+                    join(root, 'node_modules/@gjsify/duallibc-native/prebuilds/linux-x64-musl'),
+                );
+                const onGlibc = byName(detectNativePackages(root, { platform: 'linux', arch: 'x64', libc: 'glibc' }));
+                expect(onGlibc['@gjsify/duallibc-native']).toBe(
+                    join(root, 'node_modules/@gjsify/duallibc-native/prebuilds/linux-x64'),
+                );
+            });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    await describe('detectNativePackages (per-platform companion packages)', async () => {
+        // The layout a bridge SPLIT into per-platform npm packages produces: the
+        // depending package keeps the declaration and ships no binary, and
+        // `<name>-<token>` carries it. Seeded in the ISOLATED position — inside
+        // the depending package's OWN `node_modules` — because that is the case
+        // the CWD up-walk structurally cannot reach, and the reason the second
+        // pass exists at all. A hoisted layout needs no help: the up-walk lists
+        // the companion like any other package.
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-detect-sibling-'));
+        try {
+            seedPackage(root, '@gjsify/split-native', { prebuildDirs: [], platforms: ['linux-x64', 'darwin-arm64'] });
+            seedPackage(root, '@gjsify/split-native-linux-x64', {
+                prebuildDirs: ['linux-x64'],
+                platforms: ['linux-x64'],
+                nodeModulesOf: '@gjsify/split-native',
+            });
+            seedPackage(root, '@gjsify/split-native-linux-x64-musl', {
+                prebuildDirs: ['linux-x64-musl'],
+                platforms: ['linux-x64-musl'],
+                nodeModulesOf: '@gjsify/split-native',
+            });
+
+            const byName = (pkgs: Array<{ name: string; prebuildsDir: string }>) =>
+                Object.fromEntries(pkgs.map((p) => [p.name, p.prebuildsDir]));
+            const nested = (name: string, dir: string) =>
+                join(root, 'node_modules/@gjsify/split-native/node_modules', name, 'prebuilds', dir);
+
+            await it('resolves a companion package from the depending package’s own node_modules', async () => {
+                const found = byName(detectNativePackages(root, { platform: 'linux', arch: 'x64', libc: 'glibc' }));
+                expect(found['@gjsify/split-native-linux-x64']).toBe(
+                    nested('@gjsify/split-native-linux-x64', 'linux-x64'),
+                );
+                // The depending package itself contributes no directory — it has
+                // none, and inventing one would put a non-existent path on
+                // GI_TYPELIB_PATH.
+                expect(found['@gjsify/split-native']).toBeUndefined();
+            });
+
+            await it('applies the libc preference to the companion NAME, not just the directory', async () => {
+                // The split moves the target into the package name, so the musl
+                // decision has to be made one level earlier. Getting this wrong
+                // is silent: the glibc companion resolves fine and then fails at
+                // `dlopen` on the user's Alpine box.
+                const found = byName(detectNativePackages(root, { platform: 'linux', arch: 'x64', libc: 'musl' }));
+                expect(found['@gjsify/split-native-linux-x64-musl']).toBe(
+                    nested('@gjsify/split-native-linux-x64-musl', 'linux-x64-musl'),
+                );
+                expect(found['@gjsify/split-native-linux-x64']).toBeUndefined();
+            });
+
+            await it('adds nothing for a host with no companion package', async () => {
+                // `darwin-arm64` is declared but no companion is installed —
+                // a macOS host must get a clean miss, not the linux artifact.
+                expect(detectNativePackages(root, { platform: 'darwin', arch: 'arm64' })).toStrictEqual([]);
             });
         } finally {
             rmSync(root, { recursive: true, force: true });

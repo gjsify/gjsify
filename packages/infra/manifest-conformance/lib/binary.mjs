@@ -49,6 +49,32 @@
  *     `GI_TYPELIB_PATH` resolves the namespace. A typelib naming a leaf the
  *     directory does not hold is a prebuild that cannot work, and no amount
  *     of rpath correctness saves it.
+ *
+ * The libc axis (`prebuild-libc`) adds two more readers, and they exist for the
+ * same reason the two above do: the answer was previously HAND-MAINTAINED.
+ * "which libc does this bridge need" and "how old a glibc still loads it" were
+ * facts nobody had measured — the tree said `libc` nowhere, and the one number
+ * that actually bounds the whole Linux floor (`@gjsify/lightningcss-native`'s
+ * `GLIBC_2.39`, i.e. Ubuntu 24.04 / Debian 13) was invisible until it was read
+ * out of the binary. Both are properties OF THE FILE, so they belong here:
+ *   • `readElfNeeded()` — the DT_NEEDED leaf names. A bridge that does not
+ *     record `libc.so.6` at all links only GLib/GObject/GIO (plus GnuTLS resp.
+ *     GStreamer) and therefore runs against whatever libc the host's GLib was
+ *     built for, glibc or musl. That is a real, checkable distinction: it is
+ *     the difference between `libc: ["glibc"]` and no `libc` field at all.
+ *   • `readElfGlibcRequires()` — the highest `GLIBC_<x.y>` symbol version the
+ *     image REQUIRES, out of `SHT_GNU_verneed`. This is the actual glibc floor
+ *     the dynamic linker enforces; a declared `gjsify.glibcRequires` below it
+ *     is a promise the artifact cannot keep.
+ *
+ * Both are deliberately implemented HERE rather than by shelling out to
+ * `readelf`/`objdump`, for the reason the whole file exists: a Linux x86-64 host
+ * has to read a `linux-riscv64` (and a `linux-s390x` big-endian) artifact it
+ * cannot execute, and `readelf` is not guaranteed to be installed on a bare CI
+ * runner. Unlike the loader-path check they also have to cope with ELF32 —
+ * nothing in the tree ships a 32-bit prebuild today, but these two readers are
+ * the ones a consumer would point at an `ia32`/`arm` binding, and a parser that
+ * silently mis-reads a class it does not support is worse than one that says so.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -73,6 +99,24 @@ const DT_NEEDED = 1;
 const DT_STRTAB = 5;
 const DT_RPATH = 15;
 const DT_RUNPATH = 29;
+
+/**
+ * Section types the libc axis reads.
+ *
+ * `SHT_GNU_verneed` (`.gnu.version_r`) is the versioned-symbol REQUIREMENT
+ * table — "this image needs symbols tagged `GLIBC_2.39` from `libc.so.6`" — as
+ * opposed to `SHT_GNU_verdef` (`0x6ffffffd`, `.gnu.version_d`), which is what a
+ * LIBRARY publishes. Reading the wrong one of the two would report a glibc
+ * floor of "whatever this bridge itself defines", i.e. nothing, on every
+ * artifact — which reads exactly like "no floor" and is why the pair is named
+ * here instead of inlined as a magic number.
+ */
+const SHT_STRTAB = 3;
+const SHT_DYNAMIC = 6;
+const SHT_GNU_VERNEED = 0x6ffffffe;
+
+/** `e_ident` bytes: 0x7f 'E' 'L' 'F', read big-endian so the compare is one u32. */
+const ELF_MAGIC = 0x7f454c46;
 
 /** PE/COFF `IMAGE_DOS_HEADER.e_magic` ("MZ") and `IMAGE_NT_SIGNATURE` ("PE\0\0"). */
 const PE_DOS_MAGIC = 0x5a4d;
@@ -296,9 +340,249 @@ export function readLibrary(file) {
     if (magic === MH_MAGIC_64 || magic === MH_CIGAM_64 || magic === FAT_MAGIC || magic === FAT_CIGAM) {
         return readMachO(data);
     }
-    if (data.readUInt32BE(0) === 0x7f454c46) return readElf(data);
+    if (data.readUInt32BE(0) === ELF_MAGIC) return readElf(data);
     if (data.readUInt16LE(0) === PE_DOS_MAGIC) return readPe(data);
     return null;
+}
+
+/**
+ * @typedef {object} ElfSection
+ * @property {number} type `sh_type`
+ * @property {number} offset `sh_offset` — a FILE offset, so no vaddr translation
+ * @property {number} size `sh_size`
+ * @property {number} link `sh_link` — index of a related section (for
+ *   `SHT_DYNAMIC` and `SHT_GNU_verneed`, the string table their names live in)
+ * @property {number} info `sh_info` — for `SHT_GNU_verneed`, the Verneed count
+ * @property {number} entsize `sh_entsize`
+ */
+
+/**
+ * Parse an ELF's header + SECTION table, for both classes and both byte orders.
+ *
+ * Why sections rather than the `PT_DYNAMIC` segment `readElf()` above walks:
+ * `.gnu.version_r` has no program-header entry at all, and its string table is
+ * named by `sh_link`. Once the section table is being read anyway, `DT_NEEDED`
+ * is cheaper to reach the same way — `SHT_DYNAMIC`'s `sh_link` IS the `.dynstr`
+ * index, which removes the vaddr→file-offset mapping `readElf()` needs. The two
+ * paths coexist on purpose: `readElf()` is a load-bearing, shipped check whose
+ * behaviour must not change as a side effect of adding the libc axis.
+ *
+ * Section NAMES are never resolved, deliberately: everything here selects by
+ * `sh_type`, so `.shstrtab` is not consulted and the `SHN_XINDEX` escape
+ * (`e_shstrndx == 0xffff` on an object with ≥ 0xff00 sections) cannot arise.
+ *
+ * @param {Buffer} data
+ * @returns {{bits: 32|64, le: boolean, machine: number, sections: ElfSection[], strAt: (sec: ElfSection, idx: number) => string} | null}
+ *   null when this is not an ELF image, or is one whose section table was
+ *   stripped — the caller MUST treat null as "not measured", never as "measured
+ *   and found nothing".
+ */
+function openElfSections(data) {
+    if (data.length < 64) return null;
+    if (data.readUInt32BE(0) !== ELF_MAGIC) return null;
+    const cls = data.readUInt8(4);
+    const enc = data.readUInt8(5);
+    if ((cls !== 1 && cls !== 2) || (enc !== 1 && enc !== 2)) return null;
+    const bits = cls === 1 ? 32 : 64;
+    const le = enc === 1;
+
+    /** @param {number} off */
+    const u16 = (off) => (le ? data.readUInt16LE(off) : data.readUInt16BE(off));
+    /** @param {number} off */
+    const u32 = (off) => (le ? data.readUInt32LE(off) : data.readUInt32BE(off));
+    /** @param {number} off */
+    const u64 = (off) => Number(le ? data.readBigUInt64LE(off) : data.readBigUInt64BE(off));
+
+    // The two classes differ in the WIDTH of the address/offset fields, not in
+    // their order, so every field below is one offset table indexed by class.
+    const machine = u16(0x12);
+    const shoff = bits === 32 ? u32(0x20) : u64(0x28);
+    const shentsize = u16(bits === 32 ? 0x2e : 0x3a);
+    let shnum = u16(bits === 32 ? 0x30 : 0x3c);
+    if (shoff === 0 || shentsize === 0) return null;
+    // `e_shnum == 0` with a non-zero `e_shoff` means the real count did not fit
+    // in 16 bits and lives in section 0's `sh_size`. No artifact here is
+    // remotely near 65280 sections, but reading 0 sections would report "no
+    // DT_NEEDED" on a perfectly normal library, and that answer feeds a
+    // "therefore it is libc-agnostic" conclusion — the exact silent-wrongness
+    // shape this whole file exists to prevent.
+    if (shnum === 0) {
+        if (shoff + shentsize > data.length) return null;
+        shnum = bits === 32 ? u32(shoff + 0x14) : u64(shoff + 0x20);
+        if (shnum === 0) return null;
+    }
+    if (shoff + shnum * shentsize > data.length) return null;
+
+    /** @type {ElfSection[]} */ const sections = [];
+    for (let i = 0; i < shnum; i++) {
+        const p = shoff + i * shentsize;
+        sections.push({
+            type: u32(p + 4),
+            offset: bits === 32 ? u32(p + 0x10) : u64(p + 0x18),
+            size: bits === 32 ? u32(p + 0x14) : u64(p + 0x20),
+            link: u32(bits === 32 ? p + 0x18 : p + 0x28),
+            info: u32(bits === 32 ? p + 0x1c : p + 0x2c),
+            entsize: bits === 32 ? u32(p + 0x24) : u64(p + 0x38),
+        });
+    }
+
+    /**
+     * Read a NUL-terminated string at `idx` inside a string-table section.
+     * Out-of-range indices yield `''` rather than throwing: a malformed index
+     * must surface as "this name is empty, so it matched nothing", which the
+     * callers report, not as an exception that aborts the whole audit run.
+     * @param {ElfSection} sec @param {number} idx
+     */
+    const strAt = (sec, idx) => {
+        const start = sec.offset + idx;
+        if (!(idx >= 0) || start >= sec.offset + sec.size || start >= data.length) return '';
+        const end = data.indexOf(0, start);
+        return data.subarray(start, end === -1 ? data.length : end).toString('utf8');
+    };
+
+    return { bits, le, machine, sections, strAt };
+}
+
+/**
+ * The `DT_NEEDED` dependency LEAF names an ELF shared object records.
+ *
+ * Leaf names, not the raw strings: a `DT_NEEDED` is normally already a bare
+ * soname (`libc.so.6`), but a library linked against an absolute path records
+ * that path, and the question every caller asks is "does it need libc at all",
+ * which is a question about the leaf.
+ *
+ * @param {string} file
+ * @returns {string[] | null} null when `file` is not an ELF image (or its
+ *   section table is unreadable) — i.e. "NOT MEASURED". An empty array means
+ *   measured, and the image records no dependency at all (a fully static
+ *   object). The distinction is the whole contract: a caller that collapses
+ *   null into `[]` concludes "records no libc.so.6" from a file it never read.
+ */
+export function readElfNeeded(file) {
+    const data = readFileSync(file);
+    const elf = openElfSections(data);
+    if (!elf) return null;
+    const dyn = elf.sections.find((s) => s.type === SHT_DYNAMIC);
+    if (!dyn) return [];
+    const strtab = elf.sections[dyn.link];
+    if (!strtab || strtab.type !== SHT_STRTAB) return null;
+
+    const step = elf.bits === 32 ? 8 : 16;
+    /** @param {number} off */
+    const tagVal = (off) =>
+        elf.bits === 32
+            ? [
+                  elf.le ? data.readUInt32LE(off) : data.readUInt32BE(off),
+                  elf.le ? data.readUInt32LE(off + 4) : data.readUInt32BE(off + 4),
+              ]
+            : [
+                  Number(elf.le ? data.readBigUInt64LE(off) : data.readBigUInt64BE(off)),
+                  Number(elf.le ? data.readBigUInt64LE(off + 8) : data.readBigUInt64BE(off + 8)),
+              ];
+
+    /** @type {string[]} */ const needed = [];
+    for (let p = dyn.offset; p + step <= dyn.offset + dyn.size && p + step <= data.length; p += step) {
+        const [tag, val] = tagVal(p);
+        if (tag === DT_NULL) break;
+        if (tag === DT_NEEDED) {
+            const name = elf.strAt(strtab, val);
+            if (name) needed.push(basename(name));
+        }
+    }
+    return needed;
+}
+
+/**
+ * Compare two dotted numeric version strings NUMERICALLY.
+ *
+ * Exported because the glibc floor is compared in two places — the rule reports
+ * the measured maximum across an artifact's symbols, and then compares it to a
+ * declared `gjsify.glibcRequires` — and both comparisons must agree. A lexical
+ * comparison gets this wrong on the most common pair in the actual data:
+ * `'2.9' > '2.34'` as strings, so a `2.34` floor would be reported as satisfied
+ * by a declaration of `2.9`, and `readElfGlibcRequires` would pick `GLIBC_2.9`
+ * as the maximum of a set containing `GLIBC_2.34`.
+ *
+ * Missing components count as 0, so `2.34` and `2.34.0` are equal.
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {number} negative when a < b, 0 when equal, positive when a > b
+ */
+export function compareGlibcVersions(a, b) {
+    const pa = String(a).split('.').map(Number);
+    const pb = String(b).split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+        if (d !== 0) return d < 0 ? -1 : 1;
+    }
+    return 0;
+}
+
+/** A versioned-symbol requirement naming a glibc release, e.g. `GLIBC_2.39`. */
+const GLIBC_VERSION_RE = /^GLIBC_(\d+(?:\.\d+)*)$/;
+
+/**
+ * The highest glibc symbol version an ELF image REQUIRES — its real floor.
+ *
+ * This is what the dynamic linker enforces: a binary whose `.gnu.version_r`
+ * asks `libc.so.6` for `GLIBC_2.39` symbols refuses to load against an older
+ * glibc with `version 'GLIBC_2.39' not found`, no matter how permissive the
+ * package's declared support matrix is. Measuring it is the difference between
+ * a distro-support claim and a distro-support fact — and the measurement is why
+ * `@gjsify/lightningcss-native` turns out to pin this repo's whole Linux floor
+ * to Ubuntu 24.04 / Debian 13 single-handedly.
+ *
+ * `GLIBC_PRIVATE` and `GLIBC_ABI_*` entries are skipped: they are not releases
+ * and have no ordering against `2.x`, so including them would make the maximum
+ * meaningless (and `Number('PRIVATE')` is `NaN`, which silently loses every
+ * comparison).
+ *
+ * @param {string} file
+ * @returns {string | null} the bare version (`'2.34'`), or null when the image
+ *   is not ELF, has no `.gnu.version_r`, or requires no `GLIBC_<x.y>` symbol at
+ *   all. Callers that need to tell "unreadable" from "genuinely no floor" ask
+ *   {@link readElfNeeded} first — it returns null for exactly the unreadable
+ *   case and an array for every image this parser understood.
+ */
+export function readElfGlibcRequires(file) {
+    const data = readFileSync(file);
+    const elf = openElfSections(data);
+    if (!elf) return null;
+    const verneed = elf.sections.find((s) => s.type === SHT_GNU_VERNEED);
+    if (!verneed) return null;
+    const strtab = elf.sections[verneed.link];
+    if (!strtab || strtab.type !== SHT_STRTAB) return null;
+
+    /** @param {number} off */
+    const u16 = (off) => (elf.le ? data.readUInt16LE(off) : data.readUInt16BE(off));
+    /** @param {number} off */
+    const u32 = (off) => (elf.le ? data.readUInt32LE(off) : data.readUInt32BE(off));
+
+    /** @type {string | null} */ let max = null;
+    // `sh_info` holds the Verneed count; `vn_next`/`vna_next` are byte offsets
+    // RELATIVE to the entry they sit in (not absolute, not indices), which is
+    // the one detail a hand-rolled walk of this table usually gets wrong.
+    let vn = verneed.offset;
+    for (let i = 0; i < verneed.info; i++) {
+        if (vn + 16 > data.length) break;
+        const cnt = u16(vn + 2);
+        const auxOff = u32(vn + 8);
+        const nextOff = u32(vn + 12);
+        let aux = vn + auxOff;
+        for (let j = 0; j < cnt; j++) {
+            if (aux + 16 > data.length) break;
+            const nameIdx = u32(aux + 8);
+            const auxNext = u32(aux + 12);
+            const m = GLIBC_VERSION_RE.exec(elf.strAt(strtab, nameIdx));
+            if (m && (max === null || compareGlibcVersions(m[1], max) > 0)) max = m[1];
+            if (auxNext === 0) break;
+            aux += auxNext;
+        }
+        if (nextOff === 0) break;
+        vn += nextOff;
+    }
+    return max;
 }
 
 /** GI typelib header magic — `GOBJ\nMETADATA\r\n\x1a`. */

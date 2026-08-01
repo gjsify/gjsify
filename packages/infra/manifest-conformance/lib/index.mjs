@@ -16,7 +16,14 @@
 
 export { defineRule, allRules, portableRules, getRule, selectRules, runRules, claimedGjsifyFields, rulesClaimingField } from './registry.mjs';
 export { createContext, readManifest, packagesUnder } from './context.mjs';
-export { checkPrebuildDir, readLibrary, readTypelibSharedLibraries } from './binary.mjs';
+export {
+    checkPrebuildDir,
+    readLibrary,
+    readTypelibSharedLibraries,
+    readElfNeeded,
+    readElfGlibcRequires,
+    compareGlibcVersions,
+} from './binary.mjs';
 export { PLATFORM_RE, ARCH_ALIASES, KNOWN_ARCH_TOKENS, canonicalPlatform, LIB_EXT, HOST_TARGET } from './platforms.mjs';
 export * from './source-graph.mjs';
 export { renderReport, formatFindings } from './report.mjs';
@@ -41,4 +48,15 @@ export {
     normalizeTypelib,
     renderReachPath,
 } from './rules/headless.mjs';
+export {
+    prebuildLibcRule,
+    auditPrebuildLibc,
+    collectLibcPackages,
+    measurePrebuildLibc,
+    renderPrebuildLibcSummary,
+    libcFlavourOfNeeded,
+    parsePrebuildTarget,
+    canonicalPrebuildTarget,
+    hostPrebuildTarget,
+} from './rules/prebuild-libc.mjs';
 export { fieldCoverageRule, declaredGjsifyFields } from './rules/field-coverage.mjs';

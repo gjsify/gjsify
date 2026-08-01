@@ -18,6 +18,19 @@
 //      local build cannot create a target CI does not reproduce.
 //   2. Artifacts are matched by EXTENSION, not by filename, so renaming a
 //      library in meson.build cannot silently ship a stale/partial set.
+//   3. The target carries the host's LIBC: a build on musl stages into
+//      `<os>-<arch>-musl` and NEVER falls back to `<os>-<arch>`. The fallback
+//      would be the tempting behaviour and is exactly wrong — the unsuffixed
+//      directory is the DEFAULT build a glibc host resolves, so a musl-linked
+//      library there is an artifact that cannot load on the platform it is
+//      published for. Injected `libc` values are how that branch is tested from
+//      a glibc host, since there is no musl runner in this repo's CI.
+//
+// The host's own target is IMPORTED (`hostStagingTarget`) rather than composed
+// from `process.platform`/`process.arch`, per the standing item in
+// `status/open-todos.md`: nine fixtures recomposed that name and the last
+// vocabulary change had to fix all nine by hand, missing one because a composed
+// string never appears as a literal.
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +45,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const STAGER = join(MONOREPO_ROOT, 'scripts', 'stage-prebuild.mjs');
 
-const { pickDeclaredTarget } = await import(`file://${STAGER}`);
+const { pickDeclaredTarget, resolveHostLibc, hostStagingTarget } = await import(`file://${STAGER}`);
+
+/** The one target this host stages into — imported, never recomposed. */
+const HOST_TARGET = hostStagingTarget();
 
 /** Build a throwaway package with a `build/` dir holding `files`. */
 function fixture(platforms, files) {
@@ -81,12 +97,73 @@ describe('stage-prebuild: target selection', () => {
     it('does not confuse one OS for another at the same arch', () => {
         assert.equal(pickDeclaredTarget(['darwin-arm64'], 'linux', 'arm64'), null);
     });
+
+    it('stages a musl build into the -musl target', () => {
+        const declared = ['linux-x64', 'linux-x64-musl'];
+        assert.equal(pickDeclaredTarget(declared, 'linux', 'x64', 'musl'), 'linux-x64-musl');
+        // …and a glibc build into the default build, from the SAME declaration.
+        assert.equal(pickDeclaredTarget(declared, 'linux', 'x64', 'glibc'), 'linux-x64');
+        assert.equal(pickDeclaredTarget(declared, 'linux', 'x64'), 'linux-x64');
+    });
+
+    it('does NOT fall back to the default build on a musl host', () => {
+        // The whole libc axis in one assertion. `linux-x64` IS declared, so a
+        // "closest match" stager would use it — and would write a musl-linked
+        // library into the directory a GLIBC host resolves, producing an
+        // artifact that cannot load on the platform it is published for.
+        // `audit-runtimes --check`'s `prebuild-libc` rule fails on exactly that,
+        // so the stager must refuse first, with a message naming the token.
+        assert.equal(pickDeclaredTarget(['linux-x64'], 'linux', 'x64', 'musl'), null);
+    });
+
+    it('never selects a -musl target for a glibc host', () => {
+        // A musl artifact cannot load against glibc, so this must be a clean
+        // miss rather than a "the only Linux directory there is" match.
+        assert.equal(pickDeclaredTarget(['linux-x64-musl'], 'linux', 'x64', 'glibc'), null);
+        assert.equal(pickDeclaredTarget(['linux-x64-musl'], 'linux', 'x64'), null);
+    });
+
+    it('ignores a musl claim on an OS that has no musl', () => {
+        assert.equal(pickDeclaredTarget(['darwin-arm64'], 'darwin', 'arm64', 'musl'), 'darwin-arm64');
+        assert.equal(pickDeclaredTarget(['darwin-arm64-musl'], 'darwin', 'arm64', 'musl'), null);
+    });
+});
+
+describe('stage-prebuild: host libc detection', () => {
+    it('trusts the glibc runtime version, then the musl loader probe', () => {
+        // Two independent facts, one pure decision. `glibcVersionRuntime` is
+        // present iff the running process is linked against glibc; the loader
+        // probe is a fact about the SYSTEM, which is what answers on a musl host
+        // where the first is simply absent.
+        assert.equal(resolveHostLibc({ platform: 'linux', glibcVersionRuntime: '2.42' }), 'glibc');
+        assert.equal(resolveHostLibc({ platform: 'linux', muslLoaderPresent: true }), 'musl');
+        assert.equal(resolveHostLibc({ platform: 'linux', muslLoaderPresent: false }), 'glibc');
+    });
+
+    it('reports no libc axis off Linux', () => {
+        // npm defines `libc` as Linux-only; every other OS ships one C library.
+        assert.equal(resolveHostLibc({ platform: 'darwin', muslLoaderPresent: true }), null);
+        assert.equal(resolveHostLibc({ platform: 'win32' }), null);
+    });
+
+    it('derives a host target that differs from `<platform>-<arch>` only by the libc suffix', () => {
+        // Host-agnostic shape assertion, so this passes on the glibc runners AND
+        // on an Alpine developer machine. It is also the property that makes
+        // `hostStagingTarget()` safe to use as the fixtures' only source for the
+        // directory name: whatever the host, the token is the canonical
+        // `<os>-<arch>` plus at most `-musl`.
+        const base = `${process.platform}-${process.arch}`;
+        assert.ok(
+            HOST_TARGET === base || HOST_TARGET === `${base}-musl`,
+            `host target ${HOST_TARGET} is neither ${base} nor ${base}-musl`,
+        );
+    });
 });
 
 describe('stage-prebuild: staging', () => {
     it('copies every artifact extension, including .dylib', () => {
         const dir = fixture(
-            [`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'],
+            [HOST_TARGET, 'linux-x64', 'darwin-arm64'],
             [
                 'libfoo.so',
                 'libfoo.dylib',
@@ -97,12 +174,7 @@ describe('stage-prebuild: staging', () => {
         );
         try {
             runStager(dir);
-            const target = pickDeclaredTarget(
-                [`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'],
-                process.platform,
-                process.arch,
-            );
-            const staged = readdirSync(join(dir, 'prebuilds', target)).sort();
+            const staged = readdirSync(join(dir, 'prebuilds', HOST_TARGET)).sort();
             assert.deepEqual(staged, ['Foo-1.0.gir', 'Foo-1.0.typelib', 'libfoo.dylib', 'libfoo.so']);
         } finally {
             rmSync(dir, { recursive: true, force: true });
@@ -110,16 +182,14 @@ describe('stage-prebuild: staging', () => {
     });
 
     it('replaces a stale artifact set rather than merging into it', () => {
-        const platforms = [`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'];
-        const dir = fixture(platforms, ['libold.so']);
+        const dir = fixture([HOST_TARGET, 'linux-x64', 'darwin-arm64'], ['libold.so']);
         try {
             runStager(dir);
             // Rename the library, as a meson.build edit would.
-            const target = pickDeclaredTarget(platforms, process.platform, process.arch);
             rmSync(join(dir, 'build', 'libold.so'));
             writeFileSync(join(dir, 'build', 'libnew.so'), 'new');
             runStager(dir);
-            const staged = readdirSync(join(dir, 'prebuilds', target));
+            const staged = readdirSync(join(dir, 'prebuilds', HOST_TARGET));
             assert.deepEqual(staged, ['libnew.so'], 'the renamed-away library must not survive');
         } finally {
             rmSync(dir, { recursive: true, force: true });
@@ -137,8 +207,23 @@ describe('stage-prebuild: staging', () => {
         }
     });
 
+    it('refuses a declaration that omits this host’s libc variant', () => {
+        // On glibc this is the plain undeclared-host case. On a musl host it is
+        // the libc case, and the point of the assertion: `linux-x64` alone is not
+        // a target a musl build may stage into, however tempting the fallback.
+        // Either way the stager must not invent a directory.
+        const base = `${process.platform}-${process.arch}`;
+        const withoutHost = HOST_TARGET === base ? [`${base}-musl`] : [base];
+        const dir = fixture(withoutHost, ['libfoo.so']);
+        try {
+            assert.throws(() => runStager(dir), /not in/i);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     it('fails loudly when the build produced no artifact', () => {
-        const dir = fixture([`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'], ['meson-logs.txt']);
+        const dir = fixture([HOST_TARGET, 'linux-x64', 'darwin-arm64'], ['meson-logs.txt']);
         try {
             assert.throws(() => runStager(dir), /none of/i);
         } finally {

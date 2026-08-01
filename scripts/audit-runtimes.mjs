@@ -112,6 +112,7 @@ import {
     IMPORTS_LEGACY_RE,
     listSourceFiles,
     packagesUnder,
+    renderPrebuildLibcSummary,
     renderPrebuildSummary,
     runRules,
     selectRules,
@@ -1431,6 +1432,11 @@ const CHECK_RULES = [
     'tier',
     'platforms-ci',
     'prebuild-artifacts',
+    // Runs in this job for the same reason `prebuild-artifacts` does: it reads
+    // COMMITTED binaries out of the tree, so it needs no install and no build.
+    // The libc flavour and the glibc floor come out of the ELF headers, which is
+    // also why it works for every architecture from a single x86-64 runner.
+    'prebuild-libc',
     'runtimes-reachability',
     'curated-alias-routing',
     'headless',
@@ -1506,6 +1512,7 @@ async function main() {
         const tier = byId.get('tier');
         const platform = byId.get('platforms-ci');
         const prebuilds = byId.get('prebuild-artifacts');
+        const prebuildLibc = byId.get('prebuild-libc');
         const reachability = byId.get('runtimes-reachability');
         const alias = byId.get('curated-alias-routing');
         const headless = byId.get('headless');
@@ -1518,6 +1525,7 @@ async function main() {
             console.log(tier.summary);
             console.log(platform.summary);
             console.log(renderPrebuildSummary({ notes: prebuilds.notes ?? [], stats: prebuilds.stats }));
+            console.log(renderPrebuildLibcSummary({ notes: prebuildLibc.notes ?? [], stats: prebuildLibc.stats }));
             console.log(reachability.summary);
             console.log(headless.summary);
             console.log(coverage.summary);
@@ -1598,6 +1606,29 @@ async function main() {
             );
             console.error('');
             console.error(renderPrebuildSummary({ notes: prebuilds.notes ?? [], stats: prebuilds.stats }));
+            console.error('');
+        }
+        if ((prebuildLibc.failures ?? []).length > 0) {
+            console.error(
+                `PREBUILD-LIBC FAILURES (is the libc claim measured, or just written down?) on ${prebuildLibc.failures.length} finding(s):`,
+            );
+            for (const line of prebuildLibc.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                "Every committed Linux prebuild's libc flavour is read out of its DT_NEEDED list and its glibc floor out " +
+                    'of SHT_GNU_verneed — `libc.so.6` IS the glibc marker (musl records `libc.musl-<arch>.so.1`), and an ' +
+                    'artifact recording neither is libc-agnostic and must NOT declare `libc` at all. Fix by one of: ' +
+                    '(a) set `libc` to what the binaries measure (`["glibc"]` when every committed Linux target needs it); ' +
+                    '(b) raise the outgrown `gjsify.glibcRequires["<target>"]` entry — the dynamic linker enforces the ' +
+                    "measured number, so a lower promise is one a host actually hits as `version 'GLIBC_x.y' not found`; " +
+                    '(c) rename a directory that holds a musl build to `<os>-<arch>-musl` and declare that token. ' +
+                    'A `.so` whose ELF could not be read is a FAILURE and never a pass: "records no libc.so.6" derived ' +
+                    'from a file nobody parsed is the check claiming more than it did.',
+            );
+            console.error('');
+            console.error(renderPrebuildLibcSummary({ notes: prebuildLibc.notes ?? [], stats: prebuildLibc.stats }));
             console.error('');
         }
         if (reach.failures.length > 0) {

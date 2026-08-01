@@ -25,12 +25,22 @@
  *    listed each file by name, so renaming a library in `meson.build` left the
  *    old name in the copy list and silently shipped a stale or partial set.
  *
+ * 3. **The target name carries the host's libc**, so a build on Alpine stages
+ *    into `linux-x64-musl/` and never into `linux-x64/`. See
+ *    {@link pickDeclaredTarget}.
+ *
  * Usage: node scripts/stage-prebuild.mjs [package-dir] [--build-dir build]
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, copyFileSync, rmSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { checkPrebuildDir } from './check-prebuild-loader-path.mjs';
+// The target GRAMMAR lives with the rule that validates it. That is deliberate
+// rather than convenient: this script WRITES the directory name `prebuild-libc`
+// then reads back and checks, so the two agreeing by construction is worth more
+// than the two being independent. (Its eventual home is `lib/platforms.mjs`,
+// which today is libc-blind — see `canonicalPrebuildTarget`'s follow-up note.)
+import { hostPrebuildTarget } from '../packages/infra/manifest-conformance/lib/rules/prebuild-libc.mjs';
 
 /** Extensions that make up a shipped prebuild. */
 const ARTIFACT_EXT = ['.so', '.dylib', '.dll', '.gir', '.typelib'];
@@ -39,27 +49,86 @@ const ARTIFACT_EXT = ['.so', '.dylib', '.dll', '.gir', '.typelib'];
  * Pick the declared target that describes this host.
  *
  * There is exactly ONE spelling for a target: `${process.platform}-${process.arch}`
- * (`linux-x64`, `linux-arm64`, `darwin-arm64`, `win32-x64`). The repo used to
- * carry a second, uname-style one (`linux-x86_64`) because the meson jobs named
- * the directory after `uname -m`, and this function then had to accept an alias
- * table to bridge the two. It does not any more: the node spelling is what a
- * running process can compute about itself, so it needs no translation in the
- * resolver's hot path, and a plain equality check here is what keeps a local
- * build from inventing a name CI does not reproduce.
+ * plus a `-musl` suffix on a musl Linux host (`linux-x64`, `linux-x64-musl`,
+ * `darwin-arm64`, `win32-x64`). The repo used to carry a second, uname-style one
+ * (`linux-x86_64`) because the meson jobs named the directory after `uname -m`,
+ * and this function then had to accept an alias table to bridge the two. It does
+ * not any more: the node spelling is what a running process can compute about
+ * itself, so it needs no translation in the resolver's hot path, and a plain
+ * equality check here is what keeps a local build from inventing a name CI does
+ * not reproduce.
  *
  * A declaration in the old spelling therefore no longer matches — deliberately.
  * `scripts/audit-runtimes.mjs --check` rejects it at the declaration site with
  * a pointed message, so the failure lands on the `package.json` that is wrong
  * rather than on a "typelib not found" hours later.
  *
+ * THE LIBC HALF DOES NOT FALL BACK. On a musl host this returns null unless
+ * `<os>-<arch>-musl` is declared — it does not settle for `<os>-<arch>`, even
+ * though that token IS declared by every package here. The unsuffixed directory
+ * is the DEFAULT build, which is what a glibc host resolves; staging a
+ * musl-linked library into it produces an artifact that cannot load on the
+ * platform it is published for, which is precisely what the `prebuild-libc` rule
+ * fails on. So the same hard error the undeclared-host case already gets is the
+ * right answer here, and its message names the token to add.
+ *
  * @param {readonly string[]} declared `gjsify.platforms`
  * @param {string} platform `process.platform`
  * @param {string} arch `process.arch`
+ * @param {'glibc'|'musl'|null} [libc] host C library; omitted = the default build
  * @returns {string | null}
  */
-export function pickDeclaredTarget(declared, platform, arch) {
-    const host = `${platform}-${arch}`;
+export function pickDeclaredTarget(declared, platform, arch, libc = null) {
+    const host = hostPrebuildTarget(platform, arch, libc);
     return declared.includes(host) ? host : null;
+}
+
+/**
+ * Decide the host C library from independently-gathered facts. PURE.
+ *
+ * The twin of `resolveHostLibc()` in
+ * `packages/infra/cli/src/utils/detect-native-packages.ts`, and it exists twice
+ * for the same reason `ARCH_ALIASES` does: that one is TypeScript inside the CLI
+ * bundle, this one is a zero-dependency `.mjs` script a meson build runs directly.
+ * Keep them in lockstep — a divergence stages into one directory and resolves
+ * another.
+ *
+ * @param {{platform: string, glibcVersionRuntime?: string, muslLoaderPresent?: boolean}} input
+ * @returns {'glibc'|'musl'|null} null off Linux, where the axis does not exist
+ */
+export function resolveHostLibc(input) {
+    if (input.platform !== 'linux') return null;
+    if (typeof input.glibcVersionRuntime === 'string' && input.glibcVersionRuntime.length > 0) return 'glibc';
+    return input.muslLoaderPresent ? 'musl' : 'glibc';
+}
+
+/**
+ * Gather the two host facts {@link resolveHostLibc} decides from.
+ *
+ * `process.report` is present on every Node that runs this script, so the first
+ * probe normally answers; the musl-loader probe is what makes the answer correct
+ * on a musl host, where `glibcVersionRuntime` is simply absent.
+ */
+function detectHostLibc() {
+    if (process.platform !== 'linux') return null;
+    const header = process.report?.getReport()?.header;
+    const glibcVersionRuntime = typeof header?.glibcVersionRuntime === 'string' ? header.glibcVersionRuntime : undefined;
+    const muslLoaderPresent = existsSync('/lib') && readdirSync('/lib').some((f) => f.startsWith('ld-musl-'));
+    return resolveHostLibc({ platform: process.platform, glibcVersionRuntime, muslLoaderPresent });
+}
+
+/**
+ * The exact target name a build on THIS host stages into.
+ *
+ * Exported so nothing has to recompose it. `status/open-todos.md` records that
+ * nine e2e fixtures build the prebuild-target name themselves rather than
+ * importing it, and that the last vocabulary change had to sweep all nine by
+ * hand — missing one, because a composed string never appears as a literal to
+ * grep for. The libc suffix makes that worse (a fixture on Alpine would compose
+ * the wrong name), so the token gets a single callable definition here.
+ */
+export function hostStagingTarget() {
+    return hostPrebuildTarget(process.platform, process.arch, detectHostLibc());
 }
 
 function main() {
@@ -85,14 +154,23 @@ function main() {
         process.exit(1);
     }
 
-    const target = pickDeclaredTarget(declared, process.platform, process.arch);
+    const libc = detectHostLibc();
+    const target = pickDeclaredTarget(declared, process.platform, process.arch, libc);
     if (!target) {
+        const wanted = hostPrebuildTarget(process.platform, process.arch, libc);
         console.error(
-            `[stage-prebuild] ${pkg.name}: this host (${process.platform}-${process.arch}) is not in\n` +
+            `[stage-prebuild] ${pkg.name}: this host (${wanted}) is not in\n` +
                 `  \`gjsify.platforms\` (${declared.join(', ')}).\n` +
                 '  Staging it anyway would create an undeclared target that CI does not\n' +
                 '  reproduce. Add the target to the declaration AND to the workflow that\n' +
-                '  builds it, then re-run.',
+                '  builds it, then re-run.' +
+                (libc === 'musl'
+                    ? `\n  NB this host runs musl, so the target it needs is \`${wanted}\`, not\n` +
+                      `  \`${process.platform}-${process.arch}\`. The unsuffixed directory is the DEFAULT\n` +
+                      '  build that a glibc host resolves — a musl-linked library staged there\n' +
+                      '  cannot load on the platform it would be published for, which is what\n' +
+                      "  `audit-runtimes --check`'s `prebuild-libc` rule fails on."
+                    : ''),
         );
         process.exit(1);
     }
