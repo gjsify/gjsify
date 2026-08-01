@@ -35,14 +35,22 @@ on:
   pull_request:
     paths:
       - '.github/workflows/cli-cross-platform.yml'
-  # A release is the moment this job's answer CHANGES — it measures the PUBLISHED
-  # CLI, so every finding here is about an artifact that already exists. Waiting
-  # for the Monday cron means a platform can be broken for users for up to seven
-  # days before anything notices, which is exactly what happened with the Windows
-  # `EPERM` and the missing node-gi prebuilds: both were live in a published
-  # release, and the weekly run was the only thing that would ever have asked.
-  release:
-    types: [published]
+  # NOT a `release: published` trigger — it cannot fire, and it would be wrong
+  # if it could. Measured on the v0.26.1 cut:
+  #
+  #   1. The release record is created by `release-cut.yml` using GITHUB_TOKEN,
+  #      and GitHub deliberately does not let a token-driven event start further
+  #      workflow runs. This workflow did not run on that release at all. It is
+  #      the same wall #895 hit, which is why `release.yml` is DISPATCHED.
+  #   2. Even firing, it would be too EARLY: this job installs the PUBLISHED
+  #      `@gjsify/cli`, and the release record exists before `release.yml` has
+  #      pushed anything to npm — so it would measure the PREVIOUS version while
+  #      appearing to check the new one. A green run against the wrong artifact
+  #      is the worst of the three outcomes.
+  #
+  # So `release.yml` dispatches this workflow at the END of its publish job,
+  # where the thing being measured actually exists. The cron below stays as the
+  # independent net.
   schedule:
     # Weekly drift check (Mondays 05:00 UTC) so a released regression surfaces
     # even when no release happened — a registry-side or runner-image change can
@@ -210,18 +218,43 @@ jobs:
       # Only a cross-platform job can ask it, because only here is the host triple
       # something other than linux-x64.
       #
-      # Version-bound like the showcase step below: a published CLI predating the
-      # fix reports a KNOWN gap; from the first release carrying it, the same
+      # Version-bound like the showcase step below: a published version predating
+      # the fix reports a KNOWN gap; from the first release carrying it, the same
       # absence fails. The gate arms itself, with no edit here.
+      #
+      # TWO bounds, because this step gates TWO different fixes that shipped in
+      # DIFFERENT releases — one bound served both and therefore lied about one of
+      # them (measured: it failed windows-latest against 0.26.1, demanding an
+      # install fix that release does not contain).
+      #   * LOWEST_PREBUILD_SHIPPED — the release from which the TARBALL must carry
+      #     this target's prebuild. 0.26.1: verified by unpacking the published
+      #     tarball, which contains all four declared targets.
+      #   * LOWEST_INSTALL_FIXED — the release from which `npm install` must
+      #     SUCCEED here. 0.26.1 still declares `install: node-gyp rebuild`, so it
+      #     cannot; the guard that makes the prebuild reachable landed afterwards.
+      # Both are BOUNDS, not predictions of a version number: any later release
+      # arms them.
       - name: 'node-gi: a prebuild exists for this platform'
         id: nodegiprebuild
         continue-on-error: true
         working-directory: gjsify-diag
         env:
-          LOWEST_FIXED: '0.26.1'
+          LOWEST_PREBUILD_SHIPPED: '0.26.1'
+          LOWEST_INSTALL_FIXED: '0.26.2'
         run: |
           set -eux
           TARGET="$(node -p "process.platform + '-' + process.arch")"
+          # One comparison, three call sites — the copies drifted into serving two
+          # different bounds from one variable, which is how the wrong fix got
+          # demanded of a release.
+          has_fix() {
+            INSTALLED="$1" BOUND="$2" node -e '
+              const parse = (v) => v.split("-")[0].split(".").map(Number);
+              const [a, b] = [process.env.INSTALLED, process.env.BOUND].map(parse);
+              const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+              process.stdout.write(cmp >= 0 ? "1" : "0");
+            '
+          }
           # The install is ALLOWED to fail and is a finding in its own right. It
           # declares `scripts.install: node-gyp rebuild`, so npm ALWAYS runs a
           # source build here — independent of whether a prebuild ships — and a
@@ -247,28 +280,16 @@ jobs:
             # The version bound needs a version, and the manifest is gone — read it
             # from the registry instead of guessing.
             INSTALLED="$(npm view @gjsify/node-gi version 2>/dev/null || echo 0.0.0)"
-            HAS_FIX="$(INSTALLED="$INSTALLED" node -e '
-              const parse = (v) => v.split("-")[0].split(".").map(Number);
-              const [a, b] = [process.env.INSTALLED, process.env.LOWEST_FIXED].map(parse);
-              const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-              process.stdout.write(cmp >= 0 ? "1" : "0");
-            ')"
-            if [ "$HAS_FIX" = "1" ]; then
+            if [ "$(has_fix "$INSTALLED" "$LOWEST_INSTALL_FIXED")" = "1" ]; then
               echo "::error::@gjsify/node-gi $INSTALLED cannot be installed on $TARGET at all — its install script runs node-gyp unconditionally and npm rolled the install back"
               exit 1
             fi
-            echo "::warning::@gjsify/node-gi $INSTALLED cannot be installed on $TARGET and predates the fix (< $LOWEST_FIXED) — known gap, not failing"
+            echo "::warning::@gjsify/node-gi $INSTALLED cannot be installed on $TARGET and predates the install fix (< $LOWEST_INSTALL_FIXED) — known gap, not failing"
             exit 0
           fi
           ADDON="node_modules/@gjsify/node-gi/prebuilds/$TARGET/node_gi.node"
           ls -la node_modules/@gjsify/node-gi/prebuilds/ || true
           INSTALLED="$(node -p "require('./node_modules/@gjsify/node-gi/package.json').version")"
-          HAS_FIX="$(INSTALLED="$INSTALLED" node -e '
-            const parse = (v) => v.split("-")[0].split(".").map(Number);
-            const [a, b] = [process.env.INSTALLED, process.env.LOWEST_FIXED].map(parse);
-            const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-            process.stdout.write(cmp >= 0 ? "1" : "0");
-          ')"
           if [ -f "$ADDON" ] && [ "$install_ok" = "1" ]; then
             echo "prebuild present for $TARGET and the install completed"
             exit 0
@@ -277,21 +298,21 @@ jobs:
           # and different fixes, and collapsing them would send the next reader
           # after the wrong one.
           if [ "$install_ok" = "0" ]; then
-            if [ "$HAS_FIX" = "1" ]; then
-              echo "::error::@gjsify/node-gi $INSTALLED failed to install on $TARGET — its install script runs node-gyp unconditionally, so a file binding.gyp calls that the tarball omits breaks every install here"
+            if [ "$(has_fix "$INSTALLED" "$LOWEST_INSTALL_FIXED")" = "1" ]; then
+              echo "::error::@gjsify/node-gi $INSTALLED failed to install on $TARGET — its install script must prefer the shipped prebuild, so an install that still runs node-gyp here is the defect"
               exit 1
             fi
-            echo "::warning::@gjsify/node-gi $INSTALLED failed to install on $TARGET and predates the fix (< $LOWEST_FIXED) — known gap, not failing"
+            echo "::warning::@gjsify/node-gi $INSTALLED failed to install on $TARGET and predates the install fix (< $LOWEST_INSTALL_FIXED) — known gap, not failing"
             exit 0
           fi
           # It is declared but not shipped — report which, so the message names the
           # contradiction rather than just the missing file.
           DECLARED="$(node -p "require('./node_modules/@gjsify/node-gi/package.json').gjsify.platforms.join(' ')")"
-          if [ "$HAS_FIX" = "1" ]; then
+          if [ "$(has_fix "$INSTALLED" "$LOWEST_PREBUILD_SHIPPED")" = "1" ]; then
             echo "::error::@gjsify/node-gi $INSTALLED declares [$DECLARED] but ships no prebuild for $TARGET — every --runtime node command fails at the addon load"
             exit 1
           fi
-          echo "::warning::@gjsify/node-gi $INSTALLED ships no $TARGET prebuild (declares [$DECLARED]) and predates the fix (< $LOWEST_FIXED) — known gap, not failing"
+          echo "::warning::@gjsify/node-gi $INSTALLED ships no $TARGET prebuild (declares [$DECLARED]) and predates the shipping fix (< $LOWEST_PREBUILD_SHIPPED) — known gap, not failing"
 
       # The FULL end-user journey, run to completion. The step above it asserts a
       # correct EARLY EXIT for a gjs-only showcase; that assertion is valuable and

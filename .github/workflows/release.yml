@@ -41,9 +41,13 @@ jobs:
       # triggered this workflow. id-token: write keeps OIDC provenance
       # available for future signed-publish work. packages: read lets the job
       # pull the prebuilt ci-fedora image from ghcr (same as main.yml).
+      # actions: write is for the cross-platform dispatch at the end of the job —
+      # see there; same widening, same reason, as release-cut.yml's dispatch of
+      # THIS workflow.
       contents: write
       id-token: write
       packages: read
+      actions: write
     container:
       # Build + publish on the SAME prebuilt CI image main.yml builds/tests on —
       # it bundles every build dependency (gjs, gtk4 / libadwaita / blueprint,
@@ -182,6 +186,53 @@ jobs:
             install.mjs
             packages/infra/cli/dist/cli.gjs.mjs
             packages/infra/cli/dist/cli.gjs.mjs.sha256
+
+      # AFTER the npm publish, dispatch the cross-platform probe.
+      #
+      # A `release: published` trigger on that workflow does NOT work, and it is
+      # wrong twice over — both learned the hard way on the v0.26.1 cut:
+      #
+      #   1. It never fires. The release record is created by `release-cut.yml`
+      #      using GITHUB_TOKEN, and GitHub deliberately does not let a token-
+      #      driven event start further workflow runs. That is the same wall #895
+      #      hit, which is why THIS workflow is dispatched rather than triggered.
+      #      A trigger that cannot fire is worse than none: it reads as coverage.
+      #   2. Even if it fired, it would be too EARLY. That probe installs
+      #      `@gjsify/cli@latest` FROM NPM, and the release record exists before
+      #      this job has published anything — so it would measure the PREVIOUS
+      #      version and report the previous version's gaps, with the new release
+      #      looking checked.
+      #
+      # Dispatching from here fixes both: it cannot be missed, and it runs when
+      # the artifact it measures actually exists. Best-effort on purpose — a
+      # failed dispatch must not fail a publish that already succeeded, and the
+      # weekly cron still covers the probe.
+      - name: Dispatch the cross-platform probe (measures what was just published)
+        if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          node --input-type=module -e '
+            const { GITHUB_TOKEN, REPO } = process.env;
+            const url = `https://api.github.com/repos/${REPO}/actions/workflows/cli-cross-platform.yml/dispatches`;
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    authorization: `Bearer ${GITHUB_TOKEN}`,
+                    accept: "application/vnd.github+json",
+                    "x-github-api-version": "2022-11-28",
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ ref: "main", inputs: { cli_version: "latest" } }),
+            });
+            if (!res.ok) {
+                console.error(`dispatch failed: ${res.status} ${res.statusText} — ${(await res.text()).slice(0, 300)}`);
+                process.exit(1);
+            }
+            console.log("dispatched cli-cross-platform.yml against the freshly published latest");
+          '
 
       - name: Summary
         env:
