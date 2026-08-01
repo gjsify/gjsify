@@ -21,6 +21,26 @@ export function assertPackument(name: string, body: unknown): asserts body is Pa
     }
 }
 
+/**
+ * The two `accept` strings pacote sends, copied verbatim from
+ * `refs/npm-cli/node_modules/pacote/lib/registry.js` (`corgiDoc` / `fullDoc`).
+ *
+ * `CORGI_ACCEPT` is a q-list, not a single type, and that matters twice over.
+ * It asks for the abbreviated install document first, but tells the server it
+ * will take `application/json` (q=0.8) or anything at all — so a registry that
+ * does not implement the npm-specific media type answers with a full packument
+ * instead of refusing. That is what makes the `406 Not Acceptable` fallback
+ * below RARE rather than the norm on third-party registries (Verdaccio,
+ * Artifactory, a `file:`-backed mock), which is where the single-type header we
+ * used to send made every fetch a coin flip on server configuration.
+ *
+ * `FULL_ACCEPT` deliberately has no q-list: when the caller escalated because
+ * it needs a field only the full document carries (`libc`), silently accepting
+ * an abbreviated body would defeat the escalation.
+ */
+const CORGI_ACCEPT = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*';
+const FULL_ACCEPT = 'application/json';
+
 /** Build the GET URL for a packument. Handles `@scope/name` URL-encoding. */
 export function packumentUrl(name: string, registry: string): string {
     const base = ensureTrailingSlash(registry);
@@ -61,6 +81,11 @@ export interface ConditionalPackument {
  * a just-published version; a conditional GET keeps a cheap round-trip but
  * skips the (60–98 KB, `accept-encoding: identity`) body when nothing changed.
  * Reference: npm's make-fetch-happen HTTP-cache layer.
+ *
+ * `opts.fullMetadata` selects the full document (see {@link FetchOptions}). An
+ * `ifNoneMatch` passed alongside it MUST be the ETag of a previously-fetched
+ * FULL body — the registry versions the two shapes independently, so mixing
+ * them turns a 304 into "here is the other document, unchanged".
  */
 export async function fetchPackumentConditional(
     name: string,
@@ -71,7 +96,7 @@ export async function fetchPackumentConditional(
     // Packuments are JSON — request gzip (~4× smaller); the fetch layer
     // decompresses transparently on both Node and GJS (see buildHeaders).
     const headers = buildHeaders(url, { ...opts, acceptEncoding: 'gzip' });
-    headers['accept'] ??= 'application/vnd.npm.install-v1+json';
+    headers['accept'] ??= opts.fullMetadata ? FULL_ACCEPT : CORGI_ACCEPT;
     if (opts.ifNoneMatch) headers['if-none-match'] = opts.ifNoneMatch;
 
     const res = await fetchWithRetry(
@@ -97,8 +122,11 @@ export async function fetchPackumentConditional(
         return { status: 'not-modified', etag: opts.ifNoneMatch };
     }
     if (!res.ok) {
-        // 404 = package not found. 406 = Not Acceptable — npm returns this
-        // when the URL path is unrecognised (e.g. `%40scope/name` is parsed
+        // 404 = package not found. 406 = Not Acceptable — with the q-list
+        // `accept` above a registry that simply lacks the abbreviated document
+        // no longer answers 406 (it falls back to `application/json`), so what
+        // remains here is the addressability case: npm returns 406 when the URL
+        // path is unrecognised (e.g. `%40scope/name` is parsed
         // as a sub-path of the synthetic `%40scope` resource rather than a
         // scoped package name). Both indicate the package is not addressable
         // in this registry and should surface as PackageNotFoundError so

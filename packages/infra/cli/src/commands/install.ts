@@ -59,7 +59,9 @@ import {
     readPackageJson,
     writePackageJson,
     type DependencyKind,
+    type PackageJson,
 } from '../utils/pkg-json-edit.js';
+import type { NativeInstallOptions } from '../utils/install-backend-native.js';
 
 /**
  * Link type for the workspace↔workspace directory links.
@@ -96,6 +98,10 @@ interface InstallOptions {
     progress?: boolean;
     backend?: 'native' | 'npm';
     timeout: number;
+    os?: string;
+    cpu?: string;
+    libc?: string;
+    force?: boolean;
 }
 
 // Default 30min wall-clock budget for the full install. Big workspaces
@@ -166,8 +172,34 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     'Overall install wall-clock timeout in ms (default 1800000 = 30 min). On timeout, all in-flight registry fetches are aborted and the install exits non-zero with a clear "install timed out — likely a registry slowdown" message. Per-request timeouts in @gjsify/npm-registry (default 30s) still apply within this budget. Set to 0 to disable the overall budget.',
                 type: 'number',
                 default: DEFAULT_INSTALL_TIMEOUT_MS,
+            })
+            .option('os', {
+                description:
+                    'Resolve/install for this OS instead of the running one (npm config key `os`, e.g. darwin, win32, linux). Affects which packages pass the os/cpu/libc compatibility check; the lockfile stays platform-independent either way.',
+                type: 'string',
+            })
+            .option('cpu', {
+                description:
+                    'Resolve/install for this CPU architecture instead of the running one (npm config key `cpu`, e.g. x64, arm64).',
+                type: 'string',
+            })
+            .option('libc', {
+                description:
+                    'Resolve/install for this libc family instead of probing the host (npm config key `libc`: glibc or musl). Only meaningful with --os=linux. A package declaring a libc is incompatible when the target libc is unknown.',
+                type: 'string',
+            })
+            .option('force', {
+                description:
+                    'Install a REQUIRED dependency even when its os/cpu/libc excludes the target, instead of failing with EBADPLATFORM (npm config key `force`). Incompatible OPTIONAL dependencies stay skipped — npm ignores --force for those too, and a binary that cannot load is not worth downloading.',
+                type: 'boolean',
+                default: false,
             }),
     handler: async (args) => {
+        // Publish `--os/--cpu/--libc/--force` as npm CONFIG KEYS before anything
+        // resolves — see applyPlatformConfigFromFlags for why the environment is
+        // the right channel for them rather than a parameter.
+        applyPlatformConfigFromFlags(args);
+
         // --immutable is incompatible with explicit `<pkg>` adds and with
         // `--global` (which has no lockfile concept). Matches yarn's
         // behavior: `yarn add --immutable` is a hard error.
@@ -267,12 +299,15 @@ export const installCommand: Command<unknown, InstallOptions> = {
                       // Do NOT assert a cause here — this timer cannot tell the
                       // two shapes apart, and claiming the rarer one sends the
                       // next reader after a bug that isn't there. Measured on a
-                      // cold tree of this workspace: 1597 packages / ~4.8 GB
-                      // extracted, of which ~3.4 GB are foreign-platform
-                      // optional deps (`os`/`cpu` excludes the host) that npm
-                      // would never place. That install was still making steady
-                      // progress when the 30-min budget elapsed, and a re-run
-                      // finished the remainder in ~2 min. Extraction also has
+                      // cold tree of this workspace WHEN THIS TIMER WAS WRITTEN:
+                      // 1597 packages / ~4.8 GB extracted, of which ~3.4 GB were
+                      // foreign-platform optional deps (`os`/`cpu` excluding the
+                      // host) that npm would never place. Those are no longer
+                      // downloaded — the resolver now records `os`/`cpu`/`libc`
+                      // and marks incompatible optional nodes inert
+                      // (`utils/platform-check.ts` + `applyPlatformFilter`), which
+                      // leaves ~1.4 GB of that same tree to extract. The budget
+                      // still exists for the same reason: extraction has
                       // multi-second SYNCHRONOUS stretches (tar parse + file
                       // writes) and 16 run concurrently, so the clean abort path
                       // can easily miss the grace window with nothing wedged.
@@ -315,6 +350,41 @@ export const installCommand: Command<unknown, InstallOptions> = {
         }
     },
 };
+
+/**
+ * Hand the platform target + force bypass to the install backend.
+ *
+ * `os`, `cpu`, `libc` and `force` are npm CONFIG KEYS, and npm's own transport
+ * for a config key is the environment: `--libc=musl` and `npm_config_libc=musl`
+ * are the same input, which is why supporting the flags gives users the env
+ * spelling for free. That is also why this is not threaded through as a
+ * parameter: the config channel is already what this installer reads
+ * (`loadNpmrc` honours `npm_config_registry` exactly so), one write reaches
+ * EVERY prefix an invocation may install into (project, workspace root, `-g`,
+ * the `dlx` cache) instead of one call site each, and a child process inherits
+ * it — so a nested install can't quietly resolve for a different machine than
+ * the run that spawned it.
+ *
+ * Empty/whitespace values are ignored rather than written as the empty string:
+ * `--os=` must not mean "the nameless platform" (`readPlatformOverrides` drops
+ * them on the read side too, so the two ends agree).
+ */
+function applyPlatformConfigFromFlags(args: InstallOptions): void {
+    const keys = [
+        ['os', 'npm_config_os'],
+        ['cpu', 'npm_config_cpu'],
+        ['libc', 'npm_config_libc'],
+    ] as const;
+    for (const [flag, envKey] of keys) {
+        const value = args[flag];
+        if (typeof value !== 'string') continue;
+        const trimmed = value.trim();
+        if (trimmed !== '') process.env[envKey] = trimmed;
+    }
+    // Only ever SET: a `false` flag is the default, and clearing the key would
+    // override an `npm_config_force` the user deliberately exported.
+    if (args.force) process.env.npm_config_force = 'true';
+}
 
 /**
  * Heuristic: was this error raised because the overall-install AbortSignal
@@ -430,6 +500,34 @@ function isWorkspaceRoot(cwd: string): boolean {
     return pkg.workspaces !== undefined;
 }
 
+/**
+ * Which dependency NAMES are optional across the given manifests.
+ *
+ * The specs handed to the install backend are flat `"<name>@<range>"` strings —
+ * `projectSpecsFromPackageJson` merges the three dependency blocks — so the kind
+ * has to travel beside them. It matters for exactly one decision: an
+ * incompatible `os`/`cpu`/`libc` skips an OPTIONAL dependency and fails a
+ * REQUIRED one (see `NativeInstallOptions.optionalSpecs`).
+ *
+ * REQUIRED WINS. In a workspace, the same package can be a plain dependency of
+ * one member and an optionalDependency of another; if anything is not allowed to
+ * be missing, the whole install is not allowed to silently miss it. Subtracting
+ * rather than "last block seen" also makes the answer independent of manifest
+ * iteration order.
+ */
+function optionalDependencyNames(manifests: readonly PackageJson[]): Set<string> {
+    const optional = new Set<string>();
+    const required = new Set<string>();
+    for (const manifest of manifests) {
+        for (const name of Object.keys(manifest.optionalDependencies ?? {})) optional.add(name);
+        for (const kind of ['dependencies', 'devDependencies'] as const) {
+            for (const name of Object.keys(manifest[kind] ?? {})) required.add(name);
+        }
+    }
+    for (const name of required) optional.delete(name);
+    return optional;
+}
+
 function depKindFromArgs(args: InstallOptions): DependencyKind {
     if (args['save-dev']) return 'devDependencies';
     if (args['save-peer']) return 'peerDependencies';
@@ -530,7 +628,11 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
     // with ours. `installPackages` re-acquires the same lock re-entrantly.
     const lock = await acquireInstallLock(cwd, { signal });
     try {
-        const result = await installPackages({
+        // Typed as NativeInstallOptions so the native-backend-only
+        // `optionalSpecs` is CHECKED at this call site instead of being smuggled
+        // past an object-literal excess-property check; `installPackages`
+        // forwards the object to that backend unchanged.
+        const nativeOpts: NativeInstallOptions = {
             prefix: cwd,
             specs,
             verbose: args.verbose,
@@ -541,7 +643,15 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
             refreshLockfile: args['refresh-lockfile'],
             signal,
             progress,
-        });
+            // `gjsify install -O <pkg>` saves to optionalDependencies, but the
+            // manifest is only written AFTER this install — so the flag, not the
+            // manifest, is what makes this run treat the added specs as optional.
+            optionalSpecs: new Set([
+                ...optionalDependencyNames(pkg ? [pkg] : []),
+                ...(args['save-optional'] ? (args.packages ?? []).map((s) => parseSpec(s).name) : []),
+            ]),
+        };
+        const result = await installPackages(nativeOpts);
 
         // Update package.json only when the user passed explicit packages
         // (the `gjsify install <pkg>...` add-a-dep flow). The no-args refresh
@@ -914,7 +1024,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
         const progress = makeProgressReporter({
             enabled: !args.verbose && !args.quiet && args.progress !== false,
         });
-        await installPackages({
+        const rootOpts: NativeInstallOptions = {
             prefix: cwd,
             specs: [...externalSpecs],
             verbose: args.verbose,
@@ -930,7 +1040,12 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             // npm and is pinned transitively in the lockfile).
             workspaceNames: new Set(byName.keys()),
             specOrigins: new Map([...specOrigins].map(([k, v]) => [k, [...v]] as const)),
-        });
+            // Aggregated over EVERY member: the specs are aggregated the same
+            // way, so the optional-vs-required answer has to be too (a name that
+            // any member declares as a plain dependency stays required).
+            optionalSpecs: optionalDependencyNames(workspaces.map((w) => w.manifest as PackageJson)),
+        };
+        await installPackages(rootOpts);
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
     }
@@ -947,7 +1062,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
                 `gjsify install: ${wsName} — installing ${specSet.size} scoped-override spec(s) into ${wsLocation}/node_modules/`,
             );
         }
-        await installPackages({
+        const scopedOpts: NativeInstallOptions = {
             prefix: wsLocation,
             specs: [...specSet],
             verbose: args.verbose,
@@ -957,7 +1072,12 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             frozen: args.immutable,
             signal,
             workspaceNames: new Set(byName.keys()),
-        });
+            // Same aggregated answer as the root install: these specs are a
+            // SUBSET of the root's, so classifying them differently here would
+            // make one dep optional at the root and required in a member.
+            optionalSpecs: optionalDependencyNames(workspaces.map((w) => w.manifest as PackageJson)),
+        };
+        await installPackages(scopedOpts);
     }
 
     // Re-wire workspace symlinks once more now that the external + scoped

@@ -11,6 +11,43 @@
 // when its required version is incompatible with what's already at
 // the root. Mirrors npm v3+ behavior.
 //
+// PLATFORM FILTERING (os/cpu/libc) — the tree is RESOLVED for every platform
+// and INSTALLED for one. A node whose declaration excludes the host is marked
+// `inert` (npm's word — arborist build-ideal-tree.js's `node.inert = true`)
+// which skips its download + extract, but it stays in `gjsify-lock.json` with
+// its `os`/`cpu`/`libc` recorded. That split is deliberate and is the whole
+// reason lockfiles are shareable: a lockfile containing only what ONE host can
+// install is not a lockfile, it is a machine snapshot — commit it and every
+// colleague on another OS gets a tree missing its binaries with no drift
+// reported. So the DECLARATIONS are locked and the VERDICT is recomputed per
+// host at install time (see applyPlatformFilter).
+//
+// TWO INVARIANTS MAKE THAT CLAIM TRUE, and both are structural rather than
+// documented, because the first draft of this feature broke both while reading
+// as if it did not:
+//
+//   1. THE RESOLVE IS TARGET-BLIND. `resolveDeps` is not given the platform
+//      target at all — it cannot be, so it cannot record a target-dependent
+//      declaration. The draft passed the target in to decide when to escalate to
+//      a full packument for `libc`, gated on `target.os === 'linux'`; a lockfile
+//      authored on macOS therefore carried NO `libc` for anything, and a Linux
+//      colleague running `--immutable` off that file got no libc filtering at
+//      all — precisely the direction this header promises is portable. The
+//      resolve now reads the FULL document for every package (see resolveDeps),
+//      which is also what arborist does for every dependency it resolves
+//      (`#fetchManifest` sets `fullMetadata: true`).
+//   2. `optional` IS DERIVED, NEVER TRUSTED. It is recomputed as a FIXPOINT over
+//      the placed graph on BOTH paths (computeOptionalFlags), before it is
+//      persisted and before the platform verdict reads it. The draft promoted a
+//      node out of the optional set at the reuse site, one shot, which made the
+//      answer depend on BFS edge order: a genuinely required transitive dep
+//      reached first through an optional edge stayed flagged optional, was
+//      persisted that way, and was then silently skipped on every machine
+//      instead of raising EBADPLATFORM. npm computes the same flags as a
+//      fixpoint for the same reason (refs/npm-cli/workspaces/arborist/lib/
+//      calc-dep-flags.js: "If a node is changed, we add to the queue and
+//      continue until no more changes").
+//
 // Out of scope (still deferred): peerDependencies validation,
 // lifecycle scripts, git/file specs.
 
@@ -28,6 +65,7 @@ import {
     registryFor,
     type NpmrcConfig,
     type Packument,
+    type PackumentVersion,
 } from '@gjsify/npm-registry';
 import { extractTarball } from '@gjsify/tar';
 
@@ -41,9 +79,19 @@ import {
     isCacheHit,
     putCachedTarball,
 } from './install-tarball-cache.js';
-import { getCachedPackument, putCachedPackument } from './install-packument-cache.js';
+import { getCachedPackument, putCachedPackument, type PackumentShape } from './install-packument-cache.js';
 import { assertNativeBackendNodeVersion } from './node-version.js';
 import { buildCmdShim, parseShebang } from './bin-shim.js';
+import {
+    badPlatformError,
+    checkPlatform,
+    declaresPlatform,
+    describePlatformTarget,
+    readPlatformForce,
+    resolveHostPlatform,
+    type PlatformDeclaration,
+    type PlatformTarget,
+} from './platform-check.js';
 
 // 16-wide download pool. Matched to the shared Soup.Session's lifted
 // `max-conns-per-host` (see @gjsify/fetch `getSharedSession`) — a higher pool
@@ -72,10 +120,64 @@ interface ResolvedNode {
     /** `optionalDependencies` field from the packument. */
     optionalDependencies: Record<string, string>;
     bin?: string | Record<string, string>;
+    /**
+     * The version's `os`/`cpu`/`libc` declaration, as published. Recorded on the
+     * node (and in the lockfile) so the compatibility VERDICT can be recomputed
+     * for whichever host runs the install — see the header note on portability.
+     *
+     * Read from the FULL packument, which is the only document that carries
+     * `libc`. That is not an optimisation detail leaking into a comment: the
+     * abbreviated document can never PROVE the absence of a `libc` restriction,
+     * so a declaration built from it would be silently incomplete for exactly
+     * the packages the field exists for (this repo publishes nine of them —
+     * `@gjsify/{rolldown,lightningcss,oxfmt}-native`, `webgl`, `napi`,
+     * `sab-native`, `terminal-native`, `http2-native`, `http-soup-bridge` all
+     * declare `libc: ["glibc"]` and NO `os`/`cpu`).
+     */
+    platform?: PlatformDeclaration;
+    /**
+     * Is this node reachable ONLY through optionalDependency edges? Decides what
+     * an incompatible platform means: skip silently (optional) vs. fail the
+     * install (required). npm calls the same set `optionalSet`.
+     *
+     * DERIVED, not an input — {@link computeOptionalFlags} recomputes it as a
+     * fixpoint over the placed graph before anything reads it, on the fresh-
+     * resolve AND the lockfile path. The value the BFS assigns at placement time
+     * is a forward guess used only to decide whether a resolve FAILURE under this
+     * node is tolerated; it is edge-order-dependent and must never be the final
+     * answer (header note, invariant 2).
+     *
+     * OPTIONAL FIELD, and absent must read as `false` (= required): nodes are
+     * also built structurally by callers that only care about name/installPath,
+     * and the safe default for an unknown edge kind is the loud one — a required
+     * incompatible dependency fails the install instead of being silently
+     * dropped from the tree.
+     */
+    optional?: boolean;
+    /**
+     * Set by {@link applyPlatformFilter}: this node cannot run on the install
+     * target, so it is not downloaded or extracted. Never persisted — it is a
+     * per-host verdict, not a property of the resolution.
+     */
+    inert?: boolean;
 }
 
 const LOCKFILE_NAME = 'gjsify-lock.json';
-const LOCKFILE_VERSION = 2;
+/**
+ * v3 adds the per-entry platform declaration (`os`/`cpu`/`libc`) plus
+ * `optional`, which together let a foreign-platform package be recorded without
+ * being installed. v2 lockfiles are still READ (see {@link readLockfile}).
+ */
+const LOCKFILE_VERSION = 3;
+/**
+ * Lockfile versions this CLI can read. A v2 lockfile is a valid pin set that
+ * simply predates the platform fields; rejecting it (the old
+ * `!== LOCKFILE_VERSION → null` behaviour) would discard the whole file and let
+ * the following fresh resolve bump every `^`-range to the newest in-range
+ * version — the exact silent churn lockfile preservation exists to prevent, on
+ * every user's first install after upgrading the CLI.
+ */
+const READABLE_LOCKFILE_VERSIONS = new Set([2, LOCKFILE_VERSION]);
 
 interface LockfileEntry {
     version: string;
@@ -83,6 +185,17 @@ interface LockfileEntry {
     integrity?: string;
     dependencies?: Record<string, string>;
     bin?: string | Record<string, string>;
+    /**
+     * Platform declaration, omitted when the package declares none (the vast
+     * majority — keeping the field absent keeps the lockfile diff small). Field
+     * names match npm's `package-lock.json` v3 so the two are readable side by
+     * side.
+     */
+    os?: string | string[];
+    cpu?: string | string[];
+    libc?: string | string[];
+    /** `true` only for optional-only nodes; omitted otherwise (npm does the same). */
+    optional?: true;
 }
 
 interface Lockfile {
@@ -99,7 +212,35 @@ export interface InstalledTopLevel {
     version: string;
 }
 
-export async function installPackagesNative(opts: InstallOptions): Promise<InstalledTopLevel[]> {
+/**
+ * {@link InstallOptions} plus what only the NATIVE backend can use.
+ *
+ * `optionalSpecs` exists because a spec is a flat `"<name>@<range>"` string by
+ * the time it reaches here — `projectSpecsFromPackageJson` flattens
+ * `dependencies`, `devDependencies` and `optionalDependencies` into one list —
+ * yet the KIND decides what an incompatible `os`/`cpu`/`libc` means: an optional
+ * dependency is skipped, a required one fails the install. The shape that makes
+ * this concrete is `optionalDependencies: { fsevents }` in a project's own
+ * manifest: on Linux npm leaves fsevents out and installs fine, so treating
+ * every top-level spec as required would turn that into a hard EBADPLATFORM for
+ * a package nothing on the host would ever load.
+ *
+ * It rides the SAME options object `install-backend.ts` forwards wholesale to
+ * this function. If that forwarding is ever changed to destructure, this field
+ * must be forwarded with it — otherwise top-level optional deps quietly become
+ * required again (and the `install-platform-filter` e2e goes red, which is where
+ * that assumption is pinned).
+ */
+export interface NativeInstallOptions extends InstallOptions {
+    /**
+     * Names (not spec strings — the range differs per requester) of top-level
+     * specs declared as `optionalDependencies`. Absent ⇒ every top-level spec is
+     * required, the pre-platform-filter behaviour.
+     */
+    optionalSpecs?: Set<string>;
+}
+
+export async function installPackagesNative(opts: NativeInstallOptions): Promise<InstalledTopLevel[]> {
     // Fail clearly on an unsupported Node major BEFORE touching the ABI-locked
     // native deps — otherwise they SIGSEGV mid-extract with no actionable message.
     assertNativeBackendNodeVersion();
@@ -128,7 +269,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
 
 /** Body of {@link installPackagesNative}, run while holding the prefix lock. */
 async function installPackagesNativeLocked(
-    opts: InstallOptions,
+    opts: NativeInstallOptions,
     npmrc: NpmrcConfig,
     log: Logger,
 ): Promise<InstalledTopLevel[]> {
@@ -136,7 +277,24 @@ async function installPackagesNativeLocked(
     const lockfilePath = path.join(opts.prefix, LOCKFILE_NAME);
     const existingLock = readLockfile(lockfilePath);
 
+    // The triple this install materialises FOR. Normally the running host;
+    // `--os/--cpu/--libc` (npm's config keys `os`/`cpu`/`libc`, read from the
+    // environment by resolveHostPlatform) override it, which is what makes the
+    // darwin/win32/musl selection testable — and reviewable — from one machine.
+    const target = resolveHostPlatform();
+    const force = readPlatformForce(process.env);
+    log('install: platform target %s%s', describePlatformTarget(target), force ? ' (--force: checks bypassed)' : '');
+
     let nodes: ResolvedNode[];
+    /** Did a resolve actually run? Only then is there something new to persist. */
+    let resolved = false;
+    /**
+     * Edges whose resolve FAILED and was tolerated because the edge looked
+     * optional at the time it was visited. Checked against the final (fixpoint)
+     * optionality below — see {@link assertRequiredEdgesResolved}. Empty on the
+     * lockfile paths, which resolve nothing.
+     */
+    let skippedEdges = new Set<string>();
     if (opts.frozen) {
         // --immutable / --frozen: lockfile is the authoritative source.
         // Reject if the file is missing, version-mismatched, or its
@@ -158,11 +316,23 @@ async function installPackagesNativeLocked(
         }
         log('install: --immutable, using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
-    } else if (!opts.refreshLockfile && existingLock && lockfileMatchesRequest(existingLock, opts.specs)) {
+    } else if (
+        !opts.refreshLockfile &&
+        existingLock &&
+        existingLock.lockfileVersion === LOCKFILE_VERSION &&
+        lockfileMatchesRequest(existingLock, opts.specs)
+    ) {
         log('install: using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
     } else {
         // A resolve has to run (new/changed/removed dep, or no lockfile yet).
+        //
+        // A pre-v3 lockfile lands here too, even when it matches the request:
+        // its entries carry no platform declarations, so consuming it verbatim
+        // would keep installing the foreign-platform tree forever with nothing
+        // on disk to recompute the verdict from. One resolve — version-
+        // preserving, per the seeding below, so nothing bumps — upgrades it.
+        //
         // Unless --refresh-lockfile was passed, seed it with the versions
         // already pinned in the existing lockfile so unchanged deps keep their
         // resolved version and only the genuinely new/changed deps move — the
@@ -176,7 +346,11 @@ async function installPackagesNativeLocked(
             opts.prefix,
             preferred ? ` (preserving ${preferred.size} locked name(s))` : '',
         );
-        nodes = await resolveDeps(
+        // NOTE the absent argument: `target` is deliberately NOT passed. The
+        // resolve must produce the same tree and the same recorded declarations
+        // on every machine (header note, invariant 1), and the cheapest way to
+        // keep that true is to give it nothing target-shaped to read.
+        const resolveResult = await resolveDeps(
             opts.specs,
             npmrc,
             log,
@@ -187,11 +361,28 @@ async function installPackagesNativeLocked(
             preferred,
             opts.workspaceNames,
             opts.specOrigins,
+            opts.optionalSpecs,
         );
-        if (opts.lockfile) {
-            writeLockfile(lockfilePath, opts.specs, nodes);
-            log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
-        }
+        nodes = resolveResult.nodes;
+        skippedEdges = resolveResult.skippedEdges;
+        resolved = true;
+    }
+
+    // `optional` is DERIVED here, on BOTH paths, for the same reason
+    // `applyPlatformFilter` is: the answer must not depend on which path the tree
+    // arrived by, and a flag read back from a file is an INPUT nothing checked.
+    // Runs BEFORE writeLockfile (so the persisted flag is the final one) and
+    // before the platform verdict (which reads it to decide fatal vs. inert), and
+    // before the workspace filter below (which removes nodes and would truncate
+    // the walk).
+    computeOptionalFlags(nodes, requiredTopLevelNames(opts.specs, opts.optionalSpecs), log);
+    assertRequiredEdgesResolved(nodes, skippedEdges);
+
+    if (resolved && opts.lockfile) {
+        // The FULL resolved set, inert nodes included — see the header note:
+        // the lockfile is the portable artifact, the platform verdict is not.
+        writeLockfile(lockfilePath, opts.specs, nodes);
+        log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
     }
 
     // A package whose name is one of the monorepo's own workspaces is provided
@@ -212,10 +403,15 @@ async function installPackagesNativeLocked(
         }
     }
 
-    log('install: downloading %d tarball(s)', nodes.length);
-    await downloadAndExtractAll(nodes, opts.prefix, npmrc, log, opts.signal, progress);
-    await linkBins(nodes, opts.prefix, log);
-    warnMissingNativeBuilds(nodes, opts.prefix, log);
+    // os/cpu/libc: throws for an incompatible REQUIRED dep, marks incompatible
+    // OPTIONAL ones inert. Runs on BOTH paths (fresh resolve and lockfile) —
+    // that is what makes one committed lockfile install a per-host subset.
+    const installable = applyPlatformFilter(nodes, target, force, log);
+
+    log('install: downloading %d tarball(s)', installable.length);
+    await downloadAndExtractAll(installable, opts.prefix, npmrc, log, opts.signal, progress);
+    await linkBins(installable, opts.prefix, log);
+    warnMissingNativeBuilds(installable, opts.prefix, log);
     log('install: done');
 
     // Surface the top-level requested packages so callers can update
@@ -227,6 +423,81 @@ async function installPackagesNativeLocked(
 function errMsg(err: unknown): string {
     if (err instanceof Error) return err.message;
     return String(err);
+}
+
+/**
+ * Split a resolved tree into what THIS target can install, marking the rest
+ * inert. Mirrors arborist's post-resolve platform pass
+ * (`refs/npm-cli/workspaces/arborist/lib/arborist/build-ideal-tree.js`, the
+ * `checkPlatform` loop around line 210) rather than filtering during the walk,
+ * for two reasons: the verdict must be identical whether the tree came from a
+ * fresh resolve or from `gjsify-lock.json`, and a node's optionality is only
+ * final once every edge that could reach it has been visited.
+ *
+ * The two outcomes are npm's, including the asymmetry around `force`:
+ *   - REQUIRED + incompatible → EBADPLATFORM. A required dependency the host
+ *     cannot run is a broken install, not a smaller one; failing loudly with
+ *     `pkgid`/`current`/`required` is the only honest answer. `--force`
+ *     suppresses it (the user is asserting something about their own machine).
+ *   - OPTIONAL + incompatible → inert: not downloaded, not extracted, still in
+ *     the lockfile. `--force` does NOT lift this — npm says so in as many words
+ *     ("We ignore the --force and --engine-strict flags") and it is right:
+ *     forcing an optional binary that cannot load buys a download and nothing
+ *     else.
+ *
+ * The skip line goes through the debug logger with npm's `current`/`required`
+ * payload, so `--verbose` recovers exactly WHY a package is absent. Silence
+ * here is what made the original defect invisible in the other direction: 3.67
+ * GB arrived with no line saying it should not have.
+ */
+export function applyPlatformFilter(
+    nodes: ResolvedNode[],
+    target: PlatformTarget,
+    force: boolean,
+    log: Logger,
+): ResolvedNode[] {
+    const installable: ResolvedNode[] = [];
+    let skipped = 0;
+    for (const node of nodes) {
+        const declaration = node.platform;
+        if (!declaration || !declaresPlatform(declaration)) {
+            installable.push(node);
+            continue;
+        }
+        const verdict = checkPlatform(declaration, target);
+        if (verdict.ok) {
+            installable.push(node);
+            continue;
+        }
+        const pkgid = `${node.name}@${node.version}`;
+        if (!node.optional) {
+            if (force) {
+                log('platform-forced: %s (required, incompatible, installed anyway via --force)', pkgid);
+                installable.push(node);
+                continue;
+            }
+            throw badPlatformError(pkgid, verdict);
+        }
+        node.inert = true;
+        skipped++;
+        log(
+            'platform-skip: %s (%s) current=%s required=%s',
+            pkgid,
+            node.installPath,
+            JSON.stringify(verdict.current),
+            JSON.stringify(verdict.required),
+        );
+    }
+    if (skipped > 0) {
+        // Verbose-only, like every other per-install summary here — and like npm,
+        // which reports inert optional packages only through its final count.
+        log(
+            'install: %d optional package(s) inert — not installable on %s',
+            skipped,
+            describePlatformTarget(target),
+        );
+    }
+    return installable;
 }
 
 /**
@@ -339,6 +610,16 @@ function parseSpecName(spec: string): string {
  * specs are seeded with a synthetic `null` requester so they hoist to
  * the root. Each placement returns a `ResolvedNode` whose `installPath`
  * captures where it lives in the tree.
+ *
+ * TAKES NO PLATFORM TARGET, and that is a load-bearing absence (header note,
+ * invariant 1): the tree it produces and the `os`/`cpu`/`libc` it records must be
+ * identical on every machine, so the platform verdict is a separate post-pass
+ * (`applyPlatformFilter`) that this function cannot influence. An earlier draft
+ * did take one — to decide when to escalate to a full packument for `libc`,
+ * gated on `target.os === 'linux'` — and a macOS-authored lockfile ended up with
+ * no `libc` recorded anywhere, i.e. unusable for filtering on the Linux hosts it
+ * was committed for. Do not reintroduce the parameter: the resolve now reads the
+ * full document unconditionally, which needs no target and no heuristic.
  */
 async function resolveDeps(
     specs: string[],
@@ -369,7 +650,15 @@ async function resolveDeps(
      * version-conflict warning.
      */
     specOrigins?: Map<string, string[]>,
-): Promise<ResolvedNode[]> {
+    /**
+     * Names of top-level specs declared as `optionalDependencies` — see
+     * {@link NativeInstallOptions.optionalSpecs}. Such an edge is seeded
+     * `required: false`, so a resolve failure is skipped rather than fatal. It
+     * also seeds the optional-flag walk, but the FINAL flag comes from
+     * {@link computeOptionalFlags}, not from this walk.
+     */
+    optionalSpecs?: Set<string>,
+): Promise<ResolveResult> {
     progress?.beginPhase('resolve', specs.length);
     const applyOverride = (name: string, range: string): string => {
         if (!overrides) return range;
@@ -383,7 +672,32 @@ async function resolveDeps(
     const fetchPkg = (name: string): Promise<Packument> => {
         const cached = packumentCache.get(name);
         if (cached) return cached;
-        const fresh = fetchPackumentWithDiskCache(name, npmrc, log, signal);
+        // FULL document (`accept: application/json`), not the abbreviated
+        // "corgi" install document — the same choice arborist makes for every
+        // dependency it resolves (`#fetchManifest` sets `fullMetadata: true`,
+        // refs/npm-cli/workspaces/arborist/lib/arborist/build-ideal-tree.js).
+        //
+        // WHY, and why no cheaper trigger exists: the registry omits `libc` from
+        // the abbreviated body (measured — `@rollup/rollup-linux-x64-musl` returns
+        // `{os,cpu}` under the corgi accept header and `{os,cpu,libc}` under
+        // `application/json`), so the abbreviated body can never PROVE that a
+        // version has no libc restriction. Every "escalate only where it can
+        // matter" rule therefore has a hole, and the first draft's rule — escalate
+        // when the corgi entry declares `os` or `cpu` — had exactly the hole that
+        // matters here: the nine `@gjsify/*` bridges declare `libc: ["glibc"]`
+        // with NO `os`/`cpu`, so on Alpine the installer would have handed a
+        // glibc-only prebuild to a musl host and failed at `dlopen` instead of at
+        // install time.
+        //
+        // Cost, measured over 15 representative deps of this workspace (transfer
+        // bytes, largest packages dominating): the full document is 1.26× the
+        // abbreviated one. Corgi-plus-escalate-everything would be 2.26× and
+        // twice the requests; corgi-plus-escalate-the-declaring-~12% (the draft)
+        // was ~1.15× and 1.12× the requests, i.e. this change costs ~10% more
+        // metadata bytes and ~11% FEWER round-trips than the shape it replaces.
+        // That is the whole trade: one authoritative document per package instead
+        // of two documents and a heuristic that cannot be made sound.
+        const fresh = fetchPackumentWithDiskCache(name, npmrc, log, signal, 'full');
         packumentCache.set(name, fresh);
         return fresh;
     };
@@ -399,9 +713,18 @@ async function resolveDeps(
         from: string | null;
         name: string;
         range: string;
-        /** Whether failure to resolve should throw (false for optionalDeps). */
+        /**
+         * Whether failure to resolve should throw. `false` for an
+         * optionalDependency edge, and for any edge below a node that looked
+         * optional when it was placed — which is a FORWARD GUESS, because a later
+         * required edge can still reach that node. Every tolerated failure is
+         * therefore recorded in `skippedEdges` and re-judged against the final
+         * flags (see {@link assertRequiredEdgesResolved}).
+         */
         required: boolean;
     }
+    /** See {@link ResolveResult.skippedEdges}. Keyed by {@link edgeKey}. */
+    const skippedEdges = new Set<string>();
     // Top-level range bookkeeping for the version-conflict warning:
     // `name → (applied range → requester labels)`. Only TOP-LEVEL specs
     // participate: conflicting transitive edges are resolved correctly by
@@ -429,7 +752,7 @@ async function resolveDeps(
             from: null,
             name: s.name,
             range,
-            required: true,
+            required: !optionalSpecs?.has(s.name),
         };
     });
 
@@ -480,6 +803,15 @@ async function resolveDeps(
             const visible = findVisible(edge.from, edge.name, byPath);
             if (visible && satisfiesRange(visible.version, edge.range)) {
                 // Compatible placement reachable; reuse, no new install.
+                //
+                // NOTHING IS PROMOTED HERE. A `visible.optional = false` on a
+                // required edge is the obvious move and it is wrong: the node's own
+                // dep edges were already queued with the STALE flag, so its
+                // children stayed optional and the one-shot promotion produced an
+                // order-dependent answer (the reviewed defect). Optionality is
+                // recomputed as a fixpoint over the finished graph instead —
+                // {@link computeOptionalFlags}, which is order-independent by
+                // construction and is the only writer of the final flag.
                 continue;
             }
 
@@ -492,7 +824,12 @@ async function resolveDeps(
                 const preferred = preferredVersionFor(preferredVersions?.get(edge.name), edge.range);
                 version = pickVersion(packument, edge.range, preferred);
                 if (!version) {
-                    if (!edge.required) continue;
+                    // Throw even for an optional edge and let the catch below
+                    // decide: ONE place that knows what a tolerated failure costs
+                    // (a log line and a `skippedEdges` entry). The `if
+                    // (!edge.required) continue` this replaces was a second,
+                    // silent copy of that decision — it skipped with no log line
+                    // at all and left nothing for the post-pass to re-judge.
                     throw new Error(`No version of ${edge.name} satisfies ${edge.range}`);
                 }
                 const v = packument.versions[version];
@@ -517,6 +854,15 @@ async function resolveDeps(
                     dependencies: v.dependencies ?? {},
                     optionalDependencies: v.optionalDependencies ?? {},
                     bin: v.bin,
+                    // Complete as published — `fetchPkg` reads the FULL document,
+                    // so all three fields come from one authoritative body and no
+                    // second fetch or per-package heuristic is involved.
+                    platform: platformDeclarationOf(v),
+                    // Forward guess only; `computeOptionalFlags` overwrites it.
+                    // It is still worth setting: the child edges queued below read
+                    // it, which is what keeps a failure under a plainly-optional
+                    // subtree non-fatal at the point of failure.
+                    optional: !edge.required,
                 };
                 byPath.set(installPath, node);
                 if (installPath === `node_modules/${edge.name}`) {
@@ -538,8 +884,18 @@ async function resolveDeps(
                         queue.push({
                             from: installPath,
                             name: depName,
+                            // A dependency of an OPTIONAL node inherits its
+                            // optionality — npm's `optionalSet`. Load-bearing for
+                            // the platform check, not a nicety: we resolve
+                            // foreign-platform optional packages on purpose (the
+                            // lockfile must stay portable), so their own required
+                            // deps get visited too. `fsevents` (darwin-only) is
+                            // the live shape — treating its subtree as required
+                            // would raise EBADPLATFORM for a package nothing on
+                            // this host will ever load, i.e. fail every Linux
+                            // install over a darwin-only optional dep.
                             range: applyOverride(depName, depRange),
-                            required: true,
+                            required: !node.optional,
                         });
                     }
                     for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
@@ -555,7 +911,14 @@ async function resolveDeps(
                 // Optional deps that fail to resolve are skipped — yarn/npm
                 // behavior. Required deps re-throw.
                 if (!edge.required) {
-                    log('resolve: optional dep %s@%s skipped (%s)', edge.name, edge.range, (e as Error).message);
+                    // RECORDED, not merely logged: `edge.required` is the walk's
+                    // forward guess, and a later required edge can still make this
+                    // node mandatory. `assertRequiredEdgesResolved` re-judges every
+                    // entry against the fixpoint flags, so a genuinely required
+                    // dependency cannot end up missing from the tree just because
+                    // BFS order happened to reach it through an optional edge first.
+                    skippedEdges.add(edgeKey(edge.from, edge.name));
+                    log('resolve: optional dep %s@%s skipped (%s)', edge.name, edge.range, errMsg(e));
                     continue;
                 }
                 throw e;
@@ -563,9 +926,121 @@ async function resolveDeps(
         }
     }
 
+    const nodes = Array.from(byPath.values());
+    await escalateLibcDeclarations(nodes, target, fetchFullPkg, log, signal);
     progress?.endPhase('resolve');
     emitTopLevelConflictWarnings(topLevelRanges, root);
-    return Array.from(byPath.values());
+    return nodes;
+}
+
+/**
+ * Is the abbreviated packument's platform declaration INCOMPLETE for this
+ * target — i.e. worth a second, full-document fetch?
+ *
+ * MEASURED FACT the whole escalation rests on: the registry never serves `libc`
+ * in the abbreviated ("corgi") document. Verified against the live registry —
+ * `lightningcss-linux-x64-musl@1.33.0` returns `{os,cpu}` under
+ * `application/vnd.npm.install-v1+json` and `{os,cpu,libc}` under
+ * `application/json`. Trusting the abbreviated document would therefore judge
+ * every musl-only package installable on glibc (9 packages / 308 MB here), and
+ * — worse — would make `--libc` a flag that cannot fail.
+ *
+ * DELIBERATE DIVERGENCE FROM npm, outcome-equivalent: arborist escalates to the
+ * full document for EVERY resolved dependency (`#fetchManifest` sets
+ * `fullMetadata: true` —
+ * refs/npm-cli/workspaces/arborist/lib/arborist/build-ideal-tree.js). It can
+ * afford that because it needs the full manifest for other reasons anyway; for
+ * us it would mean a second, much larger body for all ~1597 packages in this
+ * workspace. So we escalate only where the answer can differ:
+ *
+ *   - the version DECLARES `os` or `cpu` — the marker of a per-platform package
+ *     (~190 of 1597 here). A package with no platform declaration at all cannot
+ *     acquire a `libc` restriction in the full document;
+ *   - the target OS is `linux` — the only platform where `libc` is meaningful
+ *     (npm's `currentEnv.libc()` returns undefined elsewhere), so a declaration
+ *     we did not read could not change the verdict on darwin/win32;
+ *   - `libc` is absent from the abbreviated document — if the registry DID send
+ *     it, there is nothing left to learn.
+ *
+ * Every escalated fetch can only ADD a restriction, so the set installed is the
+ * same one npm computes; what differs is how many bytes we moved to learn it.
+ */
+export function needsLibcEscalation(declaration: PlatformDeclaration, target?: PlatformTarget): boolean {
+    if (target?.os !== 'linux') return false;
+    if (declaration.libc !== undefined) return false;
+    return Boolean(declaration.os || declaration.cpu);
+}
+
+/**
+ * The platform declaration a packument version carries, or undefined when it
+ * declares none (the common case — keeping it undefined keeps the node and the
+ * lockfile entry minimal). Pure read, no I/O.
+ */
+function platformDeclarationOf(version: PackumentVersion): PlatformDeclaration | undefined {
+    const declaration: PlatformDeclaration = { os: version.os, cpu: version.cpu, libc: version.libc };
+    return declaresPlatform(declaration) ? declaration : undefined;
+}
+
+/**
+ * Fill in the `libc` the abbreviated documents never carried, for the nodes
+ * {@link needsLibcEscalation} selects.
+ *
+ * ONE PASS AFTER THE BFS, bounded to the same width as the download pool — not
+ * inline in the placement loop. Inline, each escalation would be a fresh
+ * round-trip inside the SERIAL pass, i.e. ~190 sequential RTTs on this
+ * workspace: exactly the cost the wave-based prefetch was built to remove. Order
+ * does not matter here (no placement decision reads the declaration), so a
+ * post-pass is free to parallelise.
+ *
+ * An escalation that FAILS keeps the abbreviated declaration and logs it. That
+ * direction is chosen on purpose: without `libc` a musl-only package looks
+ * compatible and gets installed — a wasted download. Treating the unknown as
+ * incompatible instead would DROP a package the host may need, on nothing worse
+ * than a registry hiccup that the fetch layer has already retried through.
+ */
+async function escalateLibcDeclarations(
+    nodes: ResolvedNode[],
+    target: PlatformTarget | undefined,
+    fetchFullPkg: (name: string) => Promise<Packument>,
+    log: Logger,
+    signal?: AbortSignal,
+): Promise<void> {
+    const pending = nodes.filter((n) => n.platform && needsLibcEscalation(n.platform, target));
+    if (pending.length === 0) return;
+    log('install: %d package(s) need the full packument for their libc field', pending.length);
+    await prefetchPackuments([...new Set(pending.map((n) => n.name))], fetchFullPkg, signal);
+    for (const node of pending) {
+        try {
+            // Warmed by the prefetch above; a rejection was cached there and
+            // surfaces here, per package, so one bad packument cannot abort the
+            // whole pass.
+            const full = await fetchFullPkg(node.name);
+            const fullVersion = full.versions[node.version];
+            // A full document that does not carry the version the abbreviated one
+            // promised leaves nothing to learn — keep what we have.
+            if (!fullVersion) continue;
+            // Read all three fields from the SAME body: it is the same publish, so
+            // they agree, and mixing bodies could only produce an internally
+            // inconsistent record.
+            const escalated: PlatformDeclaration = {
+                os: fullVersion.os ?? node.platform?.os,
+                cpu: fullVersion.cpu ?? node.platform?.cpu,
+                libc: fullVersion.libc,
+            };
+            node.platform = escalated;
+            if (escalated.libc !== undefined) {
+                log('packument-full: %s@%s declares libc=%s', node.name, node.version, JSON.stringify(escalated.libc));
+            }
+        } catch (e) {
+            log(
+                'packument-full: %s@%s escalation failed (%s) — keeping the abbreviated declaration, ' +
+                    'so a libc-only restriction cannot be honoured for this package',
+                node.name,
+                node.version,
+                errMsg(e),
+            );
+        }
+    }
 }
 
 /**
@@ -629,35 +1104,44 @@ function emitTopLevelConflictWarnings(
  * keyed by the registry the name resolves to, so scope-registry overrides never
  * cross-contaminate. Falls back to a plain fetch when there's no cached entry
  * or the registry doesn't send an ETag (the 304 fast-path simply never fires).
+ *
+ * `shape` selects WHICH document: `'corgi'` (abbreviated — every resolve) or
+ * `'full'` (the escalation that carries `libc`). It is threaded all the way
+ * through — request `accept`, cache read AND cache write — because the two are
+ * different bodies with independently-versioned ETags for one URL. Mixing them
+ * anywhere in that chain produces a `libc`-less body that looks like a hit.
  */
 async function fetchPackumentWithDiskCache(
     name: string,
     npmrc: NpmrcConfig,
     log: Logger,
     signal?: AbortSignal,
+    shape: PackumentShape = 'corgi',
 ): Promise<Packument> {
     const registry = registryFor(name, npmrc);
-    const disk = getCachedPackument(registry, name);
+    const fullMetadata = shape === 'full';
+    const disk = getCachedPackument(registry, name, shape);
     const onRetry = ({ attempt, error, delayMs }: { attempt: number; error: unknown; delayMs: number }) => {
-        log('packument %s: retry %d after %dms (%s)', name, attempt, delayMs, errMsg(error));
+        log('packument %s (%s): retry %d after %dms (%s)', name, shape, attempt, delayMs, errMsg(error));
     };
     const result = await fetchPackumentConditional(name, {
         npmrc,
         signal,
         ifNoneMatch: disk?.etag,
+        fullMetadata,
         onRetry,
     });
     if (result.status === 'not-modified' && disk) {
-        log('packument-cache-hit: %s (304, etag %s)', name, disk.etag);
+        log('packument-cache-hit: %s (%s, 304, etag %s)', name, shape, disk.etag);
         return disk.packument;
     }
     if (result.status === 'fresh' && result.packument) {
-        if (result.etag) putCachedPackument(registry, name, result.etag, result.packument);
+        if (result.etag) putCachedPackument(registry, name, result.etag, result.packument, shape);
         return result.packument;
     }
     // 304 with no cached body to satisfy it (a stale `If-None-Match` raced a
     // cache eviction). Re-fetch unconditionally so we always return a body.
-    return fetchPackument(name, { npmrc, signal, onRetry });
+    return fetchPackument(name, { npmrc, signal, fullMetadata, onRetry });
 }
 
 async function prefetchPackuments(
@@ -767,7 +1251,12 @@ function readLockfile(lockfilePath: string): Lockfile | null {
     if (!fs.existsSync(lockfilePath)) return null;
     try {
         const parsed = JSON.parse(fs.readFileSync(lockfilePath, 'utf-8')) as Lockfile;
-        if (parsed.lockfileVersion !== LOCKFILE_VERSION) return null;
+        // Accept every readable version, not just the current one — see
+        // READABLE_LOCKFILE_VERSIONS for why returning null on a v2 file is
+        // worse than reading it. The caller decides what it may be used FOR:
+        // a v2 file seeds version preservation but never short-circuits the
+        // resolve, because it carries no platform declarations.
+        if (!READABLE_LOCKFILE_VERSIONS.has(parsed.lockfileVersion)) return null;
         if (!parsed.packages || typeof parsed.packages !== 'object') return null;
         return parsed;
     } catch {
@@ -788,6 +1277,14 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
             integrity: node.integrity,
             dependencies: Object.keys(node.dependencies).length > 0 ? node.dependencies : undefined,
             bin: node.bin,
+            // The DECLARATION, never the verdict: `inert` is per-host and
+            // deliberately absent from the file (a lockfile that recorded which
+            // packages the author's machine skipped would install a different
+            // tree for everyone else — the failure this design exists to avoid).
+            os: node.platform?.os,
+            cpu: node.platform?.cpu,
+            libc: node.platform?.libc,
+            optional: node.optional ? true : undefined,
         };
     }
     const lockfile: Lockfile = {
@@ -839,18 +1336,29 @@ function preferredVersionFor(locked: Set<string> | undefined, range: string): st
 }
 
 function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
-    return Object.entries(lockfile.packages).map(([installPath, entry]) => ({
-        // Recover the package name from the path: the last segment is
-        // either `<name>` (unscoped) or `@scope/<name>` (scoped).
-        name: nameFromInstallPath(installPath),
-        version: entry.version,
-        tarballUrl: entry.resolved,
-        integrity: entry.integrity,
-        installPath,
-        dependencies: entry.dependencies ?? {},
-        optionalDependencies: {},
-        bin: entry.bin,
-    }));
+    return Object.entries(lockfile.packages).map(([installPath, entry]) => {
+        const platform: PlatformDeclaration = { os: entry.os, cpu: entry.cpu, libc: entry.libc };
+        return {
+            // Recover the package name from the path: the last segment is
+            // either `<name>` (unscoped) or `@scope/<name>` (scoped).
+            name: nameFromInstallPath(installPath),
+            version: entry.version,
+            tarballUrl: entry.resolved,
+            integrity: entry.integrity,
+            installPath,
+            dependencies: entry.dependencies ?? {},
+            optionalDependencies: {},
+            bin: entry.bin,
+            // Rebuilt from the recorded declaration so `applyPlatformFilter`
+            // reaches the SAME verdict on this path as on the fresh-resolve
+            // path — for THIS host, which is generally not the host that wrote
+            // the file. A v2 entry has none of these fields, so nothing is
+            // filtered; that install behaves exactly as it did before the
+            // feature (see READABLE_LOCKFILE_VERSIONS).
+            platform: declaresPlatform(platform) ? platform : undefined,
+            optional: entry.optional === true,
+        };
+    });
 }
 
 function nameFromInstallPath(installPath: string): string {
