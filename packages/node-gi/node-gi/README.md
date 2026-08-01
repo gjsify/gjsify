@@ -86,10 +86,17 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
 ## Requirements
 
 - Node.js ≥ 20
-- A C++ toolchain (`g++`/`clang`, `make`), `node-gyp`
-- GLib ≥ 2.80 development headers exposing `girepository-2.0`
-  (Fedora: `glib2-devel gobject-introspection-devel gcc-c++`;
-   Debian/Ubuntu: `libglib2.0-dev libgirepository-2.0-dev g++`)
+- **No C++ toolchain on the four prebuilt targets.** The published tarball ships
+  `prebuilds/<platform>-<arch>/node_gi.node` for `linux-x64`, `linux-arm64`,
+  `darwin-arm64` and `win32-x64` (`package.json#gjsify.platforms`), and the
+  `install` script (`scripts/install.mjs`) uses it instead of building: a source
+  build is the FALLBACK for a host with no prebuild, not the default. Force it
+  with `NODE_GI_BUILD_FROM_SOURCE=1` (or npm's `--build-from-source`); skip it
+  entirely with `NODE_GI_SKIP_NATIVE_BUILD=1`.
+- For a source build only: a C++ toolchain (`g++`/`clang`, `make`), `node-gyp`,
+  and GLib ≥ 2.80 development headers exposing `girepository-2.0` + cairo
+  (Fedora: `glib2-devel gobject-introspection-devel cairo-devel gcc-c++`;
+   Debian/Ubuntu: `libglib2.0-dev libgirepository-2.0-dev libcairo2-dev g++`)
 - At runtime, the target libraries' typelibs must be installed (same as `gi://`
   under GJS) — **except on macOS arm64**, where the optional
   [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64) bundle ships a
@@ -153,7 +160,7 @@ blocking loop remain Node-only (the uv co-pump).
 ## Build & test
 
 ```bash
-npm install          # builds the native addon via node-gyp (install script)
+npm install          # prebuild if one is staged, else node-gyp (scripts/install.mjs)
 npm test             # node --test (full suite, Node — authoritative)
 npm run test:gc      # node --test --expose-gc (toggle-ref GC-stress leg)
 npm run test:bun     # conformance subset on Bun   (needs `bun`)
@@ -170,7 +177,15 @@ and the bun/deno runner defaults to it — without that, a stale staged prebuild
 silently shadows your build. CI's cross-runtime job sets `NODE_GI_NATIVE=prebuild`
 to keep validating the prebuild load path with a freshly staged binary.
 `NODE_GI_NATIVE` accepts `build`, `prebuild`, or an explicit path to a
-`node_gi.node`.
+`node_gi.node`. That candidate order lives in `native-paths.js` and is shared
+with the `install` script, so the binary the guard decides not to rebuild is
+by construction the binary the loader looks for.
+
+In a checkout `prebuilds/` is gitignored, so `npm install` here always runs the
+source build — as do the `npm install --foreground-scripts` steps in
+`node-gi.yml` and the `node-gi-prebuild-*` legs in `release.yml`, which need
+`build/Release/node_gi.node` for `scripts/stage-prebuild.mjs`. Set
+`NODE_GI_BUILD_FROM_SOURCE=1` to force it regardless of a staged prebuild.
 
 Two debug-only env vars instrument the toggle-ref / teardown machinery (both
 parsed once at first use, zero cost when unset — never set them in production):
