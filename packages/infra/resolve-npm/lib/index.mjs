@@ -55,7 +55,7 @@ import { getDerivedAliasesSync as _getDerivedAliasesSync } from './runtime-alias
  * statement (no slot policy duplicated into it), and `aliasPlugin` keeps its
  * one-hop `skipSelf: true` contract. Composing a table is therefore an
  * explicit, per-table decision; `ALIASES_NODE_FOR_NATIVESCRIPT` is
- * deliberately NOT composed (see the STATUS.md TODO on the `native` slot's
+ * deliberately NOT composed (see the status/open-todos.md entry on the `native` slot's
  * double meaning for the bridge packages).
  *
  * Evaluated LAZILY (on property read) and cached: `getDerivedAliasesSync` walks
@@ -427,7 +427,7 @@ export const ALIASES_NODE_FOR_BROWSER = withDerivedSlotRouting(
  *   `native` means "the RUNTIME provides it, route to `<pkg>/globals`" — a file
  *   the bridge does not ship, so the composed value degrades to
  *   `@gjsify/empty`. Settle the bridge packages' slot declarations first (see
- *   STATUS.md `Open TODOs`), then compose. An import by PACKAGE NAME does route
+ *   status/open-todos.md), then compose. An import by PACKAGE NAME does route
  *   per the declared slot (plain key hit in the merged map) — which is why the
  *   bridges are ALREADY emptied on that path today, same TODO.
  * - **`ws` / `isomorphic-ws` → `@gjsify/empty`.** NS apps use `WebSocket`

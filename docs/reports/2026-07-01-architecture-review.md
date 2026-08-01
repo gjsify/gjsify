@@ -3,7 +3,7 @@
 Condensed record of the cross-workspace architecture review (gjsify, easy6502,
 pixel-rpg/map-editor, ts-for-gir, node-gi) that produced ADRs 0001–0008
 ([docs/adr/](../adr/README.md)). This file is the *why + priority* record; the ADRs
-are the decisions; STATUS.md `## Open TODOs` tracks the remaining work.
+are the decisions; `status/open-todos.md` tracks the remaining work.
 
 ## Verdict
 

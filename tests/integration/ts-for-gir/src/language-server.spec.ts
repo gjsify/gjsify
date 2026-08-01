@@ -32,7 +32,7 @@ const TS_TIMEOUT_MS = 30_000;
 export default async () => {
     // All language-server tests are Node.js only.
     // TypeScript compiler on GJS requires additional __dirname injection and
-    // is tracked in STATUS.md "Open TODOs — Phase 8".
+    // is tracked in status/open-todos.md → "Phase 8".
     await on('Node.js', async () => {
         await describe('@ts-for-gir/language-server — API surface', async () => {
             await it('exports validateTypeScript as a function', async () => {

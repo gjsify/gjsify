@@ -96,8 +96,8 @@ export interface ClientOptions {
  *                                        frames internally; no JS hook exposed).
  *                                        Consumers that rely on 'ping'/'pong' for
  *                                        keep-alive application logic need to use
- *                                        data messages instead. Tracked as a
- *                                        known limitation in STATUS.md.
+ *                                        data messages instead.  Tracked in
+ *                                        status/upstream-patch-candidates.md.
  *    - 'upgrade' / 'unexpected-response' / 'redirect'
  *                                      → NOT EMITTED on Gjs (Soup does not expose
  *                                        the raw HTTP upgrade response). Code

@@ -321,7 +321,7 @@ export class SharedBuffer {
      * call requires a `JSContext*` which GJS does not expose to
      * GObject-introspected `.so` plugins. The fix has to land in GJS
      * itself (e.g. a `byteArray.fromGBytesShared` helper). Tracked under
-     * STATUS.md "Upstream GJS Patch Candidates".
+     * status/upstream-patch-candidates.md.
      *
      * Modifications to the returned array therefore do NOT propagate back
      * to the region — use `writeBytes()` to commit changes.

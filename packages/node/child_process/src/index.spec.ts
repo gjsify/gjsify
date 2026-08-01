@@ -413,8 +413,7 @@ export default async () => {
             // (`echo`) can therefore be reaped in the tiny window between
             // `spawnv()` and the synchronous `get_identifier()` on a saturated
             // runner → `pid` undefined. That instant-exit edge is a documented
-            // upstream GIO limitation (STATUS.md → "Upstream GJS Patch
-            // Candidates"); the realistic contract — and what consumers rely on
+            // upstream GIO limitation (status/upstream-patch-candidates.md); the realistic contract — and what consumers rely on
             // — is a numeric pid for a *running* process, which `cat` (blocks on
             // its piped, empty stdin) makes deterministic. Ending stdin sends
             // EOF so it exits cleanly.

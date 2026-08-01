@@ -183,7 +183,7 @@ function makeSharedBuffer(native) {
 // stdout-reader routes back to the kept end via the parent-side registry.
 //
 // transferList chaining (port-in-port) is intentionally not supported
-// on the cross-process path in v1 — see STATUS.md Open TODOs.
+// on the cross-process path in v1 — see status/open-todos.md.
 const childPortRegistry = new Map();
 
 function makeChildSidePort(portId) {

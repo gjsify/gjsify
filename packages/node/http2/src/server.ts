@@ -31,7 +31,7 @@
 //                         GjsifyHttp2.StreamIdAllocator, builds the PUSH_PROMISE
 //                         frame in-memory via GjsifyHttp2.FrameEncoder. Wire-level
 //                         delivery still requires raw nghttp2-on-socket access
-//                         that Soup does not expose — see STATUS.md "Open TODOs".
+//                         that Soup does not expose — see status/open-todos.md.
 //                         The callback IS invoked with a usable ServerHttp2Stream
 //                         so application code that fans out a "main + push" pair
 //                         observes a working API contract.

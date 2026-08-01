@@ -62,5 +62,5 @@ verified in CI:
 Dependencies may only point at the same or a lower tier, so an experimental
 package can never destabilize a core one. The tier model is defined in
 [ADR 0003 — Package tiering](https://github.com/gjsify/gjsify/blob/main/docs/adr/0003-package-tiering.md);
-the current membership list lives in
-[`STATUS.md`](https://github.com/gjsify/gjsify/blob/main/STATUS.md).
+the current membership list is derived from the manifests — run
+`npm run status:generate` (see [`status/`](https://github.com/gjsify/gjsify/blob/main/status)).

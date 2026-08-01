@@ -20,7 +20,7 @@ skilldrick easy6502 web tutorial and rebuild `app-web` entirely on `@gjsify/adwa
 Locked choices: CodeMirror-6-backed Adwaita source editor; hard cutover; the missing
 adwaita-web components (`AdwViewStack`, `AdwViewSwitcherBar`, menu button, `adw-source-view`)
 built upstream in gjsify; tutorial prose fed from the `@learn6502/learn` package's
-prerendered HTML target. Tracked as its own project (STATUS.md / session memory), not this
+prerendered HTML target. Tracked as its own project (`status/open-todos.md` / session memory), not this
 ADR. The spike also surfaced adwaita-web packaging gaps (raw-TS `main`/`types`, src-leaked
 build artifacts) fixed separately.
 

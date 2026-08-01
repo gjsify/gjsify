@@ -464,7 +464,7 @@ export class ClientHttp2Session extends Http2Session {
         // Lazy load to keep the module out of the Node bundle when only Soup is
         // used. Pulling node:http2 directly never instantiates the dispatcher.
         //
-        // KNOWN GAP, tracked in STATUS.md § Open TODOs. This is the
+        // KNOWN GAP, tracked in status/open-todos.md. This is the
         // bare-`require`-in-ESM class (AGENTS.md § CJS-ESM Interop): the call
         // resolves inside a bundle and is a ReferenceError from the unbundled
         // `lib/`. It cannot become a static import — `native-client-dispatcher`

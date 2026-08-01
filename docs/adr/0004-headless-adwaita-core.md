@@ -60,5 +60,5 @@ implemented inside `adwaita-nativescript` although they contain no NS-specific c
    from NS via re-export, no consumer-visible break).
 2. Toast queue + dialog response model (web + NS adapt).
 3. Row/state machines (expander, combo, spin, toggle-group) as they are next touched.
-4. STATUS.md widget tables note per-widget core adoption; `adwaita-web` and
+4. The authored status notes (`status/status.json`) record per-widget core adoption; `adwaita-web` and
    `adwaita-nativescript` declare the core dep.

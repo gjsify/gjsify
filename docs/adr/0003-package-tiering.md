@@ -1,7 +1,7 @@
 # ADR 0003 — Explicit package tiering (stability contract)
 
 - **Status:** Accepted (2026-07-01)
-- **Scope:** all published `@gjsify/*` packages; STATUS.md; `scripts/audit-runtimes.mjs`
+- **Scope:** all published `@gjsify/*` packages; the project status data (`status/`); `scripts/audit-runtimes.mjs`
 
 ## Context
 
@@ -30,7 +30,7 @@ Every published package declares a tier; the tier is a documented contract:
   the train, but breaking changes may ship with a minor + changelog note.
 - **Tier 3 — experimental (no promise):** `@gjsify/node-gi` (ADR 0005),
   `devtools-browser`/`devtools-cdp`, NativeScript runtime-slot backfill, anything
-  new until promoted. README + STATUS.md mark them experimental.
+  new until promoted. README + the status snapshot mark them experimental.
 
 Rules:
 
@@ -43,7 +43,7 @@ Rules:
 3. **New axes start at Tier 3** — by default, no matter how promising.
 4. Declared in `package.json#gjsify.tier` (`1 | 2 | 3`), audited by
    `scripts/audit-runtimes.mjs` (tier table + dependency-direction check in CI),
-   surfaced in the STATUS.md package tables.
+   surfaced in the generated status snapshot.
 
 ## Consequences
 
@@ -60,5 +60,5 @@ Rules:
 1. Add `gjsify.tier` to every published package.json (one mechanical PR; defaults:
    pillars+bridges+CLI = 1, design/storybook/devtools = 2, node-gi/browser/CDP = 3).
 2. Extend `scripts/audit-runtimes.mjs`: tier presence, tier×dependency direction,
-   drift vs STATUS.md tables.
-3. STATUS.md package tables gain a Tier column; website package index mirrors it.
+   drift vs the declared tiers.
+3. The generated status snapshot lists tier membership; website package index mirrors it.

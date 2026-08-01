@@ -24,7 +24,7 @@
 // "this package IS the native implementation" sense and therefore routes to a
 // `globals.mjs` it does not ship → `@gjsify/empty`. The slot vocabulary's
 // `native` means "the RUNTIME provides this, use its value", so the bridge
-// packages are mis-declared; that is tracked in STATUS.md and must be settled
+// packages are mis-declared; that is tracked in status/open-todos.md and must be settled
 // before this table is composed. A direct `import … from
 // '@gjsify/native-fs-bridge'` already hits the derived map (plain key hit) and
 // is emptied TODAY — same root cause, listed in the same TODO.

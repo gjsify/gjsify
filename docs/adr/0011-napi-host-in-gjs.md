@@ -29,8 +29,8 @@ run N-API addons *in GJS* — "N-API in GJS". The node-gi team already owns the
 ABI + marshalling + teardown expertise from the consumer side.
 
 Full engineering plan (kept out of the repo per the werkstatt no-dev-plans rule):
-maintainer's `~/.claude/plans/napi-over-gjs.md`; the working roadmap lives as a
-STATUS.md strike-chain (new axis).
+maintainer's `~/.claude/plans/napi-over-gjs.md`; the working roadmap lives in
+`status/open-todos.md` (new axis).
 
 ## Decision
 

@@ -37,7 +37,7 @@ gjs CI is Linux-only, and gjs must be source-built against a SpiderMonkey that
 Windows package managers do not provide in a form its build system consumes.
 
 This is a genuine upstream blocker, not a missing task. It is tracked in
-`STATUS.md` with the exact conditions that would unblock it.
+`status/open-todos.md` with the exact conditions that would unblock it.
 
 ## Why macOS has no Node-free toolchain yet
 

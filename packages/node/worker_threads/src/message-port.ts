@@ -120,7 +120,7 @@ export class MessagePort extends EventEmitter {
         // (parent ↔ child stdin/stdout) instead of an in-process partner.
         // transferList is intentionally restricted on the cross-process path
         // in v1 — port-in-port-in-port chains and ArrayBuffer-over-wire are
-        // separate workstreams (see STATUS.md Open TODOs).
+        // separate workstreams (see status/open-todos.md).
         if (!target && this._inner._transport !== null) {
             if (transferList && transferList.length > 0) {
                 throw createDataCloneError('transferList is not supported on cross-process MessagePort yet');

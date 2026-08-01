@@ -45,7 +45,7 @@
 // `gjsify/register-class-order` rule wired via `.oxlintrc.json` jsPlugins)
 // lives in the Node launcher, so a native oxlint bridge could only run the
 // Rust rule subset. Lint stays Node-spawned until that trade-off is decided
-// (tracked in STATUS.md Open TODOs).
+// (tracked in status/open-todos.md).
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';

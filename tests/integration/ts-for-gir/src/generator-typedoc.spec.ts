@@ -145,7 +145,7 @@ export default async () => {
 
     // HTML generation uses TypeDoc's shiki syntax highlighter which requires
     // WebAssembly Promise APIs. GJS/SpiderMonkey 128 does not support WASM,
-    // so HTML generation only works on Node. Tracked: STATUS.md "Open TODOs".
+    // so HTML generation only works on Node. Tracked: status/open-todos.md.
     await on('Node.js', async () => {
         await describe('@ts-for-gir/generator-html-doc — HtmlDocGenerator', async () => {
             await it(

@@ -2,7 +2,7 @@
 
 **The JavaScript ecosystem you already know — running natively on GNOME.**
 
-**[Documentation](https://gjsify.github.io/gjsify/)** · [Package status & metrics](STATUS.md) · [Architecture & contributor guide](AGENTS.md)
+**[Documentation](https://gjsify.github.io/gjsify/)** · [Project status](status/) · [Architecture & contributor guide](AGENTS.md)
 
 ---
 
@@ -148,8 +148,10 @@ Node.js 24+ is **optional** — needed only to run the cross-validation test tra
 ## Package status
 
 > The **always-current** package matrix, per-package implementation notes, test
-> counts, and metrics live in **[STATUS.md](STATUS.md)** and are kept in lockstep
-> with the code. The tables below are a high-level snapshot.
+> counts and metrics are generated on demand from the authored data in
+> **[`status/`](status/)** plus the package manifests — run
+> `npm run status:generate` to render the full snapshot into a (gitignored)
+> `STATUS.md`. The tables below are a high-level snapshot.
 
 gjsify is a monorepo of ~130 `@gjsify/*` packages, organised as four pillars plus
 the toolchain.

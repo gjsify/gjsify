@@ -140,7 +140,7 @@ and the servo prebuilt is a patched Rust static-lib layout, not the pkg-config
 A **second wall** waits behind it: an unmodified node-gyp `.node` on Windows
 binds `napi_*` via a delay-load hook against the host `.exe`, which `gjs.exe`
 does not export (there is no POSIX global-namespace self-promotion analog). See
-`STATUS.md` → *N-API host in GJS* → cross-platform prebuilds. This is the key
+`status/open-todos.md` → *N-API host in GJS* → cross-platform prebuilds. This is the key
 difference from [`@gjsify/node-gi`](../../node-gi/node-gi), which links the
 portable girepository stack and so runs on all three OSes.
 

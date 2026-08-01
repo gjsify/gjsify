@@ -125,7 +125,7 @@ is then **CI-validated only**, exactly like the `@gjsify/napi` macOS tsfn gate.
 
 Two independent blockers, either of which is sufficient:
 
-- **There is no host.** GJS does not run on Windows. Per STATUS.md (re-checked
+- **There is no host.** GJS does not run on Windows. Per `status/open-todos.md` (re-checked
   2026-07-25 for `@gjsify/napi`): no prebuilt `libgjs` for Windows exists, GNOME's gjs
   CI is Linux-only, and the one prebuilt MSVC mozjs-140 that does exist (servo/mozjs)
   is a patched Rust static-lib layout, not the `pkg-config mozjs-140` shared library

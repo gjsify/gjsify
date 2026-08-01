@@ -9,7 +9,7 @@
 //
 // We do not yet exercise a real OCSP response fixture — generating one
 // requires either a live responder or a pre-captured DER blob. Tracked in
-// STATUS.md "Open TODOs" as the "OCSP integration test" follow-up.
+// status/open-todos.md as the "OCSP integration test" follow-up.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import {
