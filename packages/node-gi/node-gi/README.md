@@ -98,11 +98,28 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
   (Fedora: `glib2-devel gobject-introspection-devel cairo-devel gcc-c++`;
    Debian/Ubuntu: `libglib2.0-dev libgirepository-2.0-dev libcairo2-dev g++`)
 - At runtime, the target libraries' typelibs must be installed (same as `gi://`
-  under GJS) — **except on macOS arm64**, where the optional
-  [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64) bundle ships a
-  relocated GTK/GI runtime so the display-free surface works with no Homebrew GTK
-  (Phase 2). node-gi auto-detects the bundle at load and prepends its typelib dir
-  to the GIRepository search path (`gtk-runtime.js`).
+  under GJS) — **except on macOS arm64 and Windows x64**, where a
+  batteries-included, relocated GTK/GI runtime bundle ships so `gi://` works with
+  no Homebrew/gvsbuild GTK (Phase 2). node-gi auto-detects a bundle at load and
+  prepends its typelib dir to the GIRepository search path (`gtk-runtime.js`).
+- **Those bundles are a MANUAL install today.**
+  [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64) and
+  [`@gjsify/gtk-runtime-win32-x64`](../gtk-runtime-win32-x64) are published, and
+  node-gi finds either one the moment it is present in the tree — but **no
+  package declares them as a dependency**, so nothing installs them for you.
+  Install the one for your platform alongside node-gi:
+
+  ```bash
+  npm install @gjsify/gtk-runtime-win32-x64      # Windows x64
+  npm install @gjsify/gtk-runtime-darwin-arm64   # macOS arm64
+  ```
+
+  Both declare `os`/`cpu`, so npm/yarn/pnpm skip them off-platform. Making them
+  `optionalDependencies` of this package (which would remove the manual step
+  without any consumer-side platform branching) is pending two decisions outside
+  this package — the ADR-0003 dependency-direction rule between node-gi's tier
+  and the bundles', and `os`/`cpu` filtering in `gjsify install`'s native
+  backend, which currently places foreign-platform optional deps.
 - **Node.js ≥ 20, Bun ≥ 1.3, or Deno ≥ 2** — the addon is Node-API, so one binary
   runs on all three (see [Runtimes](#runtimes-node--bun--deno)).
 
@@ -1019,6 +1036,15 @@ Fontconfig config/cache. node-gi's loader (`gtk-runtime.js`
 marker and wires the env (`GSETTINGS_SCHEMA_DIR` / `GDK_PIXBUF_MODULE_FILE` /
 `XDG_DATA_DIRS` / `FONTCONFIG_*`); a display-free bundle carries no marker, so the
 wiring is a strict no-op and that load is byte-unchanged.
+
+The bundle is not pulled in automatically — `npm install
+@gjsify/gtk-runtime-win32-x64` alongside node-gi (see
+[Requirements](#requirements)). `resolveGtkRuntimeBundle()` finds it wherever the
+package manager placed it: an explicit `GJSIFY_GTK_RUNTIME` dir, a staged
+`prebuilds/<target>/gtk/`, the sibling monorepo checkout, or
+`require.resolve('@gjsify/gtk-runtime-<target>')` — the last of which covers a
+hoisted `node_modules/@gjsify/gtk-runtime-win32-x64`, so no loader change is
+needed if the dependency edge is ever declared.
 
 ### Adwaita widget breadth realizes + reacts + renders
 
