@@ -14,6 +14,7 @@ import { Dirent } from './dirent.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError, isNotFoundError } from './errors.js';
 import { tempDirPath, normalizePath } from './utils.js';
+import { isStdFd, readStdFdAll } from './std-fd.js';
 
 import type { OpenFlags, EncodingOption } from './types/index.js';
 import type {
@@ -169,10 +170,18 @@ export function symlinkSync(target: PathLike, path: PathLike, _type?: 'file' | '
 }
 
 export function readFileSync(
-    path: PathLike,
+    path: PathLike | number,
     options: { encoding?: string | null; flag?: string } | string | null = { encoding: null, flag: 'r' },
 ) {
-    const pathStr = normalizePath(path);
+    // A numeric fd: the standard descriptors 0/1/2 have no path and are read
+    // from the process's own Unix stream (the Node `readFileSync(0)` stdin
+    // idiom); any other number is an open FileHandle, resolved to its path.
+    if (typeof path === 'number' && isStdFd(path)) {
+        const enc = getEncodingFromOptions(options as Parameters<typeof getEncodingFromOptions>[0], 'buffer');
+        return encodeUint8Array(enc, readStdFdAll(path));
+    }
+    const pathStr =
+        typeof path === 'number' ? normalizePath(FileHandle.getInstance(path).options.path) : normalizePath(path);
     const file = Gio.File.new_for_path(pathStr);
 
     try {
