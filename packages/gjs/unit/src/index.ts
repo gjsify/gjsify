@@ -149,11 +149,22 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
     const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => reject(new TimeoutError(label, timeoutMs)), timeoutMs);
     });
-
-    const fnPromise = Promise.resolve(fn());
-    fnPromise.catch(() => {}); // Prevent unhandled rejection if it fails after timeout
+    // The race below is normally this promise's only consumer, so once `fn`
+    // settles first nobody observes the rejection. Claim it here rather than
+    // leaving it to become an unhandled rejection.
+    timeoutPromise.catch(() => {});
 
     try {
+        // `fn()` belongs INSIDE the try. A synchronous throw — which is what
+        // EVERY failed `expect` in a non-async `it` is — escaped before the
+        // `finally` was installed, so `clearTimeout` never ran. The armed timer
+        // then rejected `timeoutPromise` with nobody listening: `timeoutMs`
+        // later the run died on an unhandled rejection reporting a TimeoutError
+        // in place of the assertion message, and every suite after the failing
+        // one never ran. Observed as `Timeout: "resolves from the caller cwd"
+        // exceeded 5000ms` masking a one-line path mismatch.
+        const fnPromise = Promise.resolve(fn());
+        fnPromise.catch(() => {}); // Prevent unhandled rejection if it fails after timeout
         return await Promise.race([fnPromise, timeoutPromise]);
     } finally {
         clearTimeout(timeoutId!);
