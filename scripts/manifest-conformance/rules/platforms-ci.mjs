@@ -43,6 +43,82 @@ export function osFromRunner(runsOn) {
     return 'linux';
 }
 
+/**
+ * The arch a runner LABEL implies, when the job declares no `arch:` matrix key.
+ *
+ * The default table above is keyed only by OS, which silently mis-attributes
+ * every macOS runner that is not Apple silicon: `macos-15-intel` would be read
+ * as `darwin-arm64`, so an Intel job would be credited with the arm64 target
+ * and the declared-vs-built symmetry would hold while describing the wrong
+ * artifact. That failure is invisible by construction — both sides agree, and
+ * nothing goes red.
+ *
+ * GitHub's label vocabulary is deliberately checked in a specific order,
+ * because two of its spellings differ by one character and mean opposite
+ * architectures: `-xlarge` is Apple silicon, `-large` is Intel. Reading them
+ * the other way round is the same silent mis-attribution with a longer fuse.
+ *
+ *   arm64 — `macos-14`, `macos-15`, `macos-latest`, `*-xlarge`,
+ *           `ubuntu-24.04-arm`
+ *   x64   — `macos-15-intel`, `macos-26-intel`, `*-large`
+ *
+ * `macos-15-intel` is the LAST x86_64 image Actions will offer (available
+ * until August 2027, after which Apple's discontinuation of the architecture
+ * ends GitHub's support for it) — so a `darwin-x64` promise necessarily has a
+ * horizon, and the parser should be honest about which leg produced it.
+ */
+export function archFromRunner(runsOn, os = osFromRunner(runsOn)) {
+    if (/-xlarge\b/.test(runsOn)) return 'arm64';
+    if (/-arm\b|-arm64\b/.test(runsOn)) return 'arm64';
+    if (/-intel\b|-large\b/.test(runsOn)) return 'x64';
+    return RUNNER_DEFAULT_ARCH[os];
+}
+
+/**
+ * The `strategy.matrix.include` entries of one job, as `{arch?, runner?}` PAIRS.
+ *
+ * `runs-on` is read literally, so a job whose runner comes from the matrix
+ * (`runs-on: ${{ matrix.runner }}`) tells `osFromRunner` nothing — it falls
+ * through to `linux`. That is right for the Linux legs BY ACCIDENT, and wrong
+ * for any macOS or Windows matrix, which is why the OS-per-leg has to come
+ * from the include entries rather than from the expression.
+ *
+ * Pairing matters as much as reading: a job's `arch:` values and its `runner:`
+ * values are not two independent sets — entry N's arch belongs to entry N's
+ * runner. Collecting them into two flat sets would produce the CROSS product,
+ * inventing targets no job builds the moment a matrix mixes operating systems.
+ *
+ * Deliberately the same lightweight structural read as the rest of this file
+ * (no YAML dependency in a script that must run with NO install): find the
+ * `matrix:` key, treat everything more-indented as its block, start a new entry
+ * at each `- key: value`, and attach the sibling `key: value` lines to it.
+ */
+export function parseMatrixIncludes(lines) {
+    const unquote = (v) => v.replace(/^['"]|['"]$/g, '').trim();
+    const entries = [];
+    let matrixIndent = -1;
+    let current = null;
+    for (const line of lines) {
+        if (!line.trim()) continue;
+        const indent = line.length - line.trimStart().length;
+        if (matrixIndent < 0) {
+            if (/^\s*matrix:\s*$/.test(line)) matrixIndent = indent;
+            continue;
+        }
+        // Anything at or left of `matrix:` ends the block (`steps:`, the next key).
+        if (indent <= matrixIndent) break;
+        const item = /^\s*-\s+([A-Za-z_][\w-]*):\s*(.+?)\s*$/.exec(line);
+        if (item) {
+            current = { [item[1]]: unquote(item[2]) };
+            entries.push(current);
+            continue;
+        }
+        const kv = /^\s*([A-Za-z_][\w-]*):\s*(.+?)\s*$/.exec(line);
+        if (kv && current) current[kv[1]] = unquote(kv[2]);
+    }
+    return entries;
+}
+
 /** Group a job's lines into step blocks (a step starts at `- name:`/`- uses:`/`- run:`). */
 export function splitSteps(lines) {
     const steps = [];
@@ -134,9 +210,26 @@ export async function parseCiPlatforms(
         for (const job of jobs) {
             if (job.manualOnly) continue;
             const os = osFromRunner(job.runsOn);
-            // `ubuntu-24.04-arm` and friends carry the arch in the label.
-            const labelArm = /-arm\b|-arm64\b/.test(job.runsOn);
-            const archs = job.archs.size > 0 ? [...job.archs] : [labelArm ? 'arm64' : RUNNER_DEFAULT_ARCH[os]];
+            // Prefer the matrix's own (arch, runner) PAIRS: they carry a
+            // per-leg OS, which `runs-on: ${{ matrix.runner }}` cannot. Entries
+            // naming no runner fall back to the job's literal `runs-on` (the
+            // QEMU legs' shape), and a job with no matrix at all keeps the
+            // single-target path. `ubuntu-24.04-arm` / `macos-15-intel` and
+            // friends carry the arch in the label — see `archFromRunner`.
+            const includes = parseMatrixIncludes(job.body).filter((e) => e.arch || e.runner);
+            const targets = new Set();
+            if (includes.length > 0) {
+                for (const entry of includes) {
+                    const runsOn = entry.runner ?? job.runsOn;
+                    const entryOs = entry.runner ? osFromRunner(entry.runner) : os;
+                    const arch =
+                        entry.arch && KNOWN_ARCH_TOKENS.has(entry.arch) ? entry.arch : archFromRunner(runsOn, entryOs);
+                    targets.add(canonicalPlatform(`${entryOs}-${arch}`));
+                }
+            } else {
+                const archs = job.archs.size > 0 ? [...job.archs] : [archFromRunner(job.runsOn, os)];
+                for (const arch of archs) targets.add(canonicalPlatform(`${os}-${arch}`));
+            }
             // Attribute per STEP, not per line: a step's package identity and
             // its production verb usually sit on different lines (`- name:
             // Build native addon` + `working-directory: packages/…`).
@@ -145,7 +238,7 @@ export async function parseCiPlatforms(
                 for (const id of identifiers) {
                     if (!step.includes(id.name_re) && !step.includes(id.path_re)) continue;
                     const set = byPackage.get(id.name) ?? new Set();
-                    for (const arch of archs) set.add(canonicalPlatform(`${os}-${arch}`));
+                    for (const target of targets) set.add(target);
                     byPackage.set(id.name, set);
                 }
             }

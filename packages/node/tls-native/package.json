@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/tls-native",
     "version": "0.26.1",
-    "description": "Optional Vala/GObject bridge providing GnuTLS capabilities not exposed by Gio.TlsConnection — OCSP-response parsing (RFC 6960), session resumption data extraction, channel binding (tls-finished bytes for SCRAM-SHA-*). Enhances @gjsify/tls when installed.",
+    "description": "Optional Vala/GObject bridge providing GnuTLS capabilities not exposed by Gio.TlsConnection \u2014 OCSP-response parsing (RFC 6960), session resumption data extraction, channel binding (tls-finished bytes for SCRAM-SHA-*). Enhances @gjsify/tls when installed.",
     "type": "module",
     "main": "lib/esm/index.js",
     "module": "lib/esm/index.js",
@@ -28,7 +28,8 @@
             "linux-ppc64",
             "linux-s390x",
             "linux-riscv64",
-            "darwin-arm64"
+            "darwin-arm64",
+            "darwin-x64"
         ],
         "prebuilds": "prebuilds",
         "runtimes": {
@@ -37,7 +38,10 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1
+        "tier": 1,
+        "platformsUncommitted": {
+            "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
+        }
     },
     "keywords": [
         "gjs",
