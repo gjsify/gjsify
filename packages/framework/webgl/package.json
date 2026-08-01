@@ -22,9 +22,6 @@
         "lib",
         "prebuilds"
     ],
-    "libc": [
-        "glibc"
-    ],
     "gjsify": {
         "glibcRequires": {
             "linux-x64": "2.14",

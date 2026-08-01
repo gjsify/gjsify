@@ -19,9 +19,6 @@
         "src/rust",
         "src/vala"
     ],
-    "libc": [
-        "glibc"
-    ],
     "gjsify": {
         "glibcRequires": {
             "linux-x64": "2.34",

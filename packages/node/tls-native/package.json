@@ -28,12 +28,8 @@
             "linux-ppc64",
             "linux-s390x",
             "linux-riscv64",
-            "darwin-arm64",
-            "darwin-x64"
+            "darwin-arm64"
         ],
-        "platformsUncommitted": {
-            "darwin-x64": "no Intel-macOS runner exists — every macOS job in this repo runs on `macos-latest`, which is arm64 — so darwin-x64 is neither built by CI here NOR committed here; it is produced by a LOCAL `build:prebuilds` on an Intel Mac today. A self-hosted x86-64 macOS runner would let CI reproduce it, at which point this entry becomes a failure. Deliberate maintainer decision, not an oversight."
-        },
         "prebuilds": "prebuilds",
         "runtimes": {
             "gjs": "polyfill",

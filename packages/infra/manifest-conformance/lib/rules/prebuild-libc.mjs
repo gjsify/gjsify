@@ -29,9 +29,12 @@
  *
  *   • **Per target — the token must match the binary.** `<os>-<arch>-musl` must
  *     not hold a glibc-linked library and the unsuffixed default build must not
- *     hold a musl-linked one. `libc.so.6` in `DT_NEEDED` IS the glibc marker
- *     (musl records `libc.musl-<arch>.so.1`/`ld-musl-<arch>.so.1` instead, never
- *     `libc.so.6`), so this is a direct read, not an inference.
+ *     hold a musl-linked one. For THIS question — where was the artifact built —
+ *     `libc.so.6` in `DT_NEEDED` is a direct read rather than an inference (musl
+ *     records `libc.musl-<arch>.so.1`/`ld-musl-<arch>.so.1` instead, never
+ *     `libc.so.6`). It answers PROVENANCE only; it does not answer whether the
+ *     artifact loads on the other libc, and conflating the two is the defect
+ *     described under the `libc` FIELD below.
  *
  *   • **Per target — the measured glibc floor must fit the declaration.** A
  *     `gjsify.glibcRequires` entry that a rebuild has outgrown FAILS, naming both
@@ -41,35 +44,49 @@
  *     deliberate distro baseline impossible to state.
  *
  *   • **Per package — the `libc` FIELD, which is where the design deviates.**
- *     The obvious rule is "any target needs glibc ⇒ declare `libc: ["glibc"]`",
- *     and it does not survive the measurement. The libc requirement is genuinely
- *     PER TARGET: `@gjsify/tls-native` records no `libc.so.6` on x64, arm64,
- *     ppc64 or s390x — it calls only into GLib/GIO/GnuTLS — and DOES record it on
- *     riscv64, because Fedora's riscv64 toolchain links the interpreter and libc
- *     explicitly. `@gjsify/webrtc-native` is the same on arm64 and riscv64. So
- *     those two packages are libc-agnostic on most of their targets and
- *     glibc-only on one or two.
+ *     The obvious rule is "links glibc ⇒ declare `libc: ["glibc"]`". This rule
+ *     SHIPPED with that rule, and it is wrong twice over.
  *
- *     npm's `libc` field cannot express that: it is one PACKAGE-level install
- *     filter with no per-target dimension. Both available answers are wrong in
- *     one direction, so the rule picks the one whose wrongness is recoverable and
- *     says so out loud:
- *       – `libc: ["glibc"]` would refuse the install on every musl host,
- *         including the four architectures where the artifact genuinely works.
- *         An install that never happens cannot be diagnosed from the outside.
- *       – ABSENT lets the install happen, and a musl/riscv64 user gets an
- *         artifact that cannot load — which is exactly the graceful-degradation
- *         path every one of these bridges already has (`imports.gi.GjsifyX` in a
- *         try/catch, `hasNativeSab()`, `hasTlsSessionAccess()`).
- *     So a MIXED package must leave `libc` absent, and the rule emits a note
- *     naming the glibc-only targets. The note is the point: it is a standing,
- *     printed-every-run statement of a gap npm's vocabulary cannot hold, and it
- *     stops being a note the moment those targets get `-musl` siblings.
+ *     Wrong once, because linking glibc does not imply failing on musl. musl's
+ *     loader treats a DT_NEEDED of `libc.so.6` as a request for ITSELF — a
+ *     reserved name it refuses to reload — so a glibc-built library naming it
+ *     usually loads on Alpine. A container probe on `alpine:3.24.1` (x86_64 and
+ *     aarch64) measured SIX of this repo's bridges loading and running there, one
+ *     of them returning a correct result from a real call. Demanding the field
+ *     from those six would make every package manager refuse the install on
+ *     exactly the platform the libc axis was added to support. What actually
+ *     blocks a musl load is the glibc LOADER (`ld-linux-*`) or a glibc-only
+ *     SYMBOL — see {@link muslVerdictOfNeeded}, which is where that distinction
+ *     lives and why one of its three answers is `undetermined`.
  *
- *     A UNIFORM package is held to the strict rule: every measured target needs
- *     the same flavour ⇒ that flavour must be declared; none needs any ⇒ `libc`
- *     must be ABSENT (declaring `["glibc"]` there would refuse installs for no
- *     reason).
+ *     Wrong twice, because the requirement is genuinely PER TARGET and npm's
+ *     field is one PACKAGE-level filter: `@gjsify/tls-native` records no libc
+ *     soname on x64, arm64, ppc64 or s390x — it calls only into GLib/GIO/GnuTLS —
+ *     and DOES record the interpreter on riscv64, because Fedora's riscv64
+ *     toolchain links it explicitly. `@gjsify/webrtc-native` is the same shape.
+ *
+ *     So the field is keyed on musl-LOADABILITY, in three tiers:
+ *       – every target `agnostic` (no libc soname at all) ⇒ `libc` must be
+ *         ABSENT. Declaring it refuses installs on hosts where the artifact
+ *         provably works.
+ *       – every target `incompatible` (the glibc loader recorded) ⇒
+ *         `libc: ["glibc"]` is REQUIRED. Nothing can load; without the field the
+ *         install happens anyway.
+ *       – anything else ⇒ OPTIONAL, and a note states each target's verdict. A
+ *         musl load test can prove a restriction the ELF cannot, so forbidding
+ *         the field would forbid stating a fact; requiring it would refuse a
+ *         working install. The one exception is an `agnostic` target in the mix:
+ *         its absence of a libc soname IS proof, so the field stays forbidden
+ *         there and no load test can overturn it.
+ *     The note is the point: a standing, printed-every-run statement of a gap
+ *     npm's vocabulary cannot hold, and it stops being a note the moment those
+ *     targets get `-musl` siblings.
+ *
+ *     Where the artifact cannot load, the consumer lands on the
+ *     graceful-degradation path every one of these bridges already has
+ *     (`imports.gi.GjsifyX` in a try/catch, `hasNativeSab()`,
+ *     `hasTlsSessionAccess()`) — which is why "install it and let it degrade" is
+ *     the recoverable wrong answer and "never install it" is not.
  *
  * WHAT IS DELIBERATELY NOT CHECKED:
  *
@@ -186,7 +203,14 @@ export function canonicalPrebuildTarget(token) {
 }
 
 /**
- * Which C library an ELF's dependency list says it needs.
+ * Which C library an ELF's dependency list says it was LINKED AGAINST.
+ *
+ * PROVENANCE ONLY. This answers "where was this built", which is what the
+ * token-vs-binary check below needs and what npm's `libc` field means to an
+ * installer. It deliberately does NOT answer "can this load on the other libc" —
+ * see {@link muslVerdictOfNeeded}, which is a different question with a
+ * different answer, and conflating the two is the defect this split exists to
+ * remove.
  *
  * A direct read of two sonames, not a heuristic:
  *   • glibc's C library is always `libc.so.6` (its `ld.so` is
@@ -195,11 +219,10 @@ export function canonicalPrebuildTarget(token) {
  *   • musl's is `libc.musl-<arch>.so.1`, with `ld-musl-<arch>.so.1` as the
  *     loader. musl NEVER produces `libc.so.6`, which is what makes the glibc
  *     marker unambiguous.
- * An image recording NEITHER is libc-agnostic: it reaches libc only through
- * GLib/GObject/GIO (plus GnuTLS resp. GStreamer), so it loads against whatever
- * libc the host's GLib was built for. That third state is not an absence of
- * information — it is the reason the unsuffixed token means "default build"
- * rather than "glibc build".
+ * An image recording NEITHER reaches libc only through GLib/GObject/GIO (plus
+ * GnuTLS resp. GStreamer), so it binds against whatever libc the host's GLib was
+ * built for. That third state is not an absence of information — it is the
+ * reason the unsuffixed token means "default build" rather than "glibc build".
  *
  * @param {readonly string[]} needed DT_NEEDED leaf names
  * @returns {'glibc' | 'musl' | null}
@@ -212,6 +235,59 @@ export function libcFlavourOfNeeded(needed) {
     if (isGlibc && isMusl) return 'glibc';
     if (isGlibc) return 'glibc';
     return isMusl ? 'musl' : null;
+}
+
+/**
+ * Can a glibc-built image load on a musl host? Three states, and only two of
+ * them are decidable from an ELF header.
+ *
+ * THE CORRECTION THIS ENCODES. The obvious reading — "`libc.so.6` in DT_NEEDED
+ * ⇒ glibc ⇒ cannot load on musl" — is FALSE, and this rule asserted it. musl's
+ * dynamic linker treats a `DT_NEEDED` of `libc.so.6` as a request for ITSELF:
+ * `load_library()` refuses to reload the implementation under any of its
+ * reserved names (`c`, `pthread`, `rt`, `m`, `dl`, `util`, `xnet`). No
+ * `libc.so.6` file exists on an Alpine image at all — only
+ * `/lib/libc.musl-<arch>.so.1` — and glibc-built bridges naming it load anyway.
+ *
+ * Measured in a container probe on `alpine:3.24.1`, x86_64 and aarch64: SIX of
+ * this repo's committed glibc bridges load and run on musl (`webgl`,
+ * `http2-native`, `http-soup-bridge`, `terminal-native`, `tls-native`,
+ * `webrtc-native`), and `tls-native` additionally returned a correct result from
+ * a real call. Demanding `libc: ["glibc"]` from them — which this rule did —
+ * would make every package manager REFUSE the install on exactly the platform
+ * the libc axis was added to support (postmarketOS/Alpine, see
+ * `gjsify.platforms`' `-musl` token).
+ *
+ * What genuinely prevents a musl load, in the order of how well an ELF shows it:
+ *   1. **The glibc LOADER in DT_NEEDED** (`ld-linux-*.so.*`, `ld64.so.*`). Not a
+ *      musl reserved name, so musl tries to open a file that is not there:
+ *      `Error loading shared library ld-linux-x86-64.so.2`. Decidable HERE, and
+ *      it is what kills the three x64 Rust cdylibs.
+ *   2. **A glibc-only SYMBOL** — `fcntl64`, `__cmsg_nxthdr`,
+ *      `gnu_get_libc_version` in the measured cases. Fails at relocation
+ *      (`symbol not found`). NOT decidable here: it would need a curated list of
+ *      glibc-only symbol names, i.e. exactly the hand-maintained table this file
+ *      exists to avoid. Only a real `dlopen` on a musl host settles it, which is
+ *      a CI-leg job, not a portable-rule job.
+ *   3. A distro **soname** difference, which is not a libc question at all
+ *      (`napi` wants `libmozjs-140.so.0`; Alpine ships `libmozjs-140.so`).
+ *
+ * So `'undetermined'` is a first-class answer, not a hedge: it is the honest
+ * state for a glibc-linked image with no glibc loader recorded, and the rule
+ * must not convert it into a `libc` requirement in either direction.
+ *
+ * CAVEAT that outlives this function: musl ignores ELF symbol versioning
+ * entirely, so a reference to `GLIBC_2.39`-versioned `foo` binds to musl's
+ * unversioned `foo` with no compatibility check. "Loads" is therefore weaker
+ * than "behaves correctly" even for the six that load — which is why
+ * {@link measurePrebuildLibc} keeps reporting the glibc floor separately.
+ *
+ * @param {readonly string[]} needed DT_NEEDED leaf names
+ * @returns {'incompatible' | 'agnostic' | 'undetermined'}
+ */
+export function muslVerdictOfNeeded(needed) {
+    if (needed.some((n) => /^ld-linux(-|\.)/.test(n) || /^ld\d*\.so\.\d+$/.test(n))) return 'incompatible';
+    return libcFlavourOfNeeded(needed) === null ? 'agnostic' : 'undetermined';
 }
 
 /** A `gjsify.glibcRequires` value: a dotted glibc release, e.g. `2.39`. */
@@ -230,8 +306,14 @@ const GLIBC_VERSION_VALUE_RE = /^\d+(?:\.\d+)*$/;
  * the tree. The loader pulls in the sibling, so the directory's requirement is
  * the maximum over the set.
  *
+ * The `musl` verdict aggregates the SAME way and for the same reason: the loader
+ * pulls in the sibling, so one `ld-linux-*` anywhere in the directory makes the
+ * whole directory unloadable on musl. That is precisely the three Rust bridges
+ * on x64 — the Vala half records no libc, the cdylib beside it records the glibc
+ * loader — so a per-library verdict would report the directory as loadable.
+ *
  * @param {string} dir
- * @returns {{flavour: 'glibc'|'musl'|null, glibcRequires: string|null, libs: string[], mixed: boolean, unreadable: string[]}}
+ * @returns {{flavour: 'glibc'|'musl'|null, musl: 'incompatible'|'agnostic'|'undetermined', glibcRequires: string|null, libs: string[], mixed: boolean, unreadable: string[]}}
  *   `unreadable` names `.so` files whose ELF this parser could not read; a
  *   non-empty list makes the whole measurement untrustworthy and the caller
  *   turns it into a failure.
@@ -241,6 +323,7 @@ export function measurePrebuildLibc(dir) {
         .filter((f) => f.endsWith('.so'))
         .sort();
     /** @type {Set<'glibc'|'musl'>} */ const flavours = new Set();
+    /** @type {Set<'incompatible'|'agnostic'|'undetermined'>} */ const muslVerdicts = new Set();
     /** @type {string[]} */ const unreadable = [];
     /** @type {string|null} */ let glibcRequires = null;
 
@@ -253,6 +336,7 @@ export function measurePrebuildLibc(dir) {
         }
         const flavour = libcFlavourOfNeeded(needed);
         if (flavour) flavours.add(flavour);
+        muslVerdicts.add(muslVerdictOfNeeded(needed));
         const floor = readElfGlibcRequires(path);
         if (floor !== null && (glibcRequires === null || compareGlibcVersions(floor, glibcRequires) > 0)) {
             glibcRequires = floor;
@@ -261,6 +345,12 @@ export function measurePrebuildLibc(dir) {
 
     return {
         flavour: flavours.has('glibc') ? 'glibc' : flavours.has('musl') ? 'musl' : null,
+        // Worst-case wins: one unloadable library sinks the directory.
+        musl: muslVerdicts.has('incompatible')
+            ? 'incompatible'
+            : muslVerdicts.has('undetermined')
+              ? 'undetermined'
+              : 'agnostic',
         glibcRequires,
         libs,
         mixed: flavours.size > 1,
@@ -445,9 +535,6 @@ export function auditPrebuildLibc(nativePkgs) {
 
         // ── Check C — the package-level `libc` field ───────────────────────────
         const declaredLibc = pkg.manifest?.libc ?? null;
-        const flavours = new Set([...measured.values()].map((m) => m.flavour).filter((f) => f !== null));
-        const requiringTargets = [...measured.entries()].filter(([, m]) => m.flavour !== null).map(([t]) => t);
-        const uniform = flavours.size === 1 && requiringTargets.length === measured.size;
 
         if (declaredLibc !== null) {
             const shapeOk =
@@ -462,48 +549,91 @@ export function auditPrebuildLibc(nativePkgs) {
             }
         }
 
-        if (flavours.size === 0) {
-            // Every committed Linux artifact is libc-agnostic.
+        // What decides the `libc` FIELD is musl-LOADABILITY, not provenance. The
+        // two are different questions (see `muslVerdictOfNeeded`), and keying the
+        // install filter on provenance is what made this rule demand `["glibc"]`
+        // from six bridges that demonstrably run on Alpine.
+        const muslVerdicts = new Set([...measured.values()].map((m) => m.musl));
+        const byVerdict = (v) => [...measured.entries()].filter(([, m]) => m.musl === v).map(([t]) => t);
+        const incompatible = byVerdict('incompatible');
+        const undetermined = byVerdict('undetermined');
+
+        if (!muslVerdicts.has('incompatible') && !muslVerdicts.has('undetermined')) {
+            // Every committed Linux artifact is libc-agnostic: no libc soname at
+            // all, so it binds against whatever libc the host's GLib was built
+            // for. This is the one state where a declaration is provably wrong.
             if (declaredLibc !== null) {
                 failures.push(
-                    `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\` but not one of its committed Linux libraries records a libc soname — they reach libc only through GLib/GObject/GIO, so they load against whatever libc the host's GLib was built for. The declaration refuses installs on hosts where the artifact works. Remove it.`,
+                    `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\` but not one of its committed Linux libraries records a libc soname — they reach libc only through GLib/GObject/GIO, so they bind against whatever libc the host's GLib was built for. The declaration refuses installs on hosts where the artifact works. Remove it.`,
                 );
             }
             continue;
         }
 
-        if (uniform) {
-            const want = [...flavours][0];
+        if (incompatible.length === measured.size) {
+            // Every target records the glibc LOADER (`ld-linux-*`), which musl
+            // cannot supply under any name. This is the only state in which a
+            // package-level `["glibc"]` is provably right, and it is required:
+            // without it the install happens and nothing can load.
             if (declaredLibc === null) {
                 failures.push(
-                    `${pkg.name} (${pkg.path}): every committed Linux target links ${want} (measured from DT_NEEDED) but the manifest declares no \`libc\`. npm, yarn and pnpm all honour that field, so without it the package installs on a host it cannot load on, and the failure surfaces as "the optional native path just does not work here". Add \`"libc": ["${want}"]\`.`,
+                    `${pkg.name} (${pkg.path}): every committed Linux target records the glibc dynamic loader in DT_NEEDED (${incompatible.join(', ')}), which musl cannot supply under any name — the load fails with "Error loading shared library ld-linux-*". npm, yarn and pnpm all honour \`libc\`, so without it the package installs on a host where nothing can load. Add \`"libc": ["glibc"]\`.`,
                 );
-            } else if (declaredLibc.length !== 1 || declaredLibc[0] !== want) {
+            } else if (declaredLibc.length !== 1 || declaredLibc[0] !== 'glibc') {
                 failures.push(
-                    `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\` but every committed Linux target links ${want} (measured from DT_NEEDED). ${
-                        declaredLibc.includes(want)
-                            ? 'The extra value promises an install on a host with no loadable artifact.'
-                            : 'The declared value names a libc no committed artifact was built against.'
-                    } Declare exactly \`["${want}"]\`.`,
+                    `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\` but every committed Linux target records the glibc dynamic loader (${incompatible.join(', ')}). Declare exactly \`["glibc"]\`.`,
                 );
             }
             continue;
         }
 
-        // MIXED: some targets need a specific libc, others are agnostic. npm's
-        // package-level field cannot say that — see this file's header for why
-        // ABSENT is the answer and the note is the mechanism.
-        const agnostic = [...measured.entries()].filter(([, m]) => m.flavour === null).map(([t]) => t);
-        if (declaredLibc !== null) {
+        // MIXED or UNDETERMINED — the honest majority case, and `libc` must NOT be
+        // required here in either direction.
+        //
+        // `undetermined` means: linked against glibc, but no glibc loader
+        // recorded, so the ELF cannot say whether it loads on musl. musl aliases
+        // `libc.so.6` to itself, so it very often DOES; what breaks it is a
+        // glibc-only SYMBOL, which is only visible to a real `dlopen` on a musl
+        // host. Failing the package here would refuse the install on the platform
+        // the axis was added for; requiring the absence would forbid stating a
+        // restriction a musl CI leg has actually proven. So: optional, and shape-
+        // checked if present.
+        const agnostic = byVerdict('agnostic');
+        if (declaredLibc !== null && agnostic.length > 0) {
+            // A target with NO libc soname at all provably runs on either libc.
+            // Declaring the filter refuses an install that would have worked, and
+            // unlike the `undetermined` case there is nothing a load test could
+            // discover that would justify it — the absence of the soname IS the
+            // proof. So this stays a failure even though the package also has
+            // constrained targets: npm's field cannot say "glibc-only, but only on
+            // riscv64", and refusing everywhere is the worse of the two wrongs.
             failures.push(
-                `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\`, but its libc requirement is PER TARGET — ${requiringTargets.join(', ')} link a specific libc while ${agnostic.join(', ')} link none and run on either. A package-level filter would refuse the install on every musl host, including the targets where the artifact genuinely works; the bridge's own graceful no-native path handles the targets where it does not. Remove \`libc\` and let the per-target reality stand.`,
+                `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\` while ${agnostic.join(', ')} record no libc soname at all and therefore run on either libc. A package-level filter refuses the install on every musl host, including those targets; the bridge's own graceful no-native path already covers ${[...incompatible, ...undetermined].join(', ')}. Remove \`libc\` and let the per-target reality stand.`,
+            );
+        } else if (declaredLibc !== null && (declaredLibc.length !== 1 || declaredLibc[0] !== 'glibc')) {
+            failures.push(
+                `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\`, but its committed targets are ${
+                    incompatible.length > 0 ? `musl-incompatible (${incompatible.join(', ')})` : ''
+                }${incompatible.length > 0 && undetermined.length > 0 ? ' and ' : ''}${
+                    undetermined.length > 0 ? `glibc-linked with musl-loadability undetermined (${undetermined.join(', ')})` : ''
+                }. The only defensible package-level value here is \`["glibc"]\` — a restriction a musl load test has proven — or none at all.`,
             );
         }
-        notes.push(
-            `${pkg.name}: libc requirement is PER TARGET — ${requiringTargets
-                .map((t) => `${t} (${measured.get(t)?.flavour})`)
-                .join(', ')} vs ${agnostic.join(', ')} (libc-agnostic). \`libc\` is deliberately left absent: npm's field has no per-target dimension, and refusing the install everywhere would also refuse it where the artifact works. Ship a \`${MUSL_SUFFIX}\` sibling for the constrained target(s) and this note goes away.`,
-        );
+        if (declaredLibc === null) {
+            notes.push(
+                `${pkg.name}: \`libc\` deliberately ABSENT. Per-target musl verdicts: ${[
+                    incompatible.length > 0 ? `${incompatible.join(', ')} incompatible (glibc loader in DT_NEEDED)` : null,
+                    undetermined.length > 0 ? `${undetermined.join(', ')} undetermined (glibc-linked, no glibc loader — musl aliases libc.so.6 to itself, so only a real dlopen on musl decides)` : null,
+                    agnostic.length > 0 ? `${agnostic.join(', ')} agnostic` : null,
+                ]
+                    .filter(Boolean)
+                    .join('; ')}. npm's field has no per-target dimension and refusing the install everywhere would also refuse it where the artifact works; the bridge's own graceful no-native path covers the targets where it does not. Ship a \`${MUSL_SUFFIX}\` sibling for the constrained target(s) and this note goes away.`,
+            );
+        } else {
+            notes.push(
+                `${pkg.name}: declares \`libc: ["glibc"]\` while the ELF alone cannot prove it — ${undetermined.join(', ') || '(none)'} are glibc-linked with no glibc loader recorded. Keep this declaration ONLY if a musl load test failed for every declared target; the ELF is not the evidence for it.`,
+            );
+        }
     }
 
     return { failures, notes, stats };

@@ -155,7 +155,34 @@ function main() {
     }
 
     const libc = detectHostLibc();
-    const target = pickDeclaredTarget(declared, process.platform, process.arch, libc);
+    const allowUndeclared = args.includes('--allow-undeclared');
+    let target = pickDeclaredTarget(declared, process.platform, process.arch, libc);
+    if (!target && allowUndeclared) {
+        // EXPLORATORY STAGING on a host the package does not promise. The reason
+        // this exists rather than "just add the target to `gjsify.platforms`":
+        // that declaration is a promise to CONSUMERS, and `audit-runtimes --check`
+        // holds it to a CI job that reproduces it. A platform nobody can receive
+        // an artifact for renders as supported in the platform-support matrix, so
+        // declaring one to unblock a local build trades a build-time refusal for
+        // a published falsehood.
+        //
+        // The concrete case: `darwin-x64`. Every macOS job in this repo runs on
+        // `macos-latest`, which is arm64, so an Intel Mac (or a Hackintosh) can
+        // BUILD the bridges but CI cannot reproduce them. With this flag that
+        // host stages into `prebuilds/darwin-x64/` and can test locally; the
+        // declaration and the CI leg land together later, keeping the
+        // declared-vs-built symmetry intact instead of admitting an exception to
+        // it.
+        target = hostPrebuildTarget(process.platform, process.arch, libc);
+        console.error(
+            `[stage-prebuild] ${pkg.name}: staging UNDECLARED target \`${target}\` (--allow-undeclared).\n` +
+                `  \`gjsify.platforms\` promises ${declared.join(', ')} — not this host.\n` +
+                '  Nothing in CI reproduces this artifact, so do NOT commit it: the\n' +
+                '  `prebuild-artifacts` rule fails a committed directory no declaration\n' +
+                '  covers, which is the invariant that keeps a hand-built binary from\n' +
+                '  drifting from its sources unnoticed. Local build + local test only.',
+        );
+    }
     if (!target) {
         const wanted = hostPrebuildTarget(process.platform, process.arch, libc);
         console.error(
@@ -163,7 +190,8 @@ function main() {
                 `  \`gjsify.platforms\` (${declared.join(', ')}).\n` +
                 '  Staging it anyway would create an undeclared target that CI does not\n' +
                 '  reproduce. Add the target to the declaration AND to the workflow that\n' +
-                '  builds it, then re-run.' +
+                '  builds it, then re-run — or pass `--allow-undeclared` to stage it for a\n' +
+                '  LOCAL build+test without promising it to consumers.' +
                 (libc === 'musl'
                     ? `\n  NB this host runs musl, so the target it needs is \`${wanted}\`, not\n` +
                       `  \`${process.platform}-${process.arch}\`. The unsuffixed directory is the DEFAULT\n` +

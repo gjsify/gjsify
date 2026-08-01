@@ -61,6 +61,24 @@ const LIBC_AGNOSTIC = {
     dir: join(MONOREPO_ROOT, 'packages', 'node', 'tls-native', 'prebuilds', 'linux-x64'),
     files: ['libgjsifytls.so', 'GjsifyTls-1.0.typelib'],
 };
+/**
+ * A real prebuild that records the glibc DYNAMIC LOADER, not merely `libc.so.6`.
+ *
+ * This is the third state, and the only one from which "cannot load on musl"
+ * follows: `libc.so.6` is a musl RESERVED name (musl resolves it to itself), so a
+ * glibc-linked library naming it very often loads on Alpine — six of this repo's
+ * bridges provably do. `ld-linux-*.so.*` is not reserved, so musl tries to open a
+ * file that does not exist and the load fails outright.
+ *
+ * `tls-native`'s riscv64 build is the fixture because Fedora's riscv64 toolchain
+ * records the interpreter explicitly, and it is committed — the same
+ * real-artifact-over-hand-built-header rule as the two above.
+ */
+const GLIBC_LOADER = {
+    dir: join(MONOREPO_ROOT, 'packages', 'node', 'tls-native', 'prebuilds', 'linux-riscv64'),
+    files: ['libgjsifytls.so', 'GjsifyTls-1.0.typelib'],
+    floor: '2.27',
+};
 
 /** @type {string[]} */ const tmpDirs = [];
 function scratch() {
@@ -379,17 +397,43 @@ function libcPkg({ declared, stage = {}, extraFiles = {}, libc, glibcRequires, u
 const libcFailures = (row) => auditPrebuildLibc([row]).failures;
 
 describe('prebuild-libc — the `libc` field must match the binaries', () => {
-    it('FAILS when every Linux target links glibc and nothing declares `libc`', () => {
-        // The shipped state before this rule existed, for all eleven bridges.
+    it('does NOT demand `libc` from a glibc-LINKED target with no glibc loader', () => {
+        // THE CORRECTION. The obvious rule — "links glibc ⇒ declare
+        // libc: ["glibc"]" — is what this rule shipped with, and a container probe
+        // on alpine:3.24 disproved it: musl treats a DT_NEEDED of `libc.so.6` as a
+        // request for ITSELF (a reserved name it refuses to reload), so six of this
+        // repo's glibc bridges load AND run on musl. Demanding the field from them
+        // would make every package manager refuse the install on Alpine —
+        // postmarketOS, the platform the whole libc axis was added for.
+        //
+        // So this state is UNDETERMINED, not glibc-only, and the rule must neither
+        // require the field nor forbid it. It says so in a note instead.
+        const row = libcPkg({
+            declared: ['linux-x64'],
+            stage: { 'linux-x64': GLIBC_LINKED },
+            glibcRequires: { 'linux-x64': '2.2.5' },
+        });
+        const { failures, notes } = auditPrebuildLibc([row]);
+        assert.deepEqual(failures, []);
+        assert.ok(
+            notes.some((n) => /undetermined/.test(n) && /musl aliases libc\.so\.6 to itself/.test(n)),
+            notes.join('\n'),
+        );
+    });
+
+    it('FAILS when every target records the glibc LOADER and nothing declares `libc`', () => {
+        // The one state from which unloadability on musl actually follows, and the
+        // only one where a package-level `["glibc"]` is provably right. This is the
+        // three Rust bridges on x64 — their cargo cdylib records `ld-linux-*`.
         const problems = libcFailures(
             libcPkg({
-                declared: ['linux-x64'],
-                stage: { 'linux-x64': GLIBC_LINKED },
-                glibcRequires: { 'linux-x64': '2.2.5' },
+                declared: ['linux-riscv64'],
+                stage: { 'linux-riscv64': GLIBC_LOADER },
+                glibcRequires: { 'linux-riscv64': '2.27' },
             }),
         );
         assert.equal(problems.length, 1);
-        assert.match(problems[0], /every committed Linux target links glibc/);
+        assert.match(problems[0], /records the glibc dynamic loader/);
         assert.match(problems[0], /"libc": \["glibc"\]/);
     });
 
@@ -423,9 +467,9 @@ describe('prebuild-libc — the `libc` field must match the binaries', () => {
         assert.deepEqual(libcFailures(libcPkg({ declared: ['linux-x64'], stage: { 'linux-x64': LIBC_AGNOSTIC } })), []);
     });
 
-    it('leaves `libc` ABSENT for a MIXED package, and says which targets are constrained', () => {
+    it('leaves `libc` ABSENT for a MIXED package, and names each target\'s musl verdict', () => {
         // The measured reality for `@gjsify/tls-native` and
-        // `@gjsify/webrtc-native`: libc-agnostic on most targets, glibc-only on
+        // `@gjsify/webrtc-native`: libc-agnostic on most targets, constrained on
         // one or two (Fedora's riscv64/arm64 toolchains record libc explicitly).
         // npm's `libc` is one package-level filter with no per-target dimension,
         // so declaring it would refuse the install everywhere — including where
@@ -439,13 +483,16 @@ describe('prebuild-libc — the `libc` field must match the binaries', () => {
         const { failures, notes } = auditPrebuildLibc([row]);
         assert.deepEqual(failures, []);
         assert.ok(
-            notes.some((n) => /libc requirement is PER TARGET/.test(n) && n.includes('linux-arm64')),
+            notes.some((n) => /deliberately ABSENT/.test(n) && /linux-arm64 undetermined/.test(n)),
             notes.join('\n'),
         );
-        // …and declaring it anyway is the failure.
+        // Declaring it anyway is still a failure HERE — and for a reason no load
+        // test can overturn: linux-x64 records no libc soname at all, so it
+        // provably runs on either libc and the filter would refuse a working
+        // install. That is the one mixed shape where the field stays forbidden.
         assert.ok(
             libcFailures({ ...row, manifest: { ...row.manifest, libc: ['glibc'] } }).some((p) =>
-                /its libc requirement is PER TARGET/.test(p),
+                /record no libc soname at all and therefore run on either libc/.test(p),
             ),
         );
     });
