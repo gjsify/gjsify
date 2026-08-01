@@ -30,16 +30,24 @@ interface ClassifyOutput {
     skipAll: boolean;
 }
 
-function makeMonorepo(): string {
+/**
+ * @param withCreateApp mirror the real tree, where `@gjsify/create-app` is the
+ *   declared seed of the `templates/**` script coupling. Pass `false` to build
+ *   the DRIFTED tree (templates present, the seed gone) that the
+ *   stale-SCRIPT_COUPLINGS guard has to catch.
+ */
+function makeMonorepo(withCreateApp = true): string {
     const root = mkdtempSync(join(tmpdir(), 'gjsify-affected-spec-'));
-    // root manifest with one workspaces pattern that picks up packages/*/*
+    // Root manifest. `templates/*` mirrors the real root manifest: a template
+    // IS a workspace, which is exactly why the templates gap was invisible —
+    // the change mapped cleanly to its own package and looked fully handled.
     writeFileSync(
         join(root, 'package.json'),
         JSON.stringify({
             name: 'monorepo-root',
             version: '0.0.0',
             private: true,
-            workspaces: ['packages/*/*'],
+            workspaces: ['packages/*/*', 'templates/*'],
         }) + '\n',
     );
     const pkgs = [
@@ -60,7 +68,28 @@ function makeMonorepo(): string {
             deps: {},
             devDeps: { '@gjsify/fs': 'workspace:*' },
         },
+        // A template. Note it declares NO dependency on create-app and
+        // create-app declares none on it — the coupling is a build SCRIPT
+        // (`node scripts/process-template.mjs`), so there is deliberately no
+        // manifest edge here for the closure walk to find. That absence is the
+        // fixture's whole point.
+        {
+            rel: 'templates/adw-canvas2d',
+            name: '@gjsify/template-adw-canvas2d',
+            deps: {},
+            devDeps: {},
+        },
     ];
+    if (withCreateApp) {
+        // Directory name `create-gjsify`, package name `@gjsify/create-app` —
+        // the real mismatch, which is why searching by directory misses it.
+        pkgs.push({
+            rel: 'packages/infra/create-gjsify',
+            name: '@gjsify/create-app',
+            deps: {},
+            devDeps: {},
+        });
+    }
     for (const p of pkgs) {
         const dir = join(root, p.rel);
         mkdirSync(dir, { recursive: true });
@@ -367,6 +396,128 @@ export default async (): Promise<void> => {
             // scripts/ is not in IGNORE and not in any workspace; classifier
             // bails out conservatively.
             expect(r.global).toBe(true);
+        });
+
+        // ── Inputs owned by ANOTHER workflow (repo task #73, gaps 1+2) ──────
+        // Both directories are real, load-bearing build inputs — just not to
+        // `main.yml`, the only workflow this classifier gates. Each is covered
+        // by the `paths:` filter of the workflow that DOES run it, so ignoring
+        // them here drops no coverage; leaving them out only bought a full
+        // ~90-minute `main.yml` run on every change to either.
+
+        await it('.github/prebuild-toolchain/** → skipAll (prebuilds.yml owns it)', async () => {
+            const r = await runClassify(root, [
+                '.github/prebuild-toolchain/emulated-build.sh',
+                '.github/prebuild-toolchain/changed-packages.mjs',
+            ]);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('scripts/manifest-conformance/** → skipAll (audit-runtimes.yml owns it)', async () => {
+            const r = await runClassify(root, [
+                'scripts/manifest-conformance/rules/tier.mjs',
+                'scripts/manifest-conformance/unchecked-fields.mjs',
+            ]);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('the manifest-conformance PACKAGE is NOT ignored', async () => {
+            // The carve-out is scoped to the `scripts/` half deliberately.
+            // `main.yml` DOES run manifest-conformance code — through
+            // `scripts/verify-package-outputs.mjs` importing
+            // `packages/infra/manifest-conformance/lib/**` — so that half must
+            // keep behaving like the ordinary workspace it is. A regex widened
+            // to `manifest-conformance` anywhere would silence a real input.
+            const r = await runClassify(root, [
+                'packages/infra/manifest-conformance/lib/rules/field-coverage.mjs',
+            ]);
+            expect(r.skipAll).toBe(false);
+        });
+
+        await it('release-cut.yml → ignored (its own workflow)', async () => {
+            // The same class as the two above, found while fixing them: the
+            // workflow shipped without an IGNORE entry, so every change to it
+            // forced a full run.
+            const r = await runClassify(root, ['.github/workflows/release-cut.yml']);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('other-workflow input alongside a real src change → no full run', async () => {
+            const r = await runClassify(root, [
+                '.github/prebuild-toolchain/emulated-build.sh',
+                'scripts/manifest-conformance/rules/tier.mjs',
+                'packages/node/fs/src/index.ts',
+            ]);
+            expect(r.global).toBe(false);
+            expect(r.workspaces.length).toBe(2);
+        });
+
+        // ── Script-based coupling: templates/ (repo task #73, gap 3) ────────
+        // `templates/*` are workspaces, so a template change ALWAYS seeded its
+        // own `@gjsify/template-<name>` and looked handled. The consumer that
+        // actually rebuilds is `@gjsify/create-app`, which reads `templates/`
+        // from a BUILD SCRIPT (`node scripts/process-template.mjs`) rather than
+        // a dependency — no edge, so no closure walk can reach it. Its output
+        // `dist-templates/` is a build-cache candidate, so the stale copy was
+        // then served indefinitely, and `run-e2e:false` skipped
+        // `tests/e2e/create-app`, the one suite that would have noticed.
+
+        await it('templates/** seeds @gjsify/create-app (no manifest edge exists)', async () => {
+            const r = await runClassify(root, ['templates/adw-canvas2d/package.json']);
+            expect(r.global).toBe(false);
+            expect(r.workspaces.includes('@gjsify/create-app')).toBe(true);
+            // The template still seeds itself — the coupling ADDS a seed, it
+            // does not replace the ordinary file→workspace mapping.
+            expect(r.workspaces.includes('@gjsify/template-adw-canvas2d')).toBe(true);
+        });
+
+        await it('templates/** turns the e2e tier on', async () => {
+            // tests/e2e/create-app scaffolds from dist-templates/ and builds
+            // the result: it is the only real coverage a template change has.
+            const r = await runClassify(root, ['templates/adw-canvas2d/src/main.ts']);
+            expect(r.runE2E).toBe(true);
+        });
+
+        await it('templates/** reports the coupling in its reason', async () => {
+            // The reason string is what a human reads in the CI log to see
+            // WHY create-app is in a closure it has no dependency edge into.
+            const r = await runClassify(root, ['templates/adw-canvas2d/package.json']);
+            expect(r.reason.includes('script-coupling')).toBe(true);
+        });
+
+        await it('a templates spec file does NOT take the test-only shortcut', async () => {
+            // TEST_ONLY skips closure expansion because test code has no
+            // downstream consumers. A coupled directory does have one, so the
+            // shortcut must not swallow the extra seed.
+            const r = await runClassify(root, ['templates/adw-canvas2d/src/foo.spec.ts']);
+            expect(r.workspaces.includes('@gjsify/create-app')).toBe(true);
+        });
+
+        await it('a non-templates change does NOT seed create-app', async () => {
+            // The coupling must stay scoped — otherwise it is just a second,
+            // quieter global trigger.
+            const r = await runClassify(root, ['packages/node/fs/src/index.ts']);
+            expect(r.workspaces.includes('@gjsify/create-app')).toBe(false);
+            expect(r.runE2E).toBe(false);
+        });
+
+        await it('a stale SCRIPT_COUPLINGS seed fails LOUDLY to a full run', async () => {
+            // The table names workspaces by string, so a rename/move/removal
+            // can desync it. Degrading quietly would restore the exact silent
+            // no-rebuild this table exists to prevent, so a missing seed goes
+            // global and names itself.
+            const drifted = makeMonorepo(false);
+            try {
+                const r = await runClassify(drifted, ['templates/adw-canvas2d/package.json']);
+                expect(r.global).toBe(true);
+                expect(r.reason.includes('SCRIPT_COUPLINGS')).toBe(true);
+                expect(r.reason.includes('@gjsify/create-app')).toBe(true);
+            } finally {
+                rmSync(drifted, { recursive: true, force: true });
+            }
         });
 
         // ── include-args transport (repo task #75) ──────────────────────
