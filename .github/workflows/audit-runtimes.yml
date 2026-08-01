@@ -109,6 +109,12 @@ jobs:
       #
       # Needs history, and this checkout is shallow — deepen just for this step
       # rather than making every other check in this job pay for a full clone.
+      # The PR-title linter inherits its type list from the action default
+      # instead of carrying a second copy of `type-enum`. That is only sound
+      # while the two agree — this is what says so out loud.
+      - name: Check the PR-title type list still matches commitlint
+        run: node scripts/check-pr-title-types.mjs
+
       - name: Check for resurrected prose (advisory)
         continue-on-error: true
         env:
