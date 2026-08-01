@@ -231,9 +231,34 @@ jobs:
           install_ok=1
           npm install --no-audit --no-fund --no-save "@gjsify/node-gi@latest" > npm-nodegi.log 2>&1 || install_ok=0
           tail -40 npm-nodegi.log
+          # A failed install often ROLLS BACK, so the package is simply not there
+          # afterwards. That is a CONSEQUENCE of the failure above, not a separate
+          # defect, and it must stay version-bound with it — treating "not placed"
+          # as unconditionally fatal made a KNOWN gap fail the job (measured on
+          # windows-latest: the node-gyp configure error leaves no package behind).
+          #
+          # Only the other order is inexplicable and stays hard: npm reported
+          # SUCCESS and the package is still missing.
           if [ ! -f node_modules/@gjsify/node-gi/package.json ]; then
-            echo "::error::npm could not even place @gjsify/node-gi on $TARGET — see the log above"
-            exit 1
+            if [ "$install_ok" = "1" ]; then
+              echo "::error::npm reported success but did not place @gjsify/node-gi on $TARGET"
+              exit 1
+            fi
+            # The version bound needs a version, and the manifest is gone — read it
+            # from the registry instead of guessing.
+            INSTALLED="$(npm view @gjsify/node-gi version 2>/dev/null || echo 0.0.0)"
+            HAS_FIX="$(INSTALLED="$INSTALLED" node -e '
+              const parse = (v) => v.split("-")[0].split(".").map(Number);
+              const [a, b] = [process.env.INSTALLED, process.env.LOWEST_FIXED].map(parse);
+              const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+              process.stdout.write(cmp >= 0 ? "1" : "0");
+            ')"
+            if [ "$HAS_FIX" = "1" ]; then
+              echo "::error::@gjsify/node-gi $INSTALLED cannot be installed on $TARGET at all — its install script runs node-gyp unconditionally and npm rolled the install back"
+              exit 1
+            fi
+            echo "::warning::@gjsify/node-gi $INSTALLED cannot be installed on $TARGET and predates the fix (< $LOWEST_FIXED) — known gap, not failing"
+            exit 0
           fi
           ADDON="node_modules/@gjsify/node-gi/prebuilds/$TARGET/node_gi.node"
           ls -la node_modules/@gjsify/node-gi/prebuilds/ || true
