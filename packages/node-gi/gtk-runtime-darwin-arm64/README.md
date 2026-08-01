@@ -5,17 +5,11 @@ Batteries-included, **relocated** GTK / GObject-Introspection runtime bundle for
 (GLib · GObject · Gio · cairo · Pango · Graphene · Gdk) with **no Homebrew GTK**
 installed on the host — Phase 2 of cross-platform node-gi.
 
-Platform-gated (`os: ["darwin"]`, `cpu: ["arm64"]`). A **platform-gated artifact
-package** per [ADR 0003 rule 5](../../../docs/adr/0003-package-tiering.md): it
-carries `@gjsify/node-gi`'s own artifacts, says so with
-`gjsify.artifactOf: "@gjsify/node-gi"`, and therefore INHERITS node-gi's tier
-(**tier 2**) instead of arguing one of its own — its stability is node-gi's by
-construction. node-gi lists it in `optionalDependencies` at an exact version, so a
-macOS arm64 install fetches it automatically; on any other platform the resolver
-skips it and `@gjsify/node-gi` falls back to a system/Homebrew GTK. The heavy
-`gtk/` payload is **not committed** — it is built on a macOS CI runner
-(`scripts/build-gtk-runtime.mjs`) and shipped via the package tarball / staged into
-node-gi's `prebuilds/darwin-arm64/gtk/`.
+Platform-gated (`os: ["darwin"]`, `cpu: ["arm64"]`), tier 3 (experimental). On any
+other platform npm skips it and `@gjsify/node-gi` falls back to a system/Homebrew
+GTK. The heavy `gtk/` payload is **not committed** — it is built on a macOS CI
+runner (`scripts/build-gtk-runtime.mjs`) and shipped via the package tarball /
+staged into node-gi's `prebuilds/darwin-arm64/gtk/`.
 
 ## Layout
 
