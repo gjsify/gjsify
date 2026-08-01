@@ -43,6 +43,37 @@ export function osFromRunner(runsOn) {
     return 'linux';
 }
 
+/**
+ * The arch a runner LABEL implies, when the job declares no `arch:` matrix key.
+ *
+ * The default table above is keyed only by OS, which silently mis-attributes
+ * every macOS runner that is not Apple silicon: `macos-15-intel` would be read
+ * as `darwin-arm64`, so an Intel job would be credited with the arm64 target
+ * and the declared-vs-built symmetry would hold while describing the wrong
+ * artifact. That failure is invisible by construction — both sides agree, and
+ * nothing goes red.
+ *
+ * GitHub's label vocabulary is deliberately checked in a specific order,
+ * because two of its spellings differ by one character and mean opposite
+ * architectures: `-xlarge` is Apple silicon, `-large` is Intel. Reading them
+ * the other way round is the same silent mis-attribution with a longer fuse.
+ *
+ *   arm64 — `macos-14`, `macos-15`, `macos-latest`, `*-xlarge`,
+ *           `ubuntu-24.04-arm`
+ *   x64   — `macos-15-intel`, `macos-26-intel`, `*-large`
+ *
+ * `macos-15-intel` is the LAST x86_64 image Actions will offer (available
+ * until August 2027, after which Apple's discontinuation of the architecture
+ * ends GitHub's support for it) — so a `darwin-x64` promise necessarily has a
+ * horizon, and the parser should be honest about which leg produced it.
+ */
+export function archFromRunner(runsOn, os = osFromRunner(runsOn)) {
+    if (/-xlarge\b/.test(runsOn)) return 'arm64';
+    if (/-arm\b|-arm64\b/.test(runsOn)) return 'arm64';
+    if (/-intel\b|-large\b/.test(runsOn)) return 'x64';
+    return RUNNER_DEFAULT_ARCH[os];
+}
+
 /** Group a job's lines into step blocks (a step starts at `- name:`/`- uses:`/`- run:`). */
 export function splitSteps(lines) {
     const steps = [];
@@ -134,9 +165,9 @@ export async function parseCiPlatforms(
         for (const job of jobs) {
             if (job.manualOnly) continue;
             const os = osFromRunner(job.runsOn);
-            // `ubuntu-24.04-arm` and friends carry the arch in the label.
-            const labelArm = /-arm\b|-arm64\b/.test(job.runsOn);
-            const archs = job.archs.size > 0 ? [...job.archs] : [labelArm ? 'arm64' : RUNNER_DEFAULT_ARCH[os]];
+            // `ubuntu-24.04-arm` / `macos-15-intel` and friends carry the arch
+            // in the label — see `archFromRunner` for why reading it matters.
+            const archs = job.archs.size > 0 ? [...job.archs] : [archFromRunner(job.runsOn, os)];
             // Attribute per STEP, not per line: a step's package identity and
             // its production verb usually sit on different lines (`- name:
             // Build native addon` + `working-directory: packages/…`).
