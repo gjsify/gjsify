@@ -74,7 +74,7 @@
 // precondition that only a cold tree can fail.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, statSync, readdirSync } from 'node:fs';
+import { existsSync, statSync, readdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -245,21 +245,84 @@ function buildCliRuntimeDeps() {
 
         const t0 = Date.now();
         console.log(`[bootstrap-native-facades] building @gjsify/${name} lib/esm via tsc…`);
-        // `--emitDeclarationOnly false` overrides tsconfig.build.json so JS is
-        // emitted too; declarations are re-emitted identically (harmless).
-        const r = spawnSync(process.execPath, [tscBin, '-p', 'tsconfig.build.json', '--emitDeclarationOnly', 'false'], {
-            stdio: 'inherit',
-            cwd: pkgDir,
-        });
-        if (r.status !== 0) {
-            console.error(
-                `[bootstrap-native-facades] \`tsc -p tsconfig.build.json\` failed in ${pkgDir} ` +
-                    `(exit ${r.status}${r.signal ? `, signal ${r.signal}` : ''})`,
+        runTsc(tscBin, pkgDir, name);
+
+        // POST-CONDITION, not decoration. An exit code of 0 does not mean tsc
+        // WROTE anything: with `composite`/`incremental`, a `.tsbuildinfo` that
+        // outlived its emit tree makes tsc consider the project up to date, so
+        // it prints nothing, emits nothing and exits 0. This script's whole job
+        // is to make the Node CLI entry linkable, and that failure mode reports
+        // "done" while leaving it unlinkable — the caller then dies much later
+        // with a bare `ERR_MODULE_NOT_FOUND` naming a path nothing explains.
+        // Same class `verify-package-outputs.mjs` exists to catch, checked here
+        // because this runs long before that post-build sweep.
+        if (!existsSync(libEntry)) {
+            const stale = buildInfoFiles(pkgDir);
+            if (stale.length === 0) {
+                console.error(
+                    `[bootstrap-native-facades] tsc exited 0 but produced no ${libEntry}, and there is no ` +
+                        'build info to explain it. Check `tsconfig.build.json`\'s outDir.',
+                );
+                process.exit(1);
+            }
+            console.warn(
+                `[bootstrap-native-facades] @gjsify/${name}: tsc exited 0 without emitting — stale build info ` +
+                    `(${stale.map((f) => f.slice(pkgDir.length + 1)).join(', ')}); clearing and retrying once.`,
             );
-            process.exit(r.status ?? 1);
+            for (const f of stale) rmSync(f, { force: true });
+            runTsc(tscBin, pkgDir, name);
+            if (!existsSync(libEntry)) {
+                console.error(
+                    `[bootstrap-native-facades] @gjsify/${name}: still no ${libEntry} after clearing the build ` +
+                        'info. The Node CLI entry cannot link without it.',
+                );
+                process.exit(1);
+            }
         }
         console.log(`[bootstrap-native-facades] @gjsify/${name} done in ${((Date.now() - t0) / 1000).toFixed(2)}s`);
     }
+}
+
+/** Run the bootstrap `tsc` emit for one package, exiting on a non-zero status. */
+function runTsc(tscBin, pkgDir, name) {
+    // `--emitDeclarationOnly false` overrides tsconfig.build.json so JS is
+    // emitted too; declarations are re-emitted identically (harmless).
+    const r = spawnSync(process.execPath, [tscBin, '-p', 'tsconfig.build.json', '--emitDeclarationOnly', 'false'], {
+        stdio: 'inherit',
+        cwd: pkgDir,
+    });
+    if (r.status !== 0) {
+        console.error(
+            `[bootstrap-native-facades] \`tsc -p tsconfig.build.json\` failed in ${pkgDir} ` +
+                `(exit ${r.status}${r.signal ? `, signal ${r.signal}` : ''})`,
+        );
+        process.exit(r.status ?? 1);
+    }
+}
+
+/**
+ * Every `.tsbuildinfo` a package's bootstrap emit could be skipping on.
+ *
+ * The four CLI runtime deps put theirs in `lib/`, but TypeScript's default
+ * derivation (`outDir` + `rootDir`) lands it in the package root and 18 other
+ * workspaces point it at `tmp/`, so all three are swept rather than assuming
+ * one layout.
+ */
+function buildInfoFiles(pkgDir) {
+    const found = [];
+    for (const dir of ['lib', 'tmp', '.']) {
+        const abs = join(pkgDir, dir);
+        let entries;
+        try {
+            entries = readdirSync(abs);
+        } catch {
+            continue;
+        }
+        for (const entry of entries) {
+            if (entry.endsWith('.tsbuildinfo')) found.push(join(abs, entry));
+        }
+    }
+    return found;
 }
 
 /**
