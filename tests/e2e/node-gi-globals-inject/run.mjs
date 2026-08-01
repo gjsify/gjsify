@@ -149,6 +149,42 @@ describe('--app node GJS-globals shim injection E2E', { timeout: 10 * 60 * 1000 
             'a bundle retaining @gjsify/node-gi/system must get the globals shim injected',
         );
 
+        // THE HALF THIS SUITE USED TO MISS. `nodeGiGlobalsInject` has TWO
+        // consequences, and the shim assertion above only covers the first:
+        //   1. the globals shim is injected            ← asserted above
+        //   2. `@girs/*` value imports keep their real bodies, so the inner
+        //      `gi://` survives to be rewritten to `requireGi(...)`
+        // The source above imports no `@girs/*`, so (2) was never exercised —
+        // and (2) is what actually broke: CI's adwaita-storybook `--app node`
+        // bundle came out with 0 `gi://`, 0 `requireGi` and exactly 1
+        // `@gjsify/node-gi` (the externalised `system`). It built, passed
+        // `node --check`, and would have died at runtime on
+        // `class extends undefined`. A green (1) with a broken (2) is exactly
+        // the shape that let it through.
+        writeFileSync(
+            join(projectDir, 'src', 'portable-girs.ts'),
+            [
+                "import system from 'system';",
+                "import GLib from '@girs/glib-2.0';",
+                "console.log(system.programArgs.length, GLib.get_user_name());",
+                '',
+            ].join('\n'),
+        );
+        execFileSync(
+            'npx',
+            ['gjsify', 'build', 'src/portable-girs.ts', '--app', 'node', '--outfile', 'dist/portable-girs.mjs'],
+            { cwd: projectDir, stdio: 'pipe', timeout: 90 * 1000 },
+        );
+        const girsOut = readFileSync(join(projectDir, 'dist', 'portable-girs.mjs'), 'utf-8');
+        assert.ok(
+            girsOut.includes('requireGi'),
+            `a portable GJS source importing @girs/* must have its gi:// rewritten to requireGi\nContext: ${snippet(girsOut, 'node-gi')}`,
+        );
+        assert.ok(
+            !/['"]gi:\/\//.test(girsOut),
+            'no raw gi:// specifier may survive in an --app node bundle',
+        );
+
         // node --check parses without resolving the externalised imports.
         execFileSync('node', ['--check', outPath], { cwd: projectDir, stdio: 'pipe', timeout: 30 * 1000 });
     });

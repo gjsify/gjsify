@@ -482,11 +482,37 @@ export function detectGjsAmbientGlobals(code: string): Set<string> {
 }
 
 /** The node-gi reverse-bridge package every `--app node` GJS shim resolves to. */
+import { ALIASES_GJS_FOR_NODE } from '@gjsify/resolve-npm';
+
 const NODE_GI_PACKAGE = '@gjsify/node-gi';
 
-/** Is `source` the `@gjsify/node-gi` package root or one of its subpaths? */
+/**
+ * The BARE GJS built-ins, i.e. the PRE-ALIAS spelling of the same fact.
+ * Derived from the alias table so the two cannot drift.
+ *
+ * Why both spellings must count: the analysis pass that calls this runs with
+ * `nodeGiGlobalsInject` still FALSE, so the GJS-source routing that rewrites
+ * `system` → `@gjsify/node-gi/system` has not happened yet. Looking only for
+ * the aliased form makes the signal appear only AFTER the decision it is
+ * supposed to trigger — chicken-and-egg, and the same shape as the bug this
+ * detector was added to fix.
+ *
+ * Measured (CI, adwaita-storybook `--app node`): the FINAL bundle carries
+ * `import e from "@gjsify/node-gi/system"` and zero `gi://`, because the
+ * inject never fired, `@girs/*` were emptied to `{}`, and nothing was left to
+ * rewrite. The bundle then passes `node --check` and dies at runtime with
+ * `class extends undefined`.
+ */
+const GJS_BARE_BUILTINS = new Set(Object.keys(ALIASES_GJS_FOR_NODE));
+
+/**
+ * Is `source` the `@gjsify/node-gi` package root, one of its subpaths, or the
+ * bare GJS built-in that resolves to one on the node target?
+ */
 function isNodeGiSpecifier(source: unknown): boolean {
-    return typeof source === 'string' && (source === NODE_GI_PACKAGE || source.startsWith(`${NODE_GI_PACKAGE}/`));
+    if (typeof source !== 'string') return false;
+    if (source === NODE_GI_PACKAGE || source.startsWith(`${NODE_GI_PACKAGE}/`)) return true;
+    return GJS_BARE_BUILTINS.has(source);
 }
 
 /**

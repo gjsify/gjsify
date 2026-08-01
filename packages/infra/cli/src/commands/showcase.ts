@@ -14,6 +14,7 @@ import {
     readDeclaredRuntimes,
     checkRuntimeSupported,
     defaultExampleRuntime,
+    requiresGjsSystemDeps,
     type ExampleRuntime,
 } from '../utils/runtimes.js';
 
@@ -163,34 +164,40 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
             return process.exit(1);
         }
 
-        // System dependency check before delegating — only system libs (gjs,
-        // gtk4, …). The showcase's npm deps (incl. `@gjsify/webgl` with the
-        // gwebgl Vala prebuild) are fetched by `gjsify dlx` into the npm
-        // cache, and `runGjsBundle()` picks the prebuild up from the bundle
-        // dir via `detectNativePackages()`. Pre-flight-checking npm deps
-        // here would fail for `npx @gjsify/cli showcase` (no project
-        // node_modules, CLI doesn't dep on the showcase libs).
-        const results = runMinimalChecks();
-        const missingHard = results.filter((r) => !r.found && r.severity === 'required');
-        if (missingHard.length > 0) {
-            console.error('Missing system dependencies:\n');
-            for (const dep of missingHard) {
-                console.error(`  ✗  ${dep.name}`);
-            }
-            const pm = detectPackageManager();
-            const cmd = buildInstallCommand(pm, missingHard);
-            if (cmd) {
-                console.error(`\nInstall with:\n  ${cmd}`);
-            }
-            // `return` — bare `process.exit` falls through under GJS (see above).
-            return process.exit(1);
-        }
-
+        // Resolve the runtime BEFORE the system-dependency gate: that gate is a
+        // question ABOUT the runtime, and asking it first gated every showcase
+        // on a gjs binary (see `requiresGjsSystemDeps`).
         const runtime = (args.runtime ?? defaultExampleRuntime()) as string;
         if (!isExampleRuntime(runtime)) {
             console.error(`Unknown --runtime "${runtime}" (expected: ${EXAMPLE_RUNTIMES.join(', ')}).`);
             // `return` — bare `process.exit` falls through under GJS (see above).
             return process.exit(1);
+        }
+
+        // System dependency check before delegating — only system libs (gjs,
+        // gtk4, …), and only for a runtime that consumes the `--app gjs`
+        // bundle. The showcase's npm deps (incl. `@gjsify/webgl` with the
+        // gwebgl Vala prebuild) are fetched by `gjsify dlx` into the npm
+        // cache, and `runGjsBundle()` picks the prebuild up from the bundle
+        // dir via `detectNativePackages()`. Pre-flight-checking npm deps
+        // here would fail for `npx @gjsify/cli showcase` (no project
+        // node_modules, CLI doesn't dep on the showcase libs).
+        if (requiresGjsSystemDeps(runtime)) {
+            const results = runMinimalChecks();
+            const missingHard = results.filter((r) => !r.found && r.severity === 'required');
+            if (missingHard.length > 0) {
+                console.error('Missing system dependencies:\n');
+                for (const dep of missingHard) {
+                    console.error(`  ✗  ${dep.name}`);
+                }
+                const pm = detectPackageManager();
+                const cmd = buildInstallCommand(pm, missingHard);
+                if (cmd) {
+                    console.error(`\nInstall with:\n  ${cmd}`);
+                }
+                // `return` — bare `process.exit` falls through under GJS (see above).
+                return process.exit(1);
+            }
         }
 
         const cliVersion = readCliVersion();
