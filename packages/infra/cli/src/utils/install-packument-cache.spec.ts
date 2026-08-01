@@ -8,7 +8,7 @@ import { join } from 'node:path';
 
 import type { Packument } from '@gjsify/npm-registry';
 
-import { getCachedPackument, putCachedPackument } from './install-packument-cache.js';
+import { getCachedPackument, packumentCacheKey, putCachedPackument } from './install-packument-cache.js';
 
 const REGISTRY = 'https://registry.npmjs.org/';
 // Minimal but schema-valid packument shape.
@@ -120,6 +120,50 @@ export default async () => {
             } finally {
                 restore();
             }
+        });
+    });
+
+    // The filename is asserted as a PROPERTY, not as a fixed string, because the
+    // bug this covers was invisible to every behavioural test above: through v2
+    // the parts were joined with `|`, which Windows reserves in a filename, and
+    // both ends of this cache swallow failure by design (`atomicWrite` is
+    // best-effort, `readCacheFile` reads an unreadable path as a MISS). So on
+    // Windows the cache silently never stored anything and no test — round-trip
+    // included — could tell, because on Linux `|` is an ordinary character.
+    await describe('packumentCacheKey (cross-platform filename safety)', async () => {
+        /** Characters Win32 forbids in a path COMPONENT. Control chars are separate. */
+        const WINDOWS_RESERVED = '<>:"/\\|?*';
+
+        await it('contains no character Windows reserves in a filename', async () => {
+            // This is the regression pin for the shipped bug: the separator used
+            // to be `|`, so every write failed with EINVAL on Windows — silently,
+            // because a failed write and an unreadable read are both "cache miss".
+            const pairs = [
+                [REGISTRY, '@gjsify/node-gi'],
+                ['https://npm.pkg.github.com/', 'lodash'],
+                // Deliberately hostile: every reserved character below must
+                // survive only as its %XX escape, never verbatim.
+                ['https://user:pw@r.example.com:8443/p?a=b*c', '@scope/x?y*z'],
+            ] as const;
+            for (const [registry, name] of pairs) {
+                const key = packumentCacheKey(registry, name);
+                for (const ch of WINDOWS_RESERVED) {
+                    // Named in the assertion so a failure says WHICH char.
+                    expect(`${ch}:${key.includes(ch)}`).toBe(`${ch}:false`);
+                }
+            }
+        });
+
+        await it('stays injective when a part contains the separator itself', async () => {
+            // The property that lets two parts share one flat filename: the
+            // separator is escaped inside the parts, so the join cannot be
+            // reparsed two ways. With an UNESCAPED separator these two collide.
+            expect(packumentCacheKey('a,b', 'c')).not.toBe(packumentCacheKey('a', 'b,c'));
+        });
+
+        await it('splits into exactly two parts', async () => {
+            const key = packumentCacheKey('https://registry.npmjs.org/', '@girs/glib-2.0');
+            expect(key.split(',').length).toBe(2);
         });
     });
 };

@@ -109,8 +109,17 @@ export function getValidCachedPkg(cacheDir: string, maxAgeMinutes: number = DEFA
  *     it is worse than one: the cache silently never refreshed. Windows
  *     therefore unlinks first and accepts the non-atomic window, which the
  *     existing race handling already covers.
+ *
+ * @param opts.junctions force the Windows link strategy (TESTS ONLY). Defaults
+ *   to the host's. It is a parameter for the same reason `dirLinkTarget` takes
+ *   `linkType`: nothing in CI runs on Windows, so an injected `true` is the ONLY
+ *   way the unlink-then-rename ordering above is ever EXECUTED, and an
+ *   unexecutable Windows branch is exactly how the `'dir'` bug shipped. What the
+ *   injection proves off-host is the ORDERING and that the second swap really
+ *   refreshes; what it cannot prove is `MoveFileEx`/junction syscall behaviour.
  */
-export function symlinkSwap(cacheDir: string, prepareDir: string): string {
+export function symlinkSwap(cacheDir: string, prepareDir: string, opts: { junctions?: boolean } = {}): string {
+    const junctions = opts.junctions ?? dirLinksAreJunctions();
     const linkPath = join(cacheDir, 'pkg');
     const tmpName = `pkg.tmp-${Date.now().toString(16)}-${process.pid.toString(16)}`;
     const tmpLink = join(cacheDir, tmpName);
@@ -119,12 +128,20 @@ export function symlinkSwap(cacheDir: string, prepareDir: string): string {
     linkDirSync(tmpLink, prepareDir);
 
     try {
-        if (dirLinksAreJunctions()) {
+        if (junctions) {
             // Windows: no rename-over-a-directory. Removing first opens a window
             // in which `pkg` is absent; a concurrent reader treats that as a cache
             // miss and prepares its own, which is correct, just wasteful. force:true
             // keeps a first-ever swap (nothing to remove) from throwing.
-            rmSync(linkPath, { force: true, recursive: false });
+            //
+            // maxRetries/retryDelay for the same reason `install-backend-native.ts`
+            // wraps every delete in `rmWithRetry`: on Windows a delete fails with
+            // EBUSY/EPERM while ANY process holds a handle (an antivirus scan, a
+            // concurrent reader that just realpath'd this very link), and the
+            // deletion then stays PENDING — so without the retry a transient
+            // handle sends us down the "race lost" branch and the cache silently
+            // does not refresh. Free on POSIX, where the first attempt succeeds.
+            rmSync(linkPath, { force: true, recursive: false, maxRetries: 10, retryDelay: 100 });
         }
         renameSync(tmpLink, linkPath);
     } catch (err) {
@@ -134,7 +151,18 @@ export function symlinkSwap(cacheDir: string, prepareDir: string): string {
             // the non-throwing spelling of "remove if still there"; any other
             // failure on our own pid-unique link is real and should surface.
             rmSync(tmpLink, { force: true });
-            return realpathSync(linkPath);
+            try {
+                return realpathSync(linkPath);
+            } catch {
+                // Windows only, and only because the junction path unlinks before
+                // it renames: "race lost" can also mean the winner is INSIDE that
+                // non-atomic window, so `pkg` momentarily does not exist and this
+                // would throw ENOENT out of a function whose caller reports it to
+                // the user as `Could not resolve showcase "<name>"`. Our own
+                // prepareDir is a complete, correctly installed tree — a truthful
+                // answer for THIS run. The next run reads whichever link won.
+                return realpathSync(prepareDir);
+            }
         }
         throw err;
     }

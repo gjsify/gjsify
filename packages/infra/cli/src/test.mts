@@ -13,6 +13,8 @@ import whoamiCommandSuite from './whoami-command.spec.js';
 import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
+import dirLinkSuite from './utils/dir-link.spec.js';
+import dlxCacheSuite from './utils/dlx-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import installLockSuite from './utils/install-lock.spec.js';
 import installBackendNativeWarnSuite from './utils/install-backend-native-warn.spec.js';
@@ -71,6 +73,8 @@ run({
     installPackumentCacheSuite,
     authNpmrcSuite,
     promptKeySuite,
+    dirLinkSuite,
+    dlxCacheSuite,
     installCacheFsSuite,
     installLockSuite,
     installBackendNativeWarnSuite,
