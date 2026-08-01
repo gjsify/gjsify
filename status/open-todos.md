@@ -260,27 +260,38 @@ gate. Cheapest home: a step in the `check` job over `git diff --merge-base`,
 scoped to `*.md` first, since prose is where the class actually bites — source
 regressions of this shape are usually caught by tsc, lint or a test.
 
-### node-gi + napi jobs still `dnf install` from Docker Hub every run
+### The baked CI image is `linux/amd64` only, so three arm64 jobs still `dnf install` every run
 
-Ten jobs — seven in `node-gi.yml`, three in `napi.yml` — run `container:
-image: fedora:44` and then `dnf install` their package set on every run.
-`main.yml` stopped doing that long ago: `build-ci-image.yml` bakes the packages
-into `ghcr.io/gjsify/ci-fedora:<major>`, and its own header says why ("saves
-3-5 minutes per matrix entry"). These ten never adopted it.
+`build-ci-image.yml` publishes `ghcr.io/gjsify/ci-fedora:<major>` for
+`platforms: linux/amd64`, with the comment "When we add aarch64 runners we'll
+grow this list". They were added. Three jobs run on `ubuntu-24.04-arm` —
+`node-gi.yml/arm64`, `prebuilds.yml/build-prebuilds` (arm64 leg) and
+`release.yml/node-gi-prebuild-linux` (arm64 leg) — and have no image to move to,
+so each still pays a full `dnf install` from Docker Hub on every run. One of the
+three is on the RELEASE path.
 
-During the v0.26.0 release sweep the cost was not three minutes. `napi` failed
-outright when `docker pull fedora:44` timed out against registry-1.docker.io
-three times before the container existed, and the storybook bundle job was
-killed by its 45-minute timeout TWICE with ~41 of those minutes inside a single
-`dnf install` — a step that takes 22 seconds on a good day. Neither failure had
-anything to do with the code; the same commit was green on the PR.
+That cost is not hypothetical: during the v0.26.0 sweep `napi` failed outright
+when `docker pull fedora:44` timed out against registry-1.docker.io three times
+before the container existed, and the storybook bundle job was killed by its
+45-minute timeout TWICE with ~41 of those minutes inside a single `dnf install`
+— a step whose normal cost is 22 seconds. Neither failure had anything to do
+with the code; the same commit was green on the PR.
 
-Not a one-line switch to `ci-fedora`, which is why this is a TODO and not a
-drive-by: several of these jobs are minimal ON PURPOSE (the Node-free install
-proof, "no system GTK" conformance), and `ci-fedora` carries gjs, GTK and the
-blueprint toolchain. The shape that keeps the property is a SECOND baked image
-holding exactly this package set, built by the same workflow. Per-job judgement
-needed on which of the ten want which image.
+The earlier version of this item claimed the switch needed a SECOND baked image
+because "several of these jobs are minimal ON PURPOSE (the Node-free install
+proof, 'no system GTK' conformance)". That premise was checked and is FALSE —
+every one of them installs gjs and the GNOME devel set itself, and no job
+asserts that a system library is absent. Ten of the thirteen have since switched
+to the one image with no property lost.
+
+Remaining work is therefore a single edit with a real cost attached: add
+`linux/arm64` to that `platforms:` list. Building it under QEMU on an x64 runner
+would be slow enough to matter for a weekly cron plus every Dockerfile PR, so
+the shape worth measuring first is a native `ubuntu-24.04-arm` build leg joined
+into one manifest. Nothing needs to be remembered afterwards:
+`scripts/check-ci-image-packages.mjs` DERIVES the exemptions from the published
+arch list, so widening it turns all three from "excused" into "must switch" on
+the next run, and its hand-written ledger is already empty.
 
 ### The squash subject is what lands on main, and nothing lints it
 

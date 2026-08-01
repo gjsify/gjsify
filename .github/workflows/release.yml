@@ -968,20 +968,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
-      image: fedora:44
+      # The baked image, which carries the whole set this job used to install
+      # for itself (meson/Vala/C++ + the mozjs-140 + gjs-devel headers the shim
+      # links, ADR 0011's intrinsic mozjs-major pin). It is x64-only work, so
+      # unlike its node-gi sibling there is no arm64 leg to strand.
+      #
+      # This job is ON THE RELEASE PATH, which is the whole reason the switch is
+      # worth making: during the v0.26.0 sweep the `dnf install` it used to run
+      # took 41 minutes against a 22-second norm, and a Docker Hub pull timeout
+      # independently failed `napi` — neither had anything to do with the code,
+      # and either one strands a publish. `scripts/check-ci-image-packages.mjs`
+      # holds the image to what the jobs on it install.
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      # Verbatim from napi.yml's `consumer` job — the meson/Vala/C++ toolchain
-      # plus the mozjs-140 + gjs-devel headers the shim links (ADR 0011's
-      # intrinsic mozjs-major pin). No node-gyp here: this job builds only the
-      # shim, not the N-API test addons.
-      - name: Install toolchain + mozjs-140 + GJS + GI dev headers
+      # Same shape as napi.yml's `consumer` job: name the toolchain the build
+      # below silently assumes, so a wrong or drifted image says so here rather
+      # than as a confusing meson failure. Costs a second on the release path.
+      - name: Verify the baked toolchain
         run: |
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            mozjs140-devel gjs gjs-devel libsoup3 \
-            gobject-introspection gobject-introspection-devel glib2-devel \
-            vala meson ninja-build
           gjs --version
+          echo "mozjs-140: $(pkg-config --modversion mozjs-140)"
+          echo "gjs-1.0:   $(pkg-config --modversion gjs-1.0)"
+          echo "valac:     $(valac --version)"
 
       - name: Checkout repository (the released tag)
         uses: actions/checkout@v4
