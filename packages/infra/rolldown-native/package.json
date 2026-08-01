@@ -26,8 +26,14 @@
         },
         "platforms": [
             "linux-x64",
-            "linux-arm64"
+            "linux-arm64",
+            "darwin-arm64",
+            "darwin-x64"
         ],
+        "platformsUncommitted": {
+            "darwin-arm64": "prebuilds.yml's `build-prebuilds-macos` Apple-silicon leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does",
+            "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
+        },
         "prebuilds": "prebuilds",
         "refsLockstep": {
             "refs/rolldown": {

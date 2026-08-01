@@ -33,7 +33,7 @@ export interface DepCheck {
     requiredBy?: string[];
 }
 
-export type PackageManager = 'apt' | 'dnf' | 'pacman' | 'zypper' | 'apk' | 'unknown';
+export type PackageManager = 'apt' | 'dnf' | 'pacman' | 'zypper' | 'apk' | 'brew' | 'unknown';
 
 /** Run a binary and return its stdout trimmed, or null if it fails. */
 function tryExecFile(binary: string, args: string[]): string | null {
@@ -105,8 +105,23 @@ function checkNpmPackage(
     }
 }
 
+/**
+ * The package manager whose install command we may suggest.
+ *
+ * Probe order is PLATFORM-FIRST, not a single global list. On macOS the Linux
+ * managers are absent, so a flat list ending in `brew` would work by accident —
+ * but Homebrew also runs on Linux, where it is the LAST resort rather than the
+ * first (a Fedora host with linuxbrew installed wants `sudo dnf install`, whose
+ * packages carry the distro's own GI typelibs). Keying the order on
+ * `process.platform` states that intent instead of leaving it to list position.
+ *
+ * Returning `unknown` is a supported answer, not a failure: `buildInstallCommand`
+ * then prints no command rather than a wrong one. That is the honest result on a
+ * MacPorts or Nix host, and it is why this must never fall back to "probably brew".
+ */
 export function detectPackageManager(): PackageManager {
-    const managers: PackageManager[] = ['apt', 'dnf', 'pacman', 'zypper', 'apk'];
+    const managers: PackageManager[] =
+        process.platform === 'darwin' ? ['brew'] : ['apt', 'dnf', 'pacman', 'zypper', 'apk', 'brew'];
     for (const pm of managers) {
         const result = tryExecFile('which', [pm]);
         if (result !== null) return pm;
@@ -277,7 +292,12 @@ function computeNeededOptionalDeps(cwd: string): Set<string> | null {
  */
 export function runAllChecks(cwd: string): DepCheck[] {
     const needed = computeNeededOptionalDeps(cwd);
-    return [...runMinimalChecks(), ...runRequiredChecks(cwd), ...runOptionalChecks(needed, cwd)];
+    return [
+        ...runMinimalChecks(),
+        ...runRequiredChecks(cwd),
+        ...runNativeBuildToolchainChecks(),
+        ...runOptionalChecks(needed, cwd),
+    ];
 }
 
 /**
@@ -338,6 +358,69 @@ function runRequiredChecks(_cwd: string): DepCheck[] {
 }
 
 /**
+ * The native BUILD toolchain — needed to COMPILE a prebuild from source
+ * (`gjsify workspace <pkg> build:prebuilds`), never to run one.
+ *
+ * Optional by design, and the distinction is the whole point: every `*-native`
+ * package SHIPS its `.so`/`.dylib` + `.typelib` inside the tarball, so a user who
+ * installs `@gjsify/tls-native` and runs it needs none of these. Marking them
+ * `required` would fail `gjsify check` for the large majority who correctly have
+ * no Vala compiler on the machine.
+ *
+ * They are reported at all because the opposite silence is worse: without them a
+ * `build:prebuilds` failure surfaces from inside meson as a missing-compiler
+ * error naming no package and no install command. That is the concrete shape of
+ * "gjsify is supposed to be batteries-included, so why is cargo not part of it" —
+ * the tools were always required, they were just never named.
+ *
+ * NB `meson` is checked one function up at `required` severity, which is
+ * inconsistent with its own backend being optional here. That predates this
+ * function and is left alone deliberately: flipping it changes the exit code of
+ * `gjsify check` for existing users, which is a decision of its own, not a
+ * side effect of documenting the toolchain.
+ */
+function runNativeBuildToolchainChecks(): DepCheck[] {
+    // Every meson/Vala bridge in the tree — all of them need valac + ninja.
+    const valaBridges = [
+        '@gjsify/http-soup-bridge',
+        '@gjsify/http2-native',
+        '@gjsify/lightningcss-native',
+        '@gjsify/oxfmt-native',
+        '@gjsify/rolldown-native',
+        '@gjsify/sab-native',
+        '@gjsify/terminal-native',
+        '@gjsify/tls-native',
+        '@gjsify/webgl',
+        '@gjsify/webrtc-native',
+    ];
+    // Narrower on purpose: only the three bridges that link an upstream Rust
+    // crate by Cargo path-dependency need a Rust toolchain.
+    const rustBridges = ['@gjsify/lightningcss-native', '@gjsify/oxfmt-native', '@gjsify/rolldown-native'];
+
+    return [
+        checkBinary('ninja', 'Ninja', 'ninja', ['--version'], 'optional', undefined, valaBridges),
+        checkBinary(
+            'vala',
+            'Vala',
+            'valac',
+            ['--version'],
+            'optional',
+            (out) => out.replace(/^Vala\s+/i, ''),
+            valaBridges,
+        ),
+        checkBinary(
+            'cargo',
+            'Cargo (Rust)',
+            'cargo',
+            ['--version'],
+            'optional',
+            (out) => out.replace(/^cargo\s+/i, '').split(' ')[0] ?? out,
+            rustBridges,
+        ),
+    ];
+}
+
+/**
  * Optional system dependencies — only checked if the corresponding @gjsify/*
  * package is in use. Missing optional deps generate warnings, not errors.
  *
@@ -379,6 +462,9 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkg-config',
         meson: 'meson',
+        ninja: 'ninja-build',
+        vala: 'valac',
+        cargo: 'cargo',
         gtk4: 'libgtk-4-dev',
         libadwaita: 'libadwaita-1-dev',
         libsoup3: 'libsoup-3.0-dev',
@@ -399,6 +485,9 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf-pkg-config',
         meson: 'meson',
+        ninja: 'ninja-build',
+        vala: 'vala',
+        cargo: 'cargo',
         gtk4: 'gtk4-devel',
         libadwaita: 'libadwaita-devel',
         libsoup3: 'libsoup3-devel',
@@ -419,6 +508,9 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf',
         meson: 'meson',
+        ninja: 'ninja',
+        vala: 'vala',
+        cargo: 'rust',
         gtk4: 'gtk4',
         libadwaita: 'libadwaita',
         libsoup3: 'libsoup3',
@@ -439,6 +531,9 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkg-config',
         meson: 'meson',
+        ninja: 'ninja',
+        vala: 'vala',
+        cargo: 'cargo',
         gtk4: 'gtk4-devel',
         libadwaita: 'libadwaita-devel',
         libsoup3: 'libsoup-3_0-devel',
@@ -459,6 +554,9 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf',
         meson: 'meson',
+        ninja: 'ninja',
+        vala: 'vala',
+        cargo: 'cargo',
         gtk4: 'gtk4.0-dev',
         libadwaita: 'libadwaita-dev',
         libsoup3: 'libsoup3-dev',
@@ -474,6 +572,49 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         gnutls: 'gnutls-dev',
         nghttp2: 'nghttp2-dev',
     },
+    // macOS. Names verified against homebrew/core rather than inferred from the
+    // Linux rows — the mapping is NOT mechanical: Homebrew ships no `-dev`/`-devel`
+    // split (one formula carries headers, pkg-config file and typelib), `pkgconf`
+    // is what actually provides `bin/pkg-config`, and `libsoup` is the 3.x formula
+    // (`libsoup@2` is the old one), so a `libsoup3` guess installs nothing.
+    //
+    // TWO IDS ARE DELIBERATELY ABSENT, and in both cases the absence IS the
+    // answer — printing a command that does not deliver the dependency would be
+    // strictly worse than printing nothing:
+    //   • `manette` — homebrew/core has no libmanette formula, and packaging one
+    //     would not help: libmanette is built on the Linux input subsystem and
+    //     reports raw evdev `BTN_*` codes (see @gjsify/gamepad's button-mapping),
+    //     which macOS does not have. A macOS @gjsify/gamepad means a
+    //     GameController.framework backend, not a missing brew formula.
+    //   • `webkitgtk` — a formula by that name EXISTS, which is the trap. It is
+    //     the GTK**3** build (it depends on `gtk+3` and ships `webkit2gtk-4.x`),
+    //     while @gjsify/iframe needs the GTK4 API `webkitgtk-6.0`. homebrew/core
+    //     packages no GTK4 WebKit at all, and the formula carries no bottle — so
+    //     `brew install webkitgtk` would be an hours-long source build of the
+    //     WRONG API that still leaves `pkg-config --exists webkitgtk-6.0` false.
+    // Recorded here so the next reader does not "fix" the gap by guessing a name;
+    // both are genuine platform gaps, not table omissions.
+    brew: {
+        gjs: 'gjs',
+        'blueprint-compiler': 'blueprint-compiler',
+        'pkg-config': 'pkgconf',
+        meson: 'meson',
+        ninja: 'ninja',
+        vala: 'vala',
+        cargo: 'rust',
+        gtk4: 'gtk4',
+        libadwaita: 'libadwaita',
+        libsoup3: 'libsoup',
+        'gobject-introspection': 'gobject-introspection',
+        gstreamer: 'gstreamer',
+        'gst-app': 'gst-plugins-base',
+        'gdk-pixbuf': 'gdk-pixbuf',
+        pango: 'pango',
+        pangocairo: 'pango',
+        cairo: 'cairo',
+        gnutls: 'gnutls',
+        nghttp2: 'nghttp2',
+    },
     unknown: {},
 };
 
@@ -483,6 +624,8 @@ const PM_INSTALL_PREFIX: Record<PackageManager, string> = {
     pacman: 'sudo pacman -S',
     zypper: 'sudo zypper install',
     apk: 'sudo apk add',
+    // No `sudo`: Homebrew refuses to run as root and tells you so.
+    brew: 'brew install',
     unknown: '',
 };
 

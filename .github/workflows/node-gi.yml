@@ -589,22 +589,40 @@ jobs:
           if-no-files-found: error
 
   # macOS proof (Phase 1 — the reverse bridge BUILDS + RUNS on macOS). The whole
-  # team is Linux-only, so a macos-latest runner (Apple silicon, arm64 → the addon
-  # is darwin-arm64) is the only way to validate. Installs GTK4 + GObject-
-  # Introspection from Homebrew, builds the N-API addon FROM SOURCE (node-gyp +
-  # pkg-config, binding.gyp's xcode_settings carry the clang cflags), and runs the
-  # DISPLAY-FREE conformance subset on Node (+ Bun/Deno) — the exact subset
-  # scripts/cross-runtime.mjs curates (GLib/GObject/Gio marshalling, signals,
-  # variant, boxed structs, mainloop-pump, DBus). The GTK-window / GLArea /
-  # cairo-drawfunc / adw-smoke DISPLAY tests are NOT run here — GTK-on-macOS is the
-  # quartz backend and needs its own display wiring; that is Phase 2 (which also
-  # ships a prebuilt GTK stack so consumers need no Homebrew). The darwin-arm64
-  # addon prebuild IS staged + uploaded here (the Deno install path — Deno runs no
-  # postinstall build), mirroring the arm64 job; a future prebuilt-GTK upload slots
-  # in beside it.
+  # team is Linux-only, so a hosted macOS runner is the only way to validate — and
+  # BOTH architectures need one, because they are different MACHINES, not different
+  # flags: `macos-latest` is Apple silicon (darwin-arm64), `macos-15-intel` is the
+  # last x86_64 image Actions offers (through August 2027). The Intel label is the
+  # STANDARD tier, so it bills like any other macOS runner and is free on public
+  # repos — unlike `macos-*-large`, which is also Intel and carries the 10x
+  # multiplier. Installs GTK4 + GObject-Introspection from Homebrew, builds the
+  # N-API addon FROM SOURCE (node-gyp + pkg-config, binding.gyp's xcode_settings
+  # carry the clang cflags), and runs the DISPLAY-FREE conformance subset on Node
+  # (+ Bun/Deno) — the exact subset scripts/cross-runtime.mjs curates (GLib/GObject
+  # /Gio marshalling, signals, variant, boxed structs, mainloop-pump, DBus). The
+  # GTK-window / GLArea / cairo-drawfunc / adw-smoke DISPLAY tests are NOT run here
+  # — GTK-on-macOS is the quartz backend and needs its own display wiring; that is
+  # Phase 2 (which also ships a prebuilt GTK stack so consumers need no Homebrew).
+  # The addon prebuild IS staged + uploaded PER ARCH (the Deno install path — Deno
+  # runs no postinstall build), mirroring the linux legs; a future prebuilt-GTK
+  # upload slots in beside it.
+  #
+  # Nothing here is arch-conditional: every path already derives its target from
+  # the running machine (`brew --prefix` is /opt/homebrew on arm64 and /usr/local
+  # on Intel; scripts/stage-prebuild.mjs names its directory from
+  # `${process.platform}-${process.arch}`), which is why the second leg is a
+  # matrix entry rather than a second job.
   macos:
-    name: macOS build + conformance (Node+Bun+Deno / macos-latest arm64)
-    runs-on: macos-latest
+    name: macOS build + conformance (Node+Bun+Deno / darwin-${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     env:
       HOMEBREW_NO_AUTO_UPDATE: '1'
@@ -700,11 +718,17 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: npm run test:deno
 
-      # Stage the darwin-arm64 addon prebuild + smoke it via the PREBUILD load path
-      # (Deno's only install path — it runs no postinstall build), then upload it so
-      # a release can ship prebuilds/darwin-arm64/. Mirrors the arm64 job. NB this is
-      # the node-gi ADDON prebuild, NOT the Phase-2 prebuilt-GTK stack.
-      - name: Stage darwin-arm64 prebuild
+      # Stage the addon prebuild + smoke it via the PREBUILD load path (Deno's only
+      # install path — it runs no postinstall build), then upload it so a release
+      # can ship prebuilds/darwin-<arch>/. Mirrors the linux legs. NB this is the
+      # node-gi ADDON prebuild, NOT the Phase-2 prebuilt-GTK stack.
+      #
+      # The staging script takes no target argument on purpose — it reads
+      # `${process.platform}-${process.arch}` from the running Node, so the leg
+      # cannot stage a binary into a directory naming a different machine. That is
+      # the mistake the emulated linux legs shipped for weeks (an x86-64 build
+      # staged as linux-ppc64), and it is unavailable here by construction.
+      - name: Stage darwin-${{ matrix.arch }} prebuild
         working-directory: packages/node-gi/node-gi
         run: node scripts/stage-prebuild.mjs
 
@@ -714,11 +738,11 @@ jobs:
         env:
           NODE_GI_NATIVE: prebuild
 
-      - name: Upload darwin-arm64 prebuild artifact
+      - name: Upload darwin-${{ matrix.arch }} prebuild artifact
         uses: actions/upload-artifact@v4
         with:
-          name: node-gi-prebuild-darwin-arm64
-          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node
+          name: node-gi-prebuild-darwin-${{ matrix.arch }}
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/node_gi.node
           if-no-files-found: error
 
   # Cross-runtime consumer harness (scripts/node-gi-consumer-harness.mjs): the
@@ -900,6 +924,13 @@ jobs:
         uses: actions/checkout@v4
 
       # Consume the darwin-arm64 addon prebuild the `macos` job staged + uploaded.
+      # ONLY arm64: the relocatable GTK stack is its own package
+      # (packages/node-gi/gtk-runtime-darwin-arm64/) with its own dylib-rewriting
+      # pass, so a second arch is a second package, not a matrix entry — unlike the
+      # `macos` job above, where every path already derives its own target. This
+      # job therefore stays single-arch while depending on the whole matrix; an
+      # x64 addon failure blocking it is deliberate, since darwin-x64 is a declared
+      # platform and a broken leg must not pass quietly.
       - name: Download node-gi addon prebuild (from the macos job)
         uses: actions/download-artifact@v4
         with:

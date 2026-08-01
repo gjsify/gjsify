@@ -1007,7 +1007,9 @@ jobs:
           #   gnutls   → @gjsify/tls-native
           #   libsoup  → @gjsify/http-soup-bridge (needs >= 3.6)
           #   libnghttp2 → @gjsify/http2-native
-          brew install gobject-introspection vala meson ninja pkgconf gnutls libsoup libnghttp2
+          #   json-glib  → @gjsify/rolldown-native (its Vala bridge passes
+          #                rolldown's options/output across as JSON)
+          brew install gobject-introspection vala meson ninja pkgconf gnutls libsoup libnghttp2 json-glib
           BREW_PREFIX="$(brew --prefix)"
           # libnghttp2 is keg-only on macOS (the OS ships its own copy for curl),
           # so it is NOT symlinked into the brew prefix. http2-native reaches it
@@ -1025,8 +1027,9 @@ jobs:
       - name: Ensure a current Rust toolchain
         if: >-
           ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"')
-          || !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
-        # lightningcss-native / oxfmt-native need rustc >= 1.85 (edition2024 in
+          || !contains(needs.changes.outputs.skip, '"oxfmt-native"')
+          || !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
+        # lightningcss-native / oxfmt-native / rolldown-native need rustc >= 1.85 (edition2024 in
         # the transitive graph). macOS runners preinstall rustup, so re-running
         # rustup-init would fail; install/refresh the stable toolchain instead
         # and fall back to rustup-init only if rustup is genuinely absent.
@@ -1089,6 +1092,45 @@ jobs:
           mkdir -p "prebuilds/${PREBUILD}"
           cp build/libgjsifyoxfmt.dylib build/libgjsify_oxfmt.dylib \
              build/GjsifyOxfmt-1.0.gir build/GjsifyOxfmt-1.0.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
+      # -------- @gjsify/rolldown-native (GjsifyRolldown) --------
+      # Promoted out of `build-prebuilds-macos-experimental` on the evidence that
+      # job exists to produce: run 30715865402 built the Rust cdylib + Vala bridge,
+      # resolved the sibling, loaded GjsifyRolldown.Bundler under Homebrew gjs, and
+      # passed the env-free dlopen — every step, none skipped.
+      #
+      # This is the package that makes the difference between "gjsify runs on
+      # macOS" and "gjsify BUILDS on macOS": under GJS the only bundler engine is
+      # this bridge (the npm `rolldown` is a napi binary GJS cannot load), so while
+      # it shipped linux-only there was no `gjsify build` on any Mac at all. That
+      # is why it belongs in the required job rather than behind a dispatch.
+      #
+      # `--depth 1` (not the `--recursive` the oxc row uses): rolldown's own
+      # submodules are test fixtures the Cargo path-dep never reaches, and the
+      # shallow fetch still lands the pinned commit that `refs-pin` verifies.
+      - name: Init refs/rolldown submodule (rolldown-native source dep)
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
+        run: git submodule update --init --depth 1 refs/rolldown
+
+      - name: Build @gjsify/rolldown-native (Rust cdylib + Vala bridge)
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
+        working-directory: packages/infra/rolldown-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/rolldown-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
+        working-directory: packages/infra/rolldown-native
+        run: |
+          mkdir -p "prebuilds/${PREBUILD}"
+          # BOTH libraries: the Vala library records `@rpath/libgjsify_rolldown.dylib`
+          # (underscore) for its Rust cdylib, a different leaf than its own. Omitting
+          # it is the #832 failure — a missing FILE that reads exactly like a broken
+          # rpath, caught only by the env-free dlopen further down.
+          cp build/libgjsifyrolldown.dylib build/libgjsify_rolldown.dylib \
+             build/GjsifyRolldown-1.0.gir build/GjsifyRolldown-1.0.typelib "prebuilds/${PREBUILD}/"
           ls -lh "prebuilds/${PREBUILD}/"
 
       # -------- @gjsify/terminal-native (GjsifyTerminal) --------
@@ -1273,6 +1315,7 @@ jobs:
           done <<'EOF'
           packages/infra/lightningcss-native|GjsifyLightningcss|Engine
           packages/infra/oxfmt-native|GjsifyOxfmt|Formatter
+          packages/infra/rolldown-native|GjsifyRolldown|Bundler
           packages/node/terminal-native|GjsifyTerminal|Terminal
           packages/node/tls-native|GjsifyTls|Tls
           packages/node/http-soup-bridge|GjsifyHttpSoupBridge|Server
@@ -1296,7 +1339,8 @@ jobs:
           rc=0
           for lib in \
             "packages/infra/lightningcss-native/prebuilds/${PREBUILD}/libgjsifylightningcss.dylib" \
-            "packages/infra/oxfmt-native/prebuilds/${PREBUILD}/libgjsifyoxfmt.dylib"
+            "packages/infra/oxfmt-native/prebuilds/${PREBUILD}/libgjsifyoxfmt.dylib" \
+            "packages/infra/rolldown-native/prebuilds/${PREBUILD}/libgjsifyrolldown.dylib"
           do
             pkg="${lib%%/prebuilds/*}"
             built "$pkg" || { echo "--- $pkg: not built by this run, not dlopened"; continue; }
@@ -1325,6 +1369,15 @@ jobs:
         with:
           name: oxfmt-native-prebuilds-darwin-${{ matrix.arch }}
           path: packages/infra/oxfmt-native/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/rolldown-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: rolldown-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/infra/rolldown-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -1385,7 +1438,7 @@ jobs:
   # above (with an upload step + commit wiring) — or record the specific failure.
   # ----------------------------------------------------------------
   build-prebuilds-macos-experimental:
-    name: Build prebuilds (darwin-arm64) [experimental — rolldown + webgl + webrtc]
+    name: Build prebuilds (darwin-arm64) [experimental — webgl + webrtc]
     needs: [changes]
     runs-on: macos-latest
     if: github.event_name == 'workflow_dispatch'
@@ -1399,8 +1452,7 @@ jobs:
       - name: Install GI toolchain + GTK4/GStreamer (Homebrew)
         run: |
           set -euo pipefail
-          # json-glib is rolldown-native's extra dependency over the required job's closure.
-          brew install gobject-introspection vala meson ninja pkgconf gtk4 libepoxy gdk-pixbuf gstreamer json-glib
+          brew install gobject-introspection vala meson ninja pkgconf gtk4 libepoxy gdk-pixbuf gstreamer
           BREW_PREFIX="$(brew --prefix)"
           echo "PKG_CONFIG_PATH=${BREW_PREFIX}/lib/pkgconfig:${BREW_PREFIX}/share/pkgconfig" >> "$GITHUB_ENV"
 
@@ -1414,70 +1466,6 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v6
-
-      # @gjsify/rolldown-native is the bundler engine `gjsify build` runs on under
-      # GJS — the one package standing between macOS and a Node-free toolchain.
-      # Its Rust core compiles for aarch64-apple-darwin since the eventfd→pipe
-      # port (src/rust/src/wakeup.rs); what is UNPROVEN is the native build:
-      # linking, GIR generation, and whether the typelib loads under Homebrew gjs.
-      # That is what these steps answer. Promote into the required
-      # `build-prebuilds-macos` job once this comes back green.
-      - name: Install Rust toolchain (rustup, stable)
-        run: |
-          set -euo pipefail
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-          rustc --version
-
-      - name: Fetch the pinned rolldown source
-        run: git submodule update --init --depth 1 refs/rolldown
-
-      - name: Build @gjsify/rolldown-native (Rust cdylib + Vala GI bridge)
-        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
-        working-directory: packages/infra/rolldown-native
-        run: |
-          set -euo pipefail
-          meson setup build .
-          meson compile -C build
-          mkdir -p "prebuilds/${PREBUILD}"
-          # BOTH libraries, not just the one the typelib names. The Vala library
-          # records `@rpath/libgjsify_rolldown.dylib` for its Rust cdylib — a
-          # DIFFERENT leaf (underscore) that this list used to omit, so the load
-          # test below failed with the rpath expanded to exactly this directory
-          # and `(no such file)`. The `.gir` travels with it for the same reason
-          # the linux + required-macOS legs ship it.
-          cp build/libgjsifyrolldown.dylib build/libgjsify_rolldown.dylib \
-             build/GjsifyRolldown-1.0.gir build/GjsifyRolldown-1.0.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
-
-      - name: Verify the rolldown prebuild resolves its own sibling
-        run: node scripts/check-prebuild-loader-path.mjs "packages/infra/rolldown-native/prebuilds/${PREBUILD}"
-
-      - name: Load-test the rolldown typelib under Homebrew gjs
-        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
-        # A prebuild that builds but does not LOAD is the failure mode this whole
-        # platform axis exists to catch (a typelib recording the wrong shared-library
-        # leaf is found via GI_TYPELIB_PATH and then silently never loads).
-        working-directory: packages/infra/rolldown-native
-        run: |
-          set -euo pipefail
-          brew install gjs
-          GI_TYPELIB_PATH="$PWD/prebuilds/${PREBUILD}" \
-          DYLD_LIBRARY_PATH="$PWD/prebuilds/${PREBUILD}" \
-            gjs -c 'const { Bundler } = imports.gi.GjsifyRolldown; if (!Bundler) { throw new Error("GjsifyRolldown.Bundler missing"); } print("rolldown typelib loaded OK");'
-
-      - name: Prove rolldown's sibling cdylib resolves with no environment variable
-        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
-        # DYLD_LIBRARY_PATH above only has to find the leaf the typelib names.
-        # The Vala→Rust hop must need nothing at all: dlopen by absolute path
-        # with the loader variables unset leaves @loader_path as the only way the
-        # cdylib next to it can be found.
-        working-directory: packages/infra/rolldown-native
-        run: |
-          set -euo pipefail
-          env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH /usr/bin/python3 -c \
-            'import ctypes, sys; ctypes.CDLL(sys.argv[1]); print("loaded", sys.argv[1])' \
-            "$PWD/prebuilds/${PREBUILD}/libgjsifyrolldown.dylib"
 
       - name: Build @gjsify/webgl Vala library
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
@@ -1498,6 +1486,41 @@ jobs:
           mkdir -p "prebuilds/${PREBUILD}"
           cp build/libgjsifywebrtc.dylib build/GjsifyWebrtc-0.1.typelib "prebuilds/${PREBUILD}/"
           ls -lh "prebuilds/${PREBUILD}/"
+
+      # The gate these two still owe before they can be promoted. rolldown-native
+      # left this job on exactly this evidence and nothing less: BUILT is not
+      # LOADABLE, and the distance between them is where #832 lived — a typelib
+      # that GI_TYPELIB_PATH finds and that then never dlopens its library.
+      #
+      # ADVISORY, not fatal, and deliberately so: this job is dispatch-only, so it
+      # reds no PR either way, and the reason to run it is to READ the answer. A
+      # hard failure here would stop the run before the second row is even tried,
+      # which is the opposite of what an exploratory leg is for. When both rows
+      # print "resolved", promote them into `build-prebuilds-macos` the way
+      # rolldown-native was promoted — with the load test made FATAL there.
+      - name: Load-test what was built (advisory)
+        if: always()
+        run: |
+          set -uo pipefail
+          brew install gjs
+          while IFS='|' read -r dir ns sym; do
+            [ -n "$dir" ] || continue
+            abs="$PWD/${dir}/prebuilds/${PREBUILD}"
+            [ -d "$abs" ] || { echo "--- ${ns}: not built by this run"; continue; }
+            echo "--- ${ns}.${sym} from ${abs}"
+            # `< /dev/null`: the loop's stdin is the heredoc, and a child that
+            # reads it would swallow the remaining rows.
+            if GI_TYPELIB_PATH="$abs" DYLD_LIBRARY_PATH="$abs" gjs -c \
+                 "const T = imports.gi.${ns}.${sym};
+                  if (typeof T !== 'function') { throw new Error('${ns}.${sym} did not resolve to a class'); }
+                  print('${ns}.${sym} resolved — shared library loaded');" < /dev/null
+            then :; else
+              echo "::warning::${ns} builds on darwin but does not load — that IS the finding this job exists for"
+            fi
+          done <<'EOF'
+          packages/framework/webgl|Gwebgl|WebGLRenderingContext
+          packages/web/webrtc-native|GjsifyWebrtc|WebrtcbinBridge
+          EOF
 
   # ----------------------------------------------------------------
   # Alpine / musl — prebuilds/linux-{x64,arm64}-musl
@@ -2365,6 +2388,13 @@ jobs:
           name: oxfmt-native-prebuilds-darwin-arm64
           path: packages/infra/oxfmt-native/prebuilds/darwin-arm64/
 
+      - name: Download rolldown-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: rolldown-native-prebuilds-darwin-arm64
+          path: packages/infra/rolldown-native/prebuilds/darwin-arm64/
+
       - name: Download terminal-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
@@ -2409,6 +2439,13 @@ jobs:
         with:
           name: oxfmt-native-prebuilds-darwin-x64
           path: packages/infra/oxfmt-native/prebuilds/darwin-x64/
+
+      - name: Download rolldown-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: rolldown-native-prebuilds-darwin-x64
+          path: packages/infra/rolldown-native/prebuilds/darwin-x64/
 
       - name: Download terminal-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
