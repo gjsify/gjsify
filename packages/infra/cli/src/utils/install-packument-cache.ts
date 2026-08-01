@@ -13,13 +13,13 @@
 //
 // Layout:
 //
-//   $XDG_CACHE_HOME/gjsify/metadata/v1/<shard>/<encoded-registry>|<encoded-name>.json
+//   $XDG_CACHE_HOME/gjsify/metadata/v2/<shard>/<encoded-registry>,<encoded-name>.json
 //
 // The cache is keyed by (registry, name) — NOT name alone — so switching the
 // registry for a scope can never serve a packument from the wrong source on a
 // coincidental ETag match. `<shard>` is a 2-hex FNV-1a digest of the key, a
 // directory-fan-out step so the leaf dir never grows unbounded (same rationale
-// as the tarball cache's hex sharding). `v1` is a layout version.
+// as the tarball cache's hex sharding). `v2` is a layout version.
 //
 // Disabled with `GJSIFY_PACKUMENT_CACHE=0` (or `false`). Honours
 // `XDG_CACHE_HOME` like the tarball + dlx caches.
@@ -30,7 +30,10 @@ import type { Packument } from '@gjsify/npm-registry';
 
 import { atomicWrite, gjsifyCacheRoot, readCacheFile } from './install-cache-fs.js';
 
-const CACHE_LAYOUT_VERSION = 'v1';
+// v2: the separator changed from the Win32-reserved `|` to `,` (see `pathFor`),
+// so every v1 entry is unreachable rather than merely stale — a new root retires
+// them instead of leaving orphans under the old one.
+const CACHE_LAYOUT_VERSION = 'v2';
 
 interface PackumentCacheEntry {
     /** Registry ETag the body was served with (the `If-None-Match` value). */
@@ -52,7 +55,7 @@ function isEnabled(): boolean {
     return !(trimmed === '0' || trimmed === 'false' || trimmed === '');
 }
 
-/** Root of the packument cache: `$XDG_CACHE_HOME/gjsify/metadata/v1`. */
+/** Root of the packument cache: `$XDG_CACHE_HOME/gjsify/metadata/v2`. */
 function cacheRoot(): string {
     return gjsifyCacheRoot('metadata', CACHE_LAYOUT_VERSION);
 }
@@ -67,14 +70,48 @@ function shardFor(key: string): string {
     return ((h >>> 0) & 0xff).toString(16).padStart(2, '0');
 }
 
-/** Filesystem path for a (registry, name) pair, or `null` when disabled. */
+/**
+ * One path part, made safe for EVERY filesystem we run on.
+ *
+ * `encodeURIComponent` alone is not enough: it deliberately leaves `*` (and
+ * `!'()`) unescaped, and `*` is one of Win32's reserved filename characters.
+ * A scoped package never contains one today, but a registry URL can, and the
+ * failure mode is the silent one described on {@link pathFor}.
+ */
+function encodePart(part: string): string {
+    return encodeURIComponent(part).replace(/\*/g, '%2A');
+}
+
+/**
+ * The cache key for a (registry, name) pair — exported so the filename rule
+ * below is a PROPERTY a test can assert, not a claim in a comment.
+ *
+ * THE SEPARATOR IS NOT COSMETIC. It used to be `|`, producing names like
+ * `corgi|https%3A%2F%2Fregistry.npmjs.org%2F|%40gjsify%2Fnode-gi.json` — and `|`
+ * is a Win32 RESERVED filename character, so every write failed with `EINVAL`.
+ * Nothing reported it: `atomicWrite` is best-effort on purpose (a read-only
+ * cache volume must not break an install) and `readCacheFile` reads an
+ * unreadable path as a MISS. So on Windows this cache was never broken loudly —
+ * it was silently DEAD, and the `If-None-Match` → `304` revalidation that is the
+ * entire reason this file exists never engaged once.
+ *
+ * `,` is legal on Win32 AND escaped by `encodeURIComponent`, which is what keeps
+ * a flat two-part name injective: an encoded part cannot contain the separator,
+ * so exactly one `(registry, name)` pair maps to any given filename.
+ *
+ * The shard key and the filename are derived from the SAME encoded parts. They
+ * used to disagree — the key hashed the raw pair while the name used the encoded
+ * one — which is how a reserved character in the name survived review of a
+ * function whose other half looked correct.
+ */
+export function packumentCacheKey(registry: string, name: string): string {
+    return `${encodePart(registry)},${encodePart(name)}`;
+}
+
 function pathFor(registry: string, name: string): string | null {
     if (!isEnabled()) return null;
-    const key = `${registry}|${name}`;
-    // encodeURIComponent makes both halves filesystem-safe (`/` → `%2F`, etc.)
-    // while staying a stable, reversible, single path segment.
-    const file = `${encodeURIComponent(registry)}|${encodeURIComponent(name)}.json`;
-    return join(cacheRoot(), shardFor(key), file);
+    const key = packumentCacheKey(registry, name);
+    return join(cacheRoot(), shardFor(key), `${key}.json`);
 }
 
 /**
