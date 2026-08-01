@@ -781,24 +781,40 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
 
-      # Stage EVERY prebuild leg's artifact into the package's prebuilds/ dir BEFORE
-      # publish, so the tarball ships them (`prebuilds` is in node-gi's `files`).
-      # merge-multiple lands each artifact at prebuilds/<target>/node_gi.node.
+      # ONE download per artifact, each into its OWN explicit destination — the
+      # shape `publish-napi` below uses, and the only one that works.
       #
-      # The pattern is `node-gi-prebuild-*`, NOT `…-linux-*`. It was the linux-only
-      # form, and that single character is what made the win32 and darwin legs
-      # pointless: `node-gi.yml` has built, load-tested and uploaded a win32-x64
-      # addon for months — its own comment says it does so "so a release can ship
-      # prebuilds/win32-x64/" — and this step never asked for it. Verified against
-      # the shipped artifact: `@gjsify/node-gi@0.26.0`'s tarball contains exactly
-      # `prebuilds/{linux-x64,linux-arm64}/node_gi.node` and nothing else, so
-      # `--runtime node` could not work on Windows or macOS at all.
-      - name: Download + stage every prebuild (linux x64/arm64, win32-x64, darwin-arm64)
+      # It was a single `pattern: node-gi-prebuild-*` + `merge-multiple: true`
+      # into `prebuilds/`, and that stages NOTHING usable: `upload-artifact` with
+      # a directory `path` uploads the directory's CONTENTS, so each artifact is
+      # a bare `node_gi.node`, and merging four of those into one directory just
+      # overwrites the same file three times. Measured on the v0.26.1 publish —
+      # all four build legs succeeded, all four artifacts downloaded, and the
+      # staging assertion below then found not one `prebuilds/<target>/node_gi.node`.
+      #
+      # The per-artifact form puts the file where the target directory needs it
+      # without depending on any merge semantics. `napi` has been doing it this
+      # way for both of its platforms all along; node-gi is the one that drifted.
+      - name: Download + stage the linux-x64 prebuild
         uses: actions/download-artifact@v4
         with:
-          pattern: node-gi-prebuild-*
-          merge-multiple: true
-          path: packages/node-gi/node-gi/prebuilds/
+          name: node-gi-prebuild-linux-x64
+          path: packages/node-gi/node-gi/prebuilds/linux-x64
+      - name: Download + stage the linux-arm64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-linux-arm64
+          path: packages/node-gi/node-gi/prebuilds/linux-arm64
+      - name: Download + stage the darwin-arm64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-darwin-arm64
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64
+      - name: Download + stage the win32-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: packages/node-gi/node-gi/prebuilds/win32-x64
 
       # DERIVED from the package's own `gjsify.platforms`, never a list written here.
       # The old form was `ls prebuilds/*/node_gi.node`, which passes as soon as ANY
