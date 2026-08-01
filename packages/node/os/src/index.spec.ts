@@ -41,6 +41,18 @@ export default async () => {
             expect(tmp.startsWith('/')).toBeTruthy();
         });
 
+        await it('tmpdir() should not end in a separator', async () => {
+            // Node drops a trailing separator (`lib/os.js`), so `path.join()`
+            // does not produce a doubled one. Only macOS exposes the
+            // difference: its `$TMPDIR` is a per-user
+            // `/var/folders/<…>/T/` and GLib returns it verbatim, while a
+            // typical Linux host has no `$TMPDIR` and falls back to `/tmp`.
+            const tmp = os.tmpdir();
+            if (tmp.length > 1) {
+                expect(tmp.endsWith('/')).toBe(false);
+            }
+        });
+
         await it('type() should return a non-empty string', async () => {
             const type = os.type();
             expect(typeof type).toBe('string');
@@ -338,6 +350,51 @@ export default async () => {
                     ).toBeTruthy();
                     expect(typeof entry.mac).toBe('string');
                     expect(typeof entry.internal).toBe('boolean');
+                }
+            }
+        });
+
+        await it('flags loopback addresses as internal', async () => {
+            const ifaces = os.networkInterfaces();
+            let sawLoopback = false;
+            for (const [, entries] of Object.entries(ifaces)) {
+                for (const entry of (entries ?? []) as unknown as Array<Record<string, unknown>>) {
+                    if (entry.address === '127.0.0.1' || entry.address === '::1') {
+                        sawLoopback = true;
+                        expect(entry.internal).toBe(true);
+                    }
+                }
+            }
+            expect(sawLoopback).toBeTruthy();
+        });
+
+        await it('agrees on internal across an interface’s address families', async () => {
+            // `internal` is a property of the INTERFACE, so every address on one
+            // must report the same value. Stated this way the invariant needs no
+            // knowledge of the host's actual interfaces, which is what lets it
+            // run unchanged on Linux, macOS, Node and GJS.
+            //
+            // The macOS reader derived it per-address from `mac !== NOMAC` —
+            // exactly inverted, since only a loopback lacks a MAC — so `lo0`
+            // reported IPv4 internal / IPv6 external and `en0` the reverse.
+            const ifaces = os.networkInterfaces();
+            for (const [name, entries] of Object.entries(ifaces)) {
+                const flags = ((entries ?? []) as unknown as Array<Record<string, unknown>>).map((e) => e.internal);
+                const uniform = flags.every((f) => f === flags[0]);
+                expect(`${name}:${uniform}`).toBe(`${name}:true`);
+            }
+        });
+
+        await it('reports IPv6 addresses without a zone index', async () => {
+            // `ifconfig` prints link-local addresses as `fe80::1%lo0`; the zone
+            // suffix belongs to the interface, not the address, and Node strips
+            // it. A reader that captures it produces a malformed address.
+            const ifaces = os.networkInterfaces();
+            for (const [name, entries] of Object.entries(ifaces)) {
+                for (const entry of (entries ?? []) as unknown as Array<Record<string, unknown>>) {
+                    if (entry.family !== 'IPv6' && entry.family !== 6) continue;
+                    const address = entry.address as string;
+                    expect(`${name}:${address.includes('%')}`).toBe(`${name}:false`);
                 }
             }
         });

@@ -340,6 +340,20 @@ function shQuote(s: string): string {
  * {@link buildLauncherShims} from the same baked list, and `PATH` doubles as the
  * DLL search path with `;` separators. It keeps the snapshot behaviour.
  *
+ * MACOS CAVEAT — the `${DYLD_LIBRARY_PATH:+…}` half of the export can never
+ * fire, and the export itself does not survive a script boundary. System
+ * Integrity Protection strips every `DYLD_*` variable from the environment
+ * whenever a PROTECTED binary is exec'd, and `/bin/sh` is protected — so by the
+ * time this preamble runs, an inherited `DYLD_LIBRARY_PATH` is already gone
+ * (measured: `DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'` prints
+ * nothing, while the same through Homebrew's unprotected `node` prints `x`).
+ * The value this preamble exports is likewise dropped again at the next
+ * `/bin/sh -c` hop, which is how every package script runs. Do NOT "simplify"
+ * the preservation away as dead code — it is load-bearing on Linux. And do not
+ * rely on `DYLD_LIBRARY_PATH` alone to make a darwin prebuild loadable across a
+ * script chain: the self-relative `@loader_path` rpath that
+ * `check-prebuild-loader-path.mjs` enforces is what actually has to carry it.
+ *
  * @param scanRoot Directory whose `node_modules` is globbed at launch time.
  * @param bakedDirs Prebuild dirs found at write time; entries outside `scanRoot`
  *   are embedded (entries inside it are dropped — the scan finds them).

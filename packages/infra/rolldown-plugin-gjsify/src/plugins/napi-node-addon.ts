@@ -668,7 +668,7 @@ export function isNapiRsSibling(pkg: AddonPackageJson, dep: string): boolean {
  * cannot just take whatever resolves. Returns null for a host napi-rs doesn't
  * name, and the caller then widens rather than guessing.
  */
-function hostNapiRsTriple(): string | null {
+export function hostNapiRsTriple(): string | null {
     const platform = process.platform;
     const arch = process.arch;
     const archTok: Record<string, string> = {

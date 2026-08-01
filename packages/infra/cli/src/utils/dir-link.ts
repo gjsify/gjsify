@@ -56,6 +56,16 @@ export const dirLinksAreJunctions = (): boolean => DIR_LINK_TYPE === 'junction';
  * tests. A branch nobody can exercise is how the `'dir'` bug survived to a
  * release.
  *
+ * BOTH paths must be in the SAME canonical space — either both canonical or
+ * both spelled through the same symlinks. The POSIX target is relative to the
+ * link's own directory, but the kernel resolves it from the link's REAL
+ * directory, so mixing the two spaces yields a link that points nowhere. macOS
+ * is where this actually happens: `os.tmpdir()` is `/var/folders/…` and `/var`
+ * is a symlink to `/private/var`, so a `linkPath` built from `tmpdir()` and an
+ * `absTarget` that has been through `realpathSync` disagree, and the relative
+ * path between them walks out of the real tree. `realpathSync` whichever side
+ * is not already canonical before calling this.
+ *
  * @param linkPath  where the link itself will live
  * @param absTarget the directory it should point at, as an ABSOLUTE path
  * @param linkType  override the host's link type (tests only)

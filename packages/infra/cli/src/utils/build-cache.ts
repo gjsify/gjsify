@@ -77,8 +77,14 @@ import { replicateLinkSync } from './dir-link.js';
  * v2: output ownership moved from the whole candidate dir to per-child
  * "output units" (`lib/esm` vs `lib/types`) — a v1 manifest recording `lib`
  * would restore over the sibling subtree a different script owns.
+ *
+ * v3: a `.tsbuildinfo` inside a candidate dir no longer counts as a loose file
+ * (see {@link outputUnits}). The six packages that emit one into `lib/` were
+ * still on v2's whole-dir ownership and could restore over a sibling unit; a v2
+ * manifest for them records `lib`, so it must not be replayed against the
+ * per-child units this version stores.
  */
-export const BUILD_CACHE_LAYOUT_VERSION = 'v2';
+export const BUILD_CACHE_LAYOUT_VERSION = 'v3';
 
 /** Conventional per-package build output directories, checked in this order. */
 export const OUTPUT_DIR_CANDIDATES = ['lib', 'dist', 'dist-templates'] as const;
@@ -288,7 +294,27 @@ export function hashOutputDirs(location: string, dirs: readonly string[]): strin
  * modifies is never recorded, so it can never be restored over (`@gjsify/tsc`'s
  * committed, no-build `lib/lib*.d.ts` are loose files → one `lib` unit → never
  * touched by any build → never captured).
+ *
+ * A `.tsbuildinfo` does NOT count as a loose file, and that exemption is
+ * load-bearing rather than cosmetic. It is incremental-compiler STATE, not a
+ * build output — nothing ships it — yet six packages point `tsBuildInfoFile`
+ * inside their emit dir, and its mere presence flipped `lib/` back to whole-dir
+ * ownership, re-creating for those packages exactly the clobber the per-child
+ * split above was introduced to fix. Measured on `@gjsify/semver`: `lib/`
+ * held `esm/`, `types/` and `tsconfig.build.tsbuildinfo`, so a `build:types`
+ * cache hit restored the whole `lib` and DELETED the `lib/esm` a previous step
+ * had just produced — leaving the Node CLI entry unloadable
+ * (`ERR_MODULE_NOT_FOUND: @gjsify/semver/lib/esm/index.js`) on a cold macOS
+ * tree, where that entry is the only usable one.
+ *
+ * Excluding it also keeps it OUT of every stored unit, which is the right
+ * outcome independently: a restored `.tsbuildinfo` describes an emit that did
+ * not happen in this tree, and tsc then treats the project as up to date,
+ * writes nothing and exits 0 — the silent no-op `verify-package-outputs.mjs`
+ * exists to catch.
  */
+const isBuildInfo = (name: string): boolean => name.endsWith('.tsbuildinfo');
+
 export function outputUnits(location: string): string[] {
     const units: string[] = [];
     for (const dir of OUTPUT_DIR_CANDIDATES) {
@@ -296,7 +322,7 @@ export function outputUnits(location: string): string[] {
         if (!existsSync(abs)) continue;
         let entries: string[];
         try {
-            entries = readdirSync(abs).filter((name) => name !== 'node_modules');
+            entries = readdirSync(abs).filter((name) => name !== 'node_modules' && !isBuildInfo(name));
         } catch {
             continue;
         }

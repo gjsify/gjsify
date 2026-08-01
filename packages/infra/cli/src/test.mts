@@ -21,6 +21,7 @@ import installBackendNativeWarnSuite from './utils/install-backend-native-warn.s
 import detectNativePackagesSuite from './utils/detect-native-packages.spec.js';
 import platformCheckSuite from './utils/platform-check.spec.js';
 import binShimSuite from './utils/bin-shim.spec.js';
+import binShimRuntimeOrderSuite from './bin-shim-runtime-order.spec.js';
 import nodeVersionSuite from './utils/node-version.spec.js';
 import authNpmrcSuite from './utils/auth-npmrc.spec.js';
 import promptKeySuite from './utils/prompt.spec.js';
@@ -82,6 +83,7 @@ run({
     detectNativePackagesSuite,
     platformCheckSuite,
     binShimSuite,
+    binShimRuntimeOrderSuite,
     nodeVersionSuite,
     inlineStaticReadsSuite,
     resolveNpmPackageSuite,

@@ -26,7 +26,16 @@ import { createCacheKey, getValidCachedPkg, symlinkSwap } from './dlx-cache.js';
 
 /** A cache dir plus two prepared trees, each tagged so we can tell them apart. */
 function fixture() {
-    const root = mkdtempSync(join(tmpdir(), 'gjsify-dlx-cache-'));
+    // `realpathSync` is load-bearing, not tidiness. `prepare()` below returns a
+    // CANONICAL path, while `os.tmpdir()` on macOS is `/var/folders/…` and
+    // `/var` is a symlink to `/private/var`. Mixing the two spaces breaks the
+    // link `symlinkSwap` writes: POSIX dir links are deliberately RELATIVE
+    // (`dirLinkTarget`), computed from the link's own directory, so a relative
+    // path from `/var/…/cachekey` to `/private/var/…/cachekey/tree-a` resolves
+    // from the link's REAL parent and lands nowhere — `realpathSync(linkPath)`
+    // then throws ENOENT out of `symlinkSwap`. Canonicalising the root puts
+    // both sides in one space; a no-op wherever `/tmp` is already real.
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'gjsify-dlx-cache-')));
     const cacheDir = join(root, 'cachekey');
     mkdirSync(cacheDir, { recursive: true });
     const prepare = (tag: string) => {
