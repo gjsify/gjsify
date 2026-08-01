@@ -26,7 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const RULE = join(MONOREPO_ROOT, 'scripts', 'manifest-conformance', 'rules', 'platforms-ci.mjs');
 
-const { archFromRunner, osFromRunner } = await import(`file://${RULE}`);
+const { archFromRunner, osFromRunner, parseMatrixIncludes } = await import(`file://${RULE}`);
 
 /** `<os>-<arch>` exactly as the audit composes it from a bare runner label. */
 const target = (runsOn) => `${osFromRunner(runsOn)}-${archFromRunner(runsOn)}`;
@@ -77,5 +77,86 @@ describe('runner label → arch', () => {
         // treats an unparsed job as unverified, never as broken.
         assert.equal(target('some-self-hosted-runner'), 'linux-x64');
         assert.equal(target('windows-2025'), 'win32-x64');
+    });
+});
+
+describe('matrix include entries → (arch, runner) pairs', () => {
+    const lines = (s) => s.split('\n');
+
+    it('pairs each arch with its own runner', () => {
+        // The shape `build-prebuilds` uses. `runs-on: ${{ matrix.runner }}`
+        // tells `osFromRunner` nothing, so the per-leg OS has to come from here.
+        const entries = parseMatrixIncludes(
+            lines(`    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Build
+        run: echo hi`),
+        );
+        assert.deepEqual(entries, [
+            { arch: 'x64', runner: 'ubuntu-latest' },
+            { arch: 'arm64', runner: 'ubuntu-24.04-arm' },
+        ]);
+    });
+
+    it('keeps a mixed-OS matrix from producing a cross product', () => {
+        // Two flat sets would yield FOUR targets — darwin-arm64, darwin-x64,
+        // and two that no job builds. The pairing is what keeps the promise
+        // equal to what CI actually produces.
+        const entries = parseMatrixIncludes(
+            lines(`      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel`),
+        );
+        const targets = entries.map((e) => `${osFromRunner(e.runner)}-${e.arch}`);
+        assert.deepEqual(targets, ['darwin-arm64', 'darwin-x64']);
+    });
+
+    it('reads entries that name no runner (the emulated legs)', () => {
+        // `build-prebuilds-qemu` has a literal `runs-on` and arch-only entries;
+        // the OS must keep coming from the job in that case.
+        const entries = parseMatrixIncludes(
+            lines(`      matrix:
+        include:
+          - arch: ppc64
+            image: fedora:43
+          - arch: s390x
+            image: fedora:43`),
+        );
+        assert.deepEqual(
+            entries.map((e) => e.arch),
+            ['ppc64', 's390x'],
+        );
+        assert.equal(entries[0].runner, undefined);
+    });
+
+    it('stops at the end of the matrix block', () => {
+        // A `- name:` step further down must not be read as a matrix entry.
+        const entries = parseMatrixIncludes(
+            lines(`      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+
+    steps:
+      - name: Build @gjsify/thing
+        run: meson compile`),
+        );
+        assert.equal(entries.length, 1);
+        assert.equal(entries[0].name, undefined);
+    });
+
+    it('returns nothing for a job with no matrix', () => {
+        assert.deepEqual(parseMatrixIncludes(lines('    runs-on: macos-latest\n    steps:\n      - run: true')), []);
     });
 });
