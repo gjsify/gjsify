@@ -99,17 +99,16 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "compact_str"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dfdd1c2274d9aa354115b09dc9a901d6c5576818cdf70d14cae2bdb47df00ab"
+checksum = "79fcda08c33bb58b97008b2cdada6622500e949e060f5913361763121abd2416"
 dependencies = [
  "castaway",
  "cfg-if",
  "itoa",
- "rustversion",
- "ryu",
  "serde",
  "static_assertions",
+ "zmij",
 ]
 
 [[package]]
@@ -607,18 +606,18 @@ checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
 name = "oxc-css-parser"
-version = "0.0.7"
+version = "0.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39176e812faa433a4f046e65844cb7bdbee4ef7708d377d050ddde3ae35d5b4f"
+checksum = "1bad14ada0bb04b4f3dcb031f0490779d91730dc8cc4738701d7ec4a2b6bc302"
 dependencies = [
  "oxc_allocator",
 ]
 
 [[package]]
 name = "oxc-graphql-parser"
-version = "0.0.7"
+version = "0.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa04aff7d58f2066181ea45b6d6eb7837ed2ca4c4bdbfc139142dde39796b3fc"
+checksum = "432777a8667de07a380b8e7785e1871ce0b39fd180dde50923b9c128792c0d6e"
 dependencies = [
  "memchr",
  "oxc_allocator",
@@ -672,7 +671,7 @@ checksum = "71bca8630e33e93a38d8dceb0daba6f562f29215b47098a7f05e8d295227ed94"
 
 [[package]]
 name = "oxc_allocator"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "allocator-api2",
  "hashbrown 0.17.1",
@@ -684,7 +683,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_ast"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "bitflags",
  "oxc_allocator",
@@ -700,17 +699,17 @@ dependencies = [
 
 [[package]]
 name = "oxc_ast_macros"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "phf",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
 name = "oxc_ast_visit"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "oxc_allocator",
  "oxc_ast",
@@ -732,11 +731,11 @@ dependencies = [
 
 [[package]]
 name = "oxc_data_structures"
-version = "0.140.0"
+version = "0.142.0"
 
 [[package]]
 name = "oxc_diagnostics"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "cow-utils",
  "oxc-miette",
@@ -745,22 +744,21 @@ dependencies = [
 
 [[package]]
 name = "oxc_ecmascript"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
- "cow-utils",
+ "dragonbox_ecma",
+ "itoa",
  "num-bigint",
  "num-traits",
- "oxc_allocator",
  "oxc_ast",
- "oxc_regular_expression",
+ "oxc_data_structures",
  "oxc_span",
  "oxc_syntax",
- "smallvec",
 ]
 
 [[package]]
 name = "oxc_estree"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "dragonbox_ecma",
  "itoa",
@@ -769,7 +767,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_formatter"
-version = "0.59.0"
+version = "0.61.0"
 dependencies = [
  "cow-utils",
  "fast-glob",
@@ -794,7 +792,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_formatter_core"
-version = "0.59.0"
+version = "0.61.0"
 dependencies = [
  "cow-utils",
  "oxc_allocator",
@@ -807,7 +805,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_formatter_css"
-version = "0.59.0"
+version = "0.61.0"
 dependencies = [
  "cow-utils",
  "oxc-css-parser",
@@ -820,7 +818,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_formatter_graphql"
-version = "0.59.0"
+version = "0.61.0"
 dependencies = [
  "cow-utils",
  "oxc-graphql-parser",
@@ -832,7 +830,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_formatter_json"
-version = "0.59.0"
+version = "0.61.0"
 dependencies = [
  "dragonbox_ecma",
  "oxc_allocator",
@@ -856,7 +854,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_jsdoc"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "oxc_ast",
  "oxc_span",
@@ -880,7 +878,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_napi"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "napi",
  "napi-build",
@@ -894,7 +892,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_parser"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "bitflags",
  "cow-utils",
@@ -916,7 +914,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_regular_expression"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "bitflags",
  "oxc_allocator",
@@ -943,7 +941,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_span"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "compact_str",
  "oxc-miette",
@@ -956,7 +954,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_str"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "compact_str",
  "hashbrown 0.17.1",
@@ -967,7 +965,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_syntax"
-version = "0.140.0"
+version = "0.142.0"
 dependencies = [
  "bitflags",
  "cow-utils",
@@ -986,7 +984,7 @@ dependencies = [
 
 [[package]]
 name = "oxfmt"
-version = "0.59.0"
+version = "0.61.0"
 dependencies = [
  "bpaf",
  "cow-utils",
@@ -999,7 +997,6 @@ dependencies = [
  "oxc-schemars",
  "oxc-toml",
  "oxc_allocator",
- "oxc_ast",
  "oxc_config",
  "oxc_diagnostics",
  "oxc_formatter",
@@ -1196,12 +1193,6 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
-
-[[package]]
-name = "ryu"
-version = "1.0.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "same-file"

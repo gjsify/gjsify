@@ -26,6 +26,12 @@
             "darwin-arm64"
         ],
         "prebuilds": "prebuilds",
+        "refsLockstep": {
+            "refs/oxc": {
+                "npm": "oxfmt",
+                "tag": "oxfmt_v{version}"
+            }
+        },
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
