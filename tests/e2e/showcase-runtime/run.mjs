@@ -29,9 +29,13 @@ function onPath(cmd) {
     }
 }
 
-function runCli(args, { cwd, timeoutMs = 30_000 } = {}) {
+function runCli(args, { cwd, timeoutMs = 30_000, env } = {}) {
     return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = spawn(process.execPath, [cliEntry, ...args], {
+            cwd,
+            env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
         let stdout = '';
         let stderr = '';
         child.stdout.setEncoding('utf-8');
@@ -183,5 +187,39 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
         assert.notEqual(gjsKey, nodeKey);
         // …and stays stable for the same input, or every launch re-installs.
         assert.equal(nodeKey, createCacheKey({ packages: [showcase, '@gjsify/node-gi@9.9.9'] }));
+    });
+
+    // The system-dependency gate is a question ABOUT the runtime, so it must be
+    // asked AFTER the runtime is resolved. It used to run three statements
+    // BEFORE, and `runMinimalChecks()` marks `gjs` `required` — so `showcase
+    // <name> --runtime node` aborted with "Missing system dependencies: ✗ GJS"
+    // on every host without a gjs binary (Windows, plain Node/bun/deno),
+    // without ever reaching the `runtime !== 'gjs'` branch that never touches
+    // gjs. The default path was hit too: `defaultExampleRuntime()` falls back
+    // to the host runtime on exactly those hosts.
+    //
+    // The probe is a gjs-ONLY showcase asked for under `--runtime node`, with
+    // PATH emptied so the host's own gjs cannot mask the regression. WHICH
+    // error comes back names which check ran first, and that ordering IS the
+    // property under test:
+    //   ordered right → "does not support --runtime node" (declaration check)
+    //   ordered wrong → "Missing system dependencies: ✗ GJS"
+    // It stays hermetic — the showcase dir resolves through the workspace
+    // symlink (local-first, no dlx, no network) and nothing is ever launched.
+    // An INVALID `--runtime` would be the more direct probe but never reaches
+    // the handler: yargs rejects it against the option's `choices` first.
+    it('resolves --runtime before gating on the gjs system deps', async () => {
+        const emptyBin = mkdtempSync(join(tmpdir(), 'gjsify-e2e-nogjs-'));
+        try {
+            // No `cwd`: the showcase dir resolves through `createRequire`
+            // relative to the CLI's own lib, never through the caller's cwd.
+            const r = await runCli(['showcase', 'webrtc-loopback', '--runtime', 'node'], {
+                env: { ...process.env, PATH: emptyBin },
+            });
+            assert.doesNotMatch(r.stderr, /Missing system dependencies/);
+            assert.match(r.stderr, /does not support --runtime node/);
+        } finally {
+            rmSync(emptyBin, { recursive: true, force: true });
+        }
     });
 });
