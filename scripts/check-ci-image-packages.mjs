@@ -11,16 +11,30 @@
 //      the check that sentence was asking for.
 //
 //   2. Which jobs still run on a bare `fedora:<major>` and pay `dnf install`
-//      on every run? Each one must appear in the ledger below WITH A REASON,
-//      printed on every run. That is the `unchecked-fields.mjs` idiom: an
-//      honest "not yet" is available, a silent one is not.
+//      on every run? A job that CAN switch and has not must appear in the
+//      ledger below WITH A REASON, printed on every run. That is the
+//      `unchecked-fields.mjs` idiom: an honest "not yet" is available, a
+//      silent one is not.
 //
 // Why (2) is worth a check rather than a comment: during the v0.26.0 release
 // sweep the `dnf install` step took 41 minutes twice (normal: 22 seconds) and
 // killed the Adwaita-storybook job on its timeout, while a Docker Hub pull
-// timeout independently failed `napi`. Thirteen jobs are exposed to that, two
+// timeout independently failed `napi`. Thirteen jobs were exposed to that, two
 // of them on the release path. The image that fixes it has existed since
-// `build-ci-image.yml` was written — these jobs simply never adopted it.
+// `build-ci-image.yml` was written — those jobs simply never adopted it. Ten
+// have since; the last three are the arm64 ones below.
+//
+// A job that CANNOT switch is DERIVED, never ledgered. `build-ci-image.yml`
+// builds `linux/amd64` only, so a job needing an arm64 runner has no image to
+// move to — a structural fact both files already state, and the ledger's job is
+// to record DECISIONS, not to keep a hand-written second copy of one. It kept
+// three: two entries claimed the switch was "deferred only to avoid editing
+// release.yml while #900 has it open" (#900 merged; the real blocker is an
+// arm64 matrix leg) and one claimed `prebuilds.yml` "pins fedora:43" (it pins
+// 44, and is likewise arm64). All three were prose that had drifted off the
+// thing it described, which is what deriving prevents. Widening the image to
+// linux/arm64 therefore deletes three exemptions at once, with nothing to
+// remember to update.
 //
 // Usage: node scripts/check-ci-image-packages.mjs [--json]
 
@@ -29,20 +43,15 @@ import { join } from 'node:path';
 
 const WORKFLOW_DIR = '.github/workflows';
 const DOCKERFILE = '.docker/ci-fedora.Dockerfile';
+const IMAGE_WORKFLOW = 'build-ci-image.yml';
 const BAKED_IMAGE = 'ghcr.io/gjsify/ci-fedora';
 
-// job id -> why it is still on a bare `fedora:<major>`. Delete the entry in the
-// same change that switches the job over; an entry for a job that no longer
-// uses a bare image is a FAILURE, so this cannot rot into a stale list.
-const BARE_IMAGE_LEDGER = {
-    'node-gi.yml/arm64': 'runs under QEMU on a foreign arch — needs a multi-arch image build first',
-    'release.yml/node-gi-prebuild-linux':
-        'ON THE RELEASE PATH — deferred only to avoid editing release.yml while #900 has it open',
-    'release.yml/napi-prebuild-linux':
-        'ON THE RELEASE PATH — deferred only to avoid editing release.yml while #900 has it open',
-    'prebuilds.yml/build-prebuilds':
-        'pins fedora:43 while the baked image tracks 43+44 — confirm the pin still matters',
-};
+// job id -> why a job that COULD run on the baked image deliberately does not.
+// Empty today, and the two ways it fails keep it that way: an entry for a job
+// that is no longer bare is a FAILURE, and so is an entry for a job the arch
+// derivation already excuses — a reason that is derivable must not also be
+// written down, or the copy drifts (all three that lived here did).
+const BARE_IMAGE_LEDGER = {};
 
 /** Packages a `dnf install` line asks for, with line continuations joined. */
 function packagesIn(run) {
@@ -73,13 +82,18 @@ function scanWorkflow(file) {
         const line = lines[i];
         const job = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
         if (job) {
-            cur = { id: `${file}/${job[1]}`, image: null, run: '' };
+            cur = { id: `${file}/${job[1]}`, image: null, run: '', runners: [] };
             jobs.push(cur);
             continue;
         }
         if (!cur) continue;
         const img = /^\s*image:\s*(\S+)/.exec(line);
         if (img && !cur.image) cur.image = img[1];
+        // Both spellings, because the arm64 legs use the second: a literal
+        // `runs-on:`, and the `runner:` values of a static matrix `include:`
+        // that `runs-on: ${{ matrix.runner }}` selects from.
+        const runner = /^\s*(?:- )?(?:runs-on|runner):\s*(\S+)/.exec(line);
+        if (runner && !runner[1].startsWith('${{')) cur.runners.push(runner[1]);
         if (/^\s*(- )?run:\s*\|/.test(line)) {
             for (let j = i + 1; j < lines.length && (lines[j].trim() === '' || /^ {10}/.test(lines[j])); j++) {
                 cur.run += lines[j] + '\n';
@@ -95,8 +109,30 @@ for (const m of dockerfile.matchAll(/RUN dnf install -y(.*?)&& dnf clean all/gs)
     for (const tok of m[1].split(/[\s\\]+/)) if (tok && !tok.startsWith('-')) baked.add(tok);
 }
 
+// The architectures the baked image is actually PUBLISHED for, read from the
+// workflow that publishes it rather than assumed. A job cannot move to an image
+// that was never built for its runner, and reading it here means widening
+// `platforms:` is the whole change — no exemption to also remember to delete.
+const imageWorkflow = readFileSync(join(WORKFLOW_DIR, IMAGE_WORKFLOW), 'utf8');
+const imageArches = new Set(
+    (/^\s*platforms:\s*(\S+)/m.exec(imageWorkflow)?.[1] ?? '')
+        .split(',')
+        .map((p) => p.split('/')[1])
+        .filter(Boolean),
+);
+if (!imageArches.size) {
+    console.error(
+        `::error::could not read a \`platforms:\` list from ${IMAGE_WORKFLOW} — the arch derivation is blind.`,
+    );
+    process.exit(1);
+}
+
+/** GitHub's runner labels carry the arch in their suffix; everything else is x86_64. */
+const runnerArch = (label) => (/-arm$|^.*arm64.*$/.test(label) ? 'arm64' : 'amd64');
+
 const problems = [];
 const bare = [];
+const excused = [];
 let bakedJobs = 0;
 
 for (const file of readdirSync(WORKFLOW_DIR).filter((f) => f.endsWith('.yml'))) {
@@ -115,6 +151,25 @@ for (const file of readdirSync(WORKFLOW_DIR).filter((f) => f.endsWith('.yml'))) 
         }
         if (!job.image.startsWith('fedora:')) continue;
         bare.push(job.id);
+
+        // Structurally excused: at least one of the job's runners is an arch
+        // the baked image is not published for, so there is nothing to switch
+        // to. Derived, so it needs no ledger entry and cannot go stale.
+        const unbuilt = [...new Set(job.runners.map(runnerArch))].filter((a) => !imageArches.has(a));
+        if (unbuilt.length) {
+            excused.push(
+                `${job.id} — runs on ${unbuilt.join('+')}, ${BAKED_IMAGE} is built for ${[...imageArches].join('+')} only`,
+            );
+            if (job.id in BARE_IMAGE_LEDGER) {
+                problems.push(
+                    `BARE_IMAGE_LEDGER lists ${job.id}, but the arch derivation already excuses it ` +
+                        `(${unbuilt.join('+')} runner, no such image). Delete the entry — a derivable reason ` +
+                        `written down twice is the copy that drifts.`,
+                );
+            }
+            continue;
+        }
+
         if (!(job.id in BARE_IMAGE_LEDGER)) {
             problems.push(
                 `${job.id} runs on a bare ${job.image} and pays dnf install on every run. ` +
@@ -134,10 +189,17 @@ for (const id of Object.keys(BARE_IMAGE_LEDGER)) {
 }
 
 if (process.argv.includes('--json')) {
-    console.log(JSON.stringify({ bakedJobs, bare, problems }, null, 2));
+    console.log(JSON.stringify({ bakedJobs, bare, excused, ledgered: BARE_IMAGE_LEDGER, problems }, null, 2));
 } else {
-    console.log(`ci-image: ${bakedJobs} job(s) on ${BAKED_IMAGE}, ${bare.length} still on a bare fedora image.`);
-    for (const id of bare.sort()) console.log(`  · ${id} — ${BARE_IMAGE_LEDGER[id] ?? 'UNDECLARED'}`);
+    console.log(
+        `ci-image: ${bakedJobs} job(s) on ${BAKED_IMAGE}, ${bare.length} still on a bare fedora image ` +
+            `(${excused.length} with no image to move to, ${Object.keys(BARE_IMAGE_LEDGER).length} ledgered).`,
+    );
+    // Printed every run, both kinds: the derived exemptions are the work item
+    // (one `platforms:` edit retires all of them), the ledgered ones are the
+    // decisions somebody owns.
+    for (const e of excused.sort()) console.log(`  · ${e}`);
+    for (const id of Object.keys(BARE_IMAGE_LEDGER).sort()) console.log(`  · ${id} — ${BARE_IMAGE_LEDGER[id]}`);
     for (const p of problems) console.error(`  ✗ ${p}`);
 }
 

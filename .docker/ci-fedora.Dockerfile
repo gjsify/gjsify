@@ -87,15 +87,21 @@ RUN dnf install -y \
     blueprint-compiler \
     && dnf clean all
 
-# Everything the node-gi / napi / prebuild / release jobs install for
-# themselves today. Those thirteen jobs run on a bare `fedora:<major>` and
-# `dnf install` their set at the start of EVERY run, which is what this image
-# exists to stop: during the v0.26.0 release sweep that step took 41 minutes
-# twice (its normal cost is 22 seconds) and killed the Adwaita-storybook job
-# on its 45-minute timeout, while a Docker Hub pull timeout independently
-# failed `napi`. Neither had anything to do with the code. Two of the thirteen
-# sit on the RELEASE path (release.yml's node-gi / napi prebuild jobs), so the
-# same mirror weather can strand a publish.
+# Everything the node-gi / napi / prebuild / release jobs used to install for
+# themselves. Thirteen jobs ran on a bare `fedora:<major>` and `dnf install`ed
+# their set at the start of EVERY run, which is what this image exists to stop:
+# during the v0.26.0 release sweep that step took 41 minutes twice (its normal
+# cost is 22 seconds) and killed the Adwaita-storybook job on its 45-minute
+# timeout, while a Docker Hub pull timeout independently failed `napi`. Neither
+# had anything to do with the code, and two of the thirteen sat on the RELEASE
+# path, so the same mirror weather could strand a publish.
+#
+# Ten have switched over. The three left are ALL blocked by one thing — they run
+# on `ubuntu-24.04-arm` and `build-ci-image.yml` publishes `linux/amd64` only —
+# so widening that `platforms:` list is what retires the last of them.
+# `scripts/check-ci-image-packages.mjs` DERIVES that rather than trusting a
+# comment: it reads the published arches and each job's runners, and the
+# hand-written exemption ledger it replaced is now empty.
 #
 # Baking these does not weaken what those jobs prove. They are not minimal on
 # purpose — every one of them installs gjs and the GNOME devel set itself; the
