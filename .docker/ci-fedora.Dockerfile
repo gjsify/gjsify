@@ -45,9 +45,14 @@ RUN dnf install -y \
 #
 # `glib2` (NOT just `glib2-devel`) ships the `glib-compile-resources` binary
 # that the `gjsify gresource` test hard-requires; `gettext` ships `msgfmt`
-# for the `gjsify gettext` test. This list MUST stay in lockstep with the
-# "Install GJS and GNOME development libraries" step in
-# `.github/workflows/main.yml` — that file is the source of truth.
+# for the `gjsify gettext` test.
+#
+# This list used to carry "MUST stay in lockstep with main.yml" — a convention
+# with nothing behind it, which is the shape of every drift this repo has paid
+# for. `scripts/check-ci-image-packages.mjs` now derives the answer: any job
+# running ON this image that still `dnf install`s something absent here is a
+# CI failure naming the package, and any job on a bare `fedora:<major>` must
+# appear in that script's ledger with a reason.
 RUN dnf install -y \
     gjs \
     glib2 \
@@ -80,6 +85,52 @@ RUN dnf install -y \
     gcc \
     pkgconf \
     blueprint-compiler \
+    && dnf clean all
+
+# Everything the node-gi / napi / prebuild / release jobs install for
+# themselves today. Those thirteen jobs run on a bare `fedora:<major>` and
+# `dnf install` their set at the start of EVERY run, which is what this image
+# exists to stop: during the v0.26.0 release sweep that step took 41 minutes
+# twice (its normal cost is 22 seconds) and killed the Adwaita-storybook job
+# on its 45-minute timeout, while a Docker Hub pull timeout independently
+# failed `napi`. Neither had anything to do with the code. Two of the thirteen
+# sit on the RELEASE path (release.yml's node-gi / napi prebuild jobs), so the
+# same mirror weather can strand a publish.
+#
+# Baking these does not weaken what those jobs prove. They are not minimal on
+# purpose — every one of them installs gjs and the GNOME devel set itself; the
+# thing they genuinely lack is `@gjsify/rolldown-native`, a workspace build
+# artifact no base image provides. Verified before adding: no job asserts that
+# a system library is ABSENT.
+RUN dnf install -y \
+    make \
+    gcc-c++ \
+    python3 \
+    unzip \
+    curl \
+    pkgconf-pkg-config \
+    ninja-build \
+    valgrind \
+    gjs-devel \
+    mozjs140-devel \
+    gobject-introspection \
+    libsoup3 \
+    glib-networking \
+    libnghttp2-devel \
+    gnutls-devel \
+    json-glib \
+    json-glib-devel \
+    libuv \
+    cairo \
+    cairo-devel \
+    cairo-gobject-devel \
+    pango \
+    gdk-pixbuf2 \
+    gtksourceview5-devel \
+    adwaita-icon-theme \
+    dejavu-sans-fonts \
+    dbus-daemon \
+    dbus-x11 \
     && dnf clean all
 
 # NOTE: no nodejs/npm baked in — the workflow uses actions/setup-node (Node
