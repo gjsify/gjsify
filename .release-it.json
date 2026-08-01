@@ -15,7 +15,7 @@
     "publish": false
   },
   "hooks": {
-    "after:bump": "node scripts/bump-docs-version.mjs ${latestVersion} ${version} && node scripts/verify-committed-bundles.mjs --rebuild"
+    "after:bump": "node scripts/bump-docs-version.mjs ${latestVersion} ${version} && node scripts/sync-artifact-pins.mjs && node scripts/verify-committed-bundles.mjs --rebuild"
   },
   "plugins": {
     "@release-it/bumper": {

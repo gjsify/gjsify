@@ -5,11 +5,17 @@ It lets [`@gjsify/node-gi`](../node-gi) load `gi://` namespaces (GLib · GObject
 Gio · cairo · Pango · Graphene · Gdk) with **no gvsbuild / system GTK** installed on
 the host — the Windows sibling of `@gjsify/gtk-runtime-darwin-arm64`.
 
-Platform-gated (`os: ["win32"]`, `cpu: ["x64"]`), tier 3 (experimental). On any
-other platform npm skips it and `@gjsify/node-gi` falls back to a system/gvsbuild
-GTK. The heavy `gtk/` payload is **not committed** — it is built on a Windows CI
-runner (`scripts/build-gtk-runtime.mjs`) and shipped via the package tarball /
-staged into node-gi's `prebuilds/win32-x64/gtk/`.
+Platform-gated (`os: ["win32"]`, `cpu: ["x64"]`). A **platform-gated artifact
+package** per [ADR 0003 rule 5](../../../docs/adr/0003-package-tiering.md): it
+carries `@gjsify/node-gi`'s own artifacts, says so with
+`gjsify.artifactOf: "@gjsify/node-gi"`, and therefore INHERITS node-gi's tier
+(**tier 2**) instead of arguing one of its own — its stability is node-gi's by
+construction. node-gi lists it in `optionalDependencies` at an exact version, so a
+Windows x64 install fetches it automatically; on any other platform the resolver
+skips it and `@gjsify/node-gi` falls back to a system/gvsbuild GTK. The heavy
+`gtk/` payload is **not committed** — it is built on a Windows CI runner
+(`scripts/build-gtk-runtime.mjs`) and shipped via the package tarball / staged into
+node-gi's `prebuilds/win32-x64/gtk/`.
 
 ## Layout
 

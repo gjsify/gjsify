@@ -102,24 +102,28 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
   batteries-included, relocated GTK/GI runtime bundle ships so `gi://` works with
   no Homebrew/gvsbuild GTK (Phase 2). node-gi auto-detects a bundle at load and
   prepends its typelib dir to the GIRepository search path (`gtk-runtime.js`).
-- **Those bundles are a MANUAL install today.**
+- **Those bundles install themselves — there is nothing to do.**
   [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64) and
-  [`@gjsify/gtk-runtime-win32-x64`](../gtk-runtime-win32-x64) are published, and
-  node-gi finds either one the moment it is present in the tree — but **no
-  package declares them as a dependency**, so nothing installs them for you.
-  Install the one for your platform alongside node-gi:
+  [`@gjsify/gtk-runtime-win32-x64`](../gtk-runtime-win32-x64) are
+  `optionalDependencies` of this package, pinned at its exact version. Both
+  declare `os`/`cpu`, so a resolver fetches only the one matching the host and
+  **silently skips** the rest — a platform mismatch on an *optional* dependency
+  is not an error (on a required one it is `EBADPLATFORM`, which is exactly why
+  these are optional). A Linux tree downloads neither. This is the esbuild model,
+  and it is the same rule `gjsify install` now applies to everyone else's
+  platform packages.
 
-  ```bash
-  npm install @gjsify/gtk-runtime-win32-x64      # Windows x64
-  npm install @gjsify/gtk-runtime-darwin-arm64   # macOS arm64
-  ```
+  A manual `npm install @gjsify/gtk-runtime-win32-x64` still works (e.g. to pin a
+  version other than the parent's), and `GJSIFY_GTK_RUNTIME=<bundle dir>` still
+  overrides the lookup — see
+  [How node-gi finds it](../gtk-runtime-win32-x64/README.md#how-node-gi-finds--activates-it).
 
-  Both declare `os`/`cpu`, so npm/yarn/pnpm skip them off-platform. Making them
-  `optionalDependencies` of this package (which would remove the manual step
-  without any consumer-side platform branching) is pending two decisions outside
-  this package — the ADR-0003 dependency-direction rule between node-gi's tier
-  and the bundles', and `os`/`cpu` filtering in `gjsify install`'s native
-  backend, which currently places foreign-platform optional deps.
+  Both blockers that made this a manual step are gone: `gjsify install`'s native
+  backend honours `os`/`cpu`/`libc`, so the edge cannot drop a 36 MB Windows
+  bundle into a Linux tree; and ADR 0003's rule-5 amendment recognises a
+  platform-gated *artifact* package as inheriting the tier of the package whose
+  artifacts it carries, which is what makes this dependency direction legal
+  ([ADR 0003 § Amendment](../../../docs/adr/0003-package-tiering.md)).
 - **Node.js ≥ 20, Bun ≥ 1.3, or Deno ≥ 2** — the addon is Node-API, so one binary
   runs on all three (see [Runtimes](#runtimes-node--bun--deno)).
 
@@ -1037,14 +1041,17 @@ marker and wires the env (`GSETTINGS_SCHEMA_DIR` / `GDK_PIXBUF_MODULE_FILE` /
 `XDG_DATA_DIRS` / `FONTCONFIG_*`); a display-free bundle carries no marker, so the
 wiring is a strict no-op and that load is byte-unchanged.
 
-The bundle is not pulled in automatically — `npm install
-@gjsify/gtk-runtime-win32-x64` alongside node-gi (see
-[Requirements](#requirements)). `resolveGtkRuntimeBundle()` finds it wherever the
-package manager placed it: an explicit `GJSIFY_GTK_RUNTIME` dir, a staged
-`prebuilds/<target>/gtk/`, the sibling monorepo checkout, or
-`require.resolve('@gjsify/gtk-runtime-<target>')` — the last of which covers a
-hoisted `node_modules/@gjsify/gtk-runtime-win32-x64`, so no loader change is
-needed if the dependency edge is ever declared.
+The bundle arrives on its own: it is an `optionalDependency` of node-gi, `os`/`cpu`
+gated to `win32`/`x64`, so a Windows install fetches it and every other platform
+skips it (see [Requirements](#requirements)). `resolveGtkRuntimeBundle()` finds it
+wherever the package manager placed it: an explicit `GJSIFY_GTK_RUNTIME` dir, a
+staged `prebuilds/<target>/gtk/`, the sibling monorepo checkout, or
+`require.resolve('@gjsify/gtk-runtime-<target>')` — the last of which covers the
+hoisted `node_modules/@gjsify/gtk-runtime-win32-x64` the dependency edge produces.
+Declaring the edge needed NO loader change, which is why the probe order was
+written this way; note it deliberately prefers a locally staged
+`prebuilds/<target>/gtk/` over the installed package, so a CI job that builds a
+fresh bundle still tests the fresh one.
 
 ### Adwaita widget breadth realizes + reacts + renders
 
