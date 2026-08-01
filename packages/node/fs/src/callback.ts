@@ -838,11 +838,12 @@ export function link(existingPath: PathLike, newPath: PathLike, callback: NoPara
 export function unlink(path: PathLike, callback: NoParamCallback): void {
     const pathStr = normalizePath(path);
     Promise.resolve().then(() => {
-        try {
-            GLib.unlink(pathStr);
-            callback(null);
-        } catch (err: unknown) {
-            callback(err as NodeJS.ErrnoException);
-        }
+        // GLib.unlink has no throw path (no `throws` in the GIR) — it reports
+        // failure only via its -1 return, which is discarded here, so this
+        // callback API cannot surface ENOENT/EACCES today. The old catch could
+        // only ever fire when the CALLBACK itself threw, and then invoked the
+        // callback a second time with the callback's own error.
+        GLib.unlink(pathStr);
+        callback(null);
     });
 }

@@ -58,7 +58,7 @@ cc_sources = files(
 # resolves from the typelib. That closes the same hygiene contract the
 # version-script/exported-symbols-list enforce elsewhere. The Windows build
 # still requires a from-source gjs + mozjs-140 toolchain (clang-cl/MSVC; see
-# STATUS.md "N-API host in GJS" cross-platform prebuilds + the `windows` job in
+# status/open-todos.md "N-API host in GJS" cross-platform prebuilds + the `windows` job in
 # napi.yml) — mozjs-140 is now obtainable (servo/mozjs prebuilt
 # libmozjs-x86_64-pc-windows-msvc), the open wall is gjs-on-Windows itself.
 host_system = host_machine.system()

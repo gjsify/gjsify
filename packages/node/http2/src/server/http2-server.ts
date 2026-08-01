@@ -167,7 +167,7 @@ export class Http2Server extends EventEmitter {
         // Lazy import keeps the module out of the Node bundle for createServer
         // consumers who never opt into the native path.
         //
-        // KNOWN GAP, tracked in STATUS.md § Open TODOs. Same class + same
+        // KNOWN GAP, tracked in status/open-todos.md. Same class + same
         // constraint as the client-side load in `client-session.ts`: a static
         // import would drag `@gjsify/http2-native` into every consumer, and the
         // ESM fix (`await import()`) means making `listen()` async, which Node's
@@ -466,12 +466,19 @@ function _createTlsCertificate(certPem: string, keyPem: string): Gio.TlsCertific
             const tlsCert = Gio.TlsCertificate.new_from_files(certPath, keyPath);
             return tlsCert;
         } finally {
+            // Best-effort temp-file cleanup: delete(null) throws when the file
+            // was never written (file_set_contents failed above) — that failure
+            // must not mask the certificate result/error leaving this block.
             try {
                 Gio.File.new_for_path(certPath).delete(null);
-            } catch {}
+            } catch {
+                // See above.
+            }
             try {
                 Gio.File.new_for_path(keyPath).delete(null);
-            } catch {}
+            } catch {
+                // See above.
+            }
         }
     }
 }

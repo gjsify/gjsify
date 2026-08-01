@@ -4,5 +4,6 @@ import './index.js';
 import { run } from '@gjsify/unit';
 
 import testSuite from './index.spec.js';
+import randomSuite from './random.spec.js';
 
-run({ testSuite });
+run({ testSuite, randomSuite });

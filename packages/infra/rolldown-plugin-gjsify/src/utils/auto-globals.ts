@@ -54,7 +54,7 @@ const defaultBundler: AnalysisBundler = async ({ rolldownInput, format }) => {
         await build.close();
     }
 };
-import { detectFreeGlobals, detectGjsAmbientGlobals } from './detect-free-globals.js';
+import { detectFreeGlobals, detectGjsAmbientGlobals, detectNodeGiModuleImports } from './detect-free-globals.js';
 import {
     resolveGlobalsList,
     writeRegisterInjectFile,
@@ -470,7 +470,11 @@ export async function detectAutoGlobals(
                             `[gjsify-auto-globals] parse failed on chunk #${i} — wrote ${path} for inspection`,
                         );
                     } catch {
-                        /* ignore */
+                        // Deliberately swallowed, and the ONLY reason this
+                        // catch is legitimate: writing the debug dump is
+                        // best-effort (permissions, disk), and letting its
+                        // failure escape would replace the real parse error
+                        // `e` — rethrown below — with a misleading one.
                     }
                 }
                 throw e;
@@ -560,13 +564,24 @@ export async function detectAutoGlobals(
 }
 
 /**
- * `--app node` GJS-ambient-globals detection (the reverse of `--globals auto`).
+ * `--app node` genuine-GJS-source detection (the reverse of `--globals auto`).
  *
- * Runs ONE in-memory node bundle (no injection) and scans each chunk for the
- * GJS ambient globals (`print`/`printerr`/`log`/`logError`/`ARGV`/`imports`)
- * that `@gjsify/node-gi/globals` seeds. Returns `true` iff any is referenced in
- * the bundled, tree-shaken output — the signal the CLI uses to flip
- * `pluginOptions.nodeGiGlobalsInject` for the final build.
+ * Runs ONE in-memory node bundle (no injection) and scans each chunk for TWO
+ * signals, either of which flips `pluginOptions.nodeGiGlobalsInject` for the
+ * final build:
+ *
+ *  1. a GJS ambient global (`print`/`printerr`/`log`/`logError`/`ARGV`/
+ *     `imports`) referenced as a BARE identifier — the legacy GJS-source shape
+ *     `@gjsify/node-gi/globals` seeds (`detectGjsAmbientGlobals`);
+ *  2. a STATIC import of `@gjsify/node-gi` (root or subpath) — the shape the
+ *     bare GJS built-ins (`system`/`gettext`/`cairo`) are externalised to, i.e.
+ *     the PORTABLE GJS-source spelling (`detectNodeGiModuleImports`). A bundle
+ *     retaining one is already bound to the bridge at load, so flipping
+ *     injection cannot cost plain-Node loadability — while a portable GJS app
+ *     with no ambient global at all (e.g. `system.programArgs` instead of
+ *     `ARGV`) would otherwise get its `@girs/*` bodies emptied and its globals
+ *     shim dropped (the `gjsify storybook --runtime node` no-`requireGi`
+ *     regression).
  *
  * A SINGLE pass suffices (unlike the GJS register-injection loop): the shim is
  * EXTERNAL, so injecting it adds no bundled code that could reference more
@@ -646,6 +661,7 @@ export async function detectNodeGiGlobals(
 
     for (const code of chunkCodes) {
         if (detectGjsAmbientGlobals(code).size > 0) return true;
+        if (detectNodeGiModuleImports(code)) return true;
     }
     return false;
 }

@@ -74,7 +74,10 @@ export async function createProject(options: CreateProjectOptions): Promise<void
         console.error(
             `Error: Directory "${projectName}" exists and is not empty. Use --force to scaffold into it anyway.`,
         );
-        process.exit(1);
+        // `return` — a bare `process.exit()` is deferred under GJS (no atexit),
+        // so execution fell through and scaffolded into the non-empty
+        // directory the message just refused.
+        return process.exit(1);
     }
 
     console.log(`Creating new Gjsify project in ${targetDir} (template: ${info.name})...`);

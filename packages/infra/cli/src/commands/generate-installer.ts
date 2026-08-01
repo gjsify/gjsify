@@ -75,8 +75,7 @@ export const generateInstallerCommand: Command<unknown, GenerateInstallerOptions
         const outputPath = resolve(process.cwd(), args.output);
         if (existsSync(outputPath) && !args.force) {
             console.error(`${args.output} already exists. Re-run with --force to overwrite.`);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
 
         const pkgJsonPath = resolve(process.cwd(), 'package.json');
@@ -94,8 +93,7 @@ export const generateInstallerCommand: Command<unknown, GenerateInstallerOptions
             console.error(
                 'No target package: pass `gjsify generate-installer <pkg>` or run inside a directory with a package.json.',
             );
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
 
         const binName = args['bin-name'] ?? pickDefaultBinName(pkgJson, target);

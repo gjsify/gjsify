@@ -195,9 +195,9 @@ export default async () => {
                 setTimeout(() => {
                     writeFileSync(watchMe, '// test');
                     setTimeout(() => {
-                        try {
-                            unlinkSync(watchMe);
-                        } catch {}
+                        // force:true is the non-throwing spelling of "remove if
+                        // still there" — a real failure (EACCES) still surfaces.
+                        rmSync(watchMe, { force: true });
                         watcher.close();
                         resolve();
                     }, 100);

@@ -465,19 +465,38 @@ jobs:
       - name: Install the gjsify workspace (committed CLI bundle, Node-free)
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
-      # Repoint the workspace `.bin/gjsify` at a Node-runnable published @gjsify/cli
-      # so every `gjsify build` below runs under Node (npm `rolldown`), NOT the
-      # committed GJS bundle (which needs the absent @gjsify/rolldown-native). The
-      # published cli ships a prebuilt Node entry; install the version the workspace
-      # pins (one release train per ADR 0008) into a scratch dir and symlink it in.
-      - name: Use a published @gjsify/cli as the Node bundler (npm rolldown)
+      # A published @gjsify/cli (npm rolldown) is the BOOTSTRAP bundler: the committed
+      # GJS bundle needs the absent @gjsify/rolldown-native, and the published cli
+      # ships a prebuilt Node entry. It is NOT the bundler under test. A job that
+      # builds with the LAST RELEASE cannot observe a change to the bundler in THIS
+      # checkout, and that is not hypothetical: the storybook proof went red on a
+      # defect #890 had already fixed in source, and STAYED red, because the published
+      # cli carried the pre-fix detector. The bootstrap's only job is to build this
+      # checkout's cli; from there on we use that one.
+      - name: Bootstrap a Node bundler, then switch to this checkout's cli
         run: |
           CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
           mkdir -p /tmp/gjsify-node-cli
+          # Prefer the version this checkout declares, but do NOT require it to be
+          # on npm yet. The release commit bumps every package.json and only THEN
+          # does release.yml publish, so between those two events this step asks
+          # npm for a version that provably does not exist — `npm error notarget
+          # No matching version found for @gjsify/cli@<v>` — and reddens main on
+          # every single release. A recurring, self-resolving red teaches people
+          # to ignore the signal. Same guard napi.yml already carries.
           ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+            && ( npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null \
+                 || { echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."; \
+                      npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save; } ) )
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
-          echo "Node bundler: $(node_modules/.bin/gjsify --version)"
+          echo "Bootstrap bundler: $(node_modules/.bin/gjsify --version)"
+
+          # ...and that is only the BOOTSTRAP. Build THIS checkout's CLI with it, then
+          # switch over, so everything below is gated by the source in this PR rather
+          # than by the last release.
+          PATH="$PWD/node_modules/.bin:$PATH" node_modules/.bin/gjsify run build:infra
+          ln -sfn "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
+          echo "Node bundler (this checkout): $(node_modules/.bin/gjsify --version)"
 
       # Build only what the --app node bundle inlines: @gjsify/sqlite's lib and
       # @gjsify/unit's lib (+ their transitive workspace-dep libs, topological).
@@ -773,7 +792,7 @@ jobs:
           # `@gjsify/canvas2d-core/gdk` side-effect subpath) and is now
           # machine-checked per ADR 0015 — `gjsify.headless` in the package's
           # manifest, enforced by `audit-runtimes --check` against the ROOT
-          # entry graph, so it cannot silently come back. STATUS.md records the
+          # entry graph, so it cannot silently come back. status/status.json records the
           # package measuring 578/578 on node+bun+deno. Adding gtk4 here would
           # still drag graphene/vulkan-loader into a 20-minute job, so promoting
           # it into this proof set is a separate cost decision, not a blocked
@@ -826,19 +845,42 @@ jobs:
       - name: Install the gjsify workspace (committed CLI bundle, Node-free)
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
-      # Repoint the workspace .bin/gjsify at a Node-runnable published @gjsify/cli
-      # (npm rolldown) + link @gjsify/node-gi at the workspace root so every
-      # package's dist/ resolves the reverse-bridge addon at runtime.
-      - name: Use a published @gjsify/cli as the Node bundler + link node-gi
+      # A published @gjsify/cli (npm rolldown) is the BOOTSTRAP bundler: the committed
+      # GJS bundle needs the absent @gjsify/rolldown-native, and the published cli
+      # ships a prebuilt Node entry. It is NOT the bundler under test. A job that
+      # builds with the LAST RELEASE cannot observe a change to the bundler in THIS
+      # checkout, and that is not hypothetical: the storybook proof went red on a
+      # defect #890 had already fixed in source, and STAYED red, because the published
+      # cli carried the pre-fix detector. The bootstrap's only job is to build this
+      # checkout's cli; from there on we use that one.
+      # Also links @gjsify/node-gi at the workspace root so every package's dist/
+      # resolves the reverse-bridge addon at runtime.
+      - name: Bootstrap a Node bundler + link node-gi, then switch to this checkout's cli
         run: |
           CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
           mkdir -p /tmp/gjsify-node-cli
+          # Prefer the version this checkout declares, but do NOT require it to be
+          # on npm yet. The release commit bumps every package.json and only THEN
+          # does release.yml publish, so between those two events this step asks
+          # npm for a version that provably does not exist — `npm error notarget
+          # No matching version found for @gjsify/cli@<v>` — and reddens main on
+          # every single release. A recurring, self-resolving red teaches people
+          # to ignore the signal. Same guard napi.yml already carries.
           ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+            && ( npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null \
+                 || { echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."; \
+                      npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save; } ) )
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
           mkdir -p node_modules/@gjsify
           ln -sfn ../../packages/node-gi/node-gi node_modules/@gjsify/node-gi
-          echo "Node bundler: $(node_modules/.bin/gjsify --version)"
+          echo "Bootstrap bundler: $(node_modules/.bin/gjsify --version)"
+
+          # ...and that is only the BOOTSTRAP. Build THIS checkout's CLI with it, then
+          # switch over, so everything below is gated by the source in this PR rather
+          # than by the last release.
+          PATH="$PWD/node_modules/.bin:$PATH" node_modules/.bin/gjsify run build:infra
+          ln -sfn "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
+          echo "Node bundler (this checkout): $(node_modules/.bin/gjsify --version)"
 
       - name: Build proof-set libs under Node (+ workspace deps)
         run: |
@@ -1718,17 +1760,38 @@ jobs:
       - name: Install the gjsify workspace (committed CLI bundle, Node-free)
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
-      # Repoint the workspace `.bin/gjsify` at a Node-runnable published @gjsify/cli
-      # (npm rolldown), NOT the committed GJS bundle (which needs the absent
-      # @gjsify/rolldown-native). Install the version the workspace pins.
-      - name: Use a published @gjsify/cli as the Node bundler (npm rolldown)
+      # A published @gjsify/cli (npm rolldown) is the BOOTSTRAP bundler: the committed
+      # GJS bundle needs the absent @gjsify/rolldown-native, and the published cli
+      # ships a prebuilt Node entry. It is NOT the bundler under test. A job that
+      # builds with the LAST RELEASE cannot observe a change to the bundler in THIS
+      # checkout, and that is not hypothetical: the storybook proof went red on a
+      # defect #890 had already fixed in source, and STAYED red, because the published
+      # cli carried the pre-fix detector. The bootstrap's only job is to build this
+      # checkout's cli; from there on we use that one.
+      - name: Bootstrap a Node bundler, then switch to this checkout's cli
         run: |
           CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
           mkdir -p /tmp/gjsify-node-cli
+          # Prefer the version this checkout declares, but do NOT require it to be
+          # on npm yet. The release commit bumps every package.json and only THEN
+          # does release.yml publish, so between those two events this step asks
+          # npm for a version that provably does not exist — `npm error notarget
+          # No matching version found for @gjsify/cli@<v>` — and reddens main on
+          # every single release. A recurring, self-resolving red teaches people
+          # to ignore the signal. Same guard napi.yml already carries.
           ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+            && ( npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save 2>/dev/null \
+                 || { echo "::warning::@gjsify/cli@${CLI_VERSION} is not on npm (yet) — falling back to @latest."; \
+                      npm install "@gjsify/cli@latest" --no-audit --no-fund --no-save; } ) )
           ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
-          echo "Node bundler: $(node_modules/.bin/gjsify --version)"
+          echo "Bootstrap bundler: $(node_modules/.bin/gjsify --version)"
+
+          # ...and that is only the BOOTSTRAP. Build THIS checkout's CLI with it, then
+          # switch over, so everything below is gated by the source in this PR rather
+          # than by the last release.
+          PATH="$PWD/node_modules/.bin:$PATH" node_modules/.bin/gjsify run build:infra
+          ln -sfn "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
+          echo "Node bundler (this checkout): $(node_modules/.bin/gjsify --version)"
 
       # Build @gjsify/storybook's lib (+ its transitive workspace deps incl.
       # @gjsify/devtools, which the storybook probe uses) so the showcase bundle
@@ -1746,9 +1809,37 @@ jobs:
         working-directory: showcases/gtk/adwaita-storybook
         run: |
           export PATH="$PWD/../../../node_modules/.bin:$PATH"
-          gjsify storybook --runtime node --build-only --out dist/storybook.node.mjs
+          # `set -x` + an explicit status check: this step failed twice with
+          # NOTHING but "Found 35 story file(s)" and exit 1 — no error, no
+          # stack, and it reproduces green locally with the same commit. A
+          # silent non-zero is not a puzzle to solve by inspection, it is one
+          # to make legible, so surface which command died and with what.
+          set -x
+          gjsify storybook --runtime node --build-only --out dist/storybook.node.mjs || {
+              rc=$?
+              echo "::error::gjsify storybook exited ${rc} with no diagnostic output."
+              echo "--- storybook entry the CLI generated ---"
+              cat node_modules/.cache/gjsify-storybook/entry.ts 2>/dev/null | head -40 || echo "(no entry written)"
+              echo "--- is @gjsify/node-gi resolvable from here? ---"
+              node -e 'console.log(require.resolve("@gjsify/node-gi/package.json"))' 2>&1 | head -3
+              exit "${rc}"
+          }
           node --check dist/storybook.node.mjs
-          grep -q requireGi dist/storybook.node.mjs
+          # The assertions are where it actually dies (set -x proved it: the
+          # build and node --check both pass, `grep -q requireGi` is the last
+          # traced command). A bare `grep -q` reports only "not found", so dump
+          # what the bundle DOES contain instead of guessing again.
+          if ! grep -q requireGi dist/storybook.node.mjs; then
+              echo "::error::bundle has no requireGi — gi:// was never rewritten, so nodeGiGlobalsInject did not fire."
+              echo "--- bytes: $(wc -c < dist/storybook.node.mjs) ---"
+              echo "--- @gjsify/node-gi occurrences: $(grep -c '@gjsify/node-gi' dist/storybook.node.mjs || true) ---"
+              echo "--- gi:// occurrences: $(grep -c 'gi://' dist/storybook.node.mjs || true) ---"
+              echo "--- static imports in the emitted bundle ---"
+              grep -oE "^import[^;]{0,120};" dist/storybook.node.mjs | head -20
+              echo "--- generated entry ---"
+              head -20 node_modules/.cache/gjsify-storybook/entry.ts 2>/dev/null || echo "(no entry)"
+              exit 1
+          fi
           grep -q "@gjsify/node-gi" dist/storybook.node.mjs
           if grep -q "gi://" dist/storybook.node.mjs; then echo "raw gi:// left in bundle"; exit 1; fi
           echo "storybook --app node bundle OK ($(wc -c < dist/storybook.node.mjs) bytes)"

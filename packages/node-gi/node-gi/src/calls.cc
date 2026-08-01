@@ -28,10 +28,23 @@ struct NodeGiCallback {
   ffi_closure* closure;  // from gi_callable_info_create_closure
   gpointer native;       // executable trampoline address
   GIScopeType scope;
-  // scope=async only: counted in the auto-pump's in-flight keep-alive (the
-  // pending completion keeps the Node process alive, like in-flight Node I/O).
-  // Released exactly once — at the trampoline's single invocation, or at free
-  // if the callback never fired (an error path).
+  // Counted in the auto-pump's in-flight keep-alive — the process stays alive
+  // while JS-armed GLib work is outstanding, like in-flight Node I/O.
+  //   • scope=async    — a one-shot completion (GAsyncReadyCallback), released
+  //     at the trampoline's single invocation.
+  //   • scope=notified — a callback GLib owns until its GDestroyNotify fires:
+  //     `GLib.timeout_add` / `GLib.idle_add` and friends. Released by
+  //     NodeGiCallbackFree, i.e. exactly when GLib drops the source (the
+  //     callback returned SOURCE_REMOVE, or `GLib.Source.remove` killed it).
+  // Either way released exactly once, also at free if it never fired.
+  //
+  // Counting the JS-ARMED sources is the point: a source armed from JS is
+  // program work the process must survive for, while a source armed inside C —
+  // GDK's frame clock, GIO's portal/a11y retries — is library plumbing that
+  // `gjs -m` would never stay alive for either. Keying the keep-alive on "the
+  // context has ANY scheduled source" instead made a finished GTK program
+  // immortal: GDK leaves a ~1 s repeating timeout armed, so the context reports
+  // work forever while nothing is ever ready to dispatch.
   bool pumpCounted = false;
 };
 
@@ -301,10 +314,14 @@ static NodeGiCallback* CreateCallback(Napi::Env env, Napi::Function fn, GICallab
   cb->env = env;
   cb->info = reinterpret_cast<GICallableInfo*>(gi_base_info_ref(callbackInfo));
   cb->scope = scope;
-  // An async-scope callback is a one-shot in-flight operation (GAsyncReadyCallback
-  // et al): count it in the auto-pump keep-alive so the Node process stays alive
-  // until the completion dispatches (no-op off-Node / on non-owner envs).
-  if (scope == GI_SCOPE_TYPE_ASYNC) cb->pumpCounted = NodeGiPumpAsyncBegin(env);
+  // Count the JS-armed GLib work in the auto-pump keep-alive so the process
+  // stays alive until it completes: a one-shot in-flight operation
+  // (GAsyncReadyCallback et al, scope=async) or a source GLib owns until its
+  // destroy-notify (`GLib.timeout_add`/`idle_add`, scope=notified). See the
+  // `pumpCounted` note above for why JS-armed is the right unit.
+  if (scope == GI_SCOPE_TYPE_ASYNC || scope == GI_SCOPE_TYPE_NOTIFIED) {
+    cb->pumpCounted = NodeGiPumpAsyncBegin(env);
+  }
   napi_create_reference(env, fn, 1, &cb->jsFn);
   cb->closure = gi_callable_info_create_closure(callbackInfo, &cb->cif, NodeGiCallbackTrampoline, cb);
   cb->native = gi_callable_info_get_closure_native_address(callbackInfo, cb->closure);
@@ -545,6 +562,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // the invoke (the callee ref'd the GBytes if it kept it), transfer-full refs
   // belong to the callee (dropped only when the callee never ran).
   CreatedBytes createdBytes;
+  CreatedValues createdValues;
   bool ok = true;
   size_t jsCursor = 0;
   for (unsigned int i = 0; i < n_args && ok; i++) {
@@ -800,7 +818,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
       } else {
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
         ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings,
-                            &createdClosures, &createdBytes);
+                            &createdClosures, &createdBytes, &createdValues);
       }
     }
 
@@ -818,6 +836,9 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     // Likewise every fresh GBytes built from a JS typed array — never adopted.
     for (GBytes* b : createdBytes.transferNone) g_bytes_unref(b);
     for (GBytes* b : createdBytes.transferFull) g_bytes_unref(b);
+    // Likewise every GValue boxed from a plain JS value — never adopted.
+    for (GValue* gv : createdValues.transferNone) NodeGiFreeBoxedGValue(gv);
+    for (GValue* gv : createdValues.transferFull) NodeGiFreeBoxedGValue(gv);
     // Likewise the transfer-full-instance ref: the callee never consumed it.
     if (instanceRefTaken) g_object_unref(static_cast<GObject*>(instance));
     for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
@@ -857,6 +878,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // paths). A callee that kept the bytes (GdkPixbuf.Pixbuf.new_from_bytes) holds
   // its own ref. Transfer-full GBytes were adopted by the callee — no release.
   for (GBytes* b : createdBytes.transferNone) g_bytes_unref(b);
+  // Transfer-none GValue IN-args boxed from plain JS values: the callee copied
+  // whatever it needed (g_object_set_property copies into the property), so the
+  // box is ours to free — success AND error paths, mirroring the GBytes rule.
+  // Transfer-full GValues were adopted by the callee — no release.
+  for (GValue* gv : createdValues.transferNone) NodeGiFreeBoxedGValue(gv);
   if (!success) {
     for (const InContainer& c : inContainers) FreeInContainer(c);
     // A failed invoke did not adopt the transfer-full IN/INOUT strings we g_strdup'd

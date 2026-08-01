@@ -5,12 +5,12 @@
 //
 // Reference: GStreamer 1.0 via gi://Gst, GstApp via gi://GstApp
 
-import { ensureGstInit, Gst, isGstStreamingUnsafe } from './gst-init.js';
+import { ensureGstInit, Gst } from './gst-init.js';
+import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import { AudioBuffer } from './audio-buffer.js';
 
-// Force GstApp typelib load so get_by_name() resolves AppSrc/AppSink types
-import GstApp from 'gi://GstApp?version=1.0';
-void GstApp;
+// The GstApp typelib is loaded by ensureGstInit() — see gst-init.ts for why a
+// bare `import`/`void` does not do it on the node-gi reverse bridge.
 
 const PIPELINE_DESC =
     'appsrc name=src ! decodebin ! audioconvert ! audioresample ! ' +
@@ -25,14 +25,6 @@ const PIPELINE_DESC =
  * It must be called from the main thread (GJS requirement).
  */
 export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
-    // Fail cleanly (never crash) on runtimes where the streaming-thread
-    // `decodebin` pipeline segfaults via the node-gi reverse bridge (bun/deno).
-    // See isGstStreamingUnsafe() — the rejection is what a WebAudio consumer
-    // already handles, and decode does not work on the node target regardless.
-    if (isGstStreamingUnsafe()) {
-        throw new DOMException('Unable to decode audio data', 'EncodingError');
-    }
-
     ensureGstInit();
 
     // Reject non-ArrayBuffer / empty input before touching GStreamer —
@@ -58,44 +50,67 @@ export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
     const appsrc = pipeline.get_by_name('src') as _AppSrc;
     const appsink = pipeline.get_by_name('sink') as _AppSink;
 
+    // Registered + torn down in `finally`: anything between PLAYING and NULL can
+    // throw (a push/pull failure, a malformed sample), and an early return left
+    // the pipeline PLAYING to be disposed later — one GStreamer-CRITICAL per
+    // element, emitted long after the decode that caused it.
+    trackPipeline(pipeline);
     pipeline.set_state(Gst.State.PLAYING);
 
-    // Push encoded data into the pipeline
-    const data = new Uint8Array(arrayBuffer);
-    appsrc.push_buffer(Gst.Buffer.new_wrapped(data));
-    appsrc.end_of_stream();
-
-    // Pull decoded PCM samples
     const chunks: Uint8Array[] = [];
     let sampleRate = 0;
     let channels = 0;
 
-    while (true) {
-        const sample = appsink.try_pull_sample(2 * Number(Gst.SECOND));
-        if (!sample) break;
+    try {
+        // Push encoded data into the pipeline
+        const data = new Uint8Array(arrayBuffer);
+        appsrc.push_buffer(Gst.Buffer.new_wrapped(data));
+        appsrc.end_of_stream();
 
-        // Read format from the first sample's negotiated caps
-        if (sampleRate === 0) {
-            const caps = sample.get_caps();
-            if (caps) {
-                const struct = caps.get_structure(0);
-                [, sampleRate] = struct.get_int('rate');
-                [, channels] = struct.get_int('channels');
+        // Pull decoded PCM samples
+        while (true) {
+            const sample = appsink.try_pull_sample(2 * Number(Gst.SECOND));
+            if (!sample) break;
+
+            // Read format from the first sample's negotiated caps
+            if (sampleRate === 0) {
+                const caps = sample.get_caps();
+                if (caps) {
+                    const struct = caps.get_structure(0);
+                    [, sampleRate] = struct.get_int('rate');
+                    [, channels] = struct.get_int('channels');
+                }
+            }
+
+            const buffer = sample.get_buffer();
+            if (!buffer) continue;
+
+            // `extract_dup` rather than map/unmap + `GstMapInfo.data`.
+            //
+            // `data` is a raw `guint8*` FIELD whose length lives in a sibling
+            // `size` field — a dependency GI cannot express for a struct field
+            // read. gjs resolves it anyway; `@gjsify/node-gi` marshals it as an
+            // EMPTY array, and nothing says so: measured on a decoded sample,
+            // `mapInfo.size` is 8192 and `mapInfo.data.length` is 0. Decode
+            // therefore produced an AudioBuffer of ZERO frames on the reverse
+            // bridge, `_interleave` returned nothing, `GstPlayer` fired `ended`
+            // without ever building a pipeline, and audio was silent on node with
+            // no error at any layer.
+            //
+            // `gst_buffer_extract_dup` is an ordinary GI method that returns a
+            // COPY with a real length on BOTH runtimes (verified: 8192 on node,
+            // correct bytes on gjs), so it sidesteps the field-marshalling gap
+            // entirely — and it needs no unmap, which removes a lifetime pairing
+            // from this loop. The node-gi field gap is tracked
+            // in status/open-todos.md.
+            const size = buffer.get_size();
+            if (size > 0) {
+                chunks.push(new Uint8Array(buffer.extract_dup(0, size)));
             }
         }
-
-        const buffer = sample.get_buffer();
-        if (!buffer) continue;
-
-        const [ok, mapInfo] = buffer.map(Gst.MapFlags.READ);
-        if (ok) {
-            // Copy data — mapInfo.data is only valid until unmap
-            chunks.push(new Uint8Array(mapInfo.data));
-            buffer.unmap(mapInfo);
-        }
+    } finally {
+        stopPipeline(pipeline);
     }
-
-    pipeline.set_state(Gst.State.NULL);
 
     if (sampleRate === 0 || channels === 0) {
         throw new DOMException('Unable to decode audio data', 'EncodingError');

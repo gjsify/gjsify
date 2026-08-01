@@ -131,48 +131,43 @@ export class TLSSocket extends Socket {
         }
     }
 
-    /** Get the negotiated TLS protocol version. */
+    /**
+     * Get the negotiated TLS protocol version.
+     *
+     * No try/catch here or in the two getters below: get_protocol_version,
+     * get_ciphersuite_name and get_negotiated_protocol are plain GObject
+     * property getters with no throw path in the GIR, and all exist since
+     * GLib 2.70 (below our runtime floor).
+     */
     getProtocol(): string | null {
         if (!this._tlsConnection) return null;
-        try {
-            const proto = this._tlsConnection.get_protocol_version();
-            switch (proto) {
-                case Gio.TlsProtocolVersion.TLS_1_0:
-                    return 'TLSv1';
-                case Gio.TlsProtocolVersion.TLS_1_1:
-                    return 'TLSv1.1';
-                case Gio.TlsProtocolVersion.TLS_1_2:
-                    return 'TLSv1.2';
-                case Gio.TlsProtocolVersion.TLS_1_3:
-                    return 'TLSv1.3';
-                default:
-                    return null;
-            }
-        } catch {
-            return null;
+        const proto = this._tlsConnection.get_protocol_version();
+        switch (proto) {
+            case Gio.TlsProtocolVersion.TLS_1_0:
+                return 'TLSv1';
+            case Gio.TlsProtocolVersion.TLS_1_1:
+                return 'TLSv1.1';
+            case Gio.TlsProtocolVersion.TLS_1_2:
+                return 'TLSv1.2';
+            case Gio.TlsProtocolVersion.TLS_1_3:
+                return 'TLSv1.3';
+            default:
+                return null;
         }
     }
 
     /** Get the negotiated cipher suite name + version. */
     getCipher(): { name: string; version: string } | null {
         if (!this._tlsConnection) return null;
-        try {
-            const name = this._tlsConnection.get_ciphersuite_name();
-            return { name: name || 'unknown', version: this.getProtocol() || 'unknown' };
-        } catch {
-            return null;
-        }
+        const name = this._tlsConnection.get_ciphersuite_name();
+        return { name: name || 'unknown', version: this.getProtocol() || 'unknown' };
     }
 
     /** Get the negotiated ALPN protocol (or false if none). */
     getAlpnProtocol(): string | false {
         if (!this._tlsConnection) return false;
-        try {
-            const proto = this._tlsConnection.get_negotiated_protocol();
-            return proto || false;
-        } catch {
-            return false;
-        }
+        const proto = this._tlsConnection.get_negotiated_protocol();
+        return proto || false;
     }
 
     // ──── Phase 2: session resumption + channel binding ────

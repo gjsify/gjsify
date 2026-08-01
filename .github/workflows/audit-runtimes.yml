@@ -83,3 +83,14 @@ jobs:
       # storybook-core node incidents).
       - name: Check test scripts run their declared runtime legs
         run: node scripts/audit-test-scripts.mjs
+
+      # Containerised jobs vs the image they run on. Two derived questions: a
+      # job ON the baked image must not `dnf install` something the Dockerfile
+      # lacks (the "MUST stay in lockstep" comment, made real), and a job still
+      # on a bare `fedora:<major>` must say WHY in the script's ledger. This
+      # belongs here rather than in `main.yml` for the same reason as the rest
+      # of this workflow: it is pure Node over the repo's own files, needs no
+      # install and no build, and it must run on every PR — a workflow edit is
+      # exactly what silently reintroduces a per-run `dnf install`.
+      - name: Check CI container images cover their jobs
+        run: node scripts/check-ci-image-packages.mjs

@@ -572,7 +572,16 @@ function runGitDiff(cwd: string, base: string, head: string): string[] {
         process.stderr.write(
             `gjsify affected: git diff failed (${r.status}): ${r.stderr.trim()}\n`,
         );
+        // Under GJS `process.exit()` is DEFERRED (no atexit — the call
+        // returns), so in this synchronous, value-returning helper a bare
+        // exit fell through to the `return` below and handed the caller a
+        // diff parsed from a failed git run. `return process.exit(…)` cannot
+        // help here either — it would hand the caller the pending exit
+        // promise as a `string[]`. The throw is what actually stops the
+        // caller; on Node the exit(2) halts first and the throw is dead.
+        // oxlint-disable-next-line gjsify/deferred-process-exit -- the throw below IS the halt for the GJS path; see the comment above.
         process.exit(2);
+        throw new Error(`gjsify affected: git diff failed (${r.status})`);
     }
     return r.stdout.split('\n').filter(Boolean);
 }
@@ -638,8 +647,11 @@ function assertShellSafeWorkspaceName(name: string): string {
             `  contract at the top of commands/affected.ts). Rename the workspace, or teach this command a\n` +
             `  transport the consumers can unquote. Refusing to emit a filter that would silently mis-match.\n`,
     );
+    // NOT unreachable under GJS: `process.exit()` is DEFERRED there (no atexit
+    // — the call returns), so the throw below is what actually stops an unsafe
+    // name from reaching the emit site; the exit code rides the scheduled
+    // teardown. On Node the exit(2) halts first and the throw is dead code.
+    // oxlint-disable-next-line gjsify/deferred-process-exit -- the throw below IS the halt for the GJS path; see the comment above.
     process.exit(2);
-    // Unreachable — `process.exit` terminates. Present so this function has no
-    // fall-through path that could ever return an unsafe name.
     throw new Error(`gjsify affected: unsafe workspace name ${name}`);
 }

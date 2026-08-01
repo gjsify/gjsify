@@ -69,37 +69,25 @@ class DevLoader extends ex.Loader {
 }
 
 /**
- * Make an `ex.Sound` non-fatal on runtimes where audio is unavailable.
+ * Make an `ex.Sound` non-fatal when the host cannot decode or play it.
  *
- * Audio for this showcase is a GJS-native-only capability. On the `--app node`
- * reverse bridge the GStreamer audio path over `@gjsify/node-gi` is not
- * functional — a documented node-gi follow-up. On **bun/deno** the synchronous
- * `decodebin` decode pipeline used to nondeterministically SEGFAULT the process
- * (a GStreamer streaming thread racing the JS engine's GC during teardown);
- * that is now fixed AT THE CORE — `@gjsify/webaudio`'s `decodeAudioDataSync`
- * fails cleanly on those runtimes via `isGstStreamingUnsafe()` instead of
- * crashing (see `packages/web/webaudio/src/gst-init.ts`). So on the node target
- * decode always REJECTS (bun/deno by the guard, node because decodebin yields
- * no samples), and the guard below keeps that rejection non-fatal. The game
- * runs silent on the reverse-bridge runtimes (node/bun/deno) but renders +
- * plays identically; native GJS keeps full audio.
+ * Audio is NOT a GJS-only capability here: `@gjsify/webaudio`'s GStreamer decode
+ * (`decodebin`) and playback (`autoaudiosink`) run on gjs AND on the `--app node`
+ * reverse bridge — node, bun and deno alike, verified against PipeWire rather
+ * than against the absence of an error. So this wrapper is a fallback for a HOST
+ * that lacks the pieces (no `gst-plugins-good/bad` for the codec, no audio sink,
+ * a container with no sound device), not for a runtime.
  *
- * The two node-target failure modes the guard below tolerates:
- *   1. DECODE: `@gjsify/webaudio`'s `decodeAudioData` rejects, so `Sound.load()`
- *      rejects. Excalibur's `Loader` aborts the whole load on the first
- *      rejection, racing scene init ahead of the still-loading `TiledResource`
- *      (the level then has no `Player` and camera setup throws).
- *   2. PLAYBACK: even a "loaded" sound, when played, hits
- *      `AudioBufferSourceNode.start` → `new GstPlayer`, which node-gi rejects
- *      with an uncaught `Unsupported interface IN argument` (exit 1).
+ * It exists because Excalibur's `Loader` aborts the WHOLE load on the first
+ * resource rejection: a `Sound.load()` that rejects races scene init ahead of the
+ * still-loading `TiledResource`, and the level then has no `Player` for camera
+ * setup to follow. So on failure we both (a) resolve the load, keeping the loader
+ * waiting for the VISUAL resources so the game still renders, and (b) neutralize
+ * `play()` so later `AudioManager` calls cannot reach a pipeline that was never
+ * built. The game runs silent instead of not running.
  *
- * So on decode failure we both (a) resolve the load (silent) — keeping the loader
- * waiting for the VISUAL resources so the game renders — and (b) neutralize
- * `play()` so the later `AudioManager` calls never reach the broken playback
- * pipeline. Audio simply stays silent.
- *
- * Platform-agnostic: on GJS and in the browser, where audio works, the `catch`
- * never fires — this is a no-op there.
+ * Platform-agnostic: wherever audio works — gjs, the reverse-bridge runtimes, the
+ * browser — the `catch` never fires and this is a no-op.
  */
 function tolerateAudioFailure(sound: ex.Sound): ex.Sound {
     const load = sound.load.bind(sound);

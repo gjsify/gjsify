@@ -22,7 +22,7 @@
 //     The native rolldown facade currently collapses
 //     `minify: { mangle: { keepNames: { … } } }` (npm rolldown's
 //     shape) to plain `true`, which changes the bundle size though
-//     not its semantics. Tracked in STATUS.md "Open TODOs".
+//     not its semantics. Tracked in status/open-todos.md.
 
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';

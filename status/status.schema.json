@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "gjsify authored status data",
+  "description": "Per-package AUTHORED status for STATUS.md generation (scripts/generate-status.mjs). Only what cannot be derived belongs here: the human status claim and its prose. Derivable facts (tier, runtimes, platforms, GNOME libs, test counts) are read from the package manifests at generation time — additionalProperties: false is what makes restating them impossible. The authoritative validator is loadStatusData() in scripts/generate-status.mjs (dependency-free, runs in CI via the status-data conformance rule); this schema file serves editor tooling.",
+  "type": "object",
+  "required": ["packages"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "packages": {
+      "type": "object",
+      "description": "One entry per package under packages/ (every published package MUST have one; entries for private packages are allowed).",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "note"],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "description": "full = implemented for its declared scope · partial = core works, named gaps · stub = placeholder API surface · meta = dep-only umbrella, no runtime code · native = Vala/C/Rust GI prebuild bridge (must declare gjsify.prebuilds) · poc = proof-of-concept scope",
+            "enum": ["full", "partial", "stub", "meta", "native", "poc"]
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the package provides / how — the human-authored prose cell of the status table. Markdown inline formatting allowed; keep facts that a manifest already declares OUT of it."
+          },
+          "working": {
+            "type": "string",
+            "description": "partial only: what works today."
+          },
+          "missing": {
+            "type": "string",
+            "description": "partial only (required there): what is missing and why — the gap IS the point of the partial status."
+          }
+        }
+      }
+    }
+  }
+}

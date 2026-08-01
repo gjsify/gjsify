@@ -4,7 +4,34 @@
     "categories": {
         "correctness": "error"
     },
+    "options": {
+        // A disable directive that suppresses NOTHING is a claim that something
+        // was considered and handled, when nothing was. That is not hypothetical:
+        // `// eslint-disable-next-line @typescript-eslint/no-require-imports`
+        // comments sat next to a bare `require('node:fs')` for two months while
+        // the rule they named was never enabled, so they announced a review that
+        // had never happened and the bug went red on main instead (#859/#861).
+        // `error`, not `warn`: the CI lint gate is oxlint's own exit semantics
+        // (errors fail, warnings do not), so a warning here would be a check that
+        // gates nothing — the half-measure that incident argues against.
+        // A directive that IS load-bearing never appears: the two lazy
+        // `@gjsify/http2` native-dispatcher disables stay silent under this.
+        "reportUnusedDisableDirectives": "error"
+    },
     "rules": {
+        // A bare `catch {}` with no body and no comment is the shape that hides
+        // bugs: `@gjsify/fetch`'s root-relative rewrite (#869 — a TypeError from
+        // `globalThis.imports.system` off gjs landed in a bare catch, so every
+        // `fetch('/res/…')` went out unrewritten with no error anywhere) and
+        // `@gjsify/crypto`'s `fillRandom` (a bare `imports.gi.GLib` inside a
+        // try — the ReferenceError was CAUGHT and silently degraded crypto
+        // bytes to `Math.random()`). A catch containing only a comment is not
+        // reported, so this enforces "a catch must state its reason": either
+        // the guarded call has a real failure mode and the comment says why
+        // ignoring it is right, or the try/catch has no throw path and must be
+        // deleted (best-effort is expressed by ignoring a RETURN VALUE, not by
+        // wrapping a non-throwing call).
+        "eslint/no-empty": "error",
         "typescript/consistent-type-imports": "warn",
         "typescript/no-explicit-any": "warn",
         // Our source is ESM — a bare `require(...)` is a latent ReferenceError
@@ -20,6 +47,26 @@
             { "allowedNames": ["self", "el", "blob", "readable", "root", "node", "receivedThis"] }
         ],
         "unicorn/prefer-node-protocol": "error",
+        // The GJS ambient globals are seeded by the host (gjs) or by the
+        // `@gjsify/node-gi/globals` shim — a build-time PREDICTION about the
+        // consumer's bundle. A shipped package reaching for them bare tests
+        // green and throws a ReferenceError in a consumer on the reverse
+        // bridge (`@gjsify/canvas2d-core`'s `_toDataURL`, `@gjsify/fetch`'s
+        // root-relative rewrite, `@gjsify/crypto`'s `fillRandom` — one day,
+        // one class). Portable spellings exist for every one; the sanctioned
+        // runtime PROBE (`globalThis.imports?.gi`) is member access and stays
+        // silent here, as does an explicit in-file `declare`. See AGENTS.md
+        // § "The legacy `imports.*` object is NOT an API". Genuine GJS
+        // PROGRAM sources are scoped out in the override below.
+        "no-restricted-globals": [
+            "error",
+            { "name": "imports", "message": "GJS host object — a ReferenceError off gjs. Use gi://<Ns>, `import system from 'system'`, GLib.Bytes.toArray() or TextDecoder; a runtime PROBE is spelled `globalThis.imports?.gi`. See AGENTS.md § The legacy imports.* object is NOT an API." },
+            { "name": "ARGV", "message": "GJS ambient global — a ReferenceError off gjs. Use `system.programArgs` (import system from 'system'), which is what ARGV is defined as." },
+            { "name": "print", "message": "GJS ambient global — a ReferenceError off gjs. Use console.log, or declare the binding locally in a deliberate GJS-only module." },
+            { "name": "printerr", "message": "GJS ambient global — a ReferenceError off gjs. Use console.error, or declare the binding locally in a deliberate GJS-only module." },
+            { "name": "log", "message": "GJS ambient global — a ReferenceError off gjs. Use console.log, or declare the binding locally in a deliberate GJS-only module." },
+            { "name": "logError", "message": "GJS ambient global — a ReferenceError off gjs. Use console.error, or declare the binding locally in a deliberate GJS-only module." }
+        ],
         "eslint/no-unused-vars": [
             "warn",
             {
@@ -29,7 +76,16 @@
                 "destructuredArrayIgnorePattern": "^_"
             }
         ],
-        "gjsify/register-class-order": "error"
+        "gjsify/register-class-order": "error",
+        // A bare `process.exit()` does not halt under GJS (no atexit, the GLib
+        // loop may still be armed) — the call RETURNS and the statements after
+        // it still run, so the requested exit code can be lost entirely. On
+        // Node/bun/deno the same call halts immediately, which is why the class
+        // ships unnoticed (`gjsify storybook` with no stories reported the
+        // failure AND "Found 0 story file(s)" AND exited 0). Flags a statement
+        // containing a bare exit when another statement follows it in the same
+        // list; tail-position exits are fine. Repair: `return process.exit(…)`.
+        "gjsify/deferred-process-exit": "error"
     },
     "overrides": [
         {
@@ -42,6 +98,46 @@
             "files": ["**/*.cjs", "**/*.cts"],
             "rules": {
                 "typescript/no-require-imports": "off"
+            }
+        },
+        {
+            // Node-only tooling: on Node `process.exit()` DOES halt
+            // synchronously, so the deferred-exit hazard does not exist there
+            // and a bare exit followed by code is at worst dead code, not a
+            // lost exit code. `scripts/` dirs are build/CI tooling by
+            // convention (AGENTS.md: the CI gates stay plain Node SCRIPTS,
+            // never CLI commands), `tests/e2e/**` are `node --test`
+            // harnesses, and `packages/{node-gi,napi}/**` are the engines
+            // that run ON node/bun/deno with their own Node gate harnesses
+            // (same carve-out posture as the affected classifier). Everything
+            // that can run under GJS — package sources, examples/showcases
+            // src, integration-test src (test:gjs) — stays covered.
+            "files": ["**/scripts/**", "tests/e2e/**", "packages/node-gi/**", "packages/napi/**"],
+            "rules": {
+                "gjsify/deferred-process-exit": "off"
+            }
+        },
+        {
+            // Genuine GJS PROGRAM sources: app entries under examples/ and
+            // showcases/, e2e/repro fixtures, docs PoCs, the node-gi/napi
+            // engines with their conformance/golden programs, and the gjs-run
+            // bootstrap. The ambient globals are sanctioned there — these run
+            // under gjs, or through the reverse bridge where a bare
+            // `print`/`imports` is exactly the signal `--app node`
+            // auto-globals injection keys on. The rule exists for the SHIPPED
+            // packages, whose correctness must not depend on a build-time
+            // prediction about somebody else's bundle.
+            "files": [
+                "examples/**",
+                "showcases/**",
+                "tests/**",
+                "docs/**",
+                "packages/node-gi/**",
+                "packages/napi/**",
+                "install.mjs"
+            ],
+            "rules": {
+                "no-restricted-globals": "off"
             }
         }
     ],

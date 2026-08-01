@@ -5,8 +5,9 @@ import 'fetch/register'; // register fetch/Headers/Request/Response globals on G
 import { run } from '@gjsify/unit';
 
 import testSuite from './index.spec.js';
+import rootRelativeSuite from './root-relative.spec.js';
 import soupSessionSuite from './soup-session.gjs.spec.js';
 import partialInputSuite from './partial-input.gjs.spec.js';
 import tlsAbortSuite from './tls-abort.gjs.spec.js';
 
-run({ testSuite, soupSessionSuite, partialInputSuite, tlsAbortSuite });
+run({ testSuite, rootRelativeSuite, soupSessionSuite, partialInputSuite, tlsAbortSuite });

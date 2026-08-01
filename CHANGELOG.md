@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.26.0](https://github.com/gjsify/gjsify/compare/v0.25.1...v0.26.0) (2026-08-01)
+
+### Features
+
+* **status:** STATUS.md as generated output ([#886](https://github.com/gjsify/gjsify/issues/886)) ([453642e](https://github.com/gjsify/gjsify/commit/453642ea965d09d1a08657542b597d43fc2213ca)), closes [#883](https://github.com/gjsify/gjsify/issues/883) [#885](https://github.com/gjsify/gjsify/issues/885) [#885](https://github.com/gjsify/gjsify/issues/885) [pre-#885](https://github.com/gjsify/pre-/issues/885) [#885](https://github.com/gjsify/gjsify/issues/885) [#885](https://github.com/gjsify/gjsify/issues/885) [#890](https://github.com/gjsify/gjsify/issues/890) [#885](https://github.com/gjsify/gjsify/issues/885)
+* **unit:** add it.failing for upstream defects ([#881](https://github.com/gjsify/gjsify/issues/881)) ([8785f0d](https://github.com/gjsify/gjsify/commit/8785f0dc9c5843756f7ddc38b163cd46e4ea5d17)), closes [#876](https://github.com/gjsify/gjsify/issues/876)
+
+### Bug Fixes
+
+* **cli:** gate showcase gjs deps on the runtime ([#889](https://github.com/gjsify/gjsify/issues/889)) ([d911908](https://github.com/gjsify/gjsify/commit/d911908ca7853079337f2326b55d6ba3b106a09b))
+* **cli:** halt on deferred process.exit under GJS ([#879](https://github.com/gjsify/gjsify/issues/879)) ([c307099](https://github.com/gjsify/gjsify/commit/c3070991923ff3cd7b6768fb159f7a4a6201816c))
+* **http2:** flush GOAWAY, and forbid bare empty catch ([#880](https://github.com/gjsify/gjsify/issues/880)) ([a8ef999](https://github.com/gjsify/gjsify/commit/a8ef99979856014930b39ed07a81e6cc7f46a1cc)), closes [#869](https://github.com/gjsify/gjsify/issues/869) [#869](https://github.com/gjsify/gjsify/issues/869)
+* **node-gi:** hold the loop for JS-armed GLib work only ([#884](https://github.com/gjsify/gjsify/issues/884)) ([2a44097](https://github.com/gjsify/gjsify/commit/2a44097234b4f5be8fcd376bae9709ad17507946)), closes [#47](https://github.com/gjsify/gjsify/issues/47) [#47](https://github.com/gjsify/gjsify/issues/47) [#820](https://github.com/gjsify/gjsify/issues/820) [870/#873](https://github.com/870/gjsify/issues/873) [#47](https://github.com/gjsify/gjsify/issues/47) [#47](https://github.com/gjsify/gjsify/issues/47) [#47](https://github.com/gjsify/gjsify/issues/47)
+* **rolldown-plugin-gjsify:** detect the pre-alias spelling ([#890](https://github.com/gjsify/gjsify/issues/890)) ([d4c2594](https://github.com/gjsify/gjsify/commit/d4c2594731d7fce52a6af4633a61b1f98d1b6b7e)), closes [#886](https://github.com/gjsify/gjsify/issues/886)
+* **rolldown-plugin-gjsify:** sort glob entry order ([#878](https://github.com/gjsify/gjsify/issues/878)) ([3aea381](https://github.com/gjsify/gjsify/commit/3aea3818b98d5e51cc1abd7cf8906fc2cb6b3f8d))
+* **showcase:** waive deno's dep-age rule in the pin hint ([#877](https://github.com/gjsify/gjsify/issues/877)) ([d77a85b](https://github.com/gjsify/gjsify/commit/d77a85b4836952d9697bc80182229b4b008e2f2e))
+* **tls:** repair PEM encoding, and delete 25 catches that cannot fire ([#882](https://github.com/gjsify/gjsify/issues/882)) ([6fca93a](https://github.com/gjsify/gjsify/commit/6fca93ae97c827df1955499cd8bc2b2d3b06b764)), closes [#869](https://github.com/gjsify/gjsify/issues/869)
+
+### Performance Improvements
+
+* **zlib:** make the gzip member scan linear ([#883](https://github.com/gjsify/gjsify/issues/883)) ([3ea77e0](https://github.com/gjsify/gjsify/commit/3ea77e0e6e3cc7b2b474ad7b13400bbded073407)), closes [#882](https://github.com/gjsify/gjsify/issues/882)
+
+### Documentation
+
+* add ADR 0017 for native package distribution ([#887](https://github.com/gjsify/gjsify/issues/887)) ([bce0304](https://github.com/gjsify/gjsify/commit/bce03042c203c4e3151d066a92542d245947554b))
+* compress AGENTS.md, unify runtime model ([#885](https://github.com/gjsify/gjsify/issues/885)) ([4dfa3cd](https://github.com/gjsify/gjsify/commit/4dfa3cd1f520ed80a7eefe0337cebea892895e8d)), closes [#880](https://github.com/gjsify/gjsify/issues/880) [#869](https://github.com/gjsify/gjsify/issues/869)
+
+### Code Refactoring
+
+* close the imports.* class at the source ([#876](https://github.com/gjsify/gjsify/issues/876)) ([3f19862](https://github.com/gjsify/gjsify/commit/3f19862fc2f7ec69bc37bff5119a08dfdbd690f6)), closes [#869](https://github.com/gjsify/gjsify/issues/869) [#869](https://github.com/gjsify/gjsify/issues/869)
+
+### Continuous Integration
+
+* close the gjs-less host coverage gap ([#891](https://github.com/gjsify/gjsify/issues/891)) ([d7f164b](https://github.com/gjsify/gjsify/commit/d7f164b4b122191652165cbf72a3f9a738041d4c)), closes [#889](https://github.com/gjsify/gjsify/issues/889)
+* **node-gi:** make the storybook failure legible ([#888](https://github.com/gjsify/gjsify/issues/888)) ([bd4aa06](https://github.com/gjsify/gjsify/commit/bd4aa0646dceaa9ae5afcf05058e4c5b3ff0049e)), closes [#890](https://github.com/gjsify/gjsify/issues/890)
+* **node-gi:** tolerate the release window when installing @gjsify/cli ([#875](https://github.com/gjsify/gjsify/issues/875)) ([6a02bc9](https://github.com/gjsify/gjsify/commit/6a02bc9c388f989e79222928586e404832ad415b))
+* **release:** dispatch the publish from the cut ([#874](https://github.com/gjsify/gjsify/issues/874)) ([e91ac41](https://github.com/gjsify/gjsify/commit/e91ac41dd87193abc5706f42262d009dbca5b833))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([166b427](https://github.com/gjsify/gjsify/commit/166b427f85f29738cd661d1e473f31be2979f888))
+
+## [0.25.1](https://github.com/gjsify/gjsify/compare/v0.25.0...v0.25.1) (2026-07-30)
+
+### Bug Fixes
+
+* **node-gi:** drain deno's nextTick queue during a blocking run ([#873](https://github.com/gjsify/gjsify/issues/873)) ([8aac1d2](https://github.com/gjsify/gjsify/commit/8aac1d2d2b3d29e0962ea5c9f4154fe39981ea4e))
+
+## [0.25.0](https://github.com/gjsify/gjsify/compare/v0.24.2...v0.25.0) (2026-07-30)
+
+### Bug Fixes
+
+* **node-gi:** box plain JS values for GValue args; load GstApp on the node target ([#870](https://github.com/gjsify/gjsify/issues/870)) ([fd6a32a](https://github.com/gjsify/gjsify/commit/fd6a32a886f8a728304358979be586d0e7e644e7))
+* run the excalibur showcase on node/bun/deno, not just gjs ([#869](https://github.com/gjsify/gjsify/issues/869)) ([3b1ed43](https://github.com/gjsify/gjsify/commit/3b1ed43a3933a1a90a1a048fea8f9e250f7d6aa8))
+* **webaudio:** drop the bun/deno GStreamer guard; make the suite able to fail ([#872](https://github.com/gjsify/gjsify/issues/872)) ([07d2368](https://github.com/gjsify/gjsify/commit/07d2368681d7ececa2a498771751b7ef2246fd97))
+
+### Continuous Integration
+
+* **napi:** don't bundle @gjsify/tsc while building the polyfill libs ([#871](https://github.com/gjsify/gjsify/issues/871)) ([b0183bd](https://github.com/gjsify/gjsify/commit/b0183bdab2d13a3b0303a09b9bd1b70d21067e48)), closes [#869](https://github.com/gjsify/gjsify/issues/869)
+
+## [0.24.2](https://github.com/gjsify/gjsify/compare/v0.24.1...v0.24.2) (2026-07-29)
+
+### Bug Fixes
+
+* derive launcher env at run time, not install time ([#866](https://github.com/gjsify/gjsify/issues/866)) ([85b64b7](https://github.com/gjsify/gjsify/commit/85b64b73d16da3ec1083a9fcd40bb59cea60a2ff)), closes [#868](https://github.com/gjsify/gjsify/issues/868)
+
+### Build System
+
+* commit a Cargo.lock per native bridge ([#852](https://github.com/gjsify/gjsify/issues/852)) ([b2327dc](https://github.com/gjsify/gjsify/commit/b2327dc2f9896f813a17e570dbb401e474102769))
+
+### Continuous Integration
+
+* error on unused lint-disable directives ([#867](https://github.com/gjsify/gjsify/issues/867)) ([e174cc1](https://github.com/gjsify/gjsify/commit/e174cc1de8200ce223888e5fb94011d5b244d8d3)), closes [#859](https://github.com/gjsify/gjsify/issues/859) [#861](https://github.com/gjsify/gjsify/issues/861)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([e169d62](https://github.com/gjsify/gjsify/commit/e169d625758cacb150ab33b01bd53e6bc5e6a6e5))
+* update native prebuilds [skip ci] ([169f73e](https://github.com/gjsify/gjsify/commit/169f73e8e2b866b25fc7cb73a25edd7791b077bf))
+
 ## [0.24.1](https://github.com/gjsify/gjsify/compare/v0.24.0...v0.24.1) (2026-07-28)
 
 ### Bug Fixes

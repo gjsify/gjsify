@@ -248,8 +248,8 @@ export default async () => {
                 // GJS's byteArray.fromGBytes (refs/gjs/gjs/byteArray.cpp) memcpy's
                 // GBytes data into a fresh JS::ArrayBuffer for alignment +
                 // immutability reasons. True zero-copy would need
-                // JS::NewExternalArrayBuffer from a C shim — tracked under STATUS.md
-                // "Upstream GJS Patch Candidates". This test pins current behaviour
+                // JS::NewExternalArrayBuffer from a C shim — tracked under
+                // status/upstream-patch-candidates.md. This test pins current behaviour
                 // so a future zero-copy upgrade flips it deliberately.
                 const sb = SharedBuffer.create(16);
                 sb.setUint8(0, 100);

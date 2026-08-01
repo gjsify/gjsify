@@ -52,6 +52,7 @@ const CONFORMANCE = [
   'arrays',
   'boxed-out',
   'async-error',
+  'blocking-run-checkpoint',
   'bytes',
   'cairo',
   'cairo-canvas2d',
@@ -129,6 +130,22 @@ const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 // the next, gobject the next) AND on a DIFFERENT platform run-to-run (macos-arm64 one
 // run, linux-arm64 the next).
 //
+// Its FREQUENCY tracks the auto-armed pump's ADDON ENTRIES between test files, which is
+// why the pump's beat is addon-silent while idle (gi.js pumpBeat + the zero-napi
+// `pumpPendingCount` view): when `requireGi` first auto-armed the pump on Bun/Deno with
+// an ungated tick, the GTK/Adw smoke leg went from exit 0 to a deterministic 139, and a
+// finer A/B showed the DISPATCH volume is not even required — a query-only tick (one
+// napi call, no dispatch) still crashed 3/3 while a tick that never enters the addon
+// exited 0, and stopping/unref'ing the pump at teardown did not help. With the
+// view-gated beat the smoke leg is back to exit 0 (10/10) and this suite sees the race
+// only where a file's OWN JS-armed GLib work runs close to teardown (measured on one
+// Fedora 44 desktop WITH a session bus: 2/38 files, both "every announced test passed,
+// then SIGSEGV"). It is the same pre-existing race, not a new one: it also reproduces
+// with an explicit `startMainContextPump()` call on the pre-fix engine, the crashing
+// thread carries only deno/V8 JIT frames (GLib's own threads are idle), and a plain
+// `deno run <bundle>` of the same work exits 0. Bun is unaffected (38/38 with the pump
+// armed).
+//
 // ROOT CAUSE (#47, diagnosed against deno 2.9.3, glibc/gobject, exit 139 = SIGSEGV):
 // a segfault inside libgobject g_type_fundamental, called from the boxed-handle
 // External finalizer (marshal.cc FreeBoxedHandleRecord -> g_boxed_free) with a
@@ -187,7 +204,11 @@ function classifyDenoOutput(out) {
   // oxlint-disable-next-line eslint/no-control-regex -- matching the ESC control character IS the point: this strips Deno's ANSI SGR colour codes before parsing its output
   const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
   let expected = 0;
-  for (const m of clean.matchAll(/running (\d+) tests from /g)) expected += Number(m[1]);
+  // `tests?` — Deno prints "running 1 test from …" (singular) for a one-test file.
+  // Matching only the plural left `expected` at 0 there, which made the carve-out's
+  // `expected > 0` guard fail and hard-gated a file whose single test had PASSED
+  // (dbus-async, on a host that actually has a session bus).
+  for (const m of clean.matchAll(/running (\d+) tests? from /g)) expected += Number(m[1]);
   const passed = (clean.match(/ \.\.\. ok \(/g) || []).length;
   const ignored = (clean.match(/ \.\.\. ignored/g) || []).length;
   const failed = (clean.match(/ \.\.\. FAILED/g) || []).length;

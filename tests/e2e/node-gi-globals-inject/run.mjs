@@ -110,6 +110,85 @@ describe('--app node GJS-globals shim injection E2E', { timeout: 10 * 60 * 1000 
         execFileSync('node', ['--check', outPath], { cwd: projectDir, stdio: 'pipe', timeout: 30 * 1000 });
     });
 
+    it('injects for a PORTABLE GJS source (bare `system` import, no ambient global)', () => {
+        // The portable spelling AGENTS.md mandates: `system.programArgs`
+        // instead of `ARGV`, no bare ambient global anywhere. The bundled
+        // output then retains a static `@gjsify/node-gi/system` import (the
+        // externalised bare built-in) — a bundle ALREADY bound to the bridge
+        // at load — and that import is the second detection signal. Before it
+        // was one, this exact shape lost its GJS-source treatment entirely
+        // (`gjsify storybook --runtime node` emitted a bundle with no
+        // `requireGi` once the storybook stopped referencing `imports`/`ARGV`).
+        writeFileSync(
+            join(projectDir, 'src', 'portable.ts'),
+            [
+                "import system from 'system';",
+                "console.log('argv:', system.programArgs.length, system.programInvocationName);",
+                '',
+            ].join('\n'),
+        );
+
+        execFileSync('npx', ['gjsify', 'build', 'src/portable.ts', '--app', 'node', '--outfile', 'dist/portable.mjs'], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 90 * 1000,
+        });
+
+        const outPath = join(projectDir, 'dist', 'portable.mjs');
+        assert.ok(existsSync(outPath), 'dist/portable.mjs missing');
+        const content = readFileSync(outPath, 'utf-8');
+
+        // The bare built-in is externalised to the bridge…
+        assert.ok(
+            /import\s+[^'"]*['"]@gjsify\/node-gi\/system['"]/.test(content),
+            `bare \`system\` must be externalised to @gjsify/node-gi/system\nContext: ${snippet(content, 'node-gi')}`,
+        );
+        // …and that import IS the GJS-source signal: the globals shim rides along.
+        assert.ok(
+            content.includes('@gjsify/node-gi/globals'),
+            'a bundle retaining @gjsify/node-gi/system must get the globals shim injected',
+        );
+
+        // THE HALF THIS SUITE USED TO MISS. `nodeGiGlobalsInject` has TWO
+        // consequences, and the shim assertion above only covers the first:
+        //   1. the globals shim is injected            ← asserted above
+        //   2. `@girs/*` value imports keep their real bodies, so the inner
+        //      `gi://` survives to be rewritten to `requireGi(...)`
+        // The source above imports no `@girs/*`, so (2) was never exercised —
+        // and (2) is what actually broke: CI's adwaita-storybook `--app node`
+        // bundle came out with 0 `gi://`, 0 `requireGi` and exactly 1
+        // `@gjsify/node-gi` (the externalised `system`). It built, passed
+        // `node --check`, and would have died at runtime on
+        // `class extends undefined`. A green (1) with a broken (2) is exactly
+        // the shape that let it through.
+        writeFileSync(
+            join(projectDir, 'src', 'portable-girs.ts'),
+            [
+                "import system from 'system';",
+                "import GLib from '@girs/glib-2.0';",
+                "console.log(system.programArgs.length, GLib.get_user_name());",
+                '',
+            ].join('\n'),
+        );
+        execFileSync(
+            'npx',
+            ['gjsify', 'build', 'src/portable-girs.ts', '--app', 'node', '--outfile', 'dist/portable-girs.mjs'],
+            { cwd: projectDir, stdio: 'pipe', timeout: 90 * 1000 },
+        );
+        const girsOut = readFileSync(join(projectDir, 'dist', 'portable-girs.mjs'), 'utf-8');
+        assert.ok(
+            girsOut.includes('requireGi'),
+            `a portable GJS source importing @girs/* must have its gi:// rewritten to requireGi\nContext: ${snippet(girsOut, 'node-gi')}`,
+        );
+        assert.ok(
+            !/['"]gi:\/\//.test(girsOut),
+            'no raw gi:// specifier may survive in an --app node bundle',
+        );
+
+        // node --check parses without resolving the externalised imports.
+        execFileSync('node', ['--check', outPath], { cwd: projectDir, stdio: 'pipe', timeout: 30 * 1000 });
+    });
+
     it('does NOT inject the shim for a gated/unused entry, and it runs on plain Node', () => {
         // Regression guard. The entry references the globals only behind a
         // statically-dead branch (tree-shaken away) and uses a runtime-false

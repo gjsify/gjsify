@@ -30,6 +30,11 @@
 //                                     createRadialGradient / createPattern.
 
 import Cairo from 'cairo';
+// `gi://`, not the legacy `imports.gi` global — the portable spelling that also
+// resolves on the `--app node` reverse bridge (AGENTS.md § The legacy imports.*
+// object is NOT an API).
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 // HTMLCanvasElement type is provided by the DOM lib.
 // Our @gjsify/dom-elements HTMLCanvasElement satisfies this interface.
 
@@ -440,8 +445,6 @@ export class CanvasRenderingContext2D {
         this._surface.flush();
 
         // Write to a temp file, read back as base64
-        const Gio = imports.gi.Gio;
-        const GLib = imports.gi.GLib;
         const [, tempPath] = GLib.file_open_tmp('canvas-XXXXXX.png');
         try {
             this._surface.writeToPNG(tempPath);
@@ -450,11 +453,11 @@ export class CanvasRenderingContext2D {
             const base64 = GLib.base64_encode(contents);
             return `data:image/png;base64,${base64}`;
         } finally {
-            try {
-                GLib.unlink(tempPath);
-            } catch (_e) {
-                /* ignore */
-            }
+            // `GLib.unlink` returns 0/-1 and is not `throws` in the GIR, so the
+            // try/catch that used to sit here could never fire. Best-effort
+            // cleanup is expressed by ignoring the RETURN value, not by
+            // wrapping a non-throwing call in a swallowing catch.
+            GLib.unlink(tempPath);
         }
     }
 

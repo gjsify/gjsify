@@ -144,7 +144,9 @@ function signalTree(child: ChildProcess, descendants: readonly number[], signal:
     try {
         child.kill(signal);
     } catch {
-        // already gone — fine
+        // NOT the already-dead case — `ChildProcess.kill()` swallows ESRCH
+        // itself and returns false. This guards Node's residual throw paths
+        // (EPERM surfacing via an unhandled 'error' emit, unknown signal).
     }
 }
 
@@ -326,7 +328,9 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 console.error(
                     'gjsify foreach --exec: missing command. Pass it after `--`, e.g. `gjsify foreach --exec -- npm publish --tag latest`.',
                 );
-                process.exit(1);
+                // `return` — a bare `process.exit()` is deferred under GJS and
+                // the handler would keep running without a command.
+                return process.exit(1);
             }
         }
 
@@ -348,7 +352,8 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 console.error(
                     'gjsify foreach: missing <script> positional. Pass --exec to run an arbitrary command instead.',
                 );
-                process.exit(1);
+                // `return` — see the deferred-exit note on the --exec guard.
+                return process.exit(1);
             }
             const scriptName = cmd;
             selected = selected.filter((ws) => {
@@ -372,7 +377,9 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 console.error(
                     `gjsify foreach: invalid --shard "${args.shard}" — expected "<index>/<total>" (1-based), e.g. 2/4.`,
                 );
-                process.exit(1);
+                // `return` — the deferred GJS exit otherwise ran the whole
+                // unsharded set.
+                return process.exit(1);
             }
             const index = Number(m[1]);
             const total = Number(m[2]);
@@ -380,7 +387,8 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 console.error(
                     `gjsify foreach: invalid --shard "${args.shard}" — need 1 <= index <= total and total >= 1.`,
                 );
-                process.exit(1);
+                // `return` — see the deferred-exit note on the shard guard above.
+                return process.exit(1);
             }
             if (total > 1) {
                 const byName = [...selected].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
@@ -428,7 +436,8 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
             // default covers whole script chains (CI sets it once for the
             // build job) where an --exec invocation is simply not cacheable.
             console.error('gjsify foreach: --cached only applies to script mode, not --exec.');
-            process.exit(1);
+            // `return` — the deferred GJS exit otherwise ran the --exec anyway.
+            return process.exit(1);
         }
         const cache =
             cached && !exec
@@ -469,7 +478,9 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
             // leave orphans holding the CI step's stdio open.
             killActiveChildren();
             console.error((err as Error).message);
-            process.exit(1);
+            // `return` — the deferred GJS exit otherwise fell through to the
+            // success `process.exit(0)` below, clobbering the failure code.
+            return process.exit(1);
         }
         // ensureMainLoop() (called inside spawn) keeps GJS alive after every
         // child exits — without an explicit process.exit() the success path
@@ -538,7 +549,14 @@ function assertEveryIncludeMatches(allWorkspaces: readonly Workspace[], include:
         `  otherwise exit 0 and look exactly like a successful run over the whole set.`,
     );
     console.error(lines.join('\n'));
+    // Under GJS `process.exit()` is DEFERRED (no atexit — the call returns), so
+    // a bare exit here RETURNED to the handler, which kept going and could
+    // spawn children for the patterns that DID match before the scheduled exit
+    // fired. The throw is what actually stops the run on GJS; on Node the
+    // exit(1) halts first and the throw is dead code.
+    // oxlint-disable-next-line gjsify/deferred-process-exit -- the throw below IS the halt for the GJS path; see the comment above.
     process.exit(1);
+    throw new Error('gjsify foreach: --include matched no workspace');
 }
 
 /** Drop ONE matching pair of surrounding `'` or `"` — the quoting-bug probe. */

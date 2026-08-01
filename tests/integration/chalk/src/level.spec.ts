@@ -15,7 +15,7 @@
 // exercises supports-color's spawn-time TTY probe, which the suite already
 // covers structurally by asserting that level=0 strips every emit path.
 // The actual @gjsify/{tty,process} integration is unit-tested in those
-// packages directly. (See STATUS.md "### chalk".)
+// packages directly. (See `status/integration-coverage.md` → chalk.)
 
 import { describe, it, expect } from '@gjsify/unit';
 import chalk, { Chalk } from 'chalk';
@@ -139,11 +139,9 @@ export default async () => {
 
         await it('validates `level` is an integer in [0, 3]', () => {
             expect(() => {
-                // eslint-disable-next-line no-new
                 new Chalk({ level: 10 });
             }).toThrow();
             expect(() => {
-                // eslint-disable-next-line no-new
                 new Chalk({ level: -1 });
             }).toThrow();
         });

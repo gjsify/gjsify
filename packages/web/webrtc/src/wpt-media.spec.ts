@@ -522,7 +522,11 @@ export default async () => {
             t.receiver.jitterBufferTarget = 200;
             try {
                 t.receiver.jitterBufferTarget = -1;
-            } catch {}
+            } catch {
+                // Expected: the spec mandates a RangeError for a negative
+                // target. The assertion below is what verifies the value was
+                // left untouched either way.
+            }
             expect(t.receiver.jitterBufferTarget).toBe(200);
             closePeerConnections(pc);
         });

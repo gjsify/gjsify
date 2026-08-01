@@ -125,7 +125,10 @@ export const checkCommand: Command<unknown, CheckOptions> = {
                     console.log(`[check] cwd=${cwd}  → npm run check`);
                 }
                 const r = spawnSync('npm', ['run', 'check'], { cwd, stdio: 'inherit' });
-                process.exit(r.status ?? 1);
+                // `return` — a bare `process.exit()` is deferred under GJS (no
+                // atexit), so execution fell through into workspace mode and
+                // re-checked the whole monorepo after the single-package run.
+                return process.exit(r.status ?? 1);
             }
             // Fall through to workspace mode when the local package has no
             // check script (cd'd into a non-package dir under the root).
@@ -136,7 +139,9 @@ export const checkCommand: Command<unknown, CheckOptions> = {
             console.error(
                 'gjsify check: no workspace root found from cwd. Run inside a workspace (or a package within one) with `npm run check` defined.',
             );
-            process.exit(1);
+            // `return` — the deferred GJS exit otherwise ran discoverWorkspaces
+            // on a null root.
+            return process.exit(1);
         }
 
         const allWorkspaces = discoverWorkspaces(workspaceRoot);
@@ -156,7 +161,7 @@ export const checkCommand: Command<unknown, CheckOptions> = {
 
         if (targets.length === 0) {
             console.error('gjsify check: no workspaces with a `check` script found.');
-            process.exit(1);
+            return process.exit(1);
         }
 
         if (args.verbose) {
@@ -168,16 +173,23 @@ export const checkCommand: Command<unknown, CheckOptions> = {
         // ---- Sequential mode ----
         if (!args.parallel) {
             let firstFail = 0;
+            let failCount = 0;
             for (const ws of targets) {
                 if (args.verbose) console.log(`[check] → ${ws.name}`);
                 const code = await runCheck(ws, null);
-                if (code !== 0 && firstFail === 0) firstFail = code;
+                if (code !== 0) {
+                    failCount++;
+                    if (firstFail === 0) firstFail = code;
+                }
             }
-            if (firstFail !== 0)
-                console.error(
-                    `gjsify check: failures in ${targets.filter(async (ws) => (await runCheck(ws, null)) !== 0).length}+ workspaces`,
-                );
-            process.exit(firstFail);
+            // Count failures from the loop above — the previous
+            // `targets.filter(async …)` spelling RE-SPAWNED every workspace's
+            // check (fire-and-forget) just to print a count, and its async
+            // predicate is always truthy, so it counted ALL targets.
+            if (firstFail !== 0) console.error(`gjsify check: failures in ${failCount} workspace(s)`);
+            // `return` — a bare exit is deferred under GJS and fell through
+            // into parallel mode, re-running every check.
+            return process.exit(firstFail);
         }
 
         // ---- Parallel mode (default) ----
@@ -204,7 +216,9 @@ export const checkCommand: Command<unknown, CheckOptions> = {
         if (failures.length > 0) {
             console.error(`\ngjsify check: ${failures.length} of ${targets.length} workspace(s) failed:`);
             for (const f of failures) console.error(`  ✗ ${f.name} (exit ${f.code})`);
-            process.exit(1);
+            // `return` — the deferred GJS exit otherwise fell through to the
+            // success `process.exit(0)` below, clobbering the failure code.
+            return process.exit(1);
         }
         if (args.verbose) console.log(`\ngjsify check: ${targets.length} workspace(s) green.`);
         process.exit(0);

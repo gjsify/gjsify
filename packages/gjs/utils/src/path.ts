@@ -1,5 +1,9 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
+// The bare `system` built-in, not `imports.system` — resolves on gjs AND the
+// `--app node` reverse bridge (AGENTS.md § The legacy imports.* object is NOT
+// an API).
+import system from 'system';
 const { File } = Gio;
 
 const _getProgramDir = (programFile: Gio.File) => {
@@ -23,7 +27,7 @@ export const resolve = (dir: string, ...filenames: string[]) => {
 
 export const getProgramExe = () => {
     const currentDir = GLib.get_current_dir();
-    return File.new_for_path(currentDir).resolve_relative_path(imports.system.programInvocationName);
+    return File.new_for_path(currentDir).resolve_relative_path(system.programInvocationName);
 };
 
 export const getProgramDir = () => {

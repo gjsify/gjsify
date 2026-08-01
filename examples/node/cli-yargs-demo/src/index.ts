@@ -82,7 +82,9 @@ const cli = yargs(hideBin(process.argv))
             const b = args.b as number;
             if (b === 0) {
                 console.error(`${c.red}Error: division by zero${c.reset}`);
-                process.exit(1);
+                // `return` — a bare `process.exit()` is deferred under GJS (no
+                // atexit), so the handler would print a bogus ∞ result below.
+                return process.exit(1);
             }
             operationLine(a, '÷', b);
             result('Result', a / b);

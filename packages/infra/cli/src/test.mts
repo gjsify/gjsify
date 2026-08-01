@@ -47,12 +47,15 @@ import onboardProbeSuite from './utils/onboard-probe.spec.js';
 import resolvePluginByNameSuite from './utils/resolve-plugin-by-name.spec.js';
 import runtimeSuite from './runtime.spec.js';
 import gjsEntryWrapperSuite from './gjs-entry-wrapper.spec.js';
+import entryPointsSuite from './entry-points.spec.js';
+import pinHintSuite from './pin-hint.spec.js';
 import configSuite from './config.spec.js';
 import libraryOutputSuite from './utils/library-output.spec.js';
 import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
+import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 
 run({
@@ -95,11 +98,14 @@ run({
     resolvePluginByNameSuite,
     runtimeSuite,
     gjsEntryWrapperSuite,
+    entryPointsSuite,
+    pinHintSuite,
     configSuite,
     libraryOutputSuite,
     suggestSuite,
     runtimesSuite,
     spawnSuite,
     gjsBundleGuardSuite,
+    nodeBundleGuardSuite,
     unresolvedWorkspaceImportSuite,
 });

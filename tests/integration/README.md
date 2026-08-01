@@ -87,7 +87,7 @@ assertions are preserved — only the assertion dialect changes.
 | `worker-stress/` | `@gjsify/worker_threads` + `@gjsify/sab-native` | `### worker-stress` |
 | `yargs/` | yargs CLI parser | `### yargs` |
 
-Each suite's row in `STATUS.md` lists per-port test counts (Node / GJS / skipped) and any `@gjsify/*` root-cause fix landed alongside it.
+Each suite's section in [`status/integration-coverage.md`](../../status/integration-coverage.md) lists per-port test counts (Node / GJS / skipped) and any `@gjsify/*` root-cause fix landed alongside it.
 
 ## Running
 

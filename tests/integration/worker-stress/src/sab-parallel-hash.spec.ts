@@ -27,8 +27,8 @@ export default async () => {
         const hasSAB = typeof SAB === 'function';
 
         await it('SharedArrayBuffer availability', async () => {
-            // Documented expectations. GJS today: undefined (see STATUS.md
-            // "Open TODOs → SharedArrayBuffer cross-process sharing").
+            // Documented expectations. GJS today: undefined (see
+            // status/open-todos.md → "SharedArrayBuffer cross-process sharing").
             if (hasSAB) {
                 expect(typeof SAB).toBe('function');
             } else {
@@ -128,7 +128,6 @@ export default async () => {
                 // Throughput baseline.
                 const totalMiB = SAB_BYTES / 1024 / 1024;
                 const mibPerSec = (totalMiB * 1000) / Math.max(1, elapsedMs);
-                // eslint-disable-next-line no-console
                 console.log(
                     `[worker-stress] SAB hash: ${totalMiB.toFixed(1)} MiB across ${WORKER_COUNT} workers in ${elapsedMs} ms (${mibPerSec.toFixed(0)} MiB/s)`,
                 );

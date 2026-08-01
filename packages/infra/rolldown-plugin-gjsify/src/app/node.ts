@@ -100,7 +100,9 @@ export function enableGjsRegistersForNode(baseAliases: Record<string, string>): 
  *
  * Two signals qualify, and BOTH must gate the same things:
  *  - `nodeGiGlobalsInject` — the CLI's post-tree-shake detection found bare GJS
- *    ambient globals (`print`/`imports`/`ARGV`/…) in the bundled output;
+ *    ambient globals (`print`/`imports`/`ARGV`/…) OR a static
+ *    `@gjsify/node-gi/*` import (the externalised spelling of the bare
+ *    `system`/`gettext`/`cairo` built-ins) in the bundled output;
  *  - `registerInject` (the `--globals` auto/explicit inject stub) — the user
  *    asked for GJS registers on the node target explicitly.
  *
@@ -116,11 +118,16 @@ export function enableGjsRegistersForNode(baseAliases: Record<string, string>): 
  * routing and the `@girs/*` emptying both stay, so a cross-platform package's
  * node bundle keeps loading on plain Node without node-gi installed.
  *
- * KNOWN NARROWNESS (pre-dates this predicate, tracked in STATUS.md): the
- * `nodeGiGlobalsInject` detector keys on BARE ambient globals, so a genuine GJS
- * source that uses `gi://` but logs via `console.log` and passes no `--globals`
- * is not recognised — its `@girs/*` AND its registers are both emptied. The two
- * are now at parity; widening the signal itself is the separate fix.
+ * KNOWN NARROWNESS (pre-dates this predicate, tracked in status/open-todos.md): the
+ * `nodeGiGlobalsInject` detector keys on bare ambient globals + static
+ * `@gjsify/node-gi/*` imports, so a genuine GJS source whose ONLY platform
+ * reach is `gi://` (no ambient global, no bare `system`/`gettext`/`cairo`) is
+ * still not recognised — its `@girs/*` AND its registers are both emptied. A
+ * surviving `gi://` import CANNOT simply become a third signal: its shim loads
+ * node-gi lazily precisely so a gjs-gated `gi://` import in a cross-platform
+ * package keeps that package's node bundle loadable on plain Node (#641,
+ * pinned by `tests/e2e/node-gi-globals-inject`), and injecting the eager
+ * globals shim for it would break exactly that.
  */
 export function isGjsSourceBuild(options: {
     nodeGiGlobalsInject?: boolean;
@@ -191,14 +198,16 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
 
-    // When the CLI's pre-build detection (`detectNodeGiGlobals`) found GJS
-    // ambient globals in the bundled output, wrap the entry so it side-effect
-    // imports the node-gi globals shim BEFORE the user code runs. The import is
-    // injected ONLY when detected — a bundle that never touches `print`/`imports`
-    // stays free of `@gjsify/node-gi/globals`, so it loads on plain Node without
-    // node-gi installed (the eager-native-load regression guard, same lesson as
-    // the lazy `gi://` shim in #641). Reuses the SAME virtual-entry wrapper the
-    // GJS `--globals auto` machinery uses.
+    // When the CLI's pre-build detection (`detectNodeGiGlobals`) recognised a
+    // genuine GJS source (bare ambient globals OR a static `@gjsify/node-gi/*`
+    // import in the bundled output), wrap the entry so it side-effect imports
+    // the node-gi globals shim BEFORE the user code runs. The import is
+    // injected ONLY when detected — a bundle that neither touches
+    // `print`/`imports` nor retains a bare `system`/`gettext`/`cairo` import
+    // stays free of `@gjsify/node-gi/globals`, so it loads on plain Node
+    // without node-gi installed (the eager-native-load regression guard, same
+    // lesson as the lazy `gi://` shim in #641). Reuses the SAME virtual-entry
+    // wrapper the GJS `--globals auto` machinery uses.
     const sideEffectImports: string[] = [];
     if (input.pluginOptions.nodeGiGlobalsInject) sideEffectImports.push(NODE_GI_GLOBALS_SPECIFIER);
     // The explicit `--globals` register-inject stub (reverse bridge, see
@@ -216,9 +225,10 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
      * TWO signals answer that ONE question and both must count:
      *
      *  - `nodeGiGlobalsInject` — the CLI detected BARE GJS ambient globals
-     *    (`print`/`imports`/`ARGV`) in the tree-shaken output. Only genuine GJS
-     *    source has those (the detector deliberately ignores the
-     *    `globalThis.imports` isomorphic-guard shape).
+     *    (`print`/`imports`/`ARGV`) or a static `@gjsify/node-gi/*` import
+     *    (a retained bare `system`/`gettext`/`cairo` built-in) in the
+     *    tree-shaken output. Only genuine GJS source has those (the detector
+     *    deliberately ignores the `globalThis.imports` isomorphic-guard shape).
      *  - `autoGlobalsInject` — the user named EXPLICIT `--globals` (e.g.
      *    `--globals auto,dom`), i.e. asked for the DOM surface on Node.
      *

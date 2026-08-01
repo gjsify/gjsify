@@ -73,7 +73,7 @@ const responsePushMethods: ResponsePushMethods & ThisType<Http2ServerResponse> =
      * receives a fully-usable `ServerHttp2Stream` whose `respond()` / `end()`
      * calls write into a synthetic in-memory stream observable from tests.
      *
-     * See STATUS.md "Open TODOs" → "http2 PUSH_PROMISE wire delivery".
+     * See status/open-todos.md → "http2 PUSH_PROMISE wire delivery".
      */
     pushStream(
         this: Http2ServerResponse,

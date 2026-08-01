@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webaudio",
-    "version": "0.24.1",
+    "version": "0.26.0",
     "description": "Web Audio API for GJS using GStreamer as audio backend",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -45,6 +45,7 @@
         "@gjsify/dom-events": "workspace:^"
     },
     "devDependencies": {
+        "@girs/gio-2.0": "^4.1.0",
         "@girs/gjs": "^4.1.0",
         "@girs/glib-2.0": "^4.1.0",
         "@girs/gst-1.0": "^4.1.0",

@@ -105,10 +105,10 @@ export function symlinkSwap(cacheDir: string, prepareDir: string): string {
     } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code === 'EBUSY' || code === 'EPERM' || code === 'EEXIST') {
-            // Race lost — clean up our tmp and use whoever won.
-            try {
-                rmSync(tmpLink);
-            } catch {}
+            // Race lost — clean up our tmp and use whoever won. force:true is
+            // the non-throwing spelling of "remove if still there"; any other
+            // failure on our own pid-unique link is real and should surface.
+            rmSync(tmpLink, { force: true });
             return realpathSync(linkPath);
         }
         throw err;

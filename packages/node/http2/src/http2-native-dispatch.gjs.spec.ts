@@ -159,15 +159,16 @@ export default async function () {
             }
 
             function closeClient(fx: ClientFixture): void {
-                try {
-                    fx.inSource.destroy();
-                } catch {}
+                // GLib.Source.destroy() and SessionBridge.close() have no throw
+                // path (the latter is idempotent Vala teardown) — call them bare.
+                fx.inSource.destroy();
                 try {
                     fx.connection.close(null);
-                } catch {}
-                try {
-                    fx.client.close();
-                } catch {}
+                } catch {
+                    // Gio.IOStream.close throws when the server already closed
+                    // the connection; the bridge close below must still run.
+                }
+                fx.client.close();
             }
 
             // Spin the GLib main loop on idle ticks until `pred()` returns true.

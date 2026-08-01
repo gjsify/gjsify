@@ -16,7 +16,7 @@
  * Future scope (not in this file yet):
  *   - Session resumption: `gnutls_session_get_data2` / `set_data` —
  *     blocked on extracting the live `gnutls_session_t` from
- *     `Gio.TlsConnection`. Tracked in STATUS.md.
+ *     `Gio.TlsConnection`. Tracked in status/open-todos.md.
  *   - Channel binding: `gnutls_session_channel_binding` (TLS-Finished bytes
  *     for SCRAM-SHA-* SASL). Same gnutls_session_t blocker.
  *

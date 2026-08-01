@@ -55,19 +55,19 @@ The CLI's default `--globals auto` discovers which registers your project needs 
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npx @gjsify/cli build src/index.ts --outfile dist/index.js
+    npx @gjsify/cli@latest build src/index.ts --outfile dist/index.js
     # (--globals auto is the default — no flag needed)
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bunx @gjsify/cli build src/index.ts --outfile dist/index.js
+    bunx @gjsify/cli@latest build src/index.ts --outfile dist/index.js
     # (--globals auto is the default — no flag needed)
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno run -A npm:@gjsify/cli build src/index.ts --outfile dist/index.js
+    deno run -A npm:@gjsify/cli@latest build src/index.ts --outfile dist/index.js
     # (--globals auto is the default — no flag needed)
     ```
   </Fragment>
@@ -135,7 +135,7 @@ Each polyfill package splits its register code into per-feature subpaths. Detect
 
 For example, an app that uses just `process.env` and `fetch` injects two tiny register stubs (`process` + `fetch`), not the entire Node + Web group.
 
-### Projects scaffolded via `npx @gjsify/cli create`
+### Projects scaffolded via `npx @gjsify/cli@latest create`
 
 Scaffolded projects rely on the default `auto` mode and don't pass `--globals` at all:
 
@@ -214,17 +214,17 @@ Then it spawns `gjs -m <bundle>`:
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npx @gjsify/cli run dist/index.js
+    npx @gjsify/cli@latest run dist/index.js
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bunx @gjsify/cli run dist/index.js
+    bunx @gjsify/cli@latest run dist/index.js
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno run -A npm:@gjsify/cli run dist/index.js
+    deno run -A npm:@gjsify/cli@latest run dist/index.js
     ```
   </Fragment>
 </CommandTabs>
@@ -240,19 +240,19 @@ If you want to run `gjs` directly (for example from a systemd unit or a packaged
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    eval $(npx @gjsify/cli info --export)
+    eval $(npx @gjsify/cli@latest info --export)
     gjs -m dist/index.js
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    eval $(bunx @gjsify/cli info --export)
+    eval $(bunx @gjsify/cli@latest info --export)
     gjs -m dist/index.js
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    eval $(deno run -A npm:@gjsify/cli info --export)
+    eval $(deno run -A npm:@gjsify/cli@latest info --export)
     gjs -m dist/index.js
     ```
   </Fragment>

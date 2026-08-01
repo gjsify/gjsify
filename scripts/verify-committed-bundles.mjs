@@ -218,6 +218,21 @@ function restoreDisk(snapshot, groups) {
     }
 }
 
+/**
+ * Where a mismatching rebuild is kept so it can leave the machine that made it.
+ * Mirrors the repo-relative path, so the whole tree can be copied over a
+ * checkout verbatim (`cp -r tmp/rebuilt-bundles/. .`).
+ */
+const REBUILT_DIR = join(repoRoot, 'tmp', 'rebuilt-bundles');
+const rebuiltSaved = [];
+
+function saveRebuilt(relPath, bytes) {
+    const dest = join(REBUILT_DIR, relPath);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, bytes);
+    rebuiltSaved.push(relPath);
+}
+
 /** Byte offset of the first difference, or -1 when equal. */
 function firstDiffOffset(a, b) {
     const n = Math.min(a.length, b.length);
@@ -251,9 +266,6 @@ function fail(msg) {
     console.error(inActions ? `::error::${msg}` : `ERROR: ${msg}`);
 }
 
-/** The Node entry of `@gjsify/cli` — plain-tsc output, the bootstrap's only host. */
-const CLI_NODE_ENTRY = join(repoRoot, 'packages', 'infra', 'cli', 'lib', 'index.js');
-
 /**
  * Bring the workspace to the point where `gjsify build` can run AT ALL, so
  * this check works on a cold tree.
@@ -276,31 +288,27 @@ const CLI_NODE_ENTRY = join(repoRoot, 'packages', 'infra', 'cli', 'lib', 'index.
  * from `.release-it.json`'s `after:bump`) ends up unable to run on the cold
  * tree a CI release always has.
  *
- * Two entry points, because the bootstrap has a precondition of its own — it
- * drives the CLI's NODE entry (`packages/infra/cli/lib/index.js`, the one
- * emitter that needs no bundler), which is itself a build output:
+ * ONE entry point. The bootstrap has a precondition of its own — it drives the
+ * CLI's NODE entry (`packages/infra/cli/lib/index.js`, the one emitter that
+ * needs no bundler), which is itself a build output — but it now satisfies that
+ * precondition ITSELF on a cold tree by running root `build:infra` (the
+ * documented tsc chain that produces the entry AND ends in the very same
+ * bootstrap). This file used to carry that cold/warm branch; the branch belongs
+ * in the bootstrap, where EVERY caller inherits it rather than only this one.
+ * The release workflow's `publish-napi` job is the caller that did not, and it
+ * is why `@gjsify/napi` missed the v0.24.1 train.
  *
- *   - Node entry present (warm, and the CI ordering) → run the bootstrap
- *     directly. It is mtime-idempotent: already-built facades are skipped in
- *     milliseconds, so a warm run pays a few stat sweeps.
- *   - Node entry absent (cold clone) → run root `build:infra`, which is the
- *     documented tsc chain that produces that entry AND ends in the very same
- *     bootstrap. Re-spelling its prefix here would be a second copy of a
- *     recipe that already exists — the same reason `--rebuild` lives in this
- *     file instead of in `.release-it.json`.
+ * Warm is the CI ordering and stays cheap: the bootstrap is mtime-idempotent,
+ * so already-built facades are skipped in milliseconds.
  *
  * @returns {string|null} an abort reason, or null on success.
  */
-function ensureBuildableWorkspace(gjsify) {
-    const cold = !existsSync(CLI_NODE_ENTRY);
+function ensureBuildableWorkspace() {
     const bootstrap = join(repoRoot, 'scripts', 'bootstrap-native-facades.mjs');
-    const cmd = cold ? gjsify.cmd : process.execPath;
-    const cmdArgs = cold ? [...gjsify.args, 'run', 'build:infra'] : [bootstrap];
-    const label = cold ? 'gjsify run build:infra' : 'node scripts/bootstrap-native-facades.mjs';
-    const why = cold ? 'cold tree — no packages/infra/cli/lib/index.js' : 'warm tree';
+    const label = 'node scripts/bootstrap-native-facades.mjs';
 
-    console.log(`\n[verify-bundles] preflight (${why}): ${label}`);
-    const r = spawnSync(cmd, cmdArgs, { cwd: repoRoot, stdio: 'inherit', env: process.env });
+    console.log(`\n[verify-bundles] preflight: ${label}`);
+    const r = spawnSync(process.execPath, [bootstrap], { cwd: repoRoot, stdio: 'inherit', env: process.env });
     if (r.status === 0) return null;
     return (
         `preflight: \`${label}\` failed (exit ${r.status}). Without it the GJS bundler engine ` +
@@ -362,7 +370,7 @@ try {
     // Cold-tree preflight. Inside the `try` so a failure still unwinds through
     // the restore below, and BEFORE the loop so no recipe ever runs against a
     // workspace that cannot bundle.
-    aborted = ensureBuildableWorkspace(gjsify);
+    aborted = ensureBuildableWorkspace();
 
     for (const recipe of RECIPES) {
         if (aborted) break;
@@ -426,6 +434,19 @@ try {
                 console.error(`  committed …${excerpt(expected, off)}…`);
                 console.error(`  rebuilt   …${excerpt(actual, off)}…`);
                 fail(`  Refresh locally: ${recipe.hint}, then commit it.`);
+                // …and keep the bytes THIS run produced, because "refresh
+                // locally" is not always advice a contributor can take. The
+                // historical way that happened — fast-glob's raced entry order
+                // leaking into `--library` outputs (`mapSysname` where the
+                // committed file had `makeCallable`; see release-cut.yml) — is
+                // fixed at the core (`utils/entry-points.ts` sorts each
+                // pattern's expansion), but a STALE `lib/esm` built before the
+                // fix, or restored from a build cache that predates it, still
+                // reproduces the old bytes until the closure is rebuilt. On
+                // such a tree the instruction above loops, and the only bytes
+                // that satisfy this check are the ones CI builds. Saving them
+                // turns a dead end into a download.
+                saveRebuilt(p, actual);
             }
             if (group.kind === 'dir') {
                 console.log(`  ✓ ${group.path}/: ${matched}/${expectedPaths.length} reproduce from source`);
@@ -450,6 +471,19 @@ if (failures > 0) {
         `${failures} committed artifact(s) do not match their source. A stale bundle still runs and still reports ` +
             'the right version, which is why the version check cannot see this.',
     );
+    if (rebuiltSaved.length > 0) {
+        console.error(
+            `\nThe ${rebuiltSaved.length} rebuilt artifact(s) THIS run produced were kept under tmp/rebuilt-bundles/:\n` +
+                rebuiltSaved.map((p) => `  ${p}`).join('\n') +
+                (inActions
+                    ? '\n\nCI uploads them as the `rebuilt-bundles` artifact. If your machine cannot reproduce ' +
+                      'these bytes (usually a stale pre-entry-order-fix `lib/esm` or build cache — see release-cut.yml), ' +
+                      'download it and copy it over your checkout:\n' +
+                      '  gh run download <run-id> -n rebuilt-bundles -D tmp/rebuilt-bundles\n' +
+                      '  cp -r tmp/rebuilt-bundles/. . && git add -A\n'
+                    : '\n\nCompare them against the committed files to see what your machine builds differently.\n'),
+        );
+    }
     process.exit(1);
 }
 

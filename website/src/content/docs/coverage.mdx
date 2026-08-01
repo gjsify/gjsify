@@ -1,6 +1,6 @@
 ---
 title: Coverage
-description: How complete GJSify is — pillar entries, Node.js modules and W3C/WHATWG web standards, rendered live from STATUS.md.
+description: How complete GJSify is — pillar entries, Node.js modules and W3C/WHATWG web standards, rendered live from the project status data.
 ---
 
 import PillarCoverage from '../../components/PillarCoverage.astro';
@@ -8,7 +8,7 @@ import NodeApiCoverage from '../../components/NodeApiCoverage.astro';
 import WebStandardsCoverage from '../../components/WebStandardsCoverage.astro';
 import IntegrationTests from '../../components/IntegrationTests.astro';
 
-GJSify's progress is tracked in [`STATUS.md`](https://github.com/gjsify/gjsify/blob/main/STATUS.md) and regenerated into these dashboards on every build, so the bars never lag behind reality.
+GJSify's progress is tracked as data in [`status/`](https://github.com/gjsify/gjsify/blob/main/status) and derived from the package manifests; these dashboards are regenerated from it on every build, so the bars never lag behind reality.
 
 The dashboards below cover the primary direction — Node.js, Web and DOM APIs implemented on GJS. For what is validated on the *other* runtimes (Node.js, Bun, Deno, the browser), see [Runtimes](/gjsify/runtimes/).
 

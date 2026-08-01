@@ -96,9 +96,9 @@ function runCli(cliEntry, args, { cwd, env, timeoutMs = 120_000 } = {}) {
             stderr += c;
         });
         const kill = setTimeout(() => {
-            try {
-                child.kill('SIGKILL');
-            } catch {}
+            // ChildProcess.kill with a known signal never throws — failure
+            // to deliver just returns false (the process already exited).
+            child.kill('SIGKILL');
         }, timeoutMs);
         child.on('close', (code) => {
             clearTimeout(kill);

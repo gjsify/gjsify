@@ -17,7 +17,7 @@
 // `node_modules/` and symlinks `workspace:*` / `workspace:^` / `workspace:~`
 // refs to their target source. Conflicting version ranges of the same
 // external dep from different workspaces still share ONE hoisted root copy
-// (a real per-workspace dedup pass is Phase D.8, see STATUS.md), but since
+// (a real per-workspace dedup pass is Phase D.8, see status/open-todos.md), but since
 // ADR 0001 step 3 the resolver surfaces every such conflict loudly —
 // `[gjsify] warning: version conflict for <pkg> …` names both ranges, the
 // workspaces that requested them, and the version that actually won.
@@ -36,8 +36,8 @@ import { gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
-import { detectNativePackages, libraryPathVar } from '../utils/detect-native-packages.js';
-import { buildLauncherShims } from '../utils/bin-shim.js';
+import { detectNativePackages } from '../utils/detect-native-packages.js';
+import { buildLauncherShims, buildNativeEnvPreamble } from '../utils/bin-shim.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { atomicWriteStrict } from '../utils/install-cache-fs.js';
 import { acquireInstallLock } from '../utils/install-lock.js';
@@ -177,24 +177,29 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     'gjsify install --immutable does not accept package arguments. ' +
                         'Remove the package names or drop --immutable.',
                 );
-                process.exit(1);
+                // `return` — a bare `process.exit()` is deferred under GJS and
+                // the install would proceed past a refused flag combination.
+                return process.exit(1);
             }
             if (args.global) {
                 console.error('gjsify install --immutable is incompatible with --global.');
-                process.exit(1);
+                // `return` — see the deferred-exit note above.
+                return process.exit(1);
             }
             if (args['refresh-lockfile']) {
                 console.error(
                     'gjsify install --immutable is incompatible with --refresh-lockfile ' +
                         '(--immutable forbids rewriting the lockfile). Drop one.',
                 );
-                process.exit(1);
+                // `return` — see the deferred-exit note above.
+                return process.exit(1);
             }
         }
         if (args.global) {
             if (!args.packages || args.packages.length === 0) {
                 console.error('gjsify install --global requires at least one <pkg> argument.');
-                process.exit(1);
+                // `return` — see the deferred-exit note above.
+                return process.exit(1);
             }
             for (const flag of ['save-dev', 'save-peer', 'save-optional'] as const) {
                 if (args[flag]) {
@@ -298,7 +303,10 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     `gjsify install: timed out after ${secs}s — likely a registry slowdown or a wedged extract.\n` +
                         `Re-run, or override with --timeout <ms> (set --timeout 0 to disable the overall budget).`,
                 );
-                process.exit(1);
+                // `return` — the deferred GJS exit otherwise fell through into
+                // the rethrow below and reported the timeout twice. The
+                // `finally` still runs on the way out and clears the timers.
+                return process.exit(1);
             }
             throw err;
         } finally {
@@ -598,7 +606,7 @@ function syncLockfileRequested(cwd: string, specs: string[]): void {
  *
  * Hoisting strategy is intentionally minimal — per-workspace dedup +
  * nested `node_modules/` for cross-workspace version conflicts are the
- * Phase D.8 follow-up tracked in STATUS.md.
+ * Phase D.8 follow-up tracked in status/open-todos.md.
  */
 async function workspaceInstall(cwd: string, args: InstallOptions, signal?: AbortSignal): Promise<void> {
     // Hold the root-prefix lock for the WHOLE workspace flow: bin shims,
@@ -1029,9 +1037,11 @@ function writeWorkspaceBinShims(cwd: string, workspaces: ReturnType<typeof disco
                     /* fine */
                 }
             }
-            writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs), {
-                mode: 0o755,
-            });
+            writeFileSync(
+                linkPath,
+                buildBinShim(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs, process.platform, cwd),
+                { mode: 0o755 },
+            );
             chmodSync(linkPath, 0o755);
             // Windows executes neither an extension-less file nor a `#!` line —
             // the sh shim above is only reachable from git-bash/MSYS/WSL. Write
@@ -1174,6 +1184,7 @@ export function buildBinShim(
     gjsTarget?: string,
     nativePrebuildDirs: string[] = [],
     platform: string = process.platform,
+    scanRoot: string = wsLocation,
 ): string {
     const nodeAbs = nodeTarget ? join(wsLocation, nodeTarget) : null;
     const gjsAbs = gjsTarget ? join(wsLocation, gjsTarget) : null;
@@ -1181,22 +1192,12 @@ export function buildBinShim(
     // export to the gjs branch, keeping the shim minimal when no native pkgs
     // exist or only the Node bin is in play.
     //
-    // The library-path variable is host-dependent: `dyld` on macOS never reads
-    // LD_LIBRARY_PATH, so exporting it there silently produced a launcher that
-    // could not load a single `darwin-arm64` prebuild. `libraryPathVar()` is the
-    // one place that mapping lives.
-    const { name: libVar } = libraryPathVar(platform);
-    const gjsPreamble =
-        nativePrebuildDirs.length === 0
-            ? ''
-            : (() => {
-                  const joined = `'${nativePrebuildDirs.join(':').replace(/'/g, `'\\''`)}'`;
-                  return (
-                      `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
-                      `${libVar}=${joined}\${${libVar}:+":$${libVar}"}\n` +
-                      `export GI_TYPELIB_PATH ${libVar}\n`
-                  );
-              })();
+    // `scanRoot` is the INSTALL prefix (the tree holding `node_modules/.bin`),
+    // not the workspace package dir: the preamble globs its `node_modules` at
+    // launch time instead of embedding what was installed the day the shim was
+    // written, so `gjsify install <some>-native` afterwards is picked up without
+    // a re-link. See `buildNativeEnvPreamble`.
+    const gjsPreamble = buildNativeEnvPreamble(scanRoot, nativePrebuildDirs, { platform });
     if (nodeAbs && gjsAbs) {
         // GJS-FIRST: prefer the committed Node-free GJS bundle when `gjs` is on
         // PATH AND the bundle exists; fall back to the Node entry otherwise (a

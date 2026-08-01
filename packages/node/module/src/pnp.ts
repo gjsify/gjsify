@@ -26,7 +26,7 @@
 //     against it require the `@yarnpkg/fslib` ZipFS layer that the gjsify
 //     plugin uses at build time.  We surface the path so callers can
 //     decide what to do with it; runtime read support for zips is tracked
-//     separately in gjsify STATUS.md.
+//     separately in gjsify status/open-todos.md.
 //
 // What is NOT supported
 // ---------------------

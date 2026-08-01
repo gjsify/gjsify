@@ -1,36 +1,24 @@
 // Reference: Node.js lib/internal/crypto/random.js
-// Reimplemented for GJS using WebCrypto API / GLib.Random
+// Reimplemented for GJS over the shared entropy chain in `@gjsify/webcrypto`.
 
 import { Buffer } from 'node:buffer';
-
-const hasWebCrypto =
-    typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function';
+// The `/random` LEAF subpath, not the package root: it pulls no `SubtleCrypto`
+// and no `@gjsify/dom-exception`, which is what keeps this edge acyclic and
+// cheap. `@gjsify/webcrypto` owns `crypto.getRandomValues`, so it owns the
+// entropy chain; `node:crypto`'s random surface is a consumer of it.
+import { fillRandomBytes } from '@gjsify/webcrypto/random';
 
 /**
- * Fill a Uint8Array with random bytes, using WebCrypto or GLib.Random fallback.
+ * Fill a Uint8Array with random bytes.
+ *
+ * This used to prefer `globalThis.crypto` directly — which on GJS IS
+ * `@gjsify/webcrypto`'s polyfill, whose own fallback was `Math.random()`. Two
+ * locally reasonable decisions composed into `randomBytes()` handing out
+ * non-cryptographic bytes, so both now go through the one source chain
+ * (WebCrypto → /dev/urandom → GLib.Random → Math.random).
  */
 function fillRandom(view: Uint8Array): void {
-    if (hasWebCrypto) {
-        // WebCrypto has a 65536-byte limit per call
-        for (let offset = 0; offset < view.length; offset += 65536) {
-            const length = Math.min(view.length - offset, 65536);
-            const slice = new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset + offset, length);
-            globalThis.crypto.getRandomValues(slice);
-        }
-    } else {
-        // GLib.Random fallback for GJS environments without WebCrypto
-        try {
-            const GLib = imports.gi.GLib;
-            for (let i = 0; i < view.length; i++) {
-                view[i] = GLib.random_int_range(0, 256);
-            }
-        } catch {
-            // Last resort: Math.random (not cryptographically secure)
-            for (let i = 0; i < view.length; i++) {
-                view[i] = Math.floor(Math.random() * 256);
-            }
-        }
-    }
+    fillRandomBytes(view);
 }
 
 /**
@@ -123,7 +111,7 @@ export function randomFill(
  * Generate a random UUID v4 string.
  */
 export function randomUUID(): string {
-    if (hasWebCrypto && typeof globalThis.crypto.randomUUID === 'function') {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
         return globalThis.crypto.randomUUID();
     }
 

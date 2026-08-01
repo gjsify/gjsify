@@ -14,7 +14,7 @@
 | Requires SharedArrayBuffer? | No | **Yes** — `WebAssembly.Memory({ shared: true, initial: 16384, maximum: 65536 })` (≥1 GiB shared addr space) |
 | Requires worker_threads? | No | **Yes** — `wasi-worker.mjs` for async work pool |
 | Host import surface | ~1 namespace (`env`) with napi + 2 custom fns | `wasi_snapshot_preview1` + `env` (napi) + emnapi worker IPC |
-| GJS viability (today) | **High** — single small shim | **Low** — SAB hole in stock GJS blocks mode 0 (see STATUS.md) |
+| GJS viability (today) | **High** — single small shim | **Low** — SAB hole in stock GJS blocks mode 0 (see `status/open-todos.md`) |
 
 **Strategic implication.** Rolldown-WASM under stock GJS is blocked by the SharedArrayBuffer disable in SpiderMonkey. We can either:
 - (a) Rebuild rolldown WASM without `wasi-threads` — single-threaded variant, smaller import surface, no SAB. Patches needed in `refs/rolldown/crates/rolldown_binding/`. **Untested upstream**.
@@ -111,12 +111,12 @@ const { napiModule } = __emnapiInstantiateNapiModuleSync(wasmBytes, {
 | `@napi-rs/wasm-runtime` (3 named exports) | Port to `packages/infra/napi-wasm-runtime-gjs/`. Audit Node-specific code paths inside the package. **Largest single piece of work** | ⚠ |
 | `node:wasi` `WASI` class with `preopens` | Implement via `@gjsify/wasi` package. Maps `wasi_snapshot_preview1` syscalls (~30 functions) to `@gjsify/{fs,process,timers,…}` | ⚠ |
 | `node:worker_threads` `Worker` | gjsify already has partial `@gjsify/worker_threads` (subprocess-based). NAPI-RS uses workers for async work pool — needs in-process workers, not subprocesses, OR fallback to single-threaded | ⚠⚠ |
-| `WebAssembly.Memory({ shared: true })` | **Stock GJS rejects** — Mozilla disables `SharedArrayBuffer` constructor. Tracked in STATUS.md "SharedArrayBuffer cross-process sharing" | ❌ |
+| `WebAssembly.Memory({ shared: true })` | **Stock GJS rejects** — Mozilla disables `SharedArrayBuffer` constructor. Tracked in `status/open-todos.md` → "SharedArrayBuffer cross-process sharing" | ❌ |
 
 ### The SAB blocker — three escape paths
 
 1. **Rebuild rolldown without `wasi-threads`.** `refs/rolldown/crates/rolldown_binding/Cargo.toml` and rolldown's NAPI-RS config produce only the threaded variant today. Custom `cargo build --target wasm32-wasi --release` with the threading feature off would produce a non-shared-memory WASM. **Risk**: rolldown's bundling uses `rayon`/`tokio` parallelism — losing it could degrade bundle time 5-10×; uncertain whether the build even compiles cleanly without threads.
-2. **Upstream patch enabling SAB in GJS.** Multi-quarter, out of scope. Documented as out-of-scope under STATUS.md "SharedArrayBuffer cross-process sharing" already.
+2. **Upstream patch enabling SAB in GJS.** Multi-quarter, out of scope. Documented as out-of-scope under `status/open-todos.md` → "SharedArrayBuffer cross-process sharing" already.
 3. **Skip rolldown-WASM entirely.** Go straight to **rolldown FFI** for productization. WASM POC becomes "documented dead-end" rather than a real comparison target.
 
 **Decision (this audit)**: Try option (1) for the POC. If `cargo build --target wasm32-wasi --release` without `wasi-threads` fails or produces a binary that doesn't link/run, fall back to option (3) and document accordingly.

@@ -14,6 +14,7 @@ import {
     readDeclaredRuntimes,
     checkRuntimeSupported,
     defaultExampleRuntime,
+    requiresGjsSystemDeps,
     type ExampleRuntime,
 } from '../utils/runtimes.js';
 
@@ -26,6 +27,44 @@ function readCliVersion(): string | undefined {
         return undefined;
     }
 }
+
+/**
+ * `[gjsify <version>] ` for the banner — the CLI naming ITSELF.
+ *
+ * `showcase` pins the showcase package to the CLI's own version, so a stale CLI
+ * silently runs a stale showcase, and the only version in the output was the
+ * showcase's. That is not a hypothetical: every runner that caches an unpinned
+ * bin reuses whatever it resolved once (`npx @gjsify/cli` → a 0.4.x `_npx`
+ * entry; `deno run npm:@gjsify/cli` → whatever sits in `DENO_DIR`), so the same
+ * command produced 0.24.1 under bunx, 0.4.25 under npx and 0.23.0 under deno on
+ * ONE machine on ONE day — and the two old ones failed in ways that read as
+ * gjsify bugs. gjsify cannot flush somebody else's cache, but it can stop the
+ * output from hiding which gjsify is talking.
+ */
+function runningAs(cliVersion: string | undefined): string {
+    return cliVersion ? `[gjsify ${cliVersion}] ` : '';
+}
+
+/**
+ * Pinned invocations for the three runners that cache an unpinned bin.
+ *
+ * The deno line carries TWO flags because deno stacks two independent refusals,
+ * and dropping either one leaves the hint broken in exactly the window where it
+ * is reached most: `--reload` busts the `DENO_DIR` copy, and `--min-dep-age 0`
+ * waives deno's supply-chain policy of refusing any version published within
+ * the last 24 h (`minimumDependencyAge`, default `24h`). Without the second
+ * flag `@latest` silently resolves to the newest release OLDER THAN A DAY — so
+ * a user who hits a bug, is told to run `@latest`, and does, gets the SAME
+ * pre-fix binary back and a stale error message with it. Measured twice on one
+ * day against 0.25.1 (minutes old) falling back to 0.24.1. `@latest` is kept
+ * rather than a baked version so the hint cannot go stale itself; the age
+ * waiver is what makes `@latest` mean latest.
+ */
+export const PIN_HINT =
+    'A package runner reuses a CACHED copy of an unpinned bin. Force the current one:\n' +
+    '    npx @gjsify/cli@latest showcase <name>\n' +
+    '    bunx @gjsify/cli@latest showcase <name>\n' +
+    '    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest showcase <name>';
 
 interface ShowcaseOptions {
     name?: string;
@@ -125,34 +164,40 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
             return process.exit(1);
         }
 
-        // System dependency check before delegating — only system libs (gjs,
-        // gtk4, …). The showcase's npm deps (incl. `@gjsify/webgl` with the
-        // gwebgl Vala prebuild) are fetched by `gjsify dlx` into the npm
-        // cache, and `runGjsBundle()` picks the prebuild up from the bundle
-        // dir via `detectNativePackages()`. Pre-flight-checking npm deps
-        // here would fail for `npx @gjsify/cli showcase` (no project
-        // node_modules, CLI doesn't dep on the showcase libs).
-        const results = runMinimalChecks();
-        const missingHard = results.filter((r) => !r.found && r.severity === 'required');
-        if (missingHard.length > 0) {
-            console.error('Missing system dependencies:\n');
-            for (const dep of missingHard) {
-                console.error(`  ✗  ${dep.name}`);
-            }
-            const pm = detectPackageManager();
-            const cmd = buildInstallCommand(pm, missingHard);
-            if (cmd) {
-                console.error(`\nInstall with:\n  ${cmd}`);
-            }
-            // `return` — bare `process.exit` falls through under GJS (see above).
-            return process.exit(1);
-        }
-
+        // Resolve the runtime BEFORE the system-dependency gate: that gate is a
+        // question ABOUT the runtime, and asking it first gated every showcase
+        // on a gjs binary (see `requiresGjsSystemDeps`).
         const runtime = (args.runtime ?? defaultExampleRuntime()) as string;
         if (!isExampleRuntime(runtime)) {
             console.error(`Unknown --runtime "${runtime}" (expected: ${EXAMPLE_RUNTIMES.join(', ')}).`);
             // `return` — bare `process.exit` falls through under GJS (see above).
             return process.exit(1);
+        }
+
+        // System dependency check before delegating — only system libs (gjs,
+        // gtk4, …), and only for a runtime that consumes the `--app gjs`
+        // bundle. The showcase's npm deps (incl. `@gjsify/webgl` with the
+        // gwebgl Vala prebuild) are fetched by `gjsify dlx` into the npm
+        // cache, and `runGjsBundle()` picks the prebuild up from the bundle
+        // dir via `detectNativePackages()`. Pre-flight-checking npm deps
+        // here would fail for `npx @gjsify/cli showcase` (no project
+        // node_modules, CLI doesn't dep on the showcase libs).
+        if (requiresGjsSystemDeps(runtime)) {
+            const results = runMinimalChecks();
+            const missingHard = results.filter((r) => !r.found && r.severity === 'required');
+            if (missingHard.length > 0) {
+                console.error('Missing system dependencies:\n');
+                for (const dep of missingHard) {
+                    console.error(`  ✗  ${dep.name}`);
+                }
+                const pm = detectPackageManager();
+                const cmd = buildInstallCommand(pm, missingHard);
+                if (cmd) {
+                    console.error(`\nInstall with:\n  ${cmd}`);
+                }
+                // `return` — bare `process.exit` falls through under GJS (see above).
+                return process.exit(1);
+            }
         }
 
         const cliVersion = readCliVersion();
@@ -177,7 +222,7 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
         // newer CLI assumes (the `@gjsify/http-soup-bridge` regression
         // reported against `@gjsify/cli@0.3.17`).
         const dlxSpec = cliVersion ? `${showcase.packageName}@${cliVersion}` : showcase.packageName;
-        console.log(`Running showcase: ${showcase.name} (via gjsify dlx ${dlxSpec})\n`);
+        console.log(`Running showcase: ${showcase.name} ${runningAs(cliVersion)}(via gjsify dlx ${dlxSpec})\n`);
         // Dispatch `dlx` IN-PROCESS (not `spawn(process.execPath, [cliBin, …])`):
         // under the committed GJS bundle `process.execPath` is `gjs` and
         // `../index.js` is the Node entry, so the spawn ran `gjs cli.gjs.mjs
@@ -200,7 +245,11 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
  * in-tree build), falling back to `gjsify dlx`'s install-into-cache for a
  * published showcase. Returns the directory containing the package.json.
  */
-async function resolveShowcaseDir(showcase: ShowcaseInfo, cliVersion: string | undefined): Promise<string> {
+async function resolveShowcaseDir(
+    showcase: ShowcaseInfo,
+    cliVersion: string | undefined,
+    extraSpecs: readonly string[] = [],
+): Promise<string> {
     // Local-first: a workspace showcase resolves via its own package name.
     try {
         const req = createRequire(import.meta.url);
@@ -215,6 +264,7 @@ async function resolveShowcaseDir(showcase: ShowcaseInfo, cliVersion: string | u
         verbose: false,
         cacheMaxAge: 60 * 24 * 7,
         frozen: false,
+        extraSpecs,
     });
     return pkgDir;
 }
@@ -232,7 +282,16 @@ async function runShowcaseOnRuntime(
 ): Promise<void> {
     let pkgDir: string;
     try {
-        pkgDir = await resolveShowcaseDir(showcase, cliVersion);
+        // `@gjsify/node-gi` is the `gi://` bridge the `--app node` bundle
+        // resolves at RUNTIME. Showcases carry it as a devDependency (it is a
+        // build input for them), so a dlx tree — the package plus its own
+        // `dependencies` — does not contain it and the launch died with "add
+        // @gjsify/node-gi as a dependency": advice the user cannot act on,
+        // since the tree is the CLI's cache. The launcher knows the runtime, so
+        // it supplies the bridge. Pinned to the CLI's version like the showcase
+        // itself, so the bridge and the bundle move together.
+        const nodeGiSpec = cliVersion ? `@gjsify/node-gi@${cliVersion}` : '@gjsify/node-gi';
+        pkgDir = await resolveShowcaseDir(showcase, cliVersion, [nodeGiSpec]);
     } catch (err) {
         console.error(`Could not resolve showcase "${showcase.name}": ${(err as Error).message}`);
         return process.exit(1);
@@ -256,11 +315,34 @@ async function runShowcaseOnRuntime(
     try {
         entry = resolveNodeEntry(pkgDir);
     } catch (err) {
-        console.error(`Cannot run showcase "${showcase.name}" on ${runtime}: ${(err as Error).message}`);
+        // The showcase promised this runtime and did not ship the bundle. Two
+        // causes, and the user can only act on one of them, so name both: the
+        // package version is genuinely broken (fixed by a newer one), or THIS
+        // CLI is a cached old copy that pinned a genuinely broken old showcase.
+        const version = typeof pkg.name === 'string' ? `${pkg.name}@${cliVersion ?? '?'}` : showcase.packageName;
+        console.error(
+            `Cannot run showcase "${showcase.name}" on ${runtime}: ${(err as Error).message}\n\n` +
+                `  ${version} declares --runtime ${runtime} but ships no \`--app node\` bundle, so that\n` +
+                `  version of the showcase cannot run there. You are running gjsify ${cliVersion ?? '(unknown)'},\n` +
+                `  and \`showcase\` pins the showcase to the CLI's own version.\n\n  ${PIN_HINT}\n\n` +
+                `  Or run it on GJS, which every showcase ships: gjsify showcase ${showcase.name} --runtime gjs`,
+        );
         return process.exit(1);
     }
 
-    console.log(`Running showcase: ${showcase.name} on ${runtime} (${entry})\n`);
-    // Terminal call — exit on success.
-    await runRuntimeBundle(runtime, entry, [], { exitOnSuccess: true });
+    console.log(`Running showcase: ${showcase.name} ${runningAs(cliVersion)}on ${runtime} (${entry})\n`);
+    // Terminal call — exit on success. Failures are reported here rather than
+    // thrown: an exception escaping the handler makes yargs dump the command's
+    // full `--help` above the message, which buries it.
+    try {
+        await runRuntimeBundle(runtime, entry, [], { exitOnSuccess: true });
+    } catch (err) {
+        console.error(
+            `${(err as Error).message}\n\n` +
+                `  The showcase and the \`@gjsify/node-gi\` bridge it needs are both installed by THIS CLI\n` +
+                `  (gjsify ${cliVersion ?? '(unknown)'}) into its own cache, so a missing bridge points at the CLI\n` +
+                `  rather than at anything in your project.\n\n  ${PIN_HINT}`,
+        );
+        return process.exit(1);
+    }
 }

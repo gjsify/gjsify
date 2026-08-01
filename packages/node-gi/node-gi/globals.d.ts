@@ -32,17 +32,11 @@ export interface GjsImports {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var print: (...args: unknown[]) => void;
-  // eslint-disable-next-line no-var
   var printerr: (...args: unknown[]) => void;
-  // eslint-disable-next-line no-var
   var log: (...args: unknown[]) => void;
-  // eslint-disable-next-line no-var
   var logError: (error: unknown, prefix?: string) => void;
-  // eslint-disable-next-line no-var
   var ARGV: string[];
-  // eslint-disable-next-line no-var
   var imports: GjsImports;
 }
 

@@ -66,14 +66,16 @@
  * expected to treat a non-zero exit as "build everything" too (prebuilds.yml
  * does; see its `changes` job).
  *
- * WHAT THIS DOES NOT SEE, stated rather than glossed: the crates.io half of a
- * Rust bridge's graph. No `*-native` package commits a `Cargo.lock`, so
- * `lightningcss-native` (crates.io only, no `refs/` path dep) can change
- * because a registry version moved, with nothing in this repository changing
- * at all. Before this gate every run rebuilt it, so such drift landed
- * incidentally; now it lands when the package or a shared input changes, or on
- * a `workflow_dispatch`, which builds everything by design. That is the
- * documented trade, not an oversight.
+ * THE CRATES.IO HALF IS SEEN, and by rule 1 rather than by a special case.
+ * Every `*-native` package commits `src/rust/Cargo.lock`, which lives under
+ * `<pkg>/src/**` — already a `paths:` entry for all three Rust bridges — so a
+ * dependency move is a FILE CHANGE in this repository and rebuilds exactly the
+ * package it belongs to. That is what makes the gate safe for
+ * `lightningcss-native` (crates.io only, no `refs/` path dep): its graph can no
+ * longer move underneath a run that decides to skip it, because a registry
+ * version can only reach the build through a committed lock diff. Without the
+ * lock this WOULD have been the gate's one blind spot — before it, every run
+ * rebuilt everything and such drift landed incidentally.
  *
  * Usage:
  *   node .github/prebuild-toolchain/changed-packages.mjs --base <sha> [--head <ref>]

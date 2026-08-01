@@ -1,6 +1,6 @@
 // E2E test for `gjsify publish` against an in-process mock npm registry.
 //
-// Guards the three publish regressions documented in STATUS.md (Phase E):
+// Guards the three publish regressions from the Phase E publish work:
 //   1. Wire-filename in `_attachments` / `dist.tarball` uses the UNSCOPED
 //      basename (`cli-1.0.0.tgz`, not `gjsify-cli-1.0.0.tgz`) per npm
 //      convention (libnpmpublish behaviour).

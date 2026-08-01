@@ -254,7 +254,7 @@ bool ensure_napi_symbols_global(JSContext* cx) {
     // from the HOST executable (GetModuleHandle(NULL)) at first call; GJS's
     // gjs.exe does not export the napi ABI, so unmodified-addon symbol binding
     // needs the shim to satisfy that delay-load (a napi-exporting host EXE, or a
-    // delay-load-hook cooperation). Tracked in STATUS.md → N-API host
+    // delay-load-hook cooperation). Tracked in status/open-todos.md → N-API host
     // cross-platform → Windows. Here we only assert our own exports resolve so
     // the rest of the load path stays intact once that wall is solved.
     HMODULE self = nullptr;
@@ -269,7 +269,7 @@ bool ensure_napi_symbols_global(JSContext* cx) {
                 ".def export configuration");
     }
     g_debug("gjsify-napi: shim exports the napi ABI (Windows: addon binding "
-            "relies on the delay-load host model — see STATUS.md)");
+            "relies on the delay-load host model — see status/open-todos.md)");
     return true;
 #else
     void* ours = reinterpret_cast<void*>(&napi_create_reference);

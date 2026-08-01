@@ -4,7 +4,6 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
 
 import { describe, it, expect } from '@gjsify/unit';
-import { isGstStreamingUnsafe } from './gst-init.js';
 import { decodeAudioDataSync } from './gst-decoder.js';
 import { AudioContext } from './audio-context.js';
 import { AudioBuffer } from './audio-buffer.js';
@@ -14,6 +13,7 @@ import { GainNode } from './gain-node.js';
 import { AudioBufferSourceNode } from './audio-buffer-source-node.js';
 import { AudioDestinationNode } from './audio-destination-node.js';
 import { HTMLAudioElement } from './html-audio-element.js';
+import { livePipelineCount, stopAllPipelines } from './gst-teardown.js';
 
 /** Generate a minimal WAV ArrayBuffer (mono, 16-bit PCM, 440Hz sine) */
 function createTestWav(durationSec = 0.1, sampleRate = 44100): ArrayBuffer {
@@ -193,46 +193,44 @@ export default async () => {
         });
     });
 
-    await describe('isGstStreamingUnsafe (node-gi bun/deno decode guard)', async () => {
-        await it('returns false on GJS/Node so the real decode path runs', async () => {
-            // Neither bun nor deno globals are present under GJS or Node, so the
-            // streaming-thread pipeline is driven natively — decode is NOT guarded.
-            expect(isGstStreamingUnsafe()).toBe(false);
-        });
-
-        await it('reports unsafe when a bun/deno global is present', async () => {
+    await describe('runtime gating', async () => {
+        // GStreamer decode + playback used to be REFUSED whenever a `Bun` or
+        // `Deno` global was present, on the theory that a `decodebin` pipeline's
+        // streaming threads race the JS engine's GC through the node-gi reverse
+        // bridge. That defect was real but its cause was not the runtime: it was
+        // a `(transfer full)` GObject IN-arg ownership bug in node-gi's
+        // marshaller, fixed upstream. With that fixed, decode AND playback run on
+        // node, bun and deno — measured, not assumed. This asserts the property
+        // the removal claims: nothing in this package branches on which JS
+        // runtime it is running under, so a re-introduced runtime sniff fails
+        // here instead of silently removing a working capability again.
+        await it('decodes and plays with a bun/deno global present', async () => {
             const g = globalThis as { Bun?: unknown; Deno?: unknown };
             const hadBun = 'Bun' in g;
             const hadDeno = 'Deno' in g;
             try {
-                (g as { Bun?: unknown }).Bun = {};
-                expect(isGstStreamingUnsafe()).toBe(true);
-                delete (g as { Bun?: unknown }).Bun;
-                (g as { Deno?: unknown }).Deno = {};
-                expect(isGstStreamingUnsafe()).toBe(true);
-            } finally {
-                if (!hadBun) delete (g as { Bun?: unknown }).Bun;
-                if (!hadDeno) delete (g as { Deno?: unknown }).Deno;
-            }
-        });
+                // Only FAKE the global where it is absent (gjs, node) — that is
+                // where a runtime sniff would have refused. On bun/deno the real
+                // global is present and read-only, so assigning to it throws.
+                if (!hadBun) g.Bun = {};
+                if (!hadDeno) g.Deno = {};
 
-        await it('decodeAudioDataSync fails cleanly (no crash) on bun/deno', async () => {
-            // The guard turns the crash-prone GStreamer decode into a clean
-            // EncodingError — verified by simulating the bun global. A valid WAV
-            // that would normally decode must still reject here.
-            const g = globalThis as { Bun?: unknown };
-            const hadBun = 'Bun' in g;
-            try {
-                g.Bun = {};
-                let rejected = false;
-                try {
-                    decodeAudioDataSync(createTestWav(0.05, 44100));
-                } catch (err) {
-                    rejected = err instanceof DOMException && err.name === 'EncodingError';
-                }
-                expect(rejected).toBe(true);
+                const buf = decodeAudioDataSync(createTestWav(0.05, 44100));
+                expect(buf.sampleRate).toBe(44100);
+                expect(buf.length > 0).toBe(true);
+
+                // Playback builds a real pipeline; it must not be refused either.
+                const ctx = new AudioContext();
+                const source = ctx.createBufferSource();
+                const gain = ctx.createGain();
+                gain.gain.value = 0; // silent
+                source.buffer = buf;
+                source.connect(gain).connect(ctx.destination);
+                source.start();
+                source.stop();
             } finally {
                 if (!hadBun) delete g.Bun;
+                if (!hadDeno) delete g.Deno;
             }
         });
     });
@@ -323,6 +321,9 @@ export default async () => {
             node.connect(gain).connect(dest);
             node.start();
             expect(() => node.start()).toThrow();
+            // Stop what we started: a pipeline left PLAYING is finalized in that
+            // state at process exit and GStreamer logs a CRITICAL per element.
+            node.stop();
         });
 
         await it('should fire onended after playback completes', async () => {
@@ -402,6 +403,22 @@ export default async () => {
         await it('should handle codecs parameter', async () => {
             const audio = new HTMLAudioElement();
             expect(audio.canPlayType('audio/ogg; codecs=vorbis')).toBe('maybe');
+        });
+    });
+
+    await describe('GStreamer teardown', async () => {
+        await it('leaves no pipeline live after stopAllPipelines()', () => {
+            // The last line of defence for a host with no exit hook to attach to.
+            // `GstPlayer` defers its NULL transition to a LOW-priority GLib idle,
+            // and this runner quits the main loop before idles of that priority
+            // are reached — so a pipeline started above would be finalized in
+            // PLAYING and GStreamer would log a CRITICAL for every element it
+            // owns. The registry exists precisely so a host can drain it
+            // synchronously; a GTK app gets this from `GApplication::shutdown`,
+            // node/bun/deno from `process.on('exit')`, and a gjs test from here
+            // (`@gjsify/unit` exits through `system.exit()`, which emits neither).
+            stopAllPipelines();
+            expect(livePipelineCount()).toBe(0);
         });
     });
 };

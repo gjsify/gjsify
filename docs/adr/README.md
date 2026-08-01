@@ -4,8 +4,8 @@ Cross-cutting architecture decisions for the gjsify ecosystem — decisions that
 multiple packages/pillars, change a workspace invariant, or bind the ecosystem's
 consumers (easy6502, pixel-rpg/map-editor, ts-for-gir).
 
-Per-package decisions do NOT need an ADR — they follow the normal AGENTS.md/STATUS.md
-governance. An ADR is warranted when a decision (a) affects more than one pillar or
+Per-package decisions do NOT need an ADR — they follow the normal AGENTS.md +
+status-data governance. An ADR is warranted when a decision (a) affects more than one pillar or
 repo, (b) changes a published contract (versioning, tiering, artifact strategy), or
 (c) deliberately scopes/limits a whole track (e.g. node-gi).
 
@@ -14,7 +14,7 @@ repo, (b) changes a published contract (versioning, tiering, artifact strategy),
 MADR-style, one file per decision: `NNNN-<slug>.md` with `Status` / `Context` /
 `Decision` / `Consequences` / `Implementation` sections. Statuses: `Proposed`,
 `Accepted`, `Superseded by NNNN`, `Rejected`. An accepted ADR's follow-up work is
-tracked in STATUS.md `## Open TODOs` (per governance); the ADR records the *why*,
+tracked in `status/open-todos.md` (per governance); the ADR records the *why*,
 the TODO records the *what's left*.
 
 ## Index
@@ -36,6 +36,7 @@ the TODO records the *what's left*.
 | [0013](0013-sab-native-platform-scope.md) | `@gjsify/sab-native` stays address-keyed; Linux ships, macOS is the one reachable port, Windows is blocked | Accepted |
 | [0014](0014-utils-core-subpath-and-platform-entry-routing.md) | Cross-runtime reachability — `@gjsify/utils/core` subpath, `polyfill`-slot platform-entry routing, machine-checked invariant | Accepted |
 | [0015](0015-headless-package-contract.md) | Headless package contract — `gjsify.headless` as a declared, machine-checked promise about the root entry | Accepted |
+| [0016](0016-status-as-data.md) | Status as data — authored status data (`status/`) + derived facts, gated by the `status-data` conformance rule; the rendered STATUS.md is generated, not committed (amended) | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

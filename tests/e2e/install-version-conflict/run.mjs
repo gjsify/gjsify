@@ -90,9 +90,9 @@ function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
             stderr += c;
         });
         const kill = setTimeout(() => {
-            try {
-                child.kill('SIGKILL');
-            } catch {}
+            // ChildProcess.kill with a known signal never throws — failure
+            // to deliver just returns false (the process already exited).
+            child.kill('SIGKILL');
         }, timeoutMs);
         child.on('close', (code) => {
             clearTimeout(kill);
@@ -252,7 +252,7 @@ describe('gjsify install — nested-node_modules version conflict (Phase D.7b)',
         // install" CI flow). That way `lockfile.requested` and the
         // package.json-derived spec set stay in sync across re-runs — the
         // bare-name `install <pkg>` flow has a separate spec-vs-lockfile
-        // drift issue tracked in STATUS.md.
+        // drift issue tracked in status/open-todos.md.
         writeFileSync(
             join(projectDir, 'package.json'),
             JSON.stringify(

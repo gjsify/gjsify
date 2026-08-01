@@ -153,7 +153,9 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             const rawPkg = JSON.parse(readFileSync(rawPkgPath, 'utf-8')) as { name?: string; private?: boolean };
             if (typeof rawPkg.name !== 'string') {
                 process.stderr.write(`gjsify publish --check-trusted: ${rawPkgPath} has no \`name\` field\n`);
-                process.exit(2);
+                // `return` — a bare `process.exit()` is deferred under GJS and
+                // the check would continue on a nameless manifest.
+                return process.exit(2);
             }
             if (rawPkg.private === true) {
                 const out = { ok: true, action: 'check-trusted', name: rawPkg.name, skipped: 'private' };
@@ -523,13 +525,11 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean): void {
         }
         case 'otp-required': {
             console.error(`gjsify publish: npm requires a 2FA one-time code — re-run with \`--otp <code>\``);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
         case 'oidc-failed': {
             handleOidcFailure(outcome.error, outcome.name, asJson);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
         case 'oidc-no-token': {
             const msg = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
@@ -545,8 +545,7 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean): void {
                     )}\n`,
                 );
             }
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
         case 'diagnostic': {
             if (asJson) {
@@ -567,16 +566,14 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean): void {
             } else {
                 process.stderr.write(`${outcome.diag.message}\n`);
             }
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
         case 'error': {
             console.error(
                 `gjsify publish: ${outcome.name}@${outcome.version} — ${outcome.status} ${outcome.statusText}`,
             );
             console.error(outcome.text);
-            process.exit(1);
-            return;
+            return process.exit(1);
         }
     }
 }

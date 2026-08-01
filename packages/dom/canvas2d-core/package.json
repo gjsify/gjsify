@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/canvas2d-core",
-    "version": "0.24.1",
+    "version": "0.26.0",
     "description": "Cairo-backed Canvas 2D core (CanvasRenderingContext2D, Path2D, ImageData) — headless root entry, no GTK dependency",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -47,6 +47,7 @@
     "dependencies": {
         "@girs/gdk-4.0": "^4.1.0",
         "@girs/gdkpixbuf-2.0": "^4.1.0",
+        "@girs/gio-2.0": "^4.1.0",
         "@girs/gjs": "^4.1.0",
         "@girs/glib-2.0": "^4.1.0",
         "@girs/gobject-2.0": "^4.1.0",

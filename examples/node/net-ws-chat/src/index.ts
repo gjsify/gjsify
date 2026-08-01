@@ -129,7 +129,11 @@ server.listen(PORT, () => {
                             try {
                                 // oxlint-disable-next-line typescript/no-explicit-any -- Soup.WebsocketConnection.send_text not in @types; GJS runtime call
                                 (c as any).send_text(payload);
-                            } catch {}
+                            } catch {
+                                // A client that dropped mid-broadcast throws on
+                                // send — it must not break the fan-out to the
+                                // remaining clients.
+                            }
                         }
                     }
                 } catch (err) {

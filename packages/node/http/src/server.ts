@@ -1,7 +1,7 @@
 // Reference: Node.js lib/_http_server.js
 // Reimplemented for GJS using the @gjsify/http-soup-bridge native package.
 //
-// Why the bridge: see STATUS.md "Upstream GJS Patch Candidates" — two
+// Why the bridge: see status/upstream-patch-candidates.md — two
 // distinct GJS↔libsoup binding races (Boxed-Source GC race + shared
 // `GMainContext` ref imbalance) make any in-JS Soup.Server wiring
 // SIGSEGV silently after a non-GJS HTTP client (MCP Inspector subprocess,

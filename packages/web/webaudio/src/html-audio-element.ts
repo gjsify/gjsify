@@ -4,6 +4,7 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLAudioElement
 
 import { ensureGstInit, Gst } from './gst-init.js';
+import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import type Gst1 from '@girs/gst-1.0';
 
 // GStreamer-supported MIME types (common on GNOME systems)
@@ -46,6 +47,9 @@ export class HTMLAudioElement {
         this._pipeline = Gst.ElementFactory.make('playbin', 'player');
         if (!this._pipeline) return Promise.resolve();
 
+        // Registered so a quit while playing still reaches NULL — an element
+        // disposed in PLAYING is a GStreamer-CRITICAL per element.
+        trackPipeline(this._pipeline);
         this._pipeline.set_property('uri', this.src);
         this._pipeline.set_property('volume', this.volume);
         this._pipeline.set_state(Gst.State.PLAYING);
@@ -70,7 +74,7 @@ export class HTMLAudioElement {
 
     private _cleanup(): void {
         if (this._pipeline) {
-            this._pipeline.set_state(Gst.State.NULL);
+            stopPipeline(this._pipeline);
             this._pipeline = null;
         }
     }

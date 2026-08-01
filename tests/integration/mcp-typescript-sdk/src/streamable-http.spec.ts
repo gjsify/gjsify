@@ -283,7 +283,6 @@ export default async () => {
 
             // imports.system.gc() exists only on GJS — Node.js test silently skips
             // the gc step but still exercises the call sequence.
-            // oxlint-disable-next-line typescript/no-explicit-any -- imports.system.gc() is a GJS-only runtime API not in TypeScript types
             const sysGc: (() => void) | undefined = ((): (() => void) | undefined => {
                 try {
                     // oxlint-disable-next-line typescript/no-explicit-any -- GJS runtime property not in TypeScript DOM/Node types

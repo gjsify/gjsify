@@ -28,11 +28,12 @@ import {
     detectAutoGlobals,
     detectFreeGlobals,
     detectGjsAmbientGlobals,
+    detectNodeGiModuleImports,
     isRegisterPathResolvable,
     filterResolvableRegisterPaths,
     describeGiBackedInjection,
 } from '@gjsify/rolldown-plugin-gjsify/globals';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 export default async () => {
@@ -593,6 +594,63 @@ export default async () => {
         await it('promotes a bare global referenced both in typeof and for real', () => {
             const got = detectGjsAmbientGlobals("if (typeof print !== 'undefined') { print('real'); }");
             expect(got.has('print')).toBe(true);
+        });
+    });
+
+    await describe('detectNodeGiModuleImports — --app node bridge-bound detection', async () => {
+        // The second genuine-GJS-source signal: a bundle whose tree-shaken
+        // output statically imports `@gjsify/node-gi/*` (the externalised
+        // spelling of the bare `system`/`gettext`/`cairo` built-ins) is
+        // already bound to the bridge at load. A portable GJS app that spells
+        // `ARGV` as `system.programArgs` has NO bare ambient global, so this
+        // is what keeps `gjsify storybook --runtime node` a node-gi build.
+        await it('detects a retained bare-builtin import (system → @gjsify/node-gi/system)', () => {
+            const code = 'import system from "@gjsify/node-gi/system";\nconsole.log(system.programArgs);';
+            expect(detectNodeGiModuleImports(code)).toBe(true);
+        });
+
+        await it('detects the package root and every subpath, incl. an explicit globals shim import', () => {
+            expect(detectNodeGiModuleImports('import "@gjsify/node-gi";')).toBe(true);
+            expect(detectNodeGiModuleImports('import "@gjsify/node-gi/globals";')).toBe(true);
+            expect(detectNodeGiModuleImports('import Gettext from "@gjsify/node-gi/gettext"; Gettext;')).toBe(true);
+        });
+
+        await it('detects a re-export from the bridge', () => {
+            expect(detectNodeGiModuleImports('export { requireGi } from "@gjsify/node-gi/gi";')).toBe(true);
+            expect(detectNodeGiModuleImports('export * from "@gjsify/node-gi/system";')).toBe(true);
+        });
+
+        await it('returns false for a plain cross-platform bundle', () => {
+            expect(detectNodeGiModuleImports('import { readFile } from "node:fs"; console.log(readFile);')).toBe(
+                false,
+            );
+        });
+
+        await it('REGRESSION GUARD: blind to the lazy gi:// shim require() call (#641)', () => {
+            // The gi:// virtual module loads node-gi through a require() CALL,
+            // never an import statement — a gjs-gated gi:// import must keep a
+            // cross-platform node bundle loadable on plain Node, so it must
+            // NOT flip injection (pinned end-to-end by
+            // tests/e2e/node-gi-globals-inject).
+            const code = [
+                'import { createRequire } from "node:module";',
+                'const require = createRequire(import.meta.url);',
+                'let cached;',
+                'function load() {',
+                '  if (cached === undefined) cached = require("@gjsify/node-gi/gi").requireGi("Gio", "2.0");',
+                '  return cached;',
+                '}',
+                'export default new Proxy(Object.create(null), { get(_t, p) { return load()[p]; } });',
+            ].join('\n');
+            expect(detectNodeGiModuleImports(code)).toBe(false);
+        });
+
+        await it('is AST-based: a quoted specifier in a string cannot trigger', () => {
+            expect(detectNodeGiModuleImports('console.log("import x from \'@gjsify/node-gi/system\'");')).toBe(false);
+        });
+
+        await it('ignores name-alike packages outside @gjsify/node-gi', () => {
+            expect(detectNodeGiModuleImports('import "@gjsify/node-gi-tools";')).toBe(false);
         });
     });
 };

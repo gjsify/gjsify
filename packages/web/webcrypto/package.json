@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webcrypto",
-    "version": "0.24.1",
+    "version": "0.26.0",
     "description": "W3C WebCrypto API (SubtleCrypto) for GJS using @gjsify/crypto primitives",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./random": {
+            "types": "./lib/types/random.d.ts",
+            "default": "./lib/esm/random.js"
         },
         "./register": {
             "types": "./lib/types/register.d.ts",

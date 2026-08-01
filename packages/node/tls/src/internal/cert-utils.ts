@@ -57,24 +57,21 @@ export function formatCertDate(dt: GLib.DateTime | null): string {
 /** Build the "subjectaltname" string from DNS names + IP addresses (Node format). */
 export function formatAltNames(cert: Gio.TlsCertificate): string {
     const parts: string[] = [];
-    try {
-        const dns = cert.get_dns_names();
-        if (dns) {
-            for (const b of dns) {
-                const data = b.get_data();
-                if (!data) continue;
-                parts.push(`DNS:${new TextDecoder('utf-8').decode(data)}`);
-            }
+    // No try/catch: get_dns_names / get_ip_addresses are plain property
+    // getters (GLib 2.70, below our floor) with no throw path in the GIR — a
+    // backend without SAN data returns NULL, handled by the guards below.
+    // Bytes.get_data / InetAddress.to_string / non-fatal TextDecoder are
+    // likewise throw-free.
+    const dns = cert.get_dns_names();
+    if (dns) {
+        for (const b of dns) {
+            const data = b.get_data();
+            if (!data) continue;
+            parts.push(`DNS:${new TextDecoder('utf-8').decode(data)}`);
         }
-    } catch {
-        /* not all backends support this */
     }
-    try {
-        const ips = cert.get_ip_addresses();
-        if (ips) for (const ip of ips) parts.push(`IP Address:${ip.to_string()}`);
-    } catch {
-        /* same */
-    }
+    const ips = cert.get_ip_addresses();
+    if (ips) for (const ip of ips) parts.push(`IP Address:${ip.to_string()}`);
     return parts.join(', ');
 }
 

@@ -108,7 +108,12 @@ async function runRawSession<T>(fn: (read: ReadKey) => Promise<T>): Promise<T> {
             if (r.echo) out.write(r.echo);
             if (r.interrupt) {
                 cleanup();
-                process.exit(130);
+                // `return` — a bare `process.exit()` is deferred under GJS (no
+                // atexit), so the loop kept consuming the rest of the chunk
+                // after Ctrl-C and could still resolve the pending prompt.
+                // Returning stops input handling here; the deferred exit then
+                // carries 130 on the way out.
+                return process.exit(130);
             }
             if (r.done) {
                 const { resolve } = pending;

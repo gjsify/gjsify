@@ -934,7 +934,9 @@ function _execImpl(
                 // number instead of silently degrading to SIGTERM.
                 killProcess(proc, ctx.killSignal);
             } catch {
-                /* already dead */
+                /* NOT the already-dead case — force_exit/send_signal have no
+                   throw path in the GIR and never fail on a reaped child; this
+                   only guards an invalid caller-supplied killSignal */
             }
             child.killed = true;
         }, ctx.timeoutMs);
@@ -955,7 +957,9 @@ function _execImpl(
             try {
                 killProcess(proc, ctx.killSignal);
             } catch {
-                /* already dead */
+                /* NOT the already-dead case — force_exit/send_signal have no
+                   throw path in the GIR and never fail on a reaped child; this
+                   only guards an invalid caller-supplied killSignal */
             }
             child.killed = true;
         };

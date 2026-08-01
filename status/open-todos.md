@@ -1,0 +1,332 @@
+<!-- Authored Open-TODO sections — THIS FILE is the tracked source of truth (the
+     rendered STATUS.md view is generated and gitignored). One `### <title>` per open item.
+     A RESOLVED item is DELETED (its record is the commit + CHANGELOG that closed
+     it) — the status-data check rejects struck-through / ✓ / "Completed"
+     headings, so the done-log cannot regrow. -->
+
+### 60 dead lint-disable directives; `--report-unused-disable-directives` is off
+
+oxlint supports `--report-unused-disable-directives`, which flags an `// eslint-disable-…` / `// oxlint-disable-…` comment that suppresses nothing. That is precisely the failure mode behind the bare-`require` incident: the `@typescript-eslint/no-require-imports` disables sitting at the offending sites were DECORATION, because the rule they named was never enabled. An unused-directive check would have said so out loud, years before a red main did.
+
+Measured on `c185bbaf4`: **60 unused directives** across the tree (`node-gi/globals.d.ts`, `zlib/src/browser.ts`, `worker-stress`, `http2/src/native-dispatcher.ts`, …). So the flag cannot just be switched on at `error` — that is a 60-site cleanup, and each site needs deciding individually (delete the directive, or repair the rule name it got wrong; a directive naming a rule oxlint does not implement is indistinguishable from one naming a rule that is merely disabled).
+
+Enabling it at `warn` alone is NOT worth doing: `gjsify lint` already emits warnings that nothing gates on, so it would add noise without adding a guarantee — the half-measure this whole class argues against. The useful shape is one change that sweeps the 60 AND turns it on as an ERROR, so it cannot regrow.
+
+### `@gjsify/http2` lazy native-dispatcher loads still use a bare `require`
+
+Two sites load the optional native HTTP/2 dispatcher through a bare `require(...)` from ESM source — `src/client-session.ts` (`_setupNativeClient`, reached from `connect()`) and `src/server/http2-server.ts` (`_startNativeListen`, reached from `listen()`). This is the class documented in AGENTS.md § CJS-ESM Interop → "Our source is ESM": the call resolves at build time inside a bundle and is a `ReferenceError` from the unbundled `lib/` we publish. Neither obvious fix applies as-is:
+
+- a **static import** would pull `native-{client-,}dispatcher`'s static `gi://GLib` / `gi://Gio` / `@gjsify/http2-native` imports into EVERY http2 consumer, defeating the optional-native-package design;
+- **`await import()`** (the ESM way to lazy-load) requires making both call paths async, i.e. changing `connect()` / `listen()` — and Node's `listen()` contract is synchronous.
+
+So it needs a real design decision inside `@gjsify/http2` (e.g. resolving the dispatcher during an already-async phase, or an explicit async opt-in), not a lint fix. Both sites carry an `oxlint-disable-next-line typescript/no-require-imports` with the reason inline; they are the only sanctioned disables of that rule in the tree.
+
+### Manifest-conformance follow-ups
+
+The five standalone declaration-vs-reality scripts are now one rule registry (`@gjsify/manifest-conformance` + `scripts/manifest-conformance/`). Three things were deliberately left out of that refactor so it stayed a refactor.
+
+- **`gjsify manifest-check` is designed but not shipped.** The portable rules (`package-outputs`, `prebuild-artifacts`, `headless`, `field-coverage`) are already extracted into a package with a hand-written `lib/index.d.ts`, so the command is a thin wrapper over `selectRules({ scope: 'portable' })`. It was held back because it carries two costs a refactor must not smuggle in: the package has to flip from `private` to published, which needs the manual first-publish + Trusted-Publisher bootstrap BEFORE the next release train, and adding a command rebuilds `dist/{cli,affected}.gjs.mjs`, coupling the change to the committed-bundle gate. The name is settled: `manifest-check` — a sibling of `system-check` (machine has what the project needs) and distinct from `check` (types compile). Evidence it is worth doing: downstream consumers already declare `gjsify.storybook` (buchhaltung, pixel-rpg/map-editor) and `gjsify.prebuilds` (buchhaltung's ERiC package, which declares a prebuilds directory with NO `gjsify.platforms` — a hard failure in this repo, unchecked in theirs).
+- **Five `gjsify.*` declaration kinds have no rule** and are deferred with a written reason in `scripts/manifest-conformance/unchecked-fields.mjs`, printed on every audit run. Four are judged unverifiable-by-construction (`defineFromPackageJson`, `flatpak`, `buildCache`, and `nativescriptPlatforms` until there is a per-platform artifact to compare against); the one remaining FINDING is `gjsify.storybook` (a typo in `stories` produces an empty component browser, not an error). `gjsify.main` and `gjsify.example` left the ledger when `package-outputs` claimed them.
+- **The affected classifier does not know the conformance/status paths.** `scripts/audit-runtimes.mjs` is a `GLOBAL_TRIGGER`; `scripts/manifest-conformance/**`, `packages/infra/manifest-conformance/**`, `scripts/generate-status.mjs` and the authored `status/**` data are not classified (unknown paths fall back to a conservative full run). `status/*.md` is already covered by the blanket `*.md` IGNORE, but `status/status.json` is NOT — editing a package's authored status therefore forces a full CI run today, and `status/**` should join the docs-shaped IGNORE set. No coverage is lost today because `audit-runtimes.yml` carries no `paths` filter and runs on every PR, but the trigger/ignore tables and the rule locations should be brought back into agreement — an affected-classifier change rebuilds the committed `dist/affected.gjs.mjs`, so batch it with the next CLI-src touch.
+
+### Toolchain hygiene follow-ups
+
+- **Nine fixtures re-implement the prebuild-target name instead of importing it.** `resolvePrebuildDirName()` / `prebuildDirCandidates()` (`packages/infra/cli/src/utils/detect-native-packages.ts`) are pure functions and already the single source of truth for `prebuilds/<os>-<arch>/` — but every e2e that needs that directory composes the name itself, and several translated `process.arch` into the `uname -m` machine on the way. The `<os>-<arch>` unification had to fix all nine by hand, and one (`tests/e2e/self-host/run.mjs`) was missed on the first pass precisely because the composed string never appears as a literal. Export a small test helper (or let fixtures import the CLI's built `lib/utils/detect-native-packages.js` directly, the way `tests/e2e/dlx-native-prebuilds` already imports `run-gjs.js`) so the name has exactly one definition, and delete the per-fixture copies. Until that lands, any change to the target vocabulary must be swept for BOTH shapes — the literal path AND the computed one.
+- **`@gjsify/cli`'s `tsconfig.json` type-checks only what `src/index.ts` imports.** `files: ["src/index.ts"]` means `gjsify tsc --noEmit` never sees `src/affected-entry.ts` — the entry CI's `changes` job actually boots (`dist/affected.gjs.mjs` is bundled from it) — nor `src/test.mts`. A type error in either is caught only when the bundle build runs, i.e. in the pre-commit hook rather than in `check`. Widen to an `include` covering `src/**` (and confirm the emit stays `lib/**` only), or add the two entries to `files`.
+- **`gjsify install` materialises EVERY platform package, so a cold install does ~4x the necessary work — this, not a wedge, is what the 30-min budget hits.** Measured on a fresh clone (linux-x64, warm tarball cache, 2026-07-28): 1597 packages / **4.78 GB** extracted, of which **183 packages / 3.36 GB (70% of the bytes)** declare an `os`/`cpu` that EXCLUDES the host, so npm/yarn/pnpm would never place them — six `@anthropic-ai/claude-agent-sdk-*` siblings at ~230 MB each, six `@pagefind/*`, plus the `@rolldown`/`@oxlint`/`@oxfmt`/`@img/sharp`/`@deltachat` binding sets. The fix is to honour `os`/`cpu` like every other package manager, and it is a TWO-part change because `--immutable` materialises straight from `gjsify-lock.json`: record `os`/`cpu`/`libc` on lock entries at resolve time, and filter at materialisation. That is a lockfile-format change + a full `gjsify-lock.json` regeneration, so it wants its own PR + e2e; the napi-rs entry-replacement in `napi-node-addon.ts` already selects its sibling BY HOST TRIPLE, so it is unaffected. Do NOT "fix" this by raising `--timeout`: a budget that exists to bound a hang must not be tuned to accommodate one.
+- **`utils/stdin.ts` is the only reader of fd 0, but `@gjsify/fs` still has no numeric-descriptor support.** The CLI routes stdin through `GioUnix.InputStream` under GJS (`readStdinText`), which fixes `gjsify affected --changed-from-stdin`. The underlying gap is in `@gjsify/fs`: `readFileSync(0)` / `readSync(0, …)` coerce the descriptor to the relative PATH `"0"` and throw `ENOENT`, so ANY bundled npm package doing the Node idiom breaks the same way, silently and off-target. Fix at the core (map 0/1/2 — and `openSync` handles — onto the Gio streams) and then let the CLI helper collapse back to `readFileSync(0)`.
+
+### CI coverage follow-ups
+
+- **`prebuilds.yml` covers every Linux target on a PR; `darwin-arm64` is still proven for the first time AFTER the merge.** The workflow runs its BUILD legs on `pull_request` (native x64 + arm64 and the ppc64/s390x/riscv64 QEMU legs, Vala *and* the three Rust bridges — the break that motivated it, #827, was in the Rust dependency graph). Under real qemu-user (10.2.2, ppc64le): dependency install ~6 min, the Vala/GI packages compile in minutes; `@gjsify/lightningcss-native`'s Rust cdylib is the one expensive step — if a leg's total makes it the PR critical path, drop THAT package from the emulated legs rather than the architecture. `build-prebuilds-macos` remains the one PR-skipped leg (10x billing + the shared macOS concurrency pool); label a PR `ci:macos` to opt in. `prebuilds-summary` names the skipped legs per run. Closing the macOS gap permanently means either paying 10x per PR or a nightly full-matrix run. Pairs with the "nothing byte-compares a committed prebuild against a CI-built one" item below.
+- **`@gjsify/rolldown-native`'s darwin-arm64 leg is PROVEN but not promoted, so `gjsify build` still has no bundler engine on macOS.** As of run 30271998319 the manual-dispatch `build-prebuilds-macos-experimental` job builds the Rust cdylib + Vala bridge on a real Apple-silicon runner, stages BOTH libraries, passes `check-prebuild-loader-path.mjs`, loads under Homebrew `gjs` and resolves its sibling cdylib with `DYLD_*` unset — every gate the required job applies to `lightningcss-native`/`oxfmt-native`. Missing is only the promotion: a build+collect+upload step in `build-prebuilds-macos`, `darwin-arm64` in the package's `gjsify.platforms`, and the download+commit wiring in `commit-prebuilds`. Until then the one job that covers the bundler engine on macOS runs on no automatic event.
+- **`linux-ppc64`, `linux-s390x` and `linux-riscv64` have a working emulated BUILD but no committed prebuild yet, on all eight bridges that declare them.** Two defects stacked historically: `uraimo/run-on-arch-action` ignored the architecture whenever a custom `base_image` was set (the legs compiled x86-64 and staged it as ppc64/s390x/riscv64), and it reset binfmt to a qemu 7.2 under which Fedora's package manager does not survive emulation. The job now registers a pinned current qemu (`tonistiigi/binfmt:qemu-v10.2.3`) and runs `.github/prebuild-toolchain/emulated-build.sh` in the target-arch image. The mis-staged x86-64 artifacts were removed and each package records the gap in `gjsify.platformsUncommitted`, printed by `audit-runtimes --check` on every run. **A `commit-prebuilds` run on `main` is what closes it** — the audit then requires the `platformsUncommitted` entries to be deleted in the same change. Until then an exotic-arch consumer gets no native bridge and the guarded `imports.gi` probes degrade, which is the honest state rather than the previous unloadable one.
+- **Fork PRs have no working CI at all.** Every container job pulls the PRIVATE `ghcr.io/gjsify/ci-fedora:<major>`, and a fork PR's `GITHUB_TOKEN` cannot read another repo's private package. Either publish the image publicly (it contains nothing secret — a Fedora + GNOME devel stack) or accept that external contributions cannot be validated until a maintainer pushes the branch.
+
+### Cross-runtime reachability follow-ups (ADR 0014)
+
+- **Nothing byte-compares a committed prebuild against a CI-built one.** `scripts/check-refs-pin.mjs` (wired into every `build:meson`) catches the three ways a locally-built native artifact diverges from its pinned source — checkout drift, version skew against the npm engine, and a stale `build/` dir ninja will not invalidate. What it cannot catch is a binary that was simply never rebuilt: the `rolldown-native` prebuild had drifted BEHIND its pin for an unknown number of commits and only surfaced when a rebuild finally happened. Close it by having `prebuilds.yml` rebuild and diff the committed artifact (or publish the CI-built one as the source of truth and stop committing hand-built binaries).
+- **Three browser bundles are ledgered as NON-GATING in the `browser` CI job.** The axis runs (`main.yml` `browser` job: Playwright/Firefox over the bundles the Fedora `build` job stages, 51 discovered, 48 gating-green), but `$BROWSER_PROBE_GREP` carves out three that were red the moment it was first executed. (a) **`@gjsify/events`** and (b) **`@gjsify/util`** both declare `src/test.browser.mts` as `export * from './test.js'` — re-running the GJS/Node spec files in a browser, which AGENTS.md explicitly forbids (`events` hangs; `util` dies on a bare `process.env` read in one spec). (c) **`@gjsify/streams`** feeds STRING chunks into `new Response(stream).text()` in three cases; per the Fetch spec a body stream must yield `Uint8Array`, and Firefox enforces it where Chromium and undici are lenient — the spec needs `TextEncoderStream` in front of the `Response`. **The same forbidden `export * from './test.js'` shape is in 11 packages** (`assert`, `async_hooks`, `buffer`, `constants`, `diagnostics_channel`, `events`, `path`, `querystring`, `string_decoder`, `sys`, `util`); the other nine pass only because their specs happen to be pure logic. Rewrite all 11 to browser-globals-only entries, then delete the ledger.
+- **`@gjsify/worker_threads` ships a `src/browser.ts` with NO browser-axis test coverage.** No `index.browser.spec.ts` backs its `test.browser.mts`, so nothing ever asserted against that entry — which is how the exported `workerData` stayed permanently `null` (fixed, found by reading rather than by a failing test). `@gjsify/zlib`, `@gjsify/vm` and `@gjsify/http` show the pattern to copy. Worth doing before the package is considered for `partial` → `polyfill`, since export parity alone would have passed that bug.
+- **`@gjsify/web-globals` declares `node: "polyfill"` but re-exports `@gjsify/webaudio`** (`node: "none"`, hard-bound: `gi://Gst?version=1.0` + a top-level `Gst.init(null)`) from `src/index.ts` and `src/register.ts`. A `--app node` bundle therefore hard-requires the external `@gjsify/node-gi` at module load. Fix by downgrading the slot to `partial` or adding a `src/node.ts` platform entry. Reported on every `audit-runtimes --check` run.
+- **The ten `browser:"partial"` slots are RESOLVED as partial — the residual work is per-package, not a slot sweep.** All ten were audited against the `platform-entry-parity` gate; none is promotable, because in every case a NAMED export is unavailable on the browser platform itself (the blocking export per package is recorded in each package's status entry / AGENTS.md row). Parity is necessary but not sufficient — it passes `sqlite`, whose `DatabaseSync` throws from its constructor; treat a green parity gate as permission to look, not a mandate to promote. Still open, per package: **`fs`** — close the 34-export gap over the in-memory `Volume` (does NOT unblock promotion while `FSWatcher` is a never-firing stub); **`sqlite`** — add a `./browser-worker` subpath declared `polyfill` backed by OPFS `createSyncAccessHandle`, leaving `./browser` at `partial`; **`ws`** — the only one of the ten without a `src/test.browser.mts` (its browser entry is 93 LOC; a small spec asserting the `WebSocketServer` ENOTSUP shape + CJS-compat statics closes it); **`crypto`** — only 2 of its 25 root modules have a platform dependency (`GLib.Checksum` in `src/hash.ts`, the `imports.gi` fallback in `src/random.ts`); replacing those makes the ROOT browser-clean with full synchronous Node semantics — the one path that would actually earn `polyfill` — and retires the 1,774-LOC `src/browser/` duplicate.
+- **The `native` runtime slot means two different things, and the NativeScript bridge packages use the wrong one.** The routing rule reads `native` as "the RUNTIME provides this API — resolve to `<pkg>/globals`", but `packages/nativescript-bridge/*` declare `nativescript: "native"` in the sense "this package IS the native implementation". None of them ships a `globals.mjs`, so all five resolve to `@gjsify/empty` with a warn-once on ANY `--app nativescript` build that imports them BY NAME — a shipping bug, not a latent one. It also blocks `ALIASES_NODE_FOR_NATIVESCRIPT` from being composed through `withDerivedSlotRouting`. Fix by settling the vocabulary (either a new slot value for "this package is the runtime-native impl", or re-declaring the five as `polyfill`) — an ADR-sized decision because it changes a published `package.json#gjsify.runtimes` contract and `scripts/audit-runtimes.mjs`. Compose the NS table in the same change.
+- **Rolldown 1.1.4 emits the `keepNames` helper AFTER its first use.** With `output.keepNames = true` (gjsify's default whenever `minify` is on) a minified bundle can contain `__name(fn, 'x')` at byte ~200 while the helper declaration appears ~9 kB later; `var` hoisting makes the early call `TypeError: __name is not a function`. Reproduced on `--app node` with the `@gjsify/module` node-gi test bundle (the `\0gjsify-gi-node:*` virtual module is ordered first); `--minify false` runs. Upstream (`refs/rolldown`, pinned `v1.1.4` in lockstep with `@gjsify/rolldown-native`) — needs a minimal reproducer filed, or a chunk-prelude workaround if the pin cannot move.
+
+### `--app node` genuine-GJS-source detection is narrower than the reverse bridge it gates
+
+`nodeGiGlobalsInject` keys on BARE ambient globals (`print`/`imports`/`ARGV`), so a genuine GJS source that uses `gi://` but logs via `console.log` — and passes no explicit `--globals` — is not recognised: its `@girs/*` value imports are emptied (`class extends undefined`) **and** its `/register` imports route to `@gjsify/empty`. Verified with both probes. This pre-dates ADR 0012 and hits `@girs/*` and registers equally; ADR 0012 only brought the two into parity via the single `isGjsSourceBuild` gate in `app/node.ts`. Fix by widening the SIGNAL itself — e.g. treat "a `gi://` specifier survived in the bundled graph" as a reverse-bridge build — which closes both at once.
+
+### `@gjsify/node-gi` — a pointer struct FIELD whose length lives in a sibling field marshals EMPTY
+
+`GstMapInfo.data` is a `guint8*` field whose length is carried by the sibling `size` field — a dependency GI cannot express for a struct-field READ. gjs resolves it; node-gi returns an empty array, and reports no error while doing so. Measured on a decoded audio sample: `map: ok=true size=8192 data.length=0` while `buffer.extract_dup(0, 8192)` returns 8192 bytes. That silent zero is what made audio inaudible on node for a whole investigation: every layer above reported success on an empty buffer. `@gjsify/webaudio` now uses the copying `gst_buffer_extract_dup`, which works on both runtimes — but any consumer reading a length-in-a-sibling-field pointer will hit this, and the empty result is indistinguishable from a genuinely empty buffer. Fix shape: honour the GIR's `array length=` annotation on struct FIELDS in the field reader (the call-argument path already does), and where the annotation is absent, prefer failing loudly over returning an empty array.
+
+### `@gjsify/node-gi` — `GTK_IS_EVENT_CONTROLLER` assertion failures on the reverse bridge
+
+Running any GTK app through node-gi intermittently produces `Gtk-CRITICAL **: gtk_event_controller_handle_crossing: assertion 'GTK_IS_EVENT_CONTROLLER (controller)' failed` and can take the process down mid-frame. NONDETERMINISTIC, which is the trap: single runs prove nothing in either direction. Measured on the showcase — node 1/6/1 criticals over three consecutive runs, bun likewise, deno clean in the same sample. It is INDEPENDENT of audio (still occurs with audio gated off, and on code predating the GValue marshalling fix). The event controllers are attached by `@gjsify/event-bridge` via `attachEventControllers`, so the likely shape is the JS wrapper for a controller being collected while GTK still holds the C object — a toggle-ref/lifetime question, not a GStreamer one.
+
+### `@gjsify/node-gi` — the `$gtype` surface is incomplete
+
+gjs exposes `$gtype` uniformly (`[object GType for 'X']`); node-gi does not, and the three shapes fail differently — measured against gjs on the same source: `Gio.ApplicationFlags.$gtype` is `undefined` (`makeEnum` freezes a plain member object, no lazy getter); `GLib.Variant.$gtype` is a static-method THUNK (`$gtype` falls through the struct proxy to method resolution); `String(Gio.Application.$gtype)` throws `Cannot convert object to primitive value` (the GType handle is a bare tagged External). The handle works fine as an ARGUMENT (`GObject.Value.init(GObject.TYPE_STRING)` round-trips), so this is a surface gap, not a marshalling one. Fix shape: attach the same lazy `$gtype` getter `defineLazyGType` gives classes to `makeEnum`'s frozen object and to the struct path that misses it, and give the GType handle a `toString`/`Symbol.toPrimitive` + `.name` so it prints like gjs's GType object.
+
+### `@gjsify/napi` — a tsfn claim nobody hands back still leaks its control block
+
+`finalize_env_tsfns` (`src/cc/tsfn.cc`) partitions `thread_count` by owner; only the claims a foreign thread demonstrably holds are joined (2 s deadline). Whatever is still outstanding afterwards makes the tsfn DETACH — its JS-side resources are freed and the control block is handed to whichever thread returns the last claim, which then frees it. That is Node's `MaybeDelete()` posture and it closes the force-free UAF window for good, but it inherits Node's consequence: **if no thread ever returns the claim, ~840 bytes leak for the process lifetime** (measured: 264 direct + 576 indirect, valgrind, 0 memory errors). Both outcomes warn unconditionally. Two residuals worth a decision later: an unattributed claim a foreign thread genuinely holds is not joined (safe, but the warning can only say "never attributed" — closing it needs an ownership signal N-API does not expose); nothing reclaims a detached control block at process exit (a per-env registry of detached tsfns would trade the leak for a much harder lifetime question; today the leak is accepted because Node accepts it). Measured on every CI run by `test/tsfn-teardown-gate.mjs` (Linux + macOS legs).
+
+### Regenerate the register-globals closure map after a `GJS_GLOBALS_MAP` change
+
+`node packages/infra/cli/scripts/generate-register-closure.mjs` (`--check` reports staleness). A stale map is fail-soft — builds stay correct but pay extra `--globals auto` analysis passes. (The related hazard — the committed CLI bundle inlining a stale map — is closed: `.githooks/pre-commit` triggers on `packages/infra/resolve-npm/lib/` and `packages/infra/rolldown-plugin-gjsify/src/`.)
+
+### `@gjsify/rolldown-native` macOS prebuild — the last step to a Node-free toolchain on macOS
+
+The Rust blocker is GONE (eventfd descriptors → portable anonymous pipes in `src/rust/src/wakeup.rs`; `cargo check --target aarch64-apple-darwin` green) and `meson.build` is darwin-ready — but no NATIVE macOS build has been promoted: run the manual-dispatch `build-prebuilds-macos-experimental` job, promote the package into the REQUIRED `build-prebuilds-macos` job, add `darwin-arm64` to `package.json#gjsify.platforms`, and commit the prebuild. Until that leg is green the docs must keep describing the Node-free toolchain as Linux-only. The CLI-side loading follow-ups are DONE (`detectNativePackages()` resolves `<os>-<arch>` for the running host; `buildNativeEnv()` emits the loader variable the host actually reads). Only the artifact itself is missing. (See also the CI coverage item above — the darwin leg is proven, not promoted.)
+
+### Follow-up — adwaita-web style isolation (ADR 0010)
+
+The style-isolation boundary reset (`scss/_reset.scss`) landed. Remaining: document the `--adw-*` / `--*` token set as the public theming contract on the website (the sanctioned external-override API — the counterpart to the isolation); if a second light-DOM Adwaita renderer ever appears, lift the boundary reset into `@gjsify/adwaita-core` (headless) so both share it; keep `$adw-components` in `_reset.scss` in sync with `src/elements/*` (guarded by `style-isolation.spec.ts`). Shadow DOM stays a documented FUTURE option, not adopted.
+
+### Follow-up — adopt `@gjsify/adwaita-app` in the shell consumers (ADR 0009)
+
+Adoption is opportunistic, not a rewrite — wire each consumer onto the shell package on its next shell touch: `@gjsify/storybook` (re-base `StorybookApplication` onto `AdwaitaApp`/`runAdwaitaApp`), buchhaltung (`app/src/frontends/desktop` — replace its hand-rolled application/nav/loadIntoStack/toast/dialog code; follows the release train), eco-retrofit (`cli/src/app` — same; also fixes its latent `Adw.Application.run(null)` → `runAsync()` hang class).
+
+### Stale PixelRPG maker bundle — rebuild + recommit with `installDevtools`
+
+`@gjsify/devtools` exports `org.gjsify.Devtools` correctly in every app config (verified rigorously, guarded by `tests/e2e/devtools-export`), and the css-as-string bare-`@import` gap that blocked the maker's rebuild under the global GJS CLI is fixed at the core (native `bundle()` path resolves + inlines bare-specifier `@import`s via `cssBundleResolver`; unresolvable imports fail loudly; `tests/e2e/css-as-string-bare-import`). Residual (map-editor repo, not gjsify): the committed `apps/maker-gjs/org.pixelrpg.maker` bundle predates the `installDevtools(this)` call — rebuild + recommit it. `installDevtools` logs `[gjsify-devtools] exported …` so "did devtools come up?" is answerable from the app's stderr.
+
+### Architecture backlog — ADRs 0001–0008
+
+Decisions in [docs/adr/](../docs/adr/README.md), prioritized backlog in [docs/reports/2026-07-01-architecture-review.md](../docs/reports/2026-07-01-architecture-review.md). Remaining open work (resolved sub-items are recorded in the commits/CHANGELOG that closed them):
+
+- **ADR 0001 (P1)** — install non-destructive invariant: the Phase D.8 dedup pass is still open (the e2e guards, per-prefix lock, atomic writes and conflict warning have landed).
+- **ADR 0006 (P1)** — per-package build cache: **CI wiring DEFERRED** — enabling it on the `main.yml` build steps timed out the serial `Build examples` step (cold cache + per-package closure re-hashing at scale). Remaining: (a) memoize input hashes across a single `foreach` before re-enabling in CI; (b) phase 2 = source-direct workspace-consumption spike.
+- **ADR 0003 (P1)** — tiering shipped; the website still lacks a per-package tier index (the tier model is documented on the versioning page).
+- **ADR 0002 (P1, after 0006)** — minimal committed `bootstrap.gjs.mjs` (install+run only), full CLI/tsc consumed from the registry via the lockfile; `tests/e2e/bootstrap-install` fresh-clone gate BEFORE removing `dist/cli.gjs.mjs`/`dist/tsc.gjs.mjs`/committed `lib/lib*.d.ts`; pre-commit hook shrinks to the bootstrap.
+- **ADR 0007 (P3, easy6502)** — superseded into the full Learn6502 app-web rewrite (own project). Foundation pieces (phone-shell trio, `<adw-source-view>`) have landed on adwaita-web; remaining: the app-web view implementations over these + the classic-tutorial removal + the learn-package HTML target.
+
+(ADRs 0004, 0005 and 0008 are fully implemented.)
+
+### N-API host in GJS (`@gjsify/napi`) — Phase 2+ follow-ups
+
+Phase 0 (full `js_native_api.h` + module loader; better-sqlite3 byte-identical to Node, valgrind-clean; conformance 13 pass / 8 ledgered / 0 fail) and Phase 1 (tsfn surface; node-gi-under-shim byte-identical to native `gi://` across all 21 conformance programs — a CI test oracle, NOT a production path) are complete; the transparent `.node`→`loadAddon` build integration has shipped (`napiNodeAddonPlugin`, e2e-gated byte-vs-Node on all four addon-loading conventions). Open:
+
+- **implement the deferred non-experimental stubs** — `napi_*_bigint_words`, `node_api_create_external_string_{latin1,utf16}`, `napi_create_external_arraybuffer` (currently loud stubs → several of the 8 ledgered conformance programs).
+- **crash-class hardening (deferred, non-blocking)** — null `state->wrap` via a back-pointer to close a theoretical teardown-finalizer sibling-unwrap UAF; Node-parity, not a graduation gate.
+- **the 4 `NAPI_EXPERIMENTAL` conformance addons** — `node_api_post_finalizer` / `node_api_create_object_with_properties` / `node_api_is_sharedarraybuffer`.
+- **node-gyp golden drift watch** — the node-gyp goldens were generated on Node 24 but CI runs Node 22; watch the first CI run for golden drift.
+- **cross-platform prebuilds** — macOS darwin-arm64 SHIPPED incl. the tsfn gate (conformance/consumer/valgrind widening deferred; no maintained arm64-macOS valgrind). **Windows (win32-x64): ATTEMPTED, blocked at gjs-on-Windows** — shim-side portability is done and Linux-verified (`.def` exports, `LoadLibraryEx` loader, manual-dispatch `windows` job); a prebuilt MSVC mozjs-140 now exists (servo/mozjs `mozjs-sys-v140.13.0-0`), but no prebuilt libgjs exists for Windows and servo's patched static-lib layout is not the pkg-config `mozjs-140` gjs's meson consumes, so gjs must still be source-built (clang-cl) — and behind that waits the delay-load host-binding wall (no POSIX global symbol namespace; an unmodified node-gyp `.node` binds `napi_*` against the host `.exe`, which `gjs.exe` does not export). Unblocks when a prebuilt libgjs-win32 appears OR gjs builds against the servo mozjs AND the delay-load host-binding is solved.
+
+### GI/GObject runtime for Node (Axis 5) — deferred limitations
+
+`@gjsify/node-gi` graduated Tier 3→2 per ADR 0005 (2026-07-14) — the four gate items landed (teardown crash, vfunc OUT/INOUT, GTK/Cairo layer, second real consumer), the GIMarshallingTests oracle sits at 370 pass / 0 fail, the Excalibur-WebGL and Adwaita-window/storybook GTK capstones render byte-identically to `gjs -m`, and the cross-runtime legs (Bun full core parity, Deno conformance subset) ship from one N-API binary. The step-by-step roadmap provenance lives in git/CHANGELOG. Known gaps left for follow-up PRs (each surfaces a clear error or is benign; none is silently wrong):
+
+- **Cross-runtime consumer survey — prioritized backlog.** `scripts/node-gi-consumer-harness.mjs` generalizes the consumer proof (a package's OWN GJS suite runs `--app node` on node/bun/deno); the `consumer-suites` CI job gates the proof set `sqlite`+`http2`+`zlib` under `--require-pass`. Full survey + gap report: `docs/reports/node-gi-consumer-survey.{md,json}` — 17 packages already run unchanged. Remaining blockers, priority order: **P3** — GLib/GObject marshalling-helper gaps (`ByteArray.fromGBytes`, `GLib.filename_from_uri` undefined; blocks `child_process`/`os`/`module`); **P4** — `normalizeEncoding`/`checkEncoding` unresolved when a polyfill is `--alias`ed onto Node (`crypto`/`string_decoder`). Follow-ups: full 22-package `test:gjs-on-node` rollout + a non-gating full-survey CI job that publishes the table.
+- **Bun/Deno conformance is a curated subset, not the full suite.** Excluded from `test:bun`/`test:deno`: the display/GTK tests (CI Xvfb leg), the `--expose-gc` toggle-ref stress leg (Node's GC-safety gate), and the mainloop/runasync/pump uv-integration cases (they assert the Node-only libuv↔GLib bridges; Bun/Deno drive the non-blocking case via `startMainContextPump`, and `async-gio-await` is ledgered for them accordingly).
+- **Reverse-bridge polyfill routing over runtime natives** — on Node the global `fetch` stays the NATIVE undici one (the register convention never overrides an existing native), so `@excaliburjs/plugin-tiled`'s fetch-based fileLoader cannot load the root-relative `/res/…` asset paths our GJS fetch/XHR resolve against the program dir. This is what blocks the FULL `excalibur-jelly-jumper` on `gjsify run --runtime node` — everything else boots. Needs an opt-in GJS-parity-globals mode for reverse-bridge builds (route `fetch`/friends to the `@gjsify/*` polyfills over the runtime natives).
+- **Gst audio decode/playback on node-gi is PROVEN on node, bun and deno; the residual is the bun/deno pump requirement.** The former nondeterministic decodebin SEGFAULT was the `(transfer full)` GObject IN-arg ownership bug in `marshal.cc`, fixed; measured clean against PipeWire (a real sink-input owned by the runtime pid, 0 crashes/CRITICALs over repeated runs). The harness verdict: node `pass 62/62`, bun/deno `partial 61/62` — the one failure is `onended` not firing in a BARE script, the already-ledgered no-auto-pump property (`ended` rides a `Gst.Bus` watch on the GLib main context; with the context advancing it fires on bun and deno too). Deciding whether `@gjsify/webaudio` should drive the context itself (it cannot import node-gi — ADR 0005 forbids the hard dep) or whether bun/deno should gain node's auto-pump is a separate cut. No CI leg exercises this (needs a sound device); the harness is the reproducible check. Related test-harness fix already landed: `@gjsify/webaudio`'s `test.mts` awaited the spec directly instead of routing through `@gjsify/unit`'s `run()`, so a broken assertion still exited 0 — the same shape is worth checking on any package whose `test.mts` does not call `run()`.
+- **`@gjsify/xmlhttprequest` — on DENO every XHR stalls at `readyState 3`, so an asset loader never completes.** Reproduced on the jelly-jumper showcase (`--app node`, `--runtime deno`): all 26 resource requests reach readyState 3 within 10 ms and then NOTHING — no readyState 4, no load/error events, for the whole run. **Bun runs the identical bundle to completion**, so this is deno-specific. Ruled out by measurement (do not re-investigate): GLib sources fire, microtasks drain inside the blocking `Adw.Application.run()`, `Gio.File.load_contents_async` completes, and the two primitives `readFileUrl()` is built from return correct bytes on deno. The stall is inside `send()`'s `Promise.resolve().then(doFetch)` chain and needs instrumentation INSIDE `@gjsify/xmlhttprequest` (its `__GJSIFY_DEBUG_XHR` logs go through `console.log`, which the `--app node` bundle routes somewhere the terminal does not see — fixing that visibility is step one).
+- **vfunc chain-up** — OUT/INOUT args supported; the remaining gap is multi-level JS-override chains (a registered subclass of a registered subclass), rejected with a clear error. INOUT *container* args stay deferred (a catchable throw, like the function path).
+- **struct gaps** — struct *construction* (`new Ns.Struct({…})`), array-of-struct-by-value element field reads, and GValue BLOB (byte-array) marshalling (surfaced by the sqlite consumer — a bound `Uint8Array` doesn't persist and a BLOB return comes back as a raw boxed handle).
+- **`worker.terminate()` mid-native-call** — the `Error::New` `SIGABRT` funnel is CLOSED (every fallible chain checks the swallowed-failure residue; stress: 0 aborts / 200 terminates on both loop shapes, guarded by `test/worker-terminate.test.mjs`). RESIDUAL: a lower-rate SIGSEGV (12/200 ≈ 6%, identical pre-fix) when the terminate lands while the worker OS thread is inside a blocking GLib C call — the terminating isolate racing an OS thread in native code, with no napi frame; pre-existing, the textbook "terminating a worker mid-native-call is documented-hazardous in Node generally" case. Closing it would need Node/V8 to quiesce in-flight native calls before freeing the worker isolate.
+
+### child_process instant-exit pid — upstream GIO gap (issue #503; rewrite scoped + rejected)
+
+`@gjsify/child_process`'s `spawn()`/`exec` read `child.pid` from `Gio.Subprocess.get_identifier()`, which returns `null` once GSubprocess's child-watch (GLib worker-thread context) reaps the child — so an instant-exit child on a saturated runner can lose its pid (Node always reports one). **Resolved at the test layer** (deterministic alive-when-checked process) + **documented as an upstream GIO limitation** (see Upstream GJS Patch Candidates). The `GLib.spawn_async_with_pipes_and_fds` + `DO_NOT_REAP_CHILD` rewrite was scoped and **rejected for now**: it regresses `child.kill()` to a `/bin/kill` shell-out and reimplements env/cwd/stdio/wait-status reaping on a critical path. Revisit IF: (a) a real consumer needs a reliable pid for instant-exit children, or (b) upstream GIO exposes a spawn-time pid. **Filed upstream: [GNOME/glib#3981](https://gitlab.gnome.org/GNOME/glib/-/work_items/3981)**; maintainer verdict: accessor "would be OK" but de-prioritised in favour of pidfds, so the deterministic alive-process test + spawn-time capture (`_capturePidAtSpawn`) is our stable, permanent posture, not a temporary workaround.
+
+### `linkBins` is not `gjsify.bin`-aware — Node-less GJS consumer gets the wrong `.bin/gjsify`
+
+`linkBins` (`install-backend-native.ts`) links an EXTERNAL package's bins into `node_modules/.bin/` from its npm `bin` field ONLY, never `gjsify.bin`. So a consumer project depending on the published `@gjsify/cli` gets `.bin/gjsify → @gjsify/cli/lib/index.js` (the Node entry) instead of the GJS-first shim `writeWorkspaceBinShims`/`buildBinShim` emits. Harmless wherever Node exists; on a Node-less GJS host it points at the wrong interpreter — a silent-wrong-build for the Node-free promise. Fix: teach `linkBins` to read the extracted package's `gjsify.bin` from disk and emit a GJS-first shim (reuse `buildBinShim`); also harden `mergeWorkspaceBins` against mixed string/object `bin`/`gjsify.bin` forms.
+
+### `spawn(process.execPath, [cliBin, …])` under the GJS bundle (showcase.ts)
+
+`showcase.ts` spawns `spawn(process.execPath, [cliBin, 'dlx', dlxSpec])` — the same `process.execPath`-is-the-bundle trap fixed in `spawnOxcLauncher`. Under the committed GJS bundle `process.execPath` is `gjs`/the `.mjs`, not `node`, so `gjsify showcase <name>` under the GJS bundle spawns the wrong interpreter. Two-part fix (mirror `spawnOxcLauncher`): resolve the launcher via `nodeBinary()`, and use the blocking spawn path under GJS (a command that returns normally must not rely on the async exit event — see AGENTS.md § Lint & format). The deeper root — making async `@gjsify/child_process` spawns usable from CLI commands that return normally — is worth a dedicated fix (would also unblock spawn-based `gjsify test` under GJS).
+
+### `@gjsify/sqlite` exec() compound-statement (CREATE TRIGGER) splitting
+
+`DatabaseSync.prototype.exec()`'s `#splitStatements()` is comment/quote-aware, but still a token-level scanner, not a parser — a compound statement whose body carries inner semicolons is shattered: `CREATE TRIGGER t … BEGIN INSERT …; … END;` splits at the `;` after the inner `INSERT`, yielding `incomplete input`. node:sqlite gets this right because SQLite's real parser knows `BEGIN…END`. **Clean fix = let libgda's own statement tokenizer do the splitting** — currently blocked because `Gda.SqlParser.parse_string()` used iteratively hits a double-free under GJS and `parse_string_as_batch()` returns `Gda.Batch` objects rather than `Gda.Statement`s. A heuristic port of SQLite's `sqlite3_complete()` state machine was considered and NOT taken (mis-handles `CASE…END;`, adds risk to the transaction `BEGIN; … COMMIT;` path). Revisit when the libgda `parse_string` limitation is resolved (then the hand-rolled splitter can be retired entirely).
+
+### oxlint native path — deferred (JS-plugin host needs Node)
+
+`gjsify lint` still spawns the npm `oxlint` Node launcher even under GJS. A `@gjsify/oxlint-native` GI bridge (mirroring `@gjsify/oxfmt-native`) could only run the Rust rule subset: the JS-plugin host that executes `.oxlintrc.json` `jsPlugins` (the internal `gjsify/register-class-order` rule) lives in the Node launcher, so a native lint would silently skip that rule — a worse failure mode than requiring Node. Options when picked up: (a) native lint as an explicit opt-in subset (`GJSIFY_OXLINT=native`, warn when jsPlugins are configured); (b) port `register-class-order` to a Rust rule upstream; (c) wait for oxlint's plugin host to become embeddable without Node. Until then: `gjsify format`/`fix`'s oxfmt half is Node-free under GJS, `gjsify lint` (and the oxlint half of `fix`) needs Node.
+
+### gjsify on Flatpak — remaining roadmap
+
+The `org.freedesktop.Sdk.Extension.gjsify` SDK extension (toolchain under `/usr/lib/sdk/gjsify`, no network and no Node at app-build time, x86_64 + aarch64, `gjsify-tsc` included, e2e-gated incl. a real `flatpak-builder` tier) and the Node-free self-build (the committed GJS bundle rebuilds the CLI itself via native rolldown; e2e `tests/e2e/self-host`) have both landed. Open:
+
+- **Flathub-grade offline-sources build** — vendor via `gjsify flatpak sources` instead of `../` file paths; only needed for an actual Flathub submission, which is itself gated on Flathub's Generative-AI policy (extensions/runtimes are in scope → discretionary "mature, well-maintained" exception; a gjsify-owned OSTree remote sidesteps it).
+- **Remaining Node touchpoints for a FULLY Node-free self-build** — oxc lint (oxlint's JS-plugin host needs Node — see the oxlint entry above) + switching the build-orchestrator entry from the Node CLI to `gjs -m cli.gjs.mjs`.
+- **`gjsify install --offline`** — a fail-fast-on-cache-miss flag so a no-network sandbox install errors clearly instead of attempting (and slowly failing) a network fetch. Complements `gjsify flatpak sources`.
+
+### Upstream PRs in flight (NativeScript) — track until merged
+
+Two fixes contributed upstream so NS apps work without gjsify-side workarounds. **Both OPEN as of 2026-06-04.** Revisit when either merges + ships in a NativeScript release: drop the corresponding workaround, then bump the version floor / re-validate.
+
+| PR | Fixes | Our interim workaround | Drop when merged + released |
+|---|---|---|---|
+| [NativeScript/NativeScript#11259](https://github.com/NativeScript/NativeScript/pull/11259) — `fix(vite): support Vite 8 / Rolldown` | `@nativescript/vite`'s function-replacement `resolve.alias` + `@rollup/plugin-commonjs` that Vite 8 / Rolldown reject | `@gjsify/nativescript-vite`'s `applyVite8Fixes()` drops both at compose time | When `@nativescript/vite` ships Vite-8 support, `applyVite8Fixes` can shrink to (or drop) the two fixes — gate on the `@nativescript/vite` version |
+| [NativeScript/nativescript-cli#6056](https://github.com/NativeScript/nativescript-cli/pull/6056) — `fix(bundler): copy the vite bundle to native in non-watch builds` | NS CLI copies the Vite bundle into the APK only in watch mode; `ns build` / `ns run --justlaunch` leave `assets/app` empty → SBG fails | `tests/integration/nativescript/scripts/run-on-device.mjs` does `ns prepare` → manual copy → `gradle assembleDebug` | When the fixed NS CLI ships, the runner can use plain `ns build` / `ns run --justlaunch` again |
+
+Check status: `gh pr view 11259 --repo NativeScript/NativeScript --json state` / `gh pr view 6056 --repo NativeScript/nativescript-cli --json state`. No CLA required on either repo; both are auto-reviewed by CodeRabbit — address only blocking findings.
+
+### NativeScript apps that pull web-API third-party deps — eval-time global injection (Welle 5 follow-up)
+
+On-device teapot re-validation confirmed the css-tree fix, but the teapot still does not render on NS V8: its third-party deps (`@nativescript/canvas-polyfill`, `@xmldom/xmldom`, `three`) instantiate web globals at module-evaluation time (`new TextEncoder()` / `new XMLHttpRequest()` / `new FileReader()` at top level) and NS V8 doesn't provide those globals that early. The same class as the `@gjsify/buffer` eager-`TextEncoder` bug, but in deps gjsify doesn't own. The gjsify-side fix is a composer feature: inject/seed the web-API globals (or hoist canvas-polyfill's registration) at the very top of the NS bundle, before any module evaluates — analogous to the GJS `process-stub` `renderChunk` prepend. Design open (which globals; seed-from-`@gjsify/web-*` vs hoist canvas-polyfill; `optimizeDeps`/`renderChunk` prepend). Until then, NS apps whose dependency graph instantiates web globals at eval time (canvas/WebGL/three.js stacks) build but crash on launch; headless logic packages run fine. Related open items:
+
+- **NS CLI 9.0.6 Vite bundle-copy is watch-mode-only** — `compileWithoutWatch` never calls `copyViteBundleToNative`; the smoke runner works around it (manual copy after `ns prepare`); the real fix is the upstream NS-CLI PR above.
+- **iOS smoke test** — only Android was validated on-device; the platform path is symmetric (`.ios` extensions, `__IOS__`/`__APPLE__` defines) but unproven; add an iOS build smoke test when a macOS runner is available.
+- **Conditional-export precedence** — `resolve.conditions` keep upstream's `browser` active alongside `nativescript`; a package with divergent `browser` vs `nativescript` conditional exports may resolve its `browser` variant. Decide a policy (drop `browser` for NS, or document) + add a regression test.
+- **Worker builds** — the upstream `worker` config is passed through verbatim; gjsify transforms are not propagated into `worker.plugins`. Validate + propagate when a worker-using NS showcase lands.
+- **Full ownership (Level 3)** — the composer keeps `@nativescript/vite` as an optional peer. Owning the NS-runtime plugins outright remains the larger goal — gated on whether the peer proves a maintenance burden + the upstream NS-CLI pluggable-`bundler` PR.
+
+### NativeScript pillar coverage (Welle 5+, parallel implementations)
+
+The slot backfill (all 80 declarable packages), `@gjsify/native-fs-bridge`, the `@gjsify/crypto` NS entry and the on-device integration suite have landed. Remaining Wellen (each a separate PR/worktree):
+
+- **Welle 5-D — `@gjsify/stream` + `@gjsify/http`-client** (M): client-side over NS' native `fetch()`; server-side (`createServer` etc.) throws ENOTSUP; `runtimes.nativescript: 'partial'`.
+- **Welle 5-F — extend `tests/integration/nativescript/`** per pillar as 5-D lands (CI runner may need a privileged container for the NS emulator stack).
+- **Welle 5-G — `gjsify create-app --template nativescript-*`** (M): mobile-app scaffold templates. Adwaita-feel-on-mobile is an open design question — could use NS' native UI with gjsify polyfills providing the data layer.
+
+### NativeScript build-feature ownership — Level 3 (gjsify as a first-class NS production bundler)
+
+Level 2 (platform file resolution + platform defines) is owned by gjsify. **Level 3 (north-star, L, multi-week):** make `gjsify build --app nativescript` (or the Vite preset) produce a standalone NS-loadable production bundle, replacing `@nativescript/{webpack,vite}` for the JS-bundling step. The NS-runtime subset still to replicate: main-entry + bundle-emit to NS's expected dist layout (≈150 LOC sans HMR), static-copy of `App_Resources`/fonts/assets, the `@NativeClass()` transform (≈43 LOC), optionally app-components/XML page registration (≈278 LOC — skippable for code-only canvas apps) + CSS/theme-core. HMR is the bulk of `@nativescript/vite`'s complexity and is NOT needed to ship (production-only target). **Hard blocker:** NS's CLI bundler dispatch is a hardcoded `webpack|rspack|vite` switch — `bundler: 'gjsify'` needs an upstream NS-CLI PR for a pluggable bundler, OR gjsify masquerades under the `vite` name (current Level-1 path). The spawn contract is discoverable (`node <bundler>/bin build --config=<path>`, `NATIVESCRIPT_BUNDLER_ENV` JSON env, dist copied into APK assets).
+
+### Website & docs follow-ups
+
+Collected user-tracked items — every one turns existing engineering work into something visible / measurable for users.
+
+- **Test + extend the new showcases, then embed them on the website.** Each showcase needs: (1) a manual smoke-test on GJS (`gjsify showcase <name>` end-to-end), (2) gaps turned into fixes or tracked follow-ups, (3) a `website/src/content/docs/showcases/<name>.mdx` page embedding the browser entry for live demo + describing the GJS counterpart.
+- **Bridge widgets docs on website.** `@gjsify/canvas2d` / `@gjsify/webgl` / `@gjsify/iframe` / `@gjsify/video` are documented inline in AGENTS.md but there is no user-facing doc explaining the pairing matrix (DOM element ↔ Bridge class ↔ GTK widget) and the `installGlobals()`/`onReady()` lifecycle. Target one Astro page under `website/src/content/docs/framework/bridges.mdx` with a minimal worked example per bridge.
+- **Web/Node compat as progress bars on the website.** The Summary table is consumed by `website/scripts/generate-coverage.mjs` → `src/data/coverage.ts`; extend the same treatment per package on the detail pages.
+- **Ship `gjsify` and `ts-for-gir` themselves as Flathub CLI apps.** The `gjsify flatpak --cli-only` path already produces the right shape; take both CLIs through the full Flathub-submission flow (manifest in `flathub/<app-id>`, `flatpak-builder` validation, appstreamcli + `flatpak-builder-lint`, screenshots/release notes).
+
+### WebGL deferred items (Workstream D)
+
+- **Optional headless drawing-buffer pre-allocation.** `_init()` (`webgl-context-base.ts`) leaves the headless-gl-style `_allocateDrawingBuffer` call commented out because `GtkGLArea` owns the surface. Re-enable if/when a non-GTK output path is added.
+
+### Flatpak helper subcommands — downstream adoption (PR3–PR6)
+
+`gjsify flatpak {init,build,deps,ci}` and the bundler-side primitives they lean on have landed. Remaining downstream work: PR3 (ts-for-gir-cli adopts `defineFromPackageJson`), PR4 (app-gnome Vite → `gjsify build`), PR5 (app-gnome flatpak workflow on top of `gjsify flatpak`), PR6 (CLI-flatpak example docs page — the documented `org.gjsify.TsForGir` shape: GNOME Platform runtime + read-only `/usr/share/gir-1.0` mounts).
+
+### TLS gaps that Gio does not surface (Workstream B follow-up)
+
+Server-side SNI, session resumption and channel binding are resolved (see the `@gjsify/tls`/`tls-native` status entries). Remaining gaps map to GnuTLS/OpenSSL features Gio's GI bindings do not expose:
+
+- **OCSP stapling.** Neither client- nor server-side OCSP is exposed by Gio (`gnutls_ocsp_status_request_*` has no GI binding), so `tls.connect({requestOCSP})` / the `'OCSPResponse'` event cannot be implemented end-to-end without a native bridge wiring `request_ocsp_status` into `Gio.TlsConnection`. Partial unblocker shipped: `@gjsify/tls-native` Phase 1 `parseOcspResponse(bytes)` (RFC 6960 DER parser), surfaced via `@gjsify/tls` with the `hasOcspSupport()` graceful-degradation gate — consumers can fetch OCSP responses themselves (e.g. via the cert's AIA responder URL) and validate status without bypassing Gio's TLS stack. The Gio-side `request_ocsp` wiring (responses arriving automatically over the handshake) stays open.
+- **DH params / explicit ECDH curves / ticket-key rotation.** Gio does not expose `g_tls_server_connection_set_dh_params` or equivalent. Server tuning happens via `GIO_USE_TLS=gnutls` env at process level; not per-connection.
+
+### SharedArrayBuffer constructor opt-in (Mozilla pref)
+
+- **`SharedArrayBuffer` constructor is unavailable in stock GJS** (`typeof SharedArrayBuffer` is `undefined` on GJS 1.88): Mozilla disables it unless the SpiderMonkey embedder opts in, and GJS does not. Upstream patch candidate: enable the SharedMemory pref in `gjs/engine.cpp` + the matching `Atomics.wait`/`notify` capability bits. Workaround landed: `@gjsify/sab-native`'s `SharedBuffer` (method-accessor API + free-function `atomics` namespace over memfd/mmap/futex) does not require the constructor at all and is wired into `Worker.postMessage`.
+- **Generic `ArrayBuffer` cross-process transferList.** `Worker.postMessage(value, transferList)` for a plain `ArrayBuffer` (not a `SharedBuffer`) still goes through JSON IPC and stays a deep-clone, not a zero-copy hand-off — the SCM_RIGHTS side-channel only carries memfd-backed regions; arbitrary ArrayBuffers would need a generic binary IPC frame format (or a SharedBuffer-as-ArrayBuffer wrapper the structured-clone layer recognises). Lower priority — SharedBuffer covers the high-bandwidth workloads.
+
+Use `@gjsify/worker_threads` `MessageChannel` (in-process) for zero-copy / pure-`ArrayBuffer` workloads today; cross-process SharedBuffer for shared-memory workloads across subprocess workers.
+
+### ts-for-gir — extend integration suite beyond Phase 4b
+
+Strategic goal: `ts-for-gir` runs unmodified on GJS. Phases 1–9 have landed (see the integration-coverage notes). Remaining:
+
+- **Phase 6 / gjsify run:** runtime npm-package resolution for GJS bundles (GJS has no node_modules resolver; would need a C-level patch).
+- **Phase 8 / GVariant type-inference:** full port of `gvariant-validation.test.ts` — requires `@girs` ambient declarations resolvable by the TypeScript compiler.
+
+`refs/ts-for-gir/` is pinned at the commit corresponding to `@gi.ts/parser@4.0.0-rc.9`; bump the submodule alongside the published-package version when porting future phases.
+
+### Universal DOM Container (`@gjsify/dom-bridge`)
+
+Architectural vision for unified DOM-in-GTK: `document.createElement("canvas")` + `getContext("2d")` automatically creates the right GTK widget behind the scenes; `document.body` maps to a real GTK container hierarchy; each child element gets its own bridge transparently — making browser code "just work" in GTK without explicit bridge creation. Deferred from the initial bridge architecture — requires deeper integration between `Document`, `Element.appendChild`, and the GTK widget tree.
+
+### Autobahn — wire into CI
+
+Full Autobahn suite (core + permessage-deflate + performance 9.\*) is part of the committed baseline. Remaining: (1) the `6.4.x` NON-STRICT fragmented-text timing needs an upstream libsoup change (fragment-level UTF-8 validation — see Upstream GJS Patch Candidates); (2) Podman-in-CI needs privileged containers (or socket sharing) the Fedora-based CI doesn't currently grant — until then the suite is a manual opt-in run + baseline-commit workflow. Plan: wire the autobahn scripts into a nightly CI job once Podman-in-CI is unblocked.
+
+### Autobahn driver — `System.exit()` bypass in bundled driver context
+
+`System.exit(0)` called from the bundled driver's `Promise.then` continuation silently returns without terminating the gjs process (the GLib main loop `ensureMainLoop()` starts for Soup keeps the process alive after `main()` resolves), even though the same call works from a standalone script or a MainLoop idle callback. `scripts/run-driver.mjs` compensates with a watchdog (waits for the `Done.` marker, 3 s grace, then SIGKILL — no data loss; the report is flushed before `Done.`). Next steps to remove it: isolate whether the block is in `@gjsify/process`'s `exit()` shim, the `globalThis.imports` patching, or an interaction with `@gjsify/node-globals/register`; write a minimal reproducer outside the Autobahn pillar; fix root-cause and inline `gjs -m dist/driver-*.gjs.mjs` back into the package scripts.
+
+### `@gjsify/sqlite` — expand API surface
+
+Libgda does not expose session/changeset, WAL-mode toggles, backup or VFS APIs, so those are open gaps beyond the current DatabaseSync/StatementSync coverage. The closest paths: (a) wrap sqlite3 directly via libsqlite3 GI bindings (expensive — no upstream GIR), or (b) live with the libgda-shaped subset and document the gaps per API. (b) is the current direction; `sqlite.constants` (SQLITE_CHANGESET_\*) remains unimplemented until (a).
+
+### WebRTC showcases (extended)
+
+`webrtc-loopback` is a published showcase. Open follow-ups: `webrtc-video` could be a second showcase (getUserMedia + media pipeline; needs camera-permission UX — separate workstream); `webrtc-dtmf` / `webrtc-states` / `webrtc-trickle-ice` remain private reference implementations for specific spec behaviors, not end-user showcases.
+
+### Doc-revert detection — a non-conflicting revert of a `main`-only edit
+
+`a9e5ba63d` (on the status-as-data branch) rewrote the AGENTS.md governance
+block against a copy of the file that predated #885's consolidation. Git merged
+it without a conflict, because "replace one line with five" is a legitimate edit
+on a region the other side had already rewritten — the merge base simply had
+neither version. The result silently restored ~5 duplicated paragraphs that #885
+had removed, and nothing in the pipeline could see it: prose has no test, no
+type, and no conformance rule.
+
+The generalisable check is cheap and does not need to understand prose: for each
+line a PR REMOVES, ask whether that exact line was ADDED to the base branch after
+the PR's merge base. A hit means the PR is reverting work it never saw. Real
+reverts and genuine rewrites both trip it, so it must be a warning with an
+explicit acknowledgement path (a `Revert-Of:` trailer, or a label), never a hard
+gate. Cheapest home: a step in the `check` job over `git diff --merge-base`,
+scoped to `*.md` first, since prose is where the class actually bites — source
+regressions of this shape are usually caught by tsc, lint or a test.
+
+### node-gi + napi jobs still `dnf install` from Docker Hub every run
+
+Ten jobs — seven in `node-gi.yml`, three in `napi.yml` — run `container:
+image: fedora:44` and then `dnf install` their package set on every run.
+`main.yml` stopped doing that long ago: `build-ci-image.yml` bakes the packages
+into `ghcr.io/gjsify/ci-fedora:<major>`, and its own header says why ("saves
+3-5 minutes per matrix entry"). These ten never adopted it.
+
+During the v0.26.0 release sweep the cost was not three minutes. `napi` failed
+outright when `docker pull fedora:44` timed out against registry-1.docker.io
+three times before the container existed, and the storybook bundle job was
+killed by its 45-minute timeout TWICE with ~41 of those minutes inside a single
+`dnf install` — a step that takes 22 seconds on a good day. Neither failure had
+anything to do with the code; the same commit was green on the PR.
+
+Not a one-line switch to `ci-fedora`, which is why this is a TODO and not a
+drive-by: several of these jobs are minimal ON PURPOSE (the Node-free install
+proof, "no system GTK" conformance), and `ci-fedora` carries gjs, GTK and the
+blueprint toolchain. The shape that keeps the property is a SECOND baked image
+holding exactly this package set, built by the same workflow. Per-job judgement
+needed on which of the ten want which image.
+
+### The squash subject is what lands on main, and nothing lints it
+
+`commitlint.yml` runs `wagoid/commitlint-github-action`, which lints the PR's
+COMMITS. With squash merges, what actually lands is the PR TITLE — a string no
+check inspects. `f51fa0f57 Run the transparent addon matrix in CI (#849)` has
+no conventional prefix and is therefore absent from the generated CHANGELOG
+entirely; the work shipped in v0.26.0 with no release note. The workflow
+already triggers on `edited` (title/body changes), which only re-runs the
+commit lint today — the intent was there, the check never was.
+
+The trap when fixing it: a hand-rolled title regex is a partial reimplementation
+of commitlint (`config-conventional` also enforces `subject-case`,
+`subject-full-stop`, `header-max-length`), so it would pass titles the real
+linter rejects — the exact drift the rule exists to prevent. Running
+`@commitlint/cli` against `commitlint.config.cjs` needs `config-conventional`
+resolvable from the repo, which is precisely what the action avoids by bringing
+its own. Decide deliberately between a purpose-built title action and making
+the config self-contained; do not hand-roll the regex.
+
+### CHANGELOG links break on `#nnn` written inside commit bodies
+
+conventional-changelog scans commit BODIES for issue references, so prose like
+"pre-#885" or "#870/#873" becomes a link to `github.com/gjsify/pre-/issues/885`
+and `github.com/870/gjsify/issues/873`. Both are in the published v0.26.0
+changelog. Either stop writing bare `#nnn` mid-sentence in commit bodies (a
+convention nothing enforces, so it will regress), or configure the parser's
+`issuePrefixes`/reference handling so only trailer-style references count.
+
+### Nothing byte-compares a committed prebuild, and macOS re-commits noise
+
+AGENTS.md already records that committed `prebuilds/**` binaries are unguarded
+(provenance proves the inputs; nothing compares the bytes). The v0.26.0 sweep
+showed the other half of that gap: `commit-prebuilds` pushed six darwin-arm64
+dylibs whose sizes were IDENTICAL to their predecessors (37144 -> 37144, and so
+on) but whose bytes differed — non-reproducible Mach-O output (timestamps,
+UUIDs). So every macOS prebuild run commits binary churn with no semantic
+change, and that push moved `main` out from under an already-verified sweep
+mid-release. Worth fixing at the source (reproducible flags) rather than by
+suppressing the commit, since byte-reproducibility is what would let a future
+check compare a committed prebuild against a CI-built one at all.

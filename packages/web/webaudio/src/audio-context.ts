@@ -13,6 +13,7 @@ import { AudioDestinationNode } from './audio-destination-node.js';
 import { AudioBufferSourceNode } from './audio-buffer-source-node.js';
 import { GainNode } from './gain-node.js';
 import { decodeAudioDataSync } from './gst-decoder.js';
+import { stopAllPipelines } from './gst-teardown.js';
 
 export class AudioContext {
     state: AudioContextState = 'suspended';
@@ -76,6 +77,11 @@ export class AudioContext {
 
     async close(): Promise<void> {
         this.state = 'closed';
+        // W3C: close() releases the context's system audio resources. Here that
+        // is the GStreamer side — bring every pipeline this package still holds
+        // to NULL now rather than leaving it to a deferred idle that a quitting
+        // app may never reach.
+        stopAllPipelines();
     }
 
     // Stub methods for APIs not yet backed by GStreamer (Phase 3).

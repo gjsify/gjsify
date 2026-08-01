@@ -3,7 +3,7 @@
 > Status: **CLOSED — Path A landed** (v0.4.31, `@gjsify/tls-native` Phase 2).
 > The real implementation now ships in `packages/node/tls-native/src/c/gjsify-tls-private.{c,h}` —
 > see the file-header in the C shim for the vendored struct layout + supported window.
-> The two STATUS.md "Open TODOs → Medium priority — TLS gaps" entries are struck through.
+> The two "Medium priority — TLS gaps" open TODOs are resolved and deleted.
 >
 > The notes below are kept for context — they document the open question
 > we resolved + the alternative path (B) we ruled out.
@@ -115,8 +115,8 @@ version we test against.
 6. A SCRAM-SHA-1 channel-binding test: assert
    `getFinished()` returns a non-empty `Buffer` on TLS 1.2,
    degrades to `tls-exporter` bytes on TLS 1.3.
-7. Update STATUS.md "Open TODOs" — strike the Phase 2 entry, move to
-   "Completed".
+7. Update `status/open-todos.md` — DELETE the Phase 2 entry (a resolved TODO is
+   removed; its record is the commit + CHANGELOG).
 8. Update `CLAUDE.md`'s `tls-native` row — promote from "Scaffold" to
    "Full".
 

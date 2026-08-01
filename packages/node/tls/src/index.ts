@@ -50,7 +50,7 @@
 //   - ocsp.ts                  — parseOcspResponse re-exports from @gjsify/tls-native
 //   - index.ts                 — this file: re-exports + default object
 //
-// Documented gaps (see STATUS.md "Open TODOs"):
+// Documented gaps (see status/open-todos.md):
 //   - OCSP stapling on the Gio side: not exposed (parser surfaced via ocsp.ts).
 //   - TLS session resumption ('session' event, {session} option) + channel
 //     binding (getFinished/getPeerFinished): SURFACE PRESENT (Phase 2 POC,

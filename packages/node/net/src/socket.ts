@@ -442,13 +442,10 @@ export class Socket extends Duplex {
 
     /** Enable/disable TCP keep-alive. */
     setKeepAlive(enable?: boolean, _initialDelay?: number): this {
-        if (this._connection) {
-            try {
-                this._connection.get_socket().set_keepalive(enable ?? false);
-            } catch {
-                /* ignore */
-            }
-        }
+        // No try/catch: get_socket/set_keepalive are plain property accessors
+        // with no throw path in the GIR — unlike setNoDelay's set_option below,
+        // which has `throws="1"` and genuinely needs its guard.
+        this._connection?.get_socket().set_keepalive(enable ?? false);
         return this;
     }
 

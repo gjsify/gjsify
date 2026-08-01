@@ -10,7 +10,7 @@
 // build`, and `gjsify run build:types → gjsify tsc → gjs tsc.gjs.mjs`), so on
 // CI's few cores the multiplier oversubscribes and the build thrashes. Letting
 // `gjsify run` dispatch the inner `gjsify <cmd>` in-process collapses two gjs
-// into one. See STATUS.md.
+// into one. See status/open-todos.md.
 //
 // This module MUST NOT execute anything at load time (no top-level
 // `parseAsync`) — `run.ts` imports it, and a top-level run would re-dispatch
@@ -67,14 +67,12 @@ import { ensureGjsifyShimOnPath } from './utils/gjsify-shim.js';
 // GJS's @gjsify/process shim — fake `process.versions.node` for npm
 // compatibility, so a plain Node probe is a false positive on either.
 function runtimeLabel(): string {
-    try {
-        const sysVersion = gjsSystemVersion();
-        if (sysVersion !== undefined) {
-            const v = Number(sysVersion);
-            return `GJS ${Math.floor(v / 10000)}.${Math.floor((v % 10000) / 100)}.${v % 100} (SpiderMonkey)`;
-        }
-    } catch {
-        /* not GJS */
+    // Off GJS `gjsSystemVersion()` RETURNS undefined (an optional-chained
+    // `globalThis.imports` read, same probe as `isGjs()`) — it never throws.
+    const sysVersion = gjsSystemVersion();
+    if (sysVersion !== undefined) {
+        const v = Number(sysVersion);
+        return `GJS ${Math.floor(v / 10000)}.${Math.floor((v % 10000) / 100)}.${v % 100} (SpiderMonkey)`;
     }
     if (isBun()) {
         const version = (globalThis as { Bun?: { version?: string } }).Bun?.version ?? process.versions.bun;

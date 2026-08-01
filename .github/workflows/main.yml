@@ -468,8 +468,27 @@ jobs:
       # The script restores the artifacts to their pre-run bytes afterwards, so
       # the build-output cache saved below is unaffected either way.
       - name: Verify committed bundles rebuild from source
+        id: verify-bundles
         timeout-minutes: 30
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/verify-committed-bundles.mjs'
+
+      # When the check fails, hand back the bytes THIS run built. "Rebuild it
+      # locally and commit" is the normal fix, but it is not always a fix a
+      # contributor can apply: at least two developer machines measurably do not
+      # reproduce these bundles (a module-order difference that survives
+      # matching the Node version, the rolldown version, the lockfile and the
+      # core count — see release-cut.yml, which exists because of it). On such a
+      # machine the instruction is an infinite loop and CI is the only source of
+      # the bytes that satisfy the check. Uploading them costs nothing on a
+      # green run (the step is skipped) and turns a dead end into a download.
+      - name: Upload the bundles CI rebuilt (on mismatch)
+        if: ${{ failure() && steps.verify-bundles.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: rebuilt-bundles
+          path: tmp/rebuilt-bundles
+          if-no-files-found: ignore
+          retention-days: 7
 
       # Build examples (+ check below) only when an example/showcase is in the
       # closure, e2e will run (its lint-engines suite asserts example dist), or
@@ -480,6 +499,18 @@ jobs:
         if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         timeout-minutes: 45
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify foreach build -ptv --include "@gjsify/example-*" --jobs 1'
+
+      # Same declared-output post-condition as the core sweep above, for the
+      # packages that sweep deliberately excludes because they build in the step
+      # right before this one. A showcase is published like any other package,
+      # and a declared entry point it does not ship breaks a user the same way:
+      # `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0` promised four
+      # runtimes, shipped only the GJS bundle, and `deno run npm:@gjsify/cli
+      # showcase excalibur-jelly-jumper` died on the file it named. Gated on the
+      # SAME condition as `Build examples` — it reads what that step produces.
+      - name: Verify declared example outputs exist
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
+        run: su testuser -c 'node scripts/verify-package-outputs.mjs --scope examples'
 
       # Workspace-wide dependency-range drift detection. `--exclude-workspace
       # '@gjsify/integration-*'` carves out integration tests whose pins to
@@ -1265,7 +1296,7 @@ jobs:
             printf -- '- affected closure: `%s`\n' "${C_INCLUDE:-<empty — treated as a full run>}"
             printf -- '- macOS leg: `enabled=%s` — %s\n' "${M_ENABLED:-<unset>}" "${M_REASON:-<unset>}"
             echo "- integration suites (\`tests/integration/**\`) are not wired into any"
-            echo "  workflow yet — they run on no event, PR or main. Tracked in STATUS.md."
+            echo "  workflow yet — they run on no event, PR or main. Tracked in status/open-todos.md."
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1319,4 +1350,4 @@ jobs:
   # Integration tests are NOT wired into CI yet (opt-in; suites have
   # CI-incompatible preconditions). The classifier still emits run-integration
   # so the gate can be re-enabled per-suite once each is hardened. Tracked in
-  # STATUS.md Open TODOs.
+  # status/open-todos.md.

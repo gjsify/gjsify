@@ -135,9 +135,9 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
     });
 
     after(() => {
-        try {
-            rmSync(parent, { recursive: true, force: true });
-        } catch {}
+        // force:true already makes a missing dir a no-op — any other failure
+        // (EACCES) should fail the suite loudly, not vanish.
+        rmSync(parent, { recursive: true, force: true });
     });
 
     it('is a no-op for unrelated staged changes', () => {

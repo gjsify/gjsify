@@ -8,6 +8,7 @@ import GLib from '@girs/glib-2.0';
 import Stream from 'node:stream';
 
 import { parseDataUri } from './utils/data-uri.js';
+import { resolveRootRelativeUrl } from './utils/root-relative-system.js';
 
 import { clone } from './body.js';
 import Response from './response.js';
@@ -26,51 +27,39 @@ import { URL } from '@gjsify/url';
 export { FormData, Headers, Request, Response, FetchError, AbortError, isRedirect };
 export { Blob, File };
 export { XMLHttpRequest, XMLHttpRequestUpload } from './xhr.js';
+// The shared program-dir rewrite — consumed by @gjsify/xmlhttprequest so fetch
+// and XHR cannot drift apart again (see utils/root-relative.ts for the pure
+// logic + utils/root-relative-system.ts for the `system`-reading wrapper).
+export { resolveRootRelativeUrl } from './utils/root-relative-system.js';
 
 import type { SystemError } from './types/index.js';
 
 const supportedSchemas = new Set(['data:', 'http:', 'https:', 'file:']);
 
-/**
- * Rewrite root-relative URLs (e.g. `/res/images/foo.png`) to `file://` relative
- * to the program directory. In a browser these would resolve against the page
- * origin; in GJS there is no origin, so we map them to the running bundle's
- * directory. This lets apps use the same asset paths across browser and GJS.
- */
-/**
- * Rewrite root-relative URLs (e.g. `/res/images/foo.png`) to `file://` relative
- * to the program directory. This lets GJS apps load bundled assets using the
- * same paths as in the browser. The security implications (arbitrary file
- * reads via fetch) are acceptable for the current use cases — revisit if
- * @gjsify/fetch is ever used to handle untrusted input.
- */
-/**
- * Module-local typed view of the GJS-runtime globals this file reads.
- * `globalThis.imports.system` is the GJS bootstrap object that exposes
- * `programPath` / `programInvocationName` before any `@girs/*` resolves.
- */
+/** Module-local typed view of the debug flag this file reads. */
 interface _FetchRuntimeGlobals {
     __GJSIFY_DEBUG_FETCH?: boolean;
-    imports?: { system?: { programPath?: string; programInvocationName?: string } };
 }
 
-function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
+/**
+ * String inputs go through the shared root-relative rewrite
+ * (`utils/root-relative.ts` — one copy for fetch AND XHR; two drifting copies
+ * are what #869 was). Non-string inputs pass through untouched.
+ */
+function rewriteFetchInput(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
     if (typeof input !== 'string') return input;
-    if (!input.startsWith('/') || input.startsWith('//')) return input;
-    const _g = globalThis as unknown as _FetchRuntimeGlobals;
-    const DEBUG = _g.__GJSIFY_DEBUG_FETCH === true;
-    try {
-        // GJS-only: derive program dir from System.programInvocationName.
-        const programPath = _g.imports?.system?.programPath ?? _g.imports?.system?.programInvocationName ?? '';
-        if (!programPath) return input;
-        const dir = GLib.path_get_dirname(programPath);
-        const rewritten = `file://${dir}${input}`;
-        if (DEBUG) console.log(`[fetch] rewrite ${input} → ${rewritten}`);
-        return rewritten;
-    } catch (err) {
-        if (DEBUG) console.warn(`[fetch] rewrite FAILED: ${err instanceof Error ? err.message : String(err)}`);
-        return input;
+    // No try/catch: `resolveRootRelativeUrl` reads two properties off the
+    // `system` built-in and calls a pure function — there is no throw path, so
+    // a catch here could only ever SWALLOW a bug. That is precisely how #869
+    // hid: the previous spelling reached `globalThis.imports.system`, which is
+    // `undefined` off gjs, and the catch turned the resulting TypeError into a
+    // silently unrewritten URL. If this ever does throw, the caller should see
+    // it.
+    const rewritten = resolveRootRelativeUrl(input);
+    if (rewritten !== input && (globalThis as unknown as _FetchRuntimeGlobals).__GJSIFY_DEBUG_FETCH === true) {
+        console.log(`[fetch] rewrite ${input} → ${rewritten}`);
     }
+    return rewritten;
 }
 
 /**
@@ -81,7 +70,7 @@ function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo
  */
 export default async function fetch(url: RequestInfo | URL | Request, init: RequestInit = {}): Promise<Response> {
     // Rewrite root-relative URLs before Request constructor parses them
-    url = rewriteRootRelativeUrl(url);
+    url = rewriteFetchInput(url);
 
     // Build request object
     const request = new Request(url, init);
@@ -340,9 +329,9 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
             // the streaming decode is fragile. Buffer first, then decompress the
             // complete in-memory blob — the same pattern @gjsify/tar uses for .tgz.
             const rawBuffer = await new Response(readable, responseOptions).arrayBuffer();
-            const decompressed = new Blob([rawBuffer]).stream().pipeThrough(
-                new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>,
-            );
+            const decompressed = new Blob([rawBuffer])
+                .stream()
+                .pipeThrough(new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
             finalize();
             return new Response(decompressed as unknown as ReadableStream, responseOptions);
         }

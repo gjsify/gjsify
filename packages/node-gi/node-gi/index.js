@@ -179,11 +179,32 @@ if (!isNodeRuntime && RUNTIME !== 'gjs') {
       // (Bun's own processTicksAndRejections calls it from JS).
       ({ drainMicrotasks: drain } = require('bun:jsc'));
     } else if (typeof globalThis.Deno?.internal === 'symbol') {
-      // V8: core.runMicrotasks → op_run_microtasks →
-      // Isolate::PerformMicrotaskCheckpoint (a reentrant op, explicitly
-      // safe with JS frames on the stack).
+      // V8: the checkpoint needs BOTH queues. core.runMicrotasks is only
+      // Isolate::PerformMicrotaskCheckpoint; Deno's node-compat
+      // process.nextTick queue is a SEPARATE deno_core queue
+      // (ext:deno_node/_next_tick.ts → core.queueNextTick) that only the
+      // runtime's own event loop drains — and that loop is paused for the
+      // whole lifetime of a blocking run(). node:stream delivers stream
+      // 'end' via process.nextTick (endReadableNT), so with a
+      // microtask-only drain any body consumption over a Readable
+      // (@gjsify/fetch consumeBody → XHR arrayBuffer/text) got its chunks
+      // (microtask-delivered) but never the end: every asset load hung at
+      // readyState 3 forever on Deno while the SAME bundle settled on Bun,
+      // whose nextTick rides JSC's microtask queue (bun:jsc
+      // drainMicrotasks covers it). core.runNextTicks mirrors node's
+      // task_queues.js runNextTicks: microtask checkpoint when no ticks
+      // are scheduled, full processTicksAndRejections (ticks + microtasks
+      // interleaved) when there are — one call, both queues. Regression:
+      // test/blocking-run-checkpoint.test.mjs.
       const core = globalThis.Deno[globalThis.Deno.internal]?.core;
-      if (typeof core?.runMicrotasks === 'function') drain = () => core.runMicrotasks();
+      if (typeof core?.runNextTicks === 'function') {
+        drain = () => core.runNextTicks();
+      } else if (typeof core?.runMicrotasks === 'function') {
+        // Older deno_core without runNextTicks: microtask-only drain
+        // (pre-fix behaviour — promise continuations settle, nextTick
+        // consumers like node:stream 'end' still starve).
+        drain = () => core.runMicrotasks();
+      }
     }
     if (typeof drain === 'function') native.setMicrotaskDrain(drain);
   } catch {
@@ -639,6 +660,35 @@ export const startMainLoop = native.startMainLoop;
  * @returns {boolean}
  */
 export const iterateMainContext = native.iterateMainContext;
+
+/**
+ * Whether the default GLib main context holds work a *pumping* runtime must stay
+ * alive for: a scheduled source (an armed timeout/idle — the prepare/query
+ * timeout hint is >= 0) or an in-flight scope=async GI callback. Pure GLib —
+ * the companion of {@link iterateMainContext} and the query half of the
+ * keep-alive contract the L1 `startMainContextPump` applies on Bun/Deno (Node
+ * reads the same facts inline in the uv auto-pump). A `false` answer is what
+ * lets a sync-only program exit immediately.
+ * @returns {boolean}
+ */
+export const mainContextHasPending = native.mainContextHasPending;
+
+/**
+ * Create an `Int32Array(1)` view over the SAME JS-armed-work counter
+ * {@link mainContextHasPending} reads — `view[0] > 0` ⇔
+ * `mainContextHasPending()`. The zero-N-API spelling: reading the view is a
+ * plain V8 memory access, no call into the addon. Load-bearing for the Bun/Deno
+ * pump's IDLE beat — on Deno, merely ENTERING the addon from a timer tick
+ * during the between-test-files GC window reproduces the #47 boxed-handle
+ * teardown SIGSEGV (measured: a query-only tick crashed 3/3 where a tick that
+ * never touches the addon exited 0), so the beat must be able to answer "is
+ * there work?" without a single native call. A lazy FACTORY rather than an
+ * Init-time export: the @gjsify/napi shim (the gjs-napi conformance oracle)
+ * loud-stubs `napi_create_external_arraybuffer`, and the gjs host never arms
+ * the portable pump — called only on the first Bun/Deno pump arm.
+ * @returns {Int32Array}
+ */
+export const makePumpPendingCount = native.makePumpPendingCount;
 
 /**
  * Drain ready GLib sources + re-arm the auto-pump's libuv wake-ups NOW (no-op

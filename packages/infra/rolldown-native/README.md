@@ -30,6 +30,40 @@ if (hasNativeRolldown()) {
 
 Under normal usage `@gjsify/rolldown-native` is consumed automatically by the gjsify CLI (`gjsify build`) — direct use is only needed when embedding the bundler in custom build tooling.
 
+## Building from source
+
+The Rust shim path-deps into the `refs/rolldown` submodule, pinned to the tag matching the
+workspace's npm `rolldown` version (`package.json#gjsify.refsLockstep` — the two are builds of the
+same bundler and must be the same release):
+
+```bash
+git submodule update --init refs/rolldown
+gjsify workspace @gjsify/rolldown-native build:prebuilds   # needs meson + vala + cargo
+```
+
+### Dependency lock
+
+`src/rust/Cargo.lock` is **committed**. It pins the crates.io half of the graph the way
+[`scripts/check-refs-pin.mjs`](../../../scripts/check-refs-pin.mjs) pins the `refs/` half, so the
+prebuild in this repository can be re-linked against the exact transitive set it was built from.
+CI builds with `--locked` (`${CI:+--locked}` on the `cargo build` in `meson.build`; every CI leg
+runs with `CI=true`), so a lock that no longer satisfies `Cargo.toml` fails the run instead of
+being silently rewritten. Local builds are unlocked, so editing `Cargo.toml` still just works —
+commit the resulting lock diff with the change.
+
+Updating a dependency is a deliberate act:
+
+```bash
+cd packages/infra/rolldown-native/src/rust
+cargo update -p <crate>        # or plain `cargo update` for the whole registry side
+cargo tree -d                  # no crate may appear as BOTH a path and a registry entry
+cd -
+gjsify workspace @gjsify/rolldown-native build:prebuilds
+```
+
+Bumping `refs/rolldown` moves the `rolldown*` path crates' own versions and therefore invalidates
+the lock — regenerate it in the same commit as the submodule pin and the npm `rolldown` bump.
+
 ## Platform coverage
 
 | Platform | Prebuild | Built by |

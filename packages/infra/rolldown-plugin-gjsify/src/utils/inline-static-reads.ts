@@ -183,7 +183,7 @@ function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, _src: str
         // function" on a string).
         if (hasWithFileTypes(node.arguments[1])) return undefined;
         const path = evalPathExpr(node.arguments[0], ctx);
-        if (path && existsSyncSafe(path) && isDirectorySafe(path)) {
+        if (path && existsSync(path) && isDirectorySafe(path)) {
             try {
                 const names = readdirSync(path);
                 return {
@@ -203,7 +203,7 @@ function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, _src: str
             return {
                 start: node.start,
                 end: node.end,
-                replacement: existsSyncSafe(path) ? 'true' : 'false',
+                replacement: existsSync(path) ? 'true' : 'false',
             };
         }
     }
@@ -230,7 +230,7 @@ function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, _src: str
         //    where Node's PnP hooks make `existsSync` return true at build
         //    time but the path doesn't exist under GJS at runtime).
         const isZip = path !== undefined && path.includes('.zip/');
-        if (path !== undefined && (isZip || !existsSyncSafe(path))) {
+        if (path !== undefined && (isZip || !existsSync(path))) {
             return {
                 start: node.start,
                 end: node.end,
@@ -262,7 +262,7 @@ function tryInlineReadFile(
     if (node.arguments.length < 1) return undefined;
     const path = evalPathExpr(node.arguments[0], ctx);
     if (!path) return undefined;
-    if (!existsSyncSafe(path) || isDirectorySafe(path)) return undefined;
+    if (!existsSync(path) || isDirectorySafe(path)) return undefined;
 
     let encoding: string | undefined;
     if (forceTextEncoding) {
@@ -588,13 +588,9 @@ function jsStringLiteral(s: string): string {
     return JSON.stringify(s);
 }
 
-function existsSyncSafe(path: string): boolean {
-    try {
-        return existsSync(path);
-    } catch {
-        return false;
-    }
-}
+// NOTE: `existsSync` needs no wrapper — it never throws by contract (Node
+// returns false on any error, and the GJS/Bun/Deno node:fs shims match).
+// `statSync` below genuinely throws (ENOENT etc.), hence its guarded helper.
 
 function isDirectorySafe(path: string): boolean {
     try {

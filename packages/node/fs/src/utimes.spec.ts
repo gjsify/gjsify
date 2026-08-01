@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { utimesSync, utimes, lutimesSync, lchownSync, promises } from 'node:fs';
-import { statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -64,9 +64,9 @@ export default async () => {
         await it('lutimesSync does not throw on a symlink', async () => {
             const target = tmpFile('lutime-target');
             const link = join(TMP, `gjsify-lutime-link-${process.pid}`);
-            try {
-                unlinkSync(link);
-            } catch {}
+            // force:true is the non-throwing spelling of "remove a leftover
+            // from a previous run" — a real failure (EACCES) still surfaces.
+            rmSync(link, { force: true });
             symlinkSync(target, link);
             const mtime = new Date('2017-05-20T00:00:00Z');
             // Just verify the call completes without throwing
@@ -91,9 +91,9 @@ export default async () => {
         await it('lchownSync does not throw (may need root to actually change)', async () => {
             const f = tmpFile('lchown');
             const link = join(TMP, `gjsify-lchown-link-${process.pid}`);
-            try {
-                unlinkSync(link);
-            } catch {}
+            // force:true is the non-throwing spelling of "remove a leftover
+            // from a previous run" — a real failure (EACCES) still surfaces.
+            rmSync(link, { force: true });
             symlinkSync(f, link);
             // This will only actually change owner if running as root; just verify no throw
             try {

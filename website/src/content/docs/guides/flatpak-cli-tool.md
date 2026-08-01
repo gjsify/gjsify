@@ -175,7 +175,7 @@ gjsify flatpak deps --lockfile yarn.lock --out flatpak-node-sources.json
 
 The output is the JSON file you reference from your manifest's `sources:` array.
 
-> **Long-term goal:** the GJSify ecosystem aims for a Node-free build chain. When `gjsify install` (a future Yarn replacement) and a GJS-native `gjsify build` exist, the Node SDK extension and `flatpak-node-generator` step both drop out. Tracked in [STATUS.md → Node-free build chain](https://github.com/gjsify/gjsify/blob/main/STATUS.md). For now, Node 24 + flatpak-node-generator are part of the build-time (not runtime) story.
+> **Long-term goal:** the GJSify ecosystem aims for a Node-free build chain. When `gjsify install` (a future Yarn replacement) and a GJS-native `gjsify build` exist, the Node SDK extension and `flatpak-node-generator` step both drop out. Tracked in [`status/open-todos.md`](https://github.com/gjsify/gjsify/blob/main/status/open-todos.md). For now, Node 24 + flatpak-node-generator are part of the build-time (not runtime) story.
 
 ## 5. Build the bundle
 

@@ -369,7 +369,10 @@ export class Worker extends EventEmitter {
                 const msg = JSON.stringify({ type: 'terminate' }) + '\n';
                 this._stdinPipe.write_all(_encoder.encode(msg), null);
             }
-        } catch {}
+        } catch {
+            // The child may already have exited (write on a broken pipe
+            // throws) — the force_exit timer below is the backstop either way.
+        }
 
         // Force-exit after timeout
         setTimeout(() => {
@@ -517,19 +520,24 @@ export class Worker extends EventEmitter {
         if (this._bootstrapFile) {
             try {
                 this._bootstrapFile.delete(null);
-            } catch {}
+            } catch {
+                // The bootstrap temp file may already be gone; failing to
+                // remove it must not derail the exit path.
+            }
             this._bootstrapFile = null;
         }
         if (this._stdinPipe) {
             try {
                 this._stdinPipe.close(null);
-            } catch {}
+            } catch {
+                // Already closed when the child died first — cleanup continues.
+            }
             this._stdinPipe = null;
         }
         if (this._sabSocketFd !== -1 && fdChannel?.closeFd) {
-            try {
-                fdChannel.closeFd(this._sabSocketFd);
-            } catch {}
+            // FdChannel.close_fd() is non-throwing (returns a bool the wrapper
+            // discards) — best-effort is ignoring that result, not a catch.
+            fdChannel.closeFd(this._sabSocketFd);
             this._sabSocketFd = -1;
         }
         // Drop every cross-process port the registry was holding. Each kept
@@ -537,13 +545,13 @@ export class Worker extends EventEmitter {
         // to the now-closed stdin pipe; bail out cleanly so subsequent
         // `port.postMessage` calls become no-ops (the wrapper's `_closed`
         // path returns early).
+        // No try/catch: every registry value is a port wrapper whose `_inner`
+        // is an initialized plain field (single registry .set() site), and
+        // `_closed` / `_transport` are plain data properties — these writes
+        // have no throw path.
         for (const port of this._portRegistry.values()) {
-            try {
-                (port as unknown as { _inner: { _closed: boolean; _transport: unknown } })._inner._closed = true;
-                (port as unknown as { _inner: { _transport: unknown } })._inner._transport = null;
-            } catch {
-                /* defensive */
-            }
+            (port as unknown as { _inner: { _closed: boolean; _transport: unknown } })._inner._closed = true;
+            (port as unknown as { _inner: { _transport: unknown } })._inner._transport = null;
         }
         this._portRegistry.clear();
         this._subprocess = null;

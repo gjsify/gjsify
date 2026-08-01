@@ -90,7 +90,6 @@ export default async () => {
                         const service = new Gio.SocketService();
                         const port = service.add_any_inet_port(null);
 
-                        // oxlint-disable-next-line typescript/no-explicit-any -- Gio.SocketService callback; Gio has no @types package
                         service.connect('incoming', (_svc: unknown, connection: unknown) => {
                             process.stdout.write('GIO2 INCOMING\n');
                             // oxlint-disable-next-line typescript/no-explicit-any -- Gio.IOStream has no TypeScript types
@@ -104,7 +103,6 @@ export default async () => {
                                 4096,
                                 GLib.PRIORITY_DEFAULT,
                                 cancellable,
-                                // oxlint-disable-next-line typescript/no-explicit-any -- Gio async callback signature has no @types
                                 (_s: unknown, _r: unknown) => {
                                     process.stdout.write('GIO2 READ DONE\n');
                                 },
@@ -115,7 +113,6 @@ export default async () => {
                                 new GLib.Bytes(new Uint8Array([1, 2, 3, 4])),
                                 GLib.PRIORITY_DEFAULT,
                                 cancellable,
-                                // oxlint-disable-next-line typescript/no-explicit-any -- Gio async callback; result typed via write_bytes_finish
                                 (_src: unknown, result: unknown) => {
                                     try {
                                         // oxlint-disable-next-line typescript/no-explicit-any -- Gio.OutputStream.write_bytes_finish result has no @types
@@ -174,7 +171,6 @@ export default async () => {
                         const port = service.add_any_inet_port(null);
                         process.stdout.write('GIO SERVER port: ' + port + '\n');
 
-                        // oxlint-disable-next-line typescript/no-explicit-any -- Gio.SocketService callback; Gio has no @types package
                         service.connect('incoming', (_svc: unknown, connection: unknown) => {
                             process.stdout.write('GIO INCOMING\n');
                             // oxlint-disable-next-line typescript/no-explicit-any -- Gio.IOStream has no TypeScript types
@@ -184,7 +180,6 @@ export default async () => {
                                 new GLib.Bytes(new Uint8Array([1, 2, 3, 4])),
                                 GLib.PRIORITY_DEFAULT,
                                 cancellable,
-                                // oxlint-disable-next-line typescript/no-explicit-any -- Gio async callback; result typed via write_bytes_finish
                                 (_src: unknown, result: unknown) => {
                                     try {
                                         // oxlint-disable-next-line typescript/no-explicit-any -- Gio.OutputStream.write_bytes_finish result has no @types
@@ -208,13 +203,16 @@ export default async () => {
 
                         // Connect a client
                         const client = new Gio.SocketClient();
-                        // oxlint-disable-next-line typescript/no-explicit-any -- Gio.SocketClient async callback; Gio has no @types package
                         client.connect_to_host_async('127.0.0.1:' + port, 0, null, (_src: unknown, result: unknown) => {
                             process.stdout.write('GIO CLIENT CONNECTED\n');
                             try {
                                 // oxlint-disable-next-line typescript/no-explicit-any -- Gio.SocketClient.connect_to_host_finish has no TypeScript types
                                 client.connect_to_host_finish(result as any);
-                            } catch {}
+                            } catch {
+                                // A refused connect throws here; this probe only
+                                // exists to complete the async op — the real
+                                // assertions (timedOut/writeCompleted) follow.
+                            }
                         });
                     },
                 );
@@ -246,7 +244,6 @@ export default async () => {
                     const service = new Gio.SocketService();
                     const port = service.add_any_inet_port(null);
 
-                    // oxlint-disable-next-line typescript/no-explicit-any -- Gio.SocketService callback; Gio has no @types package
                     service.connect('incoming', (_svc: unknown, connection: unknown) => {
                         // oxlint-disable-next-line typescript/no-explicit-any -- Gio.IOStream has no TypeScript types
                         const inputStream = (connection as any).get_input_stream();
@@ -261,7 +258,6 @@ export default async () => {
                                     4096,
                                     GLib.PRIORITY_DEFAULT,
                                     cancellable,
-                                    // oxlint-disable-next-line typescript/no-explicit-any -- Gio async callback signature has no @types
                                     (_s: unknown, _r: unknown) => res(),
                                 );
                             });
@@ -273,7 +269,6 @@ export default async () => {
                             new GLib.Bytes(new Uint8Array([1, 2, 3, 4])),
                             GLib.PRIORITY_DEFAULT,
                             cancellable,
-                            // oxlint-disable-next-line typescript/no-explicit-any -- Gio async callback; result typed via write_bytes_finish
                             (_src: unknown, result: unknown) => {
                                 try {
                                     // oxlint-disable-next-line typescript/no-explicit-any -- Gio.OutputStream.write_bytes_finish result has no @types
@@ -330,7 +325,6 @@ export default async () => {
                             new GLib.Bytes(new Uint8Array([1, 2, 3, 4])),
                             GLib.PRIORITY_DEFAULT,
                             cancellable,
-                            // oxlint-disable-next-line typescript/no-explicit-any -- Gio async callback; result typed via write_bytes_finish
                             (_src: unknown, result: unknown) => {
                                 try {
                                     // oxlint-disable-next-line typescript/no-explicit-any -- Gio.OutputStream.write_bytes_finish result has no @types
@@ -377,10 +371,10 @@ export default async () => {
                 const GLib = gjsImports.gi.GLib;
 
                 // Enable nextTick trace to see if GLib.timeout_add fires
-                try {
-                    // oxlint-disable-next-line typescript/no-explicit-any -- __gjsify_setNextTickTrace is a GJS debug global not in TypeScript types
-                    (globalThis as any).__gjsify_setNextTickTrace?.(true);
-                } catch {}
+                // Optional-chained: the debug hook is simply absent off GJS —
+                // `?.()` already makes this non-throwing, no catch needed.
+                // oxlint-disable-next-line typescript/no-explicit-any -- __gjsify_setNextTickTrace is a GJS debug global not in TypeScript types
+                (globalThis as any).__gjsify_setNextTickTrace?.(true);
 
                 const { writeOK, timedOut } = await new Promise<{ writeOK: boolean; timedOut: boolean }>((resolve) => {
                     const deadline = setTimeout(() => resolve({ writeOK: false, timedOut: true }), 3000);
@@ -405,7 +399,6 @@ export default async () => {
                                 new GLib.Bytes(new Uint8Array([1, 2, 3, 4])),
                                 GLib.PRIORITY_DEFAULT,
                                 cancellable,
-                                // oxlint-disable-next-line typescript/no-explicit-any -- Gio async callback; result typed via write_bytes_finish
                                 (_src: unknown, result: unknown) => {
                                     try {
                                         // oxlint-disable-next-line typescript/no-explicit-any -- Gio.OutputStream.write_bytes_finish result has no @types
@@ -448,10 +441,9 @@ export default async () => {
                     });
                     server.on('error', () => resolve({ writeOK: false, timedOut: true }));
                 });
-                try {
-                    // oxlint-disable-next-line typescript/no-explicit-any -- __gjsify_setNextTickTrace is a GJS debug global not in TypeScript types
-                    (globalThis as any).__gjsify_setNextTickTrace?.(false);
-                } catch {}
+                // See above — the optional call is non-throwing by itself.
+                // oxlint-disable-next-line typescript/no-explicit-any -- __gjsify_setNextTickTrace is a GJS debug global not in TypeScript types
+                (globalThis as any).__gjsify_setNextTickTrace?.(false);
                 expect(timedOut).toBeFalsy();
                 expect(writeOK).toBeTruthy();
             },

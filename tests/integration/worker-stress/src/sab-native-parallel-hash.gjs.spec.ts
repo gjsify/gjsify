@@ -2,8 +2,8 @@
 // GJS-only parallel SHA-256 hash workload over a @gjsify/sab-native
 // SharedBuffer. Mirrors sab-parallel-hash.spec.ts but uses the
 // cross-process Vala bridge instead of native SharedArrayBuffer +
-// Atomics (which is unavailable in stock GJS — see STATUS.md
-// "SharedArrayBuffer cross-process sharing").
+// Atomics (which is unavailable in stock GJS — see
+// status/open-todos.md → "SharedArrayBuffer cross-process sharing").
 //
 // Layout:
 //   - region[0 .. 1 MiB]                input payload

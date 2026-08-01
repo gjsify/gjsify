@@ -91,9 +91,14 @@ function buildPackageTar(pkgJson, { withPrebuild = false } = {}) {
     parts.push(tarFile('package/package.json', Buffer.from(JSON.stringify(pkgJson, null, 2) + '\n')));
     if (withPrebuild) {
         parts.push(tarHeader(`package/${PREBUILD_REL}/`, 0, '5'));
-        // A stand-in for the .so + .typelib — content is irrelevant; only the
-        // directory's existence matters to detectNativePackages.
+        // Stand-ins for the two files EVERY gjsify GI bridge ships — content is
+        // irrelevant, presence is not. The `.typelib` is load-bearing for the
+        // launcher: `prebuilds/<os>-<arch>/` is also the prebuildify convention,
+        // so the preamble takes a directory only when it holds one, and a
+        // fixture with just a `.so` would be a prebuild the real launcher is
+        // right to skip.
         parts.push(tarFile(`package/${PREBUILD_REL}/libgjsify_engine.so`, Buffer.from('\x7fELF stub')));
+        parts.push(tarFile(`package/${PREBUILD_REL}/GjsifyEngine-1.0.typelib`, Buffer.from('GTYP stub')));
     }
     parts.push(Buffer.alloc(BLOCK * 2)); // trailer
     return Buffer.concat(parts);
@@ -113,9 +118,9 @@ function runHarness(cmd, args, cwd, env = {}) {
         child.stdout.on('data', (c) => (stdout += c));
         child.stderr.on('data', (c) => (stderr += c));
         const killTimer = setTimeout(() => {
-            try {
-                child.kill('SIGKILL');
-            } catch {}
+            // ChildProcess.kill with a known signal never throws — failure
+            // to deliver just returns false (the process already exited).
+            child.kill('SIGKILL');
         }, 60_000);
         child.on('close', (code) => {
             clearTimeout(killTimer);
@@ -126,6 +131,43 @@ function runHarness(cmd, args, cwd, env = {}) {
             reject(e);
         });
     });
+}
+
+/**
+ * Run a written launcher and report the environment it hands to the process it
+ * execs.
+ *
+ * This is the assertion the v0.24.1 launcher regression needed and nothing had:
+ * every existing check read the launcher TEXT, and a launcher whose preamble is
+ * simply absent is perfectly well-formed text. The env is a property of running
+ * it, so it is measured by running it.
+ *
+ * `gjs` is stubbed on PATH with a script that dumps the two variables, so this
+ * needs no GJS on the host and no real CLI bundle — the launcher's own `exec
+ * gjs -m <bundle>` line is what gets exercised, through a real `/bin/sh`.
+ */
+async function launcherEnv(launcherPath, tmpRoot, extraEnv = {}) {
+    const stubDir = mkdtempSync(join(tmpRoot, 'stub-gjs-'));
+    const stub = join(stubDir, 'gjs');
+    writeFileSync(
+        stub,
+        '#!/bin/sh\n' +
+            'printf "GI_TYPELIB_PATH=%s\\n" "${GI_TYPELIB_PATH-}"\n' +
+            'printf "LD_LIBRARY_PATH=%s\\n" "${LD_LIBRARY_PATH-}"\n' +
+            'printf "DYLD_LIBRARY_PATH=%s\\n" "${DYLD_LIBRARY_PATH-}"\n',
+        { mode: 0o755 },
+    );
+    const res = await runHarness('/bin/sh', [launcherPath], stubDir, {
+        PATH: `${stubDir}:${process.env.PATH}`,
+        ...extraEnv,
+    });
+    assert.equal(res.status, 0, `launcher exited ${res.status}:\n${res.stdout}\n${res.stderr}`);
+    const env = {};
+    for (const line of res.stdout.split('\n')) {
+        const eq = line.indexOf('=');
+        if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
+    }
+    return env;
 }
 
 describe('global GJS install lays down the bundler engine', { timeout: 90_000 }, () => {
@@ -288,22 +330,61 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
         const parsed = JSON.parse(out.stdout.trim().split('\n').pop());
         assert.equal(parsed.engine, true, 'hasBundlerEngineInstalled should be true after install');
 
-        // 2. The launcher bakes the engine's prebuild dir into BOTH paths.
+        // 2. The launcher must EXPORT the engine's prebuild dir to the process
+        //    it execs. Asserted by RUNNING it, not by reading it — that is the
+        //    whole point (v0.24.1 shipped a launcher that was written, looked
+        //    plausible and exported nothing).
         const launcherPath = join(binDir, 'gjsify');
         assert.ok(existsSync(launcherPath), `expected launcher at ${launcherPath}`);
         const launcher = readFileSync(launcherPath, 'utf-8');
         assert.match(launcher, /exec gjs -m/, 'launcher should invoke the GJS bundle');
+
+        const env = await launcherEnv(launcherPath, tmpRoot);
         assert.ok(
-            launcher.includes(`GI_TYPELIB_PATH='${enginePrebuild}`) || launcher.includes(enginePrebuild),
-            `launcher GI_TYPELIB_PATH should include the engine prebuild dir:\n${launcher}`,
+            env.GI_TYPELIB_PATH?.split(':').includes(enginePrebuild),
+            `launcher must export GI_TYPELIB_PATH containing ${enginePrebuild}\n` +
+                `got: ${env.GI_TYPELIB_PATH}\nlauncher:\n${launcher}`,
         );
-        // Both env vars present and both reference the prebuild dir.
-        assert.match(launcher, /GI_TYPELIB_PATH=/, 'launcher missing GI_TYPELIB_PATH');
-        assert.match(launcher, /LD_LIBRARY_PATH=/, 'launcher missing LD_LIBRARY_PATH');
-        const giLine = launcher.split('\n').find((l) => l.startsWith('GI_TYPELIB_PATH='));
-        const ldLine = launcher.split('\n').find((l) => l.startsWith('LD_LIBRARY_PATH='));
-        assert.ok(giLine?.includes(enginePrebuild), `GI_TYPELIB_PATH line missing engine dir:\n${giLine}`);
-        assert.ok(ldLine?.includes(enginePrebuild), `LD_LIBRARY_PATH line missing engine dir:\n${ldLine}`);
+        assert.ok(
+            env.LD_LIBRARY_PATH?.split(':').includes(enginePrebuild),
+            `launcher must export LD_LIBRARY_PATH containing ${enginePrebuild}\n` +
+                `got: ${env.LD_LIBRARY_PATH}\nlauncher:\n${launcher}`,
+        );
+
+        // 3. And it must stay correct for a native package installed AFTER the
+        //    launcher was written. The launcher used to embed a snapshot of the
+        //    prefix, so this case was silently stale until something happened to
+        //    re-link it; it now scans the prefix on every launch.
+        const latePrebuild = join(prefix, 'node_modules', '@gjsify', 'late-native', PREBUILD_REL);
+        mkdirSync(latePrebuild, { recursive: true });
+        writeFileSync(join(latePrebuild, 'libgjsify_late.so'), '\x7fELF stub');
+        writeFileSync(join(latePrebuild, 'GjsifyLate-1.0.typelib'), 'GTYP stub');
+        const envAfter = await launcherEnv(launcherPath, tmpRoot);
+        assert.ok(
+            envAfter.GI_TYPELIB_PATH?.split(':').includes(latePrebuild),
+            'a prebuild installed after the launcher was written must still be exported — ' +
+                `the launcher is stale.\ngot: ${envAfter.GI_TYPELIB_PATH}\nlauncher:\n${launcher}`,
+        );
+
+        // 4. An inherited value survives as a suffix (user typelibs keep working).
+        const envInherited = await launcherEnv(launcherPath, tmpRoot, { GI_TYPELIB_PATH: '/user/typelibs' });
+        assert.ok(
+            envInherited.GI_TYPELIB_PATH?.split(':').includes('/user/typelibs'),
+            `launcher must preserve an inherited GI_TYPELIB_PATH: ${envInherited.GI_TYPELIB_PATH}`,
+        );
+
+        // 5. …and a `prebuilds/<os>-<arch>/` that carries NO typelib is skipped.
+        //    That layout is also the prebuildify convention (`bare-fs` & co), so
+        //    a directory-only match would put a pile of foreign shared objects
+        //    ahead of the system ones on the loader path.
+        const foreign = join(prefix, 'node_modules', 'bare-lookalike', PREBUILD_REL);
+        mkdirSync(foreign, { recursive: true });
+        writeFileSync(join(foreign, 'bare-lookalike.node'), 'not a typelib');
+        const envForeign = await launcherEnv(launcherPath, tmpRoot);
+        assert.ok(
+            !envForeign.GI_TYPELIB_PATH?.split(':').includes(foreign),
+            `a prebuilds dir with no typelib must be skipped: ${envForeign.GI_TYPELIB_PATH}`,
+        );
     });
 
     // ── 3. Best-effort degradation when an engine has no published version ────

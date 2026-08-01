@@ -51,9 +51,9 @@ function runGjs(args, timeoutMs = 40_000) {
         let timedOut = false;
         const kill = setTimeout(() => {
             timedOut = true;
-            try {
-                child.kill('SIGKILL');
-            } catch {}
+            // ChildProcess.kill with a known signal never throws — failure
+            // to deliver just returns false (the process already exited).
+            child.kill('SIGKILL');
         }, timeoutMs);
         child.on('close', (code) => {
             clearTimeout(kill);

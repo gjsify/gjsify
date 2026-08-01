@@ -139,14 +139,12 @@ function findScanRoots() {
         // Workspace check: <cur>/packages/{node,web,dom,framework,infra}.
         const packagesCandidate = resolve(cur, 'packages');
         if (existsSync(packagesCandidate)) {
-            try {
-                const stamp = ['node', 'web', 'dom', 'framework', 'infra'].some((s) =>
-                    existsSync(join(packagesCandidate, s)),
-                );
-                if (stamp) roots.push({ kind: 'workspace', dir: packagesCandidate });
-            } catch {
-                // ignore
-            }
+            // `existsSync` never throws by contract (the sibling calls above and
+            // below rely on that too); `join`/`some` over a literal list are pure.
+            const stamp = ['node', 'web', 'dom', 'framework', 'infra'].some((s) =>
+                existsSync(join(packagesCandidate, s)),
+            );
+            if (stamp) roots.push({ kind: 'workspace', dir: packagesCandidate });
         }
 
         // Installed check: <cur>/node_modules/@gjsify (single-flat npm layout).
