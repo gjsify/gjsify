@@ -277,7 +277,7 @@ describe('gjsify install — concurrent installs (per-prefix lock + atomic share
             assert.equal(installedVersion(dir, 'beta'), '1.2.3', 'transitive dep must materialize');
             assert.equal(installedVersion(dir, 'gamma'), '1.0.0', '~1.0.0 must pick 1.0.0, not 1.5.0');
             const lock = JSON.parse(readFileSync(join(dir, 'gjsify-lock.json'), 'utf-8'));
-            assert.equal(lock.lockfileVersion, 2, 'lockfile must be valid v2 JSON (no torn writes)');
+            assert.equal(lock.lockfileVersion, 3, 'lockfile must be valid v3 JSON (no torn writes)');
             assertNoLeftoverLock(dir);
         }
     });

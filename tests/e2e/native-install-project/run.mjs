@@ -244,10 +244,11 @@ describe('gjsify install <pkg> — project-local native (Phase D.1)', { timeout:
         const lockPath = join(projectDir, 'gjsify-lock.json');
         assert.ok(existsSync(lockPath), 'gjsify-lock.json missing after install');
         const lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
-        // Lockfile schema v2 (Phase D.7b): packages keyed by install path
-        // so nested-`node_modules/` entries (introduced for version-conflict
-        // resolution) can coexist with hoisted root entries in the same map.
-        assert.equal(lock.lockfileVersion, 2);
+        // Packages keyed by install path since Phase D.7b, so nested
+        // `node_modules/` entries (introduced for version-conflict resolution)
+        // coexist with hoisted root entries in the same map. v3 since the
+        // platform filter added the per-entry `os`/`cpu`/`libc` + `optional`.
+        assert.equal(lock.lockfileVersion, 3);
         const topEntry = lock.packages['node_modules/top-pkg'];
         assert.ok(topEntry, 'lockfile must pin top-pkg at node_modules/top-pkg');
         assert.match(topEntry.integrity, /^sha512-/);

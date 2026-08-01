@@ -14,7 +14,7 @@
 //
 // We assert on:
 //   - the on-disk layout (readable@2 lives under bridge-pkg/node_modules/)
-//   - the lockfile (lockfileVersion 2, both entries keyed by install path)
+//   - the lockfile (lockfileVersion 3, both entries keyed by install path)
 //   - Node's CommonJS resolver visibility (bridge-pkg sees v2, modern-pkg
 //     sees v3 — without the nested install, Node would resolve both to the
 //     same hoisted version)
@@ -386,7 +386,7 @@ describe('gjsify install — nested-node_modules version conflict (Phase D.7b)',
         const lockPath = join(projectDir, 'gjsify-lock.json');
         assert.ok(existsSync(lockPath), 'gjsify-lock.json missing');
         const lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
-        assert.equal(lock.lockfileVersion, 2, 'lockfile must be v2 (path-keyed)');
+        assert.equal(lock.lockfileVersion, 3, 'lockfile must be v3 (path-keyed + platform fields)');
 
         // Both readable placements are present — one at the root, one nested.
         // Whichever consumer the BFS reached first wins the root slot; the

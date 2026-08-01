@@ -25,8 +25,9 @@
 //       SAME lockfile (copied between projects, installed with --immutable);
 //   (c) an incompatible REQUIRED dep FAILS (EBADPLATFORM), and `--force`
 //       installs it anyway;
-//   (d) `libc` only exists in the FULL packument, so the resolver must escalate
-//       — and only for platform-declaring packages on a linux target.
+//   (d) `libc` only exists in the FULL packument, so the resolver reads the full
+//       document for EVERY package — and the metadata cache keys the two shapes
+//       apart, since one registry ETag covers both.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -304,13 +305,26 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         assert.match(r.stderr, /current=\{"os":"linux","cpu":"x64","libc":"glibc"\}/);
     });
 
-    it('(d) escalates to the full packument ONLY for platform-declaring packages', async () => {
-        // Set by the run above. `plat-app` declares no os/cpu, so its abbreviated
-        // document is final — npm re-fetches every dependency in full, we
-        // deliberately do not (same outcome, ~190 of 1597 packages here).
-        assert.deepEqual([...requestedShapes.get('plat-app')], ['corgi'], 'no escalation without a declaration');
-        assert.ok(requestedShapes.get('plat-bin-linux-x64-musl').has('full'), 'a declaring package must escalate');
-        assert.ok(requestedShapes.get('plat-bin-darwin-arm64').has('full'));
+    it('(d) reads the FULL document for every package, declaration or not', async () => {
+        // Set by the run above — one resolve, every name it touched.
+        //
+        // THIS ASSERTION USED TO BE ITS OWN INVERSE: it required `['corgi']` for
+        // `plat-app` and escalation only for a package that declares `os`/`cpu`.
+        // That rule reads as a tidy optimisation and has a hole the corpus above
+        // cannot show, because the hole is a package shape it does not contain:
+        // the abbreviated body omits `libc`, so it can never PROVE that a version
+        // carries no libc restriction, and the nine `@gjsify/*` native bridges
+        // declare `libc: ["glibc"]` with NO `os`/`cpu` at all. Under the old rule
+        // they were never escalated — on Alpine the installer handed a glibc-only
+        // prebuild to a musl host and failed at `dlopen` instead of at install
+        // time. Every "escalate only where it can matter" predicate has some
+        // version of that hole; one authoritative document per package has none.
+        // Measured cost of the swap: ~1.10× the metadata bytes and ~0.89× the
+        // requests of the corgi-plus-escalate shape it replaced.
+        assert.ok(requestedShapes.has('plat-app'), 'the fixture must exercise a package with no declaration');
+        for (const [name, shapes] of requestedShapes) {
+            assert.deepEqual([...shapes], ['full'], `${name} must be read from the full document, exactly once`);
+        }
     });
 
     it('(d) a re-resolve keeps libc — the metadata cache keys the two shapes apart', async () => {
@@ -351,7 +365,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         assert.deepEqual(lockOf(dir), lockOf(join(tmpRoot, 'glibc-target')));
     });
 
-    it('(b) a darwin/arm64 target selects the darwin variant and never escalates', async () => {
+    it('(b) a darwin/arm64 target selects the darwin variant AND records the linux libc', async () => {
         const dir = project('darwin-target', { dependencies: { 'plat-app': '^1.0.0' } });
         requestedShapes = new Map();
         const r = await runCli(cliEntry, ['install', '--os=darwin', '--cpu=arm64', '--verbose'], {
@@ -362,15 +376,27 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         assert.ok(installed(dir, 'plat-bin-darwin-arm64'), 'the darwin variant must install');
         assert.equal(installed(dir, 'plat-bin-linux-x64-gnu'), false);
         assert.equal(installed(dir, 'plat-bin-linux-x64-musl'), false);
-        // libc is meaningless off linux (npm returns undefined there), so a
-        // second full-document fetch could not change any verdict.
-        for (const [name, shapes] of requestedShapes) {
-            assert.equal(shapes.has('full'), false, `${name} must not escalate on a non-linux target`);
-        }
-        // Both linux variants are still pinned — the lockfile is target-agnostic.
+
+        // THE PORTABILITY PROPERTY, and this case used to assert its opposite:
+        // that a non-linux target escalates NOTHING, because libc is meaningless
+        // off linux. True of the VERDICT, false of the RECORD — and the two are
+        // deliberately different things here. A macOS developer's lockfile is
+        // consumed by Linux colleagues; written without `libc` it gives them no
+        // libc filtering at all, and the musl-only package they must skip is
+        // judged installable. The old assertion PINNED that outcome, so the
+        // resolve is now target-blind and this reads the way round it should.
         const lock = lockOf(dir);
-        assert.ok(lock.packages['node_modules/plat-bin-linux-x64-musl']);
-        assert.ok(lock.packages['node_modules/plat-bin-linux-x64-gnu']);
+        assert.deepEqual(
+            lock.packages['node_modules/plat-bin-linux-x64-musl'].libc,
+            ['musl'],
+            'a darwin-authored lockfile must still carry the linux libc, or it is a machine snapshot',
+        );
+        assert.deepEqual(lock.packages['node_modules/plat-bin-linux-x64-gnu'].libc, ['glibc']);
+
+        // Strongest form of the same claim: byte-for-byte the file the glibc
+        // target produced from the same manifest. If the resolve ever learns
+        // anything about the host again, this is what notices.
+        assert.deepEqual(lock, lockOf(join(tmpRoot, 'glibc-target')), 'the resolve must be target-blind');
     });
 
     it('(c) an incompatible REQUIRED dependency fails with EBADPLATFORM', async () => {

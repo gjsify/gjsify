@@ -597,6 +597,32 @@ function parseSpecName(spec: string): string {
 }
 
 /**
+ * What one resolve hands back. TWO values rather than just the tree, because a
+ * TOLERATED FAILURE cannot be judged while the walk is running: `resolveDeps`
+ * decides whether to rethrow from `edge.required`, which is the BFS's forward
+ * guess (a later required edge can still reach the same node), so every failure
+ * it swallowed has to survive the walk to be re-judged against the final flags.
+ *
+ * npm carries the identical pair for the identical reason — a `#loadFailures`
+ * set beside the ideal tree, re-judged by `#pruneFailedOptional()` ("if
+ * (!node.optional) throw node.errors[0]") only AFTER `#fixDepFlags()` has run
+ * `calcDepFlags` (refs/npm-cli/workspaces/arborist/lib/arborist/
+ * build-ideal-tree.js). That ORDER is the contract, not an implementation
+ * detail, and it is mirrored at this function's call site: flags first, then the
+ * assertion.
+ */
+interface ResolveResult {
+    /** Every placed package. Unique by `installPath`. */
+    nodes: ResolvedNode[];
+    /**
+     * Edges whose resolve FAILED and was swallowed because the edge looked
+     * optional at the moment the walk reached it. Keyed by {@link edgeKey};
+     * empty when nothing failed, which is the overwhelmingly common case.
+     */
+    skippedEdges: Set<string>;
+}
+
+/**
  * Tree-aware dependency resolution with npm v3+ hoisting semantics.
  *
  *   - A dep is HOISTED (placed at `node_modules/<dep>`) when no existing
@@ -926,49 +952,21 @@ async function resolveDeps(
         }
     }
 
-    const nodes = Array.from(byPath.values());
-    await escalateLibcDeclarations(nodes, target, fetchFullPkg, log, signal);
     progress?.endPhase('resolve');
     emitTopLevelConflictWarnings(topLevelRanges, root);
-    return nodes;
-}
-
-/**
- * Is the abbreviated packument's platform declaration INCOMPLETE for this
- * target — i.e. worth a second, full-document fetch?
- *
- * MEASURED FACT the whole escalation rests on: the registry never serves `libc`
- * in the abbreviated ("corgi") document. Verified against the live registry —
- * `lightningcss-linux-x64-musl@1.33.0` returns `{os,cpu}` under
- * `application/vnd.npm.install-v1+json` and `{os,cpu,libc}` under
- * `application/json`. Trusting the abbreviated document would therefore judge
- * every musl-only package installable on glibc (9 packages / 308 MB here), and
- * — worse — would make `--libc` a flag that cannot fail.
- *
- * DELIBERATE DIVERGENCE FROM npm, outcome-equivalent: arborist escalates to the
- * full document for EVERY resolved dependency (`#fetchManifest` sets
- * `fullMetadata: true` —
- * refs/npm-cli/workspaces/arborist/lib/arborist/build-ideal-tree.js). It can
- * afford that because it needs the full manifest for other reasons anyway; for
- * us it would mean a second, much larger body for all ~1597 packages in this
- * workspace. So we escalate only where the answer can differ:
- *
- *   - the version DECLARES `os` or `cpu` — the marker of a per-platform package
- *     (~190 of 1597 here). A package with no platform declaration at all cannot
- *     acquire a `libc` restriction in the full document;
- *   - the target OS is `linux` — the only platform where `libc` is meaningful
- *     (npm's `currentEnv.libc()` returns undefined elsewhere), so a declaration
- *     we did not read could not change the verdict on darwin/win32;
- *   - `libc` is absent from the abbreviated document — if the registry DID send
- *     it, there is nothing left to learn.
- *
- * Every escalated fetch can only ADD a restriction, so the set installed is the
- * same one npm computes; what differs is how many bytes we moved to learn it.
- */
-export function needsLibcEscalation(declaration: PlatformDeclaration, target?: PlatformTarget): boolean {
-    if (target?.os !== 'linux') return false;
-    if (declaration.libc !== undefined) return false;
-    return Boolean(declaration.os || declaration.cpu);
+    // NO declaration post-pass here, deliberately. `fetchPkg` already read the
+    // FULL document for every package, so each node's `platform` is complete as
+    // published and there is nothing left to escalate. The draft DID have a
+    // second `libc`-only fetch at exactly this line, and it took the platform
+    // target to decide when to fire — the one argument this function must never
+    // have (header note, invariant 1). Reintroducing the pass means
+    // reintroducing the parameter, which is how a macOS-authored lockfile ended
+    // up with no `libc` recorded for anyone.
+    //
+    // `optional` is likewise NOT finalised here: the flags on these nodes are
+    // still the walk's forward guess. `computeOptionalFlags` overwrites them at
+    // the call site, on this path and on the lockfile path alike.
+    return { nodes: Array.from(byPath.values()), skippedEdges };
 }
 
 /**
@@ -982,64 +980,214 @@ function platformDeclarationOf(version: PackumentVersion): PlatformDeclaration |
 }
 
 /**
- * Fill in the `libc` the abbreviated documents never carried, for the nodes
- * {@link needsLibcEscalation} selects.
+ * Identity of one dependency EDGE: the requester's `installPath` (empty string
+ * for the project root) plus the dependency name.
  *
- * ONE PASS AFTER THE BFS, bounded to the same width as the download pool — not
- * inline in the placement loop. Inline, each escalation would be a fresh
- * round-trip inside the SERIAL pass, i.e. ~190 sequential RTTs on this
- * workspace: exactly the cost the wave-based prefetch was built to remove. Order
- * does not matter here (no placement decision reads the declaration), so a
- * post-pass is free to parallelise.
+ * The PAIR is the identity, never the name alone. The same unresolvable name can
+ * be legitimately absent below an optional subtree and a hard error below a
+ * required one — only the requester says which, so a `skippedEdges` keyed by
+ * name would collapse the two cases and answer whichever it saw last.
  *
- * An escalation that FAILS keeps the abbreviated declaration and logs it. That
- * direction is chosen on purpose: without `libc` a musl-only package looks
- * compatible and gets installed — a wasted download. Treating the unknown as
- * incompatible instead would DROP a package the host may need, on nothing worse
- * than a registry hiccup that the fetch layer has already retried through.
+ * `\n` is the separator because no npm package name and no install path can
+ * contain one (npm rejects control characters in names, and every path here is
+ * built out of names), so the key round-trips through {@link parseEdgeKey}
+ * unambiguously. Deliberately NOT `\u0000`, the other obvious choice: the GJS
+ * bundle minifier rewrites that escape into a raw NUL byte and GJS then refuses
+ * to parse the bundle at all ("template literal not terminated"). A separator
+ * that only fails once this file is bundled for the runtime it ships on is not
+ * worth the theoretical tidiness.
  */
-async function escalateLibcDeclarations(
-    nodes: ResolvedNode[],
-    target: PlatformTarget | undefined,
-    fetchFullPkg: (name: string) => Promise<Packument>,
-    log: Logger,
-    signal?: AbortSignal,
-): Promise<void> {
-    const pending = nodes.filter((n) => n.platform && needsLibcEscalation(n.platform, target));
-    if (pending.length === 0) return;
-    log('install: %d package(s) need the full packument for their libc field', pending.length);
-    await prefetchPackuments([...new Set(pending.map((n) => n.name))], fetchFullPkg, signal);
-    for (const node of pending) {
-        try {
-            // Warmed by the prefetch above; a rejection was cached there and
-            // surfaces here, per package, so one bad packument cannot abort the
-            // whole pass.
-            const full = await fetchFullPkg(node.name);
-            const fullVersion = full.versions[node.version];
-            // A full document that does not carry the version the abbreviated one
-            // promised leaves nothing to learn — keep what we have.
-            if (!fullVersion) continue;
-            // Read all three fields from the SAME body: it is the same publish, so
-            // they agree, and mixing bodies could only produce an internally
-            // inconsistent record.
-            const escalated: PlatformDeclaration = {
-                os: fullVersion.os ?? node.platform?.os,
-                cpu: fullVersion.cpu ?? node.platform?.cpu,
-                libc: fullVersion.libc,
-            };
-            node.platform = escalated;
-            if (escalated.libc !== undefined) {
-                log('packument-full: %s@%s declares libc=%s', node.name, node.version, JSON.stringify(escalated.libc));
-            }
-        } catch (e) {
-            log(
-                'packument-full: %s@%s escalation failed (%s) — keeping the abbreviated declaration, ' +
-                    'so a libc-only restriction cannot be honoured for this package',
-                node.name,
-                node.version,
-                errMsg(e),
-            );
+function edgeKey(from: string | null, name: string): string {
+    return `${from ?? ''}\n${name}`;
+}
+
+/** Inverse of {@link edgeKey}; `from` is null for a top-level (project) edge. */
+function parseEdgeKey(key: string): { from: string | null; name: string } {
+    const sep = key.indexOf('\n');
+    const from = key.slice(0, sep);
+    return { from: from === '' ? null : from, name: key.slice(sep + 1) };
+}
+
+/**
+ * Seed set for {@link computeOptionalFlags}: the NAMES of the top-level specs
+ * the project did not declare optional. Everything else in the tree has to EARN
+ * its required status by being reachable from one of these.
+ *
+ * The parse is load-bearing. `specs` are flat `"<name>@<range>"` strings while
+ * `optionalSpecs` holds bare NAMES (the range differs per requester — see
+ * {@link NativeInstallOptions.optionalSpecs}), so testing a spec string against
+ * the set is a lookup that can never hit: every top-level optionalDependency
+ * would be seeded as REQUIRED, and the `optionalDependencies: { fsevents }`
+ * shape would fail every Linux install with EBADPLATFORM instead of thinning.
+ * An earlier version of this walk compared the two directly and did exactly
+ * that; the `(c) an incompatible OPTIONAL top-level dep is skipped, not fatal`
+ * case in `tests/e2e/install-platform-filter` is where it is pinned.
+ */
+function requiredTopLevelNames(specs: string[], optionalSpecs?: Set<string>): Set<string> {
+    const names = new Set<string>();
+    for (const spec of specs) {
+        const name = parseSpecName(spec);
+        if (optionalSpecs?.has(name)) continue;
+        names.add(name);
+    }
+    return names;
+}
+
+/**
+ * Recompute every node's `optional` flag as a FIXPOINT over the placed graph.
+ * The only writer of the final flag; whatever the nodes arrive carrying is an
+ * input nothing checked (a BFS forward guess on the resolve path, a value read
+ * back out of a file on the lockfile path) and is overwritten unconditionally.
+ *
+ * DEFINITION: a node is REQUIRED iff it is reachable from `requiredNames`
+ * through `dependencies` edges alone; every other node is optional. Optionality
+ * is therefore INHERITED — a plain dependency OF an optional package is still
+ * optional — which is what npm's `optionalSet` computes.
+ *
+ * WHY A FIXPOINT AND NOT A ONE-SHOT PROMOTION AT THE REUSE SITE (the reviewed
+ * defect): the walk queues a node's own dep edges at the moment it is placed,
+ * carrying the optionality it had THEN. Promoting the node later leaves its
+ * children behind, so the answer depends on which edge BFS happened to traverse
+ * first — a genuinely required transitive dep reached first through an optional
+ * edge stayed flagged optional, was persisted that way, and was then silently
+ * skipped by the platform filter on every machine instead of raising
+ * EBADPLATFORM. A monotone worklist over the FINISHED graph cannot have that
+ * property: "required" only ever spreads, so the result is independent of visit
+ * order. npm reaches for the same shape and says so —
+ * refs/npm-cli/workspaces/arborist/lib/calc-dep-flags.js: "If a node is changed,
+ * we add to the queue and continue until no more changes."
+ *
+ * PATH-INDEPENDENCE IS THE OTHER REQUIREMENT, and it is why the walk reads
+ * `dependencies` ONLY. A lockfile entry records `dependencies` and nothing else
+ * (an `optionalDependencies` map is not persisted), so consulting
+ * `node.optionalDependencies` here would make the fresh-resolve path and the
+ * lockfile path compute different flags for the same tree — precisely the split
+ * this pass exists to close. The cost is one npm quirk we do not reproduce: a
+ * publisher listing the same name in BOTH blocks means "optional" to npm, and
+ * comes out required here. That shape is vanishingly rare in practice (the
+ * platform-binary packages this feature is about — rollup, lightningcss,
+ * esbuild, fsevents — all list their optional deps in one block only), and
+ * erring toward REQUIRED errs toward the loud failure, not the silent one.
+ *
+ * Runs before `writeLockfile` so the persisted flag is the final one, and before
+ * `applyPlatformFilter` so the fatal-vs-inert decision reads it rather than the
+ * guess.
+ */
+function computeOptionalFlags(nodes: ResolvedNode[], requiredNames: Set<string>, log: Logger): void {
+    const byPath = new Map<string, ResolvedNode>();
+    for (const node of nodes) byPath.set(node.installPath, node);
+
+    /** `installPath`s proven reachable through required edges alone. */
+    const required = new Set<string>();
+    /** Nodes newly proven required and not yet expanded. */
+    const worklist: string[] = [];
+    const enter = (node: ResolvedNode): void => {
+        if (required.has(node.installPath)) return;
+        required.add(node.installPath);
+        worklist.push(node.installPath);
+    };
+
+    // Top-level specs always hoist (`decidePlacement` returns the root slot for
+    // a null requester), so the seed lookup is exact. A name with no placement
+    // is a workspace member satisfied by its symlink — nothing to flag.
+    for (const name of requiredNames) {
+        const seed = byPath.get(`node_modules/${name}`);
+        if (seed) enter(seed);
+    }
+    while (worklist.length > 0) {
+        const installPath = worklist.pop();
+        if (installPath === undefined) break;
+        const node = byPath.get(installPath);
+        if (!node) continue;
+        for (const depName of Object.keys(node.dependencies)) {
+            // Resolve the edge the way the REQUESTER will at runtime — through
+            // the ancestor `node_modules` chain — so a nested copy is credited
+            // to the requester that nested it and the hoisted one is not
+            // accidentally kept alive by a dependent that cannot even see it.
+            const resolvedTo = findVisible(installPath, depName, byPath);
+            if (resolvedTo) enter(resolvedTo);
         }
+    }
+
+    // Count the disagreements, don't just apply them. A nonzero `corrected` is
+    // the signal that the incoming flags (the walk's guess, or a lockfile
+    // written by an older CLI) were wrong for this tree — the class of bug this
+    // pass exists for, otherwise invisible because the corrected result looks
+    // exactly like a correct one.
+    let corrected = 0;
+    for (const node of nodes) {
+        const optional = !required.has(node.installPath);
+        if ((node.optional ?? false) !== optional) corrected++;
+        node.optional = optional;
+    }
+    log(
+        'install: optionality fixpoint — %d of %d node(s) reachable only via optional edges%s',
+        nodes.length - required.size,
+        nodes.length,
+        corrected > 0 ? `; corrected ${corrected} incoming flag(s)` : '',
+    );
+}
+
+/**
+ * Re-judge every failure the resolve swallowed against the FIXPOINT flags, and
+ * throw if one of them turned out to be required after all.
+ *
+ * `resolveDeps` tolerates a failed edge on the strength of `edge.required`,
+ * which is a forward guess made while the graph was still incomplete. This is
+ * the second half of that bargain: without it, a genuinely required dependency
+ * disappears from the tree for no better reason than BFS reaching it through an
+ * optional edge first — an install that "succeeded" and produced a tree that
+ * cannot run, with the explanation confined to a `--verbose` line nobody read.
+ *
+ * Same shape as npm's `#pruneFailedOptional()` ("if (!node.optional) throw
+ * node.errors[0]"), including its position AFTER the flag pass. The difference
+ * is what we hold: npm placed a real (broken) Node and still has the original
+ * error, we recorded only the edge — so the message has to name the edge and
+ * point at the verbose line that carries the cause.
+ *
+ * Three tolerated cases, and each is a property of the EDGE, not of the tree:
+ * a root edge the project itself declared optional, an edge under a subtree the
+ * fixpoint says is optional-only, and a required node's own
+ * `optionalDependencies` entry.
+ */
+function assertRequiredEdgesResolved(nodes: ResolvedNode[], skippedEdges: Set<string>): void {
+    if (skippedEdges.size === 0) return;
+    const byPath = new Map<string, ResolvedNode>();
+    for (const node of nodes) byPath.set(node.installPath, node);
+
+    for (const key of skippedEdges) {
+        const { from, name } = parseEdgeKey(key);
+        // Top-level edge: tolerated only because the project's own manifest put
+        // the spec in `optionalDependencies` (that is the ONLY way
+        // `requiredTopLevelNames` leaves it out of the seed set). The manifest
+        // is the whole truth for a root edge — no later edge can revise it.
+        if (from === null) continue;
+        const requester = byPath.get(from);
+        // Requester never made it into the tree. Nothing depends on this edge
+        // any more, so nothing is missing.
+        if (!requester) continue;
+        // The whole subtree is reachable only through optional edges — npm's
+        // `optionalSet`, skipped in silence.
+        if (requester.optional) continue;
+        // A REQUIRED package's own optionalDependency stays optional whatever
+        // the package's flag says: optionality lives on the edge, not on its
+        // endpoints. This branch is what keeps a darwin-only `fsevents` under a
+        // required `chokidar` from failing every Linux install.
+        //
+        // Safe on both paths because `skippedEdges` is only ever non-empty on
+        // the fresh-resolve path, where `optionalDependencies` is populated; the
+        // lockfile paths resolve nothing and reach here with an empty set.
+        if (name in requester.optionalDependencies) continue;
+
+        throw new Error(
+            `install: required dependency ${name} of ${requester.name}@${requester.version} ` +
+                `(${requester.installPath}) could not be resolved.\n` +
+                `The failure was tolerated during the walk because ${requester.name} looked optional at that ` +
+                `point, but the final dependency graph makes it required — so ${name} is required too and the ` +
+                `tree would be incomplete.\n` +
+                `Re-run with --verbose and look for the "resolve: optional dep ${name}@… skipped (…)" line for ` +
+                `the underlying cause.`,
+        );
     }
 }
 
