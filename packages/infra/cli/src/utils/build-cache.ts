@@ -63,13 +63,13 @@ import {
     readSync,
     renameSync,
     rmSync,
-    symlinkSync,
     copyFileSync,
     writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDependencyGraph, type DependencyGraph, type Workspace } from '@gjsify/workspace';
+import { replicateLinkSync } from './dir-link.js';
 
 /**
  * Bump to invalidate every existing cache entry (schema/semantic changes).
@@ -452,7 +452,11 @@ function copyDirRecursive(from: string, to: string): void {
         const dst = join(to, entry);
         const st = lstatSync(src);
         if (st.isSymbolicLink()) {
-            symlinkSync(readlinkSync(src), dst);
+            // Not `symlinkSync(readlinkSync(src), dst)`: replicating a link to a
+            // DIRECTORY verbatim needs a junction on Windows, and the target has
+            // to be resolved for it. See `dir-link.ts` — the one definition of
+            // that rule, added after the same mistake shipped in `dlx-cache.ts`.
+            replicateLinkSync(src, dst);
         } else if (st.isDirectory()) {
             copyDirRecursive(src, dst);
         } else if (st.isFile()) {
