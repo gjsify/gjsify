@@ -103,6 +103,10 @@
   "dependencies": {
     "node-addon-api": "^8.0.0"
   },
+  "optionalDependencies": {
+    "@gjsify/gtk-runtime-darwin-arm64": "0.26.1",
+    "@gjsify/gtk-runtime-win32-x64": "0.26.1"
+  },
   "engines": {
     "node": ">=20"
   },
