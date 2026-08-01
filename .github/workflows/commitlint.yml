@@ -23,3 +23,20 @@ jobs:
       # with EUNSUPPORTEDPROTOCOL).
       - name: Lint PR commits
         uses: wagoid/commitlint-github-action@v6
+
+      # The step above lints the PR's COMMITS. With squash merges what actually
+      # lands on main is the PR TITLE — the one string nothing looked at. #849
+      # merged as "Run the transparent addon matrix in CI (#849)" with no
+      # conventional prefix and is absent from the v0.26.1 CHANGELOG entirely:
+      # the work shipped with no release note. This workflow already triggers on
+      # `edited`, so the intent was there; only the check was missing.
+      #
+      # Deliberately NO `types:` input. Our `type-enum` is exactly this action's
+      # default, so passing one would put a second copy of the list in a
+      # workflow file, where it drifts silently. `check-pr-title-types.mjs`
+      # holds that assumption: the moment the two diverge it fails and tells you
+      # to make the list explicit here.
+      - name: Lint the PR title (it becomes the squash subject)
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
