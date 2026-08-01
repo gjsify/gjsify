@@ -48,7 +48,10 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { type Win32Invocation, resolveWin32Command } from './win32-command.js';
 
 /** Default capture ceiling on the blocking path — 64 MiB. */
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
@@ -132,6 +135,24 @@ function resolveEnv(opts: SpawnToCompletionOptions): NodeJS.ProcessEnv | undefin
     return { ...base, ...seed };
 }
 
+/**
+ * Rewrite a bare command for Windows, where `spawn('npm', …)` is ENOENT and
+ * `spawn('npm.cmd', …)` is EINVAL — see `utils/win32-command.ts`. A no-op on
+ * every other platform, and on win32 for anything already carrying a path or an
+ * extension. Applied to BOTH paths below so the blocking GJS branch and the
+ * streaming one agree; `env` is the child's, because its `PATH` (with
+ * `node_modules/.bin` prepended) is what has to be searched.
+ */
+function forWin32(cmd: string, args: readonly string[], env: NodeJS.ProcessEnv | undefined): Win32Invocation {
+    const rewritten = resolveWin32Command(cmd, args, {
+        platform: process.platform,
+        env: env ?? process.env,
+        exists: existsSync,
+        join,
+    });
+    return rewritten ?? { cmd, args: [...args] };
+}
+
 /** Turn a spawn-time failure into the caller's domain error when it is ENOENT. */
 function mapSpawnError(err: NodeJS.ErrnoException, opts: SpawnToCompletionOptions): Error {
     if (err.code === 'ENOENT' && opts.notFound) return opts.notFound(err);
@@ -174,11 +195,13 @@ export function spawnToCompletion(
         // `communicateWithTimeout`), so the child's diagnostics would be
         // silently dropped. Capture them and re-emit after the child exits.
         // stdin stays inherited so an interactive child still reads the tty.
-        const r = spawnSync(cmd, [...args], {
+        const win = forWin32(cmd, args, env);
+        const r = spawnSync(win.cmd, win.args, {
             stdio: ['inherit', 'pipe', 'pipe'],
             cwd: opts.cwd,
             env,
             maxBuffer: opts.maxBuffer ?? DEFAULT_MAX_BUFFER,
+            windowsVerbatimArguments: win.windowsVerbatimArguments,
         });
         if (r.error) return Promise.reject(mapSpawnError(r.error as NodeJS.ErrnoException, opts));
         if (r.stdout && r.stdout.length > 0) process.stdout.write(r.stdout);
@@ -187,12 +210,14 @@ export function spawnToCompletion(
     }
 
     return new Promise<SpawnCompletion>((resolvePromise, reject) => {
+        const win = forWin32(cmd, args, env);
         const spawnOpts: SpawnOptions = {
             cwd: opts.cwd,
             stdio: opts.stdio === 'pipe' ? ['ignore', 'pipe', 'pipe'] : 'inherit',
         };
         if (env) spawnOpts.env = env;
-        const child = spawn(cmd, [...args], spawnOpts);
+        if (win.windowsVerbatimArguments) spawnOpts.windowsVerbatimArguments = true;
+        const child = spawn(win.cmd, win.args, spawnOpts);
         opts.onSpawn?.(child);
 
         // `close` (not `exit`) so piped stdio is fully drained before the

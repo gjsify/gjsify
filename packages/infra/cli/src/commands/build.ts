@@ -2,6 +2,27 @@ import { Config } from '../config.js';
 import { BuildAction } from '../actions/build.js';
 import type { Command, CliBuildOptions } from '../types/index.js';
 
+// NO `normalize: true` ON THE GLOB-BEARING OPTIONS — `entry-points` and
+// `exclude` are PATTERNS, not paths.
+//
+// yargs' `normalize` runs `path.normalize()` over every value, which on win32
+// rewrites separators: `src/**/*.{ts,js}` becomes `src\**\*.{ts,js}`. Those
+// patterns go to fast-glob, whose own source says why that must not happen
+// ("we cannot use the standard `path.normalize` method, because on Windows
+// platform it will use of backslashes") — and the failure is not a clean
+// no-match. With no `/` left, fast-glob finds no static base, walks from `.`,
+// follows the workspace's relative `node_modules/@gjsify/*` symlinks with
+// unbounded depth and no cycle detection, and dies of heap exhaustion after
+// tens of minutes without writing one output file. That is issue #914's
+// "`--library` is pathologically slow" report, in full: every `build:gjsify`
+// script in the tree passes its entry points as globs. See
+// `rolldown-plugin-gjsify/src/utils/entry-points.ts` for the second layer.
+//
+// The flag had also been copied onto twelve options that are not paths at all
+// (booleans, `choices` enums, comma-separated identifier lists). Normalizing
+// those is meaningless, and it is what made the one place it is harmful look
+// like house style. `outfile`/`outdir` keep it: they ARE single paths, and
+// nothing globs them.
 export const buildCommand: Command<unknown, CliBuildOptions> = {
     command: 'build [entryPoints..]',
     description: 'Build and bundle your Gjs project',
@@ -12,7 +33,6 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                     'The entry points you want to bundle. Defaults to bundler.input from package.json#gjsify or .gjsifyrc.js, falling back to src/index.ts when neither is set.',
                 array: true,
                 type: 'string',
-                normalize: true,
                 // No yargs `default` here on purpose. A yargs default value
                 // is indistinguishable from "user passed the flag" in the
                 // parsed args (cliArgs.entryPoints?.length is truthy either
@@ -32,13 +52,11 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 description: 'An array of glob patterns to exclude entry-points and aliases',
                 array: true,
                 type: 'string',
-                normalize: true,
                 default: [],
             })
             .option('verbose', {
                 description: 'Switch on the verbose mode',
                 type: 'boolean',
-                normalize: true,
                 default: false,
             })
             .option('app', {
@@ -46,7 +64,6 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                     'Build target for an application. Defaults to the target of the HOST runtime running the CLI: gjs when run under gjs, node when run under node/bun/deno (both consume the --app node bundle). Set `gjsify.app` in package.json#gjsify to override the host default.',
                 type: 'string',
                 choices: ['gjs', 'node', 'browser', 'nativescript'],
-                normalize: true,
                 // No yargs `default: 'gjs'` — a yargs default is
                 // indistinguishable from a user-set value and would clobber
                 // `package.json#gjsify.app` in config.ts (same footgun as
@@ -59,19 +76,16 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 description: 'Override the default output format',
                 type: 'string',
                 choices: ['iife', 'esm', 'cjs'],
-                normalize: true,
             })
             .option('minify', {
                 description:
                     'Minify the bundled output. Defaults to true; use --no-minify to emit pretty-printed code (e.g. for debugging or readable bundle review).',
                 type: 'boolean',
-                normalize: true,
                 defaultDescription: 'true',
             })
             .option('library', {
                 description: 'Use this if you want to build a library for Gjsify',
                 type: 'boolean',
-                normalize: true,
                 default: false,
             })
             .option('outfile', {
@@ -92,7 +106,6 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 alias: 'r',
                 description: "Enables TypeScript types on runtime using Deepkit's type compiler",
                 type: 'boolean',
-                normalize: true,
                 default: false,
             })
             .option('log-level', {
@@ -100,21 +113,18 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                     'The log level can be changed to prevent esbuild from printing warning and/or error messages to the terminal',
                 type: 'string',
                 choices: ['silent', 'error', 'warning', 'info', 'debug', 'verbose'],
-                normalize: true,
                 default: 'warning',
             })
             .option('console-shim', {
                 description:
                     'Inject a console shim into GJS builds for clean output without the GLib prefix and with working ANSI colors. Use --no-console-shim to disable. Only applies to GJS app builds.',
                 type: 'boolean',
-                normalize: true,
                 default: true,
             })
             .option('globals', {
                 description:
                     "Comma-separated list of global identifiers, 'auto' (default) to detect automatically from the bundled output, or 'none' to disable. The 'auto' token may be combined with explicit identifiers/groups (e.g. 'auto,dom') for cases where the detector cannot statically see a global because it's accessed via indirection. Each identifier is mapped to the corresponding `@gjsify/<pkg>/register` module and injected into the bundle. See the CLI Reference docs for the full list of known identifiers. Only applies to GJS app builds.",
                 type: 'string',
-                normalize: true,
                 // No yargs `default: 'auto'` — a yargs default is
                 // indistinguishable from a user-set value and would always
                 // clobber `package.json#gjsify.globals` / `.gjsifyrc.*` in
@@ -126,7 +136,6 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 description:
                     'Prepend a target-appropriate shebang to the output and mark it executable (chmod 755): `#!/usr/bin/env -S gjs -m` for --app gjs, `#!/usr/bin/env node` for --app node. Applies to GJS and Node app builds with a single --outfile. Default: false (use --shebang to enable, or set `shebang: true` in `.gjsifyrc.js`).',
                 type: 'boolean',
-                normalize: true,
             })
             .option('external', {
                 description:
@@ -167,14 +176,12 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 description:
                     'Comma-separated global identifiers to remove from auto-detection results. Use for false positives from dead browser-compat code whose polyfills require unavailable native libraries (e.g. --exclude-globals fetch,XMLHttpRequest).',
                 type: 'string',
-                normalize: true,
             })
             .option('watch', {
                 alias: 'w',
                 description:
                     'Watch source files and rebuild on change. Logs each rebuild with duration; clean SIGINT shutdown. Only valid with --app gjs|node|browser (rejected with --library). Requires the npm `rolldown` engine — run under Node, not the GJS-bundled CLI.',
                 type: 'boolean',
-                normalize: true,
                 default: false,
             });
     },

@@ -131,4 +131,68 @@ export default async () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
+
+    // Windows separator handling. `platform` is injected, so BOTH branches run
+    // on every host — the reason this is a unit test and not a win32-only CI
+    // leg. The bug it pins down cost tens of minutes and gigabytes of RSS per
+    // occurrence, and produced no error until the heap died (issue #914).
+    await describe('globToEntryPoints — win32 patterns', async () => {
+        const { root, sortedRel } = makeFixtureTree();
+        const sortedAbs = sortedRel.map((rel) => join(root, rel));
+        // What `path.win32.normalize()` (yargs' `normalize: true`) hands in.
+        const winPattern = `${root}/**/*.ts`.replaceAll('/', '\\');
+        const winIgnore = `${root}/**/*.spec.ts`.replaceAll('/', '\\');
+
+        try {
+            await it('expands a backslash-separated pattern exactly like its POSIX twin', async () => {
+                const result = await globToEntryPoints(winPattern, [winIgnore], 'win32');
+                expect(result).toStrictEqual(sortedAbs);
+            });
+
+            await it('converts the ignore list too, so --exclude keeps excluding', async () => {
+                // Untranslated, the ignore pattern matches nothing and the
+                // `.spec.ts` fixture leaks into the entry set — silently.
+                const result = (await globToEntryPoints(winPattern, [winIgnore], 'win32')) as string[];
+                expect(result.some((p) => p.endsWith('.spec.ts'))).toBe(false);
+            });
+
+            await it('leaves a backslash alone off win32, where it is an escape', async () => {
+                // `src/\*.ts` means a file literally named `*.ts` on POSIX.
+                // Rewriting it there would change what the pattern means.
+                const result = await globToEntryPoints(winPattern, [], 'linux');
+                expect(result).toStrictEqual([]);
+            });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    await describe('globToEntryPoints — node_modules', async () => {
+        const { root } = makeFixtureTree();
+        const dep = join(root, 'node_modules', 'dep');
+        mkdirSync(dep, { recursive: true });
+        writeFileSync(join(dep, 'index.ts'), 'export const dep = 1;\n');
+
+        try {
+            await it('a wildcard never descends into node_modules', async () => {
+                // Blast-radius cap: `ignore` prunes fast-glob's directory
+                // traversal, so a pattern whose base directory is wrong can no
+                // longer follow the workspace's relative `node_modules/@gjsify/*`
+                // symlinks into a cycle.
+                const result = (await globToEntryPoints(`${root}/**/*.ts`, [])) as string[];
+                expect(result.some((p) => p.includes('node_modules'))).toBe(false);
+            });
+
+            await it('a pattern that NAMES node_modules is still honoured', async () => {
+                // `@gjsify/tsc` builds `node_modules/typescript/lib/_tsc.js`.
+                // An unconditional ignore emptied its input and broke
+                // `build:infra` — this is that regression, pinned.
+                const explicit = `${root}/node_modules/dep/index.ts`;
+                expect(await globToEntryPoints(explicit, [])).toStrictEqual([explicit]);
+                expect(await globToEntryPoints(`${root}/node_modules/**/*.ts`, [])).toStrictEqual([explicit]);
+            });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
 };
