@@ -1809,9 +1809,37 @@ jobs:
         working-directory: showcases/gtk/adwaita-storybook
         run: |
           export PATH="$PWD/../../../node_modules/.bin:$PATH"
-          gjsify storybook --runtime node --build-only --out dist/storybook.node.mjs
+          # `set -x` + an explicit status check: this step failed twice with
+          # NOTHING but "Found 35 story file(s)" and exit 1 — no error, no
+          # stack, and it reproduces green locally with the same commit. A
+          # silent non-zero is not a puzzle to solve by inspection, it is one
+          # to make legible, so surface which command died and with what.
+          set -x
+          gjsify storybook --runtime node --build-only --out dist/storybook.node.mjs || {
+              rc=$?
+              echo "::error::gjsify storybook exited ${rc} with no diagnostic output."
+              echo "--- storybook entry the CLI generated ---"
+              cat node_modules/.cache/gjsify-storybook/entry.ts 2>/dev/null | head -40 || echo "(no entry written)"
+              echo "--- is @gjsify/node-gi resolvable from here? ---"
+              node -e 'console.log(require.resolve("@gjsify/node-gi/package.json"))' 2>&1 | head -3
+              exit "${rc}"
+          }
           node --check dist/storybook.node.mjs
-          grep -q requireGi dist/storybook.node.mjs
+          # The assertions are where it actually dies (set -x proved it: the
+          # build and node --check both pass, `grep -q requireGi` is the last
+          # traced command). A bare `grep -q` reports only "not found", so dump
+          # what the bundle DOES contain instead of guessing again.
+          if ! grep -q requireGi dist/storybook.node.mjs; then
+              echo "::error::bundle has no requireGi — gi:// was never rewritten, so nodeGiGlobalsInject did not fire."
+              echo "--- bytes: $(wc -c < dist/storybook.node.mjs) ---"
+              echo "--- @gjsify/node-gi occurrences: $(grep -c '@gjsify/node-gi' dist/storybook.node.mjs || true) ---"
+              echo "--- gi:// occurrences: $(grep -c 'gi://' dist/storybook.node.mjs || true) ---"
+              echo "--- static imports in the emitted bundle ---"
+              grep -oE "^import[^;]{0,120};" dist/storybook.node.mjs | head -20
+              echo "--- generated entry ---"
+              head -20 node_modules/.cache/gjsify-storybook/entry.ts 2>/dev/null || echo "(no entry)"
+              exit 1
+          fi
           grep -q "@gjsify/node-gi" dist/storybook.node.mjs
           if grep -q "gi://" dist/storybook.node.mjs; then echo "raw gi:// left in bundle"; exit 1; fi
           echo "storybook --app node bundle OK ($(wc -c < dist/storybook.node.mjs) bytes)"
