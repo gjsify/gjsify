@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/http2-native",
     "version": "0.26.1",
-    "description": "Optional Vala/GObject bridge providing nghttp2 primitives unreachable through libsoup's high-level GIR API: HPACK header-block encoding (for PUSH_PROMISE / DATA frames), server-side push stream-ID allocation, and a thin nghttp2_session wrapper for future cleartext HTTP/2 (h2c) support. Used by @gjsify/http2 to back ServerHttp2Stream.pushStream() / respondWithFD() / respondWithFile() and enable createServer() over plain TCP once the full Soup ↔ nghttp2 boundary is in place.",
+    "description": "Optional Vala/GObject bridge providing nghttp2 primitives unreachable through libsoup's high-level GIR API: HPACK header-block encoding (for PUSH_PROMISE / DATA frames), server-side push stream-ID allocation, and a thin nghttp2_session wrapper for future cleartext HTTP/2 (h2c) support. Used by @gjsify/http2 to back ServerHttp2Stream.pushStream() / respondWithFD() / respondWithFile() and enable createServer() over plain TCP once the full Soup \u2194 nghttp2 boundary is in place.",
     "type": "module",
     "main": "lib/esm/index.js",
     "module": "lib/esm/index.js",
@@ -32,7 +32,8 @@
             "linux-ppc64",
             "linux-s390x",
             "linux-riscv64",
-            "darwin-arm64"
+            "darwin-arm64",
+            "darwin-x64"
         ],
         "prebuilds": "prebuilds",
         "runtimes": {
@@ -41,7 +42,10 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1
+        "tier": 1,
+        "platformsUncommitted": {
+            "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
+        }
     },
     "scripts": {
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs || exit 0",

@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/oxfmt-native",
     "version": "0.26.1",
-    "description": "Vala/GObject + Rust cdylib bridge to oxc's formatter (oxfmt) for GJS. Formats JavaScript/TypeScript/JSX under GJS without a Node runtime — the Node-free counterpart to the npm `oxfmt` native napi binary, backing `gjsify format` under GJS. Wraps oxc_formatter (Prettier-compatible) via a single-shot FFI; the embedded CSS/HTML/Markdown ExternalFormatter (Prettier-NAPI) is out of scope.",
+    "description": "Vala/GObject + Rust cdylib bridge to oxc's formatter (oxfmt) for GJS. Formats JavaScript/TypeScript/JSX under GJS without a Node runtime \u2014 the Node-free counterpart to the npm `oxfmt` native napi binary, backing `gjsify format` under GJS. Wraps oxc_formatter (Prettier-compatible) via a single-shot FFI; the embedded CSS/HTML/Markdown ExternalFormatter (Prettier-NAPI) is out of scope.",
     "type": "module",
     "main": "lib/esm/index.js",
     "module": "lib/esm/index.js",
@@ -27,7 +27,8 @@
         "platforms": [
             "linux-x64",
             "linux-arm64",
-            "darwin-arm64"
+            "darwin-arm64",
+            "darwin-x64"
         ],
         "prebuilds": "prebuilds",
         "refsLockstep": {
@@ -42,7 +43,10 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1
+        "tier": 1,
+        "platformsUncommitted": {
+            "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
+        }
     },
     "scripts": {
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",

@@ -32,7 +32,8 @@
             "linux-ppc64",
             "linux-s390x",
             "linux-riscv64",
-            "darwin-arm64"
+            "darwin-arm64",
+            "darwin-x64"
         ],
         "prebuilds": "prebuilds",
         "runtimes": {
@@ -41,7 +42,10 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1
+        "tier": 1,
+        "platformsUncommitted": {
+            "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
+        }
     },
     "scripts": {
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",

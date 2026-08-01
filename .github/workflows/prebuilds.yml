@@ -895,7 +895,7 @@ jobs:
           retention-days: 30
 
   # ----------------------------------------------------------------
-  # macOS (Apple silicon) — prebuilds/darwin-arm64
+  # macOS — prebuilds/darwin-arm64 (Apple silicon) + prebuilds/darwin-x64 (Intel)
   #
   # Until this job existed, EVERY native bridge shipped linux-<arch> only, which
   # made the Node-free gjsify toolchain a Linux-only feature: `gjsify install -g`
@@ -944,7 +944,7 @@ jobs:
   # packages/infra/cli/src/utils/detect-native-packages.ts.
   # ----------------------------------------------------------------
   build-prebuilds-macos:
-    name: Build prebuilds (darwin-arm64)
+    name: Build prebuilds (darwin-${{ matrix.arch }})
     # THE one cost control on a PR, and the only leg a green PR does not cover.
     # macOS runners bill at 10x and come from a small concurrency pool this repo
     # already shares between main.yml and napi.yml, and this is the slowest leg
@@ -956,17 +956,41 @@ jobs:
     # run that skips it, so a green PR cannot read as full coverage.
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci:macos')
     needs: [changes]
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+
+    # Both macOS architectures from ONE job body — the steps are identical, so a
+    # second copy would be the drift this repo keeps paying for elsewhere. A
+    # static `include:` with an explicit `arch` per entry, per the OS-axis
+    # contract in AGENTS.md: `parseCiPlatforms` reads these entries as (arch,
+    # runner) PAIRS, which is what lets it derive `darwin-x64` for the Intel leg
+    # instead of crediting it with the arm64 target.
+    #
+    # `macos-15-intel` is the only x86_64 macOS image Actions still offers
+    # (`macos-13` retired December 2025) and it is a STANDARD runner, so it is
+    # free on this public repo. It is also time-boxed: available until August
+    # 2027, after which Apple's discontinuation of x86_64 ends GitHub's support
+    # for it. A `darwin-x64` prebuild therefore has a horizon — when that leg
+    # goes away, drop the target from `gjsify.platforms` rather than letting it
+    # rot into a promise nothing produces.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
+
     env:
       HOMEBREW_NO_AUTO_UPDATE: '1'
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
-      # process.platform-process.arch for an Apple-silicon runner.
-      PREBUILD: darwin-arm64
+      # `${process.platform}-${process.arch}` for whichever runner this leg is.
+      PREBUILD: darwin-${{ matrix.arch }}
       # The `changes` job's decision, for the VERIFY steps below. They walk a
       # list of package directories rather than a single `working-directory`,
       # so they cannot carry a step-level `if:` — each one filters its own list
-      # instead. Filtering is not cosmetic: the committed `prebuilds/darwin-arm64/`
+      # instead. Filtering is not cosmetic: the committed `prebuilds/darwin-${{ matrix.arch }}/`
       # of a skipped package is present in the checkout, so an unfiltered loop
       # would happily load-test a binary this run did not build and report it as
       # this run's coverage.
@@ -1208,7 +1232,7 @@ jobs:
           fi
           node scripts/check-prebuild-loader-path.mjs "${dirs[@]}"
 
-      # THE gate this job was missing. Until now it built six darwin-arm64
+      # THE gate this job was missing. Until now it built six darwin-${{ matrix.arch }}
       # bridges, copied them, and uploaded them for `commit-prebuilds` to commit
       # to main — without ever loading one. The only job that loaded anything was
       # the manual-dispatch experimental one, which is precisely why a prebuild
@@ -1219,7 +1243,7 @@ jobs:
       # is what dlopens the recorded shared library and, transitively, its Rust
       # sibling. A typelib that is merely FOUND resolves the namespace and then
       # throws here.
-      - name: Load-test every darwin-arm64 prebuild under Homebrew gjs
+      - name: Load-test every darwin-${{ matrix.arch }} prebuild under Homebrew gjs
         run: |
           set -euo pipefail
           brew install gjs
@@ -1290,8 +1314,8 @@ jobs:
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/upload-artifact@v7
         with:
-          name: lightningcss-native-prebuilds-darwin-arm64
-          path: packages/infra/lightningcss-native/prebuilds/darwin-arm64/
+          name: lightningcss-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/infra/lightningcss-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -1299,8 +1323,8 @@ jobs:
         if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/upload-artifact@v7
         with:
-          name: oxfmt-native-prebuilds-darwin-arm64
-          path: packages/infra/oxfmt-native/prebuilds/darwin-arm64/
+          name: oxfmt-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/infra/oxfmt-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -1308,8 +1332,8 @@ jobs:
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/upload-artifact@v7
         with:
-          name: terminal-native-prebuilds-darwin-arm64
-          path: packages/node/terminal-native/prebuilds/darwin-arm64/
+          name: terminal-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/node/terminal-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -1317,8 +1341,8 @@ jobs:
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/upload-artifact@v7
         with:
-          name: tls-native-prebuilds-darwin-arm64
-          path: packages/node/tls-native/prebuilds/darwin-arm64/
+          name: tls-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/node/tls-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -1326,8 +1350,8 @@ jobs:
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/upload-artifact@v7
         with:
-          name: http-soup-bridge-prebuilds-darwin-arm64
-          path: packages/node/http-soup-bridge/prebuilds/darwin-arm64/
+          name: http-soup-bridge-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/node/http-soup-bridge/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -1335,8 +1359,8 @@ jobs:
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/upload-artifact@v7
         with:
-          name: http2-native-prebuilds-darwin-arm64
-          path: packages/node/http2-native/prebuilds/darwin-arm64/
+          name: http2-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/node/http2-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -2369,11 +2393,76 @@ jobs:
           name: http2-native-prebuilds-darwin-arm64
           path: packages/node/http2-native/prebuilds/darwin-arm64/
 
+      # -------- darwin-x64 (macOS, Intel) --------
+      # The SAME six packages as the arm64 block above, because both come from
+      # the one matrixed `build-prebuilds-macos` job — the sets cannot drift.
+      - name: Download lightningcss-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: lightningcss-native-prebuilds-darwin-x64
+          path: packages/infra/lightningcss-native/prebuilds/darwin-x64/
+
+      - name: Download oxfmt-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: oxfmt-native-prebuilds-darwin-x64
+          path: packages/infra/oxfmt-native/prebuilds/darwin-x64/
+
+      - name: Download terminal-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: terminal-native-prebuilds-darwin-x64
+          path: packages/node/terminal-native/prebuilds/darwin-x64/
+
+      - name: Download tls-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: tls-native-prebuilds-darwin-x64
+          path: packages/node/tls-native/prebuilds/darwin-x64/
+
+      - name: Download http-soup-bridge darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: http-soup-bridge-prebuilds-darwin-x64
+          path: packages/node/http-soup-bridge/prebuilds/darwin-x64/
+
+      - name: Download http2-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: http2-native-prebuilds-darwin-x64
+          path: packages/node/http2-native/prebuilds/darwin-x64/
+
+      # A `gjsify.platformsUncommitted` entry says "declared and CI-built, but no
+      # artifact in this repo yet", and the conformance rule makes it a FAILURE
+      # the moment the directory appears — so the deferral cannot outlive its
+      # cause. THIS job is what ends the cause, which makes it the job that has
+      # to end the marker: without this step, the first run that lands a new
+      # target pushes a self-contradictory manifest and `main` goes red until a
+      # human sends a follow-up. An entry whose artifact did NOT arrive (a
+      # skipped package, a leg that did not run) is left alone — it still
+      # describes reality.
+      - name: Clear platform exemptions the downloads satisfied
+        run: |
+          set -euo pipefail
+          # stdout is the list of manifests it changed, so the next step stages
+          # exactly those (a `packages/*/*/package.json` glob in a job that
+          # pushes to `main` would sweep in whatever else happened to be dirty).
+          node scripts/clear-committed-platform-exemptions.mjs > cleared-manifests.txt
+          cat cleared-manifests.txt
+
       - name: Stage prebuilds
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          xargs -r git add < cleared-manifests.txt
+          rm -f cleared-manifests.txt
           git add \
             packages/framework/webgl/prebuilds/ \
             packages/web/webrtc-native/prebuilds/ \
@@ -2534,8 +2623,9 @@ jobs:
               echo
               echo 'A green result above therefore does not extend to those. On a pull request the'
               echo 'skipped leg that matters is `build-prebuilds-macos` — every Linux target in'
-              echo '`package.json#gjsify.platforms` is built, `darwin-arm64` is not. Label the PR'
-              echo '`ci:macos` to add it. (`build-prebuilds-macos-experimental` and'
+              echo '`package.json#gjsify.platforms` is built, neither `darwin-arm64` nor'
+              echo '`darwin-x64` is (both are legs of that one matrixed job). Label the PR'
+              echo '`ci:macos` to add them. (`build-prebuilds-macos-experimental` and'
               echo '`build-prebuilds-musl` are dispatch-only by design — the musl leg builds targets'
               echo 'no package declares yet, so it proves itself before the declaration exists —'
               echo 'and `commit-prebuilds` is main-only by design.)'
