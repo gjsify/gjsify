@@ -4,6 +4,42 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `cli.gjs.mjs` byte-reproducibility is not closed — main shipped a non-reproducing bundle again
+
+#906 merged a committed `packages/infra/cli/dist/cli.gjs.mjs` that does not
+rebuild from its own source, and main stayed RED on `Verify committed bundles
+rebuild from source` until #913 replaced it with CI's bytes. Every PR opened in
+between inherited the failure.
+
+The divergence is the module-order-derived minifier `$N` suffix drift
+`release-cut.yml` documents — at the first differing byte the committed bundle
+had `function e$1(` where a rebuild emits `function e$2(`, 338 bytes of
+accumulated suffix differences, no semantic delta. That is the class
+`globToEntryPoints`' per-glob sorting was supposed to have closed, so either the
+sorting does not cover this input or something else feeds order into the build.
+
+What is MEASURED, and what is not:
+
+- **CI is not the unstable side.** The `rebuilt-bundles` artifacts from two
+  independent runs (`30709249982` on `6257afe46`, `30710590470` on a PR branch)
+  are BYTE-IDENTICAL at 6594347 B. Determinism across runs, commits and
+  container instances is established, not assumed.
+- **A local build produced a THIRD variant.** During the #913 work this
+  checkout briefly held a 6595935 B `cli.gjs.mjs` that matched neither the
+  committed 6594685 B nor CI's 6594347 B. It agreed with CI at the `e$2` site
+  and diverged later instead (`$I()`/`QI` vs `JI()`/`qI`) — the same identifier
+  shape, a different place. **Its provenance was NOT established**: nothing was
+  knowingly built, and the trigger was not found before it was discarded. Treat
+  it as a corroborating observation, not proof.
+
+So the standing repair is real but manual — take CI's `rebuilt-bundles` bytes —
+and it will be needed again. Worth closing properly, because the failure lands
+on whoever pushes NEXT rather than on whoever caused it, and it costs a full
+Fedora build to even see. Two directions, not exclusive: find the residual order
+input (a warm per-package build cache is the obvious suspect — the entry-order
+incident record notes the cache kept a raced order alive across rebuilds), or
+stop hand-committing these artifacts and have CI be the only producer.
+
 ### `@gjsify/http2` lazy native-dispatcher loads still use a bare `require`
 
 Two sites load the optional native HTTP/2 dispatcher through a bare `require(...)` from ESM source — `src/client-session.ts` (`_setupNativeClient`, reached from `connect()`) and `src/server/http2-server.ts` (`_startNativeListen`, reached from `listen()`). This is the class documented in AGENTS.md § CJS-ESM Interop → "Our source is ESM": the call resolves at build time inside a bundle and is a `ReferenceError` from the unbundled `lib/` we publish. Neither obvious fix applies as-is:
