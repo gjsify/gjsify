@@ -41,6 +41,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildAddonPath, prebuildAddonPath } from '../native-paths.js';
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const programsDir = join(pkgRoot, 'conformance', 'programs');
@@ -119,12 +120,19 @@ const cliEntry = process.env.GJSIFY_CLI_ENTRY || join(repoRoot, 'packages', 'inf
 
 // The node-gi addon as an ABSOLUTE path (a --app gjs bundle anchors import.meta
 // at the bundle, so node-gi's package-relative probing can't find it — it must be
-// pinned via NODE_GI_NATIVE). Mirrors index.js nativeCandidates() `prefer` order.
+// pinned via NODE_GI_NATIVE).
+//
+// The three PATHS come from the package's shared `native-paths.js`, so there is
+// one spelling of `prebuilds/<target>/node_gi.node` and `build/<flavor>/…` in the
+// package. The ORDER deliberately differs from `nativeCandidates()`: an UNSET
+// `NODE_GI_NATIVE` means build-first here (this is a local dev/CI tool that must
+// validate the just-built addon), while the consumer-facing default in index.js
+// is prebuild-first. Same paths, different preference — on purpose.
 function resolveNodeGiAddon() {
     const prefer = childEnv.NODE_GI_NATIVE; // 'build' by default here
-    const release = join(pkgRoot, 'build', 'Release', 'node_gi.node');
-    const debug = join(pkgRoot, 'build', 'Debug', 'node_gi.node');
-    const prebuild = join(pkgRoot, 'prebuilds', `${process.platform}-${process.arch}`, 'node_gi.node');
+    const release = buildAddonPath('Release');
+    const debug = buildAddonPath('Debug');
+    const prebuild = prebuildAddonPath();
     let order;
     if (prefer === 'prebuild') order = [prebuild];
     else if (prefer && prefer !== 'build')
@@ -271,7 +279,11 @@ function gjsNapiTwinSrc(name, file) {
 // cache invalidates when either changes (the common edit), on top of the program
 // source. Deeper edits (an override, a polyfill) still want a `conformance/dist/`
 // wipe; the header + package.json script note that.
-const inlinedNodeGiDeps = [join(pkgRoot, 'gi.js'), join(pkgRoot, 'index.js')];
+// `native-paths.js` is in the list because index.js IMPORTS it (the shared
+// prebuild/candidate definition), so its body is inlined too — leaving it out
+// would let an edit to the addon-resolution logic validate against a cached
+// bundle carrying the previous one.
+const inlinedNodeGiDeps = [join(pkgRoot, 'gi.js'), join(pkgRoot, 'index.js'), join(pkgRoot, 'native-paths.js')];
 
 // Build (or reuse a cached) `--app gjs` bundle for the gjs-napi leg. Returns the
 // bundle path, or `{ buildError }` on a bundler failure. Cache key: the generated

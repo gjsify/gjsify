@@ -86,16 +86,40 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
 ## Requirements
 
 - Node.js ≥ 20
-- A C++ toolchain (`g++`/`clang`, `make`), `node-gyp`
-- GLib ≥ 2.80 development headers exposing `girepository-2.0`
-  (Fedora: `glib2-devel gobject-introspection-devel gcc-c++`;
-   Debian/Ubuntu: `libglib2.0-dev libgirepository-2.0-dev g++`)
+- **No C++ toolchain on the four prebuilt targets.** The published tarball ships
+  `prebuilds/<platform>-<arch>/node_gi.node` for `linux-x64`, `linux-arm64`,
+  `darwin-arm64` and `win32-x64` (`package.json#gjsify.platforms`), and the
+  `install` script (`scripts/install.mjs`) uses it instead of building: a source
+  build is the FALLBACK for a host with no prebuild, not the default. Force it
+  with `NODE_GI_BUILD_FROM_SOURCE=1` (or npm's `--build-from-source`); skip it
+  entirely with `NODE_GI_SKIP_NATIVE_BUILD=1`.
+- For a source build only: a C++ toolchain (`g++`/`clang`, `make`), `node-gyp`,
+  and GLib ≥ 2.80 development headers exposing `girepository-2.0` + cairo
+  (Fedora: `glib2-devel gobject-introspection-devel cairo-devel gcc-c++`;
+   Debian/Ubuntu: `libglib2.0-dev libgirepository-2.0-dev libcairo2-dev g++`)
 - At runtime, the target libraries' typelibs must be installed (same as `gi://`
-  under GJS) — **except on macOS arm64**, where the optional
-  [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64) bundle ships a
-  relocated GTK/GI runtime so the display-free surface works with no Homebrew GTK
-  (Phase 2). node-gi auto-detects the bundle at load and prepends its typelib dir
-  to the GIRepository search path (`gtk-runtime.js`).
+  under GJS) — **except on macOS arm64 and Windows x64**, where a
+  batteries-included, relocated GTK/GI runtime bundle ships so `gi://` works with
+  no Homebrew/gvsbuild GTK (Phase 2). node-gi auto-detects a bundle at load and
+  prepends its typelib dir to the GIRepository search path (`gtk-runtime.js`).
+- **Those bundles are a MANUAL install today.**
+  [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64) and
+  [`@gjsify/gtk-runtime-win32-x64`](../gtk-runtime-win32-x64) are published, and
+  node-gi finds either one the moment it is present in the tree — but **no
+  package declares them as a dependency**, so nothing installs them for you.
+  Install the one for your platform alongside node-gi:
+
+  ```bash
+  npm install @gjsify/gtk-runtime-win32-x64      # Windows x64
+  npm install @gjsify/gtk-runtime-darwin-arm64   # macOS arm64
+  ```
+
+  Both declare `os`/`cpu`, so npm/yarn/pnpm skip them off-platform. Making them
+  `optionalDependencies` of this package (which would remove the manual step
+  without any consumer-side platform branching) is pending two decisions outside
+  this package — the ADR-0003 dependency-direction rule between node-gi's tier
+  and the bundles', and `os`/`cpu` filtering in `gjsify install`'s native
+  backend, which currently places foreign-platform optional deps.
 - **Node.js ≥ 20, Bun ≥ 1.3, or Deno ≥ 2** — the addon is Node-API, so one binary
   runs on all three (see [Runtimes](#runtimes-node--bun--deno)).
 
@@ -153,7 +177,7 @@ blocking loop remain Node-only (the uv co-pump).
 ## Build & test
 
 ```bash
-npm install          # builds the native addon via node-gyp (install script)
+npm install          # prebuild if one is staged, else node-gyp (scripts/install.mjs)
 npm test             # node --test (full suite, Node — authoritative)
 npm run test:gc      # node --test --expose-gc (toggle-ref GC-stress leg)
 npm run test:bun     # conformance subset on Bun   (needs `bun`)
@@ -170,7 +194,15 @@ and the bun/deno runner defaults to it — without that, a stale staged prebuild
 silently shadows your build. CI's cross-runtime job sets `NODE_GI_NATIVE=prebuild`
 to keep validating the prebuild load path with a freshly staged binary.
 `NODE_GI_NATIVE` accepts `build`, `prebuild`, or an explicit path to a
-`node_gi.node`.
+`node_gi.node`. That candidate order lives in `native-paths.js` and is shared
+with the `install` script, so the binary the guard decides not to rebuild is
+by construction the binary the loader looks for.
+
+In a checkout `prebuilds/` is gitignored, so `npm install` here always runs the
+source build — as do the `npm install --foreground-scripts` steps in
+`node-gi.yml` and the `node-gi-prebuild-*` legs in `release.yml`, which need
+`build/Release/node_gi.node` for `scripts/stage-prebuild.mjs`. Set
+`NODE_GI_BUILD_FROM_SOURCE=1` to force it regardless of a staged prebuild.
 
 Two debug-only env vars instrument the toggle-ref / teardown machinery (both
 parsed once at first use, zero cost when unset — never set them in production):
@@ -1004,6 +1036,15 @@ Fontconfig config/cache. node-gi's loader (`gtk-runtime.js`
 marker and wires the env (`GSETTINGS_SCHEMA_DIR` / `GDK_PIXBUF_MODULE_FILE` /
 `XDG_DATA_DIRS` / `FONTCONFIG_*`); a display-free bundle carries no marker, so the
 wiring is a strict no-op and that load is byte-unchanged.
+
+The bundle is not pulled in automatically — `npm install
+@gjsify/gtk-runtime-win32-x64` alongside node-gi (see
+[Requirements](#requirements)). `resolveGtkRuntimeBundle()` finds it wherever the
+package manager placed it: an explicit `GJSIFY_GTK_RUNTIME` dir, a staged
+`prebuilds/<target>/gtk/`, the sibling monorepo checkout, or
+`require.resolve('@gjsify/gtk-runtime-<target>')` — the last of which covers a
+hoisted `node_modules/@gjsify/gtk-runtime-win32-x64`, so no loader change is
+needed if the dependency edge is ever declared.
 
 ### Adwaita widget breadth realizes + reacts + renders
 

@@ -11,9 +11,8 @@
 // Deno — the three runtimes that implement Node-API. Runtime-specific behaviour
 // (the libuv main-loop bridge is Node-only) is gated in gi.js off RUNTIME below.
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { hostTarget, nativeCandidates, packageRoot } from './native-paths.js';
 import {
     activateBundledGtkRuntime,
     maybePrependGtkRuntimeDllPath,
@@ -46,7 +45,7 @@ maybePrependGtkRuntimeDllPath();
 maybeWireGtkWindowingEnv();
 
 const require = createRequire(import.meta.url);
-const here = dirname(fileURLToPath(import.meta.url)); // package root
+const here = packageRoot; // the package root, from the shared native-paths module
 
 /**
  * Which JS runtime we are on. The Node-API addon loads on all four: Node, Bun
@@ -71,24 +70,6 @@ export const RUNTIME =
 
 /** Whether we are on Node.js (the only runtime with the libuv main-loop bridge). */
 export const isNodeRuntime = RUNTIME === 'node';
-
-function nativeCandidates() {
-    const prebuild = join(here, 'prebuilds', `${process.platform}-${process.arch}`, 'node_gi.node');
-    const release = join(here, 'build', 'Release', 'node_gi.node');
-    const debug = join(here, 'build', 'Debug', 'node_gi.node');
-    // NODE_GI_NATIVE pins which binary loads. The package's own test scripts set
-    // `build` so local verification always exercises the JUST-BUILT addon — a stale
-    // staged prebuild would otherwise shadow build/Release and silently validate
-    // the wrong binary (the consumer-facing default below prefers the prebuild).
-    const prefer = process.env.NODE_GI_NATIVE;
-    if (prefer === 'build') return [release, debug, prebuild];
-    if (prefer === 'prebuild') return [prebuild];
-    if (prefer) return [prefer]; // an explicit path to a node_gi.node
-    // Default: prefer a shipped prebuild so a consumer needs no C toolchain and no
-    // node-gyp — the only install path Deno supports (it runs no postinstall build
-    // script). Fall back to a locally built addon (Release, then Debug).
-    return [prebuild, release, debug];
-}
 
 // GJS host mode: the addon is loaded through the @gjsify/napi shim, not
 // `require()`. The loader native is `globalThis.__gjsifyNapiLoadAddon`,
@@ -123,8 +104,8 @@ function loadNative() {
         }
     }
     throw new Error(
-        `@gjsify/node-gi: native addon not found for ${RUNTIME} on ${process.platform}-${process.arch}. ` +
-            `Expected a prebuild at prebuilds/${process.platform}-${process.arch}/node_gi.node or a local build. ` +
+        `@gjsify/node-gi: native addon not found for ${RUNTIME} on ${hostTarget()}. ` +
+            `Expected a prebuild at prebuilds/${hostTarget()}/node_gi.node or a local build. ` +
             'Run `node-gyp rebuild` in ' +
             here +
             ' (requires a C++ toolchain and the girepository-2.0 / glib-2.0 development headers), ' +

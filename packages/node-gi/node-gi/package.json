@@ -52,9 +52,11 @@
     "gettext.d.ts",
     "cairo.js",
     "cairo.d.ts",
+    "native-paths.js",
     "overrides",
     "src",
     "binding.gyp",
+    "scripts/install.mjs",
     "scripts/win-gi-gyp-flags.mjs",
     "prebuilds"
   ],
@@ -74,7 +76,7 @@
     "tier": 2
   },
   "scripts": {
-    "install": "node-gyp rebuild",
+    "install": "node scripts/install.mjs",
     "build": "node-gyp rebuild",
     "build:native": "node-gyp rebuild",
     "build:prebuild": "node-gyp rebuild && node scripts/stage-prebuild.mjs",
