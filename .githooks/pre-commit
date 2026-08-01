@@ -50,10 +50,9 @@ cd "$REPO_ROOT"
 # bundle uses the same version the workspace declares (matters during a
 # version bump where the global gjsify on PATH may drift from
 # packages/infra/cli/package.json#version). Fall back to PATH, then to the
-# committed GJS bundle itself (works on a freshly-cloned repo with no
-# node_modules yet — but that's a near-impossible case here because we're
-# about to invoke `gjsify workspace ... build` which itself needs the
-# workspace to be installed).
+# committed GJS bundle itself. Resolving one of those says NOTHING about
+# whether this tree can BUILD — the guard below is the precondition that
+# actually matters, and the two diverge in every fresh worktree.
 
 if [ -x "$REPO_ROOT/node_modules/.bin/gjsify" ]; then
     GJSIFY="$REPO_ROOT/node_modules/.bin/gjsify"
@@ -64,6 +63,28 @@ elif command -v gjs >/dev/null 2>&1 && [ -f "$REPO_ROOT/packages/infra/cli/dist/
 else
     echo "::warning::[gjsify pre-commit] no gjsify CLI on PATH and no node_modules/.bin/gjsify;"
     echo "::warning::[gjsify pre-commit] skipping bundle freshness check. Run 'gjsify install' first."
+    exit 0
+fi
+
+# Finding a CLI is NOT the precondition — BUILDING is, and the two diverge.
+# The rebuild below runs `gjsify workspace @gjsify/cli build`, whose `build`
+# script is a plain `tsc` resolved from THIS tree's node_modules. A freshly
+# added git worktree — the standard isolated-agent flow, not the "near
+# impossible" case the comment above assumed — resolves a CLI just fine via
+# PATH or the committed bundle and has no node_modules at all. The hook then
+# sailed past the skip above and died on `tsc: command not found`, turning a
+# documented graceful skip into a hard commit failure exactly where it is
+# least recoverable: mid-commit, in a tree the author has not installed.
+#
+# Skipping is safe by design. This hook is BEST-EFFORT (its trigger list is a
+# four-path heuristic over a bundle that inlines the whole workspace-dep
+# closure); `verify-committed-bundles.mjs` in CI is the exhaustive check and
+# fails the PR with exact commands. A skip costs a red CI run; a hard failure
+# costs the commit.
+if [ ! -d "$REPO_ROOT/node_modules" ]; then
+    echo "::warning::[gjsify pre-commit] no node_modules in $REPO_ROOT — cannot rebuild the bundle(s);"
+    echo "::warning::[gjsify pre-commit] skipping bundle freshness check. Run 'gjsify install' in THIS tree first."
+    echo "::warning::[gjsify pre-commit] CI (verify-committed-bundles.mjs) remains the exhaustive check."
     exit 0
 fi
 
