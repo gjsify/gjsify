@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/node-gi",
-  "version": "0.26.0",
+  "version": "0.26.1",
   "description": "GObject-Introspection runtime for Node.js — load gi:// namespaces (GLib/GObject/Gio/…) with GJS-compatible semantics. Vendored + rewritten from node-gtk under MIT.",
   "type": "module",
   "license": "MIT",
@@ -55,7 +55,7 @@
     "overrides",
     "src",
     "binding.gyp",
-        "scripts/win-gi-gyp-flags.mjs",
+    "scripts/win-gi-gyp-flags.mjs",
     "prebuilds"
   ],
   "gjsify": {

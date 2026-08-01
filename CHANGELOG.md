@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.26.1](https://github.com/gjsify/gjsify/compare/v0.26.0...v0.26.1) (2026-08-01)
+
+### Bug Fixes
+
+* **cli:** make the Windows CLI path work ([#898](https://github.com/gjsify/gjsify/issues/898)) ([5778f13](https://github.com/gjsify/gjsify/commit/5778f13fd4838c7aa6ce1de853c7f7299a68afc2))
+* close three affected-classifier blind spots ([#892](https://github.com/gjsify/gjsify/issues/892)) ([454c685](https://github.com/gjsify/gjsify/commit/454c685204f00ab4c70d682e2a8fa2ad1a7b293f)), closes [#838](https://github.com/gjsify/gjsify/issues/838) [#847](https://github.com/gjsify/gjsify/issues/847) [#843](https://github.com/gjsify/gjsify/issues/843) [#853](https://github.com/gjsify/gjsify/issues/853)
+* **fs:** no shell-outs with unquoted paths ([#899](https://github.com/gjsify/gjsify/issues/899)) ([3c37e72](https://github.com/gjsify/gjsify/commit/3c37e72193224800a6c234ed02efd00ee64e5934))
+
+### Build System
+
+* **oxfmt-native:** declare the refs/oxc lockstep ([#894](https://github.com/gjsify/gjsify/issues/894)) ([82203b8](https://github.com/gjsify/gjsify/commit/82203b896fb3d9c6757447efd27b15301249f869))
+
+### Continuous Integration
+
+* bake what the bare-fedora jobs install, and check it ([#896](https://github.com/gjsify/gjsify/issues/896)) ([f61464b](https://github.com/gjsify/gjsify/commit/f61464b444970d62369e3ff2469ffc2d216e3ae3))
+* **cross-platform:** prove the journey, not the early exit ([#901](https://github.com/gjsify/gjsify/issues/901)) ([215482a](https://github.com/gjsify/gjsify/commit/215482accf200b035aa4f2bbe00230ceae371f6d)), closes [#898](https://github.com/gjsify/gjsify/issues/898) [#889](https://github.com/gjsify/gjsify/issues/889) [#900](https://github.com/gjsify/gjsify/issues/900)
+* **release:** dispatch the publish without gh ([#895](https://github.com/gjsify/gjsify/issues/895)) ([cadf6d3](https://github.com/gjsify/gjsify/commit/cadf6d3b1e901f281e93b81500686ac84ea064cb)), closes [#874](https://github.com/gjsify/gjsify/issues/874) [#849](https://github.com/gjsify/gjsify/issues/849)
+* **release:** ship node-gi's win32 + darwin prebuilds ([#900](https://github.com/gjsify/gjsify/issues/900)) ([9b06093](https://github.com/gjsify/gjsify/commit/9b06093e644457004c541f693f90b0c23e304db5))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([eb34d95](https://github.com/gjsify/gjsify/commit/eb34d95ace4ad901792fa0be9673c1db19550961))
+
 ## [0.26.0](https://github.com/gjsify/gjsify/compare/v0.25.1...v0.26.0) (2026-08-01)
 
 ### Features
