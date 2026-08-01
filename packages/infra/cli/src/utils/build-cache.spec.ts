@@ -206,6 +206,51 @@ export default async () => {
             }
         });
 
+        await it('does not let a .tsbuildinfo collapse the per-child units', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-build-cache-'));
+            try {
+                const ws = makeWorkspace(root, 'a', '@x/a');
+                // `@gjsify/semver`'s real shape: both emit dirs PLUS the
+                // incremental-compiler state tsc writes beside them. That loose
+                // file used to flip ownership back to the whole `lib`, so a
+                // `build:types` hit restored over — and deleted — `lib/esm`.
+                mkdirSync(join(ws.location, 'lib', 'esm'), { recursive: true });
+                mkdirSync(join(ws.location, 'lib', 'types'), { recursive: true });
+                writeFileSync(join(ws.location, 'lib', 'esm', 'index.js'), 'export const x = 1;\n');
+                writeFileSync(join(ws.location, 'lib', 'types', 'index.d.ts'), 'export declare const x: number;\n');
+                writeFileSync(join(ws.location, 'lib', 'tsconfig.build.tsbuildinfo'), '{"version":"5"}\n');
+
+                expect(outputUnits(ws.location)).toStrictEqual(['lib/esm', 'lib/types']);
+
+                // The types half must still claim only its own unit.
+                const before = snapshotOutputDirs(ws.location);
+                writeFileSync(join(ws.location, 'lib', 'types', 'other.d.ts'), 'export {};\n');
+                expect(modifiedOutputDirs(ws.location, before)).toStrictEqual(['lib/types']);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('ignores a rewritten .tsbuildinfo when deciding what a build modified', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-build-cache-'));
+            try {
+                const ws = makeWorkspace(root, 'a', '@x/a');
+                mkdirSync(join(ws.location, 'lib', 'esm'), { recursive: true });
+                writeFileSync(join(ws.location, 'lib', 'esm', 'index.js'), 'export const x = 1;\n');
+                writeFileSync(join(ws.location, 'lib', 'tsconfig.build.tsbuildinfo'), '{"version":"5"}\n');
+
+                // tsc rewrites its state on every run. That alone must not make
+                // the cache believe an output unit changed — and, restored into
+                // a tree whose emit never happened, it is what makes the next
+                // `tsc` skip emitting and exit 0 with nothing written.
+                const before = snapshotOutputDirs(ws.location);
+                writeFileSync(join(ws.location, 'lib', 'tsconfig.build.tsbuildinfo'), '{"version":"5","n":1}\n');
+                expect(modifiedOutputDirs(ws.location, before)).toStrictEqual([]);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
         await it('keeps whole-dir granularity when the candidate holds loose files', async () => {
             const root = mkdtempSync(join(tmpdir(), 'gjsify-build-cache-'));
             try {
