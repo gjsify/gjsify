@@ -18,7 +18,7 @@
     },
     "bin": "./lib/index.js",
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "build": "node scripts/process-template.mjs && tsc && chmod +x ./lib/index.js",
         "test": "echo 'nothing to do'"

@@ -10,7 +10,7 @@
     "src"
   ],
   "scripts": {
-    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "clear": "gjsify clear dist tsconfig.tsbuildinfo",
     "check": "gjsify tsc --noEmit",
     "build": "gjsify run build:gjs && gjsify run build:node",
     "build:gjs": "gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs",

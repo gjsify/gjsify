@@ -25,7 +25,7 @@
         "./globals.mjs"
     ],
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",

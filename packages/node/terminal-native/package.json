@@ -56,7 +56,7 @@
         "native"
     ],
     "scripts": {
-        "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
+        "clear": "gjsify clear lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",

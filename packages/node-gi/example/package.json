@@ -33,7 +33,7 @@
     "start:bun": "bun dist/app.node.mjs",
     "start:deno": "deno run -A --node-modules-dir=manual dist/app.node.mjs",
     "test": "node --test quad.e2e.mjs",
-    "clear": "rm -rf dist"
+    "clear": "gjsify clear dist"
   },
   "dependencies": {
     "@gjsify/node-gi": "file:../node-gi"

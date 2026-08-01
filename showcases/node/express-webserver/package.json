@@ -11,7 +11,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "clear": "gjsify clear dist tsconfig.tsbuildinfo",
     "check": "gjsify tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
     "start": "gjsify run dist/index.gjs.js",
     "start:node": "node dist/index.node.mjs",

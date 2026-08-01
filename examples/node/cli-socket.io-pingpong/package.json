@@ -4,7 +4,7 @@
   "main": "dist/index.gjs.mjs",
   "type": "module",
   "scripts": {
-    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "clear": "gjsify clear dist tsconfig.tsbuildinfo",
     "check": "gjsify tsc --noEmit --skipLibCheck",
     "start": "gjsify run start:gjs",
     "start:gjs": "gjsify run dist/index.gjs.mjs",

@@ -109,7 +109,7 @@
         "showcases.json"
     ],
     "scripts": {
-        "clear": "rm -rf lib dist tsconfig.tsbuildinfo || exit 0",
+        "clear": "gjsify clear lib dist tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "start": "node lib/index.js",
         "build": "tsc && node scripts/build-assets.mjs",
