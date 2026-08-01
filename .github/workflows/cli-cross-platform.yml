@@ -133,6 +133,61 @@ jobs:
           # extension-less `sh` member of the trio).
           ./node_modules/.bin/gjsify --version
 
+      # `showcase` is the first thing a user runs, and the ONLY command that
+      # asks about SYSTEM dependencies. This runner has no gjs — which is
+      # exactly why the step belongs here: every Linux job has gjs installed,
+      # so "does this work without gjs" is a question they structurally cannot
+      # ask, and the environment answers it before the test can. That blind
+      # spot shipped a pre-flight demanding a gjs binary for `--runtime node`
+      # (#889) — every showcase unreachable for every Windows / plain-Node
+      # user, on the default path too.
+      #
+      # Probes a gjs-ONLY showcase so the run ends at the declaration check:
+      # no bundle, no node-gi, no GTK on the runner. WHICH error comes back is
+      # the assertion — the declaration one means the runtime was resolved
+      # first, the GJS one means it was not.
+      #
+      # This job measures the PUBLISHED CLI, which necessarily lags the fix.
+      # So the EXPECTATION is bound to the installed version rather than
+      # asserted unconditionally: below the first release carrying the fix a
+      # gjs demand is a KNOWN gap — reported, not failed; from that release on
+      # it is a regression and fails. The gate therefore arms ITSELF on the
+      # release that fixes it, with no edit here and no hand-maintained
+      # "currently skipped" list to drift.
+      #
+      # LOWEST_FIXED is a BOUND, not a prediction of the next version number:
+      # the fix merged after 0.25.1, and every later release compares >= 0.25.2
+      # in semver order (0.26.0 included).
+      - name: 'Showcase: --runtime node does not demand gjs'
+        id: showcase
+        continue-on-error: true
+        working-directory: gjsify-diag
+        env:
+          LOWEST_FIXED: '0.25.2'
+        run: |
+          set -eux
+          out="$(npx gjsify showcase webrtc-loopback --runtime node 2>&1 || true)"
+          echo "$out"
+          INSTALLED="$(node -p "require('./node_modules/@gjsify/cli/package.json').version")"
+          # Compared in node (present by definition here); `sort -V` is not
+          # portable across git-bash and BSD userland. Values travel through
+          # the environment, never through string interpolation.
+          HAS_FIX="$(INSTALLED="$INSTALLED" node -e '
+            const parse = (v) => v.split("-")[0].split(".").map(Number);
+            const [a, b] = [process.env.INSTALLED, process.env.LOWEST_FIXED].map(parse);
+            const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+            process.stdout.write(cmp >= 0 ? "1" : "0");
+          ')"
+          if echo "$out" | grep -q "Missing system dependencies"; then
+            if [ "$HAS_FIX" = "1" ]; then
+              echo "::error::@gjsify/cli $INSTALLED demanded gjs for --runtime node — the runtime gate ran too early"
+              exit 1
+            fi
+            echo "::warning::@gjsify/cli $INSTALLED predates the runtime-gate fix (< $LOWEST_FIXED) — known gap, not failing"
+            exit 0
+          fi
+          echo "$out" | grep -q "does not support --runtime node"
+
       - name: Diagnostic summary
         run: |
           echo "## gjsify CLI on ${{ matrix.os }} (Node)" >> "$GITHUB_STEP_SUMMARY"
@@ -143,6 +198,7 @@ jobs:
           echo "| run the bundle | ${{ steps.run.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| gjsify install (backend) | ${{ steps.install.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| .bin shim created + runnable | ${{ steps.binshim.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| showcase --runtime node (no gjs) | ${{ steps.showcase.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "--- outcomes: version=${{ steps.version.outcome }} build=${{ steps.build.outcome }} run=${{ steps.run.outcome }} install=${{ steps.install.outcome }} binshim=${{ steps.binshim.outcome }}"
           # Every substantive step stays continue-on-error so ONE run still maps
           # ALL the gaps; the gate lives here, at the end.
@@ -161,6 +217,11 @@ jobs:
           if [ "${{ steps.run.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.install.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.binshim.outcome }}" != "success" ]; then FAILED=1; fi
+          # `showcase` gates like the rest. It measures the PUBLISHED CLI, so
+          # its EXPECTATION is version-bound (see the step): a gjs demand from
+          # a CLI predating the fix warns and passes; from the first release
+          # carrying it, the same demand fails. Nothing to remember later.
+          if [ "${{ steps.showcase.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "$FAILED" = "0" ]; then
             echo "CLI PATH GREEN on ${{ matrix.os }} (toolchain + install backend)"
           else
