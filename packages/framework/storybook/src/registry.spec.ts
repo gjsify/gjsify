@@ -72,13 +72,7 @@ export default async () => {
             const registry = new StoryRegistryService();
             registry.registerStory(moduleOf([Traced], [outer, inner]));
             registry.createStoryInstances();
-            expect(order).toStrictEqual([
-                'outer:before',
-                'inner:before',
-                'init',
-                'inner:after',
-                'outer:after',
-            ]);
+            expect(order).toStrictEqual(['outer:before', 'inner:before', 'init', 'inner:after', 'outer:after']);
         });
     });
 };

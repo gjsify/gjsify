@@ -47,135 +47,141 @@ const refsCheckout = join(pkgRoot, '..', '..', '..', 'refs', 'gjs', 'subprojects
 // Artifacts that MUST exist for the oracle to run; everything the build
 // produces is collected, but these gate the idempotence check.
 const REQUIRED_ARTIFACTS = [
-  'GIMarshallingTests-1.0.typelib',
-  'libgimarshallingtests.so',
-  'Regress-1.0.typelib',
-  'libregress.so',
+    'GIMarshallingTests-1.0.typelib',
+    'libgimarshallingtests.so',
+    'Regress-1.0.typelib',
+    'libregress.so',
 ];
 
 function run(cmd, args, opts = {}) {
-  const res = spawnSync(cmd, args, { stdio: 'inherit', ...opts });
-  if (res.error) throw res.error;
-  return res.status ?? 1;
+    const res = spawnSync(cmd, args, { stdio: 'inherit', ...opts });
+    if (res.error) throw res.error;
+    return res.status ?? 1;
 }
 
 function capture(cmd, args, opts = {}) {
-  const res = spawnSync(cmd, args, { encoding: 'utf8', ...opts });
-  return { status: res.status ?? 1, stdout: (res.stdout ?? '').trim(), stderr: (res.stderr ?? '').trim() };
+    const res = spawnSync(cmd, args, { encoding: 'utf8', ...opts });
+    return { status: res.status ?? 1, stdout: (res.stdout ?? '').trim(), stderr: (res.stderr ?? '').trim() };
 }
 
 function ensureTool(name, hint) {
-  const res = spawnSync(name, ['--version'], { stdio: 'ignore' });
-  if (res.error || res.status !== 0) {
-    throw new Error(`build-gi-test-typelibs: '${name}' is not on PATH — ${hint}`);
-  }
+    const res = spawnSync(name, ['--version'], { stdio: 'ignore' });
+    if (res.error || res.status !== 0) {
+        throw new Error(`build-gi-test-typelibs: '${name}' is not on PATH — ${hint}`);
+    }
 }
 
 /** The HEAD revision of a git worktree, or null (also null when `dir` is only a
  * subdirectory inside some OTHER repo — git would walk up and report that repo). */
 function headRevOf(dir) {
-  if (!existsSync(join(dir, '.git'))) return null;
-  const top = capture('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
-  if (top.status !== 0 || top.stdout !== dir) return null;
-  const head = capture('git', ['-C', dir, 'rev-parse', 'HEAD']);
-  return head.status === 0 ? head.stdout : null;
+    if (!existsSync(join(dir, '.git'))) return null;
+    const top = capture('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
+    if (top.status !== 0 || top.stdout !== dir) return null;
+    const head = capture('git', ['-C', dir, 'rev-parse', 'HEAD']);
+    return head.status === 0 ? head.stdout : null;
 }
 
 /** True when the stamp matches PINNED_REV and the required artifacts exist. */
 export function typelibsReady() {
-  if (!existsSync(stampPath)) return false;
-  if (readFileSync(stampPath, 'utf8').trim() !== PINNED_REV) return false;
-  return REQUIRED_ARTIFACTS.every((f) => existsSync(join(libDir, f)));
+    if (!existsSync(stampPath)) return false;
+    if (readFileSync(stampPath, 'utf8').trim() !== PINNED_REV) return false;
+    return REQUIRED_ARTIFACTS.every((f) => existsSync(join(libDir, f)));
 }
 
 function ensureSource() {
-  // Already checked out at the pin — nothing to do.
-  if (headRevOf(srcDir) === PINNED_REV) return;
+    // Already checked out at the pin — nothing to do.
+    if (headRevOf(srcDir) === PINNED_REV) return;
 
-  // Local fast path: reuse the read-only refs checkout when it matches the pin.
-  if (existsSync(join(refsCheckout, 'meson.build')) && headRevOf(refsCheckout) === PINNED_REV) {
-    console.log(`build-gi-test-typelibs: copying refs checkout (${PINNED_REV.slice(0, 12)}) → .gi-tests/src`);
-    rmSync(srcDir, { recursive: true, force: true });
-    cpSync(refsCheckout, srcDir, { recursive: true });
-    return;
-  }
-
-  ensureTool('git', 'install git to clone the pinned test project');
-  rmSync(srcDir, { recursive: true, force: true });
-  mkdirSync(srcDir, { recursive: true });
-
-  // Prefer a shallow fetch of exactly the pinned rev (the same shape meson's
-  // wrap resolver uses); fall back to a full clone when the server refuses
-  // fetching an unadvertised SHA.
-  console.log(`build-gi-test-typelibs: cloning ${UPSTREAM_URL} @ ${PINNED_REV.slice(0, 12)}`);
-  const shallow =
-    run('git', ['-C', srcDir, 'init', '--quiet']) === 0 &&
-    run('git', ['-C', srcDir, 'remote', 'add', 'origin', UPSTREAM_URL]) === 0 &&
-    run('git', ['-C', srcDir, 'fetch', '--quiet', '--depth', '1', 'origin', PINNED_REV]) === 0 &&
-    run('git', ['-C', srcDir, 'checkout', '--quiet', '--detach', PINNED_REV]) === 0;
-  if (!shallow) {
-    console.log('build-gi-test-typelibs: shallow fetch failed — falling back to a full clone');
-    rmSync(srcDir, { recursive: true, force: true });
-    if (run('git', ['clone', '--quiet', UPSTREAM_URL, srcDir]) !== 0) {
-      throw new Error(`build-gi-test-typelibs: git clone of ${UPSTREAM_URL} failed`);
+    // Local fast path: reuse the read-only refs checkout when it matches the pin.
+    if (existsSync(join(refsCheckout, 'meson.build')) && headRevOf(refsCheckout) === PINNED_REV) {
+        console.log(`build-gi-test-typelibs: copying refs checkout (${PINNED_REV.slice(0, 12)}) → .gi-tests/src`);
+        rmSync(srcDir, { recursive: true, force: true });
+        cpSync(refsCheckout, srcDir, { recursive: true });
+        return;
     }
-    if (run('git', ['-C', srcDir, 'checkout', '--quiet', '--detach', PINNED_REV]) !== 0) {
-      throw new Error(`build-gi-test-typelibs: revision ${PINNED_REV} not found in ${UPSTREAM_URL}`);
+
+    ensureTool('git', 'install git to clone the pinned test project');
+    rmSync(srcDir, { recursive: true, force: true });
+    mkdirSync(srcDir, { recursive: true });
+
+    // Prefer a shallow fetch of exactly the pinned rev (the same shape meson's
+    // wrap resolver uses); fall back to a full clone when the server refuses
+    // fetching an unadvertised SHA.
+    console.log(`build-gi-test-typelibs: cloning ${UPSTREAM_URL} @ ${PINNED_REV.slice(0, 12)}`);
+    const shallow =
+        run('git', ['-C', srcDir, 'init', '--quiet']) === 0 &&
+        run('git', ['-C', srcDir, 'remote', 'add', 'origin', UPSTREAM_URL]) === 0 &&
+        run('git', ['-C', srcDir, 'fetch', '--quiet', '--depth', '1', 'origin', PINNED_REV]) === 0 &&
+        run('git', ['-C', srcDir, 'checkout', '--quiet', '--detach', PINNED_REV]) === 0;
+    if (!shallow) {
+        console.log('build-gi-test-typelibs: shallow fetch failed — falling back to a full clone');
+        rmSync(srcDir, { recursive: true, force: true });
+        if (run('git', ['clone', '--quiet', UPSTREAM_URL, srcDir]) !== 0) {
+            throw new Error(`build-gi-test-typelibs: git clone of ${UPSTREAM_URL} failed`);
+        }
+        if (run('git', ['-C', srcDir, 'checkout', '--quiet', '--detach', PINNED_REV]) !== 0) {
+            throw new Error(`build-gi-test-typelibs: revision ${PINNED_REV} not found in ${UPSTREAM_URL}`);
+        }
     }
-  }
-  if (headRevOf(srcDir) !== PINNED_REV) {
-    throw new Error(`build-gi-test-typelibs: checkout is not at the pinned revision ${PINNED_REV}`);
-  }
+    if (headRevOf(srcDir) !== PINNED_REV) {
+        throw new Error(`build-gi-test-typelibs: checkout is not at the pinned revision ${PINNED_REV}`);
+    }
 }
 
 function build() {
-  ensureTool('meson', 'install meson + ninja (e.g. `dnf install meson ninja-build`)');
-  // A build dir configured for a DIFFERENT source rev must not be reused —
-  // simplest correct invalidation is to reconfigure from scratch whenever the
-  // stamp does not match (we only get here in that case).
-  rmSync(buildDir, { recursive: true, force: true });
-  if (run('meson', ['setup', buildDir, srcDir, '-Dcairo=false'], { cwd: giTestsDir }) !== 0) {
-    throw new Error('build-gi-test-typelibs: meson setup failed (are glib2/gobject-introspection -devel headers installed?)');
-  }
-  if (run('meson', ['compile', '-C', buildDir]) !== 0) {
-    throw new Error('build-gi-test-typelibs: meson compile failed');
-  }
+    ensureTool('meson', 'install meson + ninja (e.g. `dnf install meson ninja-build`)');
+    // A build dir configured for a DIFFERENT source rev must not be reused —
+    // simplest correct invalidation is to reconfigure from scratch whenever the
+    // stamp does not match (we only get here in that case).
+    rmSync(buildDir, { recursive: true, force: true });
+    if (run('meson', ['setup', buildDir, srcDir, '-Dcairo=false'], { cwd: giTestsDir }) !== 0) {
+        throw new Error(
+            'build-gi-test-typelibs: meson setup failed (are glib2/gobject-introspection -devel headers installed?)',
+        );
+    }
+    if (run('meson', ['compile', '-C', buildDir]) !== 0) {
+        throw new Error('build-gi-test-typelibs: meson compile failed');
+    }
 }
 
 function collectArtifacts() {
-  rmSync(libDir, { recursive: true, force: true });
-  mkdirSync(libDir, { recursive: true });
-  // All targets land flat in the build root (typelibs + shared libraries);
-  // collect every one so Regress's dependencies (Utility-1.0, libutility.so, …)
-  // travel along. Files only — meson also creates lib*.so.p/ object dirs.
-  const artifacts = readdirSync(buildDir, { withFileTypes: true })
-    .filter((e) => e.isFile() && (e.name.endsWith('.typelib') || (e.name.startsWith('lib') && e.name.endsWith('.so'))))
-    .map((e) => e.name);
-  for (const f of artifacts) cpSync(join(buildDir, f), join(libDir, f));
-  const missing = REQUIRED_ARTIFACTS.filter((f) => !existsSync(join(libDir, f)));
-  if (missing.length > 0) {
-    throw new Error(`build-gi-test-typelibs: build produced no ${missing.join(', ')} — check the meson output`);
-  }
-  writeFileSync(stampPath, `${PINNED_REV}\n`);
-  console.log(`build-gi-test-typelibs: ${artifacts.length} artifact(s) → .gi-tests/lib (rev ${PINNED_REV.slice(0, 12)})`);
+    rmSync(libDir, { recursive: true, force: true });
+    mkdirSync(libDir, { recursive: true });
+    // All targets land flat in the build root (typelibs + shared libraries);
+    // collect every one so Regress's dependencies (Utility-1.0, libutility.so, …)
+    // travel along. Files only — meson also creates lib*.so.p/ object dirs.
+    const artifacts = readdirSync(buildDir, { withFileTypes: true })
+        .filter(
+            (e) => e.isFile() && (e.name.endsWith('.typelib') || (e.name.startsWith('lib') && e.name.endsWith('.so'))),
+        )
+        .map((e) => e.name);
+    for (const f of artifacts) cpSync(join(buildDir, f), join(libDir, f));
+    const missing = REQUIRED_ARTIFACTS.filter((f) => !existsSync(join(libDir, f)));
+    if (missing.length > 0) {
+        throw new Error(`build-gi-test-typelibs: build produced no ${missing.join(', ')} — check the meson output`);
+    }
+    writeFileSync(stampPath, `${PINNED_REV}\n`);
+    console.log(
+        `build-gi-test-typelibs: ${artifacts.length} artifact(s) → .gi-tests/lib (rev ${PINNED_REV.slice(0, 12)})`,
+    );
 }
 
 /** Build the typelibs if the pinned artifacts are not already present. */
 export function ensureTypelibs() {
-  if (typelibsReady()) {
-    console.log(`build-gi-test-typelibs: up to date (rev ${PINNED_REV.slice(0, 12)}) — nothing to do`);
-    return;
-  }
-  ensureSource();
-  build();
-  collectArtifacts();
+    if (typelibsReady()) {
+        console.log(`build-gi-test-typelibs: up to date (rev ${PINNED_REV.slice(0, 12)}) — nothing to do`);
+        return;
+    }
+    ensureSource();
+    build();
+    collectArtifacts();
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  try {
-    ensureTypelibs();
-  } catch (error) {
-    console.error(String(error?.message ?? error));
-    process.exit(1);
-  }
+    try {
+        ensureTypelibs();
+    } catch (error) {
+        console.error(String(error?.message ?? error));
+        process.exit(1);
+    }
 }

@@ -85,13 +85,16 @@ describe('stage-prebuild: target selection', () => {
 
 describe('stage-prebuild: staging', () => {
     it('copies every artifact extension, including .dylib', () => {
-        const dir = fixture([`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'], [
-            'libfoo.so',
-            'libfoo.dylib',
-            'Foo-1.0.gir',
-            'Foo-1.0.typelib',
-            'meson-logs.txt', // not an artifact — must NOT be staged
-        ]);
+        const dir = fixture(
+            [`${process.platform}-${process.arch}`, 'linux-x64', 'darwin-arm64'],
+            [
+                'libfoo.so',
+                'libfoo.dylib',
+                'Foo-1.0.gir',
+                'Foo-1.0.typelib',
+                'meson-logs.txt', // not an artifact — must NOT be staged
+            ],
+        );
         try {
             runStager(dir);
             const target = pickDeclaredTarget(

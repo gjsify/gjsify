@@ -25,7 +25,12 @@ declare module '@nativescript/core' {
     /** Base of every NativeScript object — carries the event system. */
     export class Observable {
         /** Subscribe to an event (e.g. `'checkedChange'`, `'notify::active'`). */
-        addEventListener(eventName: string, callback: (data: EventData) => void, thisArg?: unknown, once?: boolean): void;
+        addEventListener(
+            eventName: string,
+            callback: (data: EventData) => void,
+            thisArg?: unknown,
+            once?: boolean,
+        ): void;
         /** Unsubscribe from an event. */
         removeEventListener(eventName: string, callback?: (data: EventData) => void, thisArg?: unknown): void;
         /** Emit an event to all listeners. */

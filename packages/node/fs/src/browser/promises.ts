@@ -15,9 +15,15 @@ import * as sync from './sync.js';
 /** Lift any sync impl to a microtask-deferred promise. */
 function async_<F extends (...args: unknown[]) => unknown>(fn: F) {
     return ((...args: Parameters<F>): Promise<ReturnType<F>> =>
-        new Promise((res, rej) => queueMicrotask(() => {
-            try { res(fn(...args) as ReturnType<F>); } catch (e) { rej(e); }
-        }))) as (...args: Parameters<F>) => Promise<ReturnType<F>>;
+        new Promise((res, rej) =>
+            queueMicrotask(() => {
+                try {
+                    res(fn(...args) as ReturnType<F>);
+                } catch (e) {
+                    rej(e);
+                }
+            }),
+        )) as (...args: Parameters<F>) => Promise<ReturnType<F>>;
 }
 
 export const readFile = async_(sync.readFileSync);
@@ -49,7 +55,9 @@ export const mkdtemp = async_(sync.mkdtempSync);
 
 export class FileHandle {
     readonly fd: number;
-    constructor(fd: number) { this.fd = fd; }
+    constructor(fd: number) {
+        this.fd = fd;
+    }
 
     read(buf: Uint8Array, offset?: number, length?: number, position?: number | null) {
         return new Promise<{ bytesRead: number; buffer: Uint8Array }>((res, rej) =>
@@ -57,7 +65,9 @@ export class FileHandle {
                 try {
                     const n = sync.readSync(this.fd, buf, offset ?? 0, length ?? buf.byteLength, position ?? null);
                     res({ bytesRead: n, buffer: buf });
-                } catch (e) { rej(e); }
+                } catch (e) {
+                    rej(e);
+                }
             }),
         );
     }
@@ -68,43 +78,60 @@ export class FileHandle {
                 try {
                     const n = sync.writeSync(this.fd, buf, offset ?? 0, length, position);
                     res({ bytesWritten: n, buffer: buf });
-                } catch (e) { rej(e); }
+                } catch (e) {
+                    rej(e);
+                }
             }),
         );
     }
 
     readFile(): Promise<Uint8Array> {
-        return new Promise((res, rej) => queueMicrotask(() => {
-            try {
-                const buf = new Uint8Array(64 * 1024);
-                const parts: Uint8Array[] = [];
-                let read = 0;
-                while ((read = sync.readSync(this.fd, buf, 0, buf.byteLength, null)) > 0) {
-                    parts.push(buf.slice(0, read));
+        return new Promise((res, rej) =>
+            queueMicrotask(() => {
+                try {
+                    const buf = new Uint8Array(64 * 1024);
+                    const parts: Uint8Array[] = [];
+                    let read = 0;
+                    while ((read = sync.readSync(this.fd, buf, 0, buf.byteLength, null)) > 0) {
+                        parts.push(buf.slice(0, read));
+                    }
+                    const total = parts.reduce((s, p) => s + p.byteLength, 0);
+                    const merged = new Uint8Array(total);
+                    let off = 0;
+                    for (const p of parts) {
+                        merged.set(p, off);
+                        off += p.byteLength;
+                    }
+                    res(merged);
+                } catch (e) {
+                    rej(e);
                 }
-                const total = parts.reduce((s, p) => s + p.byteLength, 0);
-                const merged = new Uint8Array(total);
-                let off = 0;
-                for (const p of parts) { merged.set(p, off); off += p.byteLength; }
-                res(merged);
-            } catch (e) { rej(e); }
-        }));
+            }),
+        );
     }
 
     close(): Promise<void> {
-        return new Promise((res, rej) => queueMicrotask(() => {
-            try { sync.closeSync(this.fd); res(); } catch (e) { rej(e); }
-        }));
+        return new Promise((res, rej) =>
+            queueMicrotask(() => {
+                try {
+                    sync.closeSync(this.fd);
+                    res();
+                } catch (e) {
+                    rej(e);
+                }
+            }),
+        );
     }
 }
 
-export function open(
-    path: Parameters<typeof sync.openSync>[0],
-    flags = 'r',
-    mode = 0o666,
-): Promise<FileHandle> {
-    return new Promise((res, rej) => queueMicrotask(() => {
-        try { res(new FileHandle(sync.openSync(path, flags, mode))); }
-        catch (e) { rej(e); }
-    }));
+export function open(path: Parameters<typeof sync.openSync>[0], flags = 'r', mode = 0o666): Promise<FileHandle> {
+    return new Promise((res, rej) =>
+        queueMicrotask(() => {
+            try {
+                res(new FileHandle(sync.openSync(path, flags, mode)));
+            } catch (e) {
+                rej(e);
+            }
+        }),
+    );
 }

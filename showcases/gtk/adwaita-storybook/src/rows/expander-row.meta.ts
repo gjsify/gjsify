@@ -4,8 +4,7 @@ import { ControlType, type StoryMeta } from '@gjsify/stories';
 
 export const expanderRowMeta: StoryMeta = {
     title: 'Boxed Lists/Expander Row',
-    description:
-        'Adw.ExpanderRow — a preferences row that discloses nested rows and can carry an enable switch.',
+    description: 'Adw.ExpanderRow — a preferences row that discloses nested rows and can carry an enable switch.',
     controls: [
         { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Proxy settings' },
         {

@@ -55,16 +55,8 @@ function makeProject(filename: string, source: string, lib?: string[]): string {
 function cleanupProject(dir: string): void {
     try {
         const file = Gio.File.new_for_path(dir);
-        const enumerator = file.enumerate_children(
-            'standard::name',
-            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
-            null,
-        );
-        for (
-            let info = enumerator.next_file(null);
-            info !== null;
-            info = enumerator.next_file(null)
-        ) {
+        const enumerator = file.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+        for (let info = enumerator.next_file(null); info !== null; info = enumerator.next_file(null)) {
             file.get_child(info.get_name()).delete(null);
         }
         enumerator.close(null);
@@ -115,11 +107,10 @@ export default async () => {
             // + a cascade of `error TS2318: Cannot find global type 'Array'/…`.
             // Now the only error must be the deliberate Promise type mismatch.
             await it('resolves explicit "lib" without TS6053/TS2318 and still catches the deliberate error', async () => {
-                const tmp = makeProject(
-                    'libcheck.ts',
-                    'const p: Promise<number> = "x";\nexport { p };\n',
-                    ['ESNext', 'DOM'],
-                );
+                const tmp = makeProject('libcheck.ts', 'const p: Promise<number> = "x";\nexport { p };\n', [
+                    'ESNext',
+                    'DOM',
+                ]);
                 try {
                     const { stdout, status } = runTsc(['-p', tmp]);
                     // No missing-lib / missing-global-type errors.

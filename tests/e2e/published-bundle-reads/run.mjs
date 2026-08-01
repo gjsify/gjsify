@@ -232,7 +232,10 @@ describe('Published-bundle runtime resolve E2E', { timeout: 10 * 60 * 1000 }, ()
             bundle.includes('__gjsifyModuleDir("@fixture/cjs-reader/index.cjs")'),
             'cjs bundle does not route __dirname through the runtime resolver',
         );
-        assert.ok(bundle.includes('globalThis.__gjsifyBundleUrl'), 'cjs bundle is missing the bundle-URL anchor banner');
+        assert.ok(
+            bundle.includes('globalThis.__gjsifyBundleUrl'),
+            'cjs bundle is missing the bundle-URL anchor banner',
+        );
         // No absolute build-machine path may be baked for the dep (the publish bug).
         assert.ok(
             !bundle.includes(join(projectDir, 'node_modules', '@fixture', 'cjs-reader')),

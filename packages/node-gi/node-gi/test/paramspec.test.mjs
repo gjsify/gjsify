@@ -16,43 +16,43 @@ const Gio = requireGi('Gio', '2.0');
 
 // Fire `notify::enabled` synchronously and capture the pspec it hands the handler.
 function notifyPspec() {
-  const action = new Gio.SimpleAction({ name: 'demo', enabled: true });
-  let captured = null;
-  action.connect('notify::enabled', (obj, pspec) => {
-    captured = pspec;
-  });
-  action.set_enabled(false);
-  return captured;
+    const action = new Gio.SimpleAction({ name: 'demo', enabled: true });
+    let captured = null;
+    action.connect('notify::enabled', (obj, pspec) => {
+        captured = pspec;
+    });
+    action.set_enabled(false);
+    return captured;
 }
 
 test('a notify handler receives a real GObject.ParamSpec', () => {
-  const pspec = notifyPspec();
-  assert.notEqual(pspec, null, 'the notify handler must fire with a pspec');
-  assert.equal(pspec.name, 'enabled');
-  assert.equal(pspec.get_name(), 'enabled');
-  assert.equal(pspec.nick, 'enabled');
+    const pspec = notifyPspec();
+    assert.notEqual(pspec, null, 'the notify handler must fire with a pspec');
+    assert.equal(pspec.name, 'enabled');
+    assert.equal(pspec.get_name(), 'enabled');
+    assert.equal(pspec.nick, 'enabled');
 });
 
 test('the pspec value_type / owner_type are GType handles', () => {
-  const pspec = notifyPspec();
-  assert.equal(GObject.type_name(pspec.value_type), 'gboolean');
-  assert.equal(GObject.type_name(pspec.owner_type), 'GSimpleAction');
+    const pspec = notifyPspec();
+    assert.equal(GObject.type_name(pspec.value_type), 'gboolean');
+    assert.equal(GObject.type_name(pspec.owner_type), 'GSimpleAction');
 });
 
 test('the pspec flags carry the readable + writable bits', () => {
-  const pspec = notifyPspec();
-  assert.ok(pspec.flags & GObject.ParamFlags.READABLE, 'readable bit set');
-  assert.ok(pspec.flags & GObject.ParamFlags.WRITABLE, 'writable bit set');
+    const pspec = notifyPspec();
+    assert.ok(pspec.flags & GObject.ParamFlags.READABLE, 'readable bit set');
+    assert.ok(pspec.flags & GObject.ParamFlags.WRITABLE, 'writable bit set');
 });
 
 test('a wrapped pspec is instanceof GObject.ParamSpec', () => {
-  const pspec = notifyPspec();
-  assert.equal(pspec instanceof GObject.ParamSpec, true);
+    const pspec = notifyPspec();
+    assert.equal(pspec instanceof GObject.ParamSpec, true);
 });
 
 test('the pspec get_name() and .name agree with get_default_value()', () => {
-  const pspec = notifyPspec();
-  // The `enabled` property defaults to false; get_default_value() reads the pspec's
-  // default GValue (marshalled to a JS boolean).
-  assert.equal(typeof pspec.get_default_value(), 'boolean');
+    const pspec = notifyPspec();
+    // The `enabled` property defaults to false; get_default_value() reads the pspec's
+    // default GValue (marshalled to a JS boolean).
+    assert.equal(typeof pspec.get_default_value(), 'boolean');
 });

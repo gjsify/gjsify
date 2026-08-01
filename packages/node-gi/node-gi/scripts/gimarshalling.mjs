@@ -27,31 +27,31 @@ const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const portDir = join(pkgRoot, 'gimarshalling');
 
 try {
-  ensureTypelibs();
+    ensureTypelibs();
 } catch (error) {
-  console.error(String(error?.message ?? error));
-  process.exit(1);
+    console.error(String(error?.message ?? error));
+    process.exit(1);
 }
 
 const portFiles = readdirSync(portDir)
-  .filter((f) => f.endsWith('.port.mjs'))
-  .sort()
-  .map((f) => join(portDir, f));
+    .filter((f) => f.endsWith('.port.mjs'))
+    .sort()
+    .map((f) => join(portDir, f));
 if (portFiles.length === 0) {
-  console.error(`gimarshalling: no *.port.mjs files under ${portDir}`);
-  process.exit(1);
+    console.error(`gimarshalling: no *.port.mjs files under ${portDir}`);
+    process.exit(1);
 }
 
 const prependPath = (existing) => (existing ? `${libDir}${delimiter}${existing}` : libDir);
 
 const res = spawnSync(process.execPath, ['--test', ...portFiles], {
-  cwd: pkgRoot,
-  stdio: 'inherit',
-  env: {
-    ...process.env,
-    GI_TYPELIB_PATH: prependPath(process.env.GI_TYPELIB_PATH),
-    LD_LIBRARY_PATH: prependPath(process.env.LD_LIBRARY_PATH),
-    NODE_GI_NATIVE: process.env.NODE_GI_NATIVE ?? 'build',
-  },
+    cwd: pkgRoot,
+    stdio: 'inherit',
+    env: {
+        ...process.env,
+        GI_TYPELIB_PATH: prependPath(process.env.GI_TYPELIB_PATH),
+        LD_LIBRARY_PATH: prependPath(process.env.LD_LIBRARY_PATH),
+        NODE_GI_NATIVE: process.env.NODE_GI_NATIVE ?? 'build',
+    },
 });
 process.exit(res.status ?? 1);

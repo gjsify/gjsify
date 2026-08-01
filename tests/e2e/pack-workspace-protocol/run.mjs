@@ -116,8 +116,9 @@ describe('gjsify pack — workspace: protocol substitution', () => {
 
     it('never ships a literal workspace: range', () => {
         const pkg = packAndReadManifest(join(root, 'packages', 'outsider'));
-        const ranges = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
-            .flatMap((block) => Object.values(pkg[block] ?? {}));
+        const ranges = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'].flatMap(
+            (block) => Object.values(pkg[block] ?? {}),
+        );
         assert.deepEqual(
             ranges.filter((r) => String(r).startsWith('workspace:')),
             [],

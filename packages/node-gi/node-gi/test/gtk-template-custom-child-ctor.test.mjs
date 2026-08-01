@@ -35,21 +35,21 @@ let Gio;
 let GLib;
 let loadError = null;
 if (haveDisplay) {
-  try {
-    GLib = requireGi('GLib', '2.0');
-    Gio = requireGi('Gio', '2.0');
-    GObject = requireGi('GObject', '2.0');
-    Gtk = requireGi('Gtk', '4.0');
-  } catch (err) {
-    loadError = err;
-  }
+    try {
+        GLib = requireGi('GLib', '2.0');
+        Gio = requireGi('Gio', '2.0');
+        GObject = requireGi('GObject', '2.0');
+        Gtk = requireGi('Gtk', '4.0');
+    } catch (err) {
+        loadError = err;
+    }
 }
 
 const skip = !haveDisplay
-  ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)'
-  : loadError
-    ? `Gtk-4.0 typelib unavailable: ${loadError.message}`
-    : false;
+    ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)'
+    : loadError
+      ? `Gtk-4.0 typelib unavailable: ${loadError.message}`
+      : false;
 
 // The parent template embeds the custom child by its registered GTypeName.
 const TEMPLATE_XML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -63,100 +63,100 @@ const TEMPLATE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 </interface>`;
 
 test('a custom template child gets its JS constructor run (GtkBuilder path)', { skip }, () => {
-  // Count ctor runs to prove exactly-once (no double-run, no skip).
-  let childCtorRuns = 0;
+    // Count ctor runs to prove exactly-once (no double-run, no skip).
+    let childCtorRuns = 0;
 
-  // The custom child: its ctor body sets plain-JS state — the shape that was lost.
-  const ChildWidget = GObject.registerClass(
-    { GTypeName: 'NodeGiCtorChild' },
-    class ChildWidget extends Gtk.Box {
-      constructor(params) {
-        super(params);
-        childCtorRuns++;
-        this._marker = 'ctor-ran'; // plain-JS field set IN the constructor body
-        this._answer = 42;
-      }
-      // A user accessor + method — only reachable if the wrapper carries USER_PROTO.
-      get marker() {
-        return this._marker;
-      }
-      describe() {
-        return `${this._marker}:${this._answer}`;
-      }
-    },
-  );
+    // The custom child: its ctor body sets plain-JS state — the shape that was lost.
+    const ChildWidget = GObject.registerClass(
+        { GTypeName: 'NodeGiCtorChild' },
+        class ChildWidget extends Gtk.Box {
+            constructor(params) {
+                super(params);
+                childCtorRuns++;
+                this._marker = 'ctor-ran'; // plain-JS field set IN the constructor body
+                this._answer = 42;
+            }
+            // A user accessor + method — only reachable if the wrapper carries USER_PROTO.
+            get marker() {
+                return this._marker;
+            }
+            describe() {
+                return `${this._marker}:${this._answer}`;
+            }
+        },
+    );
 
-  const ParentBox = GObject.registerClass(
-    {
-      GTypeName: 'NodeGiCtorParent',
-      Template: new TextEncoder().encode(TEMPLATE_XML),
-      InternalChildren: ['child'],
-    },
-    class ParentBox extends Gtk.Box {},
-  );
+    const ParentBox = GObject.registerClass(
+        {
+            GTypeName: 'NodeGiCtorParent',
+            Template: new TextEncoder().encode(TEMPLATE_XML),
+            InternalChildren: ['child'],
+        },
+        class ParentBox extends Gtk.Box {},
+    );
 
-  const app = new Gtk.Application({
-    application_id: 'eu.jumplink.NodeGiCtorChild',
-    flags: Gio.ApplicationFlags.NON_UNIQUE,
-  });
+    const app = new Gtk.Application({
+        application_id: 'eu.jumplink.NodeGiCtorChild',
+        flags: Gio.ApplicationFlags.NON_UNIQUE,
+    });
 
-  const results = {};
-  let activateError = null;
+    const results = {};
+    let activateError = null;
 
-  app.connect('activate', () => {
-    try {
-      const parent = new ParentBox();
+    app.connect('activate', () => {
+        try {
+            const parent = new ParentBox();
 
-      // The GtkBuilder-built internal child.
-      const child = parent._child;
-      results.childType = child != null ? native.getTypeName(unwrap(child)) : null;
+            // The GtkBuilder-built internal child.
+            const child = parent._child;
+            results.childType = child != null ? native.getTypeName(unwrap(child)) : null;
 
-      // THE CORE ASSERTIONS: the child's JS ctor ran, so its plain-JS fields exist.
-      results.marker = child != null ? child.marker : undefined; // via get marker()
-      results.markerField = child != null ? child._marker : undefined; // the expando
-      results.answer = child != null ? child._answer : undefined;
-      results.describe = child != null ? child.describe() : undefined; // user method
-      results.isInstance = child instanceof ChildWidget;
+            // THE CORE ASSERTIONS: the child's JS ctor ran, so its plain-JS fields exist.
+            results.marker = child != null ? child.marker : undefined; // via get marker()
+            results.markerField = child != null ? child._marker : undefined; // the expando
+            results.answer = child != null ? child._answer : undefined;
+            results.describe = child != null ? child.describe() : undefined; // user method
+            results.isInstance = child instanceof ChildWidget;
 
-      // Ctor-run count AFTER the template child was built (GtkBuilder path).
-      results.runsAfterTemplate = childCtorRuns;
+            // Ctor-run count AFTER the template child was built (GtkBuilder path).
+            results.runsAfterTemplate = childCtorRuns;
 
-      // JS-`new` path still runs the ctor EXACTLY ONCE (no double-run via the vfunc).
-      const direct = new ChildWidget();
-      results.directMarker = direct.marker;
-      results.runsAfterDirect = childCtorRuns;
+            // JS-`new` path still runs the ctor EXACTLY ONCE (no double-run via the vfunc).
+            const direct = new ChildWidget();
+            results.directMarker = direct.marker;
+            results.runsAfterDirect = childCtorRuns;
 
-      const win = new Gtk.ApplicationWindow({ application: app });
-      win.set_child(parent);
-      win.present();
+            const win = new Gtk.ApplicationWindow({ application: app });
+            win.set_child(parent);
+            win.present();
 
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-        app.quit();
-        return GLib.SOURCE_REMOVE;
-      });
-    } catch (err) {
-      activateError = err;
-      app.quit();
-    }
-  });
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                app.quit();
+                return GLib.SOURCE_REMOVE;
+            });
+        } catch (err) {
+            activateError = err;
+            app.quit();
+        }
+    });
 
-  const status = app.run([]);
+    const status = app.run([]);
 
-  assert.equal(activateError, null, `activate handler threw: ${activateError && activateError.stack}`);
-  assert.equal(status, 0, 'app.run([]) should exit 0');
+    assert.equal(activateError, null, `activate handler threw: ${activateError && activateError.stack}`);
+    assert.equal(status, 0, 'app.run([]) should exit 0');
 
-  assert.equal(results.childType, 'NodeGiCtorChild', 'the template child is the registered custom type');
+    assert.equal(results.childType, 'NodeGiCtorChild', 'the template child is the registered custom type');
 
-  // The JS constructor ran for the GtkBuilder-created child.
-  assert.equal(results.markerField, 'ctor-ran', 'the ctor body ran: this._marker expando is set');
-  assert.equal(results.answer, 42, 'the ctor body ran: this._answer expando is set');
-  // USER_PROTO reachable: the get accessor + method resolve on the template child.
-  assert.equal(results.marker, 'ctor-ran', 'get marker() resolves (USER_PROTO attached)');
-  assert.equal(results.describe, 'ctor-ran:42', 'a user method runs against the template child');
-  assert.equal(results.isInstance, true, 'the template child is an instanceof the JS class');
+    // The JS constructor ran for the GtkBuilder-created child.
+    assert.equal(results.markerField, 'ctor-ran', 'the ctor body ran: this._marker expando is set');
+    assert.equal(results.answer, 42, 'the ctor body ran: this._answer expando is set');
+    // USER_PROTO reachable: the get accessor + method resolve on the template child.
+    assert.equal(results.marker, 'ctor-ran', 'get marker() resolves (USER_PROTO attached)');
+    assert.equal(results.describe, 'ctor-ran:42', 'a user method runs against the template child');
+    assert.equal(results.isInstance, true, 'the template child is an instanceof the JS class');
 
-  // Exactly once for the template child; the JS-`new` adds exactly one more.
-  assert.equal(results.runsAfterTemplate, 1, 'the template-child ctor ran EXACTLY once (no double-run)');
-  assert.equal(results.directMarker, 'ctor-ran', 'a plain `new ChildWidget()` still runs its ctor');
-  assert.equal(results.runsAfterDirect, 2, 'JS-`new` runs the ctor once more (no double-run on that path)');
+    // Exactly once for the template child; the JS-`new` adds exactly one more.
+    assert.equal(results.runsAfterTemplate, 1, 'the template-child ctor ran EXACTLY once (no double-run)');
+    assert.equal(results.directMarker, 'ctor-ran', 'a plain `new ChildWidget()` still runs its ctor');
+    assert.equal(results.runsAfterDirect, 2, 'JS-`new` runs the ctor once more (no double-run on that path)');
 });

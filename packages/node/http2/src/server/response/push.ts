@@ -22,11 +22,7 @@ export interface ResponsePushMethods {
         headers: Record<string, string | string[] | number>,
         options:
             | { parent?: number; weight?: number; exclusive?: boolean }
-            | ((
-                  err: Error | null,
-                  pushStream: ServerHttp2Stream,
-                  headers: Record<string, string | string[]>,
-              ) => void),
+            | ((err: Error | null, pushStream: ServerHttp2Stream, headers: Record<string, string | string[]>) => void),
         callback?: (
             err: Error | null,
             pushStream: ServerHttp2Stream,
@@ -44,11 +40,7 @@ export interface StreamPushMethods {
         headers: Record<string, string | string[] | number>,
         options:
             | { parent?: number; weight?: number; exclusive?: boolean }
-            | ((
-                  err: Error | null,
-                  pushStream: ServerHttp2Stream,
-                  headers: Record<string, string | string[]>,
-              ) => void),
+            | ((err: Error | null, pushStream: ServerHttp2Stream, headers: Record<string, string | string[]>) => void),
         callback?: (
             err: Error | null,
             pushStream: ServerHttp2Stream,
@@ -80,11 +72,7 @@ const responsePushMethods: ResponsePushMethods & ThisType<Http2ServerResponse> =
         headers: Record<string, string | string[] | number>,
         options:
             | { parent?: number; weight?: number; exclusive?: boolean }
-            | ((
-                  err: Error | null,
-                  pushStream: ServerHttp2Stream,
-                  headers: Record<string, string | string[]>,
-              ) => void),
+            | ((err: Error | null, pushStream: ServerHttp2Stream, headers: Record<string, string | string[]>) => void),
         callback?: (
             err: Error | null,
             pushStream: ServerHttp2Stream,
@@ -148,11 +136,7 @@ const streamPushMethods: StreamPushMethods & ThisType<ServerHttp2Stream> = {
         headers: Record<string, string | string[] | number>,
         options:
             | { parent?: number; weight?: number; exclusive?: boolean }
-            | ((
-                  err: Error | null,
-                  pushStream: ServerHttp2Stream,
-                  headers: Record<string, string | string[]>,
-              ) => void),
+            | ((err: Error | null, pushStream: ServerHttp2Stream, headers: Record<string, string | string[]>) => void),
         callback?: (
             err: Error | null,
             pushStream: ServerHttp2Stream,

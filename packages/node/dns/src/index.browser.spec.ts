@@ -14,14 +14,7 @@
 //   - Every `resolve*` / `reverse` (callback + promise) reports ENOTSUP.
 
 import { describe, it, expect } from '@gjsify/unit';
-import {
-    lookup,
-    resolve4,
-    reverse,
-    promises,
-    NOTFOUND,
-    CONNREFUSED,
-} from './browser.js';
+import { lookup, resolve4, reverse, promises, NOTFOUND, CONNREFUSED } from './browser.js';
 
 export default async () => {
     await describe('dns (browser)', async () => {

@@ -104,11 +104,7 @@ export const tscCommand: Command<unknown, TscOptions> = {
         let nodeTscPath: string | undefined;
         for (const anchor of anchors) {
             try {
-                nodeTscPath = join(
-                    dirname(createRequire(anchor).resolve('typescript/package.json')),
-                    'lib',
-                    'tsc.js',
-                );
+                nodeTscPath = join(dirname(createRequire(anchor).resolve('typescript/package.json')), 'lib', 'tsc.js');
                 break;
             } catch {
                 // try the next anchor

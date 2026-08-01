@@ -43,9 +43,7 @@ async function startWsServer(): Promise<WsTestServer> {
                 }
             }
             await new Promise<void>((resolve) => wss.close(() => resolve()));
-            await new Promise<void>((resolve, reject) =>
-                httpServer.close((err) => (err ? reject(err) : resolve())),
-            );
+            await new Promise<void>((resolve, reject) => httpServer.close((err) => (err ? reject(err) : resolve())));
         },
     };
 }
@@ -100,11 +98,7 @@ export default async () => {
                 await waitOpen(ws);
 
                 const received = await new Promise<string>((resolve) => {
-                    ws.addEventListener(
-                        'message',
-                        (ev: MessageEvent) => resolve(String(ev.data)),
-                        { once: true },
-                    );
+                    ws.addEventListener('message', (ev: MessageEvent) => resolve(String(ev.data)), { once: true });
                     ws.send('ping');
                 });
 
@@ -154,11 +148,9 @@ export default async () => {
                 const payload = new Uint8Array([1, 2, 3, 4, 5]);
 
                 const received = await new Promise<ArrayBuffer | string>((resolve) => {
-                    ws.addEventListener(
-                        'message',
-                        (ev: MessageEvent) => resolve(ev.data as ArrayBuffer | string),
-                        { once: true },
-                    );
+                    ws.addEventListener('message', (ev: MessageEvent) => resolve(ev.data as ArrayBuffer | string), {
+                        once: true,
+                    });
                     ws.send(payload);
                 });
 
@@ -185,11 +177,7 @@ export default async () => {
                 await waitOpen(ws);
 
                 const closeEv = await new Promise<CloseEvent>((resolve) => {
-                    ws.addEventListener(
-                        'close',
-                        (ev) => resolve(ev as CloseEvent),
-                        { once: true },
-                    );
+                    ws.addEventListener('close', (ev) => resolve(ev as CloseEvent), { once: true });
                     ws.send('triggers-close');
                 });
 

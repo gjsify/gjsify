@@ -47,7 +47,8 @@ const BARE_IMAGE_LEDGER = {
     'napi.yml/nodegi-shim': 'pending switch to the baked image',
     'release.yml/node-gi-prebuild-linux': 'pending switch — ON THE RELEASE PATH, do this one first',
     'release.yml/napi-prebuild-linux': 'pending switch — ON THE RELEASE PATH, do this one first',
-    'prebuilds.yml/build-prebuilds': 'pins fedora:43 while the baked image tracks 43+44 — confirm the pin still matters',
+    'prebuilds.yml/build-prebuilds':
+        'pins fedora:43 while the baked image tracks 43+44 — confirm the pin still matters',
 };
 
 /** Packages a `dnf install` line asks for, with line continuations joined. */

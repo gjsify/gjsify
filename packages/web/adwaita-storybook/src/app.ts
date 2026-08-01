@@ -153,10 +153,7 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
 
     // --- StorybookView<StoryElement> render seams (driven by the controller) ---
 
-    renderSidebar(
-        groups: Array<CategoryGroup<StoryElement>>,
-        onSelect: (instance: StoryElement) => void,
-    ): void {
+    renderSidebar(groups: Array<CategoryGroup<StoryElement>>, onSelect: (instance: StoryElement) => void): void {
         this._listEl.replaceChildren();
         this._rowByTitle.clear();
 

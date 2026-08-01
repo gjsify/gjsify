@@ -9,7 +9,7 @@ import { gbytesToUint8Array } from './byte-array.js';
  *   const stream = await gioAsync<Gio.InputStream>(session, 'send_async', 'send_finish', msg, priority, null);
  */
 // oxlint-disable-next-line typescript/no-explicit-any -- GObject/Gio introspection boundary: obj is a GObject instance with dynamic async/finish methods
-export function gioAsync<T>(obj: any, asyncMethod: string, finishMethod: string, ...args: any[]): Promise<T> { // eslint-disable-line @typescript-eslint/no-explicit-any
+export function gioAsync<T>(obj: any, asyncMethod: string, finishMethod: string, ...args: any[]): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         obj[asyncMethod](...args, (_self: unknown, asyncRes: Gio.AsyncResult) => {
             try {

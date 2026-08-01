@@ -319,7 +319,7 @@ export default async () => {
                 // lib.dom's `RTCSctpTransport` interface doesn't expose
                 // `_setMaxMessageSize` (it's our internal extension);
                 // cast through `unknown` to reach the test-only setter.
-                ;(pcA.sctp! as unknown as { _setMaxMessageSize(v: number): void })._setMaxMessageSize(1024)
+                (pcA.sctp! as unknown as { _setMaxMessageSize(v: number): void })._setMaxMessageSize(1024);
 
                 // Within-limit send: ~512 bytes of string MUST succeed
                 expect(() => channelA.send('a'.repeat(512))).not.toThrow();
@@ -376,7 +376,7 @@ export default async () => {
                 await pcA.setRemoteDescription(answer);
                 if (channelA.readyState !== 'open') await awaitEvent(channelA, 'open');
 
-                ;(pcA.sctp! as unknown as { _setMaxMessageSize(v: number): void })._setMaxMessageSize(0)
+                (pcA.sctp! as unknown as { _setMaxMessageSize(v: number): void })._setMaxMessageSize(0);
                 expect(() => channelA.send('a'.repeat(100_000))).not.toThrow();
 
                 channelA.close();

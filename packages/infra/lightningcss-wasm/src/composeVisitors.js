@@ -374,7 +374,7 @@ function createArrayVisitor(visitors, apply) {
             // For each value, call all visitors. If a visitor returns a new value,
             // we start over, but skip the visitor that generated the value or saw
             // it before (to avoid cycles). This way, visitors can be composed in any order.
-            for (let v = 0; v < visitors.length && i < arr.length; ) {
+            for (let v = 0; v < visitors.length && i < arr.length;) {
                 if (seen.get(v)) {
                     v++;
                     continue;

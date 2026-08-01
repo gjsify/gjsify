@@ -69,9 +69,10 @@ export default async () => {
             expect(torrent.infoHash).toBe(fixtures.leaves.parsedTorrent.infoHash);
             expect(torrent.magnetURI).toBe(fixtures.leaves.magnetURI);
 
-            const buffer: ArrayBuffer = await (
-                torrent.files[0] as unknown as TorrentFileWithArrayBuffer
-            ).arrayBuffer({ start: 0, end: 99 });
+            const buffer: ArrayBuffer = await (torrent.files[0] as unknown as TorrentFileWithArrayBuffer).arrayBuffer({
+                start: 0,
+                end: 99,
+            });
             expect(buffer.byteLength).toBe(100);
 
             const orig = fixtures.leaves.content.buffer.slice(0, 100);

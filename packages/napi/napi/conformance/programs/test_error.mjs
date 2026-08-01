@@ -9,33 +9,87 @@ export default async function run(h) {
     // napi_is_error across every native error subtype + a user subclass.
     class MyError extends Error {}
     for (const [lbl, v] of [
-        ['Error', new Error('e')], ['TypeError', new TypeError('e')], ['SyntaxError', new SyntaxError('e')],
-        ['RangeError', new RangeError('e')], ['ReferenceError', new ReferenceError('e')],
-        ['URIError', new URIError('e')], ['EvalError', new EvalError('e')], ['MyError', new MyError('e')],
-        ['{}', {}], ["'str'", 'non-object'],
+        ['Error', new Error('e')],
+        ['TypeError', new TypeError('e')],
+        ['SyntaxError', new SyntaxError('e')],
+        ['RangeError', new RangeError('e')],
+        ['ReferenceError', new ReferenceError('e')],
+        ['URIError', new URIError('e')],
+        ['EvalError', new EvalError('e')],
+        ['MyError', new MyError('e')],
+        ['{}', {}],
+        ["'str'", 'non-object'],
     ])
         h.emit('checkError', lbl, t.checkError(v));
 
     // napi_throw / napi_throw_*_error — name+message round-trip.
-    h.emit('throwExisting', h.caughtFull(() => t.throwExistingError()));
-    h.emit('throwError', h.caughtFull(() => t.throwError()));
-    h.emit('throwRange', h.caughtFull(() => t.throwRangeError()));
-    h.emit('throwType', h.caughtFull(() => t.throwTypeError()));
-    h.emit('throwSyntax', h.caughtFull(() => t.throwSyntaxError()));
+    h.emit(
+        'throwExisting',
+        h.caughtFull(() => t.throwExistingError()),
+    );
+    h.emit(
+        'throwError',
+        h.caughtFull(() => t.throwError()),
+    );
+    h.emit(
+        'throwRange',
+        h.caughtFull(() => t.throwRangeError()),
+    );
+    h.emit(
+        'throwType',
+        h.caughtFull(() => t.throwTypeError()),
+    );
+    h.emit(
+        'throwSyntax',
+        h.caughtFull(() => t.throwSyntaxError()),
+    );
 
     // napi_throw with an arbitrary value: the thrown value IS the argument.
-    for (const [lbl, v] of [['42', 42], ['{}', {}], ['[]', []], ['sym', Symbol('xyzzy')], ['true', true], ["'ball'", 'ball'], ['undefined', undefined], ['null', null], ['NaN', NaN]]) {
+    for (const [lbl, v] of [
+        ['42', 42],
+        ['{}', {}],
+        ['[]', []],
+        ['sym', Symbol('xyzzy')],
+        ['true', true],
+        ["'ball'", 'ball'],
+        ['undefined', undefined],
+        ['null', null],
+        ['NaN', NaN],
+    ]) {
         let same = 'no-throw';
-        try { t.throwArbitrary(v); } catch (e) { same = e === v; }
+        try {
+            t.throwArbitrary(v);
+        } catch (e) {
+            same = e === v;
+        }
         h.emit('throwArbitrary', lbl, same);
     }
 
     // *ErrorCode variants attach a code.
-    const code = (fn) => { try { fn(); return 'no-throw'; } catch (e) { return `${e.code}|${e.message}`; } };
-    h.emit('throwErrorCode', code(() => t.throwErrorCode()));
-    h.emit('throwRangeErrorCode', code(() => t.throwRangeErrorCode()));
-    h.emit('throwTypeErrorCode', code(() => t.throwTypeErrorCode()));
-    h.emit('throwSyntaxErrorCode', code(() => t.throwSyntaxErrorCode()));
+    const code = (fn) => {
+        try {
+            fn();
+            return 'no-throw';
+        } catch (e) {
+            return `${e.code}|${e.message}`;
+        }
+    };
+    h.emit(
+        'throwErrorCode',
+        code(() => t.throwErrorCode()),
+    );
+    h.emit(
+        'throwRangeErrorCode',
+        code(() => t.throwRangeErrorCode()),
+    );
+    h.emit(
+        'throwTypeErrorCode',
+        code(() => t.throwTypeErrorCode()),
+    );
+    h.emit(
+        'throwSyntaxErrorCode',
+        code(() => t.throwSyntaxErrorCode()),
+    );
 
     // napi_create_*_error — instance class + message.
     const desc = (e, Ctor) => `${e instanceof Ctor}|${e.message}`;

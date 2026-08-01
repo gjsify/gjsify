@@ -153,7 +153,7 @@ export default async () => {
             expect(parsed.RETAIN_INNER_QUOTES_AS_STRING).toBe('{"foo": "bar"}');
         });
 
-        await it("retains inner quotes (backtick-quoted JSON with embedded apostrophe)", () => {
+        await it('retains inner quotes (backtick-quoted JSON with embedded apostrophe)', () => {
             expect(parsed.RETAIN_INNER_QUOTES_AS_BACKTICKS).toBe('{"foo": "bar\'s"}');
         });
 

@@ -65,8 +65,8 @@ export async function runStreamDemo(log: LogFn): Promise<void> {
     const seedInput =
         typeof Buffer !== 'undefined'
             ? Object.assign(Buffer.from(payload), { name: filename })
-            // oxlint-disable-next-line typescript/no-explicit-any -- Buffer with .name property; File constructor accepts BufferSource but types don't allow this augmented Buffer
-            : new File([payload as any], filename, { type: 'text/plain' });
+            : // oxlint-disable-next-line typescript/no-explicit-any -- Buffer with .name property; File constructor accepts BufferSource but types don't allow this augmented Buffer
+              new File([payload as any], filename, { type: 'text/plain' });
 
     const torrent = await new Promise<WebTorrent.Torrent>((resolve, reject) => {
         const t = seeder.seed(seedInput, { announce: TRACKERS });

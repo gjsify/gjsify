@@ -3,12 +3,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { ControlType, type StoryArgs, type StoryArgValue, type StoryControl, type StoryMeta } from '@gjsify/stories';
-import {
-    StorybookController,
-    type CategoryGroup,
-    type StoryInstanceLike,
-    type StorybookView,
-} from './controller.js';
+import { StorybookController, type CategoryGroup, type StoryInstanceLike, type StorybookView } from './controller.js';
 import type { ControlRow } from './controls.js';
 import type { StoryModuleLike } from './registry.js';
 
@@ -22,7 +17,8 @@ class MockStory implements StoryInstanceLike {
         readonly story = 'Default',
     ) {
         this._args = {};
-        for (const c of meta.controls ?? []) this._args[c.name] = (c as { defaultValue?: StoryArgValue }).defaultValue ?? null;
+        for (const c of meta.controls ?? [])
+            this._args[c.name] = (c as { defaultValue?: StoryArgValue }).defaultValue ?? null;
     }
     initialize(): void {
         this.initialized = true;
@@ -74,11 +70,16 @@ class MockView implements StorybookView<MockStory> {
 const ctrl = (name: string): StoryControl => ({ type: ControlType.TEXT, name, label: name });
 
 function makeModule(...metas: StoryMeta[]): StoryModuleLike<MockStory, new () => MockStory> {
-    return { stories: metas.map((m) => class extends MockStory {
-        constructor() {
-            super(m);
-        }
-    }) };
+    return {
+        stories: metas.map(
+            (m) =>
+                class extends MockStory {
+                    constructor() {
+                        super(m);
+                    }
+                },
+        ),
+    };
 }
 
 export default async () => {

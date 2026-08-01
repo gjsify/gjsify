@@ -65,9 +65,11 @@ export interface OpfsPersistenceController {
 
 /** Feature-detect the main-thread OPFS root accessor. */
 export function hasOpfs(): boolean {
-    return typeof navigator !== 'undefined'
-        && typeof navigator.storage !== 'undefined'
-        && typeof navigator.storage.getDirectory === 'function';
+    return (
+        typeof navigator !== 'undefined' &&
+        typeof navigator.storage !== 'undefined' &&
+        typeof navigator.storage.getDirectory === 'function'
+    );
 }
 
 const DEFAULT_ROOT = 'gjsify-fs';
@@ -102,9 +104,11 @@ async function readOpfsTree(
 ): Promise<void> {
     let empty = true;
     // `entries()` is an async iterator on FileSystemDirectoryHandle.
-    for await (const [name, handle] of (dir as unknown as {
-        entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
-    }).entries()) {
+    for await (const [name, handle] of (
+        dir as unknown as {
+            entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
+        }
+    ).entries()) {
         empty = false;
         const childPath = prefix === '/' ? '/' + name : prefix + '/' + name;
         if (handle.kind === 'directory') {
@@ -119,10 +123,7 @@ async function readOpfsTree(
 }
 
 /** Mirror the volume's current snapshot into OPFS under `root`. */
-async function flushVolumeToOpfs(
-    vol: Volume,
-    root: FileSystemDirectoryHandle,
-): Promise<void> {
+async function flushVolumeToOpfs(vol: Volume, root: FileSystemDirectoryHandle): Promise<void> {
     const snapshot = vol.toJSON();
 
     // 1. Write / create every path present in the snapshot.
@@ -159,9 +160,11 @@ async function pruneStale(
     liveDirs: Set<string>,
 ): Promise<void> {
     const toRemove: Array<{ name: string; recursive: boolean }> = [];
-    for await (const [name, handle] of (dir as unknown as {
-        entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
-    }).entries()) {
+    for await (const [name, handle] of (
+        dir as unknown as {
+            entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
+        }
+    ).entries()) {
         const childKey = prefix ? prefix + '/' + name : name;
         if (handle.kind === 'directory') {
             // Recurse first so we can drop a now-empty live dir's stale children.
@@ -174,7 +177,11 @@ async function pruneStale(
         }
     }
     for (const { name, recursive } of toRemove) {
-        try { await dir.removeEntry(name, { recursive }); } catch { /* already gone */ }
+        try {
+            await dir.removeEntry(name, { recursive });
+        } catch {
+            /* already gone */
+        }
     }
 }
 
@@ -190,9 +197,7 @@ async function pruneStale(
  * volume continues to work purely in-memory. This never throws for a missing
  * platform — only an actual OPFS I/O error during setup yields `reason: 'error'`.
  */
-export async function enableOpfsPersistence(
-    options: OpfsPersistenceOptions = {},
-): Promise<OpfsPersistenceController> {
+export async function enableOpfsPersistence(options: OpfsPersistenceOptions = {}): Promise<OpfsPersistenceController> {
     const vol = options.volume ?? __defaultVolume;
 
     if (!hasOpfs()) {
@@ -249,12 +254,18 @@ export async function enableOpfsPersistence(
     return {
         enabled: true,
         async flush(): Promise<void> {
-            if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+            if (timer !== undefined) {
+                clearTimeout(timer);
+                timer = undefined;
+            }
             pending = false;
             await doFlush();
         },
         disable(): void {
-            if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+            if (timer !== undefined) {
+                clearTimeout(timer);
+                timer = undefined;
+            }
             unsubscribe();
             void pending; // a still-pending mutation is intentionally dropped on disable
         },

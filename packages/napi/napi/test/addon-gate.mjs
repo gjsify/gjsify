@@ -15,7 +15,17 @@
 // SYNC addon; 2 when an `async` addon fails as expected (a recorded FINDING).
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    mkdtempSync,
+    readdirSync,
+    realpathSync,
+    renameSync,
+    rmSync,
+    symlinkSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,7 +51,11 @@ function resolveCli() {
     return inTree; // fall through (will fail loudly with a clear message)
 }
 function resolveRealpath(p) {
-    try { return realpathSync(p); } catch { return p; }
+    try {
+        return realpathSync(p);
+    } catch {
+        return p;
+    }
 }
 const CLI = resolveCli();
 const runGjsify = (args, opts) => execFileSync(process.execPath, [CLI, ...args], opts);
@@ -53,7 +67,10 @@ const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
 const name = process.argv[2];
 const cfg = ADDONS[name];
 const stage = (m) => console.error(`[gate:${name}] ${m}`);
-const die = (m, code = 1) => { console.error(`ADDON GATE ${name}: FAIL — ${m}`); process.exit(code); };
+const die = (m, code = 1) => {
+    console.error(`ADDON GATE ${name}: FAIL — ${m}`);
+    process.exit(code);
+};
 if (!cfg) die(`unknown addon '${name}'. Known: ${Object.keys(ADDONS).join(', ')}`);
 
 const abs = (p) => (p ? resolve(ADDONS_DIR, p) : null);
@@ -93,9 +110,23 @@ const rc = join(ADDONS_DIR, '.gjsifyrc.mjs');
 const disabled = [];
 
 function cleanup() {
-    try { rmSync(rc, { force: true }); } catch { /* ignore */ }
-    for (const d of disabled) { try { renameSync(`${d}.disabled`, d); } catch { /* ignore */ } }
-    try { rmSync(tmp, { recursive: true, force: true }); } catch { /* ignore */ }
+    try {
+        rmSync(rc, { force: true });
+    } catch {
+        /* ignore */
+    }
+    for (const d of disabled) {
+        try {
+            renameSync(`${d}.disabled`, d);
+        } catch {
+            /* ignore */
+        }
+    }
+    try {
+        rmSync(tmp, { recursive: true, force: true });
+    } catch {
+        /* ignore */
+    }
 }
 process.on('exit', cleanup);
 
@@ -130,7 +161,10 @@ try {
     // Force both runtimes onto the same source-built .node by hiding prebuilds.
     for (const p of cfg.prebuilds ?? []) {
         const d = abs(p);
-        if (existsSync(d)) { renameSync(d, `${d}.disabled`); disabled.push(d); }
+        if (existsSync(d)) {
+            renameSync(d, `${d}.disabled`);
+            disabled.push(d);
+        }
     }
 
     // --- build the GJS bundle ---
@@ -138,7 +172,11 @@ try {
     // napi-rs: no alias — the resolver intercepts the bare specifier directly.
     const aliases = [...(entryReplace.length ? [] : [`${cfg.pkg}=${indexJs}`]), ...(cfg.aliases ?? [])];
     const aliasArgs = aliases.flatMap((a) => ['--alias', a]);
-    const build = runCapture(process.execPath, [CLI, 'build', workout, '--app', 'gjs', '--outfile', bundle, ...aliasArgs], { cwd: ADDONS_DIR });
+    const build = runCapture(
+        process.execPath,
+        [CLI, 'build', workout, '--app', 'gjs', '--outfile', bundle, ...aliasArgs],
+        { cwd: ADDONS_DIR },
+    );
     if (!build.ok || !existsSync(bundle)) {
         console.error(build.stderr || build.stdout);
         die('gjsify build failed / produced no bundle');

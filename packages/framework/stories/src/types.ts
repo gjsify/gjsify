@@ -131,9 +131,5 @@ export type StoryDecorator<TWidget = unknown> = (build: () => void, widget: TWid
 
 /** Narrowing guard — `true` when `value` is a {@link StoryModule}. */
 export function isStoryModule(value: unknown): value is StoryModule {
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        Array.isArray((value as { stories?: unknown }).stories)
-    );
+    return typeof value === 'object' && value !== null && Array.isArray((value as { stories?: unknown }).stories);
 }

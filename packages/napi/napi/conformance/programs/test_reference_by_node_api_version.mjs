@@ -24,7 +24,13 @@ async function runTests(h, addon, label, isVersion8, isLocalSymbol) {
             { name: 'boolean', value: false, canBeWeak: false, canBeRefV8: false },
             { name: 'number', value: 42, canBeWeak: false, canBeRefV8: false },
             { name: 'string', value: 'test_string', canBeWeak: false, canBeRefV8: false },
-            { name: 'symbol', value: symbolValue, canBeWeak: isLocalSymbol, canBeRefV8: true, isAlwaysStrong: !isLocalSymbol },
+            {
+                name: 'symbol',
+                value: symbolValue,
+                canBeWeak: isLocalSymbol,
+                canBeRefV8: true,
+                isAlwaysStrong: !isLocalSymbol,
+            },
             { name: 'object', value: { x: 1, y: 2 }, canBeWeak: true, canBeRefV8: true },
             { name: 'function', value: (x, y) => x + y, canBeWeak: true, canBeRefV8: true },
             { name: 'external', value: addon.createExternal(), canBeWeak: true, canBeRefV8: true },
@@ -34,10 +40,25 @@ async function runTests(h, addon, label, isVersion8, isLocalSymbol) {
         for (const entry of allEntries) {
             if (!isVersion8 || entry.canBeRefV8) {
                 const index = addon.createRef(entry.value);
-                h.emit(label, entry.name, 'value-eq', addon.getRefValue(index) === entry.value,
-                    'ref', addon.ref(index), 'unref', addon.unref(index), 'unref', addon.unref(index));
+                h.emit(
+                    label,
+                    entry.name,
+                    'value-eq',
+                    addon.getRefValue(index) === entry.value,
+                    'ref',
+                    addon.ref(index),
+                    'unref',
+                    addon.unref(index),
+                    'unref',
+                    addon.unref(index),
+                );
             } else {
-                h.emit(label, entry.name, 'createRef!', h.caughtFull(() => addon.createRef(entry.value)));
+                h.emit(
+                    label,
+                    entry.name,
+                    'createRef!',
+                    h.caughtFull(() => addon.createRef(entry.value)),
+                );
             }
         }
 
@@ -58,7 +79,9 @@ async function runTests(h, addon, label, isVersion8, isLocalSymbol) {
     addon.initFinalizeCount();
     h.emit(label, 'finalizeCount.start', addon.getFinalizeCount());
     await h.gcUntil(() => addon.getFinalizeCount() === 1, 'finalizer 1');
-    (() => { addon.addFinalizer({}); })();
+    (() => {
+        addon.addFinalizer({});
+    })();
     await h.gcUntil(() => addon.getFinalizeCount() === 2, 'finalizer 2');
 
     // After GC: everything weak is gone; only the always-strong global symbol

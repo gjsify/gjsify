@@ -42,9 +42,7 @@ function hasGjs() {
 }
 
 const arch = archDir();
-const PREBUILD = arch
-    ? join(REPO_ROOT, 'packages', 'infra', 'rolldown-native', 'prebuilds', arch)
-    : null;
+const PREBUILD = arch ? join(REPO_ROOT, 'packages', 'infra', 'rolldown-native', 'prebuilds', arch) : null;
 
 const SKIP =
     process.platform !== 'linux' ||

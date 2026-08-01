@@ -25,11 +25,7 @@ import type { Http2ServerResponse } from '../response.js';
  * the send (Node behaviour — wired through `_respondFromFD`).
  */
 export type StatCheckOptions = { offset?: number; length?: number };
-export type StatCheck = (
-    stats: Stats,
-    headers: OutgoingHttpHeaders,
-    statOptions: StatCheckOptions,
-) => void | boolean;
+export type StatCheck = (stats: Stats, headers: OutgoingHttpHeaders, statOptions: StatCheckOptions) => void | boolean;
 
 export interface RespondWithFileMethods {
     respondWithFD(

@@ -41,12 +41,8 @@ export default async () => {
         });
 
         await it('emits foreground + background + modifier in chain order', () => {
-            expect(chalk.red.bgGreen.underline('foo')).toBe(
-                `${E}31m${E}42m${E}4mfoo${E}24m${E}49m${E}39m`,
-            );
-            expect(chalk.underline.red.bgGreen('foo')).toBe(
-                `${E}4m${E}31m${E}42mfoo${E}49m${E}39m${E}24m`,
-            );
+            expect(chalk.red.bgGreen.underline('foo')).toBe(`${E}31m${E}42m${E}4mfoo${E}24m${E}49m${E}39m`);
+            expect(chalk.underline.red.bgGreen('foo')).toBe(`${E}4m${E}31m${E}42mfoo${E}49m${E}39m${E}24m`);
         });
 
         await it('reopens colors around nested same-style strings', () => {
@@ -103,15 +99,11 @@ export default async () => {
         });
 
         await it('reopens the color across LF line breaks', () => {
-            expect(chalk.grey('hello\nworld')).toBe(
-                `${E}90mhello${E}39m\n${E}90mworld${E}39m`,
-            );
+            expect(chalk.grey('hello\nworld')).toBe(`${E}90mhello${E}39m\n${E}90mworld${E}39m`);
         });
 
         await it('reopens the color across CRLF line breaks', () => {
-            expect(chalk.grey('hello\r\nworld')).toBe(
-                `${E}90mhello${E}39m\r\n${E}90mworld${E}39m`,
-            );
+            expect(chalk.grey('hello\r\nworld')).toBe(`${E}90mhello${E}39m\r\n${E}90mworld${E}39m`);
         });
 
         await it('supports the blackBright bright-color alias', () => {

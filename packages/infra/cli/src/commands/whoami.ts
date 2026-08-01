@@ -59,8 +59,7 @@ export const whoamiCommand: Command<unknown, WhoamiOptions> = {
         // intentionally NOT used here — `whoami` is account-scoped, not
         // package-scoped, so the user's *default* registry is what they
         // want to verify.
-        const registry =
-            args.registry ?? process.env.npm_config_registry ?? npmrc.registry ?? DEFAULT_REGISTRY;
+        const registry = args.registry ?? process.env.npm_config_registry ?? npmrc.registry ?? DEFAULT_REGISTRY;
         const registryClean = registry.endsWith('/') ? registry.slice(0, -1) : registry;
         const asJson = args.json === true;
 
@@ -69,9 +68,7 @@ export const whoamiCommand: Command<unknown, WhoamiOptions> = {
         // (`npm login`) instead of a registry-side 401.
         if (!hasAnyCredential(npmrc)) {
             if (asJson) {
-                process.stdout.write(
-                    `${JSON.stringify({ error: 'no-token-configured', registry: registryClean })}\n`,
-                );
+                process.stdout.write(`${JSON.stringify({ error: 'no-token-configured', registry: registryClean })}\n`);
             } else {
                 process.stderr.write(
                     [
@@ -96,9 +93,7 @@ export const whoamiCommand: Command<unknown, WhoamiOptions> = {
             // Branch 4 — network / non-2xx / parse failure.
             const message = err instanceof Error ? err.message : String(err);
             if (asJson) {
-                process.stdout.write(
-                    `${JSON.stringify({ error: message, registry: registryClean })}\n`,
-                );
+                process.stdout.write(`${JSON.stringify({ error: message, registry: registryClean })}\n`);
             } else {
                 process.stderr.write(`gjsify whoami: ${message}\n`);
                 process.stderr.write(`Registry: ${registryClean}\n`);
@@ -111,9 +106,7 @@ export const whoamiCommand: Command<unknown, WhoamiOptions> = {
         if (result.username && result.username.length > 0) {
             // Branch 1 — live token.
             if (asJson) {
-                process.stdout.write(
-                    `${JSON.stringify({ username: result.username, registry: registryClean })}\n`,
-                );
+                process.stdout.write(`${JSON.stringify({ username: result.username, registry: registryClean })}\n`);
             } else {
                 process.stdout.write(`Logged in as: ${result.username}\n`);
                 process.stdout.write(`Registry:     ${registryClean}\n`);
@@ -123,9 +116,7 @@ export const whoamiCommand: Command<unknown, WhoamiOptions> = {
 
         // Branch 2 — dead/revoked token (registry returned `{}`).
         if (asJson) {
-            process.stdout.write(
-                `${JSON.stringify({ error: 'dead-token', registry: registryClean })}\n`,
-            );
+            process.stdout.write(`${JSON.stringify({ error: 'dead-token', registry: registryClean })}\n`);
         } else {
             process.stderr.write(
                 [

@@ -128,13 +128,7 @@ export default async () => {
             });
             registry.createStoryInstances();
             // reduceRight folds so the FIRST decorator is the outermost wrapper.
-            expect(order).toStrictEqual([
-                'outer-before',
-                'inner-before',
-                'init',
-                'inner-after',
-                'outer-after',
-            ]);
+            expect(order).toStrictEqual(['outer-before', 'inner-before', 'init', 'inner-after', 'outer-after']);
         });
 
         await it('passes the instance to each decorator', () => {
@@ -145,10 +139,12 @@ export default async () => {
             const registry = new StoryRegistry<Tracked2>();
             registry.registerStory({
                 stories: [Tracked2],
-                decorators: [(build, instance) => {
-                    seen.push(instance);
-                    build();
-                }],
+                decorators: [
+                    (build, instance) => {
+                        seen.push(instance);
+                        build();
+                    },
+                ],
             });
             const result = registry.createStoryInstances();
             expect(seen.length).toBe(1);

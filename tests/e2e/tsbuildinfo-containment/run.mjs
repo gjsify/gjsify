@@ -91,9 +91,7 @@ describe('tsbuildinfo containment', () => {
             const buildInfo = buildInfoPathFor(pkgDir);
             if (!buildInfo) continue;
             if (relative(pkgDir, buildInfo).startsWith('..')) {
-                escaping.push(
-                    `${relative(MONOREPO_ROOT, pkgDir)} → ${relative(MONOREPO_ROOT, buildInfo)}`,
-                );
+                escaping.push(`${relative(MONOREPO_ROOT, pkgDir)} → ${relative(MONOREPO_ROOT, buildInfo)}`);
             }
         }
         assert.deepEqual(

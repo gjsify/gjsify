@@ -44,7 +44,16 @@
 // network filesystem with broken rename/mkdir atomicity, or an outer tool
 // that already serializes installs).
 
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    realpathSync,
+    renameSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 export interface InstallLockHandle {

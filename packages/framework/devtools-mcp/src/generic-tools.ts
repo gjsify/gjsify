@@ -108,7 +108,7 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
             'activate_action',
             {
                 description:
-                    "Activate a GAction by scope + name, with an optional parameter (a plain JSON value coerced " +
+                    'Activate a GAction by scope + name, with an optional parameter (a plain JSON value coerced ' +
                     "to the action's declared type).",
                 inputSchema: z.object({
                     scope: z.enum(['app', 'win']),
@@ -165,7 +165,7 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
     if (want('present_window')) {
         server.registerTool(
             'present_window',
-            { description: "Raise + focus the app’s active window.", inputSchema: z.object({ ...instanceArg }) },
+            { description: 'Raise + focus the app’s active window.', inputSchema: z.object({ ...instanceArg }) },
             async ({ instance }) => {
                 try {
                     await client.control(instance, 'PresentWindow', null, null);

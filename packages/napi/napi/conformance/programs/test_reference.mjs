@@ -36,7 +36,10 @@ export default async function run(h) {
     })();
     t.deleteReference();
 
-    h.emit('symForIncorrectLength!', h.caughtFull(() => t.createSymbolForIncorrectLength()));
+    h.emit(
+        'symForIncorrectLength!',
+        h.caughtFull(() => t.createSymbolForIncorrectLength()),
+    );
 
     // External without finalizer: type + no finalize.
     (() => {

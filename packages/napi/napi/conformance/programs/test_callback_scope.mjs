@@ -14,11 +14,17 @@ export const meta = { dir: 'test_callback_scope', targets: ['binding'], suite: '
 export default async function run(h) {
     const { runInCallbackScope } = h.loadAddon('binding');
 
-    h.emit('returns', runInCallbackScope({}, 'test-resource', () => 42));
+    h.emit(
+        'returns',
+        runInCallbackScope({}, 'test-resource', () => 42),
+    );
 
-    h.emit('throws', h.caughtFull(() => {
-        runInCallbackScope({}, 'test-resource', () => {
-            throw new Error('foo');
-        });
-    }));
+    h.emit(
+        'throws',
+        h.caughtFull(() => {
+            runInCallbackScope({}, 'test-resource', () => {
+                throw new Error('foo');
+            });
+        }),
+    );
 }

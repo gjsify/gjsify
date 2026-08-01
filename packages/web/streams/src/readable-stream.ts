@@ -617,7 +617,9 @@ class ReadableStreamDefaultController {
 // ---- Brand checks ----
 
 const isReadableStream = isBrandCheck<ReadableStream>('ReadableStream');
-const isReadableStreamDefaultController = isBrandCheck<ReadableStreamDefaultController>('ReadableStreamDefaultController');
+const isReadableStreamDefaultController = isBrandCheck<ReadableStreamDefaultController>(
+    'ReadableStreamDefaultController',
+);
 const isReadableStreamDefaultReader = isBrandCheck<ReadableStreamDefaultReader>('ReadableStreamDefaultReader');
 
 // ---- Stream state helpers ----
@@ -907,7 +909,10 @@ function readableStreamDefaultControllerCancelSteps(
     return result;
 }
 
-function readableStreamDefaultControllerPullSteps(controller: ReadableStreamDefaultController, readRequest: ReadRequest): void {
+function readableStreamDefaultControllerPullSteps(
+    controller: ReadableStreamDefaultController,
+    readRequest: ReadRequest,
+): void {
     const { stream, queue } = controller[kState];
     if (queue.length) {
         const chunk = dequeueValue(controller);
@@ -1022,7 +1027,10 @@ function readableStreamFromIterable(iterable: unknown): ReadableStream {
             if (iterResult.done) {
                 readableStreamDefaultControllerClose(stream[kState].controller as ReadableStreamDefaultController);
             } else {
-                readableStreamDefaultControllerEnqueue(stream[kState].controller as ReadableStreamDefaultController, iterResult.value);
+                readableStreamDefaultControllerEnqueue(
+                    stream[kState].controller as ReadableStreamDefaultController,
+                    iterResult.value,
+                );
             }
         });
     }
@@ -1336,10 +1344,16 @@ function readableStreamDefaultTee(stream: ReadableStream, cloneForBranch2: boole
                         }
                     }
                     if (!canceled1) {
-                        readableStreamDefaultControllerEnqueue(branch1[kState].controller as ReadableStreamDefaultController, value1);
+                        readableStreamDefaultControllerEnqueue(
+                            branch1[kState].controller as ReadableStreamDefaultController,
+                            value1,
+                        );
                     }
                     if (!canceled2) {
-                        readableStreamDefaultControllerEnqueue(branch2[kState].controller as ReadableStreamDefaultController, value2);
+                        readableStreamDefaultControllerEnqueue(
+                            branch2[kState].controller as ReadableStreamDefaultController,
+                            value2,
+                        );
                     }
                 });
             },
@@ -1349,8 +1363,14 @@ function readableStreamDefaultTee(stream: ReadableStream, cloneForBranch2: boole
                 // queueMicrotask which is the closest equivalent in GJS.
                 _queueMicrotask(() => {
                     reading = false;
-                    if (!canceled1) readableStreamDefaultControllerClose(branch1[kState].controller as ReadableStreamDefaultController);
-                    if (!canceled2) readableStreamDefaultControllerClose(branch2[kState].controller as ReadableStreamDefaultController);
+                    if (!canceled1)
+                        readableStreamDefaultControllerClose(
+                            branch1[kState].controller as ReadableStreamDefaultController,
+                        );
+                    if (!canceled2)
+                        readableStreamDefaultControllerClose(
+                            branch2[kState].controller as ReadableStreamDefaultController,
+                        );
                     if (!canceled1 || !canceled2) cancelPromise.resolve(undefined);
                 });
             },
@@ -1835,7 +1855,10 @@ function readableByteStreamControllerEnqueueClonedChunkToQueue(
     readableByteStreamControllerEnqueueChunkToQueue(controller, cloneResult, 0, byteLength);
 }
 
-function readableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller: ReadableByteStreamController, pullIntoDescriptor: PullIntoDescriptor): void {
+function readableByteStreamControllerEnqueueDetachedPullIntoToQueue(
+    controller: ReadableByteStreamController,
+    pullIntoDescriptor: PullIntoDescriptor,
+): void {
     if (pullIntoDescriptor.bytesFilled > 0) {
         readableByteStreamControllerEnqueueClonedChunkToQueue(
             controller,
@@ -1847,7 +1870,9 @@ function readableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller: 
     readableByteStreamControllerShiftPendingPullInto(controller);
 }
 
-function readableByteStreamControllerShiftPendingPullInto(controller: ReadableByteStreamController): PullIntoDescriptor | undefined {
+function readableByteStreamControllerShiftPendingPullInto(
+    controller: ReadableByteStreamController,
+): PullIntoDescriptor | undefined {
     return controller[kState].pendingPullIntos.shift();
 }
 
@@ -1859,7 +1884,9 @@ function readableByteStreamControllerFillHeadPullIntoDescriptor(
     pullIntoDescriptor.bytesFilled += size;
 }
 
-function readableByteStreamControllerConvertPullIntoDescriptor(pullIntoDescriptor: PullIntoDescriptor): ArrayBufferView {
+function readableByteStreamControllerConvertPullIntoDescriptor(
+    pullIntoDescriptor: PullIntoDescriptor,
+): ArrayBufferView {
     const bytesFilled = pullIntoDescriptor.bytesFilled;
     const elementSize = pullIntoDescriptor.elementSize;
     const buffer = transferArrayBuffer(pullIntoDescriptor.buffer);
@@ -1867,7 +1894,10 @@ function readableByteStreamControllerConvertPullIntoDescriptor(pullIntoDescripto
     return new pullIntoDescriptor.viewConstructor(buffer, pullIntoDescriptor.byteOffset, bytesFilled / elementSize);
 }
 
-function readableByteStreamControllerCommitPullIntoDescriptor(stream: ReadableStream, pullIntoDescriptor: PullIntoDescriptor): void {
+function readableByteStreamControllerCommitPullIntoDescriptor(
+    stream: ReadableStream,
+    pullIntoDescriptor: PullIntoDescriptor,
+): void {
     let done = false;
     if (stream[kState].state === 'closed') {
         done = true;
@@ -1918,7 +1948,10 @@ function readableByteStreamControllerFillPullIntoDescriptorFromQueue(
     return ready;
 }
 
-function readableByteStreamControllerFillReadRequestFromQueue(controller: ReadableByteStreamController, readRequest: ReadRequest): void {
+function readableByteStreamControllerFillReadRequestFromQueue(
+    controller: ReadableByteStreamController,
+    readRequest: ReadRequest,
+): void {
     const entry = controller[kState].queue.shift();
     controller[kState].queueTotalSize -= entry.byteLength;
     readableByteStreamControllerHandleQueueDrain(controller);
@@ -1935,7 +1968,9 @@ function readableByteStreamControllerProcessReadRequestsUsingQueue(controller: R
     }
 }
 
-function readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller: ReadableByteStreamController): void {
+function readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(
+    controller: ReadableByteStreamController,
+): void {
     while (controller[kState].pendingPullIntos.length !== 0) {
         if (controller[kState].queueTotalSize === 0) return;
         const pullIntoDescriptor = controller[kState].pendingPullIntos[0];
@@ -1946,7 +1981,9 @@ function readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(contro
     }
 }
 
-function readableByteStreamControllerGetBYOBRequest(controller: ReadableByteStreamController): ReadableStreamBYOBRequest | null {
+function readableByteStreamControllerGetBYOBRequest(
+    controller: ReadableByteStreamController,
+): ReadableStreamBYOBRequest | null {
     if (controller[kState].byobRequest === null && controller[kState].pendingPullIntos.length !== 0) {
         const firstDescriptor = controller[kState].pendingPullIntos[0];
         const view = new Uint8Array(
@@ -2122,7 +2159,10 @@ function readableByteStreamControllerRespond(controller: ReadableByteStreamContr
     readableByteStreamControllerRespondInternal(controller, bytesWritten);
 }
 
-function readableByteStreamControllerRespondWithNewView(controller: ReadableByteStreamController, view: ArrayBufferView): void {
+function readableByteStreamControllerRespondWithNewView(
+    controller: ReadableByteStreamController,
+    view: ArrayBufferView,
+): void {
     const firstDescriptor = controller[kState].pendingPullIntos[0];
     const state = controller[kState].stream[kState].state;
     const byteLength = view.byteLength;
@@ -2153,7 +2193,10 @@ function readableByteStreamControllerRespondWithNewView(controller: ReadableByte
     readableByteStreamControllerRespondInternal(controller, byteLength);
 }
 
-function readableByteStreamControllerRespondInternal(controller: ReadableByteStreamController, bytesWritten: number): void {
+function readableByteStreamControllerRespondInternal(
+    controller: ReadableByteStreamController,
+    bytesWritten: number,
+): void {
     const firstDescriptor = controller[kState].pendingPullIntos[0];
     readableByteStreamControllerInvalidateBYOBRequest(controller);
     const state = controller[kState].stream[kState].state;
@@ -2165,7 +2208,10 @@ function readableByteStreamControllerRespondInternal(controller: ReadableByteStr
     readableByteStreamControllerCallPullIfNeeded(controller);
 }
 
-function readableByteStreamControllerRespondInClosedState(controller: ReadableByteStreamController, firstDescriptor: PullIntoDescriptor): void {
+function readableByteStreamControllerRespondInClosedState(
+    controller: ReadableByteStreamController,
+    firstDescriptor: PullIntoDescriptor,
+): void {
     if (firstDescriptor.readerType === 'none') {
         readableByteStreamControllerShiftPendingPullInto(controller);
     }
@@ -2219,7 +2265,10 @@ function readableByteStreamControllerCancelSteps(
     return result;
 }
 
-function readableByteStreamControllerPullSteps(controller: ReadableByteStreamController, readRequest: ReadRequest): void {
+function readableByteStreamControllerPullSteps(
+    controller: ReadableByteStreamController,
+    readRequest: ReadRequest,
+): void {
     const stream = controller[kState].stream;
     if (controller[kState].queueTotalSize > 0) {
         readableByteStreamControllerFillReadRequestFromQueue(controller, readRequest);

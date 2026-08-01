@@ -77,10 +77,7 @@ describe('gjsify pack — files glob expansion', () => {
         assert.ok(entries.includes('lib/lib.dom.d.ts'), 'lib.dom.d.ts matched by glob');
         assert.ok(!entries.includes('lib/other.d.ts'), 'other.d.ts NOT matched (no lib prefix)');
         assert.ok(!entries.includes('lib/lib.notes.txt'), 'lib.notes.txt NOT matched (wrong ext)');
-        assert.ok(
-            !entries.includes('lib/sub/lib.nested.d.ts'),
-            'nested NOT matched (* does not cross /)',
-        );
+        assert.ok(!entries.includes('lib/sub/lib.nested.d.ts'), 'nested NOT matched (* does not cross /)');
         // Plain dir + literal still work.
         assert.ok(entries.includes('dist/index.js'), 'plain dir entry includes contents');
         assert.ok(entries.includes('README.md'), 'literal file entry');

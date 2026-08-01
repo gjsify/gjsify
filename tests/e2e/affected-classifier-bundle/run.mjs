@@ -64,10 +64,7 @@ describe('dedicated affected-classifier bundle', () => {
 
     it('embeds the affected classifier logic', () => {
         const src = readFileSync(bundlePath, 'utf8');
-        assert.ok(
-            /ignored-only|skip-all|global-trigger/.test(src),
-            'bundle should embed the affected classifier',
-        );
+        assert.ok(/ignored-only|skip-all|global-trigger/.test(src), 'bundle should embed the affected classifier');
     });
 });
 
@@ -141,9 +138,7 @@ describe('gjsify affected --changed-from-stdin', () => {
     describe('under Node (the `gjsify` npm entry)', () => {
         for (const c of STDIN_CASES) {
             it(c.name, () => {
-                c.expect(
-                    classify('node', [cliEntry, 'affected', '--changed-from-stdin', '--format=json'], c.input),
-                );
+                c.expect(classify('node', [cliEntry, 'affected', '--changed-from-stdin', '--format=json'], c.input));
             });
         }
     });

@@ -26,12 +26,12 @@ for (let i = 0; i < N; i++) {
     t.tagObject(obj, i % 16);
     alive.push(obj);
     alive.push(t.makeExternal(200000 + i));
-    t.makeRef(obj, 1);          // strong kUserland ref, never deleted
-    t.makeRef('pin-' + i, 1);   // strong primitive ref, never deleted
+    t.makeRef(obj, 1); // strong kUserland ref, never deleted
+    t.makeRef('pin-' + i, 1); // strong primitive ref, never deleted
 }
 t.setInstanceData(999999);
 t.registerCleanupHooks();
-globalThis.__p03KeepAlive = alive;  // reachable until context dispose
+globalThis.__p03KeepAlive = alive; // reachable until context dispose
 
 // A couple of dead-before-teardown objects too (queued + drained mid-life).
 for (let i = 0; i < N; i++) {

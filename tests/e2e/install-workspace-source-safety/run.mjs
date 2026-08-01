@@ -281,11 +281,7 @@ function scaffold(root, registryUrl, consumerSpec, { preseedRootSymlink } = {}) 
 function assertSourcePreserved(root) {
     const srcPath = join(root, 'packages', 'lib', 'src', 'index.ts');
     assert.ok(existsSync(srcPath), 'packages/lib/src/index.ts must still exist after install (data-loss regression)');
-    assert.equal(
-        readFileSync(srcPath, 'utf-8'),
-        SOURCE_MARKER,
-        'packages/lib/src/index.ts contents must be untouched',
-    );
+    assert.equal(readFileSync(srcPath, 'utf-8'), SOURCE_MARKER, 'packages/lib/src/index.ts contents must be untouched');
 }
 
 function assertWorkspaceSymlink(linkPath, root, label) {
@@ -415,7 +411,11 @@ describe('gjsify install — never fetch/extract over workspace sources', { time
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
 
         assertSourcePreserved(root);
-        assert.match(r.stderr, /fetch: @fixture\/app/, `@fixture/app (a real external dep) must be fetched:\n${r.stderr}`);
+        assert.match(
+            r.stderr,
+            /fetch: @fixture\/app/,
+            `@fixture/app (a real external dep) must be fetched:\n${r.stderr}`,
+        );
         assert.doesNotMatch(
             r.stderr,
             /fetch: @fixture\/lib/,

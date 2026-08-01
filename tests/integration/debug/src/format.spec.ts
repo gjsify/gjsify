@@ -152,8 +152,7 @@ export default async () => {
         await it('honors a user-registered `%h` formatter', () => {
             reset();
             // Custom hex formatter for numbers.
-            (debug.formatters as Record<string, (v: unknown) => string>).h = (v) =>
-                '0x' + (v as number).toString(16);
+            (debug.formatters as Record<string, (v: unknown) => string>).h = (v) => '0x' + (v as number).toString(16);
             debug.enable('fmt:custom');
             const log = debug('fmt:custom');
             setUseColors(log, false);
@@ -189,9 +188,7 @@ export default async () => {
         await it('custom formatter receives `this` bound to the debug instance', () => {
             reset();
             let capturedNamespace: string | null = null;
-            (debug.formatters as Record<string, (this: { namespace: string }, v: unknown) => string>).N = function (
-                v,
-            ) {
+            (debug.formatters as Record<string, (this: { namespace: string }, v: unknown) => string>).N = function (v) {
                 capturedNamespace = this.namespace;
                 return String(v);
             };

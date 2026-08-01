@@ -20,4 +20,11 @@ export const PerformanceEntry = globalThis.PerformanceEntry;
 export const PerformanceMark = globalThis.PerformanceMark;
 export const PerformanceMeasure = globalThis.PerformanceMeasure;
 export const PerformanceResourceTiming = globalThis.PerformanceResourceTiming;
-export default { performance, PerformanceObserver, PerformanceEntry, PerformanceMark, PerformanceMeasure, PerformanceResourceTiming };
+export default {
+    performance,
+    PerformanceObserver,
+    PerformanceEntry,
+    PerformanceMark,
+    PerformanceMeasure,
+    PerformanceResourceTiming,
+};

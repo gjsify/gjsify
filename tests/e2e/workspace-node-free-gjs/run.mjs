@@ -113,17 +113,13 @@ describe('node-free workspace orchestration under the GJS CLI', { skip: SKIP, ti
     });
 
     it('builds the dep closure node-free (no npm/node spawn, compound gjsify resolves to GJS)', () => {
-        const out = execFileSync(
-            'gjs',
-            ['-m', CLI_BUNDLE, 'workspace', '@t/a', 'build', '--with-dependencies'],
-            {
-                cwd: projectDir,
-                stdio: 'pipe',
-                timeout: 4 * 60 * 1000,
-                encoding: 'utf-8',
-                env: { ...process.env, PATH: `${fakeBinDir}:${process.env.PATH}` },
-            },
-        );
+        const out = execFileSync('gjs', ['-m', CLI_BUNDLE, 'workspace', '@t/a', 'build', '--with-dependencies'], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 4 * 60 * 1000,
+            encoding: 'utf-8',
+            env: { ...process.env, PATH: `${fakeBinDir}:${process.env.PATH}` },
+        });
 
         // The FAKE node/npm must never have been invoked.
         assert.ok(!/FAKE (node|npm) CALLED/.test(out), `Node/npm was spawned:\n${out}`);

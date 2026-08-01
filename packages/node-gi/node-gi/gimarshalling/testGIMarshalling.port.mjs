@@ -58,16 +58,7 @@ import { fileURLToPath } from 'node:url';
 
 import { requireGi } from '../gi.js';
 import { prependSearchPath } from '../index.js';
-import {
-    beforeEach,
-    describe,
-    describeSkip,
-    expect,
-    it,
-    itSkip,
-    jasmine,
-    pending,
-} from './jasmine-shim.mjs';
+import { beforeEach, describe, describeSkip, expect, it, itSkip, jasmine, pending } from './jasmine-shim.mjs';
 
 // ---- typelib wiring (launcher contract) --------------------------------------
 
@@ -78,7 +69,10 @@ if (!existsSync(join(libDir, 'GIMarshallingTests-1.0.typelib'))) {
             '(scripts/gimarshalling.mjs builds the pinned typelibs into .gi-tests/lib first)',
     );
 }
-const ldEntries = (process.env.LD_LIBRARY_PATH ?? '').split(delimiter).filter(Boolean).map((p) => resolve(p));
+const ldEntries = (process.env.LD_LIBRARY_PATH ?? '')
+    .split(delimiter)
+    .filter(Boolean)
+    .map((p) => resolve(p));
 if (!ldEntries.includes(resolve(libDir))) {
     throw new Error(
         'LD_LIBRARY_PATH does not contain .gi-tests/lib — libgimarshallingtests.so would not dlopen. ' +
@@ -96,55 +90,48 @@ const GObject = requireGi('GObject', '2.0');
 // - options.skip: the test does exist, but doesn't pass, either unsupported or
 //   a bug in GJS. Create the test case and mark it pending
 
-function testReturnValue(root, value, {omit, skip, funcName = `${root}_return`} = {}) {
-    if (omit)
-        return;
+function testReturnValue(root, value, { omit, skip, funcName = `${root}_return` } = {}) {
+    if (omit) return;
     it('marshals as a return value', function () {
-        if (skip)
-            pending(skip);
+        if (skip) pending(skip);
         expect(GIMarshallingTests[funcName]()).toEqual(value);
     });
 }
 
-function testInParameter(root, value, {omit, skip, funcName = `${root}_in`} = {}) {
-    if (omit)
-        return;
+function testInParameter(root, value, { omit, skip, funcName = `${root}_in` } = {}) {
+    if (omit) return;
     it('marshals as an in parameter', function () {
-        if (skip)
-            pending(skip);
+        if (skip) pending(skip);
         expect(() => GIMarshallingTests[funcName](value)).not.toThrow();
     });
 }
 
-function testOutParameter(root, value, {omit, skip, funcName = `${root}_out`} = {}) {
-    if (omit)
-        return;
+function testOutParameter(root, value, { omit, skip, funcName = `${root}_out` } = {}) {
+    if (omit) return;
     it('marshals as an out parameter', function () {
-        if (skip)
-            pending(skip);
+        if (skip) pending(skip);
         expect(GIMarshallingTests[funcName]()).toEqual(value);
     });
 }
 
-function testUninitializedOutParameter(root, defaultValue, {omit, skip, funcName = `${root}_out_uninitialized`} = {}) {
-    if (omit)
-        return;
+function testUninitializedOutParameter(
+    root,
+    defaultValue,
+    { omit, skip, funcName = `${root}_out_uninitialized` } = {},
+) {
+    if (omit) return;
     it("picks a reasonable default value when the function doesn't set the out parameter", function () {
-        if (skip)
-            pending(skip);
+        if (skip) pending(skip);
         const [success, defaultVal] = GIMarshallingTests[funcName]();
         expect(success).toBeFalse();
         expect(defaultVal).toEqual(defaultValue);
     });
 }
 
-function testInoutParameter(root, inValue, outValue,
-    {omit, skip, funcName = `${root}_inout`} = {}) {
-    if (omit)
-        return;
+function testInoutParameter(root, inValue, outValue, { omit, skip, funcName = `${root}_inout` } = {}) {
+    if (omit) return;
     it('marshals as an inout parameter', function () {
-        if (skip)
-            pending(skip);
+        if (skip) pending(skip);
         expect(GIMarshallingTests[funcName](inValue)).toEqual(outValue);
     });
 }
@@ -224,8 +211,7 @@ const SKIP_UNICHAR_ARRAY =
     'phase 2.2 arrays — unichar array elements (gunichar<->string) are not yet marshalled, a later PR';
 const SKIP_GVARIANT_ARRAY =
     'phase 2.7 — arrays of GLib.Variant (boxed/variant elements) are not yet marshalled, a later PR';
-const SKIP_GVALUE_ARRAY =
-    'phase 2.5 GValue — arrays of GValue elements are not yet marshalled, a later PR';
+const SKIP_GVALUE_ARRAY = 'phase 2.5 GValue — arrays of GValue elements are not yet marshalled, a later PR';
 // GValue RETURN/OUT auto-unbox is now LIVE (this PR): a GI function returning a
 // GValue is unboxed to its contained JS value, exactly as GJS does. The remaining
 // GValue skips are the adjacent capabilities the unbox direction does NOT cover:
@@ -266,7 +252,7 @@ const Limits = {
         min: -(2 ** 63),
         max: 2 ** 63 - 1,
         umax: 2 ** 64 - 1,
-        bit64: true,  // note: unsafe, values will not be accurate!
+        bit64: true, // note: unsafe, values will not be accurate!
     },
     short: {},
     int: {},
@@ -294,7 +280,7 @@ if (GLib.SIZEOF_LONG === 8) {
 }
 if (GLib.SIZEOF_SSIZE_T === 8) {
     Object.assign(Limits.ssize, Limits.int64);
-    BigIntLimits.ssize = Object.assign({utype: 'size'}, BigIntLimits.int64);
+    BigIntLimits.ssize = Object.assign({ utype: 'size' }, BigIntLimits.int64);
 } else {
     Object.assign(Limits.ssize, Limits.int32);
 }
@@ -322,12 +308,11 @@ const SKIP_64BIT_NUMBER =
     'now-live BigInt block. GJS skips these identically (installed-tests skip64).';
 
 function skip64(is64bit) {
-    if (is64bit)
-        pending(SKIP_64BIT_NUMBER);
+    if (is64bit) pending(SKIP_64BIT_NUMBER);
 }
 
 describe('Boolean', function () {
-    [true, false].forEach(bool => {
+    [true, false].forEach((bool) => {
         describe(`${bool}`, function () {
             testSimpleMarshalling('boolean', bool, !bool, false, {
                 returnv: {
@@ -353,7 +338,7 @@ describe('Boolean', function () {
 });
 
 describe('Integer', function () {
-    Object.entries(Limits).forEach(([type, {min, max, umax, bit64, utype = `u${type}`}]) => {
+    Object.entries(Limits).forEach(([type, { min, max, umax, bit64, utype = `u${type}` }]) => {
         describe(`${type}-typed`, function () {
             it('marshals signed value as a return value', function () {
                 expect(warn64(bit64, GIMarshallingTests[`${type}_return_max`])).toEqual(max);
@@ -409,7 +394,7 @@ describe('Integer', function () {
 // Napi::Error::New(napi_get_last_error_info) in JsToGIArgument became a process
 // abort. The marshaller now branches on IsBigInt before any ToNumber().
 describe('BigInt', function () {
-    Object.entries(BigIntLimits).forEach(([type, {min, max, umax, utype = `u${type}`}]) => {
+    Object.entries(BigIntLimits).forEach(([type, { min, max, umax, utype = `u${type}` }]) => {
         describe(`${type}-typed`, function () {
             it('marshals signed value as an in parameter', function () {
                 expect(() => GIMarshallingTests[`${type}_in_max`](max)).not.toThrow();
@@ -437,7 +422,7 @@ describe('Floating point', function () {
         },
     };
 
-    Object.entries(FloatLimits).forEach(([type, {min, max}]) => {
+    Object.entries(FloatLimits).forEach(([type, { min, max }]) => {
         describe(`${type}-typed`, function () {
             it('marshals value as a return value', function () {
                 expect(GIMarshallingTests[`${type}_return`]()).toBeCloseTo(max, 10);
@@ -474,11 +459,11 @@ function testUnixIntegerTypedefMarshalling(type, inValue, skipAny = {}) {
     describe(type, function () {
         const skip = GIMarshallingTests[`${type}_in`] ? false : 'Only supported on Unix';
         testSimpleMarshalling(type, inValue, 0, 0, {
-            returnv: {skip: skip || skipAny.skipReturn},
-            in: {skip: skip || skipAny.skipIn},
-            out: {skip: skip || skipAny.skipOut},
-            uninitOut: {skip: skip || skipAny.skipUninitOut},
-            inout: {skip: skip || skipAny.skipInOut},
+            returnv: { skip: skip || skipAny.skipReturn },
+            in: { skip: skip || skipAny.skipIn },
+            out: { skip: skip || skipAny.skipOut },
+            uninitOut: { skip: skip || skipAny.skipUninitOut },
+            inout: { skip: skip || skipAny.skipInOut },
         });
     });
 }
@@ -486,7 +471,9 @@ function testUnixIntegerTypedefMarshalling(type, inValue, skipAny = {}) {
 // https://gitlab.gnome.org/GNOME/gjs/-/issues/673
 // ADAPTATION: upstream passes `skipInOut: true`; the shim's skip contract
 // requires a reason, so the issue URL the comment above cites is passed.
-testUnixIntegerTypedefMarshalling('dev_t', 1234567890, {skipInOut: 'https://gitlab.gnome.org/GNOME/gjs/-/issues/673'});
+testUnixIntegerTypedefMarshalling('dev_t', 1234567890, {
+    skipInOut: 'https://gitlab.gnome.org/GNOME/gjs/-/issues/673',
+});
 testUnixIntegerTypedefMarshalling('gid_t', 65534);
 testUnixIntegerTypedefMarshalling('pid_t', 12345);
 testUnixIntegerTypedefMarshalling('socklen_t', 123);
@@ -508,13 +495,15 @@ testUnixIntegerTypedefMarshalling('uid_t', 65534);
 //      gimarshallingtests.c:1571 `gtype == G_TYPE_NONE`), which would abort the whole
 //      run. Both are out of scope for the TYPE_* constants fix — keep skipped until
 //      GType OUT marshalling + the JS-type→GType aliases land.
-describeSkip('phase 2.6 GType — needs GType OUT-param marshalling (tag 12) + GJS GObject dummy-type aliases/JS-type→GType coercion; TYPE_* constants now exist (see gtype-constants.conf.mjs). gtype_in(GObject.VoidType) g_asserts fatally in the C lib',
-    'GType');
+describeSkip(
+    'phase 2.6 GType — needs GType OUT-param marshalling (tag 12) + GJS GObject dummy-type aliases/JS-type→GType coercion; TYPE_* constants now exist (see gtype-constants.conf.mjs). gtype_in(GObject.VoidType) g_asserts fatally in the C lib',
+    'GType',
+);
 
 describe('UTF-8 string', function () {
     testTransferMarshalling('utf8', 'const ♥ utf8', '', null, {
         full: {
-            uninitOut: {omit: true}, // covered by utf8_dangling_out() test below
+            uninitOut: { omit: true }, // covered by utf8_dangling_out() test below
         },
     });
 
@@ -574,8 +563,8 @@ describe('Fixed-size C array', function () {
     // distinct from the now-live single-struct field access.
     itSkip(SKIP_STRUCT_ARRAY_OUT, 'marshals a struct array as an out parameter', function () {
         expect(GIMarshallingTests.array_fixed_out_struct()).toEqual([
-            jasmine.objectContaining({long_: 7, int8: 6}),
-            jasmine.objectContaining({long_: 6, int8: 7}),
+            jasmine.objectContaining({ long_: 7, int8: 6 }),
+            jasmine.objectContaining({ long_: 6, int8: 7 }),
         ]);
     });
 
@@ -585,10 +574,10 @@ describe('Fixed-size C array', function () {
 
     itSkip(SKIP_STRUCT_ARRAY_OUT, 'marshals a fixed-size struct array as caller allocated out param', function () {
         expect(GIMarshallingTests.array_fixed_caller_allocated_struct_out()).toEqual([
-            jasmine.objectContaining({long_: -2, int8: -1}),
-            jasmine.objectContaining({long_: 1, int8: 2}),
-            jasmine.objectContaining({long_: 3, int8: 4}),
-            jasmine.objectContaining({long_: 5, int8: 6}),
+            jasmine.objectContaining({ long_: -2, int8: -1 }),
+            jasmine.objectContaining({ long_: 1, int8: 2 }),
+            jasmine.objectContaining({ long_: 3, int8: 4 }),
+            jasmine.objectContaining({ long_: 5, int8: 6 }),
         ]);
     });
 
@@ -645,7 +634,7 @@ describe('C array with length', function () {
             expect(GIMarshallingTests.array_unichar_out()).toEqual('const ♥ utf8');
         });
         itSkip(SKIP_UNICHAR_ARRAY, 'marshals from an array of codepoints', function () {
-            const codepoints = [...'const ♥ utf8'].map(c => c.codePointAt(0));
+            const codepoints = [...'const ♥ utf8'].map((c) => c.codePointAt(0));
             expect(() => GIMarshallingTests.array_unichar_in(codepoints)).not.toThrow();
         });
     });
@@ -679,19 +668,19 @@ describe('C array with length', function () {
     });
 
     describe('of enums', function () {
-        testInParameter('array_enum', [
-            GIMarshallingTests.Enum.VALUE1,
-            GIMarshallingTests.Enum.VALUE2,
-            GIMarshallingTests.Enum.VALUE3,
-        ], {skip: SKIP_ENUM_FLAGS_ARRAY});
+        testInParameter(
+            'array_enum',
+            [GIMarshallingTests.Enum.VALUE1, GIMarshallingTests.Enum.VALUE2, GIMarshallingTests.Enum.VALUE3],
+            { skip: SKIP_ENUM_FLAGS_ARRAY },
+        );
     });
 
     describe('of flags', function () {
-        testInParameter('array_flags', [
-            GIMarshallingTests.Flags.VALUE1,
-            GIMarshallingTests.Flags.VALUE2,
-            GIMarshallingTests.Flags.VALUE3,
-        ], {skip: SKIP_ENUM_FLAGS_ARRAY});
+        testInParameter(
+            'array_flags',
+            [GIMarshallingTests.Flags.VALUE1, GIMarshallingTests.Flags.VALUE2, GIMarshallingTests.Flags.VALUE3],
+            { skip: SKIP_ENUM_FLAGS_ARRAY },
+        );
     });
 
     it('marshals an array with a 64-bit length parameter', function () {
@@ -733,15 +722,18 @@ describe('C array with length', function () {
     }
 
     it('supports optional inout array with length', function () {
-        expect(GIMarshallingTests.length_array_utf8_optional_inout(['🅰', 'β', 'c', 'd']))
-            .toEqual(['a', 'b', '¢', '🔠']);
+        expect(GIMarshallingTests.length_array_utf8_optional_inout(['🅰', 'β', 'c', 'd'])).toEqual([
+            'a',
+            'b',
+            '¢',
+            '🔠',
+        ]);
     });
 });
 
 describe('Zero-terminated C array', function () {
     describe('of strings', function () {
-        testSimpleMarshalling('array_zero_terminated', ['0', '1', '2'],
-            ['-1', '0', '1', '2'], null);
+        testSimpleMarshalling('array_zero_terminated', ['0', '1', '2'], ['-1', '0', '1', '2'], null);
     });
 
     it('marshals null as a zero-terminated array return value', function () {
@@ -751,12 +743,12 @@ describe('Zero-terminated C array', function () {
     // A zero-terminated array of struct POINTERS: field access on each element (2.6).
     it('marshals an array of structs as a return value', function () {
         let structArray = GIMarshallingTests.array_zero_terminated_return_struct();
-        expect(structArray.map(e => e.long_)).toEqual([42, 43, 44]);
+        expect(structArray.map((e) => e.long_)).toEqual([42, 43, 44]);
     });
 
     itSkip(SKIP_STRUCT_ARRAY_BYVAL, 'marshals an array of sequential structs as a return value', function () {
         let structArray = GIMarshallingTests.array_zero_terminated_return_sequential_struct();
-        expect(structArray.map(e => e.long_)).toEqual([42, 43, 44]);
+        expect(structArray.map((e) => e.long_)).toEqual([42, 43, 44]);
     });
 
     itSkip(SKIP_UNICHAR_ARRAY, 'marshals an array of unichars as a return value', function () {
@@ -767,36 +759,36 @@ describe('Zero-terminated C array', function () {
 });
 
 describe('Exhaustive test of UTF-8 sequences', function () {
-    ['length', 'fixed', 'zero_terminated'].forEach(arrayKind =>
-        ['none', 'container', 'full'].forEach(transfer => {
-            const testFunction = returnMode => {
+    ['length', 'fixed', 'zero_terminated'].forEach((arrayKind) =>
+        ['none', 'container', 'full'].forEach((transfer) => {
+            const testFunction = (returnMode) => {
                 const commonName = 'array_utf8';
                 const funcName = [arrayKind, commonName, transfer, returnMode].join('_');
                 return GIMarshallingTests[funcName];
             };
 
-            ['out', 'return'].forEach(returnMode =>
+            ['out', 'return'].forEach((returnMode) =>
                 it(`${arrayKind} ${returnMode} transfer ${transfer}`, function () {
                     const func = testFunction(returnMode);
                     expect(func()).toEqual(['a', 'b', '¢', '🔠']);
-                }));
+                }),
+            );
 
             it(`${arrayKind} in transfer ${transfer}`, function () {
                 const func = testFunction('in');
-                if (transfer === 'container')
-                    pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
+                if (transfer === 'container') pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
 
                 expect(() => func(['🅰', 'β', 'c', 'd'])).not.toThrow();
             });
 
             it(`${arrayKind} inout transfer ${transfer}`, function () {
                 const func = testFunction('inout');
-                if (transfer === 'container')
-                    pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
+                if (transfer === 'container') pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
 
                 expect(func(['🅰', 'β', 'c', 'd'])).toEqual(['a', 'b', '¢', '🔠']);
             });
-        }));
+        }),
+    );
 });
 
 describe('GArray', function () {
@@ -810,8 +802,7 @@ describe('GArray', function () {
     });
 
     it('marshals int64s as a transfer-none return value', function () {
-        expect(warn64(true, GIMarshallingTests.garray_uint64_none_return))
-            .toEqual([0, Limits.int64.umax]);
+        expect(warn64(true, GIMarshallingTests.garray_uint64_none_return)).toEqual([0, Limits.int64.umax]);
     });
 
     describe('of strings', function () {
@@ -821,15 +812,13 @@ describe('GArray', function () {
         // callee reallocates a caller-provided GArray — unsupported upstream), so
         // node-gi keeps it skipped for the SAME reason (not an INOUT-container gap).
         itSkip(SKIP_GARRAY_CALLER_ALLOC, 'marshals as a transfer-full caller-allocated out parameter', function () {
-            expect(GIMarshallingTests.garray_utf8_full_out_caller_allocated())
-                .toEqual(['0', '1', '2']);
+            expect(GIMarshallingTests.garray_utf8_full_out_caller_allocated()).toEqual(['0', '1', '2']);
         });
     });
 
     // A GArray of structs BY VALUE — the element wrapping is a container gap.
     itSkip(SKIP_STRUCT_ARRAY_BYVAL, 'marshals boxed structs as a transfer-full return value', function () {
-        expect(GIMarshallingTests.garray_boxed_struct_full_return().map(e => e.long_))
-            .toEqual([42, 43, 44]);
+        expect(GIMarshallingTests.garray_boxed_struct_full_return().map((e) => e.long_)).toEqual([42, 43, 44]);
     });
 
     describe('of booleans with transfer none', function () {
@@ -851,22 +840,21 @@ describe('GPtrArray', function () {
     describe('of structs', function () {
         // A GPtrArray of struct POINTERS: field access on each element (2.6).
         it('can be returned with transfer full', function () {
-            expect(GIMarshallingTests.gptrarray_boxed_struct_full_return().map(e => e.long_))
-                .toEqual([42, 43, 44]);
+            expect(GIMarshallingTests.gptrarray_boxed_struct_full_return().map((e) => e.long_)).toEqual([42, 43, 44]);
         });
     });
 });
 
 describe('GByteArray', function () {
-    const refByteArray = Uint8Array.from([0, 49, 0xFF, 51]);
+    const refByteArray = Uint8Array.from([0, 49, 0xff, 51]);
 
     testReturnValue('bytearray_full', refByteArray);
     testOutParameter('bytearray_full', refByteArray);
-    testInoutParameter('bytearray_full', refByteArray, Uint8Array.from([104, 101, 108, 0, 0xFF]));
+    testInoutParameter('bytearray_full', refByteArray, Uint8Array.from([104, 101, 108, 0, 0xff]));
 
     it('can be passed in with transfer none', function () {
         expect(() => GIMarshallingTests.bytearray_none_in(refByteArray)).not.toThrow();
-        expect(() => GIMarshallingTests.bytearray_none_in([0, 49, 0xFF, 51])).not.toThrow();
+        expect(() => GIMarshallingTests.bytearray_none_in([0, 49, 0xff, 51])).not.toThrow();
     });
 });
 
@@ -875,14 +863,14 @@ describe('GByteArray', function () {
 // Uint8Array converts IMPLICITLY at a GBytes IN arg (a fresh g_bytes_new copy released
 // per transfer after the invoke — the gjs GBytesIn::in path; see marshal.cc).
 describe('GBytes', function () {
-    const refByteArray = Uint8Array.from([0, 49, 0xFF, 51]);
+    const refByteArray = Uint8Array.from([0, 49, 0xff, 51]);
 
     it('marshals as a transfer-full return value', function () {
         expect(GIMarshallingTests.gbytes_full_return().toArray()).toEqual(refByteArray);
     });
 
     it('can be created from an array and passed in', function () {
-        let bytes = GLib.Bytes.new([0, 49, 0xFF, 51]);
+        let bytes = GLib.Bytes.new([0, 49, 0xff, 51]);
         expect(() => GIMarshallingTests.gbytes_none_in(bytes)).not.toThrow();
     });
 
@@ -914,10 +902,12 @@ describe('GStrv', function () {
 
 // Arrays whose ELEMENTS are themselves GStrv (nested container elements) are a
 // nested-container case still deferred.
-describeSkip('phase 2.2 arrays — length-annotated arrays of GStrv (nested container elements), a later PR',
-    'Array of GStrv');
+describeSkip(
+    'phase 2.2 arrays — length-annotated arrays of GStrv (nested container elements), a later PR',
+    'Array of GStrv',
+);
 
-['GList', 'GSList'].forEach(listKind => {
+['GList', 'GSList'].forEach((listKind) => {
     const list = listKind.toLowerCase();
 
     describe(listKind, function () {
@@ -934,8 +924,7 @@ describeSkip('phase 2.2 arrays — length-annotated arrays of GStrv (nested cont
         }
 
         describe('of strings', function () {
-            testContainerMarshalling(`${list}_utf8`, ['0', '1', '2'],
-                ['-2', '-1', '0', '1'], []);
+            testContainerMarshalling(`${list}_utf8`, ['0', '1', '2'], ['-2', '-1', '0', '1'], []);
         });
     });
 });
@@ -1021,8 +1010,8 @@ describe('GHashTable', function () {
 describe('GValue', function () {
     // return + OUT + uninitialized-OUT are live; IN + INOUT stay deferred.
     testSimpleMarshalling('gvalue', 42, '42', null, {
-        in: {skip: SKIP_GVALUE_IN},
-        inout: {skip: 'https://gitlab.gnome.org/GNOME/gobject-introspection/issues/192'},
+        in: { skip: SKIP_GVALUE_IN },
+        inout: { skip: 'https://gitlab.gnome.org/GNOME/gobject-introspection/issues/192' },
     });
 
     it('can handle noncanonical float NaN', function () {
@@ -1034,8 +1023,7 @@ describe('GValue', function () {
     });
 
     itSkip(SKIP_GVALUE_IN, 'marshals as an int64 in parameter', function () {
-        expect(() => GIMarshallingTests.gvalue_int64_in(BigIntLimits.int64.max))
-            .not.toThrow();
+        expect(() => GIMarshallingTests.gvalue_int64_in(BigIntLimits.int64.max)).not.toThrow();
     });
 
     itSkip(SKIP_GVALUE_IN, 'type objects can be converted from primitive-like types', function () {});
@@ -1060,8 +1048,7 @@ describe('GValue', function () {
     itSkip(SKIP_GVALUE_CTOR_GTYPE, 'flags can be passed into a function as a boxed type and packed', function () {});
 
     it('marshals as an int64 out parameter', function () {
-        expect(warn64(true, GIMarshallingTests.gvalue_int64_out)).toEqual(
-            Limits.int64.max);
+        expect(warn64(true, GIMarshallingTests.gvalue_int64_out)).toEqual(Limits.int64.max);
     });
 
     it('marshals as a caller-allocated out parameter', function () {
@@ -1072,15 +1059,20 @@ describe('GValue', function () {
     itSkip(SKIP_GVALUE_ARRAY, 'array of boxed type GValues can be passed into a function', function () {});
     itSkip(SKIP_GVALUE_ARRAY, 'array of uninitialized boxed GValues', function () {});
     itSkip(SKIP_GVALUE_ARRAY, 'array can be passed as an out argument and unpacked', function () {});
-    itSkip(SKIP_GVALUE_ARRAY, 'array can be passed as an out argument and unpacked when zero-terminated',
-        function () {});
+    itSkip(
+        SKIP_GVALUE_ARRAY,
+        'array can be passed as an out argument and unpacked when zero-terminated',
+        function () {},
+    );
     itSkip(SKIP_GVALUE_IN, 'can have its type inferred from primitive values', function () {});
     itSkip(SKIP_GVALUE_CTOR_GTYPE, 'can deal with a GValue packed in a GValue', function () {});
     itSkip(SKIP_GVALUE_FLOAT, 'separates float from double correctly', function () {});
 });
 // The IN-with-type inference breadth + flat-GValue-array round-trips stay a later PR.
-describeSkip('phase 2.5 GValue IN — gvalue_in_with_type type inference + flat-array round-trips',
-    'GValue (deferred IN breadth)');
+describeSkip(
+    'phase 2.5 GValue IN — gvalue_in_with_type type inference + flat-array round-trips',
+    'GValue (deferred IN breadth)',
+);
 // GClosure IN-parameter: a JS function marshalled as a real GClosure (the
 // GClosure-arg primitive). The rest of the Callback suite (callback OUT-params,
 // gclosure_return) stays skipped — those need callback OUT-param marshalling /
@@ -1090,36 +1082,34 @@ describe('Callback', function () {
         testInParameter('gclosure', () => 42);
     });
 });
-describeSkip('phase 2.7 callbacks — callback out-params + gclosure_return + owned boxed',
-    'Callback (deferred: callback OUT-params)');
-describeSkip('phase 2.4 structs — raw gpointer return round-trip',
-    'Raw pointers');
+describeSkip(
+    'phase 2.7 callbacks — callback out-params + gclosure_return + owned boxed',
+    'Callback (deferred: callback OUT-params)',
+);
+describeSkip('phase 2.4 structs — raw gpointer return round-trip', 'Raw pointers');
 
 describe('Registered enum type', function () {
-    testSimpleMarshalling('genum', GIMarshallingTests.GEnum.VALUE3,
-        GIMarshallingTests.GEnum.VALUE1, 0, {
-            returnv: {
-                funcName: 'genum_returnv',
-            },
-        });
+    testSimpleMarshalling('genum', GIMarshallingTests.GEnum.VALUE3, GIMarshallingTests.GEnum.VALUE1, 0, {
+        returnv: {
+            funcName: 'genum_returnv',
+        },
+    });
 });
 
 describe('Bare enum type', function () {
-    testSimpleMarshalling('enum', GIMarshallingTests.Enum.VALUE3,
-        GIMarshallingTests.Enum.VALUE1, 0, {
-            returnv: {
-                funcName: 'enum_returnv',
-            },
-        });
+    testSimpleMarshalling('enum', GIMarshallingTests.Enum.VALUE3, GIMarshallingTests.Enum.VALUE1, 0, {
+        returnv: {
+            funcName: 'enum_returnv',
+        },
+    });
 });
 
 describe('Registered flags type', function () {
-    testSimpleMarshalling('flags', GIMarshallingTests.Flags.VALUE2,
-        GIMarshallingTests.Flags.VALUE1, 0, {
-            returnv: {
-                funcName: 'flags_returnv',
-            },
-        });
+    testSimpleMarshalling('flags', GIMarshallingTests.Flags.VALUE2, GIMarshallingTests.Flags.VALUE1, 0, {
+        returnv: {
+            funcName: 'flags_returnv',
+        },
+    });
 
     it('accepts zero', function () {
         expect(() => GIMarshallingTests.flags_in_zero(0)).not.toThrow();
@@ -1127,12 +1117,17 @@ describe('Registered flags type', function () {
 });
 
 describe('Bare flags type', function () {
-    testSimpleMarshalling('no_type_flags', GIMarshallingTests.NoTypeFlags.VALUE2,
-        GIMarshallingTests.NoTypeFlags.VALUE1, 0, {
+    testSimpleMarshalling(
+        'no_type_flags',
+        GIMarshallingTests.NoTypeFlags.VALUE2,
+        GIMarshallingTests.NoTypeFlags.VALUE1,
+        0,
+        {
             returnv: {
                 funcName: 'no_type_flags_returnv',
             },
-        });
+        },
+    );
 
     it('accepts zero', function () {
         expect(() => GIMarshallingTests.no_type_flags_in_zero(0)).not.toThrow();
@@ -1145,14 +1140,16 @@ describe('Bare flags type', function () {
 // (struct construction is a later PR).
 describe('Simple struct', function () {
     it('marshals as a return value', function () {
-        expect(GIMarshallingTests.simple_struct_returnv()).toEqual(jasmine.objectContaining({
-            long_: 6,
-            int8: 7,
-        }));
+        expect(GIMarshallingTests.simple_struct_returnv()).toEqual(
+            jasmine.objectContaining({
+                long_: 6,
+                int8: 7,
+            }),
+        );
     });
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as the this-argument of a method', function () {
-        const struct = new GIMarshallingTests.SimpleStruct({long_: 6, int8: 7});
+        const struct = new GIMarshallingTests.SimpleStruct({ long_: 6, int8: 7 });
         expect(() => struct.inv()).not.toThrow();
         expect(() => struct.method()).not.toThrow();
     });
@@ -1160,44 +1157,52 @@ describe('Simple struct', function () {
 
 describe('Pointer struct', function () {
     it('marshals as a return value', function () {
-        expect(GIMarshallingTests.pointer_struct_returnv()).toEqual(jasmine.objectContaining({
-            long_: 42,
-        }));
+        expect(GIMarshallingTests.pointer_struct_returnv()).toEqual(
+            jasmine.objectContaining({
+                long_: 42,
+            }),
+        );
     });
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as the this-argument of a method', function () {
-        const struct = new GIMarshallingTests.PointerStruct({long_: 42});
+        const struct = new GIMarshallingTests.PointerStruct({ long_: 42 });
         expect(() => struct.inv()).not.toThrow();
     });
 });
 
 describe('Boxed struct', function () {
     it('marshals as a return value', function () {
-        expect(GIMarshallingTests.boxed_struct_returnv()).toEqual(jasmine.objectContaining({
-            long_: 42,
-            string_: 'hello',
-            g_strv: ['0', '1', '2'],
-        }));
+        expect(GIMarshallingTests.boxed_struct_returnv()).toEqual(
+            jasmine.objectContaining({
+                long_: 42,
+                string_: 'hello',
+                g_strv: ['0', '1', '2'],
+            }),
+        );
     });
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as the this-argument of a method', function () {
-        const struct = new GIMarshallingTests.BoxedStruct({long_: 42});
+        const struct = new GIMarshallingTests.BoxedStruct({ long_: 42 });
         expect(() => struct.inv()).not.toThrow();
     });
 
     it('marshals as an out parameter', function () {
-        expect(GIMarshallingTests.boxed_struct_out()).toEqual(jasmine.objectContaining({
-            long_: 42,
-        }));
+        expect(GIMarshallingTests.boxed_struct_out()).toEqual(
+            jasmine.objectContaining({
+                long_: 42,
+            }),
+        );
     });
 
     testUninitializedOutParameter('boxed_struct', null);
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as an inout parameter', function () {
-        const struct = new GIMarshallingTests.BoxedStruct({long_: 42});
-        expect(GIMarshallingTests.boxed_struct_inout(struct)).toEqual(jasmine.objectContaining({
-            long_: 0,
-        }));
+        const struct = new GIMarshallingTests.BoxedStruct({ long_: 42 });
+        expect(GIMarshallingTests.boxed_struct_inout(struct)).toEqual(
+            jasmine.objectContaining({
+                long_: 0,
+            }),
+        );
     });
 });
 
@@ -1213,12 +1218,12 @@ describe('Union', function () {
     });
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'can be constructed with properties', function () {
-        const constructedUnion = new GIMarshallingTests.Union({long_: 55});
+        const constructedUnion = new GIMarshallingTests.Union({ long_: 55 });
         expect(constructedUnion.long_).toBe(55);
     });
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'cannot be constructed with unknown properties', function () {
-        expect(() => new GIMarshallingTests.Union({invalidProperty: 55})).toThrow();
+        expect(() => new GIMarshallingTests.Union({ invalidProperty: 55 })).toThrow();
     });
 
     it('marshals as a return value', function () {
@@ -1236,8 +1241,8 @@ describe('Union', function () {
     });
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as the this-argument of a method when constructed', function () {
-        expect(() => new GIMarshallingTests.Union({long_: 42}).inv()).not.toThrow();
-        expect(() => new GIMarshallingTests.Union({long_: 42}).method()).not.toThrow();
+        expect(() => new GIMarshallingTests.Union({ long_: 42 }).inv()).not.toThrow();
+        expect(() => new GIMarshallingTests.Union({ long_: 42 }).method()).not.toThrow();
     });
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals unregistered union', function () {
@@ -1246,7 +1251,7 @@ describe('Union', function () {
     });
 
     itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals unregistered initialized union', function () {
-        expect(new GIMarshallingTests.UnregisteredUnion({long_: 123}).long_).toBe(123);
+        expect(new GIMarshallingTests.UnregisteredUnion({ long_: 123 }).long_).toBe(123);
     });
 });
 
@@ -1261,12 +1266,12 @@ describe('GObject', function () {
     });
 
     it('has a method that can be called', function () {
-        const o = new GIMarshallingTests.Object({int: 42});
+        const o = new GIMarshallingTests.Object({ int: 42 });
         expect(() => o.method()).not.toThrow();
     });
 
     it('has an overridden method that can be called', function () {
-        const o = new GIMarshallingTests.Object({int: 0});
+        const o = new GIMarshallingTests.Object({ int: 0 });
         expect(() => o.overridden_method()).not.toThrow();
     });
 
@@ -1302,14 +1307,14 @@ describe('GObject', function () {
         });
 
         it('with default implementation can be called', function () {
-            o = new GIMarshallingTests.Object({int: 42});
+            o = new GIMarshallingTests.Object({ int: 42 });
             o.method_with_default_implementation(43);
             expect(o.int).toEqual(43);
         });
     });
 
-    ['none', 'full'].forEach(transfer => {
-        ['return', 'out'].forEach(mode => {
+    ['none', 'full'].forEach((transfer) => {
+        ['return', 'out'].forEach((mode) => {
             it(`marshals as a ${mode} parameter with transfer ${transfer}`, function () {
                 expect(GIMarshallingTests.Object[`${transfer}_${mode}`]().int).toEqual(0);
             });
@@ -1320,13 +1325,13 @@ describe('GObject', function () {
         });
 
         it(`marshals as an inout parameter with transfer ${transfer}`, function () {
-            const o = new GIMarshallingTests.Object({int: 42});
+            const o = new GIMarshallingTests.Object({ int: 42 });
             expect(GIMarshallingTests.Object[`${transfer}_inout`](o).int).toEqual(0);
         });
     });
 
     it('marshals as a this value with transfer none', function () {
-        const o = new GIMarshallingTests.Object({int: 42});
+        const o = new GIMarshallingTests.Object({ int: 42 });
         expect(() => o.none_in()).not.toThrow();
     });
 });
@@ -1334,22 +1339,20 @@ describe('GObject', function () {
 // The module-level `VFuncTester = GObject.registerClass(class VFuncTester
 // extends GIMarshallingTests.Object { vfunc_* … })` registration ports together
 // with the vfunc sections below (phase 2.8).
-describeSkip('phase 2.8 vfuncs — VFuncTester registerClass subclass: vfunc in/out/inout/error/enum/flags/object marshalling',
-    'Virtual function');
-describeSkip('phase 2.8 vfuncs — invalid vfunc override shapes must error cleanly',
-    'Wrong virtual functions');
-describeSkip('phase 2.8 vfuncs — static vfuncs on Object/interfaces',
-    'Static virtual functions');
-describeSkip('phase 2.9 gobject-breadth — SubObject inheritance (overridden + parent methods)',
-    'Inherited GObject');
-describeSkip('phase 2.9 gobject-breadth — GInterface impls, interface methods + vfuncs',
-    'Interface');
-describeSkip('phase 2.11 misc-breadth — multi-out int configurations + nullable utf8/array in-args',
-    'Configurations of return values');
-describeSkip('phase 2.10 gerror — GError** as exception / out-param / return value',
-    'GError');
-describeSkip('phase 2.11 misc-breadth — filename GSList return (filename_list)',
-    'Filename');
+describeSkip(
+    'phase 2.8 vfuncs — VFuncTester registerClass subclass: vfunc in/out/inout/error/enum/flags/object marshalling',
+    'Virtual function',
+);
+describeSkip('phase 2.8 vfuncs — invalid vfunc override shapes must error cleanly', 'Wrong virtual functions');
+describeSkip('phase 2.8 vfuncs — static vfuncs on Object/interfaces', 'Static virtual functions');
+describeSkip('phase 2.9 gobject-breadth — SubObject inheritance (overridden + parent methods)', 'Inherited GObject');
+describeSkip('phase 2.9 gobject-breadth — GInterface impls, interface methods + vfuncs', 'Interface');
+describeSkip(
+    'phase 2.11 misc-breadth — multi-out int configurations + nullable utf8/array in-args',
+    'Configurations of return values',
+);
+describeSkip('phase 2.10 gerror — GError** as exception / out-param / return value', 'GError');
+describeSkip('phase 2.11 misc-breadth — filename GSList return (filename_list)', 'Filename');
 // GParamSpec wrapping (phase 2.7a): a returned/out GParamSpec is a real
 // GObject.ParamSpec with .name/.nick/.blurb/.default_value/.flags/.value_type. The
 // IN direction stays skipped — `GObject.ParamSpec.boolean(…)` is a registerClass
@@ -1358,8 +1361,13 @@ describe('GObject.ParamSpec', function () {
     const SKIP_PSPEC_IN =
         'GParamSpec as an IN arg — GObject.ParamSpec.boolean(…) is a registerClass property descriptor here, ' +
         'not a live GParamSpec instance to marshal in (needs a real-pspec factory, a later PR)';
-    const pspec = GObject.ParamSpec.boolean('mybool', 'My Bool', 'My boolean property',
-        GObject.ParamFlags.READWRITE, true);
+    const pspec = GObject.ParamSpec.boolean(
+        'mybool',
+        'My Bool',
+        'My boolean property',
+        GObject.ParamFlags.READWRITE,
+        true,
+    );
     testInParameter('param_spec', pspec, {
         funcName: 'param_spec_in_bool',
         skip: SKIP_PSPEC_IN,
@@ -1377,21 +1385,21 @@ describe('GObject.ParamSpec', function () {
     testOutParameter('param_spec', jasmine.objectContaining(expectedProps));
     testUninitializedOutParameter('param_spec', null);
 });
-describeSkip('phase 2.9 gobject-breadth — property get/set across all GI types',
-    'GObject properties');
-describeSkip('phase 2.9 gobject-breadth — camelCase/underscore/dashed property accessors',
-    'GObject properties accessors');
-describeSkip('phase 2.9 gobject-breadth — signal argument marshalling (boxed/arrays/…)',
-    'GObject signals');
-describeSkip('phase 2.10 gerror — GError through GValue + nullable GError args (pygobject extras)',
-    'GError extra tests');
-describeSkip('phase 2.3 hash-list — GHashTable of enums (pygobject extras)',
-    'GHashTable extra tests');
-describeSkip('phase 2.11 misc-breadth — filename encoding round-trips (pygobject extras)',
-    'Filename tests');
-describeSkip('phase 2.2 arrays — C array of enum return (pygobject extras)',
-    'Array of enum extra tests');
-describeSkip('phase 2.11 misc-breadth — 32-high-bit flags in-arg (pygobject extras)',
-    'Flags extra tests');
-describeSkip('phase 2.11 misc-breadth — invalid UTF-8 return/out must throw TypeError (pygobject extras)',
-    'UTF-8 strings invalid bytes tests');
+describeSkip('phase 2.9 gobject-breadth — property get/set across all GI types', 'GObject properties');
+describeSkip(
+    'phase 2.9 gobject-breadth — camelCase/underscore/dashed property accessors',
+    'GObject properties accessors',
+);
+describeSkip('phase 2.9 gobject-breadth — signal argument marshalling (boxed/arrays/…)', 'GObject signals');
+describeSkip(
+    'phase 2.10 gerror — GError through GValue + nullable GError args (pygobject extras)',
+    'GError extra tests',
+);
+describeSkip('phase 2.3 hash-list — GHashTable of enums (pygobject extras)', 'GHashTable extra tests');
+describeSkip('phase 2.11 misc-breadth — filename encoding round-trips (pygobject extras)', 'Filename tests');
+describeSkip('phase 2.2 arrays — C array of enum return (pygobject extras)', 'Array of enum extra tests');
+describeSkip('phase 2.11 misc-breadth — 32-high-bit flags in-arg (pygobject extras)', 'Flags extra tests');
+describeSkip(
+    'phase 2.11 misc-breadth — invalid UTF-8 return/out must throw TypeError (pygobject extras)',
+    'UTF-8 strings invalid bytes tests',
+);

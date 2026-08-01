@@ -11,8 +11,12 @@ export const meta = { dir: 'test_reference_double_free', targets: ['test_referen
 export default async function run(h) {
     const addon = h.loadAddon('test_reference_double_free');
 
-    { new addon.MyObject(true); }
-    { new addon.MyObject(false); }
+    {
+        new addon.MyObject(true);
+    }
+    {
+        new addon.MyObject(false);
+    }
 
     // Give any finalizer / deferred free a chance to run — a double free would
     // abort here rather than reach the marker.

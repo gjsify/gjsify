@@ -22,7 +22,10 @@ export class HTMLCanvasElement extends HTMLElement {
      * Register a rendering context factory for a given context type.
      * Called by packages like @gjsify/canvas2d and @gjsify/webgl to plug in their implementations.
      */
-    static registerContextFactory(contextId: string, factory: (canvas: HTMLCanvasElement, options?: unknown) => unknown): void {
+    static registerContextFactory(
+        contextId: string,
+        factory: (canvas: HTMLCanvasElement, options?: unknown) => unknown,
+    ): void {
         HTMLCanvasElement._contextFactories.set(contextId, factory);
     }
 

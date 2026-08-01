@@ -109,7 +109,10 @@ describe('css-as-string bare @import under the GJS CLI', { skip: SKIP, timeout: 
         writeFileSync(join(projectDir, 'src', 'app.ts'), "import css from './app.css';\nconsole.log(css.length);\n");
 
         // Negative fixture: a genuinely unresolvable bare @import.
-        writeFileSync(join(projectDir, 'src', 'bad.css'), '@import "@does-not-exist/missing.css";\n.x { color: red; }\n');
+        writeFileSync(
+            join(projectDir, 'src', 'bad.css'),
+            '@import "@does-not-exist/missing.css";\n.x { color: red; }\n',
+        );
         writeFileSync(join(projectDir, 'src', 'bad.ts'), "import css from './bad.css';\nconsole.log(css.length);\n");
 
         writeFileSync(

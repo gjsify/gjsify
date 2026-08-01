@@ -60,18 +60,8 @@ export default async () => {
             // empty vs empty → 0
             expect(doc1.cmpFrontiers([], [])).toBe(0);
             // ascending vs descending → -1 / 1 depending on peer ordering
-            expect(
-                doc1.cmpFrontiers(
-                    [{ peer: '1', counter: 4 }],
-                    [{ peer: '2', counter: 3 }],
-                ),
-            ).toBe(-1);
-            expect(
-                doc1.cmpFrontiers(
-                    [{ peer: '1', counter: 5 }],
-                    [{ peer: '2', counter: 3 }],
-                ),
-            ).toBe(1);
+            expect(doc1.cmpFrontiers([{ peer: '1', counter: 4 }], [{ peer: '2', counter: 3 }])).toBe(-1);
+            expect(doc1.cmpFrontiers([{ peer: '1', counter: 5 }], [{ peer: '2', counter: 3 }])).toBe(1);
         });
     });
 

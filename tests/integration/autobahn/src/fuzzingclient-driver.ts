@@ -53,9 +53,13 @@ function connect(path: string): Promise<WebSocket> {
         const ws = new WebSocket(`${AUTOBAHN_URL}${path}`, undefined, WS_OPTS);
         ws.binaryType = 'arraybuffer';
         ws.addEventListener('open', () => resolve(ws), { once: true });
-        ws.addEventListener('error', (ev: Event) => reject(new Error(`WebSocket error: ${(ev as ErrorEvent)?.message ?? 'unknown'}`)), {
-            once: true,
-        });
+        ws.addEventListener(
+            'error',
+            (ev: Event) => reject(new Error(`WebSocket error: ${(ev as ErrorEvent)?.message ?? 'unknown'}`)),
+            {
+                once: true,
+            },
+        );
     });
 }
 

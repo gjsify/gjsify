@@ -8,8 +8,14 @@ export default async function run(h) {
     const array = [1, 9, 48, 13493, 9459324, { name: 'hello' }, ['world', 'node', 'abi']];
 
     // napi_get_element bounds checks throw the addon's exact assertion message.
-    h.emit('oob-high', h.caught(() => t.TestGetElement(array, array.length + 1)));
-    h.emit('oob-neg', h.caught(() => t.TestGetElement(array, -2)));
+    h.emit(
+        'oob-high',
+        h.caught(() => t.TestGetElement(array, array.length + 1)),
+    );
+    h.emit(
+        'oob-neg',
+        h.caught(() => t.TestGetElement(array, -2)),
+    );
 
     // Each element round-trips by identity/value.
     array.forEach((el, i) => {

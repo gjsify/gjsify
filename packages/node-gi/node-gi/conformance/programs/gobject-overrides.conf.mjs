@@ -11,7 +11,7 @@ import Gio from 'gi://Gio?version=2.0';
 const a = new Gio.SimpleAction({ name: 'x', enabled: true });
 let count = 0;
 const handler = () => {
-  count++;
+    count++;
 };
 a.connect('notify::enabled', handler);
 a.connect('notify::enabled', handler);
@@ -32,7 +32,7 @@ print('after4:', count);
 let c2 = 0;
 const b = new Gio.SimpleAction({ name: 'y', enabled: true });
 const idb = b.connect('notify::enabled', () => {
-  c2++;
+    c2++;
 });
 b.block_signal_handler(idb);
 b.set_enabled(false);
@@ -62,4 +62,9 @@ print('object.new name:', made.name);
 print('object.new get_name():', made.get_name());
 
 // ---- AccumulatorType ------------------------------------------------------
-print('accumulator NONE/FIRST_WINS/TRUE_HANDLED:', GObject.AccumulatorType.NONE, GObject.AccumulatorType.FIRST_WINS, GObject.AccumulatorType.TRUE_HANDLED);
+print(
+    'accumulator NONE/FIRST_WINS/TRUE_HANDLED:',
+    GObject.AccumulatorType.NONE,
+    GObject.AccumulatorType.FIRST_WINS,
+    GObject.AccumulatorType.TRUE_HANDLED,
+);

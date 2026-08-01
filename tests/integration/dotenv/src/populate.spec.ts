@@ -116,7 +116,7 @@ export default async () => {
             expect(process.env.GJSIFY_POP_NEW).toBeUndefined();
         });
 
-        await it("in operator reports presence for keys we just wrote", () => {
+        await it('in operator reports presence for keys we just wrote', () => {
             resetEnv();
             try {
                 process.env.GJSIFY_POP_NEW = 'present';

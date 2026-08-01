@@ -160,12 +160,8 @@ export default async () => {
             expect(Y.snapshotContainsUpdate(snapshot1, updates[0])).toBe(false);
             expect(Y.snapshotContainsUpdate(snapshot2, updates[1])).toBe(false);
             expect(Y.snapshotContainsUpdate(snapshot2, updates[0])).toBe(true);
-            expect(
-                Y.snapshotContainsUpdate(snapshotFinal, updates[0]),
-            ).toBe(true);
-            expect(
-                Y.snapshotContainsUpdate(snapshotFinal, updates[1]),
-            ).toBe(true);
+            expect(Y.snapshotContainsUpdate(snapshotFinal, updates[0])).toBe(true);
+            expect(Y.snapshotContainsUpdate(snapshotFinal, updates[1])).toBe(true);
         });
     });
 };

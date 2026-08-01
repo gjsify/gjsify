@@ -34,15 +34,21 @@ const CLI_GJS_BUNDLE = fileURLToPath(new URL('../../../packages/infra/cli/dist/c
 function setupMonorepo(root) {
     writeFileSync(
         join(root, 'package.json'),
-        JSON.stringify({ name: 'ws-fixture', version: '0.0.0', private: true, type: 'module', workspaces: ['packages/*'] }, null, 2) +
-            '\n',
+        JSON.stringify(
+            { name: 'ws-fixture', version: '0.0.0', private: true, type: 'module', workspaces: ['packages/*'] },
+            null,
+            2,
+        ) + '\n',
     );
     const pkgDir = join(root, 'packages', 'foo');
     mkdirSync(pkgDir, { recursive: true });
     writeFileSync(
         join(pkgDir, 'package.json'),
-        JSON.stringify({ name: '@test/foo', version: '0.0.0', private: true, scripts: { build: "node -e \"''\"" } }, null, 2) +
-            '\n',
+        JSON.stringify(
+            { name: '@test/foo', version: '0.0.0', private: true, scripts: { build: 'node -e "\'\'"' } },
+            null,
+            2,
+        ) + '\n',
     );
 }
 
@@ -64,7 +70,11 @@ function assertCleanNotFound(res, { runtime }) {
     assert.match(out, /no workspace named/, `[${runtime}] missing the clear not-found message`);
     // None of the crash fingerprints may appear.
     assert.doesNotMatch(out, /m_should_exit/, `[${runtime}] m_should_exit assertion leaked`);
-    assert.doesNotMatch(out, /can't access property|manifest.*undefined|undefined.*manifest/i, `[${runtime}] undefined deref leaked`);
+    assert.doesNotMatch(
+        out,
+        /can't access property|manifest.*undefined|undefined.*manifest/i,
+        `[${runtime}] undefined deref leaked`,
+    );
 }
 
 describe('gjsify workspace unknown-name clean exit (E2E)', { timeout: 3 * 60 * 1000 }, () => {
@@ -86,7 +96,11 @@ describe('gjsify workspace unknown-name clean exit (E2E)', { timeout: 3 * 60 * 1
     it('Node: a near-miss name suggests the closest workspace', () => {
         const res = runNode(root, ['workspace', '@test/fooo', 'build']);
         assert.equal(res.status, 1);
-        assert.match(`${res.stdout}\n${res.stderr}`, /did you mean "@test\/foo"/, 'expected a "did you mean" suggestion');
+        assert.match(
+            `${res.stdout}\n${res.stderr}`,
+            /did you mean "@test\/foo"/,
+            'expected a "did you mean" suggestion',
+        );
     });
 
     it('GJS: unknown workspace exits cleanly under the bundled CLI (no m_should_exit crash)', (t) => {
@@ -105,6 +119,10 @@ describe('gjsify workspace unknown-name clean exit (E2E)', { timeout: 3 * 60 * 1
         const res = runGjs(root, ['workspace', '@test/fooo', 'build']);
         assert.equal(res.signal ?? null, null, `crashed: ${res.signal}`);
         assert.equal(res.status, 1, `expected exit 1, got ${res.status}\n${res.stdout}\n${res.stderr}`);
-        assert.match(`${res.stdout}\n${res.stderr}`, /did you mean "@test\/foo"/, 'expected a "did you mean" suggestion');
+        assert.match(
+            `${res.stdout}\n${res.stderr}`,
+            /did you mean "@test\/foo"/,
+            'expected a "did you mean" suggestion',
+        );
     });
 });

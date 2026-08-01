@@ -219,13 +219,19 @@ export default async () => {
                 });
 
             await it('should round-trip gzip input', async () => {
-                const packed = await through(createGzip() as unknown as NodeJS.ReadWriteStream, new TextEncoder().encode('gzip payload'));
+                const packed = await through(
+                    createGzip() as unknown as NodeJS.ReadWriteStream,
+                    new TextEncoder().encode('gzip payload'),
+                );
                 const out = await through(createUnzip() as unknown as NodeJS.ReadWriteStream, packed);
                 expect(decode(out)).toBe('gzip payload');
             });
 
             await it('should round-trip zlib-wrapped deflate input', async () => {
-                const packed = await through(createDeflate() as unknown as NodeJS.ReadWriteStream, new TextEncoder().encode('deflate payload'));
+                const packed = await through(
+                    createDeflate() as unknown as NodeJS.ReadWriteStream,
+                    new TextEncoder().encode('deflate payload'),
+                );
                 const out = await through(createUnzip() as unknown as NodeJS.ReadWriteStream, packed);
                 expect(decode(out)).toBe('deflate payload');
             });

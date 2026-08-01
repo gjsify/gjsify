@@ -24,8 +24,7 @@ export class ClampNsStory extends StoryView {
         // carries the clamped text (closest Adwaita primitive for centred text).
         const inner = new AdwButtonContent();
         inner.className = `${inner.className} card`.trim();
-        inner.label =
-            'This content is clamped — it stops growing past the maximum size and stays centred.';
+        inner.label = 'This content is clamped — it stops growing past the maximum size and stays centred.';
 
         this._clamp = new AdwClamp();
         this._clamp.setChild(inner);

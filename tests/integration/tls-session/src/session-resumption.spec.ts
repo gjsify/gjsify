@@ -101,10 +101,7 @@ async function openTlsConnection(
  * server. The server echoes back nothing — the spec only cares about
  * the handshake completing.
  */
-async function withTlsServer(
-    tls: typeof import('node:tls'),
-    body: (port: number) => Promise<void>,
-): Promise<void> {
+async function withTlsServer(tls: typeof import('node:tls'), body: (port: number) => Promise<void>): Promise<void> {
     const server = tls.createServer(
         {
             cert: readCert(),

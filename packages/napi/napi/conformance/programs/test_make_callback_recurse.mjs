@@ -15,11 +15,14 @@ export default async function run(h) {
     const makeCallback = binding.makeCallback;
 
     // The error thrown by the callback must surface as the caught error.
-    h.emit('propagates', h.caughtFull(() => {
-        makeCallback({}, function () {
-            throw new Error('hi from domain error');
-        });
-    }));
+    h.emit(
+        'propagates',
+        h.caughtFull(() => {
+            makeCallback({}, function () {
+                throw new Error('hi from domain error');
+            });
+        }),
+    );
 
     // A callback that does not throw returns its receiver (binding returns recv).
     const recv = {};

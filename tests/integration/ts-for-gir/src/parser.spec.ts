@@ -116,7 +116,9 @@ export default async () => {
 
         await it('PromiseBridge has glib:signal entries (replied, rejected)', async () => {
             const cls = findClass(ns, 'PromiseBridge');
-            const signals = (cls as unknown as Record<string, unknown>)['glib:signal'] as Array<{ $: { name: string } }> | undefined;
+            const signals = (cls as unknown as Record<string, unknown>)['glib:signal'] as
+                | Array<{ $: { name: string } }>
+                | undefined;
             expect(Array.isArray(signals)).toBeTruthy();
             const names = signals!.map((s) => s.$.name);
             expect(names).toContain('replied');

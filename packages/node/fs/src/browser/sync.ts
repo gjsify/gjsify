@@ -17,11 +17,29 @@ type PathLike = string | URL | { toString(): string };
 type BufferLike = Uint8Array | { buffer: ArrayBufferLike; byteOffset?: number; byteLength?: number };
 type Encoding = 'utf8' | 'utf-8' | 'ascii' | 'binary' | 'base64' | 'hex' | null;
 
-export interface ReadFileOpts { encoding?: Encoding; flag?: string }
-export interface WriteFileOpts { encoding?: Encoding; mode?: number; flag?: string }
-export interface MkdirOpts { recursive?: boolean; mode?: number }
-export interface RmOpts { recursive?: boolean; force?: boolean; maxRetries?: number; retryDelay?: number }
-export interface StatOpts { bigint?: boolean; throwIfNoEntry?: boolean }
+export interface ReadFileOpts {
+    encoding?: Encoding;
+    flag?: string;
+}
+export interface WriteFileOpts {
+    encoding?: Encoding;
+    mode?: number;
+    flag?: string;
+}
+export interface MkdirOpts {
+    recursive?: boolean;
+    mode?: number;
+}
+export interface RmOpts {
+    recursive?: boolean;
+    force?: boolean;
+    maxRetries?: number;
+    retryDelay?: number;
+}
+export interface StatOpts {
+    bigint?: boolean;
+    throwIfNoEntry?: boolean;
+}
 
 function toBytes(input: string | BufferLike, encoding?: Encoding): Uint8Array {
     if (typeof input === 'string') {
@@ -96,23 +114,29 @@ export function appendFileSync(path: PathLike, data: string | BufferLike, opts?:
 // ───────────── stat / lstat / exists / access ────────────────────────────────
 
 export function statSync(path: PathLike, opts?: StatOpts): Stats | BigIntStats | undefined {
-    try { return statsFor(path, vol.statSync(absolutise(path)), opts); }
-    catch (e) {
+    try {
+        return statsFor(path, vol.statSync(absolutise(path)), opts);
+    } catch (e) {
         if (opts?.throwIfNoEntry === false) return undefined;
         throw e;
     }
 }
 
 export function lstatSync(path: PathLike, opts?: StatOpts): Stats | BigIntStats | undefined {
-    try { return statsFor(path, vol.lstatSync(absolutise(path)), opts); }
-    catch (e) {
+    try {
+        return statsFor(path, vol.lstatSync(absolutise(path)), opts);
+    } catch (e) {
         if (opts?.throwIfNoEntry === false) return undefined;
         throw e;
     }
 }
 
 export function existsSync(path: PathLike): boolean {
-    try { return vol.existsSync(absolutise(path)); } catch { return false; }
+    try {
+        return vol.existsSync(absolutise(path));
+    } catch {
+        return false;
+    }
 }
 
 export function accessSync(path: PathLike, mode = 0): void {
@@ -121,21 +145,22 @@ export function accessSync(path: PathLike, mode = 0): void {
 
 // ───────────── Directories ───────────────────────────────────────────────────
 
-export interface ReadDirOpts { withFileTypes?: boolean; recursive?: boolean; encoding?: string }
+export interface ReadDirOpts {
+    withFileTypes?: boolean;
+    recursive?: boolean;
+    encoding?: string;
+}
 
-export function readdirSync(
-    path: PathLike,
-    opts?: ReadDirOpts,
-): string[] | Dirent[] {
+export function readdirSync(path: PathLike, opts?: ReadDirOpts): string[] | Dirent[] {
     const abs = absolutise(path);
     if (opts?.withFileTypes) {
-        return vol.readdirEntriesSync(abs).map(e => new Dirent(e.name, e.kind, abs));
+        return vol.readdirEntriesSync(abs).map((e) => new Dirent(e.name, e.kind, abs));
     }
     return vol.readdirSync(abs);
 }
 
 export function mkdirSync(path: PathLike, opts?: MkdirOpts | number): string | undefined {
-    const o: MkdirOpts = typeof opts === 'number' ? { mode: opts } : opts ?? {};
+    const o: MkdirOpts = typeof opts === 'number' ? { mode: opts } : (opts ?? {});
     return vol.mkdirSync(absolutise(path), o);
 }
 
@@ -218,15 +243,11 @@ export function openSync(path: PathLike, flags = 'r', mode = 0o666): number {
     return vol.openSync(absolutise(path), flags, mode);
 }
 
-export function closeSync(fd: number): void { vol.closeSync(fd); }
+export function closeSync(fd: number): void {
+    vol.closeSync(fd);
+}
 
-export function readSync(
-    fd: number,
-    buf: Uint8Array,
-    offset: number,
-    length: number,
-    position: number | null,
-): number {
+export function readSync(fd: number, buf: Uint8Array, offset: number, length: number, position: number | null): number {
     return vol.readSync(fd, buf, offset, length, position);
 }
 
@@ -237,9 +258,7 @@ export function writeSync(
     lengthOrEnc?: number | string,
     position?: number | null,
 ): number {
-    const bytes = typeof buf === 'string'
-        ? new TextEncoder().encode(buf)
-        : buf;
+    const bytes = typeof buf === 'string' ? new TextEncoder().encode(buf) : buf;
     if (typeof buf === 'string') {
         // (fd, string, position?, encoding?) — Node overload
         const pos = (offsetOrPos as number | null | undefined) ?? null;

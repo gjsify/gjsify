@@ -23,7 +23,9 @@ export default defineConfig({
                 // Map these two to their src so the docs build resolves them without a lib build.
                 // (They previously carried a `browser` → ./src condition, removed in the export fix
                 // that unbroke published --app gjs consumers; that resolution now lives here.)
-                '@gjsify/stories': fileURLToPath(new URL('../packages/framework/stories/src/index.ts', import.meta.url)),
+                '@gjsify/stories': fileURLToPath(
+                    new URL('../packages/framework/stories/src/index.ts', import.meta.url),
+                ),
                 '@gjsify/storybook-core': fileURLToPath(
                     new URL('../packages/framework/storybook-core/src/index.ts', import.meta.url),
                 ),
@@ -133,19 +135,11 @@ export default defineConfig({
                 },
                 {
                     label: 'Reference',
-                    items: [
-                        { slug: 'cli-reference' },
-                        { slug: 'coverage' },
-                        { slug: 'versioning' },
-                    ],
+                    items: [{ slug: 'cli-reference' }, { slug: 'coverage' }, { slug: 'versioning' }],
                 },
                 {
                     label: 'Ecosystem',
-                    items: [
-                        { slug: 'projects/ts-for-gir' },
-                        { slug: 'projects/node-gi' },
-                        { slug: 'projects/napi' },
-                    ],
+                    items: [{ slug: 'projects/ts-for-gir' }, { slug: 'projects/node-gi' }, { slug: 'projects/napi' }],
                 },
                 {
                     label: 'Showcases',

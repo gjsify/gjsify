@@ -33,29 +33,76 @@ import { Transform } from '@gjsify/stream/browser';
 // ─── Constants (copied from Node lib/zlib.js for API parity) ──────────────
 
 export const constants = {
-    Z_NO_FLUSH: 0, Z_PARTIAL_FLUSH: 1, Z_SYNC_FLUSH: 2, Z_FULL_FLUSH: 3,
-    Z_FINISH: 4, Z_BLOCK: 5, Z_TREES: 6,
-    Z_OK: 0, Z_STREAM_END: 1, Z_NEED_DICT: 2, Z_ERRNO: -1, Z_STREAM_ERROR: -2,
-    Z_DATA_ERROR: -3, Z_MEM_ERROR: -4, Z_BUF_ERROR: -5, Z_VERSION_ERROR: -6,
-    Z_NO_COMPRESSION: 0, Z_BEST_SPEED: 1, Z_BEST_COMPRESSION: 9,
+    Z_NO_FLUSH: 0,
+    Z_PARTIAL_FLUSH: 1,
+    Z_SYNC_FLUSH: 2,
+    Z_FULL_FLUSH: 3,
+    Z_FINISH: 4,
+    Z_BLOCK: 5,
+    Z_TREES: 6,
+    Z_OK: 0,
+    Z_STREAM_END: 1,
+    Z_NEED_DICT: 2,
+    Z_ERRNO: -1,
+    Z_STREAM_ERROR: -2,
+    Z_DATA_ERROR: -3,
+    Z_MEM_ERROR: -4,
+    Z_BUF_ERROR: -5,
+    Z_VERSION_ERROR: -6,
+    Z_NO_COMPRESSION: 0,
+    Z_BEST_SPEED: 1,
+    Z_BEST_COMPRESSION: 9,
     Z_DEFAULT_COMPRESSION: -1,
-    Z_FILTERED: 1, Z_HUFFMAN_ONLY: 2, Z_RLE: 3, Z_FIXED: 4,
-    Z_DEFAULT_STRATEGY: 0, ZLIB_VERNUM: 0x12b0,
-    DEFLATE: 1, INFLATE: 2, GZIP: 3, GUNZIP: 4, DEFLATERAW: 5, INFLATERAW: 6, UNZIP: 7,
-    BROTLI_DECODE: 8, BROTLI_ENCODE: 9, ZSTD_COMPRESS: 10, ZSTD_DECOMPRESS: 11,
-    Z_MIN_WINDOWBITS: 8, Z_MAX_WINDOWBITS: 15, Z_DEFAULT_WINDOWBITS: 15,
-    Z_MIN_CHUNK: 64, Z_MAX_CHUNK: Infinity, Z_DEFAULT_CHUNK: 16384,
-    Z_MIN_MEMLEVEL: 1, Z_MAX_MEMLEVEL: 9, Z_DEFAULT_MEMLEVEL: 8,
-    Z_MIN_LEVEL: -1, Z_MAX_LEVEL: 9, Z_DEFAULT_LEVEL: -1,
-    BROTLI_OPERATION_PROCESS: 0, BROTLI_OPERATION_FLUSH: 1, BROTLI_OPERATION_FINISH: 2,
+    Z_FILTERED: 1,
+    Z_HUFFMAN_ONLY: 2,
+    Z_RLE: 3,
+    Z_FIXED: 4,
+    Z_DEFAULT_STRATEGY: 0,
+    ZLIB_VERNUM: 0x12b0,
+    DEFLATE: 1,
+    INFLATE: 2,
+    GZIP: 3,
+    GUNZIP: 4,
+    DEFLATERAW: 5,
+    INFLATERAW: 6,
+    UNZIP: 7,
+    BROTLI_DECODE: 8,
+    BROTLI_ENCODE: 9,
+    ZSTD_COMPRESS: 10,
+    ZSTD_DECOMPRESS: 11,
+    Z_MIN_WINDOWBITS: 8,
+    Z_MAX_WINDOWBITS: 15,
+    Z_DEFAULT_WINDOWBITS: 15,
+    Z_MIN_CHUNK: 64,
+    Z_MAX_CHUNK: Infinity,
+    Z_DEFAULT_CHUNK: 16384,
+    Z_MIN_MEMLEVEL: 1,
+    Z_MAX_MEMLEVEL: 9,
+    Z_DEFAULT_MEMLEVEL: 8,
+    Z_MIN_LEVEL: -1,
+    Z_MAX_LEVEL: 9,
+    Z_DEFAULT_LEVEL: -1,
+    BROTLI_OPERATION_PROCESS: 0,
+    BROTLI_OPERATION_FLUSH: 1,
+    BROTLI_OPERATION_FINISH: 2,
     BROTLI_OPERATION_EMIT_METADATA: 3,
-    BROTLI_PARAM_MODE: 0, BROTLI_MODE_GENERIC: 0, BROTLI_MODE_TEXT: 1,
-    BROTLI_MODE_FONT: 2, BROTLI_DEFAULT_MODE: 0,
-    BROTLI_PARAM_QUALITY: 1, BROTLI_MIN_QUALITY: 0, BROTLI_MAX_QUALITY: 11,
+    BROTLI_PARAM_MODE: 0,
+    BROTLI_MODE_GENERIC: 0,
+    BROTLI_MODE_TEXT: 1,
+    BROTLI_MODE_FONT: 2,
+    BROTLI_DEFAULT_MODE: 0,
+    BROTLI_PARAM_QUALITY: 1,
+    BROTLI_MIN_QUALITY: 0,
+    BROTLI_MAX_QUALITY: 11,
     BROTLI_DEFAULT_QUALITY: 11,
-    BROTLI_PARAM_LGWIN: 2, BROTLI_MIN_WINDOW_BITS: 10, BROTLI_MAX_WINDOW_BITS: 24,
-    BROTLI_LARGE_MAX_WINDOW_BITS: 30, BROTLI_DEFAULT_WINDOW: 22,
-    BROTLI_PARAM_LGBLOCK: 3, BROTLI_MIN_INPUT_BLOCK_BITS: 16, BROTLI_MAX_INPUT_BLOCK_BITS: 24,
+    BROTLI_PARAM_LGWIN: 2,
+    BROTLI_MIN_WINDOW_BITS: 10,
+    BROTLI_MAX_WINDOW_BITS: 24,
+    BROTLI_LARGE_MAX_WINDOW_BITS: 30,
+    BROTLI_DEFAULT_WINDOW: 22,
+    BROTLI_PARAM_LGBLOCK: 3,
+    BROTLI_MIN_INPUT_BLOCK_BITS: 16,
+    BROTLI_MAX_INPUT_BLOCK_BITS: 24,
     BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING: 4,
     BROTLI_PARAM_SIZE_HINT: 5,
     BROTLI_PARAM_LARGE_WINDOW: 6,
@@ -95,11 +142,14 @@ async function runStream(
     direction: 'compress' | 'decompress',
     data: Uint8Array,
 ): Promise<Uint8Array> {
-    const StreamCtor = direction === 'compress'
-        ? (globalThis as { CompressionStream?: typeof CompressionStream }).CompressionStream
-        : (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
+    const StreamCtor =
+        direction === 'compress'
+            ? (globalThis as { CompressionStream?: typeof CompressionStream }).CompressionStream
+            : (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
     if (!StreamCtor) {
-        throw new Error(`zlib browser polyfill requires ${direction === 'compress' ? 'CompressionStream' : 'DecompressionStream'} (not available in this browser)`);
+        throw new Error(
+            `zlib browser polyfill requires ${direction === 'compress' ? 'CompressionStream' : 'DecompressionStream'} (not available in this browser)`,
+        );
     }
     const transform = new StreamCtor(format);
     const writer = transform.writable.getWriter();
@@ -129,11 +179,7 @@ async function runStream(
 }
 
 function asyncOp(format: WebCompressionFormat, direction: 'compress' | 'decompress') {
-    return (
-        data: string | Uint8Array | ArrayBuffer,
-        optsOrCb: ZlibOptions | Callback,
-        maybeCb?: Callback,
-    ): void => {
+    return (data: string | Uint8Array | ArrayBuffer, optsOrCb: ZlibOptions | Callback, maybeCb?: Callback): void => {
         const cb = typeof optsOrCb === 'function' ? optsOrCb : maybeCb;
         if (typeof cb !== 'function') throw new TypeError('callback is required');
         runStream(format, direction, toUint8(data)).then(
@@ -151,11 +197,7 @@ function syncOp(_format: WebCompressionFormat, _direction: 'compress' | 'decompr
 
 /** Async ENOTSUP for codecs the WHATWG Compression Streams spec lacks. */
 function unsupportedAsyncOp(op: string, codec: string) {
-    return (
-        _data: string | Uint8Array | ArrayBuffer,
-        optsOrCb: ZlibOptions | Callback,
-        maybeCb?: Callback,
-    ): void => {
+    return (_data: string | Uint8Array | ArrayBuffer, optsOrCb: ZlibOptions | Callback, maybeCb?: Callback): void => {
         const cb = typeof optsOrCb === 'function' ? optsOrCb : maybeCb;
         if (typeof cb !== 'function') throw new TypeError('callback is required');
         const err = notSupportedError(op, `${codec} is not in the WHATWG Compression Streams spec`);
@@ -245,22 +287,34 @@ export class ZlibTransform extends Transform {
 }
 
 export class Gzip extends ZlibTransform {
-    constructor() { super('gzip', 'compress'); }
+    constructor() {
+        super('gzip', 'compress');
+    }
 }
 export class Gunzip extends ZlibTransform {
-    constructor() { super('gzip', 'decompress'); }
+    constructor() {
+        super('gzip', 'decompress');
+    }
 }
 export class Deflate extends ZlibTransform {
-    constructor() { super('deflate', 'compress'); }
+    constructor() {
+        super('deflate', 'compress');
+    }
 }
 export class Inflate extends ZlibTransform {
-    constructor() { super('deflate', 'decompress'); }
+    constructor() {
+        super('deflate', 'decompress');
+    }
 }
 export class DeflateRaw extends ZlibTransform {
-    constructor() { super('deflate-raw', 'compress'); }
+    constructor() {
+        super('deflate-raw', 'compress');
+    }
 }
 export class InflateRaw extends ZlibTransform {
-    constructor() { super('deflate-raw', 'decompress'); }
+    constructor() {
+        super('deflate-raw', 'decompress');
+    }
 }
 
 /**
@@ -344,15 +398,49 @@ export const createZstdDecompress = (_opts?: ZlibOptions): never => new ZstdDeco
 
 const zlibDefault = {
     constants,
-    gzip, gunzip, deflate, inflate, deflateRaw, inflateRaw,
-    brotliCompress, brotliDecompress, zstdCompress, zstdDecompress,
-    gzipSync, gunzipSync, deflateSync, inflateSync, deflateRawSync, inflateRawSync,
-    brotliCompressSync, brotliDecompressSync, zstdCompressSync, zstdDecompressSync,
-    Gzip, Gunzip, Deflate, Inflate, DeflateRaw, InflateRaw, BrotliCompress, BrotliDecompress,
-    Unzip, ZlibTransform, ZstdCompress, ZstdDecompress,
-    createGzip, createGunzip, createDeflate, createInflate, createDeflateRaw, createInflateRaw,
-    createBrotliCompress, createBrotliDecompress, createUnzip,
-    createZstdCompress, createZstdDecompress,
+    gzip,
+    gunzip,
+    deflate,
+    inflate,
+    deflateRaw,
+    inflateRaw,
+    brotliCompress,
+    brotliDecompress,
+    zstdCompress,
+    zstdDecompress,
+    gzipSync,
+    gunzipSync,
+    deflateSync,
+    inflateSync,
+    deflateRawSync,
+    inflateRawSync,
+    brotliCompressSync,
+    brotliDecompressSync,
+    zstdCompressSync,
+    zstdDecompressSync,
+    Gzip,
+    Gunzip,
+    Deflate,
+    Inflate,
+    DeflateRaw,
+    InflateRaw,
+    BrotliCompress,
+    BrotliDecompress,
+    Unzip,
+    ZlibTransform,
+    ZstdCompress,
+    ZstdDecompress,
+    createGzip,
+    createGunzip,
+    createDeflate,
+    createInflate,
+    createDeflateRaw,
+    createInflateRaw,
+    createBrotliCompress,
+    createBrotliDecompress,
+    createUnzip,
+    createZstdCompress,
+    createZstdDecompress,
 };
 
 export default zlibDefault;

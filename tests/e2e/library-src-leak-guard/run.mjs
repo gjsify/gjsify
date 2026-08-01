@@ -33,18 +33,25 @@ function makeProject(root, pkgOverrides) {
     mkdirSync(join(root, 'src'), { recursive: true });
     writeFileSync(
         join(root, 'package.json'),
-        JSON.stringify({ name: 'lib-guard-fixture', version: '0.0.0', type: 'module', private: true, ...pkgOverrides }, null, 2) +
-            '\n',
+        JSON.stringify(
+            { name: 'lib-guard-fixture', version: '0.0.0', type: 'module', private: true, ...pkgOverrides },
+            null,
+            2,
+        ) + '\n',
     );
     writeFileSync(join(root, 'src', 'index.ts'), 'export const ANSWER = 42;\n');
 }
 
 function runBuild(cwd, extraArgs) {
-    return spawnSync(process.execPath, [CLI_ENTRY, 'build', 'src/index.ts', '--library', '--app', 'node', ...extraArgs], {
-        cwd,
-        encoding: 'utf-8',
-        timeout: 90 * 1000,
-    });
+    return spawnSync(
+        process.execPath,
+        [CLI_ENTRY, 'build', 'src/index.ts', '--library', '--app', 'node', ...extraArgs],
+        {
+            cwd,
+            encoding: 'utf-8',
+            timeout: 90 * 1000,
+        },
+    );
 }
 
 /** The JS files a build may have leaked into src/ (index.ts is the source). */

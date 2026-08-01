@@ -721,6 +721,20 @@ jobs:
       - name: Lint (oxlint, errors only)
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify lint'
 
+      # A formatter with a config and no gate formats nothing. `.oxfmtrc.json`
+      # has been maintained all along while nothing enforced it, so drift just
+      # accumulated: 388 files were unformatted against the version the repo
+      # itself pinned. Whole-repo like the lint step above, for the same reason
+      # — "the tree is formatted" is a repo-wide claim a per-file run cannot make.
+      #
+      # This is only honest because the engines agree: `gjsify format` picks the
+      # `@gjsify/oxfmt-native` bridge under GJS and the npm binary under Node,
+      # and #894 put both on oxfmt 0.61.0 with the lockstep machine-checked. A
+      # gate across two builds of a pre-1.0 formatter that were free to drift
+      # would fail on which engine happened to run it.
+      - name: Format (oxfmt --check)
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify format --check'
+
   # ── Unit tests (sharded) ────────────────────────────────────────────
   # Restores the build job's output and runs the workspace test suite split
   # across 4 parallel shards (gjsify foreach --shard). WebGL conformance rides

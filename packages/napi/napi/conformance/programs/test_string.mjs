@@ -9,24 +9,48 @@ export default async function run(h) {
     const t = h.loadAddon('test_string');
 
     const asciiCases = [
-        '', 'hello world',
+        '',
+        'hello world',
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
         '?!@#$%^&*()_+-=[]{}/.,<>\'"\\',
     ];
     const latin1Cases = [
         { str: '¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿', utf8Length: 62, utf8InsufficientIdx: 1 },
-        { str: 'ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþ', utf8Length: 126, utf8InsufficientIdx: 1 },
+        {
+            str: 'ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþ',
+            utf8Length: 126,
+            utf8InsufficientIdx: 1,
+        },
     ];
     const unicodeCases = [{ str: '\u{2003}\u{2101}\u{2001}\u{202}\u{2011}', utf8Length: 14, utf8InsufficientIdx: 1 }];
 
     const latin1 = (str) => {
-        for (const fn of ['TestLatin1', 'TestLatin1AutoLength', 'TestLatin1External', 'TestLatin1ExternalAutoLength', 'TestPropertyKeyLatin1', 'TestPropertyKeyLatin1AutoLength'])
+        for (const fn of [
+            'TestLatin1',
+            'TestLatin1AutoLength',
+            'TestLatin1External',
+            'TestLatin1ExternalAutoLength',
+            'TestPropertyKeyLatin1',
+            'TestPropertyKeyLatin1AutoLength',
+        ])
             h.emit(fn, t[fn](str) === str);
         h.emit('Latin1Length', t.Latin1Length(str) === str.length);
-        if (str !== '') h.emit('TestLatin1Insufficient', t.TestLatin1Insufficient(str) === str.slice(0, kInsufficientIdx));
+        if (str !== '')
+            h.emit('TestLatin1Insufficient', t.TestLatin1Insufficient(str) === str.slice(0, kInsufficientIdx));
     };
     const unicode = (str, utf8Length, utf8InsufficientIdx) => {
-        for (const fn of ['TestUtf8', 'TestUtf16', 'TestUtf8AutoLength', 'TestUtf16AutoLength', 'TestUtf16External', 'TestUtf16ExternalAutoLength', 'TestPropertyKeyUtf8', 'TestPropertyKeyUtf8AutoLength', 'TestPropertyKeyUtf16', 'TestPropertyKeyUtf16AutoLength'])
+        for (const fn of [
+            'TestUtf8',
+            'TestUtf16',
+            'TestUtf8AutoLength',
+            'TestUtf16AutoLength',
+            'TestUtf16External',
+            'TestUtf16ExternalAutoLength',
+            'TestPropertyKeyUtf8',
+            'TestPropertyKeyUtf8AutoLength',
+            'TestPropertyKeyUtf16',
+            'TestPropertyKeyUtf16AutoLength',
+        ])
             h.emit(fn, t[fn](str) === str);
         h.emit('Utf8Length', t.Utf8Length(str) === utf8Length);
         h.emit('Utf16Length', t.Utf16Length(str) === str.length);
@@ -43,9 +67,18 @@ export default async function run(h) {
     unicodeCases.forEach((it) => unicode(it.str, it.utf8Length, it.utf8InsufficientIdx));
 
     // Oversized-length guards throw the shim's "Invalid argument".
-    h.emit('TestLargeUtf8', h.caughtFull(() => t.TestLargeUtf8()));
-    h.emit('TestLargeLatin1', h.caughtFull(() => t.TestLargeLatin1()));
-    h.emit('TestLargeUtf16', h.caughtFull(() => t.TestLargeUtf16()));
+    h.emit(
+        'TestLargeUtf8',
+        h.caughtFull(() => t.TestLargeUtf8()),
+    );
+    h.emit(
+        'TestLargeLatin1',
+        h.caughtFull(() => t.TestLargeLatin1()),
+    );
+    h.emit(
+        'TestLargeUtf16',
+        h.caughtFull(() => t.TestLargeUtf16()),
+    );
 
     // Round-trip of a 64 KiB buffer must not corrupt memory.
     t.TestMemoryCorruption(' '.repeat(64 * 1024));

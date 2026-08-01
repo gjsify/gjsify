@@ -35,7 +35,10 @@ print('records:', records.length);
 const rec = records[0];
 print('level is MESSAGE:', rec.level === GLib.LogLevelFlags.LEVEL_MESSAGE);
 print('keys:', Object.keys(rec.fields).sort().join(','));
-print('all bytes:', Object.values(rec.fields).every((v) => v instanceof Uint8Array));
+print(
+    'all bytes:',
+    Object.values(rec.fields).every((v) => v instanceof Uint8Array),
+);
 print('MESSAGE:', dec.decode(rec.fields.MESSAGE));
 print('MY_FIELD:', dec.decode(rec.fields.MY_FIELD));
 print('PRIORITY:', dec.decode(rec.fields.PRIORITY));

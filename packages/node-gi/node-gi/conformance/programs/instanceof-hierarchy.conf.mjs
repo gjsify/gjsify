@@ -32,12 +32,12 @@ print('boxed Variant instanceof SimpleAction:', new GObject.Value() instanceof G
 
 // ---- registered subclass: leaf, introspected base, GObject.Object, interface ----
 const MyAction = GObject.registerClass(
-  { GTypeName: 'NodeGiInstanceofAction' },
-  class MyAction extends Gio.SimpleAction {},
+    { GTypeName: 'NodeGiInstanceofAction' },
+    class MyAction extends Gio.SimpleAction {},
 );
 const OtherAction = GObject.registerClass(
-  { GTypeName: 'NodeGiInstanceofOther' },
-  class OtherAction extends Gio.SimpleAction {},
+    { GTypeName: 'NodeGiInstanceofOther' },
+    class OtherAction extends Gio.SimpleAction {},
 );
 const sub = new MyAction({ name: 'sub', enabled: true });
 print('sub instanceof MyAction (leaf):', sub instanceof MyAction);

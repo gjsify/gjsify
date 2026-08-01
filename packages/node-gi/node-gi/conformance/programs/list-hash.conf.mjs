@@ -19,7 +19,10 @@ print('hash keys:', JSON.stringify(Object.keys(params).sort()));
 // runtimes on the same machine), never the host-dependent values.
 const registered = Gio.content_types_get_registered();
 print('registered isArray:', Array.isArray(registered));
-print('registered all strings:', registered.every((t) => typeof t === 'string'));
+print(
+    'registered all strings:',
+    registered.every((t) => typeof t === 'string'),
+);
 
 // GHashTable round-trips a fixed input deterministically — a second parse with a
 // different separator proves the key/value decoding is content-driven, not cached.

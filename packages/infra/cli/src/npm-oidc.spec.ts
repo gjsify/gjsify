@@ -282,7 +282,10 @@ export default async () => {
             let calls = 0;
             const stub = mockFetch(() => {
                 calls += 1;
-                return { status: 404, body: JSON.stringify({ message: 'OIDC token exchange error - package not found' }) };
+                return {
+                    status: 404,
+                    body: JSON.stringify({ message: 'OIDC token exchange error - package not found' }),
+                };
             });
             try {
                 let thrown: OidcExchangeError | null = null;

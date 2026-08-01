@@ -166,7 +166,13 @@ export class SubtleCrypto {
                 }
                 validateUsages(keyUsages, ['wrapKey', 'unwrapKey']);
                 const keyData = _randomBytes(length / 8);
-                return new CryptoKey('secret', extractable, { name: 'AES-KW', length }, keyUsages, new Uint8Array(keyData));
+                return new CryptoKey(
+                    'secret',
+                    extractable,
+                    { name: 'AES-KW', length },
+                    keyUsages,
+                    new Uint8Array(keyData),
+                );
             }
             case 'HMAC': {
                 const hmacParams = algorithm as HmacKeyGenParams;
@@ -490,7 +496,11 @@ export class SubtleCrypto {
      * the wrap operation IS the encrypt operation, gated on a different usage
      * per the WebCrypto spec.
      */
-    private async _encryptImpl(algorithm: AlgorithmIdentifier, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
+    private async _encryptImpl(
+        algorithm: AlgorithmIdentifier,
+        key: CryptoKey,
+        data: BufferSource,
+    ): Promise<ArrayBuffer> {
         const alg = normalizeAlgorithm(algorithm);
         const name = alg.name.toUpperCase();
         const plaintext = toUint8Array(data);
@@ -568,7 +578,11 @@ export class SubtleCrypto {
      * {@link decrypt} (checks 'decrypt') and {@link unwrapKey} (checks
      * 'unwrapKey').
      */
-    private async _decryptImpl(algorithm: AlgorithmIdentifier, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
+    private async _decryptImpl(
+        algorithm: AlgorithmIdentifier,
+        key: CryptoKey,
+        data: BufferSource,
+    ): Promise<ArrayBuffer> {
         const alg = normalizeAlgorithm(algorithm);
         const name = alg.name.toUpperCase();
         const ciphertext = toUint8Array(data);
@@ -866,9 +880,7 @@ export class SubtleCrypto {
         // 'wrapKey' rather than 'encrypt' usage (WebCrypto §wrapKey).
         const exported = await this.exportKey(format, key);
         const bytes: BufferSource =
-            format === 'jwk'
-                ? new TextEncoder().encode(JSON.stringify(exported))
-                : (exported as ArrayBuffer);
+            format === 'jwk' ? new TextEncoder().encode(JSON.stringify(exported)) : (exported as ArrayBuffer);
         return this._encryptImpl(wrapAlgorithm, wrappingKey, bytes);
     }
 

@@ -117,10 +117,7 @@ export default async () => {
             const deepCwd = join(root, 'nested', 'a', 'b', 'c');
             mkdirSync(pkgDir, { recursive: true });
             mkdirSync(deepCwd, { recursive: true });
-            writeFileSync(
-                join(pkgDir, 'package.json'),
-                JSON.stringify({ name: 'fake-pkg', main: './index.js' }),
-            );
+            writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: 'fake-pkg', main: './index.js' }));
             writeFileSync(join(pkgDir, 'index.js'), 'export default 42;\n');
             try {
                 delete process.env['GJSIFY_NODE_PATH'];

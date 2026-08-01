@@ -111,14 +111,18 @@ test('Gtk.Template <signal> handler + CssName: node-gi golden values', { skip },
     assert.equal(parsed.cssName, 'nodegisignalsbox', 'CssName installed and read back via get_css_name()');
 });
 
-test('Gtk.Template <signal> handler + CssName: gjs byte-parity', { skip: skip || (!haveGjs && 'gjs not on PATH') }, () => {
-    const node = runNodeGi('gtk-template-signals.program.mjs');
-    const gjs = runGjs('gtk-template-signals.program.mjs');
-    assert.equal(gjs.status, 0, `gjs should exit 0; stderr:\n${gjs.stderr}`);
-    assert.equal(node.status, 0, `node-gi twin should exit 0; stderr:\n${node.stderr}`);
-    // Byte-for-byte identical observable output — node-gi mirrors the gjs gold standard.
-    assert.equal(node.stdout, gjs.stdout, 'node-gi template-signal output equals the gjs reference byte-for-byte');
-});
+test(
+    'Gtk.Template <signal> handler + CssName: gjs byte-parity',
+    { skip: skip || (!haveGjs && 'gjs not on PATH') },
+    () => {
+        const node = runNodeGi('gtk-template-signals.program.mjs');
+        const gjs = runGjs('gtk-template-signals.program.mjs');
+        assert.equal(gjs.status, 0, `gjs should exit 0; stderr:\n${gjs.stderr}`);
+        assert.equal(node.status, 0, `node-gi twin should exit 0; stderr:\n${node.stderr}`);
+        // Byte-for-byte identical observable output — node-gi mirrors the gjs gold standard.
+        assert.equal(node.stdout, gjs.stdout, 'node-gi template-signal output equals the gjs reference byte-for-byte');
+    },
+);
 
 test('Gtk.Template swapped="true" rejected like gjs (non-fatal): golden values', { skip }, () => {
     const node = runNodeGi('gtk-template-swapped.program.mjs');

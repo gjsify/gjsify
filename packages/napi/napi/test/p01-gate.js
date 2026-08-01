@@ -137,7 +137,12 @@ checkThrows('coerceObject(null) throws', () => v.coerceObject(null));
 checkThrows('coerceObject(undefined) throws', () => v.coerceObject(undefined));
 // A throwing valueOf propagates the user exception.
 checkThrows('coerceNumber(throwing valueOf) throws', () =>
-    v.coerceNumber({ valueOf: () => { throw new Error('boom'); } }));
+    v.coerceNumber({
+        valueOf: () => {
+            throw new Error('boom');
+        },
+    }),
+);
 
 // ---- typeof sweep ----
 check('typeof undefined', v.typeofName(undefined), 'undefined');
@@ -147,7 +152,11 @@ check('typeof number', v.typeofName(1.5), 'number');
 check('typeof string', v.typeofName('s'), 'string');
 check('typeof symbol', v.typeofName(Symbol('s')), 'symbol');
 check('typeof object', v.typeofName({}), 'object');
-check('typeof function', v.typeofName(() => 0), 'function');
+check(
+    'typeof function',
+    v.typeofName(() => 0),
+    'function',
+);
 check('typeof bigint', v.typeofName(1n), 'bigint');
 
 // ---- napi_create_symbol ----

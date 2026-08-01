@@ -57,7 +57,10 @@ export function extractIconPaths(svg: string): IconPath[] {
         const opacity = opAttr !== undefined ? Number.parseFloat(opAttr) : 1;
         // Space-separate arc flags so Android's PathParser can read the compact form
         // (see normalizeArcFlags) — a no-op for paths without arcs / glued flags.
-        paths.push({ d: normalizeArcFlags(d), opacity: Number.isFinite(opacity) ? Math.min(1, Math.max(0, opacity)) : 1 });
+        paths.push({
+            d: normalizeArcFlags(d),
+            opacity: Number.isFinite(opacity) ? Math.min(1, Math.max(0, opacity)) : 1,
+        });
     }
     return paths;
 }

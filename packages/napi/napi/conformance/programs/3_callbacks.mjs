@@ -11,7 +11,9 @@ export default async function run(h) {
     const addon = h.loadAddon('3_callbacks');
 
     let msg;
-    addon.RunCallback((m) => { msg = m; });
+    addon.RunCallback((m) => {
+        msg = m;
+    });
     h.emit('RunCallback.msg', msg);
 
     for (const recv of [undefined, null, 5, true, 'Hello', [], {}]) {

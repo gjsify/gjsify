@@ -96,7 +96,10 @@ describe('CLI css-bundling E2E', { timeout: 10 * 60 * 1000 }, () => {
         );
         // The referenced woff2 deliberately does NOT exist on disk — a missing
         // font asset must not fail the CSS pipeline.
-        writeFileSync(join(projectDir, 'src', 'fonts.ts'), `import css from './fonts.css';\nconsole.log(css.length);\n`);
+        writeFileSync(
+            join(projectDir, 'src', 'fonts.ts'),
+            `import css from './fonts.css';\nconsole.log(css.length);\n`,
+        );
 
         execFileSync('npx', ['gjsify', 'build', '--app', 'gjs', 'src/fonts.ts', '--outfile', 'dist/fonts.js'], {
             cwd: projectDir,

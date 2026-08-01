@@ -10,13 +10,13 @@ import GObject from 'gi://GObject?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
 
 const Klass = GObject.registerClass(
-  { GTypeName: 'ConfChainOutValue' },
-  class extends Gio.TlsPassword {
-    vfunc_get_value() {
-      // Chain up to the C default; it fills the OUT length + returns the bytes.
-      return super.vfunc_get_value();
-    }
-  },
+    { GTypeName: 'ConfChainOutValue' },
+    class extends Gio.TlsPassword {
+        vfunc_get_value() {
+            // Chain up to the C default; it fills the OUT length + returns the bytes.
+            return super.vfunc_get_value();
+        }
+    },
 );
 
 const pw = new Klass({ flags: 0, description: 'secret' });

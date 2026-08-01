@@ -36,8 +36,7 @@ const args = new Set(argv);
 const rootFlag = argv.indexOf('--root');
 // `--root` exists so the guard can be exercised against fixture trees
 // (tests/e2e/package-outputs) instead of only against the repo it lives in.
-const repoRoot =
-    rootFlag === -1 ? resolve(dirname(fileURLToPath(import.meta.url)), '..') : resolve(argv[rootFlag + 1]);
+const repoRoot = rootFlag === -1 ? resolve(dirname(fileURLToPath(import.meta.url)), '..') : resolve(argv[rootFlag + 1]);
 const inActions = Boolean(process.env.GITHUB_ACTIONS);
 
 const includePrivate = args.has('--include-private');
@@ -93,7 +92,11 @@ function fail(msg) {
 }
 
 const excludeNamePatterns =
-    scope === 'examples' ? EXAMPLE_ONLY_PATTERNS : scope === 'all' ? [/^@girs\//, /^@gjsify\/website$/] : EXCLUDED_NAME_PATTERNS;
+    scope === 'examples'
+        ? EXAMPLE_ONLY_PATTERNS
+        : scope === 'all'
+          ? [/^@girs\//, /^@gjsify\/website$/]
+          : EXCLUDED_NAME_PATTERNS;
 
 const ctx = createContext({
     root: repoRoot,

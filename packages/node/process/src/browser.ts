@@ -173,10 +173,7 @@ const browserProcess = {
 
     // Timing
     uptime: (): number => 0,
-    hrtime: Object.assign(
-        (_time?: [number, number]): [number, number] => [0, 0],
-        { bigint: (): bigint => 0n },
-    ),
+    hrtime: Object.assign((_time?: [number, number]): [number, number] => [0, 0], { bigint: (): bigint => 0n }),
 
     // Memory / CPU stubs
     memoryUsage: Object.assign(

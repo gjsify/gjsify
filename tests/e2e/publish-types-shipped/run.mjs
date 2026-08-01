@@ -62,7 +62,10 @@ describe('gjsify pack — type-declaration shipping guard (#655)', () => {
         mkdirSync(join(dir, 'types'), { recursive: true });
         writeFileSync(join(dir, 'lib', 'index.js'), 'export const x = 1;\n');
         writeFileSync(join(dir, 'lib', 'index.d.ts'), 'export const x: number;\n');
-        writeFileSync(join(dir, 'types', 'blueprint.d.ts'), "declare module '*.blp' { const s: string; export default s; }\n");
+        writeFileSync(
+            join(dir, 'types', 'blueprint.d.ts'),
+            "declare module '*.blp' { const s: string; export default s; }\n",
+        );
         writeFileSync(
             join(dir, 'package.json'),
             JSON.stringify(
@@ -125,7 +128,13 @@ describe('gjsify pack — type-declaration shipping guard (#655)', () => {
         writeFileSync(
             join(dir, 'package.json'),
             JSON.stringify(
-                { name: 'toplevel-types-fixture', version: '1.0.0', main: 'index.css', types: 'index.d.ts', files: ['*.css'] },
+                {
+                    name: 'toplevel-types-fixture',
+                    version: '1.0.0',
+                    main: 'index.css',
+                    types: 'index.d.ts',
+                    files: ['*.css'],
+                },
                 null,
                 2,
             ),

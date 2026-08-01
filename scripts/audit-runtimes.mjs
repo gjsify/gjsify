@@ -158,7 +158,6 @@ const RULES_LIST = args.has('--rules');
 
 // ─── Source-tree probes ─────────────────────────────────────────────────────
 
-
 async function scanSourceTree(pkgDir) {
     const srcDir = join(pkgDir, 'src');
     const signals = {
@@ -931,7 +930,6 @@ function slotOfSpecifier(spec, target, meta) {
     return { slot: rec.runtimes?.[target], via: pkgName, hardGjs: rec.hardGjs };
 }
 
-
 /**
  * Run the reachability audit across the workspace.
  *
@@ -1572,9 +1570,7 @@ async function main() {
             console.error('');
         }
         if ((platform.failures ?? []).length > 0) {
-            console.error(
-                `PLATFORM-CONTRACT FAILURES (OS axis) on ${platform.failures.length} package(s)/target(s):`,
-            );
+            console.error(`PLATFORM-CONTRACT FAILURES (OS axis) on ${platform.failures.length} package(s)/target(s):`);
             for (const line of platform.failures) {
                 console.error(`  - ${line}`);
             }
@@ -1641,9 +1637,7 @@ async function main() {
             console.error('');
         }
         if ((coverage.failures ?? []).length > 0) {
-            console.error(
-                `MANIFEST FIELD-COVERAGE FAILURES on ${coverage.failures.length} declaration kind(s):`,
-            );
+            console.error(`MANIFEST FIELD-COVERAGE FAILURES on ${coverage.failures.length} declaration kind(s):`);
             for (const line of coverage.failures) {
                 console.error(`  - ${line.split('\n').join('\n    ')}`);
             }

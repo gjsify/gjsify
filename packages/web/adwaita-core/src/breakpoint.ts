@@ -173,8 +173,7 @@ export class AdwBreakpoint {
     private _applied = false;
 
     constructor(condition: string | BreakpointConditionNode | null, handlers: AdwBreakpointHandlers) {
-        this.condition =
-            typeof condition === 'string' ? parseBreakpointCondition(condition) : (condition ?? null);
+        this.condition = typeof condition === 'string' ? parseBreakpointCondition(condition) : (condition ?? null);
         this._handlers = handlers;
     }
 

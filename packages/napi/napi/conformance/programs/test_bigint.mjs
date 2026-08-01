@@ -9,7 +9,15 @@ export default async function run(h) {
     const t = h.loadAddon('test_bigint');
 
     const nums = [
-        0n, -0n, 1n, -1n, 100n, 2121n, -1233n, 986583n, -976675n,
+        0n,
+        -0n,
+        1n,
+        -1n,
+        100n,
+        2121n,
+        -1233n,
+        986583n,
+        -976675n,
         98765432213456789876546896323445679887645323232436587988766545658n,
         -4350987086545760976737453646576078997096876957864353245245769809n,
     ];
@@ -31,6 +39,12 @@ export default async function run(h) {
         h.emit('Words', h.fmt(num), '=>', t.TestWords(num));
     }
 
-    h.emit('CreateTooBig', h.caughtFull(() => t.CreateTooBigBigInt()));
-    h.emit('WordsThrow', h.caughtFull(() => t.MakeBigIntWordsThrow()));
+    h.emit(
+        'CreateTooBig',
+        h.caughtFull(() => t.CreateTooBigBigInt()),
+    );
+    h.emit(
+        'WordsThrow',
+        h.caughtFull(() => t.MakeBigIntWordsThrow()),
+    );
 }

@@ -66,17 +66,11 @@ export function ecdsaVerify(): never {
 // ─── RSA Encrypt/Decrypt ────────────────────────────────────────────────────
 
 export function publicEncrypt(_keyLike: unknown, _data: Buffer | Uint8Array): never {
-    return notSupported(
-        'publicEncrypt',
-        'Use crypto.subtle.encrypt({name:"RSA-OAEP",…}, cryptoKey, plaintext).',
-    );
+    return notSupported('publicEncrypt', 'Use crypto.subtle.encrypt({name:"RSA-OAEP",…}, cryptoKey, plaintext).');
 }
 
 export function privateDecrypt(_keyLike: unknown, _data: Buffer | Uint8Array): never {
-    return notSupported(
-        'privateDecrypt',
-        'Use crypto.subtle.decrypt({name:"RSA-OAEP",…}, cryptoKey, ciphertext).',
-    );
+    return notSupported('privateDecrypt', 'Use crypto.subtle.decrypt({name:"RSA-OAEP",…}, cryptoKey, ciphertext).');
 }
 
 export function privateEncrypt(_keyLike: unknown, _data: Buffer | Uint8Array): never {
@@ -119,10 +113,7 @@ export function mgf1(): never {
 
 export class KeyObject {
     constructor() {
-        notSupported(
-            'KeyObject',
-            'Use crypto.subtle.importKey / exportKey to obtain a CryptoKey instead.',
-        );
+        notSupported('KeyObject', 'Use crypto.subtle.importKey / exportKey to obtain a CryptoKey instead.');
     }
     static from(): never {
         return notSupported('KeyObject.from');

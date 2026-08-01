@@ -32,9 +32,9 @@ const Gio = requireGi('Gio', '2.0');
 let Gtk = null;
 let gtkLoadError = null;
 try {
-  Gtk = requireGi('Gtk', '4.0');
+    Gtk = requireGi('Gtk', '4.0');
 } catch (err) {
-  gtkLoadError = err;
+    gtkLoadError = err;
 }
 const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 const gtkSkip = gtkLoadError ? `Gtk-4.0 typelib unavailable: ${gtkLoadError.message}` : false;
@@ -44,46 +44,46 @@ const widgetSkip = gtkSkip || (!haveDisplay ? 'no display (DISPLAY / WAYLAND_DIS
 // GObject that needs neither a display nor gtk_init. The value read back is the
 // property's own GValue (the names the icon was constructed with).
 test('GStrv property read: yields a real JS Array of strings', () => {
-  const icon = new Gio.ThemedIcon({ names: ['alpha', 'beta', 'gamma'] });
-  const names = icon.names;
+    const icon = new Gio.ThemedIcon({ names: ['alpha', 'beta', 'gamma'] });
+    const names = icon.names;
 
-  // The regression was an opaque boxed handle here — truthy, but not an Array and
-  // with `length === undefined`. Assert the SHAPE first: that is what silently
-  // broke every consumer, not the contents.
-  assert.ok(Array.isArray(names), 'a GStrv property reads back as an Array, not a boxed handle');
-  assert.equal(names.length, 3, 'the array carries its length (a boxed handle had length === undefined)');
-  assert.deepEqual(names, ['alpha', 'beta', 'gamma']);
-  for (const n of names) assert.equal(typeof n, 'string', 'each element is a JS string');
+    // The regression was an opaque boxed handle here — truthy, but not an Array and
+    // with `length === undefined`. Assert the SHAPE first: that is what silently
+    // broke every consumer, not the contents.
+    assert.ok(Array.isArray(names), 'a GStrv property reads back as an Array, not a boxed handle');
+    assert.equal(names.length, 3, 'the array carries its length (a boxed handle had length === undefined)');
+    assert.deepEqual(names, ['alpha', 'beta', 'gamma']);
+    for (const n of names) assert.equal(typeof n, 'string', 'each element is a JS string');
 });
 
 // A pair-flattened GStrv is the exact shape @gjsify/http's Vala bridge uses for
 // request headers ([name, value, name, value, …]); the consumer walks it with an
 // index loop, which is the access pattern that degraded to zero iterations.
 test('GStrv property read: an index loop over the array sees every element', () => {
-  const icon = new Gio.ThemedIcon({ names: ['x-test', 'custom-value', 'host', '127.0.0.1'] });
-  const pairs = icon.names ?? [];
-  const seen = [];
-  for (let i = 0; i + 1 < pairs.length; i += 2) seen.push([pairs[i], pairs[i + 1]]);
-  assert.deepEqual(seen, [
-    ['x-test', 'custom-value'],
-    ['host', '127.0.0.1'],
-  ]);
+    const icon = new Gio.ThemedIcon({ names: ['x-test', 'custom-value', 'host', '127.0.0.1'] });
+    const pairs = icon.names ?? [];
+    const seen = [];
+    for (let i = 0; i + 1 < pairs.length; i += 2) seen.push([pairs[i], pairs[i + 1]]);
+    assert.deepEqual(seen, [
+        ['x-test', 'custom-value'],
+        ['host', '127.0.0.1'],
+    ]);
 });
 
 // GJS parity: an unset / empty GStrv is an EMPTY ARRAY, never null. A fresh
 // Gtk.Label carries no style classes, so :css-classes is the natural empty case
 // (Gtk.Box would report its orientation class).
 test('GStrv property read: an empty GStrv is [] (not null)', { skip: widgetSkip }, () => {
-  if (typeof Gtk.init === 'function') Gtk.init();
-  const label = new Gtk.Label();
-  const classes = label.css_classes;
-  assert.ok(Array.isArray(classes), 'an empty GStrv still reads back as an Array');
-  assert.equal(classes.length, 0);
+    if (typeof Gtk.init === 'function') Gtk.init();
+    const label = new Gtk.Label();
+    const classes = label.css_classes;
+    assert.ok(Array.isArray(classes), 'an empty GStrv still reads back as an Array');
+    assert.equal(classes.length, 0);
 });
 
 test('GStrv property read: Gtk widget css_classes reads back via the property', { skip: widgetSkip }, () => {
-  if (typeof Gtk.init === 'function') Gtk.init();
-  const sw = new Gtk.ScrolledWindow({ css_classes: ['foo', 'bar'] });
-  assert.deepEqual(sw.css_classes, ['foo', 'bar'], 'property read matches get_css_classes()');
-  assert.deepEqual(sw.get_css_classes(), ['foo', 'bar']);
+    if (typeof Gtk.init === 'function') Gtk.init();
+    const sw = new Gtk.ScrolledWindow({ css_classes: ['foo', 'bar'] });
+    assert.deepEqual(sw.css_classes, ['foo', 'bar'], 'property read matches get_css_classes()');
+    assert.deepEqual(sw.get_css_classes(), ['foo', 'bar']);
 });

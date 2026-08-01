@@ -394,13 +394,7 @@ export default async () => {
         const setup = () => {
             tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-native-dir-spec-'));
             // Workspace root with the hoisted package
-            const pkgJson = join(
-                tmpDir,
-                'node_modules',
-                '@gjsify',
-                'rolldown-native',
-                'package.json',
-            );
+            const pkgJson = join(tmpDir, 'node_modules', '@gjsify', 'rolldown-native', 'package.json');
             mkdirSync(join(tmpDir, 'node_modules', '@gjsify', 'rolldown-native'), {
                 recursive: true,
             });

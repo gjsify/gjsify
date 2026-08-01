@@ -120,7 +120,9 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
             const peers = dl.numPeers;
 
             // Per-file progress
-            const fileProgress = dl.files.map((f: TorrentFile) => `${f.name}: ${(f.progress * 100).toFixed(0)}%`).join(', ');
+            const fileProgress = dl.files
+                .map((f: TorrentFile) => `${f.name}: ${(f.progress * 100).toFixed(0)}%`)
+                .join(', ');
 
             log('leecher', `${pct}% (${down}) @ ${speed} | ${peers} peer(s) | ${fileProgress}`);
         });

@@ -263,11 +263,17 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
                   options?: { type?: string; lastModified?: number },
               ) => { name: string; type: string; lastModified: number })
             | undefined;
-        if (typeof FileCtor === 'function' && obj instanceof (FileCtor as unknown as abstract new (...args: unknown[]) => unknown)) {
+        if (
+            typeof FileCtor === 'function' &&
+            obj instanceof (FileCtor as unknown as abstract new (...args: unknown[]) => unknown)
+        ) {
             const src = obj as { name: string; type: string; lastModified: number };
             return new FileCtor([obj], src.name, { type: src.type, lastModified: src.lastModified });
         }
-        if (typeof BlobCtor === 'function' && obj instanceof (BlobCtor as unknown as abstract new (...args: unknown[]) => unknown)) {
+        if (
+            typeof BlobCtor === 'function' &&
+            obj instanceof (BlobCtor as unknown as abstract new (...args: unknown[]) => unknown)
+        ) {
             const src = obj as { type: string };
             return new BlobCtor([obj], { type: src.type });
         }

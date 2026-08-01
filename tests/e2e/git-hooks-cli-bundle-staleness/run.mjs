@@ -56,10 +56,7 @@ function setupSyntheticRepo(parent) {
     mkdirSync(join(root, 'packages', 'infra', 'cli', 'dist'), { recursive: true });
     writeFileSync(join(root, 'packages', 'infra', 'cli', 'src', 'index.ts'), `export const v = 1;\n`);
     writeFileSync(join(root, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs'), `// initial cli bundle\n`);
-    writeFileSync(
-        join(root, 'packages', 'infra', 'cli', 'dist', 'affected.gjs.mjs'),
-        `// initial affected bundle\n`,
-    );
+    writeFileSync(join(root, 'packages', 'infra', 'cli', 'dist', 'affected.gjs.mjs'), `// initial affected bundle\n`);
 
     // The build pipeline the CLI bundle INLINES. A resolver change here is
     // silently absent from `dist/cli.gjs.mjs` until it is rebuilt, so the hook

@@ -35,10 +35,7 @@ export class ToolbarViewWebStory extends StoryElement {
         const content = document.createElement('adw-status-page');
         content.setAttribute('icon', 'folder');
         content.setAttribute('title', 'Your library');
-        content.setAttribute(
-            'description',
-            'Content sits between the toolbars and scrolls independently of them.',
-        );
+        content.setAttribute('description', 'Content sits between the toolbars and scrolls independently of them.');
         view.appendChild(content);
 
         // Bottom action bar — flat start buttons, a centered label and an end button

@@ -54,7 +54,10 @@ export function dirname(p: string): string {
     let matchedSlash = true;
     for (let i = p.length - 1; i >= 1; i--) {
         if (p.charCodeAt(i) === 47) {
-            if (!matchedSlash) { end = i; break; }
+            if (!matchedSlash) {
+                end = i;
+                break;
+            }
         } else {
             matchedSlash = false;
         }
@@ -71,7 +74,10 @@ export function basename(p: string, ext?: string): string {
     let matchedSlash = true;
     for (let i = p.length - 1; i >= 0; i--) {
         if (p.charCodeAt(i) === 47) {
-            if (!matchedSlash) { start = i + 1; break; }
+            if (!matchedSlash) {
+                start = i + 1;
+                break;
+            }
         } else if (end === -1) {
             matchedSlash = false;
             end = i + 1;
@@ -90,7 +96,8 @@ export function toPath(p: unknown): string {
         if (p.protocol !== 'file:') throw new TypeError(`unsupported URL scheme: ${p.protocol}`);
         return decodeURIComponent(p.pathname);
     }
-    if (p && typeof (p as { toString: () => string }).toString === 'function') return (p as { toString: () => string }).toString();
+    if (p && typeof (p as { toString: () => string }).toString === 'function')
+        return (p as { toString: () => string }).toString();
     throw new TypeError('path must be a string, Buffer, or URL');
 }
 

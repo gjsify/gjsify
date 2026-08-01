@@ -100,50 +100,42 @@ export default async () => {
             const mcpServer = new McpServer({ name: 'test-server', version: '1.0' });
             const client = new Client({ name: 'test-client', version: '1.0' });
 
-            mcpServer.registerTool(
-                'progressive',
-                { inputSchema: z.object({}) },
-                async (_args, extra) => {
-                    // Emit a few progress notifications back to the caller via
-                    // the request-scoped helper. sendNotification routes the
-                    // payload back over the same transport with the right
-                    // request correlation.
-                    const progressToken = extra._meta?.progressToken;
-                    if (progressToken !== undefined) {
-                        await extra.sendNotification({
-                            method: 'notifications/progress',
-                            params: {
-                                progressToken,
-                                progress: 50,
-                                total: 100,
-                            },
-                        });
-                        await extra.sendNotification({
-                            method: 'notifications/progress',
-                            params: {
-                                progressToken,
-                                progress: 100,
-                                total: 100,
-                            },
-                        });
-                    }
-                    return { content: [{ type: 'text', text: 'finished' }] };
-                },
-            );
+            mcpServer.registerTool('progressive', { inputSchema: z.object({}) }, async (_args, extra) => {
+                // Emit a few progress notifications back to the caller via
+                // the request-scoped helper. sendNotification routes the
+                // payload back over the same transport with the right
+                // request correlation.
+                const progressToken = extra._meta?.progressToken;
+                if (progressToken !== undefined) {
+                    await extra.sendNotification({
+                        method: 'notifications/progress',
+                        params: {
+                            progressToken,
+                            progress: 50,
+                            total: 100,
+                        },
+                    });
+                    await extra.sendNotification({
+                        method: 'notifications/progress',
+                        params: {
+                            progressToken,
+                            progress: 100,
+                            total: 100,
+                        },
+                    });
+                }
+                return { content: [{ type: 'text', text: 'finished' }] };
+            });
 
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
             await Promise.all([client.connect(clientTransport), mcpServer.connect(serverTransport)]);
 
             const progressEvents: Array<{ progress: number; total?: number }> = [];
-            const result = await client.callTool(
-                { name: 'progressive', arguments: {} },
-                undefined,
-                {
-                    onprogress: (event) => {
-                        progressEvents.push(event);
-                    },
+            const result = await client.callTool({ name: 'progressive', arguments: {} }, undefined, {
+                onprogress: (event) => {
+                    progressEvents.push(event);
                 },
-            );
+            });
 
             expect((result.content as Array<{ text: string }>)[0]!.text).toBe('finished');
             expect(progressEvents.length).toBeGreaterThanOrEqual(1);
@@ -159,25 +151,17 @@ export default async () => {
             const mcpServer = new McpServer({ name: 'test-server', version: '1.0' });
             const client = new Client({ name: 'test-client', version: '1.0' });
 
-            mcpServer.registerTool(
-                'slow',
-                { inputSchema: z.object({}) },
-                async () => {
-                    await new Promise<void>((r) => setTimeout(r, 500));
-                    return { content: [{ type: 'text', text: 'ok' }] };
-                },
-            );
+            mcpServer.registerTool('slow', { inputSchema: z.object({}) }, async () => {
+                await new Promise<void>((r) => setTimeout(r, 500));
+                return { content: [{ type: 'text', text: 'ok' }] };
+            });
 
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
             await Promise.all([client.connect(clientTransport), mcpServer.connect(serverTransport)]);
 
             let caught: unknown;
             try {
-                await client.callTool(
-                    { name: 'slow', arguments: {} },
-                    undefined,
-                    { timeout: 50 },
-                );
+                await client.callTool({ name: 'slow', arguments: {} }, undefined, { timeout: 50 });
             } catch (e) {
                 caught = e;
             }

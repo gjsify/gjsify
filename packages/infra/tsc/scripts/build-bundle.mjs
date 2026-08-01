@@ -98,7 +98,9 @@ const pinnedTypescriptVersion = (() => {
     const indexTs = readFileSync(join(pkgRoot, 'src', 'index.ts'), 'utf-8');
     const m = indexTs.match(/TYPESCRIPT_VERSION\s*=\s*['"]([^'"]+)['"]/);
     if (!m) {
-        console.error('[@gjsify/tsc] could not parse TYPESCRIPT_VERSION from src/index.ts — cannot validate lib source');
+        console.error(
+            '[@gjsify/tsc] could not parse TYPESCRIPT_VERSION from src/index.ts — cannot validate lib source',
+        );
         process.exit(1);
     }
     return m[1];

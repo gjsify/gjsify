@@ -78,14 +78,8 @@ describe('gjsify tsc — workspace self-host', () => {
                 'export const el: Element | null = (globalThis as unknown as { document?: Document }).document?.body ?? null;\n',
         );
         writeFileSync(join(dir, 'src', 'bad.ts'), 'export const n: number = "not a number";\n');
-        writeFileSync(
-            join(dir, 'tsconfig.good.json'),
-            JSON.stringify({ ...base, files: ['src/good.ts'] }, null, 2),
-        );
-        writeFileSync(
-            join(dir, 'tsconfig.bad.json'),
-            JSON.stringify({ ...base, files: ['src/bad.ts'] }, null, 2),
-        );
+        writeFileSync(join(dir, 'tsconfig.good.json'), JSON.stringify({ ...base, files: ['src/good.ts'] }, null, 2));
+        writeFileSync(join(dir, 'tsconfig.bad.json'), JSON.stringify({ ...base, files: ['src/bad.ts'] }, null, 2));
     });
 
     after(() => {

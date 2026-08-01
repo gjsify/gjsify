@@ -16,7 +16,13 @@ export default async function run(h) {
     // napi_reject_deferred.
     const p2 = t.createPromise();
     t.concludeCurrentPromise("It's not you, it's me.", false);
-    h.emit('reject', await p2.then(() => 'RESOLVED(bug)', (r) => r));
+    h.emit(
+        'reject',
+        await p2.then(
+            () => 'RESOLVED(bug)',
+            (r) => r,
+        ),
+    );
 
     // Resolving with a thenable → adoption (chaining).
     const p3 = t.createPromise();
@@ -35,6 +41,12 @@ export default async function run(h) {
     h.emit('reject-reason', await rp.catch((r) => r));
 
     // Non-promises.
-    for (const [lbl, v] of [['2.4', 2.4], ["'str'", 'I promise!'], ['undefined', undefined], ['null', null], ['{}', {}]])
+    for (const [lbl, v] of [
+        ['2.4', 2.4],
+        ["'str'", 'I promise!'],
+        ['undefined', undefined],
+        ['null', null],
+        ['{}', {}],
+    ])
         h.emit('isPromise', lbl, t.isPromise(v));
 }

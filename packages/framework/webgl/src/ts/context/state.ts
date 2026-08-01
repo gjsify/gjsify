@@ -139,10 +139,7 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
             | { FRAGMENT_SHADER_DERIVATIVE_HINT_OES: GLenum }
             | undefined;
         if (
-            !(
-                target === this.GENERATE_MIPMAP_HINT ||
-                (oesStd && target === oesStd.FRAGMENT_SHADER_DERIVATIVE_HINT_OES)
-            )
+            !(target === this.GENERATE_MIPMAP_HINT || (oesStd && target === oesStd.FRAGMENT_SHADER_DERIVATIVE_HINT_OES))
         ) {
             this.setError(this.INVALID_ENUM);
             return;

@@ -76,7 +76,11 @@ describe('gjsify install — CLI/workspace version-skew warning', { timeout: 60_
             const combined = r.stdout + r.stderr;
             assert.match(combined, /version skew/i, `expected a skew warning, got: ${combined}`);
             assert.match(combined, /0\.0\.1-test-mismatch/, 'warning must name the pinned version');
-            assert.match(combined, new RegExp(runningVersion.replace(/\./g, '\\.')), 'warning must name the running version');
+            assert.match(
+                combined,
+                new RegExp(runningVersion.replace(/\./g, '\\.')),
+                'warning must name the running version',
+            );
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

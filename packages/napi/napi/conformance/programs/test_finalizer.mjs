@@ -23,7 +23,9 @@ export default async function run(h) {
     let jsCalled = false;
     (() => {
         const obj = {};
-        t.addFinalizerWithJS(obj, () => { jsCalled = true; });
+        t.addFinalizerWithJS(obj, () => {
+            jsCalled = true;
+        });
     })();
     await h.gcUntil(() => t.getFinalizerCallCount() === 2, 'JS finalizer');
     h.emit('js-finalizer.count', t.getFinalizerCallCount());

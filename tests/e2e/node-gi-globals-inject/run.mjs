@@ -166,7 +166,7 @@ describe('--app node GJS-globals shim injection E2E', { timeout: 10 * 60 * 1000 
             [
                 "import system from 'system';",
                 "import GLib from '@girs/glib-2.0';",
-                "console.log(system.programArgs.length, GLib.get_user_name());",
+                'console.log(system.programArgs.length, GLib.get_user_name());',
                 '',
             ].join('\n'),
         );
@@ -180,10 +180,7 @@ describe('--app node GJS-globals shim injection E2E', { timeout: 10 * 60 * 1000 
             girsOut.includes('requireGi'),
             `a portable GJS source importing @girs/* must have its gi:// rewritten to requireGi\nContext: ${snippet(girsOut, 'node-gi')}`,
         );
-        assert.ok(
-            !/['"]gi:\/\//.test(girsOut),
-            'no raw gi:// specifier may survive in an --app node bundle',
-        );
+        assert.ok(!/['"]gi:\/\//.test(girsOut), 'no raw gi:// specifier may survive in an --app node bundle');
 
         // node --check parses without resolving the externalised imports.
         execFileSync('node', ['--check', outPath], { cwd: projectDir, stdio: 'pipe', timeout: 30 * 1000 });
@@ -205,7 +202,7 @@ describe('--app node GJS-globals shim injection E2E', { timeout: 10 * 60 * 1000 
                 '}',
                 '// statically-dead — must tree-shake away, never trigger injection.',
                 'if (false) {',
-                "    // @ts-ignore — print is a GJS ambient global, absent on Node.",
+                '    // @ts-ignore — print is a GJS ambient global, absent on Node.',
                 "    print('dead');",
                 '}',
                 "console.log('loaded-ok');",

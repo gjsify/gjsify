@@ -18,9 +18,11 @@ print('sha256 tail:', GLib.compute_checksum_for_bytes(GLib.ChecksumType.SHA256, 
 
 // An explicit GLib.Bytes handle keeps working alongside the typed-array path.
 const boxed = GLib.Bytes.new([1, 2, 3, 4, 255, 0, 128, 64]);
-print('sha256 boxed equal:',
+print(
+    'sha256 boxed equal:',
     GLib.compute_checksum_for_bytes(GLib.ChecksumType.SHA256, boxed) ===
-    GLib.compute_checksum_for_bytes(GLib.ChecksumType.SHA256, data));
+        GLib.compute_checksum_for_bytes(GLib.ChecksumType.SHA256, data),
+);
 
 // A callee that keeps the GBytes: 2×1 RGBA pixbuf round-trips byte-for-byte.
 const px = new Uint8Array([10, 20, 30, 255, 200, 100, 50, 128]);

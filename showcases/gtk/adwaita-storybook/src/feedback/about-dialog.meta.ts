@@ -7,7 +7,12 @@ export const aboutDialogMeta: StoryMeta = {
     description:
         'Adw.AboutDialog — the standard Adwaita about window with application name, version, credits and license.',
     controls: [
-        { name: 'applicationName', label: 'Application name', type: ControlType.TEXT, defaultValue: 'Adwaita Storybook' },
+        {
+            name: 'applicationName',
+            label: 'Application name',
+            type: ControlType.TEXT,
+            defaultValue: 'Adwaita Storybook',
+        },
         { name: 'version', label: 'Version', type: ControlType.TEXT, defaultValue: '0.11.0' },
     ],
 };

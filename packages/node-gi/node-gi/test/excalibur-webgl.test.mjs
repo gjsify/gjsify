@@ -63,14 +63,7 @@ const fixture = join(pkgRoot, 'fixtures', 'excalibur-webgl-app.ts');
 const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 
 // The committed gwebgl Vala prebuild (typelib + .so) @gjsify/webgl ships.
-const gwebglDir = join(
-    repoRoot,
-    'packages',
-    'framework',
-    'webgl',
-    'prebuilds',
-    `linux-${process.arch}`,
-);
+const gwebglDir = join(repoRoot, 'packages', 'framework', 'webgl', 'prebuilds', `linux-${process.arch}`);
 const haveGwebgl = existsSync(join(gwebglDir, 'Gwebgl-0.1.typelib'));
 
 function findGjsify() {
@@ -114,22 +107,23 @@ function resolvable(spec) {
 const skip = !haveDisplay
     ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)'
     : !haveGwebgl
-        ? `Gwebgl prebuild missing (${gwebglDir})`
-        : !gjsify
-            ? 'gjsify CLI not found (workspace not installed)'
-            : !resolvable('excalibur')
-                ? 'excalibur not resolvable (workspace not installed)'
-                : !resolvable('@gjsify/webgl')
-                    ? '@gjsify/webgl not resolvable (workspace not built)'
-                    : false;
+      ? `Gwebgl prebuild missing (${gwebglDir})`
+      : !gjsify
+        ? 'gjsify CLI not found (workspace not installed)'
+        : !resolvable('excalibur')
+          ? 'excalibur not resolvable (workspace not installed)'
+          : !resolvable('@gjsify/webgl')
+            ? '@gjsify/webgl not resolvable (workspace not built)'
+            : false;
 
 // gjs gold-standard leg: needs gjs on PATH + the workspace register libs BUILT
 // (`--app gjs` force-INLINES `<pkg>/register` subpaths — an unbuilt workspace
 // cannot produce a loadable gjs bundle). Same probe as webgl-glarea.
 const workspaceBuilt = existsSync(join(repoRoot, 'packages', 'node', 'buffer', 'lib', 'esm', 'register.js'));
-const haveGjs = !process.env.NODE_GI_EXCALIBUR_SKIP_GJS
-    && workspaceBuilt
-    && spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
+const haveGjs =
+    !process.env.NODE_GI_EXCALIBUR_SKIP_GJS &&
+    workspaceBuilt &&
+    spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
 
 // The committed golden — gjs's own byte-output (re-proven by the gjs leg).
 // `pixel-center` is the blue Actor rendered through Excalibur's real quad
@@ -224,32 +218,28 @@ function run(cmd, args) {
         .join('\n');
 }
 
-test(
-    'Excalibur.js boots + renders through WebGLBridge on node-gi (capstone)',
-    { skip },
-    () => {
-        // Build INSIDE the monorepo (the --app node bundle keeps
-        // @gjsify/node-gi external — /tmp has no node_modules to resolve it).
-        const dir = mkdtempSync(join(pkgRoot, '.tmp-excalibur-'));
-        try {
-            // --- node-gi: the real `--app node` bundle (the authoritative check) ---
-            const nodeBundle = build(fixture, 'node', join(dir, 'app.node.mjs'), NODE_GLOBALS);
-            assert.ok(
-                readFileSync(nodeBundle, 'utf-8').includes('requireGi'),
-                'the --app node bundle did not rewrite gi:// → requireGi (gjsify CLI too old)',
-            );
-            const nodeOut = run('node', [nodeBundle]);
-            assert.equal(nodeOut, GOLDEN, 'node-gi output diverged from the committed golden');
+test('Excalibur.js boots + renders through WebGLBridge on node-gi (capstone)', { skip }, () => {
+    // Build INSIDE the monorepo (the --app node bundle keeps
+    // @gjsify/node-gi external — /tmp has no node_modules to resolve it).
+    const dir = mkdtempSync(join(pkgRoot, '.tmp-excalibur-'));
+    try {
+        // --- node-gi: the real `--app node` bundle (the authoritative check) ---
+        const nodeBundle = build(fixture, 'node', join(dir, 'app.node.mjs'), NODE_GLOBALS);
+        assert.ok(
+            readFileSync(nodeBundle, 'utf-8').includes('requireGi'),
+            'the --app node bundle did not rewrite gi:// → requireGi (gjsify CLI too old)',
+        );
+        const nodeOut = run('node', [nodeBundle]);
+        assert.equal(nodeOut, GOLDEN, 'node-gi output diverged from the committed golden');
 
-            // --- gjs gold-standard: re-prove the golden IS gjs's own output ---
-            if (haveGjs) {
-                const gjsBundle = build(fixture, 'gjs', join(dir, 'app.gjs.mjs'), GJS_GLOBALS);
-                const gjsOut = run('gjs', ['-m', gjsBundle]);
-                assert.equal(gjsOut, GOLDEN, 'gjs gold-standard diverged from the committed golden');
-                assert.equal(gjsOut, nodeOut, 'gjs and node-gi outputs are not byte-identical');
-            }
-        } finally {
-            rmSync(dir, { recursive: true, force: true });
+        // --- gjs gold-standard: re-prove the golden IS gjs's own output ---
+        if (haveGjs) {
+            const gjsBundle = build(fixture, 'gjs', join(dir, 'app.gjs.mjs'), GJS_GLOBALS);
+            const gjsOut = run('gjs', ['-m', gjsBundle]);
+            assert.equal(gjsOut, GOLDEN, 'gjs gold-standard diverged from the committed golden');
+            assert.equal(gjsOut, nodeOut, 'gjs and node-gi outputs are not byte-identical');
         }
-    },
-);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

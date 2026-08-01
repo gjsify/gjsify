@@ -250,7 +250,11 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
         );
         // Fix (1) skipped — the function-replacement alias survives untouched.
         const hasFunctionAlias = fixed.resolve.alias.some((a) => typeof a.replacement === 'function');
-        assert.equal(hasFunctionAlias, true, 'on 8.x the function-replacement alias must be left in place (fix skipped)');
+        assert.equal(
+            hasFunctionAlias,
+            true,
+            'on 8.x the function-replacement alias must be left in place (fix skipped)',
+        );
         // Fix (2) skipped — the commonjs plugin survives.
         const names = pluginNames(fixed.plugins);
         assert.ok(names.includes('commonjs'), 'on 8.x the commonjs plugin must be left in place (fix skipped)');
@@ -296,7 +300,11 @@ describe('@gjsify/nativescript-vite nativescriptSbgBundleSyncFix', () => {
 
     it('empties the staging dir each build', () => {
         const cfg = nativescriptSbgBundleSyncFix();
-        assert.equal(cfg.build.emptyOutDir, true, 'build.emptyOutDir must be forced true so stale chunks do not linger');
+        assert.equal(
+            cfg.build.emptyOutDir,
+            true,
+            'build.emptyOutDir must be forced true so stale chunks do not linger',
+        );
     });
 
     it('names every chunk stably (no content hash) so the SBG never sees a duplicate extend', () => {
@@ -305,7 +313,11 @@ describe('@gjsify/nativescript-vite nativescriptSbgBundleSyncFix', () => {
 
         // The regression: a hashed `activity.android-<hash>.mjs` accumulates in
         // assets/app across builds → the SBG sees NativeScriptActivity extended twice.
-        assert.equal(fn({ name: 'activity.android' }), '[name].mjs', 'the platform Activity chunk uses the stable [name].mjs');
+        assert.equal(
+            fn({ name: 'activity.android' }),
+            '[name].mjs',
+            'the platform Activity chunk uses the stable [name].mjs',
+        );
         assert.equal(fn({ name: 'vendor' }), 'vendor.mjs', 'the vendor chunk stays vendor.mjs');
         assert.equal(fn({ name: 'app.worker' }), '[name].js', 'worker chunks stay .js, still hash-free');
         assert.equal(fn({ name: 'whatever' }), '[name].mjs', 'a normal chunk uses the stable [name].mjs');
@@ -373,7 +385,12 @@ function makeIsolatedFixture(nsVite) {
     copyFileSync(fileURLToPath(LIB_URL), join(libDir, 'index.js'));
     writeFileSync(
         join(libDir, 'package.json'),
-        JSON.stringify({ name: '@gjsify/nativescript-vite', version: '0.0.0', type: 'module', exports: { '.': './index.js' } }),
+        JSON.stringify({
+            name: '@gjsify/nativescript-vite',
+            version: '0.0.0',
+            type: 'module',
+            exports: { '.': './index.js' },
+        }),
     );
 
     if (nsVite) {
@@ -395,7 +412,7 @@ function makeIsolatedFixture(nsVite) {
             ? // Eager NAMED import of the (absent) peer at module-eval — the
               // `@vue/compiler-sfc` failure shape that breaks ESM link.
               `import { compileScript, parse } from '${nsVite.peerName}';\n` +
-                  `export const typescriptConfig = () => ({ plugins: [], _peerSeen: typeof compileScript + ',' + typeof parse });\n`
+              `export const typescriptConfig = () => ({ plugins: [], _peerSeen: typeof compileScript + ',' + typeof parse });\n`
             : `export const typescriptConfig = () => ({ plugins: [] });\n`;
         writeFileSync(join(pkg, 'index.js'), body);
     }
@@ -447,7 +464,11 @@ describe('@gjsify/nativescript-vite detectNativescriptViteMajor (Bug 1: exports-
     it('detects the major of an exports-gated @nativescript/vite (no ./package.json subpath)', () => {
         // Under the OLD code this came back "undefined" (ERR_PACKAGE_PATH_NOT_EXPORTED);
         // the fix walks up from the main entry and reads the package root.
-        assert.equal(detect({ version: '8.0.0-alpha.57' }), '8', 'major of an 8.x exports-gated package must be detected');
+        assert.equal(
+            detect({ version: '8.0.0-alpha.57' }),
+            '8',
+            'major of an 8.x exports-gated package must be detected',
+        );
         assert.equal(detect({ version: '2.0.3' }), '2', 'major of a 2.x exports-gated package must be detected');
     });
 
@@ -573,7 +594,11 @@ describe('gjsifyNativescript xmlns barrels E2E', () => {
     before(async () => {
         const url = new URL('../../../packages/infra/vite-plugin-gjsify/lib/index.js', import.meta.url);
         ({ gjsifyNativescript } = await import(url));
-        assert.equal(typeof gjsifyNativescript, 'function', 'gjsifyNativescript must be exported — rebuild the package');
+        assert.equal(
+            typeof gjsifyNativescript,
+            'function',
+            'gjsifyNativescript must be exported — rebuild the package',
+        );
     });
 
     after(() => {

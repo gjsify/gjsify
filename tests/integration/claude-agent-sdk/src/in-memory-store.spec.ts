@@ -9,11 +9,7 @@
 // No Claude API key or filesystem access required.
 
 import { describe, expect, it } from '@gjsify/unit';
-import {
-    InMemorySessionStore,
-    type SessionKey,
-    type SessionStoreEntry,
-} from '@anthropic-ai/claude-agent-sdk';
+import { InMemorySessionStore, type SessionKey, type SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk';
 
 function makeKey(projectKey: string, sessionId: string): SessionKey {
     return { projectKey, sessionId };
@@ -49,10 +45,7 @@ export default async () => {
             await it('appended entries are loaded back verbatim', async () => {
                 const store = new InMemorySessionStore();
                 const key = makeKey('proj', 'session-A');
-                const entries: SessionStoreEntry[] = [
-                    makeEntry('user', 'uuid-1'),
-                    makeEntry('assistant', 'uuid-2'),
-                ];
+                const entries: SessionStoreEntry[] = [makeEntry('user', 'uuid-1'), makeEntry('assistant', 'uuid-2')];
 
                 await store.append(key, entries);
                 const loaded = await store.load(key);

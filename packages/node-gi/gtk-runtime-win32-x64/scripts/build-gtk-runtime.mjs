@@ -34,16 +34,7 @@
 // Reference: GJS ships no relocation; gvsbuild ships the MSVC-ABI GTK4 stack whose
 // DLLs load into stock (MSVC-ABI) Node.
 import { execFileSync } from 'node:child_process';
-import {
-    copyFileSync,
-    cpSync,
-    existsSync,
-    mkdirSync,
-    readdirSync,
-    rmSync,
-    statSync,
-    writeFileSync,
-} from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -64,7 +55,9 @@ if (process.platform !== 'win32' || process.arch !== 'x64') {
     process.exit(2);
 }
 if (!PREFIX) {
-    console.error('build-gtk-runtime: no GTK prefix — pass --prefix or set GTK_PREFIX (e.g. C:\\gtk-build\\gtk\\x64\\release)');
+    console.error(
+        'build-gtk-runtime: no GTK prefix — pass --prefix or set GTK_PREFIX (e.g. C:\\gtk-build\\gtk\\x64\\release)',
+    );
     process.exit(1);
 }
 
@@ -126,7 +119,10 @@ function findTool(leaf, envVar) {
     const inBin = join(gtkBin, leaf);
     if (existsSync(inBin)) return inBin;
     try {
-        const p = sh('where', [leaf.replace(/\.exe$/i, '')]).split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0];
+        const p = sh('where', [leaf.replace(/\.exe$/i, '')])
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter(Boolean)[0];
         if (p && existsSync(p)) return p;
     } catch {
         // not on PATH
@@ -141,7 +137,10 @@ function findDumpbin() {
     const envd = process.env.DUMPBIN;
     if (envd && existsSync(envd)) return envd;
     try {
-        const p = sh('where', ['dumpbin']).split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0];
+        const p = sh('where', ['dumpbin'])
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter(Boolean)[0];
         if (p && existsSync(p)) return p;
     } catch {
         // not on PATH
@@ -155,7 +154,10 @@ function findDumpbin() {
     if (existsSync(vswhere)) {
         try {
             const out = sh(vswhere, ['-latest', '-products', '*', '-find', '**\\Hostx64\\x64\\dumpbin.exe']);
-            const p = out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0];
+            const p = out
+                .split(/\r?\n/)
+                .map((s) => s.trim())
+                .filter(Boolean)[0];
             if (p && existsSync(p)) return p;
         } catch {
             // vswhere present but no match
@@ -220,7 +222,9 @@ if (WINDOWING && existsSync(gdkPixbufLoaderDir)) {
         if (f.toLowerCase().endsWith('.dll')) loaderSeeds.push(join(gdkPixbufLoaderDir, f));
     }
 }
-console.log(`build-gtk-runtime: ${seeds.length} seed DLLs${loaderSeeds.length ? ` + ${loaderSeeds.length} pixbuf loaders` : ''}`);
+console.log(
+    `build-gtk-runtime: ${seeds.length} seed DLLs${loaderSeeds.length ? ` + ${loaderSeeds.length} pixbuf loaders` : ''}`,
+);
 
 const dumpbin = findDumpbin();
 // leaf(lower) -> actual filename (source in <prefix>/bin); '\0loader:'-prefixed keys
@@ -328,7 +332,9 @@ if (WINDOWING) {
             writeFileSync(cacheOut, rel);
             console.log(`build-gtk-runtime: wrote loaders.cache (${windowing.pixbufLoaders} loaders, bundle-relative)`);
         } else {
-            console.warn('build-gtk-runtime: WARNING — gdk-pixbuf-query-loaders not found; loaders.cache NOT generated (SVG/PNG icons may not load)');
+            console.warn(
+                'build-gtk-runtime: WARNING — gdk-pixbuf-query-loaders not found; loaders.cache NOT generated (SVG/PNG icons may not load)',
+            );
         }
     } else {
         console.warn(`build-gtk-runtime: WARNING — ${gdkPixbufLoaderDir} missing; no gdk-pixbuf loaders bundled`);
@@ -355,15 +361,20 @@ if (WINDOWING) {
             }
         }
         windowing.schemas = existsSync(join(schemasOut, 'gschemas.compiled'));
-        console.log(`build-gtk-runtime: GSettings schemas ${windowing.schemas ? 'compiled' : 'copied (no gschemas.compiled!)'}`);
+        console.log(
+            `build-gtk-runtime: GSettings schemas ${windowing.schemas ? 'compiled' : 'copied (no gschemas.compiled!)'}`,
+        );
     } else {
-        console.warn(`build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled (GTK settings reads will fail)`);
+        console.warn(
+            `build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled (GTK settings reads will fail)`,
+        );
     }
 
     // 4c. Icon themes (Adwaita for symbolic icons + hicolor fallback) + caches. The
     // theme is loaded from XDG_DATA_DIRS/icons/<theme>/ (node-gi prepends <bundle>/share).
-    const updateIconCache = findTool('gtk4-update-icon-cache.exe', 'GTK4_UPDATE_ICON_CACHE')
-        ?? findTool('gtk-update-icon-cache.exe', 'GTK_UPDATE_ICON_CACHE');
+    const updateIconCache =
+        findTool('gtk4-update-icon-cache.exe', 'GTK4_UPDATE_ICON_CACHE') ??
+        findTool('gtk-update-icon-cache.exe', 'GTK_UPDATE_ICON_CACHE');
     for (const theme of ['Adwaita', 'hicolor']) {
         const themeSrc = join(PREFIX, 'share', 'icons', theme);
         if (!existsSync(themeSrc)) continue;
@@ -425,9 +436,13 @@ if (WINDOWING) {
             }
         }
         windowing.gtksource = copied > 0;
-        console.log(`build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied} language-specs/styles files)` : 'directory present but empty'}`);
+        console.log(
+            `build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied} language-specs/styles files)` : 'directory present but empty'}`,
+        );
     } else {
-        console.warn(`build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 language-specs/styles NOT bundled (the editor's built-in highlighting will be unavailable)`);
+        console.warn(
+            `build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 language-specs/styles NOT bundled (the editor's built-in highlighting will be unavailable)`,
+        );
     }
 }
 

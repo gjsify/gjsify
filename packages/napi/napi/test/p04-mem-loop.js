@@ -23,7 +23,9 @@ function gc() {
 }
 function pump() {
     const ctx = GLib.MainContext.default();
-    while (ctx.iteration(false)) { /* drain */ }
+    while (ctx.iteration(false)) {
+        /* drain */
+    }
 }
 
 const ROUNDS = 40;
@@ -34,7 +36,7 @@ for (let round = 0; round < ROUNDS; round++) {
     gc();
     if (!t.patternIntact(buf)) throw new Error('pattern corrupted after GC');
     let copy = t.copyOf(buf);
-    t.nativeSetByte(copy, 0, 0xAB);
+    t.nativeSetByte(copy, 0, 0xab);
     buf = null;
     copy = null;
 

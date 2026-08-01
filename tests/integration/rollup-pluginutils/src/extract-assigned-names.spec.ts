@@ -17,7 +17,9 @@ import { extractAssignedNames } from '@rollup/pluginutils';
 const PARSE_OPTS = { ecmaVersion: 2024 as const, sourceType: 'module' as const };
 
 // Navigate acorn AST nodes whose fields vary by node kind.
-function node(n: AnyNode | Program | null | undefined): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
+function node(
+    n: AnyNode | Program | null | undefined,
+): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
     return n as unknown as Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined>;
 }
 

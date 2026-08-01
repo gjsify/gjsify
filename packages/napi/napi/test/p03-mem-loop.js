@@ -21,7 +21,9 @@ function gc() {
 }
 function pump() {
     const ctx = GLib.MainContext.default();
-    while (ctx.iteration(false)) { /* drain */ }
+    while (ctx.iteration(false)) {
+        /* drain */
+    }
 }
 
 const ROUNDS = 40;
@@ -31,15 +33,15 @@ for (let round = 0; round < ROUNDS; round++) {
     const a = t.makeRef(obj, 1);
     const b = t.makeRef('str-' + round, 1);
     const c = t.makeRef(obj, 0);
-    t.refUnref(a);  // a: 1→0 weak
-    t.refUnref(b);  // b: primitive released immediately at 0
-    t.refRef(c);    // c: 0→1 strong — keeps the object alive
+    t.refUnref(a); // a: 1→0 weak
+    t.refUnref(b); // b: primitive released immediately at 0
+    t.refRef(c); // c: 0→1 strong — keeps the object alive
     obj = null;
     gc();
     if (t.refIsEmpty(a)) throw new Error('a should be alive (c holds strong)');
     if (!t.refIsEmpty(b)) throw new Error('b primitive should be released');
     if (t.refGet(c) === undefined) throw new Error('c should be alive');
-    t.refUnref(c);  // 1→0 weak — now nothing holds the object
+    t.refUnref(c); // 1→0 weak — now nothing holds the object
     gc();
     if (!t.refIsEmpty(a)) throw new Error('a should be dead now');
     if (!t.refIsEmpty(c)) throw new Error('c should be dead now');
