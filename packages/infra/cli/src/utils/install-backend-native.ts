@@ -491,11 +491,7 @@ export function applyPlatformFilter(
     if (skipped > 0) {
         // Verbose-only, like every other per-install summary here — and like npm,
         // which reports inert optional packages only through its final count.
-        log(
-            'install: %d optional package(s) inert — not installable on %s',
-            skipped,
-            describePlatformTarget(target),
-        );
+        log('install: %d optional package(s) inert — not installable on %s', skipped, describePlatformTarget(target));
     }
     return installable;
 }

@@ -467,7 +467,7 @@ describe('prebuild-libc — the `libc` field must match the binaries', () => {
         assert.deepEqual(libcFailures(libcPkg({ declared: ['linux-x64'], stage: { 'linux-x64': LIBC_AGNOSTIC } })), []);
     });
 
-    it('leaves `libc` ABSENT for a MIXED package, and names each target\'s musl verdict', () => {
+    it("leaves `libc` ABSENT for a MIXED package, and names each target's musl verdict", () => {
         // The measured reality for `@gjsify/tls-native` and
         // `@gjsify/webrtc-native`: libc-agnostic on most targets, constrained on
         // one or two (Fedora's riscv64/arm64 toolchains record libc explicitly).

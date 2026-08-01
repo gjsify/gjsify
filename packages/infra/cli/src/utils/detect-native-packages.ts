@@ -626,7 +626,8 @@ export function resolveHostLibc(input: {
 function detectHostLibc(platform: string): HostLibc | null {
     if (platform !== 'linux') return null;
     const header = (process.report?.getReport() as { header?: { glibcVersionRuntime?: unknown } } | undefined)?.header;
-    const glibcVersionRuntime = typeof header?.glibcVersionRuntime === 'string' ? header.glibcVersionRuntime : undefined;
+    const glibcVersionRuntime =
+        typeof header?.glibcVersionRuntime === 'string' ? header.glibcVersionRuntime : undefined;
     // Read the directory rather than testing per-arch loader names: those names
     // (`ld-musl-x86_64`, `ld-musl-aarch64`, …) are a THIRD arch vocabulary, and
     // this file already documents why the repo keeps exactly one.

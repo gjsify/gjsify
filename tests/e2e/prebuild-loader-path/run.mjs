@@ -220,7 +220,10 @@ describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
             assert.ok(needed.includes('libc.so.6'), `${target}: expected libc.so.6, got ${needed.join(', ')}`);
             // Leaf names, not raw strings — the question is always "does it need
             // libc", which is a question about the leaf.
-            assert.ok(needed.every((n) => !n.includes('/')), `${target}: expected leaf names, got ${needed.join(', ')}`);
+            assert.ok(
+                needed.every((n) => !n.includes('/')),
+                `${target}: expected leaf names, got ${needed.join(', ')}`,
+            );
         }
     });
 

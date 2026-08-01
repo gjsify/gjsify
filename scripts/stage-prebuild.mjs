@@ -112,7 +112,8 @@ export function resolveHostLibc(input) {
 function detectHostLibc() {
     if (process.platform !== 'linux') return null;
     const header = process.report?.getReport()?.header;
-    const glibcVersionRuntime = typeof header?.glibcVersionRuntime === 'string' ? header.glibcVersionRuntime : undefined;
+    const glibcVersionRuntime =
+        typeof header?.glibcVersionRuntime === 'string' ? header.glibcVersionRuntime : undefined;
     const muslLoaderPresent = existsSync('/lib') && readdirSync('/lib').some((f) => f.startsWith('ld-musl-'));
     return resolveHostLibc({ platform: process.platform, glibcVersionRuntime, muslLoaderPresent });
 }

@@ -276,12 +276,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
 
         // RESOLVED for every platform: all four packages are pinned, with their
         // declarations recorded, so this file installs correctly on any host.
-        for (const pkg of [
-            'plat-app',
-            'plat-bin-linux-x64-gnu',
-            'plat-bin-linux-x64-musl',
-            'plat-bin-darwin-arm64',
-        ]) {
+        for (const pkg of ['plat-app', 'plat-bin-linux-x64-gnu', 'plat-bin-linux-x64-musl', 'plat-bin-darwin-arm64']) {
             assert.ok(lock.packages[`node_modules/${pkg}`], `lockfile must pin ${pkg} regardless of the target`);
         }
         assert.deepEqual(lock.packages['node_modules/plat-bin-darwin-arm64'].os, ['darwin']);
