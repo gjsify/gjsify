@@ -293,25 +293,6 @@ into one manifest. Nothing needs to be remembered afterwards:
 arch list, so widening it turns all three from "excused" into "must switch" on
 the next run, and its hand-written ledger is already empty.
 
-### The squash subject is what lands on main, and nothing lints it
-
-`commitlint.yml` runs `wagoid/commitlint-github-action`, which lints the PR's
-COMMITS. With squash merges, what actually lands is the PR TITLE — a string no
-check inspects. `f51fa0f57 Run the transparent addon matrix in CI (#849)` has
-no conventional prefix and is therefore absent from the generated CHANGELOG
-entirely; the work shipped in v0.26.0 with no release note. The workflow
-already triggers on `edited` (title/body changes), which only re-runs the
-commit lint today — the intent was there, the check never was.
-
-The trap when fixing it: a hand-rolled title regex is a partial reimplementation
-of commitlint (`config-conventional` also enforces `subject-case`,
-`subject-full-stop`, `header-max-length`), so it would pass titles the real
-linter rejects — the exact drift the rule exists to prevent. Running
-`@commitlint/cli` against `commitlint.config.cjs` needs `config-conventional`
-resolvable from the repo, which is precisely what the action avoids by bringing
-its own. Decide deliberately between a purpose-built title action and making
-the config self-contained; do not hand-roll the regex.
-
 ### CHANGELOG links break on `#nnn` written inside commit bodies
 
 conventional-changelog scans commit BODIES for issue references, so prose like
