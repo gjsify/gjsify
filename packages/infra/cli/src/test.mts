@@ -53,6 +53,7 @@ import runtimeSuite from './runtime.spec.js';
 import gjsEntryWrapperSuite from './gjs-entry-wrapper.spec.js';
 import entryPointsSuite from './entry-points.spec.js';
 import buildArgsSuite from './build-args.spec.js';
+import clearTargetsSuite from './utils/clear-targets.spec.js';
 import pinHintSuite from './pin-hint.spec.js';
 import configSuite from './config.spec.js';
 import libraryOutputSuite from './utils/library-output.spec.js';
@@ -110,6 +111,7 @@ run({
     gjsEntryWrapperSuite,
     entryPointsSuite,
     buildArgsSuite,
+    clearTargetsSuite,
     pinHintSuite,
     configSuite,
     libraryOutputSuite,
