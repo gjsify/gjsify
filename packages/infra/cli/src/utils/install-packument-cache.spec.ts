@@ -146,24 +146,37 @@ export default async () => {
                 ['https://user:pw@r.example.com:8443/p?a=b*c', '@scope/x?y*z'],
             ] as const;
             for (const [registry, name] of pairs) {
-                const key = packumentCacheKey(registry, name);
-                for (const ch of WINDOWS_RESERVED) {
-                    // Named in the assertion so a failure says WHICH char.
-                    expect(`${ch}:${key.includes(ch)}`).toBe(`${ch}:false`);
+                for (const shape of ['corgi', 'full'] as const) {
+                    const key = packumentCacheKey(registry, name, shape);
+                    for (const ch of WINDOWS_RESERVED) {
+                        // Named in the assertion so a failure says WHICH char.
+                        expect(`${ch}:${key.includes(ch)}`).toBe(`${ch}:false`);
+                    }
                 }
             }
         });
 
         await it('stays injective when a part contains the separator itself', async () => {
-            // The property that lets two parts share one flat filename: the
+            // The property that lets three parts share one flat filename: the
             // separator is escaped inside the parts, so the join cannot be
             // reparsed two ways. With an UNESCAPED separator these two collide.
-            expect(packumentCacheKey('a,b', 'c')).not.toBe(packumentCacheKey('a', 'b,c'));
+            expect(packumentCacheKey('a,b', 'c', 'corgi')).not.toBe(packumentCacheKey('a', 'b,c', 'corgi'));
         });
 
-        await it('splits into exactly two parts', async () => {
-            const key = packumentCacheKey('https://registry.npmjs.org/', '@girs/glib-2.0');
-            expect(key.split(',').length).toBe(2);
+        await it('splits into exactly three parts, shape first', async () => {
+            const key = packumentCacheKey('https://registry.npmjs.org/', '@girs/glib-2.0', 'full');
+            expect(key.split(',').length).toBe(3);
+            expect(key.startsWith('full,')).toBe(true);
+        });
+
+        await it('keys the two document shapes apart', async () => {
+            // The reason the shape is in the key at all: the abbreviated document
+            // carries no `libc`, so answering an escalated read from a cached
+            // corgi entry judges a musl-only package compatible on glibc — a
+            // wrong answer shaped exactly like a cache hit.
+            expect(packumentCacheKey(REGISTRY, 'lodash', 'corgi')).not.toBe(
+                packumentCacheKey(REGISTRY, 'lodash', 'full'),
+            );
         });
     });
 };
