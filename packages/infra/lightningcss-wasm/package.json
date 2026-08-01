@@ -16,7 +16,7 @@
         "wasm"
     ],
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo",
         "check": "echo 'no typecheck — vendored JS only' && exit 0"
     },
     "keywords": [

@@ -22,7 +22,7 @@
     "start:gjs": "gjs -m dist/app.gjs.mjs",
     "start:node": "node dist/app.node.mjs",
     "test": "node --test dual.e2e.mjs",
-    "clear": "rm -rf dist"
+    "clear": "gjsify clear dist"
   },
   "dependencies": {
     "@gjsify/node-gi": "file:../node-gi"

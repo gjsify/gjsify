@@ -7,7 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "clear": "gjsify clear dist tsconfig.tsbuildinfo",
     "check": "gjsify tsc --noEmit",
     "start": "gjsify run dist/gjs.js",
     "build": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js"

@@ -5,7 +5,7 @@
     "private": true,
     "main": "app/app.ts",
     "scripts": {
-        "clear": "rm -rf platforms hooks dist *.log tsconfig.tsbuildinfo || exit 0",
+        "clear": "gjsify clear platforms hooks dist *.log tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "prepare:android": "nativescript prepare android --no-hmr",
         "build:android": "nativescript build android --no-hmr",

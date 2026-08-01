@@ -7,7 +7,7 @@
         "node": ">=22.12.0"
     },
     "scripts": {
-        "clear": "rm -rf dist fixtures tsconfig.tsbuildinfo || exit 0",
+        "clear": "gjsify clear dist fixtures tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "prebuild:test:gjs": "node scripts/copy-fixtures.mjs",
         "prebuild:test:node": "node scripts/copy-fixtures.mjs",

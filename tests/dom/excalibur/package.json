@@ -4,7 +4,7 @@
     "type": "module",
     "private": true,
     "scripts": {
-        "clear": "rm -rf lib test.gjs.mjs tsconfig.tsbuildinfo || exit 0",
+        "clear": "gjsify clear lib test.gjs.mjs tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "test": "gjsify run build:test:gjs && gjsify run test:gjs",

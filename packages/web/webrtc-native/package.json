@@ -40,7 +40,7 @@
         "tier": 1
     },
     "scripts": {
-        "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
+        "clear": "gjsify clear lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "init:meson": "meson setup build .",
         "init:meson:wipe": "gjsify run init:meson --wipe",
