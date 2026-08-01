@@ -261,7 +261,7 @@ function buildCliRuntimeDeps() {
             if (stale.length === 0) {
                 console.error(
                     `[bootstrap-native-facades] tsc exited 0 but produced no ${libEntry}, and there is no ` +
-                        'build info to explain it. Check `tsconfig.build.json`\'s outDir.',
+                        "build info to explain it. Check `tsconfig.build.json`'s outDir.",
                 );
                 process.exit(1);
             }
