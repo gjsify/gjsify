@@ -86,6 +86,7 @@
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http-soup-bridge#readme",
     "optionalDependencies": {
         "@gjsify/http-soup-bridge-darwin-arm64": "workspace:*",
+        "@gjsify/http-soup-bridge-darwin-x64": "workspace:*",
         "@gjsify/http-soup-bridge-linux-arm64": "workspace:*",
         "@gjsify/http-soup-bridge-linux-ppc64": "workspace:*",
         "@gjsify/http-soup-bridge-linux-riscv64": "workspace:*",

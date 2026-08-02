@@ -183,9 +183,12 @@ export function measureLibcFields(dir, target) {
  * @param {object} parent `{ name, version, dir, tier, description }` of the bridge
  * @param {string} target the `<os>-<arch>` token, VERBATIM as `gjsify.platforms` spells it
  * @param {{libc: string[]|null, glibcRequires: string|null}} measured see {@link measureLibcFields}
+ * @param {string|null} [exemption] the parent's `gjsify.platformsUncommitted` reason for this
+ *   target, inherited verbatim. See {@link planPlatformPackages} for why an exempt target gets a
+ *   package at all.
  * @returns {Record<string, unknown>}
  */
-export function platformManifest(parent, target, measured) {
+export function platformManifest(parent, target, measured, exemption = null) {
     const osCpu = osCpuForTarget(target);
     if (!osCpu) throw new Error(`generate-platform-packages: ${parent.name} declares an invalid target \`${target}\``);
     const name = platformPackageName(parent.name, target);
@@ -216,6 +219,13 @@ export function platformManifest(parent, target, measured) {
         // `prebuild-libc` rule's own vocabulary is a target → floor map, and a
         // bare string here would need translating at every comparison.
         ...(measured.glibcRequires ? { glibcRequires: { [target]: measured.glibcRequires } } : {}),
+        // Inherited VERBATIM from the parent, and it is what keeps the exemption
+        // enforceable after the split: `prebuild-artifacts` fails the moment
+        // `prebuilds/<target>/` appears next to a live exemption, and that
+        // directory now appears HERE, not in the bridge. The parent drops its own
+        // copy for the same reason it drops `gjsify.prebuilds` — it is out of
+        // that rule's scope and could no longer trip.
+        ...(exemption ? { platformsUncommitted: { [target]: exemption } } : {}),
         // The one-element list is what puts THIS tarball under the
         // `prebuild-artifacts` contract — existence, machine-matches-directory,
         // typelib-named siblings staged, host `dlopen`. See ADR 0017's resolved
@@ -260,11 +270,29 @@ export function platformManifest(parent, target, measured) {
  *
  * @param {object} parent
  * @param {string} target
+ * @param {PlannedTarget} [planned] when the target is exempt, its reason is
+ *   reproduced here — the README is the ONE page a consumer sees when they
+ *   wonder why an installed package holds no binary, and "not shipped yet,
+ *   because <reason>" is the answer an empty directory cannot give.
  */
-export function platformReadme(parent, target) {
+export function platformReadme(parent, target, planned) {
     const name = platformPackageName(parent.name, target);
     const osCpu = /** @type {{os: string[], cpu: string[]}} */ (osCpuForTarget(target));
+    const deferred =
+        planned && planned.state === 'uncommitted'
+            ? `
+> **No artifact in this tarball yet.** \`${target}\` is declared by
+> \`${parent.name}\` and built by CI, but not committed to the repository:
+> ${planned.why}
+>
+> The package exists so the artifact has somewhere to land — and so its npm name
+> is claimed before the release that first ships it. Until then installing it is
+> harmless and does nothing: \`${parent.name}\` finds no typelib and takes its
+> no-native path, exactly as if this package were absent.
+`
+            : '';
     return `# ${name}
+${deferred}
 
 The **${target}** native artifacts of [\`${parent.name}\`](https://www.npmjs.com/package/${parent.name}) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
@@ -464,16 +492,39 @@ export function planPlatformPackages(ctx) {
             const exemption = Object.entries(uncommitted).find(
                 ([t]) => canonicalPlatform(t) === canonicalPlatform(target),
             );
+            // An exempt target still gets a PACKAGE — only its artifact is
+            // deferred. Three reasons, and the first one is a shipped bug:
+            //
+            //  · `@gjsify/napi`'s darwin-arm64 is not committed here because a
+            //    RELEASE ships it: `release.yml`'s `napi-prebuild-darwin-arm64`
+            //    job builds it and `publish-napi` stages it into the tarball at
+            //    pack time. Take `prebuilds` out of the bridge's `files` — which
+            //    the split does — and that staging silently packs nothing. Every
+            //    macOS consumer of `@gjsify/napi` loses its prebuild, with no
+            //    error anywhere. The artifact needs a package to be shipped FROM.
+            //  · It restores the tripwire the split would otherwise remove.
+            //    `gjsify.platformsUncommitted` is held honest by
+            //    `prebuild-artifacts`: the moment the directory appears, the rule
+            //    fails and says "delete the exemption". After the split the
+            //    parent leaves that rule's scope, and the directory appears in
+            //    the child — so the exemption has to travel with it or the seven
+            //    `darwin-x64` entries become permanently unfalsifiable.
+            //  · It makes the npm name exist when the target is DECLARED rather
+            //    than when its artifact lands. ADR 0017 names the serialised
+            //    first-publish bootstrap as the split's main cost; paying it once
+            //    per declaration, in the `gjsify onboard` sweep that has to
+            //    happen anyway, is strictly cheaper than a second sweep later —
+            //    and a forgotten one stalls the publish loop for every
+            //    alphabetically-later package (the v0.4.20 incident).
+            //
+            // The tarball is README + package.json until the artifact arrives,
+            // which costs a consumer ~2 KB and behaves exactly like the package
+            // being absent: the bridge finds no typelib and takes its no-native
+            // path, which is what it does today.
+            const state = exemption ? 'uncommitted' : 'plan';
+            const why = exemption ? String(exemption[1]) : undefined;
             if (exemption) {
-                targets.push({
-                    target,
-                    name,
-                    dir,
-                    rel,
-                    range,
-                    state: 'uncommitted',
-                    why: String(exemption[1]),
-                });
+                targets.push({ target, name, dir, rel, range, state, why });
                 continue;
             }
             // Pre-split bridge with a declared target and no directory: a
@@ -585,9 +636,10 @@ export function expectedFiles(parent, planned) {
                 },
                 planned.target,
                 measured,
+                planned.state === 'uncommitted' ? (planned.why ?? null) : null,
             ),
         ),
-        'README.md': platformReadme({ name: parent.name }, planned.target),
+        'README.md': platformReadme({ name: parent.name }, planned.target, planned),
     };
 }
 
@@ -655,46 +707,16 @@ export function auditPlatformPackages(ctx) {
             stats.targets++;
             if (planned.state === 'uncommitted') {
                 stats.uncommitted++;
-                // The tripwire the split would otherwise remove. Before it, an
-                // exemption was held honest by `prebuild-artifacts`: the moment
-                // `<parent>/prebuilds/<target>/` appeared, the rule failed and
-                // said "delete the exemption". After the split the parent is out
-                // of that rule's scope entirely (no `gjsify.prebuilds`), and the
-                // artifact's real destination — the platform package — does not
-                // exist for an exempted target, so a `commit-prebuilds` download
-                // step wired to the neighbours' pattern would create a directory
-                // holding binaries with no manifest, in no workspace, published
-                // to nobody, and every check would stay green. Asserting the
-                // DIRECTORY's absence restores the tripwire at the new location;
-                // the other landing spot (back inside the parent) is already
-                // caught, because it flips ownership to `committed-here` above.
-                if (existsSync(planned.dir)) {
-                    failures.push(
-                        `${parent.name} (${parent.path}): \`${planned.target}\` is exempted by \`gjsify.platformsUncommitted\` ` +
-                            `(${planned.why}), yet \`${planned.rel}/\` exists. The artifact has landed, so the exemption is stale: ` +
-                            'delete it and run `node scripts/generate-platform-packages.mjs --write` to generate the package properly ' +
-                            "(manifest, README, `os`/`cpu`, measured libc floor) and wire the parent's `optionalDependencies` entry. " +
-                            'A prebuild directory with no manifest around it is published to nobody.',
-                    );
-                    continue;
-                }
-                // An exempted target has no artifact to package, so it must not
-                // have an optionalDependencies entry either: a dependency on a
-                // name that was never published resolves to nothing on every
-                // install, and an OPTIONAL one does it silently.
-                if (planned.name in optional) {
-                    failures.push(
-                        `${parent.name} (${parent.path}): \`optionalDependencies["${planned.name}"]\` exists, but \`${planned.target}\` is ` +
-                            `exempted by \`gjsify.platformsUncommitted\` (${planned.why}) and therefore has no platform package. ` +
-                            'An optional dependency on an unpublished name fails silently on every install — either commit the ' +
-                            'artifact and generate the package, or drop the entry with the exemption.',
-                    );
-                }
                 notes.push(
-                    `${parent.name}: \`${planned.target}\` declared but NOT split out — ${planned.why}. After the split the parent ` +
-                        'tarball carries no `prebuilds/`, so nothing ships that target today.',
+                    `${parent.name}: \`${planned.target}\` packaged as \`${planned.name}\`, artifact deferred — ${planned.why}. ` +
+                        'The exemption travels with the package, so `prebuild-artifacts` fails there the moment the directory appears.',
                 );
-                continue;
+                // NOT `continue`: an exempt target has a package like every other
+                // declared target, and it is held to the same three checks below
+                // (it exists, its files match the generator, the parent points at
+                // it). Only the ARTIFACT is deferred, and that deferral is graded
+                // by `prebuild-artifacts` against the child's inherited
+                // `gjsify.platformsUncommitted`.
             }
             if (planned.state === 'missing-artifact') {
                 failures.push(
@@ -798,7 +820,9 @@ export function auditPlatformPackages(ctx) {
         // An optionalDependencies entry naming a platform package of THIS parent
         // that no declared target asks for: the reverse drift — a target dropped
         // from `gjsify.platforms` while its package (and its entry) stayed.
-        const wanted = new Set(parent.targets.filter((t) => t.state === 'plan').map((t) => t.name));
+        const wanted = new Set(
+            parent.targets.filter((t) => t.state === 'plan' || t.state === 'uncommitted').map((t) => t.name),
+        );
         for (const name of Object.keys(parent.manifest.optionalDependencies ?? {})) {
             if (!name.startsWith(`${parent.name}-`)) continue;
             if (wanted.has(name)) continue;
@@ -818,7 +842,11 @@ export function auditPlatformPackages(ctx) {
         summary:
             `platform packages (ADR 0017): OK. ${stats.packages} per-target package(s) across ${stats.parents} native ` +
             `bridge(s) match what the generator emits, each with an \`optionalDependencies\` entry whose \`os\`/\`cpu\` match its ` +
-            `token${stats.uncommitted > 0 ? `; ${stats.uncommitted} declared target(s) are exempt and NOT packaged (see notes)` : ''}.`,
+            `token${
+                stats.uncommitted > 0
+                    ? `; ${stats.uncommitted} of them carry an inherited \`gjsify.platformsUncommitted\` exemption and ship no artifact yet (see notes)`
+                    : ''
+            }.`,
     };
 }
 
@@ -856,9 +884,18 @@ function write(ctx, only) {
         const movedTargets = [];
 
         for (const planned of parent.targets) {
-            if (planned.state !== 'plan') continue;
+            // `uncommitted` is written like any other target — see
+            // `planPlatformPackages` for why an exempt target gets a package.
+            // Only `missing-artifact` is skipped: there is nothing to package and
+            // nothing to defer, and inventing a package for it would turn a gap
+            // `prebuild-artifacts` catches into a published one.
+            if (planned.state === 'missing-artifact') continue;
             optionalDeps.push({ name: planned.name, range: planned.range });
-            mkdirSync(join(planned.dir, 'prebuilds'), { recursive: true });
+            // No empty `prebuilds/` for an exempt target: git cannot carry an
+            // empty directory anyway, and its PRESENCE is precisely what
+            // `prebuild-artifacts` reads as "the artifact landed, drop the
+            // exemption".
+            mkdirSync(planned.state === 'plan' ? join(planned.dir, 'prebuilds') : planned.dir, { recursive: true });
 
             const inParent = parent.prebuildDir ? join(parent.prebuildDir, planned.target) : null;
             const inChild = join(planned.dir, 'prebuilds', planned.target);

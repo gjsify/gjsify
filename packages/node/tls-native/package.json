@@ -88,6 +88,7 @@
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/tls-native#readme",
     "optionalDependencies": {
         "@gjsify/tls-native-darwin-arm64": "workspace:*",
+        "@gjsify/tls-native-darwin-x64": "workspace:*",
         "@gjsify/tls-native-linux-arm64": "workspace:*",
         "@gjsify/tls-native-linux-ppc64": "workspace:*",
         "@gjsify/tls-native-linux-riscv64": "workspace:*",

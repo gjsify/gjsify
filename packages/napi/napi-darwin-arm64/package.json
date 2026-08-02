@@ -1,0 +1,40 @@
+{
+    "name": "@gjsify/napi-darwin-arm64",
+    "version": "0.26.1",
+    "description": "darwin-arm64 prebuilt native library + GObject-Introspection typelib for @gjsify/napi. Installed automatically on darwin/arm64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
+    "license": "MIT",
+    "os": [
+        "darwin"
+    ],
+    "cpu": [
+        "arm64"
+    ],
+    "files": [
+        "prebuilds"
+    ],
+    "gjsify": {
+        "platformsUncommitted": {
+            "darwin-arm64": "napi.yml's `macos` job builds, load-tests and uploads it as a workflow artifact for a release to ship; no job commits it back into this repo"
+        },
+        "platforms": [
+            "darwin-arm64"
+        ],
+        "prebuilds": "prebuilds",
+        "tier": 3
+    },
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "echo 'nothing to do'",
+        "build": "echo 'nothing to do'",
+        "test": "echo 'nothing to do'"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/napi/napi-darwin-arm64"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/napi/napi-darwin-arm64#readme"
+}

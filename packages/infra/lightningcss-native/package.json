@@ -83,6 +83,7 @@
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/lightningcss-native#readme",
     "optionalDependencies": {
         "@gjsify/lightningcss-native-darwin-arm64": "workspace:*",
+        "@gjsify/lightningcss-native-darwin-x64": "workspace:*",
         "@gjsify/lightningcss-native-linux-arm64": "workspace:*",
         "@gjsify/lightningcss-native-linux-ppc64": "workspace:*",
         "@gjsify/lightningcss-native-linux-riscv64": "workspace:*",

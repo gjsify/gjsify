@@ -88,6 +88,7 @@
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http2-native#readme",
     "optionalDependencies": {
         "@gjsify/http2-native-darwin-arm64": "workspace:*",
+        "@gjsify/http2-native-darwin-x64": "workspace:*",
         "@gjsify/http2-native-linux-arm64": "workspace:*",
         "@gjsify/http2-native-linux-ppc64": "workspace:*",
         "@gjsify/http2-native-linux-riscv64": "workspace:*",

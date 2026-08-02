@@ -78,6 +78,8 @@
     },
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/rolldown-native#readme",
     "optionalDependencies": {
+        "@gjsify/rolldown-native-darwin-arm64": "workspace:*",
+        "@gjsify/rolldown-native-darwin-x64": "workspace:*",
         "@gjsify/rolldown-native-linux-arm64": "workspace:*",
         "@gjsify/rolldown-native-linux-x64": "workspace:*"
     }

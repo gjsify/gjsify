@@ -87,6 +87,7 @@
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/oxfmt-native#readme",
     "optionalDependencies": {
         "@gjsify/oxfmt-native-darwin-arm64": "workspace:*",
+        "@gjsify/oxfmt-native-darwin-x64": "workspace:*",
         "@gjsify/oxfmt-native-linux-arm64": "workspace:*",
         "@gjsify/oxfmt-native-linux-x64": "workspace:*"
     }

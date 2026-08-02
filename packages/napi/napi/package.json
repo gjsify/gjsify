@@ -100,6 +100,7 @@
     },
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme",
     "optionalDependencies": {
+        "@gjsify/napi-darwin-arm64": "0.26.1",
         "@gjsify/napi-linux-x64": "0.26.1"
     }
 }

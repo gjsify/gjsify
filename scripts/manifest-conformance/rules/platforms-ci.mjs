@@ -33,6 +33,7 @@ import {
     isPlatformPackageManifest,
     KNOWN_ARCH_TOKENS,
     platformPackageName,
+    prebuildOwnership,
     PLATFORM_RE,
 } from '../../../packages/infra/manifest-conformance/lib/index.mjs';
 
@@ -236,6 +237,22 @@ export async function parseCiPlatforms(
             // its production verb usually sit on different lines (`- name:
             // Build native addon` + `working-directory: packages/…`).
             for (const step of splitSteps(job.body)) {
+                // A DOWNLOAD is consumption, not production, and the difference
+                // is what this whole map means: "which targets does CI BUILD".
+                // The verb test cannot tell them apart, because every one of
+                // these steps is called "Download <pkg> <arch> prebuilds" and
+                // `prebuild` is a production verb. Harmless until ADR 0017: the
+                // download steps in `commit-prebuilds` named the BRIDGE, which
+                // the build legs had already credited with the same targets, so
+                // the surplus attribution was invisible. Now they name the
+                // per-target package, and `commit-prebuilds` is a plain
+                // `ubuntu-latest` job with no arch matrix — so every one of the
+                // 60 platform packages was credited with `linux-x64`, and each
+                // one failed the rule in BOTH directions at once ("declares
+                // darwin-arm64, CI produces none" + "CI builds linux-x64, not
+                // declared"). Keyed on the ACTION rather than on the job name:
+                // any job that downloads an artifact is consuming one.
+                if (/uses:\s*actions\/download-artifact/.test(step)) continue;
                 if (!/\b(build|collect|stage|prebuild|upload)/i.test(step)) continue;
                 for (const id of identifiers) {
                     if (!step.includes(id.name_re) && !step.includes(id.path_re)) continue;
@@ -341,8 +358,21 @@ export function renderPlatformMatrix(rows, { markdown = false } = {}) {
         // distinct state from "shipped" — the matrix is the document people
         // read to answer "can I install this there?", and collapsing the two
         // is how "declared" came to look like "delivered" in the first place.
+        //
+        // Gated on OWNERSHIP, not on `gjsify.prebuilds`. Keying it on the field
+        // meant that the moment ADR 0017 moved the directories out of the
+        // bridges, every split parent lost its exemption state and fell through
+        // to `declared && built` — rendering `✓` "artifact committed" for the
+        // seven `darwin-x64` targets and `@gjsify/napi`'s `darwin-arm64`, none
+        // of which has an artifact anywhere. This table is rendered into the
+        // website's Platform Support page, so that is the documentation lie the
+        // cell exists to prevent, reintroduced through the back door. What the
+        // field was really standing in for is "is this package under the
+        // committed-artifact contract at all" — `@gjsify/node-gi` builds on
+        // install and an exemption there means nothing — and that question has
+        // a name.
         const exempt =
-            r.prebuildsField != null &&
+            prebuildOwnership(r) !== 'install-time' &&
             r.uncommitted != null &&
             typeof r.uncommitted === 'object' &&
             Object.keys(r.uncommitted).some((t) => canonicalPlatform(t) === p);
