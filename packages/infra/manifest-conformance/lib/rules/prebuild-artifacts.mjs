@@ -90,13 +90,15 @@ export function collectNativePackages(ctx) {
             name: pkg.manifest.name,
             // `pkg.rel`, not a fresh `relative()`: the context spells it with
             // forward slashes on every host, and this value is not only
-            // displayed — `platforms-ci` compiles it into a REGEX and matches it
-            // against `working-directory: packages/node-gi/node-gi` lines in the
-            // workflow YAML. In the host spelling that pattern reads
-            // `packages\node-gi\node-gi`, where `\n` is a newline, so it matched
-            // nothing on Windows and `@gjsify/node-gi`'s macOS leg — which
-            // identifies itself by path alone — was reported as a declared
-            // platform CI never builds.
+            // displayed. `platforms-ci` credits a CI job with producing a
+            // package when the step text CONTAINS either the package name or
+            // this path (`step.includes(id.path_re)` — the `_re` suffix is a
+            // misnomer, it is a plain substring test). Workflow YAML writes
+            // `working-directory: packages/node-gi/node-gi`, so in the host
+            // spelling `packages\node-gi\node-gi` simply never occurs and the
+            // match silently fails. `@gjsify/node-gi`'s macOS legs identify
+            // themselves by path ALONE, so on Windows its `darwin-x64` was
+            // reported as a declared platform CI never builds.
             path: pkg.rel,
             tier: pkg.gjsify.tier,
             builder: hasGyp ? 'node-gyp' : 'meson',
