@@ -43,7 +43,7 @@
 
 import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
-import { dirname, join, resolve, basename, relative, extname } from 'node:path';
+import { dirname, join, resolve, basename, relative, extname, posix, win32 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 
@@ -313,8 +313,41 @@ function evalPathExpr(node: acorn.AnyNode | undefined, ctx: InlineContext): stri
     }
     if (typeof v !== 'string') return undefined;
     if (v.startsWith('file://')) return fileURLToPath(v);
-    if (v.startsWith('/')) return v;
+    if (isAbsoluteFsPath(v)) return v;
     return undefined;
+}
+
+/**
+ * Is `v` an absolute filesystem path on `platform`?
+ *
+ * This is the last gate before a resolved expression is read from disk, and it
+ * used to be `v.startsWith('/')`. That is the right test for exactly one
+ * platform. On Windows every path this evaluator produces is `C:\…` — both
+ * documented compositions land there:
+ *
+ *     readFileSync(fileURLToPath(new URL('./x.txt', import.meta.url)), 'utf8')
+ *     readdirSync(path.join(__dirname))
+ *
+ * so both returned `undefined` and the call was left un-inlined. Silently: no
+ * warning, no error, just a bundle that keeps a runtime `readFileSync` against
+ * a build-site path and throws ENOENT the moment it is moved — which is the one
+ * failure this whole module exists to prevent (see the header). It also means
+ * the same source could bundle to DIFFERENT bytes on Windows than on Linux.
+ *
+ * Measured on win32 x64: the four `new URL(…)` patterns inline there correctly
+ * (the URL branch above never went through this gate); only the two that reduce
+ * to a path STRING were affected. No call site in this repo composes them
+ * inline today — every one goes through an intermediate variable, which the
+ * evaluator cannot follow on any platform — so no committed bundle is known to
+ * differ. This closes the gap before it opens.
+ *
+ * `platform` is injected and the branches use `path.win32`/`path.posix`
+ * explicitly, so both are exercised from either host — the same shape
+ * `extractPackageSpec` and `utils/entry-points.ts` use. On POSIX
+ * `posix.isAbsolute` IS `startsWith('/')`, so behaviour there is unchanged.
+ */
+export function isAbsoluteFsPath(v: string, platform: string = process.platform): boolean {
+    return (platform === 'win32' ? win32 : posix).isAbsolute(v);
 }
 
 type EvalValue = string | URL | undefined;
