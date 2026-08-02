@@ -27,6 +27,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const BLOCK = 512;
 
@@ -170,7 +171,7 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
 
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ws-install-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',

@@ -24,6 +24,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ----- tar helpers (ustar v0 with a single package.json entry) -----
 const BLOCK = 512;
@@ -161,7 +162,7 @@ describe('gjsify install --immutable (Phase D.6)', { timeout: 90_000 }, () => {
         await new Promise((r) => server.listen(0, '127.0.0.1', r));
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
 
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',

@@ -16,6 +16,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ----- tar helpers (ustar v0 with a single package.json entry) -----
 const BLOCK = 512;
@@ -160,7 +161,7 @@ describe('gjsify install <pkg> — project-local native (Phase D.1)', { timeout:
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
 
         projectDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-install-project-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             // Native backend is the default; force it here to make the test
