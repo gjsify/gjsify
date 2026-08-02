@@ -78,6 +78,7 @@ import { existsSync, statSync, readdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveGjsifySpawn } from './resolve-gjsify.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -110,13 +111,17 @@ const NO_RECURSE_ENV = 'GJSIFY_BOOTSTRAP_NO_BUILD_INFRA';
  * the version this tree pins), PATH second (a fresh clone whose install has not
  * written `.bin` yet), the committed GJS bundle last (works with nothing
  * installed at all, which is the case this whole script exists for).
+ *
+ * Shared with `verify-committed-bundles.mjs` — see
+ * `scripts/resolve-gjsify.mjs`. This site is the one that hurt on Windows:
+ * `existsSync` says yes to `node_modules/.bin/gjsify`, which is the sh member of
+ * npm's shim trio and the one Windows cannot execute, so `spawnSync` returned
+ * ENOENT with a NULL status and the guard below reported "`gjsify run
+ * build:infra` failed (exit null)" — naming a build that never started, on the
+ * documented recovery path for a cold tree.
  */
-function resolveGjsifyCommand() {
-    const local = join(root, 'node_modules', '.bin', 'gjsify');
-    if (existsSync(local)) return { cmd: local, args: [] };
-    const bundle = join(root, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
-    if (existsSync(bundle)) return { cmd: 'gjs', args: ['-m', bundle] };
-    return { cmd: 'gjsify', args: [] };
+function resolveGjsifyCommand(argv) {
+    return resolveGjsifySpawn(root, argv) ?? { cmd: 'gjsify', args: [...argv] };
 }
 
 /**
@@ -163,15 +168,16 @@ function ensureNodeCliEntry() {
         process.exit(1);
     }
 
-    const { cmd, args } = resolveGjsifyCommand();
+    const { cmd, args, windowsVerbatimArguments } = resolveGjsifyCommand(['run', 'build:infra']);
     console.log(
         `[bootstrap-native-facades] cold tree — no ${cliEntry}\n` +
             '[bootstrap-native-facades] running `gjsify run build:infra` to produce it…',
     );
-    const r = spawnSync(cmd, [...args, 'run', 'build:infra'], {
+    const r = spawnSync(cmd, args, {
         cwd: root,
         stdio: 'inherit',
         env: { ...process.env, [NO_RECURSE_ENV]: '1' },
+        windowsVerbatimArguments,
     });
     if (r.status !== 0) {
         console.error(
