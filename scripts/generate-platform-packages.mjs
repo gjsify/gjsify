@@ -456,7 +456,21 @@ export function planPlatformPackages(ctx) {
             // promised platform with no artifact behind it. `prebuild-artifacts`
             // fails that with an actionable message; inventing an empty package
             // for it here would turn a caught gap into a published one.
-            if (ownership === 'committed-here' && !shippedCanon.has(canonicalPlatform(target))) {
+            //
+            // The child probe is what makes a HALF-MIGRATED tree resumable, and
+            // it is not hypothetical: `--write` moves the directories with
+            // `git mv` and patches the parent manifest afterwards, so an
+            // interrupted run — or a rebase that takes the parent's side of a
+            // conflict while the moves are already in the tree — leaves a parent
+            // that still declares `gjsify.prebuilds` over a directory that is
+            // gone. Judging that state by the PARENT's `shipped` set alone reads
+            // every target as "promised with nothing behind it" and the run
+            // reports `0 committed target(s) into ` — a degenerate instruction
+            // to re-run the command that just refused to do anything.
+            // {@link artifactDir} has always looked in both places; the plan has
+            // to ask the same question or the two disagree about the same tree.
+            const alreadySplit = existsSync(join(dir, 'prebuilds', target));
+            if (ownership === 'committed-here' && !alreadySplit && !shippedCanon.has(canonicalPlatform(target))) {
                 targets.push({
                     target,
                     name,

@@ -14,7 +14,6 @@
     },
     "files": [
         "lib",
-        "prebuilds",
         "meson.build",
         "src/rust",
         "src/vala"
@@ -34,7 +33,6 @@
             "darwin-arm64": "prebuilds.yml's `build-prebuilds-macos` Apple-silicon leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does",
             "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
         },
-        "prebuilds": "prebuilds",
         "refsLockstep": {
             "refs/rolldown": {
                 "npm": "rolldown",
@@ -82,5 +80,9 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/rolldown-native#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/rolldown-native#readme",
+    "optionalDependencies": {
+        "@gjsify/rolldown-native-linux-arm64": "workspace:*",
+        "@gjsify/rolldown-native-linux-x64": "workspace:*"
+    }
 }

@@ -14,7 +14,6 @@
     },
     "files": [
         "lib",
-        "prebuilds",
         "meson.build",
         "src/rust",
         "src/vala"
@@ -39,7 +38,6 @@
             "darwin-arm64",
             "darwin-x64"
         ],
-        "prebuilds": "prebuilds",
         "tier": 1,
         "platformsUncommitted": {
             "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
@@ -58,7 +56,7 @@
         "test": "gjsify run build:gjsify && gjsify run build:test:gjs && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",
         "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
-        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyLightningcss-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=../lightningcss-native-linux-x64/prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyLightningcss-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
     },
     "keywords": [
         "gjs",
@@ -92,5 +90,13 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/lightningcss-native#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/lightningcss-native#readme",
+    "optionalDependencies": {
+        "@gjsify/lightningcss-native-darwin-arm64": "workspace:*",
+        "@gjsify/lightningcss-native-linux-arm64": "workspace:*",
+        "@gjsify/lightningcss-native-linux-ppc64": "workspace:*",
+        "@gjsify/lightningcss-native-linux-riscv64": "workspace:*",
+        "@gjsify/lightningcss-native-linux-s390x": "workspace:*",
+        "@gjsify/lightningcss-native-linux-x64": "workspace:*"
+    }
 }

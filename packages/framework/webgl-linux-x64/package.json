@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webgl-linux-x64",
-    "version": "0.26.0",
+    "version": "0.26.1",
     "description": "linux-x64 prebuilt native library + GObject-Introspection typelib for @gjsify/webgl. Installed automatically on linux/x64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [
@@ -13,6 +13,9 @@
         "prebuilds"
     ],
     "gjsify": {
+        "glibcRequires": {
+            "linux-x64": "2.14"
+        },
         "platforms": [
             "linux-x64"
         ],

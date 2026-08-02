@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webrtc-native-linux-riscv64",
-    "version": "0.26.0",
+    "version": "0.26.1",
     "description": "linux-riscv64 prebuilt native library + GObject-Introspection typelib for @gjsify/webrtc-native. Installed automatically on linux/riscv64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [
@@ -9,10 +9,16 @@
     "cpu": [
         "riscv64"
     ],
+    "libc": [
+        "glibc"
+    ],
     "files": [
         "prebuilds"
     ],
     "gjsify": {
+        "glibcRequires": {
+            "linux-riscv64": "2.27"
+        },
         "platforms": [
             "linux-riscv64"
         ],

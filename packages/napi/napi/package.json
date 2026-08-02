@@ -103,6 +103,6 @@
     },
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme",
     "optionalDependencies": {
-        "@gjsify/napi-linux-x64": "0.26.0"
+        "@gjsify/napi-linux-x64": "0.26.1"
     }
 }
