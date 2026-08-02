@@ -23,6 +23,7 @@ import { cpus } from 'node:os';
 import type { Command } from '../types/index.js';
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { detectPackageManager } from './workspace.js';
 
 interface CheckOptions {
     include?: string[];
@@ -43,8 +44,25 @@ async function runCheck(ws: Workspace, prefix: string | null): Promise<number> {
     // GJS, so the STREAMING async path is safe here (and required: the
     // blocking one would serialize the parallel workers). See utils/spawn.ts.
     const flushers: Array<() => void> = [];
+    // The RUNNER is detected, never hardcoded — `foreach` and `workspace` have
+    // always done this and this site did not, which made `gjsify check` the one
+    // orchestrator that still required Node. Under GJS `detectPackageManager()`
+    // returns `gjsify` and the script goes through the shim on PATH.
+    //
+    // It failed in the worst possible shape: `spawnToCompletion` maps the
+    // `spawn npm ENOENT` into the rejection the `catch` below turns into a bare
+    // `exit 1`, so a Node-less host reported `✗ <pkg> (exit 1)` for a check
+    // script that never ran — measured on postmarketOS/aarch64 against a
+    // package whose `check` was literally `echo`.
+    const runner = detectPackageManager();
+    // `--if-present` is an npm/yarn flag with no `gjsify run` equivalent, so for
+    // the GJS runner the absence test moves here rather than being dropped.
+    if (runner === 'gjsify' && readPackageJson(join(ws.location, 'package.json'))?.scripts?.check === undefined) {
+        return 0;
+    }
+    const argv = runner === 'gjsify' ? ['run', 'check'] : ['run', 'check', '--if-present'];
     try {
-        const { code } = await spawnToCompletion('npm', ['run', 'check', '--if-present'], {
+        const { code } = await spawnToCompletion(runner, argv, {
             completion: 'exit',
             cwd: ws.location,
             stdio: prefix === null ? 'inherit' : 'pipe',
@@ -134,7 +152,10 @@ export const checkCommand: Command<unknown, CheckOptions> = {
                 // inside any package failed silently on win32. Measured there
                 // before the change; `--verbose` printed the command line and
                 // nothing else.
-                const { code } = await spawnToCompletion('npm', ['run', 'check'], {
+                // Runner detected, not hardcoded — same reason as workspace mode
+                // above. This branch already established that the package HAS a
+                // check script, so there is no `--if-present` to translate.
+                const { code } = await spawnToCompletion(detectPackageManager(), ['run', 'check'], {
                     cwd,
                     // The handler exits the process on every path below, so the
                     // streaming path is safe under GJS too.
