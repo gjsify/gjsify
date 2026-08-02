@@ -139,8 +139,24 @@ command -v g-ir-compiler > /dev/null 2>&1 || {
 
 # rustup (lightningcss-native, below). The distro cargo is usually older than
 # the rustc >= 1.85 that indexmap@2.14's edition2024 needs.
+#
+# RETRIED, because one transient fetch discards a whole emulated build. By the
+# time this line runs the leg has installed a few hundred packages under QEMU,
+# and a bare `curl -sSf` turns any blip into a red `main`: on 2026-08-02 it was
+# `curl: (35) Send failure: Connection reset by peer` on s390x, one run after a
+# `502 Bad Gateway` from Docker Hub killed ppc64 the same way. Neither said
+# anything about this repository's code, and each threw away minutes of
+# emulated work — plus every other package that leg had already built.
+#
+# `--retry-all-errors` is the load-bearing flag: plain `--retry` covers
+# transient HTTP codes and timeouts but NOT a connection reset, which is
+# precisely what happened. Curl's own retry rather than a shell loop, because
+# the download is piped straight into `sh` — re-running the pipeline would
+# re-run the installer, not just the fetch.
 if needs_rust; then
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+    curl --proto '=https' --tlsv1.2 -sSf \
+        --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
+        https://sh.rustup.rs |
         sh -s -- -y --default-toolchain stable --profile minimal
     export PATH="$HOME/.cargo/bin:$PATH"
 else

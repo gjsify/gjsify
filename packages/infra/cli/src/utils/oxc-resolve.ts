@@ -163,6 +163,19 @@ export class OxcNotFoundError extends Error {
     constructor(
         public tool: OxcTool,
         public cwd: string,
+        /**
+         * The interpreter that could not be executed, when the LAUNCHER resolved
+         * and the spawn still failed with `ENOENT`.
+         *
+         * Then the missing file is the interpreter, not the tool, and saying
+         * "install <tool>" sends the user in a circle: on a Node-less GJS host
+         * (postmarketOS/aarch64, gjs present, no node) `gjsify install -D oxlint`
+         * succeeds, the launcher lands on disk, and the next run repeats the very
+         * same advice. `spawnToCompletion`'s `notFound` fires for the COMMAND, and
+         * the command here is `node` — never the launcher, which
+         * {@link findOxcLauncher} already proved exists by not throwing.
+         */
+        public missingInterpreter?: string,
     ) {
         const binding = (() => {
             try {
@@ -172,11 +185,21 @@ export class OxcNotFoundError extends Error {
             }
         })();
         super(
-            `[gjsify oxc] ${tool} not found.\n` +
-                `  Expected: ${tool}/bin/${tool} in node_modules of ${cwd} or any workspace root above it.\n` +
-                `  Install it via: gjsify install -D ${tool}\n` +
-                `  (this adds ${tool} to devDependencies; the matching ${binding} ` +
-                `napi binding lands automatically as an optionalDependency.)`,
+            missingInterpreter === undefined
+                ? `[gjsify oxc] ${tool} not found.\n` +
+                      `  Expected: ${tool}/bin/${tool} in node_modules of ${cwd} or any workspace root above it.\n` +
+                      `  Install it via: gjsify install -D ${tool}\n` +
+                      `  (this adds ${tool} to devDependencies; the matching ${binding} ` +
+                      `napi binding lands automatically as an optionalDependency.)`
+                : `[gjsify oxc] cannot run ${tool}: no \`${missingInterpreter}\` binary on PATH.\n` +
+                      `  ${tool} IS installed — its launcher was found. What is missing is the\n` +
+                      `  interpreter that runs it: ${tool}'s launcher is a Node ESM script.\n` +
+                      (tool === 'oxfmt'
+                          ? `  For a Node-free formatter install the GI bridge:\n` +
+                            `    gjsify install -D @gjsify/oxfmt-native\n` +
+                            `  (\`gjsify format\`/\`fix\` then run oxfmt in-process under GJS.)`
+                          : `  oxlint has no native GJS bridge yet — its JS-plugin host lives in the\n` +
+                            `  Node launcher — so \`gjsify lint\` needs Node on the host for now.`),
         );
         this.name = 'OxcNotFoundError';
     }
@@ -344,7 +367,9 @@ function spawnOxcLauncher(tool: OxcTool, args: string[], opts: RunOxcOptions = {
     return spawnToCompletion(node, [launcher, ...args], {
         completion: 'return',
         cwd,
-        notFound: () => new OxcNotFoundError(tool, cwd),
+        // ENOENT here is the COMMAND — `node` — not the launcher: `findOxcLauncher`
+        // above already proved that exists by not throwing.
+        notFound: () => new OxcNotFoundError(tool, cwd, node),
     }).then(({ code, signal }) => {
         if (signal !== null) {
             console.error(`[gjsify oxc] ${tool} terminated by signal ${signal}`);
