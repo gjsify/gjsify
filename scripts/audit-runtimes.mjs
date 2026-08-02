@@ -91,7 +91,27 @@
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
+
+/**
+ * A repo-relative path in the ONE spelling everything downstream assumes.
+ *
+ * `path.relative()` answers in the host's separator, and every consumer here
+ * splits on `/` — `classifyAxis` reads the first segment to decide the axis, and
+ * an axis of `infra` is what exempts a package from needing a
+ * `gjsify.runtimes` declaration at all. On Windows `relative()` returned
+ * `gjs\unit`, the split produced one segment, the pillar matched nothing, and
+ * five infra packages were reported as MISSING a declaration they are not
+ * supposed to carry. The audit was therefore red on win32 and green on Linux
+ * for the same tree — the exact shape this repo's Windows work keeps finding.
+ *
+ * `split(sep).join('/')` rather than `replaceAll('\\', '/')`: a backslash is a
+ * legal character in a POSIX filename, and rewriting it there would corrupt a
+ * path instead of normalising it.
+ */
+function toPosixRel(path) {
+    return path.split(sep).join('/');
+}
 import { fileURLToPath } from 'node:url';
 
 // The shared registry + the PORTABLE rule set. Importing the barrel registers
@@ -886,7 +906,7 @@ async function collectReachMeta() {
         byName.set(pkgJson.name, {
             name: pkgJson.name,
             pkgDir,
-            rel: relative(PACKAGES_DIR, pkgDir),
+            rel: toPosixRel(relative(PACKAGES_DIR, pkgDir)),
             runtimes: pkgJson.gjsify?.runtimes ?? null,
             subpaths: pkgJson.gjsify?.runtimeSubpaths ?? {},
             // The headless audit needs the export TARGETS (not just the keys)
@@ -1121,7 +1141,7 @@ async function buildReport() {
     for (const pkgDir of pkgDirs) {
         const pkgJsonPath = join(pkgDir, 'package.json');
         const pkgJson = JSON.parse(await readFile(pkgJsonPath, 'utf8'));
-        const rel = relative(PACKAGES_DIR, pkgDir);
+        const rel = toPosixRel(relative(PACKAGES_DIR, pkgDir));
         const signals = await scanSourceTree(pkgDir);
         const axis = classifyAxis(rel, pkgJson.name ?? '');
         const subpath = rel.split('/')[1] ?? '';
