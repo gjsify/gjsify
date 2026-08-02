@@ -13,10 +13,10 @@
 // `--no-package-lock` keeps the cache prepare dir hermetic; the cache key
 // already covers reproducibility. `--no-audit --no-fund` cuts ~5s off cold runs.
 
-import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { spawnToCompletion } from './spawn.js';
 import type { ProgressReporter } from './install-progress.js';
 
 export type { ProgressEvent, ProgressPhase, ProgressReporter } from './install-progress.js';
@@ -163,18 +163,23 @@ async function installViaNpm({ prefix, specs, verbose, registry }: InstallOption
         ...specs,
     ];
 
-    await new Promise<void>((resolve, reject) => {
-        const child = spawn('npm', args, { stdio: 'inherit' });
-        child.on('close', (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`npm install exited with code ${code}`));
-        });
-        child.on('error', (err) => {
-            const msg =
-                (err as NodeJS.ErrnoException).code === 'ENOENT'
-                    ? 'npm not found on PATH — install Node.js or set GJSIFY_INSTALL_BACKEND=native (not yet supported)'
-                    : `npm install failed: ${err.message}`;
-            reject(new Error(msg));
-        });
+    // Through `spawnToCompletion` so `npm` is resolved the way every other
+    // spawn in the CLI resolves it. A bare `spawn('npm', …)` is ENOENT on
+    // Windows — `CreateProcess` appends only `.exe` and npm ships a `.cmd`
+    // shim (see utils/win32-command.ts). That made this backend unusable
+    // there, and the ENOENT hint below actively misdiagnosed it: npm IS on
+    // PATH on such a host, and it told the user to select the backend that
+    // was already the default while calling it unsupported.
+    //
+    // `completion: 'return'` — `installPackages` resolves a promise to its
+    // caller instead of exiting, so under GJS this must not leave a main loop
+    // armed. (Moot in practice: this backend needs npm, hence Node.)
+    const { code } = await spawnToCompletion('npm', args, {
+        completion: 'return',
+        notFound: (err) =>
+            new Error(
+                `npm not found on PATH — install Node.js, or unset GJSIFY_INSTALL_BACKEND to use the default native backend (${err.message})`,
+            ),
     });
+    if (code !== 0) throw new Error(`npm install exited with code ${code}`);
 }

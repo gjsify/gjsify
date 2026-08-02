@@ -39,6 +39,45 @@ Windows package managers do not provide in a form its build system consumes.
 This is a genuine upstream blocker, not a missing task. It is tracked in
 `status/open-todos.md` with the exact conditions that would unblock it.
 
+## Working on gjsify FROM Windows
+
+No GJS host does not mean no development host. Under Node, a Windows machine
+runs the toolchain: `gjsify install`, `gjsify run build:infra`, `gjsify build`
+(`--app node`, `--app browser`, and `--library`), `gjsify check`, `gjsify clear`,
+the install backend with its `.cmd`/`.ps1`/`sh` bin shims, and `@gjsify/cli`'s
+own test suite. All of that is verified on win32 x64 / Node 24 with no POSIX
+utilities on PATH.
+
+What a Windows checkout cannot do is anything that ends in a `gjs` process:
+`--app gjs` bundles, `test:gjs`, and the showcases and examples built around
+them. That is the same upstream blocker as above, not a separate gap.
+
+Two host settings matter, and both fail in ways that do not name themselves:
+
+- **Long paths.** Set `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem
+  \LongPathsEnabled` to `1` (needs elevation), and keep the checkout short —
+  `C:\src\…` rather than a deep home directory. A monorepo with nested
+  `node_modules` exceeds `MAX_PATH` quickly.
+- **Line endings.** Set `core.autocrlf=false` before you clone. The
+  byte-verified artifacts are safe either way — `.gitattributes` pins the
+  committed `*.gjs.mjs` bundles and `@gjsify/tsc`'s shipped libs to LF whatever
+  you configure, because otherwise `verify-committed-bundles.mjs` reports them
+  stale for files you never touched. The setting still matters for everything
+  else: 744 files in `tests/`, `showcases/`, `website/`, `templates/` and
+  `status/` are committed with CRLF, and with Git for Windows' recommended
+  `core.autocrlf=true` they all show as modified the moment you clone. Tracked
+  in `status/open-todos.md`; closing it needs a repo-wide renormalisation.
+
+Optionally, enable **Developer Mode** so unprivileged file symlinks work. It is
+not required: `gjsify install` links workspace packages with NTFS junctions,
+which need no privilege. Three test rows do need real file symlinks and report
+themselves as skipped with that reason when the capability is absent.
+
+One caveat when testing, because it produces false greens: run commands the way
+npm does, through `cmd.exe`. A git-bash shell puts `C:\Program Files\Git\usr\bin`
+on PATH, so `chmod`, `cp`, `rm` and `which` resolve there and a script that
+cannot work for a normal user appears to.
+
 ## Why macOS has no Node-free toolchain yet
 
 `gjsify build` under GJS needs a bundler, and `@gjsify/rolldown-native` is the only

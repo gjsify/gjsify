@@ -112,11 +112,34 @@ function moduleTypeForPath(path: string): 'ts' | 'js' {
  *   ".../node_modules/typedoc/dist/lib/app.js"   → "typedoc/dist/lib/app.js"
  *   ".../node_modules/@scope/name/sub.js"        → "@scope/name/sub.js"
  *   ".../node_modules/a/node_modules/b/file.js"  → "b/file.js"
+ *
+ * The result is a module SPECIFIER, not a path, so it is always `/`-separated.
+ *
+ * On win32 the incoming path is `C:\…\node_modules\typescript\lib\_tsc.js` and
+ * the `node_modules/` marker never matched, so this returned the ABSOLUTE
+ * BUILD-MACHINE PATH unchanged — and `shouldRewrite` above tests
+ * `includes('node_modules')` without a separator, so the rewriter still fired
+ * and baked that path into the bundle as the runtime resolve spec. Measured on
+ * win32 x64 building `@gjsify/tsc`:
+ *
+ *   linux:  To(`typescript/lib/_tsc.js`)                        → retargets
+ *   win32:  To(`C:\\src\\werkstatt\\gjsify\\gjsify\\node_mod…`) → unshippable
+ *
+ * `@gjsify/tsc`'s `scripts/build-bundle.mjs` caught it ("expected runtime
+ * path-rewrite spec … not found in bundle — has the node-modules path rewriter
+ * changed?") and refused to ship, which is why this surfaced as a build failure
+ * rather than as a bundle that resolves nothing on someone else's machine.
+ *
+ * The conversion is win32-ONLY: on POSIX a backslash is a legitimate FILENAME
+ * character, so rewriting it there would corrupt a real path. `platform` is
+ * injected so both branches are unit-testable from either host — the same shape
+ * `utils/entry-points.ts` and `cli/src/utils/win32-command.ts` use.
  */
-export function extractPackageSpec(path: string): string {
+export function extractPackageSpec(path: string, platform: string = process.platform): string {
+    const normalized = platform === 'win32' ? path.replaceAll('\\', '/') : path;
     const marker = 'node_modules/';
-    const idx = path.lastIndexOf(marker);
-    return idx < 0 ? path : path.slice(idx + marker.length);
+    const idx = normalized.lastIndexOf(marker);
+    return idx < 0 ? normalized : normalized.slice(idx + marker.length);
 }
 
 /**

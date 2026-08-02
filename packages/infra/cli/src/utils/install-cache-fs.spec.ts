@@ -24,8 +24,11 @@ export default async () => {
 
         await it('gjsifyCacheRoot honours XDG_CACHE_HOME', async () => {
             withXdg('/tmp/xdg-test', () => {
-                expect(gjsifyCacheRoot('tarballs', 'v1')).toBe('/tmp/xdg-test/gjsify/tarballs/v1');
-                expect(gjsifyCacheRoot('metadata', 'v2')).toBe('/tmp/xdg-test/gjsify/metadata/v2');
+                // `join`, exactly like the `~/.cache` row below — `gjsifyCacheRoot`
+                // joins with the HOST separator, so the `/`-literal spelling only
+                // ever matched on POSIX.
+                expect(gjsifyCacheRoot('tarballs', 'v1')).toBe(join('/tmp/xdg-test', 'gjsify', 'tarballs', 'v1'));
+                expect(gjsifyCacheRoot('metadata', 'v2')).toBe(join('/tmp/xdg-test', 'gjsify', 'metadata', 'v2'));
             });
         });
 

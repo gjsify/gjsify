@@ -22,7 +22,10 @@
 //    bundling for `package.json`, locale files, etc.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { inlineStaticReads } from '@gjsify/rolldown-plugin-gjsify';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { inlineStaticReads, isAbsoluteFsPath } from '@gjsify/rolldown-plugin-gjsify';
 
 export default async () => {
     await describe('inline-static-reads', async () => {
@@ -58,13 +61,22 @@ export default async () => {
             // path.join over string literals is a legitimate static path —
             // and the call has no `withFileTypes` so a string[] result is
             // exactly what the consumer expects.
+            // A directory this test CREATES, rather than `/tmp`: the inliner
+            // only rewrites a call whose resolved path actually exists, and
+            // `/tmp` does not on Windows (`path.join('/tmp')` is `\tmp` there),
+            // so the happy path silently became the decline path and the row
+            // asserted nothing about the inliner. `JSON.stringify` supplies the
+            // literal because a Windows path is full of backslashes that would
+            // otherwise become escapes in the generated source.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-inline-'));
+            writeFileSync(join(dir, 'entry.txt'), 'x');
             const src = `
                 import { readdirSync } from 'fs';
                 import * as path from 'node:path';
-                const names = readdirSync(path.join('/tmp'));
+                const names = readdirSync(path.join(${JSON.stringify(dir)}));
             `;
-            const out = inlineStaticReads(src, '/tmp/foo.js');
-            // /tmp exists on every POSIX build host; one inline expected.
+            const out = inlineStaticReads(src, join(dir, 'foo.js'));
+            rmSync(dir, { recursive: true, force: true });
             expect(out.inlined).toBe(1);
             // The replacement must be an array literal (or at minimum no
             // longer contain the readdirSync call itself).
@@ -84,6 +96,41 @@ export default async () => {
             const out = inlineStaticReads(src, '/tmp/foo.js');
             expect(out.inlined).toBe(0);
             expect(out.contents).toContain("readFileSync(segments.join('/'))");
+        });
+    });
+
+    // The last gate before a resolved expression is read from disk. It was
+    // `startsWith('/')`, which is the right test for exactly one platform: on
+    // Windows every path this evaluator produces is `C:\…`, so the two
+    // documented compositions that reduce to a path STRING —
+    // `fileURLToPath(new URL(…))` and `path.join(__dirname)` — were silently
+    // never inlined there. `platform` is injected, so both branches run on
+    // every host; off win32 this regression is otherwise invisible.
+    await describe('isAbsoluteFsPath', async () => {
+        await it('accepts a POSIX absolute path, rejects a relative one', () => {
+            expect(isAbsoluteFsPath('/tmp/x.json', 'linux')).toBe(true);
+            expect(isAbsoluteFsPath('tmp/x.json', 'linux')).toBe(false);
+            expect(isAbsoluteFsPath('./x.json', 'linux')).toBe(false);
+        });
+
+        await it('accepts a drive-letter path on win32 — the case that was dropped', () => {
+            expect(isAbsoluteFsPath('C:\\ws\\pkg\\package.json', 'win32')).toBe(true);
+            expect(isAbsoluteFsPath('C:/ws/pkg/package.json', 'win32')).toBe(true);
+        });
+
+        await it('accepts a UNC path on win32', () => {
+            expect(isAbsoluteFsPath('\\\\server\\share\\x.json', 'win32')).toBe(true);
+        });
+
+        await it('rejects a relative path on win32 too', () => {
+            expect(isAbsoluteFsPath('ws\\pkg\\package.json', 'win32')).toBe(false);
+            expect(isAbsoluteFsPath('..\\x.json', 'win32')).toBe(false);
+        });
+
+        await it('does NOT accept a drive-letter path off win32', () => {
+            // On POSIX `C:\…` is a single relative filename, not a path — the
+            // old `startsWith('/')` said so and that must not change.
+            expect(isAbsoluteFsPath('C:\\ws\\x.json', 'linux')).toBe(false);
         });
     });
 };

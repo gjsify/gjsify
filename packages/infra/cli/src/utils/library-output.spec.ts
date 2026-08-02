@@ -8,27 +8,43 @@
 // build action uses to refuse that up front.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { resolve } from 'node:path';
 import { inputSourceDirs, isOutdirInsideSource } from './library-output.js';
 
 const CWD = '/proj';
 
+/**
+ * An expected absolute path, built with the same `path.resolve` the helpers
+ * under test use.
+ *
+ * `inputSourceDirs` resolves against the host's path flavour, so on Windows
+ * `resolve('/proj', 'src')` is `C:\proj\src` — the drive comes from the cwd and
+ * the separator from the platform. Hardcoding `'/proj/src'` therefore compared
+ * a POSIX literal against a Windows path and failed there for a reason none of
+ * these rows are about; they pin how a glob reduces to its directory prefix,
+ * which is separator-independent.
+ */
+function at(...parts: string[]): string {
+    return resolve(CWD, ...parts);
+}
+
 export default async () => {
     await describe('inputSourceDirs', async () => {
         await it('maps a file entry to its containing dir', () => {
-            expect(inputSourceDirs('src/index.ts', CWD)).toStrictEqual(['/proj/src']);
+            expect(inputSourceDirs('src/index.ts', CWD)).toStrictEqual([at('src')]);
         });
 
         await it('reduces a glob to its literal directory prefix', () => {
-            expect(inputSourceDirs('src/**/*.ts', CWD)).toStrictEqual(['/proj/src']);
-            expect(inputSourceDirs('src/components/*.ts', CWD)).toStrictEqual(['/proj/src/components']);
+            expect(inputSourceDirs('src/**/*.ts', CWD)).toStrictEqual([at('src')]);
+            expect(inputSourceDirs('src/components/*.ts', CWD)).toStrictEqual([at('src/components')]);
         });
 
         await it('accepts a bare directory input', () => {
-            expect(inputSourceDirs('src', CWD)).toStrictEqual(['/proj/src']);
+            expect(inputSourceDirs('src', CWD)).toStrictEqual([at('src')]);
         });
 
         await it('handles an array of inputs, de-duplicated', () => {
-            expect(inputSourceDirs(['src/index.ts', 'src/other.ts'], CWD)).toStrictEqual(['/proj/src']);
+            expect(inputSourceDirs(['src/index.ts', 'src/other.ts'], CWD)).toStrictEqual([at('src')]);
         });
 
         await it('excludes the project root itself (flat layout is not the footgun)', () => {
@@ -38,12 +54,12 @@ export default async () => {
 
         await it('ignores non-string input shapes gracefully', () => {
             expect(inputSourceDirs(undefined, CWD)).toStrictEqual([]);
-            expect(inputSourceDirs({ a: 'src/a.ts', b: 5 }, CWD)).toStrictEqual(['/proj/src']);
+            expect(inputSourceDirs({ a: 'src/a.ts', b: 5 }, CWD)).toStrictEqual([at('src')]);
         });
     });
 
     await describe('isOutdirInsideSource', async () => {
-        const sourceDirs = ['/proj/src'];
+        const sourceDirs = [at('src')];
 
         await it('flags an outdir that IS the source dir (the leak)', () => {
             expect(isOutdirInsideSource('src', sourceDirs, CWD)).toBe(true);

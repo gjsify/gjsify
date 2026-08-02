@@ -23,6 +23,7 @@
 // when a backslashed pattern reaches it anyway).
 
 import { describe, expect, it } from '@gjsify/unit';
+import { normalize } from 'node:path';
 import yargs from 'yargs';
 import { buildCommand } from './commands/build.js';
 
@@ -68,8 +69,14 @@ export default async () => {
         await it('still normalizes --outdir, which IS a single path', async () => {
             // The fix is scoped: `outfile`/`outdir` are paths, nothing globs
             // them, and collapsing `./` there is wanted.
+            //
+            // Compared against `normalize()` rather than the literal `lib/esm`,
+            // because yargs' `normalize` IS `path.normalize` — and on Windows
+            // that rewrites the separator too, giving `lib\esm`. Asserting the
+            // POSIX spelling failed there while the behaviour under test, the
+            // `./` collapse, was exactly right.
             const args = await parseBuildArgs(['build', '--library', 'src/index.ts', '--outdir', 'lib/./esm']);
-            expect(args.outdir).toBe('lib/esm');
+            expect(args.outdir).toBe(normalize('lib/esm'));
         });
     });
 };

@@ -3,6 +3,10 @@
 // run via `node dist/test.node.mjs`.
 
 import { run } from '@gjsify/unit';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import bundlerPickSuite from './bundler-pick.spec.js';
 import processStubBannerSuite from './process-stub-banner.spec.js';
 import barrelsGenerateSuite from './barrels-generate.spec.js';
@@ -52,6 +56,8 @@ import resolvePluginByNameSuite from './utils/resolve-plugin-by-name.spec.js';
 import runtimeSuite from './runtime.spec.js';
 import gjsEntryWrapperSuite from './gjs-entry-wrapper.spec.js';
 import entryPointsSuite from './entry-points.spec.js';
+import pkgJsonSuite from './utils/pkg-json.spec.js';
+import rewriteNodeModulesSpecSuite from './rewrite-node-modules-spec.spec.js';
 import buildArgsSuite from './build-args.spec.js';
 import clearTargetsSuite from './utils/clear-targets.spec.js';
 import pinHintSuite from './pin-hint.spec.js';
@@ -65,61 +71,133 @@ import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
 import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 
-run({
-    bundlerPickSuite,
-    processStubBannerSuite,
-    barrelsGenerateSuite,
-    npmOidcSuite,
-    publishDiagnoseSuite,
-    publishHeadersSuite,
-    whoamiCommandSuite,
-    installBackendParseSpecSuite,
-    installTarballCacheSuite,
-    installPackumentCacheSuite,
-    authNpmrcSuite,
-    promptKeySuite,
-    dirLinkSuite,
-    dlxCacheSuite,
-    installCacheFsSuite,
-    installLockSuite,
-    installBackendNativeWarnSuite,
-    detectNativePackagesSuite,
-    platformCheckSuite,
-    binShimSuite,
-    binShimRuntimeOrderSuite,
-    nodeVersionSuite,
-    inlineStaticReadsSuite,
-    resolveNpmPackageSuite,
-    oxcResolveSuite,
-    buildCacheSuite,
-    htmlEntrySuite,
-    autoGlobalsSuite,
-    aliasPluginSuite,
-    napiNodeAddonSuite,
-    nodeGiExternalsSuite,
-    nodeReverseRegistersSuite,
-    externalsPluginSuite,
-    affectedClassifierSuite,
-    runStdioSafeSuite,
-    runNodeResolveSuite,
-    trustRegistrySuite,
-    npmOtpSuite,
-    npmOtpCacheSuite,
-    onboardProbeSuite,
-    resolvePluginByNameSuite,
-    runtimeSuite,
-    gjsEntryWrapperSuite,
-    entryPointsSuite,
-    buildArgsSuite,
-    clearTargetsSuite,
-    pinHintSuite,
-    configSuite,
-    libraryOutputSuite,
-    suggestSuite,
-    runtimesSuite,
-    spawnSuite,
-    win32CommandSuite,
-    gjsBundleGuardSuite,
-    nodeBundleGuardSuite,
-    unresolvedWorkspaceImportSuite,
-});
+// ---------------------------------------------------------------------------
+// Capability-gated skips
+// ---------------------------------------------------------------------------
+//
+// A few rows assert behaviour that needs something the HOST may not be able to
+// do. They are not platform-specific tests and they are not broken — they
+// simply cannot execute where the capability is absent, and failing there says
+// nothing about the code.
+//
+// Measured on a win32 x64 VM: this suite ran 1703 tests with exactly these six
+// failing, each for a machine reason. Left as failures they are six results a
+// Windows contributor has to learn to ignore — which is how a real regression
+// gets ignored along with them. As skips, with the reason printed and counted,
+// the suite is green and the gap is stated rather than remembered.
+//
+// PROBED, NOT ASSUMED. `process.platform === 'win32'` is the wrong gate for the
+// symlink rows: Windows CAN create file symlinks under Developer Mode or an
+// elevated shell, and gating on the platform name would silently drop coverage
+// on a host that has the capability. Ask the filesystem instead. Every probe
+// below is satisfied on Linux and macOS, so CI skips nothing.
+
+/** Can this host create a FILE symlink? Windows needs Developer Mode or elevation. */
+function canCreateFileSymlink(): boolean {
+    let dir: string | undefined;
+    try {
+        dir = mkdtempSync(join(tmpdir(), 'gjsify-symlink-probe-'));
+        writeFileSync(join(dir, 'target'), '');
+        symlinkSync(join(dir, 'target'), join(dir, 'link'));
+        return true;
+    } catch {
+        return false;
+    } finally {
+        if (dir) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    }
+}
+
+/** Is a runnable `gjs` on PATH? No prebuilt libgjs exists for Windows at all. */
+function hasGjs(): boolean {
+    try {
+        execFileSync('gjs', ['--version'], { stdio: 'ignore', timeout: 15000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+const skip: Record<string, string> = {};
+
+if (!canCreateFileSymlink()) {
+    const why = 'host cannot create file symlinks (Windows needs Developer Mode or elevation)';
+    skip['copies a DANGLING link as-is instead of inventing a kind'] = why;
+    skip['REFRESHES an existing `pkg` on the POSIX path'] = why;
+    skip['still writes a relative symlink on POSIX'] = why;
+}
+
+if (!hasGjs()) {
+    const why = 'no gjs on PATH — these spawn a real gjs child';
+    skip['stdout contains only the child output — no banner'] = why;
+    skip['positional extra args are forwarded to the gjs child'] = why;
+}
+
+// `fs.chmod` on Windows only toggles the read-only flag — there is no mode to
+// assert. This one IS a platform property, not a configurable capability.
+if (process.platform === 'win32') {
+    skip['writes the cache file with 0600 perms'] = 'no POSIX mode bits on this filesystem';
+}
+
+run(
+    {
+        bundlerPickSuite,
+        processStubBannerSuite,
+        barrelsGenerateSuite,
+        npmOidcSuite,
+        publishDiagnoseSuite,
+        publishHeadersSuite,
+        whoamiCommandSuite,
+        installBackendParseSpecSuite,
+        installTarballCacheSuite,
+        installPackumentCacheSuite,
+        authNpmrcSuite,
+        promptKeySuite,
+        dirLinkSuite,
+        dlxCacheSuite,
+        installCacheFsSuite,
+        installLockSuite,
+        installBackendNativeWarnSuite,
+        detectNativePackagesSuite,
+        platformCheckSuite,
+        binShimSuite,
+        binShimRuntimeOrderSuite,
+        nodeVersionSuite,
+        inlineStaticReadsSuite,
+        resolveNpmPackageSuite,
+        oxcResolveSuite,
+        buildCacheSuite,
+        htmlEntrySuite,
+        autoGlobalsSuite,
+        aliasPluginSuite,
+        napiNodeAddonSuite,
+        nodeGiExternalsSuite,
+        nodeReverseRegistersSuite,
+        externalsPluginSuite,
+        affectedClassifierSuite,
+        runStdioSafeSuite,
+        runNodeResolveSuite,
+        trustRegistrySuite,
+        npmOtpSuite,
+        npmOtpCacheSuite,
+        onboardProbeSuite,
+        resolvePluginByNameSuite,
+        runtimeSuite,
+        gjsEntryWrapperSuite,
+        entryPointsSuite,
+        pkgJsonSuite,
+        rewriteNodeModulesSpecSuite,
+        buildArgsSuite,
+        clearTargetsSuite,
+        pinHintSuite,
+        configSuite,
+        libraryOutputSuite,
+        suggestSuite,
+        runtimesSuite,
+        spawnSuite,
+        win32CommandSuite,
+        gjsBundleGuardSuite,
+        nodeBundleGuardSuite,
+        unresolvedWorkspaceImportSuite,
+    },
+    { skip },
+);

@@ -25,10 +25,20 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-// Path to the worktree-local compiled CLI lib.
+// The worktree-local compiled CLI lib, as a `file://` URL.
 // `gjsify run test:node` runs from `packages/infra/cli`.
-const CLI_LIB = resolve(process.cwd(), 'lib');
+//
+// A URL, not a path, because every use below is an ESM specifier: the static
+// `import` inside RUNNER_SRC and the dynamic `import()`s in the `--` tests. On
+// POSIX an absolute path happens to work as a specifier; on Windows it is
+// `C:\…`, which the loader rejects outright with ERR_UNSUPPORTED_ESM_URL_SCHEME
+// ("Received protocol 'c:'"), failing these three tests for a reason that has
+// nothing to do with what they assert. `pathToFileURL` also escapes the spaces
+// and `#` a checkout path may contain, which plain interpolation mangles on
+// every platform.
+const CLI_LIB = pathToFileURL(resolve(process.cwd(), 'lib')).href;
 
 // A minimal GJS ESM module (no imports needed — print/ARGV are GJS globals):
 //   - Prints a fixed marker on stdout  →  assert no banner leaked in

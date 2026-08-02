@@ -33,13 +33,13 @@ export default async () => {
         await it('gives POSIX a RELATIVE target, so the tree survives being moved', async () => {
             const link = join('/tmp', 'cache', 'pkg');
             const target = join('/tmp', 'cache', 'abc123');
-            expect(dirLinkTarget(link, target, undefined)).toBe('abc123');
+            expect(dirLinkTarget(link, target, 'symlink')).toBe('abc123');
         });
 
         await it('keeps the two spellings distinct for a nested target', async () => {
             const link = join('/tmp', 'cache', 'sub', 'pkg');
             const target = join('/tmp', 'cache', 'abc123');
-            expect(dirLinkTarget(link, target, undefined)).toBe(join('..', 'abc123'));
+            expect(dirLinkTarget(link, target, 'symlink')).toBe(join('..', 'abc123'));
             expect(dirLinkTarget(link, target, 'junction')).toBe(resolve(target));
         });
     });

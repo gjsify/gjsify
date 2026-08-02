@@ -15,7 +15,6 @@
 // are reachable here, the `--json` flag routes through this command first
 // (since the typescript-check binding is positional `[paths..]`).
 
-import { spawnSync } from 'node:child_process';
 import { prefixLines } from '../utils/prefixed-output.js';
 import { spawnToCompletion } from '../utils/spawn.js';
 import { readPackageJson } from '../utils/pkg-json.js';
@@ -124,11 +123,27 @@ export const checkCommand: Command<unknown, CheckOptions> = {
                 if (args.verbose) {
                     console.log(`[check] cwd=${cwd}  → npm run check`);
                 }
-                const r = spawnSync('npm', ['run', 'check'], { cwd, stdio: 'inherit' });
+                // Through `spawnToCompletion`, like workspace mode above and
+                // like every other spawn in the CLI. This site kept a raw
+                // `spawnSync('npm', …)` when the six wrappers were consolidated
+                // (see utils/spawn.ts), and that made it the last place where
+                // `npm` was handed to `spawn` as a bare name — ENOENT on
+                // Windows, where npm is a `.cmd` shim `CreateProcess` never
+                // finds. Reading only `r.status` then turned that into
+                // `process.exit(1)` with NO diagnostic at all: `gjsify check`
+                // inside any package failed silently on win32. Measured there
+                // before the change; `--verbose` printed the command line and
+                // nothing else.
+                const { code } = await spawnToCompletion('npm', ['run', 'check'], {
+                    cwd,
+                    // The handler exits the process on every path below, so the
+                    // streaming path is safe under GJS too.
+                    completion: 'exit',
+                });
                 // `return` — a bare `process.exit()` is deferred under GJS (no
                 // atexit), so execution fell through into workspace mode and
                 // re-checked the whole monorepo after the single-package run.
-                return process.exit(r.status ?? 1);
+                return process.exit(code ?? 1);
             }
             // Fall through to workspace mode when the local package has no
             // check script (cd'd into a non-package dir under the root).

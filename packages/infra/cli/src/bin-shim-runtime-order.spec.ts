@@ -5,8 +5,28 @@
 // the `DYLD_LIBRARY_PATH` export without a Mac.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { join } from 'node:path';
 
 import { buildBinShim } from './commands/install.js';
+
+/**
+ * A target path spelled the way `buildBinShim` embeds it: `join`ed with the
+ * HOST's separator.
+ *
+ * The `platform` parameter selects the ENV PREAMBLE (`DYLD_LIBRARY_PATH` vs
+ * `LD_LIBRARY_PATH`) and the probe order — not the path flavour. That is
+ * correct: a shim is written for the machine it is installed on, and the
+ * backslash spelling is what works there. Verified on win32 by generating a
+ * shim and running it under git-bash — the MSYS entry point the `sh` variant
+ * exists for on that platform:
+ *
+ *     exec node "C:\Users\…\target.js" "$@"   →  ran, argv forwarded
+ *
+ * (bash keeps backslashes literal inside double quotes, and node.exe takes a
+ * Windows path.) So these rows assert the host spelling rather than a `/ws/…`
+ * literal, which only ever matched on POSIX.
+ */
+const at = (...parts: string[]): string => join('/ws', ...parts);
 
 export default async () => {
     await describe('buildBinShim: runtime preference', async () => {
@@ -40,7 +60,7 @@ export default async () => {
             // bundle but no Node still runs every non-build command under gjs
             // instead of exec'ing a binary that is not there.
             expect(sh).toContain('command -v node >/dev/null 2>&1');
-            expect(sh).toContain('exec gjs -m "/ws/dist/cli.gjs.mjs"');
+            expect(sh).toContain(`exec gjs -m "${at(`dist/cli.gjs.mjs`)}"`);
         });
 
         await it('still emits the GJS env preamble on whichever branch runs gjs', async () => {
@@ -53,10 +73,10 @@ export default async () => {
 
         await it('is unchanged when only one runtime target exists', async () => {
             expect(buildBinShim('/ws', 'lib/index.js', undefined, [], 'darwin')).toBe(
-                '#!/bin/sh\nexec node "/ws/lib/index.js" "$@"\n',
+                `#!/bin/sh\nexec node "${at('lib/index.js')}" "$@"\n`,
             );
             expect(buildBinShim('/ws', undefined, 'dist/cli.gjs.mjs', [], 'darwin')).toContain(
-                'exec gjs -m "/ws/dist/cli.gjs.mjs"',
+                `exec gjs -m "${at(`dist/cli.gjs.mjs`)}"`,
             );
         });
     });

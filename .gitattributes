@@ -1,0 +1,46 @@
+# Line-ending policy for the artifacts this repo verifies BYTE FOR BYTE.
+#
+# WHY THIS FILE EXISTS
+#
+# `scripts/verify-committed-bundles.mjs` rebuilds the committed GJS bundles and
+# the shipped `@gjsify/tsc` libs from source and compares the RESULT TO THE FILE
+# ON DISK. A build always writes LF. So if git hands the working tree CRLF, the
+# comparison fails on every one of them — for files the contributor never
+# touched, with the message "is STALE — rebuilding it from the source at HEAD
+# does not reproduce the committed file".
+#
+# That is the DEFAULT outcome on Windows, not an edge case: Git for Windows'
+# installer recommends "Checkout Windows-style, commit Unix-style", i.e.
+# `core.autocrlf=true`. Measured on a win32 checkout of this repo, comparing the
+# committed blob against `git -c core.autocrlf=true checkout-index`:
+#
+#   packages/infra/cli/dist/cli.gjs.mjs   6599913 B  ->  6600883 B   (+970)
+#   packages/infra/tsc/dist/tsc.gjs.mjs   3584109 B  ->  3584493 B   (+384)
+#   packages/infra/tsc/lib/lib.es5.d.ts    218972 B  ->   223571 B   (+4599)
+#
+# `-text` disables the conversion for these paths regardless of the user's
+# `core.autocrlf`, which is the point: the guarantee cannot depend on every
+# contributor having configured their clone correctly.
+#
+# Deliberately NOT a repo-wide `* text=auto`. That would normalise line endings
+# for every file on commit — a policy change for the whole project, with a
+# one-time renormalisation diff, and unrelated to the byte-exactness problem
+# these paths have. Scope this to the artifacts that are actually verified.
+
+# Committed GJS bundles — `gjs -m <bundle>` entry points, rebuilt and compared
+# byte-for-byte in CI.
+*.gjs.mjs -text
+
+# The TypeScript libs `@gjsify/tsc` ships. CI reports these as "108/108
+# reproduce from source"; they are copied verbatim out of the pinned
+# typescript package, so any rewrite makes them differ.
+packages/infra/tsc/lib/** -text
+
+# Prebuild introspection data. `.gir` is XML, so git treats it as text and would
+# convert it; the sibling `.typelib`/`.so`/`.dylib` are detected as binary on
+# their own, but they are named here too so the whole prebuild payload has one
+# stated rule rather than relying on content sniffing.
+*.gir -text
+*.typelib -text binary
+*.so -text binary
+*.dylib -text binary
