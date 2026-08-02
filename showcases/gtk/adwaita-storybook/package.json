@@ -21,7 +21,7 @@
     "start:browser": "http-server dist -o -c-1",
     "build": "gjsify storybook --build-only --out dist/gjs.js",
     "build:browser": "gjsify build src/browser/main.ts --app browser --outfile dist/browser-main.js",
-    "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html",
+    "build:assets": "gjsify copy src/browser/index.html dist/",
     "build:web": "gjsify run build:browser && gjsify run build:assets",
     "debug": "gjsify debug --profile storybook"
   },

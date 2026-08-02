@@ -22,7 +22,7 @@
     ],
     "scripts": {
         "clear": "echo 'nothing to do'",
-        "check": "true",
+        "check": "echo no TypeScript sources to check",
         "test": "echo 'nothing to do'",
         "build": "echo 'nothing to do'"
     },

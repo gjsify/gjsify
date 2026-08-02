@@ -16,7 +16,7 @@
     "build": "gjsify run build:gjs && gjsify run build:browser && gjsify run build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
     "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
-    "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/webgl.css dist/webgl.css && cp -rf src/assets dist/assets"
+    "build:assets": "gjsify copy src/browser/index.html src/browser/webgl.css src/assets dist/"
   },
   "dependencies": {
     "@gjsify/webgl": "workspace:^"

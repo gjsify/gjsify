@@ -15,7 +15,7 @@
     "build": "gjsify run build:gjs && gjsify run build:browser && gjsify run build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
     "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser-main.js",
-    "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html"
+    "build:assets": "gjsify copy src/browser/index.html dist/"
   },
   "devDependencies": {
     "@girs/adw-1": "^4.1.0",

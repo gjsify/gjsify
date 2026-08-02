@@ -13,7 +13,7 @@
     },
     "scripts": {
         "clear": "echo 'Noting to do'",
-        "check": "true",
+        "check": "echo no TypeScript sources to check",
         "build": "echo 'Noting to do'",
         "test": "echo 'Noting to do'"
     },
