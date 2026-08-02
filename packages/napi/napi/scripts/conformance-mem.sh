@@ -17,7 +17,10 @@ cd "$(dirname "$0")/.."
 # 1) Ensure the addons are built (node-gyp) — idempotent/cached.
 node scripts/conformance.mjs --build-only >/dev/null
 
-PRE=prebuilds/linux-x64
+# The per-target package, a SIBLING of this one since ADR 0017: @gjsify/napi
+# ships no prebuilds/ of its own, so a consumer downloads only the binary their
+# machine can load. Same directory `scripts/conformance.mjs` pins.
+PRE=../napi-linux-x64/prebuilds/linux-x64
 VG="valgrind --tool=memcheck --leak-check=no --error-exitcode=42 --errors-for-leak-kinds=none"
 LOG=/tmp/conformance-mem.vg.log
 

@@ -33,7 +33,7 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, copyFileSync, rmSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { checkPrebuildDir } from './check-prebuild-loader-path.mjs';
 // The target GRAMMAR lives with the rule that validates it. That is deliberate
 // rather than convenient: this script WRITES the directory name `prebuild-libc`
@@ -41,6 +41,7 @@ import { checkPrebuildDir } from './check-prebuild-loader-path.mjs';
 // than the two being independent. (Its eventual home is `lib/platforms.mjs`,
 // which today is libc-blind — see `canonicalPrebuildTarget`'s follow-up note.)
 import { hostPrebuildTarget } from '../packages/infra/manifest-conformance/lib/rules/prebuild-libc.mjs';
+import { platformPackageDirName } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
 
 /** Extensions that make up a shipped prebuild. */
 const ARTIFACT_EXT = ['.so', '.dylib', '.dll', '.gir', '.typelib'];
@@ -132,6 +133,49 @@ export function hostStagingTarget() {
     return hostPrebuildTarget(process.platform, process.arch, detectHostLibc());
 }
 
+/**
+ * Where a target's artifacts belong — and since ADR 0017 that is usually NOT
+ * inside the package being built.
+ *
+ * A native bridge no longer carries its own `prebuilds/`: each `<os>-<arch>`
+ * target lives in a sibling package (`<pkg>-<target>/prebuilds/<target>/`) that
+ * declares `os`/`cpu`, so a consumer downloads only the binary their machine can
+ * load. The bridge's manifest therefore has no `gjsify.prebuilds` field, and the
+ * old `pkg.gjsify?.prebuilds ?? 'prebuilds'` default would quietly recreate a
+ * directory INSIDE the bridge — untracked, absent from `files`, invisible to
+ * every conformance rule (they key on `gjsify.prebuilds`), and yet exactly where
+ * a developer's `gjsify workspace <pkg> build:prebuilds` would appear to succeed.
+ * A local build that stages into a directory nothing ships is the quietest
+ * possible failure, so the destination is RESOLVED rather than defaulted:
+ *
+ *   · `gjsify.prebuilds` present → the package still owns its artifacts (a
+ *     platform package staging its own target, or a bridge before the split).
+ *   · absent → the sibling platform package must exist. If it does not, that is
+ *     an error with the command that creates it, never a fallback.
+ *
+ * @param {string} pkgDir absolute package directory being built
+ * @param {Record<string, any>} pkg its manifest
+ * @param {string} target the `<os>-<arch>` token being staged
+ * @returns {{dir: string} | {error: string}}
+ */
+export function resolveStageDir(pkgDir, pkg, target) {
+    const own = pkg.gjsify?.prebuilds;
+    if (typeof own === 'string') return { dir: join(pkgDir, own, target) };
+
+    const siblingDir = join(dirname(pkgDir), platformPackageDirName(basename(pkgDir), target));
+    if (!existsSync(join(siblingDir, 'package.json'))) {
+        return {
+            error:
+                `${pkg.name} declares no \`gjsify.prebuilds\`, so its artifacts belong in the per-target platform\n` +
+                `  package for \`${target}\` (ADR 0017) — but ${basename(siblingDir)}/ does not exist.\n` +
+                '  Staging into this package instead would create a directory that `files` does not\n' +
+                '  ship and no conformance rule can see. Generate the platform packages first:\n' +
+                '      node scripts/generate-platform-packages.mjs --write',
+        };
+    }
+    return { dir: join(siblingDir, 'prebuilds', target) };
+}
+
 function main() {
     const args = process.argv.slice(2);
     const buildFlag = args.indexOf('--build-dir');
@@ -219,14 +263,22 @@ function main() {
         process.exit(1);
     }
 
-    const outDir = join(pkgDir, pkg.gjsify?.prebuilds ?? 'prebuilds', target);
+    const staged = resolveStageDir(pkgDir, pkg, target);
+    if ('error' in staged) {
+        console.error(`[stage-prebuild] ${staged.error}`);
+        process.exit(1);
+    }
+    const outDir = staged.dir;
     // Replace rather than merge: a stale artifact from a previous build (a
     // renamed library, a dropped typelib) must not survive into the shipped set.
     rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
     for (const file of artifacts) copyFileSync(join(buildDir, file), join(outDir, file));
 
-    console.log(`[stage-prebuild] ${pkg.name} → ${basename(outDir)}/ (${artifacts.sort().join(', ')})`);
+    // The whole PATH, not just the target directory name: after the split the
+    // destination is usually a sibling package, and "→ linux-x64/" would read as
+    // if it had landed in the package that was built.
+    console.log(`[stage-prebuild] ${pkg.name} → ${relative(pkgDir, outDir)}/ (${artifacts.sort().join(', ')})`);
 
     // Staging and verifying belong together: a set that is copied but does not
     // resolve its own siblings is exactly the artifact that builds green and

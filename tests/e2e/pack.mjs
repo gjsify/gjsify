@@ -52,11 +52,47 @@ function discoverWorkspaces() {
     return out;
 }
 
+/**
+ * A per-target platform package (ADR 0017) for a target that is NOT this host's.
+ *
+ * A consumer never installs more than one of them — that IS the split: the
+ * bridge lists every target as an `optionalDependencies` entry, each child
+ * declares `os`/`cpu`, and the package manager takes the one that fits and
+ * silently skips the rest. A temp tree simulating an external consumer is
+ * therefore MORE faithful without the other five, not less.
+ *
+ * It is also the difference between a suite that finishes and one that does not.
+ * `createTestEnvironment()` packs the whole workspace and 34 e2e suites call it,
+ * so the split added 58 tarballs carrying ~98 MB of committed binaries to every
+ * one of them. Measured in CI: 127 packages / 199 s on `main`, 185 / 258 s with
+ * the split — which pushed `cli-only-pnp` past its parent's timeout ("test did
+ * not finish before its parent and was cancelled"). Filtering to the host target
+ * keeps the prebuilds `dlx-native-prebuilds` and `napi-transparent-app-gjs`
+ * actually resolve at run time, and drops only bytes no install in the tree
+ * could have used.
+ *
+ * @param {Record<string, any>} pkg a parsed package.json
+ */
+const HOST_TARGET = `${process.platform}-${process.arch}`;
+function isForeignPlatformPackage(pkg) {
+    const g = pkg.gjsify;
+    if (!g || typeof g !== 'object') return false;
+    if (typeof g.prebuilds !== 'string') return false;
+    if (!Array.isArray(g.platforms) || g.platforms.length !== 1) return false;
+    // `os`/`cpu` are what make the package skippable for a real consumer, so
+    // they are what identify it here — the same signature
+    // `isPlatformPackageManifest()` uses, inlined because this script
+    // deliberately imports nothing outside node builtins.
+    if (!Array.isArray(pkg.os) || !Array.isArray(pkg.cpu)) return false;
+    return g.platforms[0] !== HOST_TARGET;
+}
+
 // Skip templates (consumed via scaffolding, not installed as deps) and
 // private packages. Examples stay in because @gjsify/cli depends on
 // @gjsify/example-* showcases.
 const selected = discoverWorkspaces().filter((w) => {
     if (w.name.startsWith('@gjsify/template-')) return false;
+    if (isForeignPlatformPackage(w.pkg)) return false;
     return !w.pkg.private;
 });
 

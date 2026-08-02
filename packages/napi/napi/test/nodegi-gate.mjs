@@ -32,7 +32,7 @@ const ROOT = resolve(PKG, '..', '..', '..'); // gjsify repo root
 // The Node CLI entry (see consumer-gate.mjs for why not node_modules/.bin).
 const CLI = process.env.GJSIFY_CLI_ENTRY || join(ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
 const WORKOUT = join(HERE, 'nodegi-workout.mjs');
-const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
+const PREBUILD_DIR = join(PKG, '..', 'napi-linux-x64', 'prebuilds', 'linux-x64');
 const NODE_GI = join(ROOT, 'packages', 'node-gi', 'node-gi');
 const NODE_GI_ADDON = join(NODE_GI, 'build', 'Release', 'node_gi.node');
 const VALGRIND = process.argv.includes('--valgrind');

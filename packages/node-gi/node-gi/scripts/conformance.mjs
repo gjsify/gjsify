@@ -113,9 +113,11 @@ const childEnv = { ...process.env, NODE_GI_NATIVE: process.env.NODE_GI_NATIVE ??
 const repoRoot = join(pkgRoot, '..', '..', '..'); // packages/node-gi/node-gi → gjsify repo root
 const napiPkg = join(repoRoot, 'packages', 'napi', 'napi');
 // The @gjsify/napi shim prebuild dir is `${platform}-${arch}` on every OS —
-// the single `<os>-<arch>` spelling the whole repo stages and declares.
+// the single `<os>-<arch>` spelling the whole repo stages and declares — and
+// since ADR 0017 it lives in the per-target package `@gjsify/napi-<triple>`, a
+// SIBLING of the bridge, which ships no `prebuilds/` of its own.
 const shimTriple = `${process.platform}-${process.arch}`;
-const shimPrebuildDir = join(napiPkg, 'prebuilds', shimTriple);
+const shimPrebuildDir = join(napiPkg, '..', `napi-${shimTriple}`, 'prebuilds', shimTriple);
 const cliEntry = process.env.GJSIFY_CLI_ENTRY || join(repoRoot, 'packages', 'infra', 'cli', 'lib', 'index.js');
 
 // The node-gi addon as an ABSOLUTE path (a --app gjs bundle anchors import.meta

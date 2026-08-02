@@ -41,15 +41,33 @@ const { auditPrebuildArtifacts } = await import(`file://${AUDIT}`);
 // The libc axis is a SECOND rule over the same committed directories, so it is
 // driven from the same synthetic fixtures — the alternative would be inventing a
 // parallel fixture builder and letting the two drift.
-const { auditPrebuildLibc } = await import(
+const { auditPrebuildLibc, platformPackageDirName } = await import(
     `file://${join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'index.mjs')}`
 );
 
+/**
+ * Where a bridge's committed prebuild for one target actually lives.
+ *
+ * DERIVED, not spelled out four times. Since ADR 0017 that is a SIBLING
+ * per-target package (`<bridge>-<target>/prebuilds/<target>/`), not a directory
+ * inside the bridge — and `status/open-todos.md` already records what happens
+ * when fixtures compose this path themselves: the `<os>-<arch>` unification had
+ * to sweep nine of them by hand and missed one, because a composed string never
+ * appears as a literal to grep for. This file held four such strings and all
+ * four broke on the split. `platformPackageDirName()` is the one naming rule.
+ *
+ * @param {string} pillar `node` | `web` | `framework` | `infra`
+ * @param {string} bridge the bridge's directory name, e.g. `terminal-native`
+ * @param {string} target `<os>-<arch>`
+ */
+const realPrebuild = (pillar, bridge, target) =>
+    join(MONOREPO_ROOT, 'packages', pillar, platformPackageDirName(bridge, target), 'prebuilds', target);
+
 /** A real, correctly-linked linux-x64 prebuild to copy from. */
-const REAL_X64 = join(MONOREPO_ROOT, 'packages', 'node', 'terminal-native', 'prebuilds', 'linux-x64');
+const REAL_X64 = realPrebuild('node', 'terminal-native', 'linux-x64');
 const REAL_X64_FILES = ['libgjsifyterminal.so', 'GjsifyTerminal-1.0.typelib'];
 /** A real arm64 one — the wrong-machine fixture, from this x64 host's view. */
-const REAL_ARM64 = join(MONOREPO_ROOT, 'packages', 'node', 'terminal-native', 'prebuilds', 'linux-arm64');
+const REAL_ARM64 = realPrebuild('node', 'terminal-native', 'linux-arm64');
 /**
  * A real GLIBC-linked pair (`libc.so.6` in DT_NEEDED, floor GLIBC_2.2.5) and a
  * real LIBC-AGNOSTIC one (GLib/GIO/GnuTLS only, no libc soname at all). The libc
@@ -58,7 +76,7 @@ const REAL_ARM64 = join(MONOREPO_ROOT, 'packages', 'node', 'terminal-native', 'p
  */
 const GLIBC_LINKED = { dir: REAL_X64, files: REAL_X64_FILES, floor: '2.2.5' };
 const LIBC_AGNOSTIC = {
-    dir: join(MONOREPO_ROOT, 'packages', 'node', 'tls-native', 'prebuilds', 'linux-x64'),
+    dir: realPrebuild('node', 'tls-native', 'linux-x64'),
     files: ['libgjsifytls.so', 'GjsifyTls-1.0.typelib'],
 };
 /**
@@ -75,7 +93,7 @@ const LIBC_AGNOSTIC = {
  * real-artifact-over-hand-built-header rule as the two above.
  */
 const GLIBC_LOADER = {
-    dir: join(MONOREPO_ROOT, 'packages', 'node', 'tls-native', 'prebuilds', 'linux-riscv64'),
+    dir: realPrebuild('node', 'tls-native', 'linux-riscv64'),
     files: ['libgjsifytls.so', 'GjsifyTls-1.0.typelib'],
     floor: '2.27',
 };
@@ -101,8 +119,24 @@ process.on('exit', () => {
  * @param {Record<string, string>} [opts.extraFiles] target → {name: contents}
  * @param {*} [opts.uncommitted] raw `gjsify.platformsUncommitted` value
  * @param {boolean} [opts.namesPrebuildDir] whether `gjsify.prebuilds` is set
+ * @param {'meson'|'node-gyp'} [opts.builder] which native build system the
+ *   package carries. Load-bearing since ADR 0017, together with
+ *   `namesPrebuildDir`: the ABSENCE of `gjsify.prebuilds` used to mean exactly
+ *   one thing — "this package owes no committed artifacts" — and now means two.
+ *   With `meson` it is a SPLIT bridge whose artifacts live in per-target
+ *   packages and which is very much still under the committed-artifact
+ *   contract; with `node-gyp` it is built at install time and is not. A fixture
+ *   that leaves this at the default no longer states which one it means.
  */
-function pkg({ declared, stage = {}, from = REAL_X64, extraFiles = {}, uncommitted = null, namesPrebuildDir = true }) {
+function pkg({
+    declared,
+    stage = {},
+    from = REAL_X64,
+    extraFiles = {},
+    uncommitted = null,
+    namesPrebuildDir = true,
+    builder = 'meson',
+}) {
     const root = scratch();
     const prebuildDir = join(root, 'prebuilds');
     mkdirSync(prebuildDir, { recursive: true });
@@ -121,7 +155,7 @@ function pkg({ declared, stage = {}, from = REAL_X64, extraFiles = {}, uncommitt
         name: '@gjsify/fixture',
         path: 'packages/fixture',
         tier: 3,
-        builder: 'meson',
+        builder,
         declared: [...declared].sort(),
         shipped,
         prebuildsField: namesPrebuildDir ? 'prebuilds' : null,
@@ -326,6 +360,12 @@ describe('prebuild invariant — the escape hatch is honest, not a mute button',
         const problems = failuresFor(
             pkg({
                 declared: ['linux-x64'],
+                // node-gyp: built at INSTALL time, so nothing is ever committed
+                // for it and an exemption from committing describes nothing.
+                // `namesPrebuildDir: false` alone no longer says this — since
+                // ADR 0017 it is also what a split bridge looks like, and that
+                // one is still under the contract (next test).
+                builder: 'node-gyp',
                 namesPrebuildDir: false,
                 uncommitted: { 'linux-x64': REASON },
             }),
@@ -334,6 +374,25 @@ describe('prebuild invariant — the escape hatch is honest, not a mute button',
             problems.some((p) => /is not under that contract at all/.test(p)),
             problems.join('\n'),
         );
+    });
+
+    it('ACCEPTS the field on a SPLIT bridge, whose artifacts moved to per-target packages', () => {
+        // The distinction ADR 0017 introduced, and the one that would silently
+        // invert if the rule went back to keying on `gjsify.prebuilds`: a bridge
+        // with a native build system and no prebuild directory of its own has
+        // not left the committed-artifact contract, it has DELEGATED it. Today
+        // `@gjsify/napi` is exactly this — its darwin-arm64 is built by a
+        // release and never committed — so refusing the field here would force
+        // the one honest note the audit reads out of the only place it can live.
+        const problems = failuresFor(
+            pkg({
+                declared: ['linux-x64'],
+                builder: 'meson',
+                namesPrebuildDir: false,
+                uncommitted: { 'linux-x64': REASON },
+            }),
+        );
+        assert.deepEqual(problems, []);
     });
 });
 

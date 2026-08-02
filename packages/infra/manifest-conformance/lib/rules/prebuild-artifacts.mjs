@@ -61,6 +61,7 @@ import { join } from 'node:path';
 import { defineRule } from '../registry.mjs';
 import { checkPrebuildDir, readLibrary, readTypelibSharedLibraries } from '../binary.mjs';
 import { canonicalPlatform, HOST_TARGET, LIB_EXT, PLATFORM_RE } from '../platforms.mjs';
+import { prebuildOwnership } from '../platform-packages.mjs';
 
 /**
  * Every package that carries a native build system or ships a prebuild
@@ -184,9 +185,22 @@ export function auditPrebuildArtifacts(nativePkgs) {
                 failures.push(
                     `${pkg.name} (${pkg.path}): \`gjsify.platformsUncommitted\` must be an object mapping each not-committed \`<os>-<arch>\` target to the REASON it is not committed, e.g. {"darwin-arm64": "built + load-tested by napi.yml; a release ships it from the uploaded artifact"}.`,
                 );
-            } else if (!pkg.prebuildsField) {
+            } else if (prebuildOwnership(pkg) === 'install-time') {
+                // NOT keyed on `gjsify.prebuilds` any more, and the distinction
+                // is load-bearing since ADR 0017. A SPLIT bridge has no prebuild
+                // directory of its own — its artifacts live in per-target
+                // packages — but it is still very much under the
+                // committed-artifact contract, held there by the
+                // `platform-packages` rule. Keying the refusal on the absent
+                // field would have made "declared, deliberately not committed"
+                // unstatable for exactly the packages that need it (today
+                // `@gjsify/napi`'s darwin-arm64), forcing the honest note out of
+                // the one place the audit reads it. What genuinely is out of
+                // scope is a package whose binary is BUILT AT INSTALL TIME
+                // (`@gjsify/node-gi`, node-gyp): nothing here is ever committed
+                // for it, so an exemption from committing describes nothing.
                 failures.push(
-                    `${pkg.name} (${pkg.path}): declares \`gjsify.platformsUncommitted\` but has no \`gjsify.prebuilds\` directory — the field exempts a target from the committed-artifact contract, and this package is not under that contract at all. Remove it.`,
+                    `${pkg.name} (${pkg.path}): declares \`gjsify.platformsUncommitted\` but builds its binary at install time (node-gyp, no committed prebuild directory and no per-target platform packages) — the field exempts a target from the committed-artifact contract, and this package is not under that contract at all. Remove it.`,
                 );
             } else {
                 for (const [target, reason] of Object.entries(pkg.uncommitted)) {

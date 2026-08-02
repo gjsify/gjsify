@@ -14,18 +14,10 @@
     },
     "files": [
         "lib",
-        "prebuilds",
         "meson.build",
         "src/vala"
     ],
     "gjsify": {
-        "glibcRequires": {
-            "linux-x64": "2.2.5",
-            "linux-arm64": "2.17",
-            "linux-ppc64": "2.17",
-            "linux-s390x": "2.2",
-            "linux-riscv64": "2.27"
-        },
         "platforms": [
             "linux-x64",
             "linux-arm64",
@@ -35,17 +27,13 @@
             "darwin-arm64",
             "darwin-x64"
         ],
-        "prebuilds": "prebuilds",
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1,
-        "platformsUncommitted": {
-            "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
-        }
+        "tier": 1
     },
     "keywords": [
         "gjs",
@@ -69,7 +57,7 @@
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build:meson": "gjsify run init:meson && meson compile -C build",
         "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
-        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyTerminal-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=../terminal-native-linux-x64/prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyTerminal-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
     },
     "dependencies": {
         "@girs/glib-2.0": "^4.1.0",
@@ -90,5 +78,14 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/terminal-native#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/terminal-native#readme",
+    "optionalDependencies": {
+        "@gjsify/terminal-native-darwin-arm64": "workspace:*",
+        "@gjsify/terminal-native-darwin-x64": "workspace:*",
+        "@gjsify/terminal-native-linux-arm64": "workspace:*",
+        "@gjsify/terminal-native-linux-ppc64": "workspace:*",
+        "@gjsify/terminal-native-linux-riscv64": "workspace:*",
+        "@gjsify/terminal-native-linux-s390x": "workspace:*",
+        "@gjsify/terminal-native-linux-x64": "workspace:*"
+    }
 }

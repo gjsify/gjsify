@@ -25,6 +25,13 @@ export {
     compareGlibcVersions,
 } from './binary.mjs';
 export { PLATFORM_RE, ARCH_ALIASES, KNOWN_ARCH_TOKENS, canonicalPlatform, LIB_EXT, HOST_TARGET } from './platforms.mjs';
+export {
+    platformPackageName,
+    platformPackageDirName,
+    osCpuForTarget,
+    isPlatformPackageManifest,
+    prebuildOwnership,
+} from './platform-packages.mjs';
 export * from './source-graph.mjs';
 export { renderReport, formatFindings } from './report.mjs';
 

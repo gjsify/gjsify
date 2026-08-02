@@ -25,7 +25,7 @@
 //
 // SELF-SKIPS when there is no display (the fast headless `npm test` leg), when
 // the `gjsify` CLI is absent, or when the committed Gwebgl prebuild
-// (packages/framework/webgl/prebuilds/linux-<arch>/) is missing for this arch.
+// (packages/framework/webgl-linux-<arch>/prebuilds/) is missing for this arch.
 // The dedicated `webgl-glarea` CI job sets all three up (workspace-built CLI +
 // xvfb + dbus + the GTK/mesa stack) and runs it for real.
 import { test } from 'node:test';
@@ -49,7 +49,16 @@ const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 
 // The committed gwebgl Vala prebuild (typelib + .so) @gjsify/webgl ships —
 // puts Gwebgl-0.1 on GI_TYPELIB_PATH/LD_LIBRARY_PATH for BOTH runtimes.
-const gwebglDir = join(repoRoot, 'packages', 'framework', 'webgl', 'prebuilds', `linux-${process.arch}`);
+// Since ADR 0017 it lives in the per-target package `@gjsify/webgl-<target>`, a
+// SIBLING of the bridge, so a consumer downloads only their own architecture.
+const gwebglDir = join(
+    repoRoot,
+    'packages',
+    'framework',
+    `webgl-linux-${process.arch}`,
+    'prebuilds',
+    `linux-${process.arch}`,
+);
 const haveGwebgl = existsSync(join(gwebglDir, 'Gwebgl-0.1.typelib'));
 
 // Locate the workspace `gjsify` CLI: an explicit override, else the nearest
