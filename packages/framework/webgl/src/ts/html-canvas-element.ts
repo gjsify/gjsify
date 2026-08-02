@@ -15,40 +15,71 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
         super();
     }
 
-    /** Width from the GTK GLArea allocated size (overrides DOM attr-backed getter). */
+    /**
+     * DRAWING-BUFFER width, in DEVICE pixels (overrides the DOM attr-backed getter).
+     *
+     * GtkGLArea's framebuffer is `allocation × scale-factor`, and the GL viewport
+     * is raw device pixels — GTK does NOT apply the surface scale to GL the way
+     * it silently pre-scales a Cairo context for `Gtk.DrawingArea`. So on a
+     * scale-factor-3 display (a phone) a viewport computed from the ALLOCATION
+     * covers the bottom-left ninth of the framebuffer and the rest stays at the
+     * clear colour. Measured on a OnePlus 6T / postmarketOS, GNOME Mobile,
+     * 1080×2340 at scale 3: the three.js teapot and the Excalibur game each
+     * rendered into a 120×218 corner of a 360×655-logical widget.
+     *
+     * Reporting device pixels here is also what the browser contract means by
+     * `canvas.width` — the drawing buffer, which is exactly what
+     * `WebGLRenderingContextBase.drawingBufferWidth` re-exports. CSS layout size
+     * stays logical (`clientWidth`/`offsetWidth` below), so a consumer that
+     * multiplies a layout size by `devicePixelRatio` (`installGlobals()` exposes
+     * the live scale factor) lands on the same number.
+     */
     override get width(): number {
-        return this.gtkGlArea.get_allocated_width();
+        return this.gtkGlArea.get_allocated_width() * this.scaleFactor;
     }
 
     override set width(_width: number) {
         /* GTK manages size */
     }
 
-    /** Height from the GTK GLArea allocated size (overrides DOM attr-backed getter). */
+    /** DRAWING-BUFFER height, in DEVICE pixels. See `width` for why it is scaled. */
     override get height(): number {
-        return this.gtkGlArea.get_allocated_height();
+        return this.gtkGlArea.get_allocated_height() * this.scaleFactor;
     }
 
     override set height(_height: number) {
         /* GTK manages size */
     }
 
+    /**
+     * The widget's surface scale factor (1 on a standard display, 2–3 on HiDPI).
+     * Read live rather than cached: moving a window between monitors changes it,
+     * and GTK re-allocates the widget rather than recreating the canvas.
+     */
+    get scaleFactor(): number {
+        // `get_scale_factor()` returns 0 for a widget with no surface yet (it is
+        // read during the init render, so this is defensive rather than hot).
+        return this.gtkGlArea.get_scale_factor() || 1;
+    }
+
+    /** CSS layout width — the GTK allocation, in LOGICAL pixels. */
     get clientWidth(): number {
-        return this.width;
+        return this.gtkGlArea.get_allocated_width();
     }
 
+    /** CSS layout height — the GTK allocation, in LOGICAL pixels. */
     get clientHeight(): number {
-        return this.height;
+        return this.gtkGlArea.get_allocated_height();
     }
 
-    /** CSS layout width — same as the GTK-allocated pixel width for a full-window canvas. */
+    /** CSS layout width — same as `clientWidth` for a border-less canvas. */
     get offsetWidth(): number {
-        return this.width;
+        return this.clientWidth;
     }
 
-    /** CSS layout height — same as the GTK-allocated pixel height for a full-window canvas. */
+    /** CSS layout height — same as `clientHeight` for a border-less canvas. */
     get offsetHeight(): number {
-        return this.height;
+        return this.clientHeight;
     }
 
     /** Returns the underlying Gtk.GLArea. Used by WebGLRenderingContext for GLSL version detection. */

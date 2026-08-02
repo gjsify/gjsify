@@ -38,7 +38,19 @@ defineGlobalIfMissing('blur', () => {});
 // ./window-event-bus.ts.
 installWindowEventBus(globalThis as WindowEventBusHost);
 
-// devicePixelRatio — defaults to 1 (no HiDPI scaling in GTK GL context)
+// devicePixelRatio — a WIDGET-LESS default of 1, not a claim about the display.
+//
+// This module has no widget, and the ratio is a property of the surface a widget
+// is on (it changes when a window moves between monitors), so 1 is the only
+// honest answer here. The comment this replaces asserted "no HiDPI scaling in GTK
+// GL context", which is false: GtkGLArea's framebuffer IS allocation ×
+// scale-factor. Believing it cost every WebGL showcase its viewport on the first
+// HiDPI device we tested — a scale-factor-3 phone rendered each scene into the
+// bottom-left ninth of its widget.
+//
+// `WebGLBridge.installGlobals()` replaces this with a live accessor over the
+// widget's own `get_scale_factor()`; `defineGlobalIfMissing` means whichever of
+// the two runs first, the bridge's answer wins (it uses `defineProperty`).
 defineGlobalIfMissing('devicePixelRatio', 1);
 
 // scrollX/scrollY — always 0 in a GTK widget (no page scrolling). Excalibur's
