@@ -22,7 +22,7 @@ the TODO records the *what's left*.
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-install-clean-separation.md) | `gjsify install` is non-destructive — install/clean separation | Accepted |
-| [0002](0002-bootstrap-bundle-minimization.md) | Minimize committed bootstrap bundles | Accepted |
+| [0002](0002-bootstrap-bundle-minimization.md) | Minimize committed bootstrap bundles — the previous release supplies the toolchain, never the installer (amended) | Accepted |
 | [0003](0003-package-tiering.md) | Explicit package tiering (stability contract) | Accepted |
 | [0004](0004-headless-adwaita-core.md) | Headless Adwaita core — share widget behavior across renderers | Accepted |
 | [0005](0005-node-gi-scope.md) | node-gi (Axis 5) stays experimental and dependency-isolated | Accepted |

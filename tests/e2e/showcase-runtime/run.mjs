@@ -18,8 +18,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+const cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
 function onPath(cmd) {
     try {

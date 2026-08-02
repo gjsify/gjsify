@@ -20,7 +20,7 @@
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
     "build:node": "gjsify build src/gjs/gjs.ts --app node --outfile dist/gjs.node.mjs --globals auto,dom",
     "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
-    "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/canvas2d.css dist/canvas2d.css"
+    "build:assets": "gjsify copy src/browser/index.html src/browser/canvas2d.css dist/"
   },
   "devDependencies": {
     "@girs/adw-1": "^4.1.0",

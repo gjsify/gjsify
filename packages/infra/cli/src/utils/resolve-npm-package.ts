@@ -37,7 +37,7 @@
 
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { findWorkspaceRoot } from './workspace-root.js';
 
 export interface ResolveNpmPackageOptions {
@@ -69,7 +69,14 @@ export function resolveNpmPackage(specifier: string, opts: ResolveNpmPackageOpti
     //    in the lookup. Mirrors Node's NODE_PATH semantics.
     const envPath = process.env['GJSIFY_NODE_PATH'];
     if (envPath) {
-        for (const dir of envPath.split(':').filter(Boolean)) {
+        // `path.delimiter`, not `':'` — Node's own NODE_PATH uses `;` on
+        // Windows, and this override claims to mirror NODE_PATH semantics. Split
+        // on a colon there and even a SINGLE entry is destroyed: `C:\tools`
+        // becomes `['C', '\tools']`, neither of which resolves, so the documented
+        // override silently did nothing on Windows and fell through to anchor 2.
+        // `commands/run.ts` and `utils/run-lifecycle-script.ts` already get this
+        // right; this was the site that was missed.
+        for (const dir of envPath.split(delimiter).filter(Boolean)) {
             const hit = tryResolveFromDir(specifier, resolve(dir));
             if (hit) return hit;
         }

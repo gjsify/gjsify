@@ -27,7 +27,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 
 /**
  * @typedef {object} PackageRecord
@@ -135,11 +135,19 @@ export function packagesUnder(dir, out = []) {
     return out;
 }
 
-/** @param {string} dir @param {string} root @returns {PackageRecord|null} */
+/**
+ * @param {string} dir @param {string} root @returns {PackageRecord|null}
+ *
+ * `rel` is normalised to forward slashes. Rules use it to ADDRESS a package —
+ * in failure messages a reader is meant to paste, and in comparisons against
+ * the `workspaces` globs, which are forward-slash by npm's own definition. Left
+ * in the host spelling it read `packages\node-gi\node-gi` on Windows, so the
+ * same tree produced different rule output on different platforms.
+ */
 function toRecord(dir, root) {
     const manifest = readManifest(dir);
     if (!manifest) return null;
-    const rel = relative(root, dir) || '.';
+    const rel = (relative(root, dir) || '.').split(sep).join('/');
     return {
         name: typeof manifest.name === 'string' ? manifest.name : rel,
         dir,

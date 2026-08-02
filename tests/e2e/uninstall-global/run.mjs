@@ -18,6 +18,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const BLOCK = 512;
 function tarHeader(name, size, type = '0') {
@@ -163,7 +164,7 @@ describe('Phase F.8 — gjsify uninstall -g', { timeout: 60_000 }, () => {
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
 
         tmpRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-uninstall-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             GJSIFY_GLOBAL_PREFIX: join(tmpRoot, 'global'),

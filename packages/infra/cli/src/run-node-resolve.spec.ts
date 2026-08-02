@@ -18,6 +18,8 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { resolveNodeGi, resolveNodeGiForBundle } from './utils/run-node.js';
+import { computeNativeEnvForBundle } from './utils/run-gjs.js';
+import { libraryPathVar } from './utils/detect-native-packages.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -93,6 +95,50 @@ export default async () => {
                 process.chdir(previous);
             }
             rmSync(root, { recursive: true, force: true });
+        });
+    });
+
+    // The `$ …` echo both launchers print above the child. It exists so a user
+    // can copy the line and reproduce the run without the wrapper, which only
+    // works if the line is the command — plus whatever the CLI genuinely
+    // changed, and nothing else.
+    await describe('computeNativeEnvForBundle: the $ … echo', async () => {
+        // The variable `buildNativeEnv` writes back is host-dependent, and on
+        // win32 it is `PATH` — never empty, which is what made this visible
+        // there and invisible on Linux.
+        const libVar = libraryPathVar(process.platform).name;
+
+        await it('is EMPTY when no native package was detected', () => {
+            // Two directories with no node_modules at all: nothing to prepend,
+            // so `buildNativeEnv` hands the inherited values straight back and
+            // the CLI has changed nothing to report.
+            const a = mkdtempSync(join(tmpdir(), 'gjsify-env-echo-a-'));
+            const b = mkdtempSync(join(tmpdir(), 'gjsify-env-echo-b-'));
+            const bundle = makeBundle(a, 'dist');
+
+            const inherited = {
+                [libVar]: 'C:\\Windows\\system32;C:\\Program Files\\nodejs',
+                GI_TYPELIB_PATH: '/usr/lib/girepository-1.0',
+            };
+            const { envPrefix } = computeNativeEnvForBundle(bundle, b, inherited);
+            expect(envPrefix).toBe('');
+
+            rmSync(a, { recursive: true, force: true });
+            rmSync(b, { recursive: true, force: true });
+        });
+
+        await it('does not print the host PATH back at the user', () => {
+            // The measured win32 symptom: a ~2 kB `Path=…` dump in front of the
+            // command, asserting a change the CLI never made. Kept as its own
+            // row because the assertion is about the SYMPTOM, not the mechanism.
+            const a = mkdtempSync(join(tmpdir(), 'gjsify-env-echo-path-'));
+            const bundle = makeBundle(a, 'dist');
+            const sentinel = 'SENTINEL-HOST-PATH-ENTRY';
+
+            const { envPrefix } = computeNativeEnvForBundle(bundle, a, { [libVar]: sentinel });
+            expect(envPrefix.includes(sentinel)).toBe(false);
+
+            rmSync(a, { recursive: true, force: true });
         });
     });
 };

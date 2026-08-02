@@ -40,11 +40,38 @@ either side of the first failure are package-identical (797 packages, empty
 `diff`, same `glibc-2.43-6`); 10 local `--only arrays` runs on unmodified `main`
 were green.
 
+**The RATE has changed, and that is the part the "~7000 runs / 0 crashes"
+baseline no longer describes.** Three further hits inside one afternoon
+(2026-08-02), all on `deno`, all on `arrays`, all on PRs that touch nothing
+under `packages/node-gi/`:
+
+| run | PR | outcome |
+|---|---|---|
+| 30751987456 | #935 | `✗ arrays`, re-run on the SAME commit → green |
+| 30754859011 | #935 | green (the re-run above) |
+| 30757696374 | #929 | `✗ arrays`, re-run on the SAME commit → green |
+
+Every one stops at the identical place — nine assertions `ok`, then the process
+disappears part-way through `INOUT byte-array container is handled, not
+deferred: GLib.base64_decode_inplace()`, with no `ok`, no failure text and no
+crash marker in the job log. That is a THIRD manifestation: not the
+`SIGSEGV` in `g_boxed_free` of the Deno determination, and not the
+`free(): invalid pointer` glibc abort recorded above — just a vanished process.
+The absent marker is itself information: whatever kills it is not reaching the
+glibc allocator's own check.
+
+Two things follow. First, "nondeterministic" is now too weak a word for
+planning — at roughly one hit per two runs on deno it is frequent enough to
+reproduce deliberately rather than opportunistically, which removes the main
+practical obstacle to the gdb step below. Second, anyone reading the 7000-run
+baseline should know it was measured on BUN; nothing of that size has been run
+against deno.
+
 Next step is the one the note names, not a carve-out: reproduce under gdb (the
 Deno case took ~8 cores on a loop of the boxed-heavy files) and get a backtrace.
 Until then Bun stays on exit-code gating — a `pass>0 && fail===0 && <crash
 marker>` carve-out added now would mask exactly the real Bun teardown bug this
-might be.
+might be, and the runs above show the marker is not even reliably present.
 
 ### The prebuild glibc floor is an accident of the build image, and the gate that says so only runs post-merge
 
@@ -139,7 +166,9 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 
 ### Toolchain hygiene follow-ups
 
-- **37 package scripts other than `clear` still shell out to POSIX-only binaries, so they cannot run under cmd.exe — but none of them blocks anything reachable on Windows any more.** `gjsify clear` and the `portable-clear` conformance rule closed the biggest block (224 `clear` scripts, all `rm -rf … || exit 0` — the win32 VM could not run `gjsify foreach clear` or the documented full gate at all, issue #914). The rule is deliberately scoped to `clear` ONLY, because widening it today means shipping it with an exemption ledger, and a check that starts life mostly-exempted teaches everyone to add the next exemption. The remainder, by script name: `build:assets` (24), `build:public` (5), `check` (3), and one each of `test`, `build:views`, `prebuild:test:fixtures`, `sync:theme`, `prebuild:test` — almost all `cp -r`/`mkdir -p` of static assets, i.e. the same shape `scripts/build-assets.mjs` already solves for `@gjsify/cli` (ce47b6a). Two ways to close it: a `gjsify copy <from> <to>` sibling of `clear`, or a per-package node script where the copy is non-trivial. Closing it is what lets `portable-clear` widen to all scripts and be renamed `portable-scripts` — the filter is one constant in `packages/infra/manifest-conformance/lib/rules/portable-clear.mjs`. Note the check must stay Linux-runnable: this whole class is invisible on the platforms CI actually runs, which is why it went unnoticed for the lifetime of the repo. **What changed the PRIORITY, not the correctness:** the one `build` entry was `@gjsify/create-app`'s `chmod +x ./lib/index.js`, and it was the only one on a critical path — `build:infra` chains with `&&`, so a missing `chmod` took the whole toolchain bootstrap down on a stock Windows box. It is fixed in a node script (293a9a1) and `gjsify run build:infra` now completes there. Of the 37 that remain, exactly two live outside `examples/` and `showcases/` (`packages/node/worker_threads`'s `prebuild:test:fixtures`, `tests/integration/lightningcss`'s `prebuild:test`), and both sit behind a `test:gjs` step that Windows cannot reach anyway. So this is now a portability-hygiene item, not a Windows blocker.
+- **`scripts/node-gi-consumer-harness.mjs` still resolves `gjsify` the broken way, knowingly.** `resolveGjsify()` returns `node_modules/.bin/gjsify` on an `existsSync` hit, which on Windows is the `sh` member of npm's shim trio and the one member the OS cannot execute — `execFileSync` gets ENOENT. `scripts/resolve-gjsify.mjs` is the fix and both other callers now use it; this one is not a one-line change. The working Windows form is `%COMSPEC% /d /s /c "<shim> <escaped args…>"`, which embeds the ARGUMENTS inside the quoted line, so the resolved command cannot be threaded through this file as the bare string that `runPackage`, `stageTestAssets` and the rest pass around — each site has to build its own invocation (`execGjsify(args, opts)` instead of `exec(gjsify, args, opts)`). Left because the harness drives `@gjsify/node-gi`, which needs GObject-Introspection and is Linux-only in practice, so there is no Windows run to repair; rewriting the threading blind on a harness this host cannot exercise would trade a known unreachable bug for an unmeasured change. Do it when the harness is next touched anyway.
+
+- **A repo-relative path spelled in the HOST separator is a live bug class, and only the three measured sites are fixed.** `path.relative()` answers in `path.sep`, and every consumer in this tree assumes `/`: `audit-runtimes.mjs`'s `classifyAxis` reads the first `/`-split segment to decide a package's axis, and `platforms-ci` compiles a package's path into a REGEX and matches it against `working-directory: packages/node-gi/node-gi` lines in the workflow YAML. On Windows the first read `gjs\unit` as a single segment (five infra packages reported as MISSING a `gjsify.runtimes` declaration they are not supposed to carry) and the second compiled `packages\node-gi\node-gi`, in which `\n` is a newline (so `@gjsify/node-gi`'s macOS leg, which identifies itself by path alone, was reported as a declared platform CI never builds). Both were WINDOWS-ONLY: `audit-runtimes --check` was red on win32 and green on Linux for the same commit, so CI could not have caught either. Fixed at the three points where the value is produced — `toRecord` in `manifest-conformance/lib/context.mjs`, `collectNativePackages`, and `audit-runtimes.mjs`'s `toPosixRel` — with `split(sep).join('/')` rather than `replaceAll('\\','/')`, because a backslash is a legal POSIX filename character. What is NOT done is a sweep: any other `relative()` whose result is split, matched or compared has the same defect, and nothing enforces the convention. Worth either a documented rule ("repo-relative paths crossing a module boundary are forward-slash") or a helper the call sites must go through.
 
 - **Testing "on Windows" from git-bash reports false greens, and nothing enforces the distinction.** Git for Windows puts `C:\Program Files\Git\usr\bin` on PATH, which supplies a real `chmod`, `cp`, `rm`, `sed` and `which`; every process spawned from that shell inherits them. npm, however, runs package scripts through `%COMSPEC%` (cmd.exe), where none of those exist. The two disagree on the same tree at the same commit — measured: `gjsify run build:infra` completed under git-bash and failed at `@gjsify/create-app` under cmd.exe, and `detectPackageManager()` in `utils/check-system-deps.ts` probes with `which`, which is ENOENT under cmd.exe (it returns the honest `unknown` there, but by accident rather than by construction). Any Windows claim therefore has to name the shell, or it means nothing. The reproducible check is to strip every `\Git\` entry from PATH and drive the command through `%COMSPEC%`; that is what the measurements behind 293a9a1 and this entry used. Worth a scripted harness in `tests/` if a Windows CI leg ever lands, since the runner images have Git on PATH too.
 
@@ -214,7 +243,7 @@ Decisions in [docs/adr/](../docs/adr/README.md), prioritized backlog in [docs/re
 - **ADR 0001 (P1)** — install non-destructive invariant: the Phase D.8 dedup pass is still open (the e2e guards, per-prefix lock, atomic writes and conflict warning have landed).
 - **ADR 0006 (P1)** — per-package build cache: **CI wiring DEFERRED** — enabling it on the `main.yml` build steps timed out the serial `Build examples` step (cold cache + per-package closure re-hashing at scale). Remaining: (a) memoize input hashes across a single `foreach` before re-enabling in CI; (b) phase 2 = source-direct workspace-consumption spike.
 - **ADR 0003 (P1)** — tiering shipped; the website still lacks a per-package tier index (the tier model is documented on the versioning page).
-- **ADR 0002 (P1, after 0006)** — minimal committed `bootstrap.gjs.mjs` (install+run only), full CLI/tsc consumed from the registry via the lockfile; `tests/e2e/bootstrap-install` fresh-clone gate BEFORE removing `dist/cli.gjs.mjs`/`dist/tsc.gjs.mjs`/committed `lib/lib*.d.ts`; pre-commit hook shrinks to the bootstrap.
+- **ADR 0002 (P1, after 0006)** — **amended 2026-08-02**; read the amendment before implementing, the original decision 2 is unimplementable. Minimal version-free `bootstrap/bootstrap.gjs.mjs` (install+run+integrity) built from the SAME commit stays tracked; the full CLI/tsc/bundler-engine come from a pinned `.gjsify/toolchain/` prefix, NOT from `gjsify-lock.json` (it holds 0 `@gjsify/*` entries — a workspace name can never appear there). `affected.gjs.mjs` and `tsc/lib/lib*.d.ts` now STAY tracked, with reasons; only `dist/cli.gjs.mjs` + `dist/tsc.gjs.mjs` get untracked. `tests/e2e/bootstrap-install` (does not exist yet — `bootstrap-cold-tree` stops at `--print-plan`) + `tests/e2e/bootstrap-pin` are the gate BEFORE the untracking. The pre-commit hook's four-path heuristic is replaced by a derived `bootstrap.inputs.json` + build-free verifier, not merely shrunk. Byte-reproducibility moves to `release-cut.yml`, it does not disappear.
 - **ADR 0007 (P3, easy6502)** — superseded into the full Learn6502 app-web rewrite (own project). Foundation pieces (phone-shell trio, `<adw-source-view>`) have landed on adwaita-web; remaining: the app-web view implementations over these + the classic-tutorial removal + the learn-package HTML target.
 
 (ADRs 0004, 0005 and 0008 are fully implemented.)

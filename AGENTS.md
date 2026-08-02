@@ -637,6 +637,24 @@ Commit the `status/` data alone — there is no generated file to commit alongsi
 
 Conventional commits `<type>[scope]: <description>`, imperative, ≤50-char subject; commitlint enforces on every PR. **All types surface in CHANGELOG.md** (`.release-it.json` `types`) — use the best fit, none is dropped: `feat` `fix` `perf` `revert` `docs` `refactor` `build` `ci` `chore` `test`; `style` hidden. Scope = lowercase package name without `@gjsify/` (`fix(rolldown-plugin-gjsify): …`), `(e2e)` for e2e suites, omit when crossing packages.
 
+## PR size — prefer few large ones
+
+CI here is deliberately broad (Fedora build + verify-committed-bundles + four
+test shards + four e2e shards + browser + cross-runtime + macOS/Windows legs),
+so a full pass is ~25 minutes. That cost is per PR, not per commit, which makes
+the arithmetic one-sided: **land one large feature PR rather than several small
+stacked ones.** A stack of four pays the 25 minutes four times, and every merge
+into `main` in between forces the next PR in the stack to re-merge and — if it
+touches `packages/infra/cli/src/` — to rebuild and re-verify the committed
+bundle. Measured on the Windows-port work: four stacked PRs cost three
+main-merge rounds and two bundle rebuilds before anything landed.
+
+**Do not idle on CI.** It starts on push and can be watched while work
+continues; a green run is a gate on MERGING, not on writing the next commit.
+Push, keep going, check back. Watch the WORKFLOW status rather than the check
+list — a workflow that has not spawned its jobs yet contributes zero checks, so
+"no pending checks" reads as green before anything has started.
+
 ## Constraints
 
 Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | tests pass on Node + GJS | do NOT modify `refs/`. SM128 (GJS 1.84) is no longer supported; SM128-era polyfills still load (idempotent no-ops), retired package by package as native SM140 paths are validated. SM140 highlights beyond ES2024: Iterator helpers, `import … with{type:"json"}`, Temporal (preview), Float16Array, `Uint8Array.{from,to}{Base64,Hex}`, `RegExp.escape`, `Promise.try`, `JSON.rawJSON`, `Intl.DurationFormat`, `Math.sumPrecise`, `Atomics.pause`, `Error.isError`, native `Error.captureStackTrace`.

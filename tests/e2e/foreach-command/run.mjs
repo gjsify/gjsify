@@ -12,6 +12,7 @@ import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
     return new Promise((resolve, reject) => {
@@ -51,7 +52,7 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
 
     before(() => {
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-foreach-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
         // Root manifest declaring 3 packages/*.
         writeFileSync(

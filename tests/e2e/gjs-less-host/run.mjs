@@ -30,8 +30,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+const cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
 /** PATH with every directory containing a `gjs` binary removed. */
 function pathWithoutGjs() {

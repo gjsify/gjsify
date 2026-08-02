@@ -36,6 +36,7 @@
 
 import type { Command } from '../types/index.js';
 import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DEFAULT_REGISTRY, registryFor } from '@gjsify/npm-registry';
 import { buildPublishHeaders, escapePackageName } from '../utils/publish-headers.js';
@@ -584,7 +585,12 @@ async function packWorkspaceToBytes(wsDir: string): Promise<Uint8Array> {
     // scripts are already run by the outer publish flow's first pack
     // call — passing `[]` here skips re-running them (idempotent for
     // most projects but a needless cost otherwise).
-    const tmp = `/tmp/gjsify-publish-${process.pid}-${Date.now()}`;
+    // `tmpdir()`, not a literal `/tmp`. `pack` resolves its destination and
+    // creates it recursively, so on Windows the literal produced `C:\tmp\…` at
+    // the DRIVE ROOT — created on every publish, and only the inner directory
+    // was removed afterwards, so `C:\tmp` was left behind for good. On an image
+    // where the drive root is not writable it failed outright.
+    const tmp = join(tmpdir(), `gjsify-publish-${process.pid}-${Date.now()}`);
     const res = await packWorkspace(wsDir, {
         destination: tmp,
         dryRun: false,
@@ -609,16 +615,24 @@ async function loadRewrittenManifest(wsDir: string, pkg: Record<string, unknown>
     // Pack + re-read the tarball's package.json. Easier than duplicating the
     // rewrite logic — pack already does it correctly, including handling
     // workspace:^ patterns we'd otherwise have to reimplement here.
-    const tmp = `/tmp/gjsify-publish-manifest-${process.pid}-${Date.now()}.tgz`;
+    // Only the DIRECTORY is passed to pack, so build it directly instead of
+    // composing a filename and slicing it back off at the last `/` — which on
+    // Windows found no separator in `C:\Users\…\gjsify-publish-manifest-…` and
+    // handed pack a truncated path. Same `/tmp`-at-the-drive-root problem as
+    // above on top of it.
+    const dest = join(tmpdir(), `gjsify-publish-manifest-${process.pid}-${Date.now()}`);
     const res = await packWorkspace(wsDir, {
-        destination: tmp.substring(0, tmp.lastIndexOf('/')),
+        destination: dest,
         dryRun: false,
     });
     const { rmSync } = await import('node:fs');
     if (!res.absolutePath) throw new Error('gjsify publish: pack did not produce a file');
     const { gunzip, parseTar } = await import('@gjsify/tar');
     const bytes = new Uint8Array(readFileSync(res.absolutePath));
-    rmSync(res.absolutePath);
+    // The whole per-call directory, not just the tarball inside it — the
+    // destination is now unique per invocation, so leaving it behind would grow
+    // the temp directory once per publish.
+    rmSync(dest, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     const tar = await gunzip(bytes);
     for (const entry of parseTar(tar)) {
         if (entry.name === 'package/package.json' && entry.body) {

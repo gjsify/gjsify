@@ -31,6 +31,7 @@ import { detectNativePackages, buildNativeEnv, type NativeEnv } from './detect-n
 export function computeNativeEnvForBundle(
     bundlePath: string,
     cwd: string = process.cwd(),
+    inherited: Record<string, string | undefined> = process.env,
 ): { env: NativeEnv; envPrefix: string } {
     const resolvedBundle = resolve(bundlePath);
 
@@ -40,9 +41,25 @@ export function computeNativeEnvForBundle(
     const seen = new Set(cwdPackages.map((p) => p.name));
     const nativePackages = [...cwdPackages, ...bundlePackages.filter((p) => !seen.has(p.name))];
 
-    const env = buildNativeEnv(nativePackages);
+    // `inherited` feeds BOTH halves — the composition and the comparison. Split
+    // them and the win32 branch disagrees with itself: `buildNativeEnv` writes
+    // the library variable back under the host's own spelling (`Path` in a
+    // stock env block), so a comparison keyed on the canonical `PATH` would
+    // look up a key that is not there and call every run a change.
+    const env = buildNativeEnv(nativePackages, { env: inherited });
+    // Show only what this CLI actually CHANGED. `buildNativeEnv` prepends the
+    // detected directories to the inherited value and returns the result
+    // unconditionally, so with no native packages it hands back the host's own
+    // variable verbatim — and the echo then claimed the CLI had set it.
+    //
+    // Harmless on Linux, where `LD_LIBRARY_PATH` is usually unset and the empty
+    // filter caught it. On Windows the library variable IS `PATH`, which is
+    // never empty, so every run printed a ~2 kB dump of the host PATH in front
+    // of a command the user is invited to copy — burying the command, and
+    // claiming a change that never happened. Comparing against the inherited
+    // value is what makes the echo honest on both.
     const envPrefix = Object.entries(env)
-        .filter(([, value]) => value !== undefined && value !== '')
+        .filter(([key, value]) => value !== undefined && value !== '' && value !== inherited[key])
         .map(([key, value]) => `${key}=${value}`)
         .join(' ');
 

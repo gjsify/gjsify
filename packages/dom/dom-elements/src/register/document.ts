@@ -19,8 +19,27 @@ defineGlobal('document', document);
 // self — three.js checks `typeof self !== 'undefined'` for animation context
 defineGlobalIfMissing('self', globalThis);
 
-// window + Window — Excalibur's _applyDisplayMode uses `this.parent instanceof Window`
-class Window {}
+// window + Window — Excalibur's `_applyDisplayMode` branches on
+// `this.parent instanceof Window`, which is what this pair exists to satisfy.
+//
+// It did not: `window` is `globalThis`, `Window` was a fresh empty class, and
+// `globalThis instanceof Window` is false. So the guard never fired and every
+// consumer taking the "parent is the window" path fell into the ELEMENT branch
+// instead. For Excalibur that is `new ResizeObserver(…).observe(window)`, and
+// our polyfill reaches for `Element._onResize` — `e._onResize is not a
+// function`, thrown from the `ex.Engine` constructor for any display mode whose
+// `Screen.parent` is the window (the DEFAULT, `DisplayMode.Fixed`; the
+// container modes return `canvas.parentElement || document.body` and worked).
+//
+// `Symbol.hasInstance` is the narrow fix: it makes exactly the one object we
+// registered AS the window answer true, and leaves `globalThis`'s own prototype
+// chain alone — re-parenting the global object to satisfy an `instanceof` would
+// be a far larger blast radius than the check is worth.
+class Window {
+    static [Symbol.hasInstance](value: unknown): boolean {
+        return value === globalThis;
+    }
+}
 defineGlobalIfMissing('Window', Window);
 defineGlobalIfMissing('window', globalThis);
 

@@ -1,5 +1,5 @@
 /**
- * Rule `portable-clear` — a `clear` script must not shell out to a POSIX binary.
+ * Rule `portable-scripts` — no package script may shell out to a POSIX binary.
  *
  * WHY THIS EXISTS
  *
@@ -19,17 +19,27 @@
  * in re-breaks that package on Windows, silently, until somebody runs the gate
  * there again.
  *
- * WHY IT CHECKS ONLY `clear`, AND SAYS SO
+ * WHY IT NOW CHECKS EVERY SCRIPT
  *
- * The same hazard exists in other scripts — `build:assets`, `build:public` and a
- * handful of others still shell out to `cp`/`mkdir -p`, 38 occurrences across 9
- * script names when this rule was written. Widening the rule to all scripts today
- * would mean shipping it with a 38-entry exemption ledger, and a check that
- * starts life mostly-exempted teaches everyone to add the next exemption. So the
- * scope is exactly what has actually been fixed, which is a claim this rule can
- * make honestly and enforce with zero exemptions. The rest is tracked in
- * `status/open-todos.md`; widening this rule is what closes that TODO, and the
- * only edit needed is the script-name filter.
+ * It shipped scoped to `clear` alone, with the reason written here: the other 37
+ * occurrences — `build:assets` (24), `build:public` (5), and one each of
+ * `build:views`, `sync:theme`, `check`, `test`, `prebuild:test`,
+ * `prebuild:test:fixtures` — were not fixed yet, and widening the rule then would
+ * have meant shipping it with a 37-entry exemption ledger. A check that starts
+ * life mostly-exempted teaches everyone to add the next exemption.
+ *
+ * Those 37 are now fixed: 34 onto `gjsify copy` (the sibling of `gjsify clear`,
+ * added for exactly this), the three `"check": "true"` stubs onto `echo`, and
+ * `cli-gio-cat`'s `test` onto a committed fixture instead of an `rm -f` + `echo >`
+ * dance in `/tmp`. So the scope is once again exactly what has been fixed, and
+ * the rule still carries ZERO exemptions — which is the property that makes it
+ * worth having.
+ *
+ * The trigger for finishing it was not tidiness. `showcases/node/express-webserver`
+ * is the one showcase that runs on Windows (its `--app node` bundle needs no gjs),
+ * and `build:public` is what stages the frontend beside the bundle. Without it the
+ * server starts and serves 404s for its own pages — a worse failure than not
+ * building.
  *
  * WHAT COUNTS AS A VIOLATION
  *
@@ -38,11 +48,20 @@
  * COMMAND POSITION rather than anywhere in the string is what keeps
  * `gjsify clear dist/rm-cache` from being flagged for containing "rm".
  *
- * `echo` is deliberately absent from the list: cmd.exe has it, and the three
+ * `echo` is deliberately absent from the list: cmd.exe has it, and the
  * `"clear": "echo 'nothing to do'"` stubs in the tree work there — they merely
  * print the quotes, since cmd.exe does not treat `'` as quoting. Cosmetic, not
  * broken, and inventing a violation for it would be the kind of noise that gets a
  * rule disabled.
+ *
+ * WHAT IT STILL CANNOT SEE
+ *
+ * Shell SYNTAX, as opposed to shell commands: a redirect (`> file`), a
+ * `VAR=x cmd` prefix, a `$(…)` substitution and a backslash line-continuation are
+ * all equally unavailable or differently-spelled under cmd.exe, and none of them
+ * puts a POSIX utility in command position. None is present in the tree today.
+ * Add them here on sight, not speculatively — every pattern in this list has a
+ * package behind it.
  */
 
 import { defineRule } from '../registry.mjs';
@@ -85,8 +104,17 @@ const POSIX_ONLY = [
 /** A POSIX-only utility in COMMAND position: script start, or after `&& || ; |`. */
 const COMMAND_POSITION = new RegExp(String.raw`(?:^|[|&;]\s*|\(\s*)(${POSIX_ONLY.join('|')})(?:\s|$)`);
 
-/** The script names this rule governs. See the header for why it is not all of them. */
-const GOVERNED = ['clear'];
+/**
+ * The portable replacement to suggest, keyed by the utility that was found.
+ * Naming the specific command is what turns a rejection into an edit — the
+ * author of a `cp -r` does not necessarily know `gjsify copy` exists.
+ */
+const REPLACEMENTS = {
+    rm: 'gjsify clear <paths…>   (recursive, ignores a missing path, so no `|| exit 0` tail)',
+    cp: 'gjsify copy <sources…> <dest>   (recursive, creates the destination, overwrites)',
+    mkdir: 'gjsify copy <sources…> <dest>/   (the destination is created for you)',
+    true: 'echo <why there is nothing to do>   (cmd.exe has echo; it has no `true`)',
+};
 
 /**
  * Which POSIX-only utilities a script invokes, in command position.
@@ -106,39 +134,42 @@ export function unportableCommands(script) {
 /**
  * @param {import('../context.mjs').ConformanceContext} ctx
  */
-function auditClearScripts(ctx) {
+function auditScripts(ctx) {
     const failures = [];
     let checked = 0;
+    let packages = 0;
     for (const pkg of ctx.packages) {
         const scripts = pkg.manifest.scripts ?? {};
-        for (const name of GOVERNED) {
-            const script = scripts[name];
+        let touched = false;
+        for (const [name, script] of Object.entries(scripts)) {
             if (typeof script !== 'string' || script.length === 0) continue;
             checked++;
+            touched = true;
             const bad = unportableCommands(script);
             if (bad.length === 0) continue;
+            const hints = bad.filter((b) => REPLACEMENTS[b]).map((b) => `\n      use:  ${REPLACEMENTS[b]}`);
             failures.push(
                 `${pkg.rel}/package.json: "${name}" shells out to ${bad.map((b) => `\`${b}\``).join(', ')}, which ` +
                     `cmd.exe does not have — the script cannot run on Windows, where npm executes it through cmd.exe.\n` +
-                    `      got:  ${script}\n` +
-                    `      use:  gjsify clear <paths…>   (recursive, ignores a missing path, so no \`|| exit 0\` tail)`,
+                    `      got:  ${script}${hints.join('')}`,
             );
         }
+        if (touched) packages++;
     }
-    return { failures, stats: { checked } };
+    return { failures, stats: { checked, packages } };
 }
 
-export const portableClearRule = defineRule({
-    id: 'portable-clear',
+export const portableScriptsRule = defineRule({
+    id: 'portable-scripts',
     scope: 'portable',
-    fields: ['scripts.clear'],
-    description: 'every `clear` script is portable — no `rm`/`cp`/… that cmd.exe lacks (use `gjsify clear`)',
+    fields: ['scripts'],
+    description: 'every package script is portable — no `rm`/`cp`/… that cmd.exe lacks (use `gjsify clear` / `gjsify copy`)',
     run(ctx) {
-        const { failures, stats } = auditClearScripts(ctx);
+        const { failures, stats } = auditScripts(ctx);
         return {
             failures,
             stats,
-            summary: `${stats.checked} clear script(s) are cmd.exe-safe`,
+            summary: `${stats.checked} package script(s) across ${stats.packages} package(s) are cmd.exe-safe`,
         };
     },
 });

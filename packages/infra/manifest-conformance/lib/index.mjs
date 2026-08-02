@@ -66,5 +66,5 @@ export {
     canonicalPrebuildTarget,
     hostPrebuildTarget,
 } from './rules/prebuild-libc.mjs';
-export { portableClearRule, unportableCommands } from './rules/portable-clear.mjs';
+export { portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
 export { fieldCoverageRule, declaredGjsifyFields } from './rules/field-coverage.mjs';

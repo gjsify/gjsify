@@ -82,7 +82,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { defineRule } from '../registry.mjs';
 import {
@@ -224,7 +224,17 @@ export function renderReachPath(entryFile, file, parents, pkgDir, root) {
     if (chain[chain.length - 1] !== entryFile) chain.push(entryFile);
     return chain
         .reverse()
-        .map((f) => (f.startsWith(`${pkgDir}/`) ? relative(pkgDir, f) : relative(root, f)))
+        // `relative` decides the containment, not a `/`-spelled string prefix:
+        // both `pkgDir` and `f` are host-native, so on Windows the prefix test
+        // was always false and every hop rendered root-relative
+        // (`packages\dom\foo\src\index.ts → …` instead of `src/index.ts → …`).
+        // Only the message degraded, but a diagnostic nobody can read is the
+        // part of a failing rule that has to work.
+        .map((f) => {
+            const rel = relative(pkgDir, f);
+            const inside = rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+            return (inside ? rel : relative(root, f)).split(sep).join('/');
+        })
         .join(' → ');
 }
 

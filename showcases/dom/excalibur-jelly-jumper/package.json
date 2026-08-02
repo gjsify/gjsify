@@ -21,7 +21,7 @@
         "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js --globals auto,dom",
         "build:node": "gjsify build src/gjs/gjs.ts --app node --outfile dist/gjs.node.mjs --globals auto,dom,fetch,XMLHttpRequest,ProgressEvent,MouseEvent,KeyboardEvent,PointerEvent,DOMParser,Audio,AudioContext,webkitAudioContext,GamepadEvent --alias jsdom=@gjsify/empty",
         "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
-        "build:assets": "cp -rf src/assets dist/res && cp -f src/browser/index.html dist/index.html"
+        "build:assets": "gjsify copy src/assets dist/res && gjsify copy src/browser/index.html dist/"
     },
     "devDependencies": {
         "@excaliburjs/plugin-tiled": "0.32.0",

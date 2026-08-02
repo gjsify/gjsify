@@ -15,6 +15,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // Build a minimal ustar tar archive in memory containing a single
 // `package/package.json` whose contents are `pkgJson` (object).
@@ -225,8 +226,8 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
         // Drop the harness inside the workspace root so the spawned `node`
         // resolves workspace packages via the gjsify-installed node_modules tree
         // (Phase D.7d dropped yarn from CI; we no longer have PnP available).
-        const harnessFile = new URL('./harness.tmp.mjs', import.meta.url).pathname;
-        const workspaceRoot = new URL('../../../', import.meta.url).pathname;
+        const harnessFile = fileURLToPath(new URL('./harness.tmp.mjs', import.meta.url));
+        const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
         writeFileSync(harnessFile, harness);
         try {
             const out = await runHarness('node', ['--no-warnings', harnessFile], workspaceRoot);
@@ -289,8 +290,8 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
       });
       console.log('OK');
     `;
-        const harnessFile = new URL('./harness-conflict.tmp.mjs', import.meta.url).pathname;
-        const workspaceRoot = new URL('../../../', import.meta.url).pathname;
+        const harnessFile = fileURLToPath(new URL('./harness-conflict.tmp.mjs', import.meta.url));
+        const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
         writeFileSync(harnessFile, harness);
         try {
             const out = await runHarness('node', ['--no-warnings', harnessFile], workspaceRoot);

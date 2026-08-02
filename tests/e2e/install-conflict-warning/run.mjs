@@ -27,6 +27,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ----- tar helpers (ustar v0, same pattern as install-version-conflict) -----
 const BLOCK = 512;
@@ -177,7 +178,7 @@ describe('gjsify install — version-conflict warning (ADR 0001 step 3)', { time
         server = makeRegistry();
         await new Promise((r) => server.listen(0, '127.0.0.1', r));
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-conflict-warn-'));
         const homeDir = join(root, 'home');

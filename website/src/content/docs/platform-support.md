@@ -44,13 +44,29 @@ This is a genuine upstream blocker, not a missing task. It is tracked in
 No GJS host does not mean no development host. Under Node, a Windows machine
 runs the toolchain: `gjsify install`, `gjsify run build:infra`, `gjsify build`
 (`--app node`, `--app browser`, and `--library`), `gjsify check`, `gjsify clear`,
+`gjsify copy`, the conformance audit (`node scripts/audit-runtimes.mjs --check`),
 the install backend with its `.cmd`/`.ps1`/`sh` bin shims, and `@gjsify/cli`'s
 own test suite. All of that is verified on win32 x64 / Node 24 with no POSIX
 utilities on PATH.
 
+Showcases run too, on the runtimes that are not GJS:
+
+```powershell
+gjsify showcase                                   # list them
+gjsify showcase express-webserver                 # runs on node here
+gjsify showcase express-webserver --runtime bun   # or deno
+```
+
+`gjsify showcase` picks the runtime itself — gjs when a gjs is installed,
+otherwise the host runtime — so on Windows that middle line runs the showcase's
+`--app node` bundle without being told to. A showcase that declares no support
+for the chosen runtime says so instead of crashing.
+
 What a Windows checkout cannot do is anything that ends in a `gjs` process:
 `--app gjs` bundles, `test:gjs`, and the showcases and examples built around
-them. That is the same upstream blocker as above, not a separate gap.
+them. That is the same upstream blocker as above, not a separate gap. Concretely
+it means a showcase's `build:node` succeeds where its sibling `build:gjs` cannot,
+so build the target you can actually run.
 
 Two host settings matter, and both fail in ways that do not name themselves:
 
