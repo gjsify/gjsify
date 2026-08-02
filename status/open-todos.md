@@ -18,12 +18,18 @@ Measured on the win11-gjsify VM (Node 24.18.1), with no `C:\tmp` present:
 | tests run | **0** | **145** |
 | failures | — (module never loaded) | 86 |
 
-The 86 are pre-existing POSIX assumptions in the specs, not regressions, and they
-are the bulk of what a Windows port of this package has to work through: shell
-built-ins assumed to exist (`echo`/`pwd`/`cat` under `cmd.exe`), POSIX absolute
-paths, exit-code and signal semantics, and `/bin/sh`-shaped `shell:` options.
-Triage before editing — some of these are the IMPL being wrong on Windows, not
-the spec, and the two need separating.
+The 86 are pre-existing POSIX assumptions in the SPECS, not regressions and not
+impl gaps — which is structural, not a judgement call: `@gjsify/child_process`
+declares `runtimes.node: "none"`, so `test:node` never aliases
+`node:child_process` to our polyfill and those specs run against NATIVE Node. Per
+the testing rules a failure there means the TEST is wrong. What they encode:
+shell built-ins assumed to exist (`echo`/`pwd`/`cat` under `cmd.exe`), POSIX
+absolute paths, exit-code and signal semantics, and `/bin/sh`-shaped `shell:`
+options. Node's own behaviour on Windows is the oracle for each.
+
+The GJS run is the one that measures our impl, and it cannot run on Windows at
+all (no `gjs` there) — so this package's Windows impl story is still unmeasured;
+only its specs have been.
 
 **Note for anyone re-measuring:** a hand-created `C:\tmp` makes the module-load
 failure vanish without fixing anything (one existed on the test VM for several
