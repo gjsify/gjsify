@@ -60,6 +60,7 @@ import pkgJsonSuite from './utils/pkg-json.spec.js';
 import rewriteNodeModulesSpecSuite from './rewrite-node-modules-spec.spec.js';
 import buildArgsSuite from './build-args.spec.js';
 import clearTargetsSuite from './utils/clear-targets.spec.js';
+import copyTargetsSuite from './utils/copy-targets.spec.js';
 import pinHintSuite from './pin-hint.spec.js';
 import configSuite from './config.spec.js';
 import libraryOutputSuite from './utils/library-output.spec.js';
@@ -117,6 +118,27 @@ function hasGjs(): boolean {
     }
 }
 
+/**
+ * Is a POSIX `sh` on PATH? Exactly one row needs one, and it needs a REAL one:
+ * it asserts that `include-args` survives the unquoted `$INCLUDE_ARGS`
+ * expansion in main.yml's `su … -c "… sh -c '…'"` nesting, which is a claim
+ * about a Linux CI container that only a shell can answer.
+ *
+ * Note what this probe is NOT gated on. `process.platform === 'win32'` would be
+ * wrong twice over: Git for Windows ships an `sh.exe` (so a Windows host may
+ * well have one), and a minimal Linux container might not. It also has to be
+ * `execFileSync` with `shell: false` — asking a shell whether a shell exists
+ * answers a different question.
+ */
+function hasPosixShell(): boolean {
+    try {
+        execFileSync('sh', ['-c', 'exit 0'], { stdio: 'ignore', timeout: 15000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 const skip: Record<string, string> = {};
 
 if (!canCreateFileSymlink()) {
@@ -130,6 +152,14 @@ if (!hasGjs()) {
     const why = 'no gjs on PATH — these spawn a real gjs child';
     skip['stdout contains only the child output — no banner'] = why;
     skip['positional extra args are forwarded to the gjs child'] = why;
+}
+
+if (!hasPosixShell()) {
+    // The sibling row `github-actions include-args carries NO quoting` asserts
+    // the same value as a STRING and runs everywhere, so what is lost here is
+    // the word-splitting proof, not the coverage of the format itself.
+    skip['include-args word-splits into exactly the argv CI intends'] =
+        'no POSIX sh on PATH — this row expands the value in a real shell';
 }
 
 // `fs.chmod` on Windows only toggles the read-only flag — there is no mode to
@@ -188,6 +218,7 @@ run(
         rewriteNodeModulesSpecSuite,
         buildArgsSuite,
         clearTargetsSuite,
+        copyTargetsSuite,
         pinHintSuite,
         configSuite,
         libraryOutputSuite,
