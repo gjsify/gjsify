@@ -31,7 +31,22 @@ import { describe, expect, it } from '@gjsify/unit';
 import { globToEntryPoints } from '@gjsify/rolldown-plugin-gjsify';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+
+/**
+ * An absolute path spelled the way `globToEntryPoints` RETURNS paths: with
+ * forward slashes, on every platform.
+ *
+ * That is fast-glob's contract, not an accident — its own source refuses to use
+ * `path.normalize` precisely because it would introduce backslashes on Windows
+ * — and it holds no matter how the pattern was spelled going in (a `C:\…\**\*.ts`
+ * input comes back with `/`). Building the expectations with `path.join`
+ * instead made all of this suite's equality assertions fail on Windows for a
+ * reason unrelated to ordering, which is what they exist to pin down.
+ */
+function entryPath(root: string, rel: string): string {
+    return `${root.replaceAll('\\', '/')}/${rel}`;
+}
 
 /**
  * A fixture tree whose SORTED order interleaves root files between sibling
@@ -58,8 +73,11 @@ function makeFixtureTree(): { root: string; sortedRel: string[] } {
     ];
     for (const rel of files) {
         const abs = join(root, rel);
-        const dir = abs.slice(0, abs.lastIndexOf('/'));
-        mkdirSync(dir, { recursive: true });
+        // `dirname`, not `slice(0, lastIndexOf('/'))`: `join` yields backslashes
+        // on Windows, so the hand-rolled version found no `/`, sliced off the
+        // final character and created a stray `…/two.t` directory next to the
+        // file it meant to hold.
+        mkdirSync(dirname(abs), { recursive: true });
         writeFileSync(abs, `export const marker = ${JSON.stringify(rel)};\n`);
     }
     // Excluded shapes: `.d.ts` (DEFAULT_IGNORE) + a caller-supplied ignore.
@@ -72,7 +90,7 @@ function makeFixtureTree(): { root: string; sortedRel: string[] } {
 export default async () => {
     await describe('globToEntryPoints determinism', async () => {
         const { root, sortedRel } = makeFixtureTree();
-        const sortedAbs = sortedRel.map((rel) => join(root, rel));
+        const sortedAbs = sortedRel.map((rel) => entryPath(root, rel));
 
         try {
             await it('expands a glob to the lexicographically sorted file list', async () => {
@@ -98,15 +116,15 @@ export default async () => {
                 // order); only each pattern's own expansion is canonicalized.
                 const result = await globToEntryPoints([`${root}/yy/**/*.ts`, `${root}/aa/**/*.ts`], []);
                 expect(result).toStrictEqual([
-                    join(root, 'yy/one.ts'),
-                    join(root, 'yy/two.ts'),
-                    join(root, 'aa/first.ts'),
-                    join(root, 'aa/second.ts'),
+                    entryPath(root, 'yy/one.ts'),
+                    entryPath(root, 'yy/two.ts'),
+                    entryPath(root, 'aa/first.ts'),
+                    entryPath(root, 'aa/second.ts'),
                 ]);
             });
 
             await it('keeps explicit non-glob paths in the order given', async () => {
-                const explicit = [join(root, 'zz-root.ts'), join(root, 'mm-root.ts')];
+                const explicit = [entryPath(root, 'zz-root.ts'), entryPath(root, 'mm-root.ts')];
                 const result = await globToEntryPoints(explicit, []);
                 expect(result).toStrictEqual(explicit);
             });
@@ -116,7 +134,10 @@ export default async () => {
                     [`${root}/aa/**/*.ts`, `${root}/**/*.ts`],
                     [`${root}/**/*.spec.ts`],
                 )) as string[];
-                expect(result.slice(0, 2)).toStrictEqual([join(root, 'aa/first.ts'), join(root, 'aa/second.ts')]);
+                expect(result.slice(0, 2)).toStrictEqual([
+                    entryPath(root, 'aa/first.ts'),
+                    entryPath(root, 'aa/second.ts'),
+                ]);
                 expect(result.length).toBe(sortedAbs.length);
                 expect(new Set(result).size).toBe(result.length);
             });
@@ -138,7 +159,7 @@ export default async () => {
     // occurrence, and produced no error until the heap died (issue #914).
     await describe('globToEntryPoints — win32 patterns', async () => {
         const { root, sortedRel } = makeFixtureTree();
-        const sortedAbs = sortedRel.map((rel) => join(root, rel));
+        const sortedAbs = sortedRel.map((rel) => entryPath(root, rel));
         // What `path.win32.normalize()` (yargs' `normalize: true`) hands in.
         const winPattern = `${root}/**/*.ts`.replaceAll('/', '\\');
         const winIgnore = `${root}/**/*.spec.ts`.replaceAll('/', '\\');
@@ -187,7 +208,7 @@ export default async () => {
                 // `@gjsify/tsc` builds `node_modules/typescript/lib/_tsc.js`.
                 // An unconditional ignore emptied its input and broke
                 // `build:infra` — this is that regression, pinned.
-                const explicit = `${root}/node_modules/dep/index.ts`;
+                const explicit = entryPath(root, 'node_modules/dep/index.ts');
                 expect(await globToEntryPoints(explicit, [])).toStrictEqual([explicit]);
                 expect(await globToEntryPoints(`${root}/node_modules/**/*.ts`, [])).toStrictEqual([explicit]);
             });

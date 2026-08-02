@@ -34,15 +34,34 @@ import { symlink } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 
 /**
- * The link type a directory link must use on this platform.
+ * Which kind of directory link this platform uses.
+ *
+ * Spelled with a NAME for the POSIX case rather than `undefined`, so both
+ * branches can be requested explicitly. `dirLinkTarget` takes this as a
+ * defaulted parameter, and a defaulted parameter cannot receive `undefined`:
+ * passing it IS how you ask for the default. So while POSIX was spelled
+ * `undefined`, `dirLinkTarget(link, target, undefined)` meant "use the host's
+ * kind" — the POSIX branch was unexercisable on Windows, and the win32 branch
+ * unexercisable anywhere else. The suite read as if it covered both and did
+ * not, which is precisely the shape the header above blames for the `'dir'`
+ * bug reaching a release.
+ */
+export type DirLinkKind = 'junction' | 'symlink';
+
+/** The link kind directory links use on this platform. */
+export const DIR_LINK_KIND: DirLinkKind = process.platform === 'win32' ? 'junction' : 'symlink';
+
+/**
+ * The link type a directory link must pass to `fs.symlink`.
  *
  * `undefined` on POSIX is deliberate: Node's default is correct there, and
- * passing a type would be noise.
+ * passing a type would be noise. Derived from {@link DIR_LINK_KIND} so the
+ * platform decision has exactly one source.
  */
-export const DIR_LINK_TYPE: 'junction' | undefined = process.platform === 'win32' ? 'junction' : undefined;
+export const DIR_LINK_TYPE: 'junction' | undefined = DIR_LINK_KIND === 'junction' ? 'junction' : undefined;
 
 /** True when directory links on this platform are NTFS junctions. */
-export const dirLinksAreJunctions = (): boolean => DIR_LINK_TYPE === 'junction';
+export const dirLinksAreJunctions = (): boolean => DIR_LINK_KIND === 'junction';
 
 /**
  * Spell the `target` argument for a link at `linkPath` pointing at `absTarget`.
@@ -50,11 +69,12 @@ export const dirLinksAreJunctions = (): boolean => DIR_LINK_TYPE === 'junction';
  * Absolute on Windows because a junction demands it (gotcha 1 above); relative
  * on POSIX so the tree stays movable (gotcha 2).
  *
- * `linkType` is a PARAMETER, defaulting to the host's, for the same reason
+ * `linkKind` is a PARAMETER, defaulting to the host's, for the same reason
  * `detect-native-packages.ts` takes `platform`/`arch`: the Windows branch is
  * then unit-testable from a Linux host, which is the only place anyone runs the
  * tests. A branch nobody can exercise is how the `'dir'` bug survived to a
- * release.
+ * release — and see {@link DirLinkKind} for why the POSIX side had to be named
+ * rather than spelled `undefined` before that promise actually held.
  *
  * BOTH paths must be in the SAME canonical space — either both canonical or
  * both spelled through the same symlinks. The POSIX target is relative to the
@@ -68,14 +88,10 @@ export const dirLinksAreJunctions = (): boolean => DIR_LINK_TYPE === 'junction';
  *
  * @param linkPath  where the link itself will live
  * @param absTarget the directory it should point at, as an ABSOLUTE path
- * @param linkType  override the host's link type (tests only)
+ * @param linkKind  override the host's link kind (tests only)
  */
-export function dirLinkTarget(
-    linkPath: string,
-    absTarget: string,
-    linkType: 'junction' | undefined = DIR_LINK_TYPE,
-): string {
-    return linkType === 'junction' ? resolve(absTarget) : relative(dirname(linkPath), absTarget);
+export function dirLinkTarget(linkPath: string, absTarget: string, linkKind: DirLinkKind = DIR_LINK_KIND): string {
+    return linkKind === 'junction' ? resolve(absTarget) : relative(dirname(linkPath), absTarget);
 }
 
 /**

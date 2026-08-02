@@ -9,28 +9,56 @@
 // `tests/e2e/spawn-gjs-teardown` instead.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { describeExit, spawnToCompletion } from './spawn.js';
 
 /** A command that is guaranteed absent from PATH. */
 const MISSING = 'gjsify-spawn-spec-definitely-not-a-command';
 
+/**
+ * A portable stand-in for the `/bin/sh -c …` these tests used to spawn.
+ *
+ * Every assertion here is about the WRAPPER — exit code, stdio wiring, env
+ * seeding, cwd — and none of them needs a shell to produce the observable. But
+ * `/bin/sh` does not exist on Windows, so on that host all nine failed with
+ * ENOENT before reaching anything they actually check. Node is already a hard
+ * prerequisite of this harness (`test:node`), and `process.execPath` is the one
+ * interpreter guaranteed to be present and identical on every platform.
+ *
+ * `-e` also removes the shell's own quoting from the picture, which is a real
+ * hazard on Windows: `printf "%s" "$VAR"` has no cmd.exe equivalent, and
+ * anything approximating it would test cmd's parser rather than this module.
+ */
+function node(script: string): [string, string[]] {
+    return [process.execPath, ['-e', script]];
+}
+
+/** Echo one environment variable, so a child can report what it inherited. */
+function echoEnv(name: string, fmt = '%s'): [string, string[]] {
+    const [before, after] = fmt.split('%s');
+    return node(
+        `process.stdout.write(${JSON.stringify(before)} + (process.env[${JSON.stringify(name)}] ?? '') + ${JSON.stringify(after)})`,
+    );
+}
+
 export default async () => {
     await describe('spawnToCompletion — exit codes', async () => {
         await it('resolves 0 for a successful child', async () => {
-            const r = await spawnToCompletion('/bin/sh', ['-c', 'exit 0'], { completion: 'return' });
+            const r = await spawnToCompletion(...node('process.exit(0)'), { completion: 'return' });
             expect(r.code).toBe(0);
             expect(r.signal).toBeNull();
         });
 
         await it('resolves (does not reject) with a non-zero exit code', async () => {
-            const r = await spawnToCompletion('/bin/sh', ['-c', 'exit 7'], { completion: 'return' });
+            const r = await spawnToCompletion(...node('process.exit(7)'), { completion: 'return' });
             expect(r.code).toBe(7);
             expect(r.signal).toBeNull();
         });
 
         await it('reports the same result for both completion contracts on Node', async () => {
-            const onExit = await spawnToCompletion('/bin/sh', ['-c', 'exit 3'], { completion: 'exit' });
-            const onReturn = await spawnToCompletion('/bin/sh', ['-c', 'exit 3'], { completion: 'return' });
+            const onExit = await spawnToCompletion(...node('process.exit(3)'), { completion: 'exit' });
+            const onReturn = await spawnToCompletion(...node('process.exit(3)'), { completion: 'return' });
             expect(onExit.code).toBe(onReturn.code);
             expect(onExit.signal).toBe(onReturn.signal);
         });
@@ -65,7 +93,7 @@ export default async () => {
     await describe('spawnToCompletion — stdio + onSpawn', async () => {
         await it('exposes piped streams through onSpawn', async () => {
             let out = '';
-            const r = await spawnToCompletion('/bin/sh', ['-c', 'echo hello-from-child'], {
+            const r = await spawnToCompletion(...node("console.log('hello-from-child')"), {
                 completion: 'exit',
                 stdio: 'pipe',
                 onSpawn: (child) => {
@@ -84,7 +112,7 @@ export default async () => {
             // rather than `exit` is what guarantees the data is readable by the
             // time the caller flushes.
             let out = '';
-            await spawnToCompletion('/bin/sh', ['-c', 'printf "a%.0s" $(seq 1 5000)'], {
+            await spawnToCompletion(...node("process.stdout.write('a'.repeat(5000))"), {
                 completion: 'exit',
                 stdio: 'pipe',
                 onSpawn: (child) => {
@@ -104,7 +132,7 @@ export default async () => {
             process.env.GJSIFY_SPAWN_SPEC_MARKER = 'inherited';
             let out = '';
             try {
-                await spawnToCompletion('/bin/sh', ['-c', 'printf "%s" "$GJSIFY_SPAWN_SPEC_MARKER"'], {
+                await spawnToCompletion(...echoEnv('GJSIFY_SPAWN_SPEC_MARKER'), {
                     completion: 'exit',
                     stdio: 'pipe',
                     onSpawn: (child) => {
@@ -128,7 +156,7 @@ export default async () => {
             delete process.env.NO_COLOR;
             let out = '';
             try {
-                await spawnToCompletion('/bin/sh', ['-c', 'printf "%s" "$FORCE_COLOR"'], {
+                await spawnToCompletion(...echoEnv('FORCE_COLOR'), {
                     completion: 'exit',
                     color: true,
                     stdio: 'pipe',
@@ -155,7 +183,7 @@ export default async () => {
             process.env.NO_COLOR = '1';
             let out = '';
             try {
-                await spawnToCompletion('/bin/sh', ['-c', 'printf "[%s]" "$FORCE_COLOR"'], {
+                await spawnToCompletion(...echoEnv('FORCE_COLOR', '[%s]'), {
                     completion: 'exit',
                     color: true,
                     stdio: 'pipe',
@@ -177,7 +205,7 @@ export default async () => {
 
         await it('uses an explicit env verbatim when color is off', async () => {
             let out = '';
-            await spawnToCompletion('/bin/sh', ['-c', 'printf "%s" "$GJSIFY_SPAWN_SPEC_EXPLICIT"'], {
+            await spawnToCompletion(...echoEnv('GJSIFY_SPAWN_SPEC_EXPLICIT'), {
                 completion: 'exit',
                 env: { ...process.env, GJSIFY_SPAWN_SPEC_EXPLICIT: 'explicit' },
                 stdio: 'pipe',
@@ -194,10 +222,16 @@ export default async () => {
 
     await describe('spawnToCompletion — cwd', async () => {
         await it('runs the child in the requested working directory', async () => {
+            // The temp dir rather than `/`: on Windows `/` is not an absolute
+            // path at all (it means "root of the current drive"), so the child
+            // reported `C:\` and the assertion could never hold. `realpathSync`
+            // because macOS hands out `/var/folders/…`, a symlink to
+            // `/private/var/…`, and `process.cwd()` reports the resolved form.
+            const dir = realpathSync(tmpdir());
             let out = '';
-            await spawnToCompletion('/bin/sh', ['-c', 'pwd'], {
+            await spawnToCompletion(...node('process.stdout.write(process.cwd())'), {
                 completion: 'exit',
-                cwd: '/',
+                cwd: dir,
                 stdio: 'pipe',
                 onSpawn: (child) => {
                     child.stdout?.setEncoding('utf-8');
@@ -206,7 +240,7 @@ export default async () => {
                     });
                 },
             });
-            expect(out.trim()).toBe('/');
+            expect(out.trim()).toBe(dir);
         });
     });
 
