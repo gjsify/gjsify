@@ -84,32 +84,6 @@ baseline — an old-glibc container (manylinux/RHEL-derived) or
 becomes an input the build satisfies rather than a number someone reads off the
 result. That is a policy decision (how old a distro do we support?) and wants its
 own change.
-### ADR 0017 — the 60 platform-package names need a `gjsify onboard` sweep BEFORE the release that ships the split
-
-Every `@gjsify/<bridge>-<os>-<arch>` name is unpublished. npm Trusted Publishing
-can only publish a new VERSION of an existing package, so an unbootstrapped name
-404s the OIDC exchange and — because `npm:publish` is a serialized
-`gjsify foreach` — stalls every alphabetically-later package with it. That is the
-v0.4.20 incident (`@gjsify/tls-native` unbootstrapped, 60+ packages stuck at
-0.4.19), and here it is 60 names at once rather than one.
-
-`gjsify onboard` is the sweep: it probes each publishable workspace, publishes and
-trusts only the gaps, and takes ONE OTP for the whole run. It is a maintainer
-action from a machine with a live npm token — CI cannot do it, by design.
-
-**All sixty are covered, including the two napi ones.** `onboard` does not
-enumerate the root `workspaces` globs alone: `mergePublishables()` carves in
-`packages/node-gi/*` and `packages/napi/*` precisely so a package that publishes
-through its own workflow cannot be absent from the sweep — the comment there
-records the 2026-07-26 run that reported "all done" while `@gjsify/napi` was
-neither listed nor published. Verified on this tree: a `--dry-run` probes 191
-packages and every one of the 60 appears. What is NOT covered by
-`mergePublishables` is the RELEASE TRAIN — `npm:publish` is a workspace-scoped
-`gjsify foreach`, which is why `release.yml` publishes the napi set explicitly.
-
-Run it from a checkout OF THIS BRANCH: none of the 60 exist on `main`, so a sweep
-from there reports nothing to do.
-
 ### ADR 0017 — the seven `darwin-x64` exemptions cannot resolve themselves, and the audit is what says so
 
 `commit-prebuilds` downloads a `darwin-x64` artifact for seven bridges, and all
