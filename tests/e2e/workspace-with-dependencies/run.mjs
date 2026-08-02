@@ -27,6 +27,7 @@ import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, statSync } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
     return new Promise((resolve, reject) => {
@@ -66,7 +67,7 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
 
     before(() => {
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-wsd-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
         writeFileSync(
             join(root, 'package.json'),

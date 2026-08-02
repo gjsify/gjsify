@@ -37,8 +37,9 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const CLI_ENTRY = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+const CLI_ENTRY = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
 /** sha256 over the sorted (path, content) sequence of a directory tree. */
 function hashTree(dir) {

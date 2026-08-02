@@ -26,6 +26,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ----- tar helpers (ustar v0) -----
 const BLOCK = 512;
@@ -167,7 +168,7 @@ describe('gjsify install — lockfile preservation', { timeout: 90_000 }, () => 
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
 
         projectDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-preserve-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = { ...process.env, GJSIFY_INSTALL_BACKEND: 'native', npm_config_registry: registryUrl };
 
         writeFileSync(
