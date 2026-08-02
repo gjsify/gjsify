@@ -119,8 +119,15 @@ export const dlxCommand: Command<unknown, DlxOptions> = {
 
         const entry = resolveGjsEntry(pkgDir, binName);
         if (entry.fromFallback) {
+            // Name the key that is actually missing. The condition is
+            // `resolveGjsEntry` finding no `gjsify.main` (or no matching
+            // `gjsify.bin`), but the text said "no `gjsify` field" — and two
+            // showcases DO carry a `gjsify` object (tier + example) without a
+            // `main`, so the warning sent the reader looking for a field that
+            // was right there. Measured running `gjsify showcase
+            // webrtc-loopback` on a Node-less device.
             console.warn(
-                `[gjsify dlx] package "${cachedPkgName ?? parsed.kind}" has no \`gjsify\` field — falling back to package.json#main. Add \`gjsify.main\` to silence.`,
+                `[gjsify dlx] package "${cachedPkgName ?? parsed.kind}" declares no \`gjsify.main\` — falling back to package.json#main. Add \`gjsify.main\` to silence.`,
             );
         }
 

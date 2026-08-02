@@ -483,3 +483,34 @@ worse than none. Node ships no YAML parser, so the real options are `actionlint`
 (purpose-built, one Go binary, catches far more) or python3 + PyYAML, which the
 ubuntu runners already have and which gave the correct answer — exactly one
 offending step — when used ad hoc. Pick one deliberately; do not hand-roll.
+
+### `needsWebgl` in `showcases.json` is declared, parsed, and read by nobody
+
+`packages/infra/cli/showcases.json` carries a `needsWebgl` boolean per showcase;
+`discover-showcases.ts` declares it on `ShowcaseInfo` and coerces it into the
+parsed record. Nothing anywhere reads that field — not `showcase.ts`, not the
+website, not a test. It is the shape every rule in the manifest-conformance
+registry exists to prevent, one directory away from where those rules look
+(`field-coverage` governs `gjsify.*` keys in package manifests; this is a
+free-standing data file).
+
+It has already drifted in the way an unchecked declaration always does:
+`excalibur-jelly-jumper` is recorded as `needsWebgl: false`, while Excalibur
+0.32 uses WebGL2 exclusively — a fact the `WebGLBridge` init-render comment
+documents in detail, because eagerly creating the webgl2 context there is what
+keeps that showcase from rendering into the wrong FBO.
+
+Two honest resolutions; pick one deliberately rather than leaving the third
+state:
+
+- **Delete it.** Every showcase that needs the bridge already declares
+  `@gjsify/webgl` as a runtime dependency, which is what actually gets the
+  typelib into the dlx tree. The field then encodes nothing the manifests do not.
+- **Make it load-bearing.** `@gjsify/webgl` ships prebuilds for linux-x64,
+  linux-arm64 and darwin-arm64 only, so `gjsify showcase three-geometry-teapot`
+  on win32 installs a tree with no `prebuilds/<target>/` and dies at
+  `gi://Gwebgl` with a raw GI error. A pre-flight keyed on this field could say
+  which showcase needs which bridge and that the host has no prebuild for it —
+  worth having while win32/darwin are active port targets. Needs the fix to
+  `excalibur-jelly-jumper` in the same change, and a check so the next entry
+  cannot be wrong for free.

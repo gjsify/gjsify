@@ -57,6 +57,7 @@
   },
   "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/minimalist-browser#readme",
   "gjsify": {
+    "main": "dist/gjs.js",
     "tier": 2,
     "example": {
       "runtimes": [
