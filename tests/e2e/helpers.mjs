@@ -9,6 +9,48 @@ import { tmpdir } from 'node:os';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const MONOREPO_ROOT = join(__dirname, '..', '..');
 
+/** The `<os>-<arch>` target this host resolves — the ONE spelling, unmapped. */
+export const HOST_TARGET = `${process.platform}-${process.arch}`;
+
+/**
+ * The directory holding a bridge's committed prebuild for one target.
+ *
+ * ONE definition, imported — not composed at each call site. `status/open-todos.md`
+ * has recorded the cost of the alternative since the `<os>-<arch>` unification:
+ * nine fixtures built this path themselves, all nine had to be swept by hand, and
+ * one was missed *because a composed string never appears as a literal to grep
+ * for*. ADR 0017 then moved the directory out of the bridge altogether — into the
+ * per-target package `<bridge>-<target>/` — and the same fixtures broke again, in
+ * two suites the first sweep's grep could not see for exactly that reason.
+ *
+ * So the path gets a single callable definition here. The naming rule it encodes
+ * (`<bridge-dir>-<target>`) belongs to `platformPackageDirName()` in
+ * `@gjsify/manifest-conformance`, which is what generates these directories.
+ *
+ * @param {string} pillar `node` | `web` | `framework` | `infra`
+ * @param {string} bridge the bridge's directory name, e.g. `oxfmt-native`
+ * @param {string} target `<os>-<arch>`, e.g. `linux-x64`
+ * @param {...string} rest optional leaf segments inside the directory
+ */
+export function prebuildDir(pillar, bridge, target, ...rest) {
+    return join(MONOREPO_ROOT, 'packages', pillar, `${bridge}-${target}`, 'prebuilds', target, ...rest);
+}
+
+/**
+ * The same directory as an INSTALLED package resolves it, under a node_modules
+ * tree — `@gjsify/<bridge>-<target>/prebuilds/<target>/`. A consumer installs
+ * only their own target's package (that IS the split), so `target` defaults to
+ * this host's.
+ *
+ * @param {string} nodeModulesDir path to a `node_modules` directory
+ * @param {string} bridge unscoped bridge name, e.g. `rolldown-native`
+ * @param {string} [target]
+ * @param {...string} rest
+ */
+export function installedPrebuildDir(nodeModulesDir, bridge, target = HOST_TARGET, ...rest) {
+    return join(nodeModulesDir, '@gjsify', `${bridge}-${target}`, 'prebuilds', target, ...rest);
+}
+
 /**
  * Pack all workspace tarballs via pack.mjs into tarballsDir.
  * Returns { "@gjsify/foo": "@gjsify-foo.tgz", ... } map.

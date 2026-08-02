@@ -199,7 +199,6 @@ export function createContext({
     packages.sort((a, b) => a.rel.localeCompare(b.rel));
 
     const filtered = only.length > 0 ? packages.filter((p) => only.includes(p.name)) : packages;
-    const byName = new Map(filtered.map((p) => [p.name, p]));
 
     const seenDirs = new Set(packages.map((p) => p.dir));
     /** @type {PackageRecord[]} */
@@ -216,6 +215,21 @@ export function createContext({
     }
     const allPackages = [...packages, ...discovered].sort((a, b) => a.rel.localeCompare(b.rel));
     const allFiltered = only.length > 0 ? allPackages.filter((p) => only.includes(p.name)) : allPackages;
+
+    // Indexed over `allPackages`, NOT over the workspace-glob set, and that is a
+    // correction rather than a widening. `get()` answers "the package with this
+    // name, in scope"; indexing only the globs made it answer `undefined` for
+    // exactly the two subtrees `discoveryRoots` exists to bring INTO scope
+    // (`packages/napi/*`, `packages/node-gi/*`). A rule that pairs a row from
+    // `collectNativePackages()` (which iterates `allPackages`) back to its record
+    // then silently skipped `@gjsify/napi` — measured while writing the
+    // `platform-packages` rule: it audited ten of the eleven native bridges and
+    // reported success. A lookup whose miss is indistinguishable from "correct,
+    // nothing to do" is the shape every check in this package exists to remove.
+    // Workspace members win a name collision, since they are what the package
+    // manager itself would resolve.
+    const byName = new Map(allFiltered.map((p) => [p.name, p]));
+    for (const p of filtered) byName.set(p.name, p);
 
     return {
         root: absRoot,

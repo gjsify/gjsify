@@ -110,6 +110,7 @@ import {
     GIRS_VALUE_RE,
     GJS_IMPORTS_GUARD_RE,
     IMPORTS_LEGACY_RE,
+    isPlatformPackageManifest,
     listSourceFiles,
     packagesUnder,
     renderPrebuildLibcSummary,
@@ -123,6 +124,7 @@ import { platformRows, renderPlatformMatrix } from './manifest-conformance/rules
 import './manifest-conformance/rules/tier.mjs';
 import './manifest-conformance/rules/refs-pin.mjs';
 import './manifest-conformance/rules/status-data.mjs';
+import './manifest-conformance/rules/platform-packages.mjs';
 
 // `tests/e2e/prebuild-declaration-invariant` drives the prebuild invariant
 // against SYNTHETIC packages, because proving that a MISSING prebuild directory
@@ -1121,6 +1123,16 @@ async function buildReport() {
     for (const pkgDir of pkgDirs) {
         const pkgJsonPath = join(pkgDir, 'package.json');
         const pkgJson = JSON.parse(await readFile(pkgJsonPath, 'utf8'));
+        // Per-target platform packages (ADR 0017) carry a binary and no
+        // JavaScript. The runtime quadruplet describes the cross-runtime reach of
+        // an API surface; a package with no source has none, and the path-based
+        // axis classifier would happily suggest one from the pillar directory
+        // alone — a suggestion nothing could satisfy and a declaration that would
+        // be a lie in whichever direction it was written. They are skipped on the
+        // manifest's own signature, the same predicate `status-data` and
+        // `platforms-ci` use, so all three cannot disagree about what a data
+        // package is.
+        if (isPlatformPackageManifest(pkgJson)) continue;
         const rel = relative(PACKAGES_DIR, pkgDir);
         const signals = await scanSourceTree(pkgDir);
         const axis = classifyAxis(rel, pkgJson.name ?? '');
@@ -1437,6 +1449,7 @@ const CHECK_RULES = [
     // The libc flavour and the glibc floor come out of the ELF headers, which is
     // also why it works for every architecture from a single x86-64 runner.
     'prebuild-libc',
+    'platform-packages',
     'runtimes-reachability',
     'curated-alias-routing',
     'headless',
@@ -1487,11 +1500,15 @@ async function main() {
     }
 
     if (PLATFORMS) {
-        const { rows: platformRowsOut } = await platformRows(repoContext());
+        // `matrixRows`, not `rows`: the per-target platform packages (ADR 0017)
+        // are audited but not TABULATED — see `creditPlatformPackages`. `--json`
+        // takes the same set so the machine-readable form and the table cannot
+        // describe different populations.
+        const { matrixRows } = await platformRows(repoContext());
         if (FORMAT === 'json') {
-            console.log(JSON.stringify(platformRowsOut, null, 2));
+            console.log(JSON.stringify(matrixRows, null, 2));
         } else {
-            console.log(renderPlatformMatrix(platformRowsOut, { markdown: FORMAT === 'markdown' }));
+            console.log(renderPlatformMatrix(matrixRows, { markdown: FORMAT === 'markdown' }));
         }
         process.exit(0);
     }

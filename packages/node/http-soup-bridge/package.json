@@ -14,18 +14,10 @@
     },
     "files": [
         "lib",
-        "prebuilds",
         "meson.build",
         "src/vala"
     ],
     "gjsify": {
-        "glibcRequires": {
-            "linux-x64": "2.14",
-            "linux-arm64": "2.17",
-            "linux-ppc64": "2.17",
-            "linux-s390x": "2.2",
-            "linux-riscv64": "2.27"
-        },
         "platforms": [
             "linux-x64",
             "linux-arm64",
@@ -35,17 +27,13 @@
             "darwin-arm64",
             "darwin-x64"
         ],
-        "prebuilds": "prebuilds",
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1,
-        "platformsUncommitted": {
-            "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
-        }
+        "tier": 1
     },
     "scripts": {
         "clear": "gjsify clear lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo",
@@ -56,7 +44,7 @@
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
         "build:meson": "gjsify run init:meson && meson compile -C build",
         "build:types": "gjsify tsc",
-        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyHttpSoupBridge-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true",
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=../http-soup-bridge-linux-x64/prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyHttpSoupBridge-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true",
         "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs ."
     },
     "keywords": [
@@ -92,5 +80,14 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http-soup-bridge#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http-soup-bridge#readme",
+    "optionalDependencies": {
+        "@gjsify/http-soup-bridge-darwin-arm64": "workspace:*",
+        "@gjsify/http-soup-bridge-darwin-x64": "workspace:*",
+        "@gjsify/http-soup-bridge-linux-arm64": "workspace:*",
+        "@gjsify/http-soup-bridge-linux-ppc64": "workspace:*",
+        "@gjsify/http-soup-bridge-linux-riscv64": "workspace:*",
+        "@gjsify/http-soup-bridge-linux-s390x": "workspace:*",
+        "@gjsify/http-soup-bridge-linux-x64": "workspace:*"
+    }
 }

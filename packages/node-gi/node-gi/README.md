@@ -898,7 +898,7 @@ Shader/buffer/texture breadth (a three.js triangle/teapot) is the remaining
 follow-up — the seam + context stack are proven.
 
 The tests self-skip without a display, without a `gjsify` CLI, or without the
-committed `Gwebgl-0.1` prebuild (`packages/framework/webgl/prebuilds/linux-*`,
+committed `Gwebgl-0.1` prebuild (`packages/framework/webgl-linux-*/prebuilds/`,
 which the test itself puts on `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH`); the bridge
 test additionally skips when `@gjsify/webgl` is not built. The fixture build
 needs a WORKSPACE-built `@gjsify/cli` (point `GJSIFY_BIN` at

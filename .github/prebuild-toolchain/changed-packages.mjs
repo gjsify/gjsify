@@ -182,7 +182,8 @@ function unionPathFilters(lists) {
 }
 
 /**
- * Every package directory this workflow produces an artifact for.
+ * Every package directory this workflow produces an artifact for — meaning the
+ * BRIDGE whose sources produce it, never the package the bytes are shipped in.
  *
  * DERIVED from the workflow's own `path: packages/<a>/<b>/prebuilds/…` lines
  * (upload steps in the build legs, download steps in `commit-prebuilds`), so a
@@ -190,12 +191,35 @@ function unionPathFilters(lists) {
  * with its own workflow — `@gjsify/napi`, `@gjsify/node-gi` — is excluded
  * without an exclusion list.
  *
+ * SINCE ADR 0017 THE TWO KINDS OF LINE NAME DIFFERENT DIRECTORIES, and the
+ * difference has to be undone here. A build leg still stages into the bridge it
+ * just compiled (`packages/framework/webgl/prebuilds/linux-x64/` — scratch space
+ * in a job that commits nothing), while `commit-prebuilds` downloads into the
+ * per-target package the artifact is PUBLISHED from
+ * (`packages/framework/webgl-linux-x64/prebuilds/linux-x64/`). Taking the second
+ * at face value would put `packages/framework/webgl-linux-x64` in the table, and
+ * everything this file then asks of a table entry is a question about SOURCES:
+ * which `on: paths:` globs live under it, which `refs/` submodules its
+ * `src/rust/Cargo.toml` links. A platform package has no sources, no
+ * `meson.build` and no Cargo manifest, so the answer to all of them is "none" —
+ * and `assertPathFiltersCoverPackages()` would report that the workflow cannot
+ * be triggered by a change to its own sources, for 51 packages that have none.
+ *
+ * The suffix strip is safe because the target is captured from the SAME line: a
+ * directory only loses a segment when it ends with exactly the target that path
+ * names, which is the naming rule `platformPackageDirName()` defines. A build
+ * leg's `linux-${{ matrix.arch }}` cannot collide with it — the expression makes
+ * the captured token `linux-${{`, and no directory ends with that.
+ *
  * @returns {string[]} repo-relative package dirs, sorted
  */
 function workflowPackageDirs(text) {
     const dirs = new Set();
-    for (const m of text.matchAll(/^\s*path:\s*(packages\/[^\s/]+\/[^\s/]+)\/prebuilds\//gm)) {
-        dirs.add(m[1]);
+    for (const m of text.matchAll(/^\s*path:\s*packages\/([^\s/]+)\/([^\s/]+)\/prebuilds\/([^\s/]+)/gm)) {
+        const [, pillar, dirName, target] = m;
+        const suffix = `-${target}`;
+        const bridge = dirName.endsWith(suffix) ? dirName.slice(0, -suffix.length) : dirName;
+        dirs.add(`packages/${pillar}/${bridge}`);
     }
     return [...dirs].sort();
 }

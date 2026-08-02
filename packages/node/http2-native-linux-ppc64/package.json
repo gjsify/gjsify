@@ -1,0 +1,40 @@
+{
+    "name": "@gjsify/http2-native-linux-ppc64",
+    "version": "0.26.1",
+    "description": "linux-ppc64 prebuilt native library + GObject-Introspection typelib for @gjsify/http2-native. Installed automatically on linux/ppc64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
+    "license": "MIT",
+    "os": [
+        "linux"
+    ],
+    "cpu": [
+        "ppc64"
+    ],
+    "files": [
+        "prebuilds"
+    ],
+    "gjsify": {
+        "glibcRequires": {
+            "linux-ppc64": "2.17"
+        },
+        "platforms": [
+            "linux-ppc64"
+        ],
+        "prebuilds": "prebuilds",
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "echo 'nothing to do'",
+        "build": "echo 'nothing to do'",
+        "test": "echo 'nothing to do'"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node/http2-native-linux-ppc64"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http2-native-linux-ppc64#readme"
+}

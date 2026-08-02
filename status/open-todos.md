@@ -84,7 +84,6 @@ baseline — an old-glibc container (manylinux/RHEL-derived) or
 becomes an input the build satisfies rather than a number someone reads off the
 result. That is a policy decision (how old a distro do we support?) and wants its
 own change.
-
 ### `cli.gjs.mjs` byte-reproducibility is not closed — main shipped a non-reproducing bundle again
 
 #906 merged a committed `packages/infra/cli/dist/cli.gjs.mjs` that does not

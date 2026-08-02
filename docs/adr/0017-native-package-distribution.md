@@ -161,11 +161,54 @@ six targets — a split saves a consumer ~250 KB and adds five package names,
 five registry entries and five bootstraps. Uniformity is chosen over that
 marginal loss deliberately; see the Decision.
 
-## Open question for implementation
+## Open question for implementation — RESOLVED
 
-Whether the split packages should also carry `gjsify.platforms` (a one-element
-list, self-describing) or omit it and let the main package's list be
-authoritative. The former is more redundant but keeps every published tarball
-self-checking; the latter keeps one source of truth. Decide when writing the
-audit rule in step 3 — whichever choice makes a wrong declaration *impossible*
-rather than merely unlikely.
+> Whether the split packages should also carry `gjsify.platforms` (a one-element
+> list, self-describing) or omit it and let the main package's list be
+> authoritative. The former is more redundant but keeps every published tarball
+> self-checking; the latter keeps one source of truth. Decide when writing the
+> audit rule in step 3 — whichever choice makes a wrong declaration *impossible*
+> rather than merely unlikely.
+
+**The child carries it.** Its own criterion decides: `gjsify.platforms` +
+`gjsify.prebuilds` on the child is what puts the tarball that ACTUALLY CONTAINS
+THE BINARY under the `prebuild-artifacts` rule — the directory exists, its
+ELF/Mach-O machine matches the directory name, every library the typelib records
+is staged beside it, and on the host's own target it is really `dlopen`ed. Omit
+it and the one tarball a consumer downloads is checked by nothing that reads only
+that tarball, while the parent's list stays authoritative for artifacts the
+parent no longer contains.
+
+The redundancy cannot become a second truth because it is not maintained: the
+generator derives it from the parent's list and `--check` fails if the two
+disagree. A wrong token would have to agree simultaneously with the package name,
+`os`, `cpu`, the prebuild directory name and the machine field inside the binary
+— and nobody hand-edits the last one.
+
+Three further decisions the implementation had to make, recorded here because
+each is a consequence of the model rather than of the code:
+
+1. **Every declared target gets a package, including one whose artifact is
+   deferred by `gjsify.platformsUncommitted`** (which the child inherits). The
+   alternative — exempt ⇒ no package — breaks a live shipping path:
+   `@gjsify/napi`'s `darwin-arm64` is built by `release.yml` and staged into the
+   tarball at pack time, so with `prebuilds` gone from the bridge's `files` it
+   would pack nothing and every macOS consumer would lose the prebuild, silently.
+   It also keeps the exemption falsifiable (`prebuild-artifacts` trips when the
+   directory appears, and it now appears in the child, not in a bridge that has
+   left that rule's scope), and it claims the npm name at DECLARATION time rather
+   than when the binary lands — spreading the bootstrap cost this ADR names as
+   the split's main downside instead of concentrating it. Cost: 60 names, not 51.
+2. **Binary facts move to the binary.** The npm `libc` filter,
+   `gjsify.glibcRequires` and `gjsify.platformsUncommitted` all leave the bridge.
+   `libc` is not cosmetic: npm, yarn and pnpm honour it, so an inherited
+   `["glibc"]` on a bridge that now holds only TypeScript refuses to install on
+   musl hosts where it runs fine. Per-target packages also let the field say
+   something true for the first time — only `@gjsify/tls-native-linux-riscv64`
+   needs it, not all five of that bridge's Linux targets, and one tarball could
+   not state that.
+3. **The measurement is the `prebuild-libc` rule's own reader, imported.** The
+   generator WRITES the field that rule GRADES, so a second implementation of "is
+   this glibc-linked" can only ever produce a manifest `--check` then rejects. It
+   did exactly that: a hand-rolled predicate matched `ld-linux-*` but not
+   ppc64le's `ld64.so.2` or s390x's `ld64.so.1`.

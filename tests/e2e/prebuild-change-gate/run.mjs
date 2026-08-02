@@ -90,18 +90,48 @@ function classify(files) {
 }
 
 describe('prebuild change gate — package discovery', () => {
-    it('derives its package set from the workflow, not a hand-written list', () => {
+    it('derives its package set from the workflow, and that set is BRIDGES', () => {
         const text = readFileSync(workflow, 'utf8');
-        const fromWorkflow = new Set(
-            [...text.matchAll(/^\s*path:\s*packages\/[^\s/]+\/([^\s/]+)\/prebuilds\//gm)].map((m) => m[1]),
+        // Every package directory the workflow names a prebuild path for, in
+        // EITHER spelling — the bridge (`…/webgl/prebuilds/linux-x64/`, a build
+        // leg's scratch upload) or the per-target package
+        // (`…/webgl-linux-x64/prebuilds/linux-x64/`, what `commit-prebuilds`
+        // writes since ADR 0017).
+        const namedDirs = [...text.matchAll(/^\s*path:\s*packages\/([^\s/]+)\/([^\s/]+)\/prebuilds\/([^\s/]+)/gm)].map(
+            ([, pillar, dir]) => ({ pillar, dir }),
         );
-        const { build } = classify([]);
+        assert.ok(namedDirs.length > 0, 'the workflow must name prebuild paths at all');
+
         // An empty change set with no base is "nothing affected", so ask the
-        // forced path for the full key set instead.
+        // forced path for the full key set.
         const all = JSON.parse(runAll());
-        assert.deepEqual(new Set(all.build), fromWorkflow);
+
+        // DELIBERATELY not "re-run the parser and compare": that proves only
+        // f(x) === f(x), and a test that mirrors the derivation it checks drifts
+        // with it while both stay green — which is exactly what happened here
+        // when the download paths moved to the per-target packages and this
+        // test's own regex kept reading them at face value. Assert the PROPERTY
+        // the table must have instead: every key is a BRIDGE, a package with a
+        // native build system whose sources a change can touch. A per-target
+        // package has none — it is a re-tarballing of one directory.
+        for (const key of all.build) {
+            const hit = namedDirs.find(({ dir }) => dir === key || dir.startsWith(`${key}-`));
+            assert.ok(hit, `${key} is not a package directory prebuilds.yml names`);
+            const pkgDir = join(repoRoot, 'packages', hit.pillar, key);
+            assert.ok(existsSync(join(pkgDir, 'package.json')), `${key}: no package.json at ${pkgDir}`);
+            assert.ok(
+                existsSync(join(pkgDir, 'meson.build')),
+                `${key}: no meson.build — the table must hold bridges, whose sources a change can touch, never ` +
+                    'the per-target packages their artifacts are published from',
+            );
+        }
+        // The other direction: no bridge the workflow builds may be missing.
+        for (const { pillar, dir } of namedDirs) {
+            if (!existsSync(join(repoRoot, 'packages', pillar, dir, 'meson.build'))) continue;
+            assert.ok(all.build.includes(dir), `${dir} is built by the workflow but missing from the table`);
+        }
         assert.ok(all.build.length >= 10, 'the workflow owns ten native packages today');
-        assert.deepEqual(build, [], 'an empty change set builds nothing');
+        assert.deepEqual(classify([]).build, [], 'an empty change set builds nothing');
     });
 
     it('FAILS when the two `on: paths:` lists diverge', (t) => {

@@ -2129,35 +2129,35 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-x64
-          path: packages/framework/webgl/prebuilds/linux-x64/
+          path: packages/framework/webgl-linux-x64/prebuilds/linux-x64/
 
       - name: Download webgl arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-arm64
-          path: packages/framework/webgl/prebuilds/linux-arm64/
+          path: packages/framework/webgl-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download webgl ppc64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-ppc64
-          path: packages/framework/webgl/prebuilds/linux-ppc64/
+          path: packages/framework/webgl-linux-ppc64/prebuilds/linux-ppc64/
 
       - name: Download webgl s390x prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-s390x
-          path: packages/framework/webgl/prebuilds/linux-s390x/
+          path: packages/framework/webgl-linux-s390x/prebuilds/linux-s390x/
 
       - name: Download webgl riscv64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-prebuilds-linux-riscv64
-          path: packages/framework/webgl/prebuilds/linux-riscv64/
+          path: packages/framework/webgl-linux-riscv64/prebuilds/linux-riscv64/
 
       # -------- @gjsify/webrtc-native --------
       - name: Download webrtc-native x64 prebuilds
@@ -2165,35 +2165,35 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-x64
-          path: packages/web/webrtc-native/prebuilds/linux-x64/
+          path: packages/web/webrtc-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download webrtc-native arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-arm64
-          path: packages/web/webrtc-native/prebuilds/linux-arm64/
+          path: packages/web/webrtc-native-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download webrtc-native ppc64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-ppc64
-          path: packages/web/webrtc-native/prebuilds/linux-ppc64/
+          path: packages/web/webrtc-native-linux-ppc64/prebuilds/linux-ppc64/
 
       - name: Download webrtc-native s390x prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-s390x
-          path: packages/web/webrtc-native/prebuilds/linux-s390x/
+          path: packages/web/webrtc-native-linux-s390x/prebuilds/linux-s390x/
 
       - name: Download webrtc-native riscv64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: webrtc-native-prebuilds-linux-riscv64
-          path: packages/web/webrtc-native/prebuilds/linux-riscv64/
+          path: packages/web/webrtc-native-linux-riscv64/prebuilds/linux-riscv64/
 
       # -------- @gjsify/http-soup-bridge --------
       - name: Download http-soup-bridge x64 prebuilds
@@ -2201,35 +2201,35 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-x64
-          path: packages/node/http-soup-bridge/prebuilds/linux-x64/
+          path: packages/node/http-soup-bridge-linux-x64/prebuilds/linux-x64/
 
       - name: Download http-soup-bridge arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-arm64
-          path: packages/node/http-soup-bridge/prebuilds/linux-arm64/
+          path: packages/node/http-soup-bridge-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download http-soup-bridge ppc64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-ppc64
-          path: packages/node/http-soup-bridge/prebuilds/linux-ppc64/
+          path: packages/node/http-soup-bridge-linux-ppc64/prebuilds/linux-ppc64/
 
       - name: Download http-soup-bridge s390x prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-s390x
-          path: packages/node/http-soup-bridge/prebuilds/linux-s390x/
+          path: packages/node/http-soup-bridge-linux-s390x/prebuilds/linux-s390x/
 
       - name: Download http-soup-bridge riscv64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-linux-riscv64
-          path: packages/node/http-soup-bridge/prebuilds/linux-riscv64/
+          path: packages/node/http-soup-bridge-linux-riscv64/prebuilds/linux-riscv64/
 
       # -------- @gjsify/http2-native --------
       - name: Download http2-native x64 prebuilds
@@ -2237,35 +2237,35 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-x64
-          path: packages/node/http2-native/prebuilds/linux-x64/
+          path: packages/node/http2-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download http2-native arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-arm64
-          path: packages/node/http2-native/prebuilds/linux-arm64/
+          path: packages/node/http2-native-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download http2-native ppc64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-ppc64
-          path: packages/node/http2-native/prebuilds/linux-ppc64/
+          path: packages/node/http2-native-linux-ppc64/prebuilds/linux-ppc64/
 
       - name: Download http2-native s390x prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-s390x
-          path: packages/node/http2-native/prebuilds/linux-s390x/
+          path: packages/node/http2-native-linux-s390x/prebuilds/linux-s390x/
 
       - name: Download http2-native riscv64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-linux-riscv64
-          path: packages/node/http2-native/prebuilds/linux-riscv64/
+          path: packages/node/http2-native-linux-riscv64/prebuilds/linux-riscv64/
 
       # -------- @gjsify/sab-native --------
       - name: Download sab-native x64 prebuilds
@@ -2273,35 +2273,35 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-x64
-          path: packages/node/sab-native/prebuilds/linux-x64/
+          path: packages/node/sab-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download sab-native arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-arm64
-          path: packages/node/sab-native/prebuilds/linux-arm64/
+          path: packages/node/sab-native-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download sab-native ppc64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-ppc64
-          path: packages/node/sab-native/prebuilds/linux-ppc64/
+          path: packages/node/sab-native-linux-ppc64/prebuilds/linux-ppc64/
 
       - name: Download sab-native s390x prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-s390x
-          path: packages/node/sab-native/prebuilds/linux-s390x/
+          path: packages/node/sab-native-linux-s390x/prebuilds/linux-s390x/
 
       - name: Download sab-native riscv64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: sab-native-prebuilds-linux-riscv64
-          path: packages/node/sab-native/prebuilds/linux-riscv64/
+          path: packages/node/sab-native-linux-riscv64/prebuilds/linux-riscv64/
 
       # -------- @gjsify/tls-native --------
       - name: Download tls-native x64 prebuilds
@@ -2309,35 +2309,35 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-x64
-          path: packages/node/tls-native/prebuilds/linux-x64/
+          path: packages/node/tls-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download tls-native arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-arm64
-          path: packages/node/tls-native/prebuilds/linux-arm64/
+          path: packages/node/tls-native-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download tls-native ppc64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-ppc64
-          path: packages/node/tls-native/prebuilds/linux-ppc64/
+          path: packages/node/tls-native-linux-ppc64/prebuilds/linux-ppc64/
 
       - name: Download tls-native s390x prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-s390x
-          path: packages/node/tls-native/prebuilds/linux-s390x/
+          path: packages/node/tls-native-linux-s390x/prebuilds/linux-s390x/
 
       - name: Download tls-native riscv64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-linux-riscv64
-          path: packages/node/tls-native/prebuilds/linux-riscv64/
+          path: packages/node/tls-native-linux-riscv64/prebuilds/linux-riscv64/
 
       # -------- @gjsify/lightningcss-native --------
       - name: Download lightningcss-native x64 prebuilds
@@ -2345,35 +2345,35 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-x64
-          path: packages/infra/lightningcss-native/prebuilds/linux-x64/
+          path: packages/infra/lightningcss-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download lightningcss-native arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-arm64
-          path: packages/infra/lightningcss-native/prebuilds/linux-arm64/
+          path: packages/infra/lightningcss-native-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download lightningcss-native ppc64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-ppc64
-          path: packages/infra/lightningcss-native/prebuilds/linux-ppc64/
+          path: packages/infra/lightningcss-native-linux-ppc64/prebuilds/linux-ppc64/
 
       - name: Download lightningcss-native s390x prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-s390x
-          path: packages/infra/lightningcss-native/prebuilds/linux-s390x/
+          path: packages/infra/lightningcss-native-linux-s390x/prebuilds/linux-s390x/
 
       - name: Download lightningcss-native riscv64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-linux-riscv64
-          path: packages/infra/lightningcss-native/prebuilds/linux-riscv64/
+          path: packages/infra/lightningcss-native-linux-riscv64/prebuilds/linux-riscv64/
 
       # -------- @gjsify/terminal-native --------
       - name: Download terminal-native x64 prebuilds
@@ -2381,35 +2381,35 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-x64
-          path: packages/node/terminal-native/prebuilds/linux-x64/
+          path: packages/node/terminal-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download terminal-native arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-arm64
-          path: packages/node/terminal-native/prebuilds/linux-arm64/
+          path: packages/node/terminal-native-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download terminal-native ppc64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-ppc64
-          path: packages/node/terminal-native/prebuilds/linux-ppc64/
+          path: packages/node/terminal-native-linux-ppc64/prebuilds/linux-ppc64/
 
       - name: Download terminal-native s390x prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-s390x
-          path: packages/node/terminal-native/prebuilds/linux-s390x/
+          path: packages/node/terminal-native-linux-s390x/prebuilds/linux-s390x/
 
       - name: Download terminal-native riscv64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-linux-riscv64
-          path: packages/node/terminal-native/prebuilds/linux-riscv64/
+          path: packages/node/terminal-native-linux-riscv64/prebuilds/linux-riscv64/
 
       # -------- @gjsify/oxfmt-native (native runners only) --------
       - name: Download oxfmt-native x64 prebuilds
@@ -2417,14 +2417,14 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: oxfmt-native-prebuilds-linux-x64
-          path: packages/infra/oxfmt-native/prebuilds/linux-x64/
+          path: packages/infra/oxfmt-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download oxfmt-native arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: oxfmt-native-prebuilds-linux-arm64
-          path: packages/infra/oxfmt-native/prebuilds/linux-arm64/
+          path: packages/infra/oxfmt-native-linux-arm64/prebuilds/linux-arm64/
 
       # -------- @gjsify/rolldown-native (native runners only) --------
       - name: Download rolldown-native x64 prebuilds
@@ -2432,14 +2432,14 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rolldown-native-prebuilds-linux-x64
-          path: packages/infra/rolldown-native/prebuilds/linux-x64/
+          path: packages/infra/rolldown-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download rolldown-native arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: rolldown-native-prebuilds-linux-arm64
-          path: packages/infra/rolldown-native/prebuilds/linux-arm64/
+          path: packages/infra/rolldown-native-linux-arm64/prebuilds/linux-arm64/
 
       # -------- darwin-arm64 (macOS, Apple silicon) --------
       # rolldown-native, sab-native, webgl and webrtc-native have no darwin
@@ -2449,49 +2449,49 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-darwin-arm64
-          path: packages/infra/lightningcss-native/prebuilds/darwin-arm64/
+          path: packages/infra/lightningcss-native-darwin-arm64/prebuilds/darwin-arm64/
 
       - name: Download oxfmt-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: oxfmt-native-prebuilds-darwin-arm64
-          path: packages/infra/oxfmt-native/prebuilds/darwin-arm64/
+          path: packages/infra/oxfmt-native-darwin-arm64/prebuilds/darwin-arm64/
 
       - name: Download rolldown-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: rolldown-native-prebuilds-darwin-arm64
-          path: packages/infra/rolldown-native/prebuilds/darwin-arm64/
+          path: packages/infra/rolldown-native-darwin-arm64/prebuilds/darwin-arm64/
 
       - name: Download terminal-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-darwin-arm64
-          path: packages/node/terminal-native/prebuilds/darwin-arm64/
+          path: packages/node/terminal-native-darwin-arm64/prebuilds/darwin-arm64/
 
       - name: Download tls-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-darwin-arm64
-          path: packages/node/tls-native/prebuilds/darwin-arm64/
+          path: packages/node/tls-native-darwin-arm64/prebuilds/darwin-arm64/
 
       - name: Download http-soup-bridge darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-darwin-arm64
-          path: packages/node/http-soup-bridge/prebuilds/darwin-arm64/
+          path: packages/node/http-soup-bridge-darwin-arm64/prebuilds/darwin-arm64/
 
       - name: Download http2-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-darwin-arm64
-          path: packages/node/http2-native/prebuilds/darwin-arm64/
+          path: packages/node/http2-native-darwin-arm64/prebuilds/darwin-arm64/
 
       # -------- darwin-x64 (macOS, Intel) --------
       # The SAME six packages as the arm64 block above, because both come from
@@ -2501,49 +2501,49 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: lightningcss-native-prebuilds-darwin-x64
-          path: packages/infra/lightningcss-native/prebuilds/darwin-x64/
+          path: packages/infra/lightningcss-native-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download oxfmt-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: oxfmt-native-prebuilds-darwin-x64
-          path: packages/infra/oxfmt-native/prebuilds/darwin-x64/
+          path: packages/infra/oxfmt-native-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download rolldown-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: rolldown-native-prebuilds-darwin-x64
-          path: packages/infra/rolldown-native/prebuilds/darwin-x64/
+          path: packages/infra/rolldown-native-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download terminal-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: terminal-native-prebuilds-darwin-x64
-          path: packages/node/terminal-native/prebuilds/darwin-x64/
+          path: packages/node/terminal-native-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download tls-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: tls-native-prebuilds-darwin-x64
-          path: packages/node/tls-native/prebuilds/darwin-x64/
+          path: packages/node/tls-native-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download http-soup-bridge darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         uses: actions/download-artifact@v8
         with:
           name: http-soup-bridge-prebuilds-darwin-x64
-          path: packages/node/http-soup-bridge/prebuilds/darwin-x64/
+          path: packages/node/http-soup-bridge-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download http2-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         uses: actions/download-artifact@v8
         with:
           name: http2-native-prebuilds-darwin-x64
-          path: packages/node/http2-native/prebuilds/darwin-x64/
+          path: packages/node/http2-native-darwin-x64/prebuilds/darwin-x64/
 
       # A `gjsify.platformsUncommitted` entry says "declared and CI-built, but no
       # artifact in this repo yet", and the conformance rule makes it a FAILURE
