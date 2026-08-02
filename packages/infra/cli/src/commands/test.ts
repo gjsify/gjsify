@@ -9,6 +9,8 @@
 import { existsSync, statSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve, relative } from 'node:path';
 import { spawn } from 'node:child_process';
+import { isRuntimeAvailable, RUNTIMES } from '../utils/runtimes.js';
+import { nodeBinary } from '../utils/run-node.js';
 import type { Command } from '../types/index.js';
 import { Config } from '../config.js';
 import { BuildAction } from '../actions/build.js';
@@ -85,6 +87,16 @@ export const testCommand: Command<unknown, TestOptions> = {
             return process.exit(1);
         }
 
+        // EXPLICIT (`--runtime node`) vs DEFAULT (`all`, or a package's declared
+        // set) is the whole distinction here, and it decides what an absent
+        // runtime means. Asked for by name, its absence is the answer to the
+        // question and must fail loudly. Reached only because it is in the
+        // default set, its absence is a fact about the host — and failing there
+        // reports a PASSING suite as a failed run: on a Node-less GJS host
+        // (postmarketOS/aarch64, gjs 1.88, no node) `gjsify test` printed
+        // `✅ gjs (267ms)  ❌ node (27ms) — spawn node ENOENT` for a suite whose
+        // every assertion passed.
+        const explicit = args.runtime === 'gjs' || args.runtime === 'node';
         const requested: Runtime[] =
             args.runtime === 'gjs'
                 ? ['gjs']
@@ -94,9 +106,25 @@ export const testCommand: Command<unknown, TestOptions> = {
                     ? testCfg.runtimes
                     : ['gjs', 'node'];
 
+        // Skipping is NOT silent — a skipped runtime is reported, so "tests
+        // passed" never quietly means "on fewer runtimes than you think".
+        const runnable = explicit ? requested : requested.filter((rt) => isRuntimeAvailable(rt));
+        for (const rt of requested.filter((rt) => !runnable.includes(rt))) {
+            console.log(
+                `[gjsify test] skipping ${rt} — no \`${RUNTIMES[rt].probe}\` on PATH (not requested explicitly)`,
+            );
+        }
+        if (runnable.length === 0) {
+            console.error(
+                `[gjsify test] none of the default runtimes (${requested.join(', ')}) is available on this host.\n` +
+                    `  Install one, or pin the set: \`gjsify test --runtime <rt>\` / \`gjsify.test.runtimes\` in package.json.`,
+            );
+            return process.exit(1);
+        }
+
         const results: Array<{ runtime: Runtime; ok: boolean; durationMs: number; error?: string }> = [];
 
-        for (const runtime of requested) {
+        for (const runtime of runnable) {
             const outfile = join(outdir, `test.${runtime}.mjs`);
 
             // Build stage (skip if --no-build OR (not --rebuild AND outfile fresher than src)).
@@ -208,7 +236,11 @@ async function runTestBundle(outfile: string, runtime: Runtime): Promise<void> {
         return;
     }
     await new Promise<void>((resolvePromise, reject) => {
-        const child = spawn('node', [outfile], { stdio: 'inherit' });
+        // `nodeBinary()`, never a bare `'node'`: under the committed GJS bundle
+        // `process.execPath` is the bundle itself, and on a host without Node a
+        // bare literal dies `spawn node ENOENT` — which is how a fully passing
+        // GJS suite was reported as a failed run.
+        const child = spawn(nodeBinary(), [outfile], { stdio: 'inherit' });
         child.on('error', reject);
         child.on('exit', (code) => {
             if (code === 0) resolvePromise();
