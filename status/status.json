@@ -399,7 +399,7 @@
     },
     "@gjsify/unit": {
       "status": "full",
-      "note": "Test framework (describe/it/expect, cross-platform Node+GJS+browser) + vitest-compat surface (`vi.fn`/`stubGlobal`/`stubEnv`, `toMatchObject`/`toBeNaN`/`toHaveBeenCalled*`, `expect().rejects.toThrow`/`.resolves.toResolve`), `browserSignalDone` for the Playwright axis, fail-count isolation (a leaked late assertion becomes a distinct stray, never poisons a bystander `it()`)."
+      "note": "Test framework (describe/it/expect, cross-platform Node+GJS+browser) + vitest-compat surface (`vi.fn`/`stubGlobal`/`stubEnv`, `toMatchObject`/`toBeNaN`/`toHaveBeenCalled*`, `expect().rejects.toThrow`/`.resolves.toResolve`), `browserSignalDone` for the Playwright axis, fail-count isolation (a leaked late assertion becomes a distinct stray, never poisons a bystander `it()`), and callback-assertion attribution: an `expect` thrown from a host callback off the awaited chain is charged to the test that armed it instead of ending the run (`uncaughtException` hook on the Node family) or timing out anonymously (assertion ledger on GJS)."
     },
     "@gjsify/url": {
       "status": "full",

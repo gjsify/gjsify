@@ -34,6 +34,33 @@ only its specs have been.
 **Note for anyone re-measuring:** a hand-created `C:\tmp` makes the module-load
 failure vanish without fixing anything (one existed on the test VM for several
 hours and hid exactly this). It has been removed there. Do not re-create it.
+### `@gjsify/fs` on Windows — 24 failures that only became visible once the runner stopped dying
+
+Making `@gjsify/unit` report an assertion thrown from a host callback turned the
+`@gjsify/fs` Node suite on `win32-x64` from "144 lines, dead process, no summary,
+1 of 19 spec modules reached" into "611 tests, 24 failures, exit 1". None of the
+24 is new; all 24 were unreachable behind the crash. Measured on the win11-gjsify
+test VM (Node 24.18.1), and they fall into five classes, not 24 problems:
+
+- **POSIX mode bits (7)** — `chmod`/`chmodSync`/`fchmodSync`/`promises.chmod`
+  specs assert `0o644`/`0o600`/`0o640` and read back `0o666`. NTFS carries no
+  POSIX permission bits; Node reports `0o666` (`0o444` read-only). The specs, not
+  the impl, encode the POSIX assumption.
+- **`realpath` (5)** — `realpathSync`, `realpath`, `promises.realpath` return
+  falsy / non-matching values. This one looks like a genuine impl gap rather than
+  a spec assumption; triage before touching the specs.
+- **POSIX absolute paths hardcoded in specs (3)** — `/etc/hosts` and `/dev/null`
+  resolve to `C:\etc\hosts` / `C:\dev\null` and `ENOENT`. Same class the
+  `@gjsify/child_process` specs hit with `realpathSync('/tmp')`.
+- **glob separators (5)** — specs expect `sub/nested.ts`, Node's `fs.glob`
+  yields `sub\nested.ts`. Decide deliberately whether the contract is POSIX-
+  normalised or platform-native, then fix one side.
+- **remainder (4)** — `existsSync` on an existing file, `statSync().size` zero,
+  `mkdirSync`/`promises.mkdir` recursive return value, missing mode constants.
+
+The shared helper the report predicted (one path-form helper clearing most
+packages) is the obvious next step for classes 3 and 4, but the `realpath` class
+needs its own look — do NOT fold it into a path-form sweep.
 
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 

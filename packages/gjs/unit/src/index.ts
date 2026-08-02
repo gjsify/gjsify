@@ -25,6 +25,7 @@ interface _RuntimeGlobals {
         env?: Partial<Record<string, string>>;
         versions?: { gjs?: string; node?: string };
         exit?: (code: number) => never;
+        on?: (event: string, listener: (error: unknown) => void) => unknown;
     };
     performance?: { now?: () => number };
     document?: {
@@ -102,6 +103,67 @@ const noteStrayFailure = (message: string): void => {
         message,
     });
 };
+
+/**
+ * Per-`it()` ledgers of assertion errors THROWN while that test was on the
+ * stack. `it()` removes the one its `catch` observes; anything left when the
+ * test settles never reached the awaited chain at all.
+ *
+ * That leftover is a whole failure class the runner used to be blind to — an
+ * assertion inside a host callback, off the promise's reject path:
+ *
+ * ```ts
+ * await new Promise<void>((resolve) => {
+ *     stat(p, (err, st) => { expect(st.mode).toBe(0o644); resolve(); });
+ * });
+ * ```
+ *
+ * The throw unwinds into libuv/GLib, not into the promise. So the promise is
+ * never settled, `it()` is still awaiting, and the error goes wherever the HOST
+ * sends an exception raised in its own callback: on Node to `uncaughtException`,
+ * which by default prints the (minified) bundle and KILLS THE PROCESS; on GJS to
+ * a logged warning, leaving the test to time out 5 s later under a message that
+ * names neither the assertion nor the file.
+ *
+ * Measured on Windows: ONE such `expect` in `@gjsify/fs`'s `callback.spec.ts`
+ * ended the run inside the first of 19 spec modules, with no summary line — so
+ * the other 18 modules, and ~56 lines of unrelated real Windows failures, were
+ * never even executed. The assertion message is the only thing that says what is
+ * actually wrong, and it was the one thing being discarded.
+ *
+ * A STACK, not a single set: `it.failing` legitimately runs nested inside an
+ * `it()` (see `it-failing.spec.ts`), and a throw belongs to the INNERMOST test.
+ *
+ * Known limit, unchanged from `activeTestDepth`: a late callback from an ALREADY
+ * SETTLED test that fires while a later test is running is charged to the later
+ * one. Attribution across that boundary is genuinely ambiguous — the fix for
+ * that shape is not to guess, it is to not leak the callback.
+ */
+const assertionLedgers: Array<Set<Error>> = [];
+
+/** Record a branded assertion error against the innermost running test. */
+const noteThrownAssertion = (error: unknown): void => {
+    const ledger = assertionLedgers[assertionLedgers.length - 1];
+    if (ledger && error instanceof Error) ledger.add(error);
+};
+
+/**
+ * Un-ledger an error a matcher DELIBERATELY absorbed.
+ *
+ * `toThrow`/`toReject`/`toResolve` exist to catch a throw, and the throw they
+ * catch is often a nested `expect` — `expect(() => expect(a).toBe(b)).toThrow()`
+ * is how the matchers' own specs are written. Such an error is observed and
+ * handled; it is emphatically NOT lost, and leaving it in the ledger turns every
+ * negative-matcher test into a phantom failure. Measured: 9 phantom failures in
+ * this package's own suite the first time the ledger ran without this.
+ *
+ * Every site that swallows a caught error must call this — the ledger is only as
+ * exact as its absorbers are honest.
+ */
+const forgetThrownAssertion = (error: unknown): void => {
+    if (!(error instanceof Error)) return;
+    for (const ledger of assertionLedgers) ledger.delete(error);
+};
 let runtime = '';
 let runStartTime = 0;
 let currentSuite = '';
@@ -142,6 +204,17 @@ class TimeoutError extends Error {
     }
 }
 
+/**
+ * Reject hooks for the `withTimeout` calls currently in flight (innermost last).
+ *
+ * An exception the HOST raises out of its own callback (Node's
+ * `uncaughtException`) belongs to whichever test armed that callback. Failing
+ * THAT test — rather than letting the host tear the process down — is what turns
+ * a run-ending crash into one reported failure with the other suites still to
+ * come. See `installUncaughtHooks`.
+ */
+const abortHooks: Array<(error: unknown) => void> = [];
+
 async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label: string): Promise<T> {
     if (timeoutMs <= 0) return fn();
 
@@ -154,6 +227,17 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
     // leaving it to become an unhandled rejection.
     timeoutPromise.catch(() => {});
 
+    // Third racer: a host-level exception attributed to this call (see
+    // `abortHooks`). Registered for the whole body so it is armed before `fn()`
+    // can schedule anything, and removed by identity in `finally` — an index
+    // would be wrong the moment a nested `withTimeout` settles out of order.
+    let abort!: (error: unknown) => void;
+    const abortPromise = new Promise<never>((_, reject) => {
+        abort = reject;
+    });
+    abortPromise.catch(() => {});
+    abortHooks.push(abort);
+
     try {
         // `fn()` belongs INSIDE the try. A synchronous throw — which is what
         // EVERY failed `expect` in a non-async `it` is — escaped before the
@@ -165,11 +249,57 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
         // exceeded 5000ms` masking a one-line path mismatch.
         const fnPromise = Promise.resolve(fn());
         fnPromise.catch(() => {}); // Prevent unhandled rejection if it fails after timeout
-        return await Promise.race([fnPromise, timeoutPromise]);
+        return await Promise.race([fnPromise, timeoutPromise, abortPromise]);
     } finally {
         clearTimeout(timeoutId!);
+        const i = abortHooks.lastIndexOf(abort);
+        if (i !== -1) abortHooks.splice(i, 1);
     }
 }
+
+/**
+ * Route a host-level uncaught exception into the test that is in flight, instead
+ * of letting the host end the process.
+ *
+ * This is the Node-family half of the callback-assertion fix; the ledger
+ * (`assertionLedgers`) is the half that works everywhere. Both are needed and
+ * neither subsumes the other: without the hook the process dies before any
+ * ledger can be drained, and without the ledger a GJS run — where the host only
+ * logs the exception — still reports a bare 5 s timeout instead of the
+ * assertion.
+ *
+ * Deliberately `uncaughtException` ONLY, not `unhandledRejection` — and that
+ * costs no coverage, which is the non-obvious part. Measured on Node 24: a
+ * synchronous throw in a host callback arrives as `uncaughtException`; an ASYNC
+ * callback's throw arrives as `unhandledRejection` *only if a listener exists*,
+ * and otherwise Node's default `--unhandled-rejections=throw` re-raises it as
+ * `uncaughtException`. So by NOT listening for rejections, both shapes reach this
+ * one hook. Listening would be actively worse: this runner intentionally creates
+ * settled-late rejections (the `.catch(() => {})` claims above), and charging
+ * those to whatever test happens to be running would invent failures rather than
+ * reveal them.
+ */
+let uncaughtHooksInstalled = false;
+
+const installUncaughtHooks = (): void => {
+    if (uncaughtHooksInstalled) return;
+    const proc = runtimeGlobals().process;
+    if (typeof proc?.on !== 'function') return;
+    // Real GJS has no host hook for this. `@gjsify/process` does provide `on()`
+    // as an EventEmitter method, but nothing ever emits these events there, so
+    // registering would be a silent no-op that reads like coverage. Gate on the
+    // same `process.versions.gjs` signal `getRuntime()`/`mainloop` use.
+    if (typeof proc.versions?.gjs === 'string') return;
+
+    uncaughtHooksInstalled = true;
+    proc.on('uncaughtException', (error: unknown) => {
+        const hook = abortHooks[abortHooks.length - 1];
+        // No test in flight → it belongs to no test; report it as its own entry
+        // rather than charging a bystander (same rule as a stray assertion).
+        if (hook) hook(error);
+        else noteStrayFailure((error as { message?: string })?.message ?? String(error));
+    });
+};
 
 export const configure = (overrides: Partial<TimeoutConfig>) => {
     timeoutConfig = { ...timeoutConfig, ...overrides };
@@ -359,6 +489,9 @@ class MatcherFactory {
             // test (a leaked late assertion); attribute it to its own pseudo-
             // test instead of corrupting whichever it() is mid-flight.
             if (activeTestDepth === 0) noteStrayFailure(msg);
+            // Otherwise ledger it, so `it()` can tell "my catch saw this" from
+            // "this vanished into a host callback" (see `assertionLedgers`).
+            else noteThrownAssertion(error);
             throw error;
         }
     }
@@ -580,6 +713,7 @@ class MatcherFactory {
         } catch (e) {
             errorMessage = (e as { message?: string })?.message || '';
             didThrow = true;
+            forgetThrownAssertion(e);
             if (typeof expected === 'function') {
                 typeMatch = e instanceof expected;
             } else if (typeof expected === 'string') {
@@ -620,6 +754,7 @@ class MatcherFactory {
             didReject = false;
         } catch (e) {
             didReject = true;
+            forgetThrownAssertion(e);
             errorMessage = e?.message || String(e);
             if (typeof expected === 'function') {
                 typeMatch = e instanceof expected;
@@ -654,6 +789,7 @@ class MatcherFactory {
             didResolve = true;
         } catch (e) {
             didResolve = false;
+            forgetThrownAssertion(e);
             errorMessage = e?.message || String(e);
         }
         this.triggerResult(
@@ -822,6 +958,14 @@ export const it = async function (
     // a late assertion that fires after this test resolved is then correctly
     // recognised as out-of-band (see triggerResult / noteStrayFailure).
     ++activeTestDepth;
+    // This test's ledger of thrown-but-not-yet-observed assertions. Whatever
+    // survives to the drain below never reached the `catch` (see
+    // `assertionLedgers`).
+    const ledger = new Set<Error>();
+    assertionLedgers.push(ledger);
+
+    let observed: unknown;
+    let threw = false;
     try {
         if (typeof beforeEachCb === 'function') {
             await beforeEachCb();
@@ -832,22 +976,60 @@ export const it = async function (
         if (typeof afterEachCb === 'function') {
             await afterEachCb();
         }
-
-        const duration = now() - t0;
-        print(`  ${GREEN}✔${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
     } catch (e) {
-        const duration = now() - t0;
-        // The error escaped THIS test's callback → it is this test's single
-        // failure. Count it exactly once here (the throw site no longer counts).
-        ++countTestsFailed;
-        testErrors.push({ suite: currentSuite, test: expectation, message: e.message ?? String(e) });
-        const icon = e instanceof TimeoutError ? '⏱' : '❌';
-        print(`  ${RED}${icon}${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
-        print(`${RED}${e.message}${RESET}`);
-        if (e.stack) print(e.stack);
+        threw = true;
+        observed = e;
+        // Observed by this boundary → not lost. Anything still in the ledger is.
+        if (e instanceof Error) ledger.delete(e);
     } finally {
         --activeTestDepth;
+        assertionLedgers.pop();
     }
+
+    const duration = now() - t0;
+
+    // A ledger leftover only means "lost" when the test TIMED OUT. That is the
+    // signature of the class: the throw unwound into the host instead of the
+    // promise, so the promise was never settled and the test could not end any
+    // other way. A test that FINISHED — passed, or failed through its own
+    // boundary — proves its chain completed, which means a leftover there was
+    // caught by the test on purpose. That pattern is supported and spec'd
+    // (`vitest-compat.spec.ts`: "a matcher throw caught inside the test does not
+    // count as a failure"), and reporting it would invent failures rather than
+    // reveal them — measured as 2 phantom failures before this narrowing.
+    const lost = observed instanceof TimeoutError ? [...ledger] : [];
+
+    if (!threw) {
+        print(`  ${GREEN}✔${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
+        return;
+    }
+
+    // The error escaped THIS test's callback → it is this test's single failure.
+    // Count it exactly once here (the throw site no longer counts). A lost
+    // assertion counts the same way: one failing test, however many assertions
+    // vanished inside it.
+    ++countTestsFailed;
+
+    const messages: string[] = [];
+    if (threw) messages.push((observed as { message?: string })?.message ?? String(observed));
+    for (const l of lost) {
+        messages.push(
+            `${l.message}\n      ${GRAY}↳ thrown from a callback OUTSIDE this test's awaited chain, so it ` +
+                `could not reach the test boundary. Reject the promise from that callback (or await a ` +
+                `helper that does) to surface it directly.${RESET}`,
+        );
+    }
+    const message = messages.join('\n');
+
+    // A timeout WITH a lost assertion is not a timeout: the unsettled promise is
+    // the symptom, the assertion is the cause. Report the cause, and drop the ⏱.
+    const primary = lost[0] ?? observed;
+    const icon = threw && observed instanceof TimeoutError && lost.length === 0 ? '⏱' : '❌';
+
+    testErrors.push({ suite: currentSuite, test: expectation, message });
+    print(`  ${RED}${icon}${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
+    print(`${RED}${message}${RESET}`);
+    if ((primary as { stack?: string })?.stack) print((primary as { stack: string }).stack);
 };
 
 it.skip = async function (expectation: string, _callback?: () => void | Promise<void>) {
@@ -897,10 +1079,22 @@ export const getTestCounters = (): { overall: number; failed: number; ignored: n
     xfail: countTestsXfail,
 });
 
-it.failing = async function (expectation: string, callback: () => void | Promise<void>, reason: string) {
-    const timeoutMs = timeoutConfig.testTimeout;
+it.failing = async function (
+    expectation: string,
+    callback: () => void | Promise<void>,
+    reason: string,
+    // Same shape as `it()`'s third argument, for the same reason: a probe whose
+    // expected failure IS a timeout should not have to wait the full default.
+    options?: { timeout?: number } | number,
+) {
+    const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
     const t0 = now();
     ++activeTestDepth;
+    // Own ledger frame, so an assertion thrown inside THIS probe is attributed
+    // here and cannot leak into the enclosing it()'s ledger (`it.failing` runs
+    // nested inside an `it()` — see `it-failing.spec.ts`). Nothing reads it: the
+    // timeout a lost assertion causes already satisfies the marker below.
+    assertionLedgers.push(new Set<Error>());
     let threw = false;
     try {
         if (typeof beforeEachCb === 'function') await beforeEachCb();
@@ -913,9 +1107,14 @@ it.failing = async function (expectation: string, callback: () => void | Promise
         threw = true;
     } finally {
         --activeTestDepth;
+        assertionLedgers.pop();
     }
 
     const duration = now() - t0;
+    // A lost assertion makes the probe TIME OUT, and `threw` already covers a
+    // timeout — so the marker is satisfied without reading the ledger. The
+    // ledger is still pushed/popped above, so a throw inside this probe is
+    // attributed here and cannot leak into the enclosing it()'s ledger.
     if (threw) {
         ++countTestsXfail;
         print(`  ${BLUE}✗${RESET} ${GRAY}${expectation}  (expected failure — ${reason})${RESET}`);
@@ -958,6 +1157,7 @@ export const expect = function (actualValue: unknown, _message?: string) {
 const failAssertion = (error: unknown): never => {
     (error as Error & _CountedError).__testFailureCounted = true;
     if (activeTestDepth === 0) noteStrayFailure((error as { message?: string })?.message ?? String(error));
+    else noteThrownAssertion(error);
     throw error;
 };
 
@@ -1136,6 +1336,7 @@ export const run = async (
     options?: { timeout?: number; testTimeout?: number; suiteTimeout?: number; skip?: Record<string, string> } | number,
 ) => {
     applyEnvOverrides();
+    installUncaughtHooks();
     runStartTime = now();
     skipReasons = new Map();
     countTestsXfail = 0;
