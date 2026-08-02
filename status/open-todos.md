@@ -4,6 +4,45 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### The prebuild glibc floor is an accident of the build image, and the gate that says so only runs post-merge
+
+Two halves, and the first one is now paid for. `prebuilds.yml`'s base image
+decides which glibc our published binaries link against, so bumping it rewrites
+`gjsify.glibcRequires` for every consumer without touching a line of source.
+#897 bumped it 43 → 44 as part of a hygiene sweep across the workflows' images,
+and glibc 2.43 re-versions `acosf`/`asinf`/`atan2f` — which lightningcss's colour
+conversion calls — so the measured floor went 2.39 → 2.43 and main was red for
+three consecutive `commit-prebuilds` runs. Reverted, with the reason written at
+the `container:` line so the next hygiene sweep cannot repeat it.
+
+**The gate worked; it just fired late.** `commit-prebuilds` runs
+`audit-runtimes --check` on the freshly downloaded artifacts and refused them,
+naming both numbers — exactly what the step's own comment predicted a base-image
+bump would do. But `commit-prebuilds` is main-only, so the PR that caused it was
+green. That is the shape AGENTS.md § "PR coverage parity" calls dishonest: a
+green PR must predict a green main.
+
+Closing it means running the same measurement in the BUILD legs, which do run on
+`pull_request`. Two prerequisites, neither large:
+- the legs need `nodejs` in their `dnf install` line (`audit-runtimes.mjs` is
+  pure Node with no dependencies, which is why `audit-runtimes.yml` can run it
+  with no install);
+- the measurement must read the FRESHLY BUILT files, so the legs have to stage
+  into the directory the artifact is actually published from. Today they stage
+  into the bridge's own `prebuilds/`, which is also where the committed copy
+  lives, so it happens to work — but after ADR 0017's split that is scratch
+  space and the audit would silently measure the old committed binaries instead.
+  Move the staging with the gate, in the same change.
+
+**Still open underneath both:** the floor is OBSERVED, never CHOSEN. Even pinned
+to `fedora:43` it moves the day that image's glibc re-versions something else.
+Deciding it would mean building the three Rust bridges against a declared
+baseline — an old-glibc container (manylinux/RHEL-derived) or
+`cargo-zigbuild --target <triple>.<glibc>` — and then `gjsify.glibcRequires`
+becomes an input the build satisfies rather than a number someone reads off the
+result. That is a policy decision (how old a distro do we support?) and wants its
+own change.
+
 ### `cli.gjs.mjs` byte-reproducibility is not closed — main shipped a non-reproducing bundle again
 
 #906 merged a committed `packages/infra/cli/dist/cli.gjs.mjs` that does not
