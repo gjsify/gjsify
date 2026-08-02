@@ -373,6 +373,21 @@ export const WebGLBridge = GObject.registerClass(
             g.cancelAnimationFrame = (id: number) => this.cancelAnimationFrame(id);
             g.WebGLRenderingContext = OurWebGLRenderingContext;
             g.WebGL2RenderingContext = OurWebGL2RenderingContext;
+            // devicePixelRatio — an ACCESSOR reading the widget's live scale
+            // factor, not a snapshot: it changes when the window moves to another
+            // monitor, and `@gjsify/dom-elements`' register module seeds a
+            // hardcoded `1` that predates any HiDPI testing. A consumer scaling a
+            // CSS size by this ratio must land on `canvas.width` (the GL drawing
+            // buffer, device pixels) — that identity is what makes an unmodified
+            // Excalibur/Three.js viewport cover the whole framebuffer on a
+            // scale-factor-3 phone instead of its bottom-left ninth.
+            //
+            // `defineProperty` rather than assignment: dom-elements installs it as
+            // a plain value property, and a bridge owns the real answer.
+            Object.defineProperty(globalThis, 'devicePixelRatio', {
+                get: () => this.get_scale_factor() || 1,
+                configurable: true,
+            });
             // Install performance.now() on the same time origin as rAF timestamps.
             // Always override to ensure consistency — native GJS performance.now()
             // may use a different time origin than the frame clock.

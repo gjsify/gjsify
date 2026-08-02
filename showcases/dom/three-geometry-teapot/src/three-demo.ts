@@ -58,6 +58,13 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
     // Pass updateStyle=false: the canvas CSS width/height are managed by the
     // host container (flex layout). We only want to update the drawing buffer.
     renderer.setSize(canvas.width, canvas.height, false);
+    // Track the size we last handed the renderer. `renderer.domElement` IS this
+    // canvas, so the obvious `renderer.domElement.width !== w` compares a value
+    // with itself and is never true — the resize branch below would be dead and
+    // the camera aspect would stay frozen at the first allocation. (The pixel
+    // post-processing showcase already carries this shape; keep the two aligned.)
+    let prevW = canvas.width;
+    let prevH = canvas.height;
 
     // Camera
     const camera = new THREE.PerspectiveCamera(45, canvas.width / canvas.height, 1, 80000);
@@ -176,10 +183,12 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
             scene.background = null;
         }
 
-        // Handle resize
+        // Handle resize — canvas.width/height are the GTK-owned drawing buffer
         const w = canvas.width;
         const h = canvas.height;
-        if (renderer.domElement.width !== w || renderer.domElement.height !== h) {
+        if (prevW !== w || prevH !== h) {
+            prevW = w;
+            prevH = h;
             renderer.setSize(w, h, false);
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
