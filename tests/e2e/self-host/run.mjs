@@ -14,7 +14,7 @@
 //      green (exits 0, last line includes `52 completed`).
 //
 // Notes:
-//   - We invoke the GJS-CLI directly via `gjs -m dist/cli.gjs.mjs ...`
+//   - We invoke the GJS-CLI directly via `gjs -m dist/cli.selfhost.gjs.mjs ...`
 //     rather than going through `gjsify run` because we want the
 //     environment under test to mirror what `gjsify dlx` etc. will
 //     eventually need (no Node-side helper).
@@ -27,7 +27,7 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -36,11 +36,49 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/self-host/run.mjs → ../../..
 const MONOREPO_ROOT = resolvePath(__dirname, '..', '..', '..');
 const NODE_CLI = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
-const GJS_CLI_BUNDLE = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
+const CLI_PKG_JSON = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'package.json');
+const CLI_VERSION = JSON.parse(readFileSync(CLI_PKG_JSON, 'utf-8')).version;
 const FIXTURES_DIR = join(__dirname, 'fixtures');
 const SIMPLE_FIXTURE = join(FIXTURES_DIR, 'simple', 'main.mjs');
 const YARGS_FIXTURE = join(MONOREPO_ROOT, 'tests', 'integration', 'yargs', 'src', 'test.mts');
 const OUT_DIR = join(__dirname, 'out');
+// The GJS-CLI under test — a SIBLING of the tracked bundle, never the tracked
+// bundle itself. Untracked: `.gitignore` re-includes exactly `cli.gjs.mjs` and
+// `affected.gjs.mjs` out of the ignored `dist/`, so any other name here is
+// ignored by construction.
+//
+// This used to BE `dist/cli.gjs.mjs`, which made running this suite a
+// destructive act on the working tree: the `before()` build passes no
+// `--shebang`, and that flag is what "prepend a shebang and mark it executable
+// (chmod 755)" means (`commands/build.ts`), so each run replaced a `100755`
+// blob starting `#!/usr/bin/env -S gjs -m` with a shebang-less one and never
+// restored it. Nothing here reverted it and nothing downstream noticed:
+// `.bin/gjsify` and the flatpak launcher both `exec gjs -m <path>`, so the
+// missing `#!` only surfaces where the file is exec'd DIRECTLY — which falls
+// through to `/bin/sh` (the hazard `utils/bin-shim.ts` documents at
+// `writeBinEntry`).
+//
+// It has to stay EXACTLY ONE DIRECTORY BELOW `packages/infra/cli/` rather than
+// moving to OUT_DIR, and that is not cosmetic: `--version` is answered by
+// `readBundleVersion()` (cli-app.ts), which reads `<bundle dir>/../package.json`
+// and returns `'unknown'` from a swallowing catch when that read fails. So
+// `dist/<anything>.gjs.mjs` resolves `packages/infra/cli/package.json` while
+// OUT_DIR resolves the absent `tests/e2e/self-host/package.json`. Measured both
+// ways: the identical build reports `0.26.1` from `cli/dist/` and `unknown` from
+// anywhere else.
+//
+// NB it is neither the `__PACKAGE_VERSION__` define nor `resolveCliVersion()`
+// (utils/publish-headers.ts) that answers `--version` — that pair drives the npm
+// user-agent / publish headers, and it DOES honour the define (verified: a
+// `--define` build folds `typeof __PACKAGE_VERSION__` away and inlines the
+// value). `readBundleVersion()` has never consulted either, which is also why it
+// is the fragile twin of `readOwnCliVersion()` in utils/build-cache.ts — that one
+// walks up to four levels and checks `pkg.name === '@gjsify/cli'`, and its own
+// comment says it "mirrors cli-app's readBundleVersion but tolerates both
+// directory depths". Making `--version` use the robust one would remove this
+// positional coupling altogether; it touches `cli/src` (and so the committed
+// bundle), so it is not part of this change.
+const GJS_CLI_BUNDLE = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.selfhost.gjs.mjs');
 
 function collectPrebuildDirs() {
     // The bundled GJS-CLI uses `@gjsify/rolldown-native` at runtime; its
@@ -91,10 +129,12 @@ function gjs(args, opts = {}) {
 
 describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
     before(() => {
-        // Step 1 — bootstrap: Node-CLI builds the GJS-CLI bundle.
-        // This step is intentionally Node-side; once the bundle exists
-        // every subsequent step runs only via gjs(1).
+        // Step 1 — bootstrap: Node-CLI builds the GJS-CLI bundle to the
+        // untracked sibling path (never over the tracked `dist/cli.gjs.mjs` —
+        // see GJS_CLI_BUNDLE). This step is intentionally Node-side; once the
+        // bundle exists every subsequent step runs only via gjs(1).
         rmSync(OUT_DIR, { recursive: true, force: true });
+        rmSync(GJS_CLI_BUNDLE, { force: true });
         mkdirSync(OUT_DIR, { recursive: true });
         execFileSync(
             'node',
@@ -109,13 +149,18 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
             ],
             { cwd: MONOREPO_ROOT, stdio: 'pipe' },
         );
-        assert.ok(existsSync(GJS_CLI_BUNDLE), 'Node-CLI did not produce dist/cli.gjs.mjs');
+        assert.ok(existsSync(GJS_CLI_BUNDLE), `Node-CLI did not produce ${GJS_CLI_BUNDLE}`);
     });
 
     it('GJS-CLI prints --version', () => {
         const r = gjs(['-m', GJS_CLI_BUNDLE, '--version']);
         assert.equal(r.status, 0, `--version exited ${r.status}: ${r.stderr}`);
-        assert.match(r.stdout.trim(), /^\d+\.\d+\.\d+/, `unexpected version output: ${r.stdout}`);
+        // The EXACT version, not merely a version-shaped string. `--version` is
+        // answered by the position-dependent `readBundleVersion()` (see
+        // GJS_CLI_BUNDLE), whose failure mode is a swallowed catch returning
+        // `'unknown'` — so this is the assertion that fails loudly if the bundle
+        // is ever moved out of the package again.
+        assert.equal(r.stdout.trim(), CLI_VERSION, `unexpected version output: ${JSON.stringify(r.stdout)}`);
     });
 
     it('GJS-CLI prints --help with yargs subcommands registered', () => {
@@ -162,8 +207,8 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
     });
 
     it('GJS-CLI rebuilds ITSELF under gjs + native rolldown (Node-free self-host; bridge bugs A+B)', () => {
-        // The committed GJS-CLI rebuilds its OWN entry — the "previous gjsify
-        // builds next gjsify" milestone. This is the only build that hits BOTH
+        // The GJS-CLI rebuilds its OWN entry — the "previous gjsify builds next
+        // gjsify" milestone. This is the only build that hits BOTH
         // native-bridge edge cases that broke the self-build before:
         //   A) `transform` on rolldown's virtual `\0rolldown/empty.js` (the
         //      externalized typescript/lib stub, code "") — the C glue returned

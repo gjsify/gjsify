@@ -13,7 +13,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -249,8 +249,14 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
     it('downloads bootstrap bundle and runs it (default target = @gjsify/cli)', async () => {
         const r = await runBootstrap(['--tag', '0.0.99-test']);
         assert.equal(r.status, 0, `bootstrap failed:\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`);
-        // Bundle cached in our override path.
-        assert.ok(existsSync(join(r.cache, 'cli.gjs.mjs')), 'bundle not cached');
+        // Bundle cached in our override path, under its CONTENT-ADDRESSED name.
+        // The digest in the filename is what makes the cache reachable at all —
+        // the old fixed `cli.gjs.mjs` was written and never read back, so every
+        // run re-downloaded the bundle (see `resolveBootstrap` in install.mjs).
+        assert.ok(
+            existsSync(join(r.cache, `cli-${cliBundleSha256}.gjs.mjs`)),
+            `bundle not cached under its digest; cache holds: ${readdirSync(r.cache).join(', ')}`,
+        );
         // Package laid out at user prefix.
         assert.ok(
             existsSync(join(r.prefix, 'node_modules', '@gjsify', 'cli', 'package.json')),
@@ -268,5 +274,43 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
         });
         assert.notEqual(r.status, 0, `expected SHA-256 mismatch failure, got status=${r.status}`);
         assert.match(r.stderr + r.stdout, /SHA-256 mismatch/, 'expected error message about SHA-256 mismatch');
+    });
+
+    it('refuses to install when the digest URL is unreachable (no silent downgrade)', async () => {
+        // The hole this closes: a failed `.sha256` fetch used to log
+        // "skipping verification" and CARRY ON, so anyone able to break that one
+        // request — a proxy, a 404, a captive portal — silently downgraded the
+        // install to no verification at all, while the bundle fetch itself
+        // succeeded. Opting out must be an explicit act, never a fetch failure.
+        const r = await runBootstrap([], {
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `file://${join(tmpRoot, 'does-not-exist.sha256')}`,
+        });
+        assert.notEqual(r.status, 0, `expected a hard failure, got status=${r.status}`);
+        assert.match(
+            r.stderr + r.stdout,
+            /Refusing to install an UNVERIFIED bootstrap bundle/,
+            'expected a refusal naming the unverified bundle',
+        );
+    });
+
+    it('reuses the cached bundle on a second run instead of re-downloading', async () => {
+        // `runBootstrap` points every invocation at the same cache dir, so the
+        // first run populates it and the second must short-circuit. Guards the
+        // property the old fixed-name cache could never have: being warm.
+        //
+        // Deliberately asserts ONLY on the bootstrap stage's own output and does
+        // not require the spawned `install -g` to succeed. Caching is decided
+        // before the CLI is ever spawned, so coupling this to the mock-registry
+        // half would make it fail for reasons that have nothing to do with the
+        // cache — which is exactly what the sibling test above does today.
+        // Its OWN cache dir: the sibling tests share `runBootstrap`'s default
+        // one and have already populated it, so a shared dir would make this
+        // test's "first" run warm and assert nothing.
+        const env = { GJSIFY_INSTALL_BOOTSTRAP_CACHE: join(tmpRoot, 'cache-warm') };
+        const first = await runBootstrap(['--tag', '0.0.99-test'], env);
+        assert.match(first.stdout, /Downloading bootstrap from/, 'first run did not download');
+        const second = await runBootstrap(['--tag', '0.0.99-test'], env);
+        assert.match(second.stdout, /Reusing verified bootstrap/, 'second run did not hit the cache');
+        assert.doesNotMatch(second.stdout, /Downloading bootstrap from/, 'second run re-downloaded the bundle');
     });
 });
