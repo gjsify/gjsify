@@ -25,7 +25,7 @@
 // declaring `#!/usr/bin/env node` and one declaring `#!/usr/bin/env -S gjs -m`
 // both work without the caller knowing which it is.
 
-import { libraryPathVar, prebuildDirCandidates } from './detect-native-packages.js';
+import { detectHostLibc, type HostLibc, libraryPathVar, prebuildDirCandidates } from './detect-native-packages.js';
 
 /** The three sibling files a Windows bin entry consists of. */
 export interface WindowsShimFiles {
@@ -362,10 +362,19 @@ function shQuote(s: string): string {
 export function buildNativeEnvPreamble(
     scanRoot: string,
     bakedDirs: readonly string[] = [],
-    target: { platform?: string; arch?: string } = {},
+    target: { platform?: string; arch?: string; libc?: HostLibc | null } = {},
 ): string {
     const platform = target.platform ?? process.platform;
     const arch = target.arch ?? process.arch;
+    // The libc is a HOST fact, so it belongs in the glob just as much as the
+    // arch does. Omitting it made the launcher probe only `linux-<arch>` on a
+    // musl host — survivable while every prebuild sat in the depending
+    // package's own tree, but ADR 0017 moved each binary into a per-target
+    // package (`<name>-linux-arm64-musl`, shipping `prebuilds/linux-arm64-musl/`),
+    // so the directory the launcher must find is now the one it did not name.
+    // `detectNativePackages` has always been libc-aware; this is the same
+    // question asked in the shell, and the two must not answer it differently.
+    const libc = target.libc !== undefined ? target.libc : detectHostLibc(platform);
     const { name: libVar, separator } = libraryPathVar(platform);
 
     if (platform === 'win32') {
@@ -390,7 +399,7 @@ export function buildNativeEnvPreamble(
     // platforms is correct here — the shell cannot read a package.json, and a
     // package declaring ONLY a non-canonical spelling of this host has not
     // existed since the audit made that state impossible.
-    const candidates = prebuildDirCandidates(platform, arch);
+    const candidates = prebuildDirCandidates(platform, arch, undefined, libc);
     const patterns: string[] = [];
     for (const candidate of candidates) {
         // Scoped (`@gjsify/x`) and unscoped packages, matching `scanNodeModules`.
@@ -424,4 +433,81 @@ export function buildNativeEnvPreamble(
         `fi\n` +
         `unset gjsify_np gjsify_d gjsify_t\n`
     );
+}
+
+/** POSIX `sh` single-quoting for a launcher's target path. */
+export function shQuoteArg(s: string): string {
+    return shQuote(s);
+}
+
+/**
+ * Expand a `bin` / `gjsify.bin` declaration into `binName → relative target`.
+ *
+ * The string form is npm's shorthand for `{ <package-name-without-scope>: <path> }`.
+ */
+export function normalizeBinMap(pkgName: string, bin: string | Record<string, string>): Map<string, string> {
+    const out = new Map<string, string>();
+    if (typeof bin === 'string') {
+        const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
+        out.set(baseName, bin);
+        return out;
+    }
+    for (const [k, v] of Object.entries(bin)) out.set(k, v);
+    return out;
+}
+
+/**
+ * Which bin map a package wants installed, and whether it is the GJS-runnable one.
+ *
+ * `gjsify.bin` WINS over npm `bin` when declared. The npm field can only ever
+ * name the Node entry — npm has no way to express "and this other file is the
+ * one to run when the host has `gjs` but no `node`" — so a package that ships
+ * both declares the GJS bundle here. Honouring it is what makes a Node-LESS GJS
+ * host work at all: on such a host the npm bin's `#!/usr/bin/env node` shebang
+ * fails with `env: can't execute 'node'`, and because the launcher is also the
+ * only thing that can export `GI_TYPELIB_PATH` before the GJS runtime starts,
+ * that failure takes `gjsify build` down with it (the typelib lookup happens
+ * before the bundle's first line — the CLI cannot repair it from the inside).
+ *
+ * Measured on a postmarketOS/aarch64 phone with gjs 1.88 and no node: install
+ * and prebuild loading both worked, and only the `#!/usr/bin/env node` shim in
+ * `node_modules/.bin/` stood between that host and a working `gjsify build`.
+ *
+ * `isGjsBin` lets the caller keep plain-Node packages on the plain symlink path
+ * — this must not change how `lodash`'s bin is linked.
+ */
+export function pickBinMap(
+    pkgName: string,
+    pkgJson: { bin?: string | Record<string, string>; gjsify?: { bin?: string | Record<string, string> } },
+): { map: Map<string, string>; isGjsBin: boolean } | null {
+    const gjsifyBin = pkgJson.gjsify?.bin;
+    if (gjsifyBin !== undefined) return { map: normalizeBinMap(pkgName, gjsifyBin), isGjsBin: true };
+    const npmBin = pkgJson.bin;
+    if (npmBin !== undefined) return { map: normalizeBinMap(pkgName, npmBin), isGjsBin: false };
+    return null;
+}
+
+/**
+ * The POSIX `sh` launcher gjsify writes for a bin it owns.
+ *
+ * Why a launcher and not a symlink: when a GJS bundle is reached through a
+ * symlink, the kernel resolves it to find the executable but hands the ORIGINAL
+ * path to it, so `gjs -m <symlink>` makes `import.meta.url` point at the link's
+ * directory and every asset read relative to it looks in the wrong place. An
+ * explicit `exec` with the real path avoids that.
+ *
+ * `.gjs.mjs`/`.mjs` targets are wrapped in `gjs -m` rather than exec'd directly
+ * because not every published bundle carries a `#!/usr/bin/env -S gjs -m` line,
+ * and direct-exec'ing a shebang-less `.mjs` falls through to `/bin/sh`, which
+ * then parses JavaScript as shell.
+ */
+export function buildShLauncher(targetAbs: string, opts: { envPreamble?: string; isGjsBundle: boolean }): string {
+    const preamble = opts.isGjsBundle ? (opts.envPreamble ?? '') : '';
+    const exec = opts.isGjsBundle ? `exec gjs -m ${shQuote(targetAbs)} "$@"` : `exec ${shQuote(targetAbs)} "$@"`;
+    return `#!/bin/sh\n${preamble}${exec}\n`;
+}
+
+/** True when a bin target is a GJS-runnable bundle rather than a Node script. */
+export function isGjsBundlePath(target: string): boolean {
+    return target.endsWith('.gjs.mjs') || target.endsWith('.mjs');
 }
