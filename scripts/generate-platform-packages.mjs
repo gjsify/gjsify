@@ -966,7 +966,9 @@ if (IS_ENTRY) {
     const argv = process.argv.slice(2);
     const WRITE = argv.includes('--write');
     const only = argv.flatMap((a, i) => (a === '--only' && argv[i + 1] ? [argv[i + 1]] : []));
-    const unknown = argv.filter((a, i) => a.startsWith('--') && !['--write', '--check', '--only'].includes(a) && argv[i - 1] !== '--only');
+    const unknown = argv.filter(
+        (a, i) => a.startsWith('--') && !['--write', '--check', '--only'].includes(a) && argv[i - 1] !== '--only',
+    );
     if (unknown.length > 0) {
         console.error(`generate-platform-packages: unknown argument(s) ${unknown.join(', ')}`);
         process.exit(2);
