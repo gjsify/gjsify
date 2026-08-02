@@ -81,6 +81,32 @@ export default async () => {
             // depends on dom-elements so importing it here would be circular.
         });
 
+        await describe('window / Window identity', async () => {
+            // Excalibur's `Screen._applyDisplayMode` branches on
+            // `this.parent instanceof Window`. For the DEFAULT display mode
+            // (`Fixed`) `Screen.parent` IS the window, and the false branch runs
+            // `new ResizeObserver(…).observe(window)` — which reaches for
+            // `Element._onResize` and threw `e._onResize is not a function` out
+            // of the `ex.Engine` constructor. The pair of globals existed
+            // precisely to satisfy that check and did not, because `window` is
+            // `globalThis` while `Window` was an unrelated empty class.
+            await it('window is an instance of Window', async () => {
+                const g = globalThis as Record<string, unknown>;
+                expect(g.window).toBe(globalThis);
+                expect(typeof g.Window).toBe('function');
+                expect(g.window instanceof (g.Window as new () => unknown)).toBe(true);
+            });
+
+            await it('nothing else is an instance of Window', async () => {
+                // The narrow `Symbol.hasInstance` must not turn every object
+                // into a window — a consumer branching on this check would then
+                // take the window path for a plain element.
+                const Ctor = (globalThis as Record<string, unknown>).Window as new () => unknown;
+                expect({} instanceof Ctor).toBe(false);
+                expect((globalThis as Record<string, unknown>).document instanceof Ctor).toBe(false);
+            });
+        });
+
         await describe('globalThis keyboard EventTarget wiring', async () => {
             // Regression: Excalibur's Keyboard.init() calls window.addEventListener('keydown', ...)
             // which must route through __gjsify_globalEventTarget (set in dom-elements/register.ts).
