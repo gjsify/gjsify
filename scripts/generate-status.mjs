@@ -70,7 +70,10 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isPlatformPackageManifest } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
+import {
+    isPlatformPackageManifest,
+    prebuildOwnership,
+} from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
 
 // ─── Authored-data model ────────────────────────────────────────────────────
 
@@ -232,6 +235,23 @@ function scanSpecStats(pkgDir) {
  * @property {boolean} browserTest
  */
 
+/**
+ * Does this package carry native artifacts at all?
+ *
+ * The same three signals `collectNativePackages()` gates on — a native build
+ * system in-tree, or a committed prebuild directory, or an OS-axis declaration.
+ * Spelled out here rather than imported because that collector needs a full
+ * conformance context and this file only ever has a directory and a manifest.
+ *
+ * @param {string} dir
+ * @param {Record<string, any>} gjsify the manifest's `gjsify` object
+ */
+function isNativePackage(dir, gjsify) {
+    if (typeof gjsify.prebuilds === 'string') return true;
+    if (Array.isArray(gjsify.platforms) && gjsify.platforms.length > 0) return true;
+    return existsSync(join(dir, 'meson.build')) || existsSync(join(dir, 'binding.gyp'));
+}
+
 /** Collect the derived facts for every package under `packages/`. @param {string} root */
 export function collectPackageFacts(root) {
     /** @type {PackageFacts[]} */
@@ -258,7 +278,26 @@ export function collectPackageFacts(root) {
             tier: gjsify.tier,
             runtimes: gjsify.runtimes,
             platforms: Array.isArray(gjsify.platforms) ? gjsify.platforms : [],
-            hasPrebuilds: typeof gjsify.prebuilds === 'string',
+            // "This package's committed binaries exist somewhere", NOT "in this
+            // tarball". Since ADR 0017 a split bridge owns artifacts it does not
+            // contain — they live in its per-target packages — so keying the
+            // fact on `gjsify.prebuilds` alone made all six split bridges
+            // contradict their own authored `native` status the moment the split
+            // landed. `prebuildOwnership()` is the shared derivation, the same
+            // one `prebuild-artifacts` and the `platform-packages` rule use, so
+            // the three cannot disagree about which state a bridge is in.
+            //
+            // GATED on the package being native at all, because that function
+            // takes a row that is already known to be one: its `builder` is a
+            // two-way split on `binding.gyp`, so a pure-TypeScript package with
+            // neither build system would come back `'split'` and be allowed to
+            // claim a `native` status it has no binary for.
+            hasPrebuilds: isNativePackage(dir, gjsify)
+                ? prebuildOwnership({
+                      prebuildsField: typeof gjsify.prebuilds === 'string' ? gjsify.prebuilds : null,
+                      builder: existsSync(join(dir, 'binding.gyp')) ? 'node-gyp' : 'meson',
+                  }) !== 'install-time'
+                : false,
             gnome: scanGnomeNamespaces(dir),
             tests: scanSpecStats(dir),
             browserTest: existsSync(join(dir, 'src', 'test.browser.mts')),

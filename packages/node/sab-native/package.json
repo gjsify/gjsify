@@ -17,17 +17,7 @@
         "meson.build",
         "src/vala"
     ],
-    "libc": [
-        "glibc"
-    ],
     "gjsify": {
-        "glibcRequires": {
-            "linux-x64": "2.28",
-            "linux-arm64": "2.28",
-            "linux-ppc64": "2.28",
-            "linux-s390x": "2.28",
-            "linux-riscv64": "2.28"
-        },
         "platforms": [
             "linux-x64",
             "linux-arm64",

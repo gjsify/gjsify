@@ -9,6 +9,9 @@
     "cpu": [
         "ppc64"
     ],
+    "libc": [
+        "glibc"
+    ],
     "files": [
         "prebuilds"
     ],

@@ -9,6 +9,9 @@
     "cpu": [
         "s390x"
     ],
+    "libc": [
+        "glibc"
+    ],
     "files": [
         "prebuilds"
     ],

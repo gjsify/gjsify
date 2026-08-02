@@ -18,17 +18,7 @@
         "src/rust",
         "src/vala"
     ],
-    "libc": [
-        "glibc"
-    ],
     "gjsify": {
-        "glibcRequires": {
-            "linux-x64": "2.39",
-            "linux-arm64": "2.39",
-            "linux-ppc64": "2.39",
-            "linux-s390x": "2.39",
-            "linux-riscv64": "2.39"
-        },
         "platforms": [
             "linux-x64",
             "linux-arm64",

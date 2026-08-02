@@ -51,28 +51,24 @@
  *     set from the workspace rather than from a list — walks them without
  *     special-casing.
  *
- * THE ONE FIELD THIS BASE CANNOT MEASURE YET
+ * THE LIBC AXIS IS MEASURED, NOT GUESSED
  *
- * ADR 0017's manifests should also carry the npm `libc` filter and
- * `gjsify.glibcRequires`, MEASURED out of the ELF rather than guessed. The
- * readers that do that (`readElfNeeded`, `readElfGlibcRequires` in
- * `@gjsify/manifest-conformance`'s `lib/binary.mjs`) arrive with the libc-axis
- * work (`feat/platform-filter-and-prebuild-libc`, PR #897) and are NOT in this
- * base. `measureLibcFields()` below is written against them and activates the
- * moment they exist; until then it reports UNAVAILABLE, every run prints that it
- * did, and no libc field is invented. A guessed `libc: ["glibc"]` would make
- * every package manager refuse the install on musl hosts where six of these
- * bridges provably load — so the honest omission is the safe one, and the
- * omission is itself caught, because after the rebase `--check` reports every
- * manifest as out of date until `--write` fills the measurement in.
+ * A generated manifest also carries the npm `libc` filter and
+ * `gjsify.glibcRequires`, both read out of the ELF by the `prebuild-libc` rule's
+ * OWN reader (`measurePrebuildLibc`), never by a copy of it living here — see
+ * {@link measureLibcFields} for the incident that rule exists to prevent. A
+ * guessed `libc: ["glibc"]` would make every package manager refuse the install
+ * on musl hosts where six of these bridges provably load, so the field is
+ * written only where a glibc dynamic loader is actually recorded.
  *
  * A GENUINE IMPROVEMENT THE SPLIT BUYS ON THAT AXIS: npm's `libc` is ONE
  * package-level filter while the requirement is per TARGET —
  * `@gjsify/tls-native` records no libc soname on x64/arm64/ppc64/s390x and DOES
  * record the glibc interpreter on riscv64, because Fedora's riscv64 toolchain
- * links it explicitly. One tarball could not state that. Per-target packages can:
- * the riscv64 package declares the restriction, the others correctly declare
- * nothing.
+ * links it explicitly. One tarball could not state that; per-target packages
+ * can, and do: only `@gjsify/tls-native-linux-riscv64` declares the restriction.
+ * The same holds for the floor — `gjsify.glibcRequires` becomes a one-entry map
+ * per package instead of a whole-tree maximum every consumer inherits.
  *
  * Usage:
  *   node scripts/generate-platform-packages.mjs            # --check (default)
@@ -96,13 +92,12 @@ import {
     collectNativePackages,
     createContext,
     isPlatformPackageManifest,
+    measurePrebuildLibc,
     osCpuForTarget,
     platformPackageDirName,
     platformPackageName,
     prebuildOwnership,
-    LIB_EXT,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
-import * as binary from '../packages/infra/manifest-conformance/lib/binary.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -120,15 +115,28 @@ const stringifyManifest = (obj) => `${JSON.stringify(obj, null, 4)}\n`;
  * of trusting the directory name. A hand-maintained fact about a committed
  * binary is a fact that has already drifted; you just do not know when.
  *
- * The `libc` verdict uses the one criterion that is a DIRECT read rather than an
- * inference: a recorded glibc dynamic loader (`ld-linux-*.so.*`) means the image
- * cannot load under musl's loader at all, so the filter is required. The absence
- * of one does NOT imply the opposite — musl treats a `DT_NEEDED` of `libc.so.6`
- * as a request for itself and loads such an image happily, which a container
- * probe on `alpine:3.24.1` confirmed for six of this repo's bridges. Declaring
- * `libc: ["glibc"]` there would refuse the install on exactly the platform the
- * axis exists to support, so this function declares nothing in that case and
- * leaves the three-tier judgement to the `prebuild-libc` rule, which is where it
+ * The measurement itself is NOT reimplemented here. `measurePrebuildLibc()` is
+ * the `prebuild-libc` rule's own reader, and the generator calls it because the
+ * two must agree by construction: the rule GRADES the field this function
+ * WRITES, so a second opinion about the same bytes can only ever be a way for
+ * `--write` to emit a manifest that `--check` then rejects. That is not
+ * hypothetical — it is what a hand-rolled copy of the loader predicate did here
+ * on its first real run. It tested `/^ld-linux[\w.-]*\.so(\.\d+)?$/`, which is
+ * the loader's name on x86-64, arm64 and riscv64 but NOT on ppc64le or s390x,
+ * where glibc calls it `ld64.so.2` / `ld64.so.1`. So the generator wrote no
+ * `libc` for exactly those two targets of `@gjsify/lightningcss-native` and the
+ * rule failed them for the omission — two tools reading one ELF and disagreeing.
+ * `libcFlavourOfNeeded`/`muslVerdictOfNeeded` match all five spellings.
+ *
+ * What the generator still decides is the POLICY, and only where it is a direct
+ * read rather than an inference: `musl: 'incompatible'` — a recorded glibc
+ * dynamic loader — means the image cannot load under musl's loader at all, so
+ * the filter is required. An `'undetermined'` verdict is NOT the opposite: musl
+ * treats a `DT_NEEDED` of `libc.so.6` as a request for itself and loads such an
+ * image happily, which a container probe on `alpine:3.24.1` confirmed for six of
+ * this repo's bridges. Declaring `libc: ["glibc"]` there would refuse the
+ * install on exactly the platform the axis exists to support, so nothing is
+ * declared and the three-tier judgement stays with the rule, which is where it
  * belongs.
  *
  * @param {string} dir absolute path to the target's prebuild directory
@@ -142,32 +150,28 @@ export function measureLibcFields(dir, target) {
     // unverified. Saying otherwise would imply a check that cannot exist.
     if (os !== 'linux') return { available: true, libc: null, glibcRequires: null };
 
-    const readNeeded = binary.readElfNeeded;
-    const readFloor = binary.readElfGlibcRequires;
-    const compare = binary.compareGlibcVersions;
-    if (typeof readNeeded !== 'function' || typeof readFloor !== 'function' || typeof compare !== 'function') {
+    const measured = measurePrebuildLibc(dir);
+    // An unreadable `.so` makes the whole measurement untrustworthy — the same
+    // verdict `auditPrebuildLibc` reaches, and for the same reason: "records no
+    // glibc loader", derived from a file nobody parsed, is the check claiming
+    // more than it did. Writing a field from it would bake that claim into a
+    // published manifest.
+    if (measured.unreadable.length > 0) {
         return {
             available: false,
             libc: null,
             glibcRequires: null,
             why:
-                '`@gjsify/manifest-conformance`\'s ELF readers (`readElfNeeded`, `readElfGlibcRequires`) are not in this ' +
-                'base — they land with the libc axis (feat/platform-filter-and-prebuild-libc, PR #897). No `libc` / ' +
-                '`gjsify.glibcRequires` is written rather than guessed; re-run `--write` after that rebase.',
+                `${relative(ROOT, dir).replaceAll('\\', '/')} holds ${measured.unreadable.length} shared librar(y|ies) ` +
+                `whose ELF could not be read (${measured.unreadable.join(', ')}). No \`libc\` / \`gjsify.glibcRequires\` ` +
+                'is written from an unread file; `prebuild-artifacts` owns the underlying failure.',
         };
     }
-
-    let needsGlibcLoader = false;
-    /** @type {string|null} */ let floor = null;
-    for (const file of readdirSync(dir).sort()) {
-        if (!file.endsWith(LIB_EXT.linux)) continue;
-        const needed = readNeeded(join(dir, file));
-        if (needed === null) continue; // unreadable: `prebuild-artifacts` owns that failure
-        if (needed.some((soname) => /^ld-linux[\w.-]*\.so(\.\d+)?$/.test(soname))) needsGlibcLoader = true;
-        const own = readFloor(join(dir, file));
-        if (own !== null && (floor === null || compare(own, floor) > 0)) floor = own;
-    }
-    return { available: true, libc: needsGlibcLoader ? ['glibc'] : null, glibcRequires: floor };
+    return {
+        available: true,
+        libc: measured.musl === 'incompatible' ? ['glibc'] : null,
+        glibcRequires: measured.glibcRequires,
+    };
 }
 
 /**
@@ -291,7 +295,7 @@ License: MIT
  * The parent manifest as it must look after the split, given the targets that
  * were split out.
  *
- * Three edits, and each one is load-bearing:
+ * Four edits, and each one is load-bearing:
  *
  *   1. `gjsify.prebuilds` is REMOVED. It names a committed prebuild directory
  *      that this package no longer has, and it is the field
@@ -300,7 +304,23 @@ License: MIT
  *      declared target — correctly, since the directory really is gone.
  *   2. `prebuilds` is dropped from `files`. This is the byte saving; without it
  *      the tarball is unchanged and the whole exercise buys nothing.
- *   3. `optionalDependencies` gains one entry per split target. The RANGE is
+ *   3. The npm `libc` filter and `gjsify.glibcRequires` are REMOVED, because
+ *      both are properties of a BINARY and this tarball no longer holds one.
+ *      Leaving `libc` behind is not cosmetic — it is an install-time
+ *      REGRESSION the split would otherwise introduce. npm, yarn and pnpm all
+ *      honour the field, so `@gjsify/lightningcss-native`'s inherited
+ *      `libc: ["glibc"]` would refuse to install the pure-TypeScript half on
+ *      every musl host, where it runs fine (the bridge degrades gracefully when
+ *      no native engine loads, and on Alpine that is exactly what should
+ *      happen). Before the split one filter had to cover the whole tarball;
+ *      now the constraint belongs to the one package that carries the
+ *      constrained bytes, which is the per-target precision ADR 0017 buys —
+ *      only `@gjsify/tls-native-linux-riscv64` declares `libc`, not all five
+ *      of that bridge's Linux targets. `gjsify.glibcRequires` moves for the
+ *      same reason plus a second one: as a parent-level map it is a fact about
+ *      directories the parent cannot see any more, so nothing could keep it
+ *      true. Each child measures its own floor out of its own ELF.
+ *   4. `optionalDependencies` gains one entry per split target. The RANGE is
  *      `workspace:*` for a workspace member — the repository's convention (283
  *      of 285 sibling runtime edges use the workspace protocol) and it resolves
  *      to the EXACT sibling version at pack time, which is the pin the esbuild
@@ -320,7 +340,11 @@ License: MIT
 export function patchedParentManifest(manifest, optionalDeps) {
     const out = JSON.parse(JSON.stringify(manifest));
     if (Array.isArray(out.files)) out.files = out.files.filter((f) => f !== 'prebuilds');
-    if (out.gjsify && typeof out.gjsify === 'object') delete out.gjsify.prebuilds;
+    if (out.gjsify && typeof out.gjsify === 'object') {
+        delete out.gjsify.prebuilds;
+        delete out.gjsify.glibcRequires;
+    }
+    delete out.libc;
 
     const existing = out.optionalDependencies ?? {};
     /** @type {Record<string, string>} */
@@ -600,11 +624,60 @@ export function auditPlatformPackages(ctx) {
             continue;
         }
 
+        // Binary facts on a package that no longer holds a binary. Both are
+        // stripped by `patchedParentManifest`, and both are checked here rather
+        // than left to the generator's own byte comparison, because that
+        // comparison only covers the GENERATED children — a parent manifest is
+        // PATCHED, so a hand edit to it is invisible to `--check` unless a rule
+        // names the field. `libc` is the one that bites: npm, yarn and pnpm all
+        // honour it, so a leftover `["glibc"]` refuses to install the bridge's
+        // pure-TypeScript half on musl hosts where it runs fine. The constraint
+        // now lives on the one child whose bytes carry it.
+        if (Array.isArray(parent.manifest.libc)) {
+            failures.push(
+                `${parent.name} (${parent.path}): still declares \`libc: ${JSON.stringify(parent.manifest.libc)}\`, but its prebuilds ` +
+                    'moved into per-target packages and this tarball holds no binary. npm, yarn and pnpm all honour the field, so it ' +
+                    'now refuses to install the JavaScript half on a host that could run it perfectly well (the bridge degrades ' +
+                    'gracefully with no native engine). The constraint belongs to the platform package whose bytes carry it, which ' +
+                    'measures it from its own ELF. Run `node scripts/generate-platform-packages.mjs --write`.',
+            );
+        }
+        if (parent.manifest.gjsify?.glibcRequires != null) {
+            failures.push(
+                `${parent.name} (${parent.path}): still declares \`gjsify.glibcRequires\`, a per-target floor for prebuild directories ` +
+                    'this package no longer contains — nothing can keep it true, and `prebuild-libc` no longer grades it here. Each ' +
+                    'platform package measures its own floor. Run `node scripts/generate-platform-packages.mjs --write`.',
+            );
+        }
+
         const optional = parent.manifest.optionalDependencies ?? {};
         for (const planned of parent.targets) {
             stats.targets++;
             if (planned.state === 'uncommitted') {
                 stats.uncommitted++;
+                // The tripwire the split would otherwise remove. Before it, an
+                // exemption was held honest by `prebuild-artifacts`: the moment
+                // `<parent>/prebuilds/<target>/` appeared, the rule failed and
+                // said "delete the exemption". After the split the parent is out
+                // of that rule's scope entirely (no `gjsify.prebuilds`), and the
+                // artifact's real destination — the platform package — does not
+                // exist for an exempted target, so a `commit-prebuilds` download
+                // step wired to the neighbours' pattern would create a directory
+                // holding binaries with no manifest, in no workspace, published
+                // to nobody, and every check would stay green. Asserting the
+                // DIRECTORY's absence restores the tripwire at the new location;
+                // the other landing spot (back inside the parent) is already
+                // caught, because it flips ownership to `committed-here` above.
+                if (existsSync(planned.dir)) {
+                    failures.push(
+                        `${parent.name} (${parent.path}): \`${planned.target}\` is exempted by \`gjsify.platformsUncommitted\` ` +
+                            `(${planned.why}), yet \`${planned.rel}/\` exists. The artifact has landed, so the exemption is stale: ` +
+                            'delete it and run `node scripts/generate-platform-packages.mjs --write` to generate the package properly ' +
+                            "(manifest, README, `os`/`cpu`, measured libc floor) and wire the parent's `optionalDependencies` entry. " +
+                            'A prebuild directory with no manifest around it is published to nobody.',
+                    );
+                    continue;
+                }
                 // An exempted target has no artifact to package, so it must not
                 // have an optionalDependencies entry either: a dependency on a
                 // name that was never published resolves to nothing on every

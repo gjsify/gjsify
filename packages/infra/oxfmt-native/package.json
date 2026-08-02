@@ -19,10 +19,6 @@
         "src/vala"
     ],
     "gjsify": {
-        "glibcRequires": {
-            "linux-x64": "2.34",
-            "linux-arm64": "2.34"
-        },
         "platforms": [
             "linux-x64",
             "linux-arm64",
