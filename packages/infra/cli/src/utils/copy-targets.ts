@@ -121,7 +121,9 @@ function expandSource(source: string, ctx: CopyContext): string[] {
  */
 export function planCopy(args: readonly string[], ctx: CopyContext): CopyOperation[] {
     if (args.length < 2) {
-        throw new Error('gjsify copy: needs at least one source and a destination. Usage: gjsify copy <sources…> <dest>');
+        throw new Error(
+            'gjsify copy: needs at least one source and a destination. Usage: gjsify copy <sources…> <dest>',
+        );
     }
     const sources = args.slice(0, -1);
     const dest = args[args.length - 1]!;

@@ -85,7 +85,10 @@ export default async () => {
             // `tests/integration/lightningcss` stages a wasm artifact out of a
             // sibling package. Refusing that would break the shape this command
             // exists to replace.
-            const plan = planCopy(['../../../packages/infra/lightningcss-wasm/wasm/lightningcss_node.wasm', 'wasm/'], ctx());
+            const plan = planCopy(
+                ['../../../packages/infra/lightningcss-wasm/wasm/lightningcss_node.wasm', 'wasm/'],
+                ctx(),
+            );
             expect(plan).toStrictEqual([
                 {
                     from: resolve(CWD, '../../../packages/infra/lightningcss-wasm/wasm/lightningcss_node.wasm'),
@@ -150,7 +153,12 @@ export default async () => {
         await it('same script, both platforms — the shell-expanded form plans identically', () => {
             // What a POSIX shell hands over after expanding `src/public/*`…
             const posix = planCopy(
-                [join(CWD, 'src/public/app.js'), join(CWD, 'src/public/index.html'), join(CWD, 'src/public/style.css'), 'dist/public/'],
+                [
+                    join(CWD, 'src/public/app.js'),
+                    join(CWD, 'src/public/index.html'),
+                    join(CWD, 'src/public/style.css'),
+                    'dist/public/',
+                ],
                 ctx(listing),
             );
             // …and what cmd.exe hands over, having expanded nothing.

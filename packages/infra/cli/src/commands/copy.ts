@@ -73,7 +73,9 @@ export const copyCommand: Command<unknown, CopyOptions> = {
         const cwd = process.cwd();
         const paths = args.paths ?? [];
         if (paths.length < 2) {
-            throw new Error('gjsify copy: needs at least one source and a destination. Usage: gjsify copy <sources…> <dest>');
+            throw new Error(
+                'gjsify copy: needs at least one source and a destination. Usage: gjsify copy <sources…> <dest>',
+            );
         }
 
         // Planning validates every argument — and every destination against the

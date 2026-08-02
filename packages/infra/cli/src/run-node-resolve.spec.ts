@@ -116,7 +116,10 @@ export default async () => {
             const b = mkdtempSync(join(tmpdir(), 'gjsify-env-echo-b-'));
             const bundle = makeBundle(a, 'dist');
 
-            const inherited = { [libVar]: 'C:\\Windows\\system32;C:\\Program Files\\nodejs', GI_TYPELIB_PATH: '/usr/lib/girepository-1.0' };
+            const inherited = {
+                [libVar]: 'C:\\Windows\\system32;C:\\Program Files\\nodejs',
+                GI_TYPELIB_PATH: '/usr/lib/girepository-1.0',
+            };
             const { envPrefix } = computeNativeEnvForBundle(bundle, b, inherited);
             expect(envPrefix).toBe('');
 
