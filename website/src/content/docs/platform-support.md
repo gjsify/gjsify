@@ -58,12 +58,15 @@ Two host settings matter, and both fail in ways that do not name themselves:
   \LongPathsEnabled` to `1` (needs elevation), and keep the checkout short —
   `C:\src\…` rather than a deep home directory. A monorepo with nested
   `node_modules` exceeds `MAX_PATH` quickly.
-- **Line endings** are handled for you by `.gitattributes`, which pins the
-  byte-verified artifacts (the committed `*.gjs.mjs` bundles, `@gjsify/tsc`'s
-  shipped libs) to LF whatever `core.autocrlf` says. Without it, Git for
-  Windows' recommended `core.autocrlf=true` rewrites those files on checkout and
-  `verify-committed-bundles.mjs` reports them stale — for files you never
-  touched.
+- **Line endings.** Set `core.autocrlf=false` before you clone. The
+  byte-verified artifacts are safe either way — `.gitattributes` pins the
+  committed `*.gjs.mjs` bundles and `@gjsify/tsc`'s shipped libs to LF whatever
+  you configure, because otherwise `verify-committed-bundles.mjs` reports them
+  stale for files you never touched. The setting still matters for everything
+  else: 744 files in `tests/`, `showcases/`, `website/`, `templates/` and
+  `status/` are committed with CRLF, and with Git for Windows' recommended
+  `core.autocrlf=true` they all show as modified the moment you clone. Tracked
+  in `status/open-todos.md`; closing it needs a repo-wide renormalisation.
 
 Optionally, enable **Developer Mode** so unprivileged file symlinks work. It is
 not required: `gjsify install` links workspace packages with NTFS junctions,
