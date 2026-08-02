@@ -24,9 +24,6 @@
             "linux-x64",
             "darwin-arm64"
         ],
-        "platformsUncommitted": {
-            "darwin-arm64": "napi.yml's `macos` job builds, load-tests and uploads it as a workflow artifact for a release to ship; no job commits it back into this repo"
-        },
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",

@@ -371,6 +371,16 @@ export function patchedParentManifest(manifest, optionalDeps) {
     if (out.gjsify && typeof out.gjsify === 'object') {
         delete out.gjsify.prebuilds;
         delete out.gjsify.glibcRequires;
+        // The exemption travels to the child with the directory it describes.
+        // Leaving a copy here is not merely redundant, it is UNCLEARABLE:
+        // `scripts/clear-committed-platform-exemptions.mjs` runs in
+        // `commit-prebuilds` and drops an entry the moment
+        // `<pkg>/<gjsify.prebuilds>/<target>/` appears — which is what keeps an
+        // honest deferral from outliving its cause and turning `main` red on the
+        // very run that resolves it. A split parent has no `gjsify.prebuilds`,
+        // so that script skips it and its copy would sit there for good, saying
+        // something no rule can any longer contradict.
+        delete out.gjsify.platformsUncommitted;
     }
     delete out.libc;
 
@@ -489,7 +499,22 @@ export function planPlatformPackages(ctx) {
             const dir = join(dirname(pkg.dir), dirName);
             const rel = relative(ctx.root, dir).replaceAll('\\', '/');
             const range = isWorkspaceMember ? 'workspace:*' : pkg.manifest.version;
-            const exemption = Object.entries(uncommitted).find(
+            // Read the exemption from WHEREVER it currently lives, because the
+            // split moves it: before, it is on the bridge; after, on the child
+            // that owns the directory it describes. The child WINS, since that
+            // is the copy `clear-committed-platform-exemptions.mjs` maintains —
+            // it drops the entry the moment the artifact lands, and reading the
+            // bridge's stale copy in preference would resurrect a deferral that
+            // job had just retired. Accepting both is what lets `--write`
+            // perform the move at all: on the pre-split tree only the bridge has
+            // it, and a plan that could not see it there would regenerate every
+            // exempt child as if its artifact existed.
+            const childUncommitted = ctx.get(name)?.manifest?.gjsify?.platformsUncommitted;
+            const effective =
+                childUncommitted && typeof childUncommitted === 'object' && !Array.isArray(childUncommitted)
+                    ? childUncommitted
+                    : uncommitted;
+            const exemption = Object.entries(effective).find(
                 ([t]) => canonicalPlatform(t) === canonicalPlatform(target),
             );
             // An exempt target still gets a PACKAGE — only its artifact is
@@ -699,6 +724,16 @@ export function auditPlatformPackages(ctx) {
                 `${parent.name} (${parent.path}): still declares \`gjsify.glibcRequires\`, a per-target floor for prebuild directories ` +
                     'this package no longer contains — nothing can keep it true, and `prebuild-libc` no longer grades it here. Each ' +
                     'platform package measures its own floor. Run `node scripts/generate-platform-packages.mjs --write`.',
+            );
+        }
+        if (parent.manifest.gjsify?.platformsUncommitted != null) {
+            failures.push(
+                `${parent.name} (${parent.path}): still declares \`gjsify.platformsUncommitted\`. The exemption belongs to the platform ` +
+                    'package that will hold the artifact — here it is UNCLEARABLE: ' +
+                    '`scripts/clear-committed-platform-exemptions.mjs` drops an entry the moment ' +
+                    '`<pkg>/<gjsify.prebuilds>/<target>/` appears, which is what stops an honest deferral from outliving its cause and ' +
+                    'reddening `main` on the very run that resolves it — and a split bridge has no `gjsify.prebuilds` for it to look ' +
+                    'under. Run `node scripts/generate-platform-packages.mjs --write`.',
             );
         }
 

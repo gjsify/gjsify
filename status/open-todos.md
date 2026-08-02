@@ -84,27 +84,6 @@ baseline — an old-glibc container (manylinux/RHEL-derived) or
 becomes an input the build satisfies rather than a number someone reads off the
 result. That is a policy decision (how old a distro do we support?) and wants its
 own change.
-### ADR 0017 — the seven `darwin-x64` exemptions cannot resolve themselves, and the audit is what says so
-
-`commit-prebuilds` downloads a `darwin-x64` artifact for seven bridges, and all
-seven still declare that target in `gjsify.platformsUncommitted`. The moment the
-job runs green, the artifact lands beside a live exemption and
-`prebuild-artifacts` fails — refusing to commit anything, including the targets
-that were fine. Resolving it is a one-line-per-package human edit (delete the
-exemption, run `node scripts/generate-platform-packages.mjs --write` so the
-package stops declaring it), which is what the exemption's own reason text has
-always promised would be needed.
-
-This is PRE-EXISTING — the same deadlock exists on `main`, where the artifact
-lands in `<bridge>/prebuilds/darwin-x64/` and trips the identical check — and the
-split neither fixes nor worsens it; it only moves where the directory appears.
-It is recorded here because the split is what makes the landing spot
-non-obvious, and because it is currently masked: `commit-prebuilds` has been red
-on main since 2026-08-01 for an unrelated reason (`@gjsify/lightningcss-native`'s
-freshly built Linux binaries require GLIBC_2.43 while the package declares 2.39,
-so the `prebuild-libc` floor gate refuses them). Fix that first, then this
-surfaces on the next run.
-
 ### `cli.gjs.mjs` byte-reproducibility is not closed — main shipped a non-reproducing bundle again
 
 #906 merged a committed `packages/infra/cli/dist/cli.gjs.mjs` that does not
