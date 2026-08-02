@@ -425,3 +425,80 @@ export function buildNativeEnvPreamble(
         `unset gjsify_np gjsify_d gjsify_t\n`
     );
 }
+
+/** POSIX `sh` single-quoting for a launcher's target path. */
+export function shQuoteArg(s: string): string {
+    return shQuote(s);
+}
+
+/**
+ * Expand a `bin` / `gjsify.bin` declaration into `binName → relative target`.
+ *
+ * The string form is npm's shorthand for `{ <package-name-without-scope>: <path> }`.
+ */
+export function normalizeBinMap(pkgName: string, bin: string | Record<string, string>): Map<string, string> {
+    const out = new Map<string, string>();
+    if (typeof bin === 'string') {
+        const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
+        out.set(baseName, bin);
+        return out;
+    }
+    for (const [k, v] of Object.entries(bin)) out.set(k, v);
+    return out;
+}
+
+/**
+ * Which bin map a package wants installed, and whether it is the GJS-runnable one.
+ *
+ * `gjsify.bin` WINS over npm `bin` when declared. The npm field can only ever
+ * name the Node entry — npm has no way to express "and this other file is the
+ * one to run when the host has `gjs` but no `node`" — so a package that ships
+ * both declares the GJS bundle here. Honouring it is what makes a Node-LESS GJS
+ * host work at all: on such a host the npm bin's `#!/usr/bin/env node` shebang
+ * fails with `env: can't execute 'node'`, and because the launcher is also the
+ * only thing that can export `GI_TYPELIB_PATH` before the GJS runtime starts,
+ * that failure takes `gjsify build` down with it (the typelib lookup happens
+ * before the bundle's first line — the CLI cannot repair it from the inside).
+ *
+ * Measured on a postmarketOS/aarch64 phone with gjs 1.88 and no node: install
+ * and prebuild loading both worked, and only the `#!/usr/bin/env node` shim in
+ * `node_modules/.bin/` stood between that host and a working `gjsify build`.
+ *
+ * `isGjsBin` lets the caller keep plain-Node packages on the plain symlink path
+ * — this must not change how `lodash`'s bin is linked.
+ */
+export function pickBinMap(
+    pkgName: string,
+    pkgJson: { bin?: string | Record<string, string>; gjsify?: { bin?: string | Record<string, string> } },
+): { map: Map<string, string>; isGjsBin: boolean } | null {
+    const gjsifyBin = pkgJson.gjsify?.bin;
+    if (gjsifyBin !== undefined) return { map: normalizeBinMap(pkgName, gjsifyBin), isGjsBin: true };
+    const npmBin = pkgJson.bin;
+    if (npmBin !== undefined) return { map: normalizeBinMap(pkgName, npmBin), isGjsBin: false };
+    return null;
+}
+
+/**
+ * The POSIX `sh` launcher gjsify writes for a bin it owns.
+ *
+ * Why a launcher and not a symlink: when a GJS bundle is reached through a
+ * symlink, the kernel resolves it to find the executable but hands the ORIGINAL
+ * path to it, so `gjs -m <symlink>` makes `import.meta.url` point at the link's
+ * directory and every asset read relative to it looks in the wrong place. An
+ * explicit `exec` with the real path avoids that.
+ *
+ * `.gjs.mjs`/`.mjs` targets are wrapped in `gjs -m` rather than exec'd directly
+ * because not every published bundle carries a `#!/usr/bin/env -S gjs -m` line,
+ * and direct-exec'ing a shebang-less `.mjs` falls through to `/bin/sh`, which
+ * then parses JavaScript as shell.
+ */
+export function buildShLauncher(targetAbs: string, opts: { envPreamble?: string; isGjsBundle: boolean }): string {
+    const preamble = opts.isGjsBundle ? (opts.envPreamble ?? '') : '';
+    const exec = opts.isGjsBundle ? `exec gjs -m ${shQuote(targetAbs)} "$@"` : `exec ${shQuote(targetAbs)} "$@"`;
+    return `#!/bin/sh\n${preamble}${exec}\n`;
+}
+
+/** True when a bin target is a GJS-runnable bundle rather than a Node script. */
+export function isGjsBundlePath(target: string): boolean {
+    return target.endsWith('.gjs.mjs') || target.endsWith('.mjs');
+}

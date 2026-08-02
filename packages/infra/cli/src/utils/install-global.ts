@@ -26,7 +26,15 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { detectNativePackages } from './detect-native-packages.js';
-import { buildLauncherShims, buildNativeEnvPreamble, parseShebang, type Shebang } from './bin-shim.js';
+import {
+    buildLauncherShims,
+    buildNativeEnvPreamble,
+    buildShLauncher,
+    isGjsBundlePath,
+    parseShebang,
+    pickBinMap,
+    type Shebang,
+} from './bin-shim.js';
 
 export interface GlobalLayout {
     /** Where extracted package trees live: `<prefix>/node_modules/<pkg>/`. */
@@ -202,10 +210,10 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
         if (!fs.existsSync(pkgJsonPath)) continue;
 
         const pkgJson = readJson(pkgJsonPath);
-        const binMap = pickBinMap(pkgName, pkgJson);
-        if (!binMap || binMap.size === 0) continue;
+        const picked = pickBinMap(pkgName, pkgJson);
+        if (picked === null || picked.map.size === 0) continue;
 
-        for (const [binName, binTarget] of binMap) {
+        for (const [binName, binTarget] of picked.map) {
             const targetAbs = path.join(pkgDir, binTarget);
             if (!fs.existsSync(targetAbs)) continue;
             try {
@@ -229,14 +237,11 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
             // exec'ing a shebang-less .mjs file falls back to /bin/sh which
             // then tries to parse JavaScript as shell. Plain Node scripts
             // with shebangs (lib/index.js) keep the direct-exec path.
-            const isGjsBundle = targetAbs.endsWith('.gjs.mjs') || targetAbs.endsWith('.mjs');
+            const isGjsBundle = isGjsBundlePath(targetAbs);
             // Only GJS bundles need the GI typelib search path. Plain Node
             // scripts ignore GI_TYPELIB_PATH, so skipping the preamble there
             // keeps the launcher minimal.
-            const launcher = isGjsBundle
-                ? `#!/bin/sh\n${envPreamble}exec gjs -m ${shQuote(targetAbs)} "$@"\n`
-                : `#!/bin/sh\nexec ${shQuote(targetAbs)} "$@"\n`;
-            fs.writeFileSync(linkPath, launcher);
+            fs.writeFileSync(linkPath, buildShLauncher(targetAbs, { envPreamble, isGjsBundle }));
             fs.chmodSync(linkPath, 0o755);
             // Windows runs neither an extension-less file nor a `#!` line, so
             // the `sh` launcher above is only reachable from git-bash/MSYS/WSL.
@@ -276,10 +281,6 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
     return created;
 }
 
-function shQuote(s: string): string {
-    return `'${s.replace(/'/g, `'\\''`)}'`;
-}
-
 /** Parse a bin file's `#!` line; `null` when unreadable or not a shebang. */
 function readShebangOf(file: string): Shebang | null {
     try {
@@ -288,29 +289,6 @@ function readShebangOf(file: string): Shebang | null {
     } catch {
         return null;
     }
-}
-
-function pickBinMap(pkgName: string, pkgJson: Record<string, unknown>): Map<string, string> | null {
-    const gjsifyEntry = pkgJson.gjsify as { bin?: string | Record<string, string> } | undefined;
-    if (gjsifyEntry?.bin !== undefined) {
-        return normalizeBin(pkgName, gjsifyEntry.bin);
-    }
-    const npmBin = pkgJson.bin as string | Record<string, string> | undefined;
-    if (npmBin !== undefined) {
-        return normalizeBin(pkgName, npmBin);
-    }
-    return null;
-}
-
-function normalizeBin(pkgName: string, bin: string | Record<string, string>): Map<string, string> {
-    const out = new Map<string, string>();
-    if (typeof bin === 'string') {
-        const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
-        out.set(baseName, bin);
-        return out;
-    }
-    for (const [k, v] of Object.entries(bin)) out.set(k, v);
-    return out;
 }
 
 function readJson(file: string): Record<string, unknown> {

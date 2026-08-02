@@ -81,7 +81,16 @@ import {
 } from './install-tarball-cache.js';
 import { getCachedPackument, putCachedPackument, type PackumentShape } from './install-packument-cache.js';
 import { assertNativeBackendNodeVersion } from './node-version.js';
-import { buildCmdShim, parseShebang } from './bin-shim.js';
+import {
+    buildCmdShim,
+    buildLauncherShims,
+    buildNativeEnvPreamble,
+    buildShLauncher,
+    isGjsBundlePath,
+    parseShebang,
+    pickBinMap,
+} from './bin-shim.js';
+import { detectNativePackages } from './detect-native-packages.js';
 import {
     badPlatformError,
     checkPlatform,
@@ -1973,10 +1982,56 @@ function readShebang(file: string): ReturnType<typeof parseShebang> {
  * git-bash/MSYS/WSL, `<name>.cmd` for cmd.exe, `<name>.ps1` for pwsh); we write
  * the same set from the same templates. See `./bin-shim.ts`.
  */
-export function writeBinEntry(opts: { binDir: string; binName: string; targetAbs: string; platform?: string }): void {
-    const { binDir, binName, targetAbs } = opts;
+export function writeBinEntry(opts: {
+    binDir: string;
+    binName: string;
+    targetAbs: string;
+    platform?: string;
+    /**
+     * Set when this entry is the package's GJS-runnable artifact (declared via
+     * `gjsify.bin`). Then the entry is a GENERATED launcher rather than a link
+     * to a file with a shebang — see {@link buildShLauncher} for why, and
+     * {@link pickBinMap} for why `gjsify.bin` has to win here at all.
+     *
+     * The preamble is what exports `GI_TYPELIB_PATH` / the loader path before
+     * `gjs` starts. It cannot be done from inside the bundle: GI resolves the
+     * typelib while the runtime boots, before the first line runs.
+     */
+    gjs?: { envPreamble: string; prebuildDirs: readonly string[] };
+}): void {
+    const { binDir, binName, targetAbs, gjs } = opts;
     const platform = opts.platform ?? process.platform;
     const linkPath = path.join(binDir, binName);
+
+    if (gjs) {
+        const isBundle = isGjsBundlePath(targetAbs);
+        // Replace the whole sibling set: a previous install may have written a
+        // plain symlink (or npm's three-file shim) under this very name.
+        for (const stale of [linkPath, `${linkPath}.cmd`, `${linkPath}.ps1`]) rmWithRetry(stale);
+        fs.writeFileSync(linkPath, buildShLauncher(targetAbs, { envPreamble: gjs.envPreamble, isGjsBundle: isBundle }));
+        try {
+            fs.chmodSync(linkPath, 0o755);
+        } catch {
+            /* inert on Windows; harmless under WSL/MSYS */
+        }
+        if (platform === 'win32' && isBundle) {
+            // No dedicated DLL-search variable on Windows: LoadLibrary searches
+            // PATH, and GLib's search-path separator is `;` there too — so both
+            // variables take the same `;`-joined value.
+            const joined = gjs.prebuildDirs.join(';');
+            const prependEnv: Record<string, string> =
+                gjs.prebuildDirs.length > 0 ? { GI_TYPELIB_PATH: joined, PATH: joined } : {};
+            const shims = buildLauncherShims({
+                interpreter: 'gjs',
+                interpreterArgs: ['-m'],
+                target: targetAbs,
+                prependEnv,
+            });
+            fs.writeFileSync(`${linkPath}.cmd`, shims.cmd);
+            fs.writeFileSync(`${linkPath}.ps1`, shims.ps1);
+        }
+        return;
+    }
 
     if (platform === 'win32') {
         const relPosix = path.relative(binDir, targetAbs).split('\\').join('/');
@@ -2015,25 +2070,68 @@ async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Pro
     // backend depends on it (gjsify's own use cases all hit root bins).
     const binDir = path.join(prefix, 'node_modules', '.bin');
     let created = 0;
+
+    // Computed on first use only: the scan walks the whole prefix, and most
+    // installs contain no package declaring `gjsify.bin` at all.
+    let gjsEnv: { envPreamble: string; prebuildDirs: readonly string[] } | undefined;
+    const gjsEnvForPrefix = (): { envPreamble: string; prebuildDirs: readonly string[] } => {
+        if (gjsEnv === undefined) {
+            const prebuildDirs = detectNativePackages(prefix).map((p) => p.prebuildsDir);
+            gjsEnv = { envPreamble: buildNativeEnvPreamble(prefix, prebuildDirs), prebuildDirs };
+        }
+        return gjsEnv;
+    };
+
     for (const node of nodes) {
-        if (!node.bin) continue;
         if (depth(node.installPath) !== 1) continue;
-        const map = normalizeBin(node.name, node.bin);
-        if (map.size === 0) continue;
+        const pkgDir = path.join(prefix, node.installPath);
+        // The INSTALLED manifest is the source of truth here, not the packument
+        // the resolver carried: `gjsify.bin` is a gjsify-specific field npm's
+        // abbreviated packument does not include, so a packument-only read can
+        // never see it. Falls back to the resolved npm `bin` when the extracted
+        // manifest is unreadable, which keeps the previous behaviour intact.
+        const manifest = readInstalledManifest(pkgDir) ?? (node.bin === undefined ? null : { bin: node.bin });
+        if (manifest === null) continue;
+        const picked = pickBinMap(node.name, manifest);
+        if (picked === null || picked.map.size === 0) continue;
         fs.mkdirSync(binDir, { recursive: true });
-        for (const [binName, binTarget] of map) {
-            const targetAbs = path.join(prefix, node.installPath, binTarget);
+        for (const [binName, binTarget] of picked.map) {
+            const targetAbs = path.join(pkgDir, binTarget);
             if (!fs.existsSync(targetAbs)) continue;
             try {
                 fs.chmodSync(targetAbs, 0o755);
             } catch {
                 /* best effort */
             }
-            writeBinEntry({ binDir, binName, targetAbs });
+            writeBinEntry({
+                binDir,
+                binName,
+                targetAbs,
+                gjs: picked.isGjsBin ? gjsEnvForPrefix() : undefined,
+            });
             created++;
         }
     }
     if (created > 0) log('bin: linked %d entry(ies) under .bin/', created);
+}
+
+/**
+ * Read an extracted package's `package.json`.
+ *
+ * Returns `null` rather than throwing: a node can legitimately have no manifest
+ * on disk yet (an optional dependency skipped for this platform), and bin
+ * linking is not the place to fail an otherwise-complete install. The caller
+ * falls back to the resolved npm `bin`.
+ */
+function readInstalledManifest(
+    pkgDir: string,
+): { bin?: string | Record<string, string>; gjsify?: { bin?: string | Record<string, string> } } | null {
+    try {
+        const raw = fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8');
+        return JSON.parse(raw) as { bin?: string | Record<string, string>; gjsify?: { bin?: string } };
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -2048,18 +2146,6 @@ async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Pro
  */
 function rmWithRetry(target: string): void {
     fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
-}
-
-function normalizeBin(pkgName: string, bin: string | Record<string, string>): Map<string, string> {
-    const out = new Map<string, string>();
-    if (typeof bin === 'string') {
-        // String form is shorthand for `{ <last-segment-of-pkgName>: <bin> }`.
-        const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
-        out.set(baseName, bin);
-        return out;
-    }
-    for (const [k, v] of Object.entries(bin)) out.set(k, v);
-    return out;
 }
 
 async function loadNpmrc(opts: InstallOptions): Promise<NpmrcConfig> {
