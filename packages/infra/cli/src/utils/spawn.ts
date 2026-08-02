@@ -45,6 +45,29 @@
 // {@link SpawnToCompletionOptions.completion} field. It is required on
 // purpose: a new call site must state which side of the table it is on rather
 // than silently inherit a default that may be wrong for it.
+//
+// ## When a raw `node:child_process` spawn is still fine — and when it is not
+//
+// This helper is also where the Windows command rewrite lives (`forWin32`
+// below), so the rule is about WHAT is being spawned, not about house style:
+//
+//   • spawning a real executable — `git`, `gh`, `node`, `gjs`, `flatpak`, or
+//     `process.execPath` — may use `node:child_process` directly. Windows
+//     resolves those via `.exe` on its own.
+//   • spawning with `shell: true` is fine too: Node routes it through
+//     `%COMSPEC%`, which finds `.cmd` shims.
+//   • spawning a PACKAGE MANAGER or any other `node_modules/.bin` entry by
+//     BARE NAME — `npm`, `yarn`, `npx`, `tsc`, `oxlint`, or a `pm` variable
+//     from `detectPackageManager()` — MUST come through here. On Windows those
+//     are `.cmd` shims: `spawn('npm')` is ENOENT and `spawn('npm.cmd')` is
+//     EINVAL, so a raw spawn cannot work at all.
+//
+// The third case is not hypothetical. Three sites kept a raw spawn after the
+// consolidation above and each one broke on win32 in its own way:
+// `commands/check.ts` (single-package mode) read only `r.status` and so exited
+// 1 with no diagnostic whatsoever; `utils/install-backend.ts` reported "npm not
+// found on PATH" on a host where npm was on PATH; `commands/onboard.ts` broke
+// the pre-publish build. All three were invisible to Linux and macOS CI.
 
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';

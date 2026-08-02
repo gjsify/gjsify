@@ -25,7 +25,7 @@
 // Re-running when everything is already published + trusted does nothing and
 // exits 0. `--dry-run` reports the plan and changes nothing.
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { DEFAULT_REGISTRY, whoami, type NpmrcConfig } from '@gjsify/npm-registry';
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import { mergePublishables } from '../utils/publishable-packages.js';
@@ -36,6 +36,7 @@ import { publishWorkspace } from './publish.js';
 import { createTrustRequester } from './trust.js';
 import { runLogin, LoginError } from './login.js';
 import { detectPackageManager } from './workspace.js';
+import { spawnToCompletion } from '../utils/spawn.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import {
     githubTrustBody,
@@ -431,18 +432,21 @@ async function buildIfPresent(ws: Workspace, log: (msg?: string) => void): Promi
     const pm = detectPackageManager();
     const argv = ['run', 'build'];
     log(`  $ ${pm} ${argv.join(' ')}`);
-    await new Promise<void>((resolve, reject) => {
-        const child = spawn(pm, argv, {
-            cwd: ws.location,
-            stdio: 'inherit',
-            env: { ...process.env },
-        });
-        child.on('close', (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`build exited with code ${code}`));
-        });
-        child.on('error', reject);
+    // Through `spawnToCompletion`, which resolves the package manager the way
+    // the rest of the CLI does. `detectPackageManager()` returns `npm` on every
+    // non-GJS host, and a bare `spawn('npm', …)` is ENOENT on Windows — npm is
+    // a `.cmd` shim that `CreateProcess` never finds (see
+    // utils/win32-command.ts). This is the pre-publish build, so the break
+    // landed between "about to publish" and the publish itself.
+    //
+    // `completion: 'return'` — this resolves to a caller that goes on to
+    // publish, so under GJS it must not leave a main loop armed.
+    const { code } = await spawnToCompletion(pm, argv, {
+        completion: 'return',
+        cwd: ws.location,
+        env: { ...process.env },
     });
+    if (code !== 0) throw new Error(`build exited with code ${code}`);
 }
 
 /** Human-readable reason for a failed publish outcome. */
