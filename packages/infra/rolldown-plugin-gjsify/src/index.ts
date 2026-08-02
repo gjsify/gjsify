@@ -7,6 +7,7 @@ export * from './library/index.js';
 
 export {
     REWRITE_FILTER,
+    extractPackageSpec,
     getBundleDirFromOutput,
     rewriteContents,
     shouldRewrite,

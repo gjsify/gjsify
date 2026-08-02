@@ -52,6 +52,7 @@ import resolvePluginByNameSuite from './utils/resolve-plugin-by-name.spec.js';
 import runtimeSuite from './runtime.spec.js';
 import gjsEntryWrapperSuite from './gjs-entry-wrapper.spec.js';
 import entryPointsSuite from './entry-points.spec.js';
+import rewriteNodeModulesSpecSuite from './rewrite-node-modules-spec.spec.js';
 import buildArgsSuite from './build-args.spec.js';
 import clearTargetsSuite from './utils/clear-targets.spec.js';
 import pinHintSuite from './pin-hint.spec.js';
@@ -110,6 +111,7 @@ run({
     runtimeSuite,
     gjsEntryWrapperSuite,
     entryPointsSuite,
+    rewriteNodeModulesSpecSuite,
     buildArgsSuite,
     clearTargetsSuite,
     pinHintSuite,
