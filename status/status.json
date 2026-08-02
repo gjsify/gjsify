@@ -467,7 +467,7 @@
     },
     "@gjsify/webgl": {
       "status": "full",
-      "note": "WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0 — overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compat for versionless shaders, clearBufferfv/iv/uiv/fi, premultipliedAlpha), HTMLCanvasElement (GTK-backed), WebGLBridge (Gtk.GLArea subclass, rAF, resize re-render, eager context init), extensions — via the gwebgl Vala bridge (prebuild). Context methods split into focused `src/ts/context/` modules with prototype-merge install functions. Ships `/register` for the WebGL context classes (ADR 0012). Deferred items: see the WebGL known-issues section below."
+      "note": "WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0 — overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compat for versionless shaders, clearBufferfv/iv/uiv/fi, premultipliedAlpha), HTMLCanvasElement (GTK-backed; `width`/`height` report the DRAWING BUFFER in device pixels \u2014 allocation \u00d7 scale-factor \u2014 while `clientWidth`/`offset*` stay logical CSS pixels), WebGLBridge (Gtk.GLArea subclass, rAF, resize re-render, eager context init, `installGlobals()` publishes `devicePixelRatio` as a live accessor over the widget scale factor), extensions — via the gwebgl Vala bridge (prebuild). Context methods split into focused `src/ts/context/` modules with prototype-merge install functions. Ships `/register` for the WebGL context classes (ADR 0012). Deferred items: see the WebGL known-issues section below."
     },
     "@gjsify/webrtc": {
       "status": "full",
