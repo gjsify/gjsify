@@ -19,7 +19,14 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createTestEnvironment, cleanupTestEnvironment, setupProject, hasCommand, MONOREPO_ROOT } from '../helpers.mjs';
+import {
+    createTestEnvironment,
+    cleanupTestEnvironment,
+    setupProject,
+    hasCommand,
+    installedPrebuildDir,
+    MONOREPO_ROOT,
+} from '../helpers.mjs';
 
 describe('Library multi-build E2E (ESM + CJS, separate outdirs)', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
@@ -182,10 +189,11 @@ describe('Library multi-build E2E (ESM + CJS, separate outdirs)', { timeout: 10 
         // @gjsify/rolldown-native; skipped when gjs or the prebuild are
         // not present (e.g. non-Fedora dev boxes without the typelib).
         const gjsBundle = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
-        const archDir = process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64';
-        const prebuildDir = join(MONOREPO_ROOT, 'node_modules', '@gjsify', 'rolldown-native', 'prebuilds', archDir);
+        // The per-target package (ADR 0017), which is the only one an install
+        // materialises for this host.
+        const prebuildPath = installedPrebuildDir(join(MONOREPO_ROOT, 'node_modules'), 'rolldown-native');
         const nativeLib = join(MONOREPO_ROOT, 'node_modules', '@gjsify', 'rolldown-native', 'lib', 'esm', 'index.js');
-        if (!hasCommand('gjs') || !existsSync(gjsBundle) || !existsSync(prebuildDir) || !existsSync(nativeLib)) {
+        if (!hasCommand('gjs') || !existsSync(gjsBundle) || !existsSync(prebuildPath) || !existsSync(nativeLib)) {
             t.skip('gjs or @gjsify/rolldown-native (prebuild + built lib) not available');
             return;
         }
@@ -203,8 +211,8 @@ describe('Library multi-build E2E (ESM + CJS, separate outdirs)', { timeout: 10 
             env: {
                 ...process.env,
                 GJSIFY_BUNDLER: 'native',
-                GI_TYPELIB_PATH: `${prebuildDir}${process.env.GI_TYPELIB_PATH ? `:${process.env.GI_TYPELIB_PATH}` : ''}`,
-                LD_LIBRARY_PATH: `${prebuildDir}${process.env.LD_LIBRARY_PATH ? `:${process.env.LD_LIBRARY_PATH}` : ''}`,
+                GI_TYPELIB_PATH: `${prebuildPath}${process.env.GI_TYPELIB_PATH ? `:${process.env.GI_TYPELIB_PATH}` : ''}`,
+                LD_LIBRARY_PATH: `${prebuildPath}${process.env.LD_LIBRARY_PATH ? `:${process.env.LD_LIBRARY_PATH}` : ''}`,
             },
         });
 

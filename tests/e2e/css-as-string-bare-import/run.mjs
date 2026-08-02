@@ -32,6 +32,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { prebuildDir } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
@@ -49,10 +50,8 @@ function hasGjs() {
 }
 
 const arch = archDir();
-const ROLLDOWN_PREBUILD = arch ? join(REPO_ROOT, 'packages', 'infra', 'rolldown-native', 'prebuilds', arch) : null;
-const LIGHTNINGCSS_PREBUILD = arch
-    ? join(REPO_ROOT, 'packages', 'infra', 'lightningcss-native', 'prebuilds', arch)
-    : null;
+const ROLLDOWN_PREBUILD = arch ? prebuildDir('infra', 'rolldown-native', arch) : null;
+const LIGHTNINGCSS_PREBUILD = arch ? prebuildDir('infra', 'lightningcss-native', arch) : null;
 
 const SKIP =
     process.platform !== 'linux' ||

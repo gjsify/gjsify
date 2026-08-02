@@ -27,6 +27,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { prebuildDir } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/prebuild-loader-path/ → monorepo root is 3 levels up.
@@ -41,15 +42,16 @@ const { readElfNeeded, readElfGlibcRequires, compareGlibcVersions } = await impo
     `file://${join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs')}`
 );
 
-/** @param {string[]} parts */
-const pkgDir = (...parts) => join(MONOREPO_ROOT, 'packages', ...parts);
-
 /** The Vala+Rust pairs, with the leaf names that MUST stay in step. */
+// Since ADR 0017 there is no single parent `prebuilds/` to join a target onto —
+// each target lives in its own package — so a pair names its bridge and the
+// directory is resolved per target through the shared `prebuildDir()`.
 const PAIRS = [
-    { dir: pkgDir('infra', 'rolldown-native', 'prebuilds'), vala: 'libgjsifyrolldown', rust: 'libgjsify_rolldown' },
-    { dir: pkgDir('infra', 'oxfmt-native', 'prebuilds'), vala: 'libgjsifyoxfmt', rust: 'libgjsify_oxfmt' },
+    { pillar: 'infra', bridge: 'rolldown-native', vala: 'libgjsifyrolldown', rust: 'libgjsify_rolldown' },
+    { pillar: 'infra', bridge: 'oxfmt-native', vala: 'libgjsifyoxfmt', rust: 'libgjsify_oxfmt' },
     {
-        dir: pkgDir('infra', 'lightningcss-native', 'prebuilds'),
+        pillar: 'infra',
+        bridge: 'lightningcss-native',
         vala: 'libgjsifylightningcss',
         rust: 'libgjsify_lightningcss',
     },
@@ -69,9 +71,9 @@ const PAIRS = [
 const TARGETS = ['linux-x64', 'linux-x64-musl', 'linux-arm64', 'linux-arm64-musl', 'darwin-arm64'];
 
 describe('check-prebuild-loader-path: committed prebuilds', () => {
-    for (const { dir, vala, rust } of PAIRS) {
+    for (const { pillar, bridge, vala, rust } of PAIRS) {
         for (const target of TARGETS) {
-            const staged = join(dir, target);
+            const staged = prebuildDir(pillar, bridge, target);
             const ext = target.startsWith('darwin') ? '.dylib' : '.so';
             if (!existsSync(join(staged, `${vala}${ext}`))) continue; // target not shipped (yet)
 
@@ -107,7 +109,7 @@ describe('check-prebuild-loader-path: failure modes', () => {
         return dir;
     }
 
-    const source = pkgDir('infra', 'oxfmt-native', 'prebuilds', 'darwin-arm64');
+    const source = prebuildDir('infra', 'oxfmt-native', 'darwin-arm64');
 
     it('fails when the sibling cdylib is not staged (the darwin rolldown bug)', () => {
         const dir = stageSubset(source, ['libgjsifyoxfmt.dylib', 'GjsifyOxfmt-1.0.typelib']);
@@ -160,7 +162,7 @@ describe('check-prebuild-loader-path: failure modes', () => {
 });
 
 describe('typelib shared-library records', () => {
-    const TERMINAL_LE = pkgDir('node', 'terminal-native', 'prebuilds', 'linux-x64', 'GjsifyTerminal-1.0.typelib');
+    const TERMINAL_LE = prebuildDir('node', 'terminal-native', 'linux-x64', 'GjsifyTerminal-1.0.typelib');
 
     it('reads the library a little-endian typelib names', () => {
         assert.deepEqual(readTypelibSharedLibraries(TERMINAL_LE), ['libgjsifyterminal.so']);
@@ -206,8 +208,8 @@ describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
     // committed prebuilds are the fixtures for the same reason the loader-path
     // checks use them: real linked artifacts, on five architectures, two byte
     // orders, none of which this x86-64 host can execute.
-    const TERMINAL = (target) => pkgDir('node', 'terminal-native', 'prebuilds', target, 'libgjsifyterminal.so');
-    const TLS = (target) => pkgDir('node', 'tls-native', 'prebuilds', target, 'libgjsifytls.so');
+    const TERMINAL = (target) => prebuildDir('node', 'terminal-native', target, 'libgjsifyterminal.so');
+    const TLS = (target) => prebuildDir('node', 'tls-native', target, 'libgjsifytls.so');
 
     it('reports libc.so.6 for a bridge that links it — on every arch, both byte orders', () => {
         // `linux-s390x` is the big-endian one. The ELF header carries its own
@@ -267,7 +269,7 @@ describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
         // The darwin artifacts are legitimate files this reader does not speak.
         // Throwing would abort a whole audit run over a platform it never
         // claimed to inspect.
-        const dylib = pkgDir('infra', 'oxfmt-native', 'prebuilds', 'darwin-arm64', 'libgjsifyoxfmt.dylib');
+        const dylib = prebuildDir('infra', 'oxfmt-native', 'darwin-arm64', 'libgjsifyoxfmt.dylib');
         assert.equal(readElfNeeded(dylib), null);
         assert.equal(readElfGlibcRequires(dylib), null);
     });
@@ -281,13 +283,11 @@ describe('libc axis — the glibc floor, read from SHT_GNU_verneed', () => {
         // (glibc 2.39 = Ubuntu 24.04 / Debian 13), which is precisely the fact
         // no declaration revealed before it was measured.
         assert.equal(
-            readElfGlibcRequires(pkgDir('node', 'terminal-native', 'prebuilds', 'linux-x64', 'libgjsifyterminal.so')),
+            readElfGlibcRequires(prebuildDir('node', 'terminal-native', 'linux-x64', 'libgjsifyterminal.so')),
             '2.2.5',
         );
         assert.equal(
-            readElfGlibcRequires(
-                pkgDir('infra', 'lightningcss-native', 'prebuilds', 'linux-x64', 'libgjsify_lightningcss.so'),
-            ),
+            readElfGlibcRequires(prebuildDir('infra', 'lightningcss-native', 'linux-x64', 'libgjsify_lightningcss.so')),
             '2.39',
         );
     });
@@ -295,7 +295,7 @@ describe('libc axis — the glibc floor, read from SHT_GNU_verneed', () => {
     it('reads a BIG-endian .gnu.version_r — the s390x case', () => {
         // Same trap as the big-endian typelib above, one section over.
         assert.equal(
-            readElfGlibcRequires(pkgDir('node', 'terminal-native', 'prebuilds', 'linux-s390x', 'libgjsifyterminal.so')),
+            readElfGlibcRequires(prebuildDir('node', 'terminal-native', 'linux-s390x', 'libgjsifyterminal.so')),
             '2.2',
         );
     });
@@ -306,9 +306,7 @@ describe('libc axis — the glibc floor, read from SHT_GNU_verneed', () => {
         // directory: reading only the typelib-named library would report "no
         // glibc requirement" for the three packages with the highest floors.
         assert.equal(
-            readElfGlibcRequires(
-                pkgDir('infra', 'lightningcss-native', 'prebuilds', 'linux-x64', 'libgjsifylightningcss.so'),
-            ),
+            readElfGlibcRequires(prebuildDir('infra', 'lightningcss-native', 'linux-x64', 'libgjsifylightningcss.so')),
             null,
         );
     });

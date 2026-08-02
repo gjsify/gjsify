@@ -39,7 +39,7 @@ import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
-import { createTestEnvironment, cleanupTestEnvironment, setupProject } from '../helpers.mjs';
+import { createTestEnvironment, cleanupTestEnvironment, setupProject, installedPrebuildDir } from '../helpers.mjs';
 
 describe('CLI dlx / native-prebuild env injection E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
@@ -88,9 +88,14 @@ describe('CLI dlx / native-prebuild env injection E2E', { timeout: 10 * 60 * 100
         bundlePath = join(innerPkgDir, 'dist', 'bundle.js');
         writeFileSync(bundlePath, '// synthetic bundle for env-detection test\n');
 
-        // Sanity: the bridge's prebuilds dir exists in the install tree.
-        const bridgeDir = join(projectDir, 'node_modules', '@gjsify', 'http-soup-bridge', 'prebuilds');
-        assert.ok(existsSync(bridgeDir), `@gjsify/http-soup-bridge/prebuilds missing in install tree: ${bridgeDir}`);
+        // Sanity: the prebuild is in the install tree. Since ADR 0017 it arrives
+        // in the bridge's PER-TARGET package, pulled in as an `optionalDependencies`
+        // entry — the bridge's own tarball carries no `prebuilds/` at all. Which
+        // package the directory ships in is exactly what changed; that
+        // `detectNativePackages()` still finds it by scanning for
+        // `gjsify.prebuilds` is what the rest of this suite proves.
+        const bridgeDir = installedPrebuildDir(join(projectDir, 'node_modules'), 'http-soup-bridge');
+        assert.ok(existsSync(bridgeDir), `http-soup-bridge prebuild missing in install tree: ${bridgeDir}`);
 
         cleanCwd = mkdtempSync(join(tmpdir(), 'gjsify-e2e-dlx-native-prebuilds-cwd-'));
     });

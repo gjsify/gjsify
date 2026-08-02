@@ -27,6 +27,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { prebuildDir } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
@@ -55,7 +56,7 @@ function hasAdw() {
 }
 
 const arch = archDir();
-const PREBUILD = arch ? join(REPO_ROOT, 'packages', 'infra', 'rolldown-native', 'prebuilds', arch) : null;
+const PREBUILD = arch ? prebuildDir('infra', 'rolldown-native', arch) : null;
 
 const SKIP =
     process.platform !== 'linux' ||
