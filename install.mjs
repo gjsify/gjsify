@@ -195,11 +195,7 @@ function readBytesOrNull(path) {
  * can never be warm" for "the cache grows forever".
  */
 function pruneCache(dir, keepBasename) {
-    const children = Gio.File.new_for_path(dir).enumerate_children(
-        'standard::name',
-        Gio.FileQueryInfoFlags.NONE,
-        null,
-    );
+    const children = Gio.File.new_for_path(dir).enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
     for (;;) {
         const info_ = children.next_file(null);
         if (info_ === null) break;
@@ -252,7 +248,9 @@ async function resolveBootstrap(session, bootstrapUrl, sha256Url) {
     }
 
     const dir = cacheDir();
-    const basename = expected ? `${CACHE_PREFIX}${expected}${CACHE_SUFFIX}` : `${CACHE_PREFIX}unverified${CACHE_SUFFIX}`;
+    const basename = expected
+        ? `${CACHE_PREFIX}${expected}${CACHE_SUFFIX}`
+        : `${CACHE_PREFIX}unverified${CACHE_SUFFIX}`;
     const bundlePath = GLib.build_filenamev([dir, basename]);
 
     if (expected) {
