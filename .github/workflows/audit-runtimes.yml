@@ -122,3 +122,78 @@ jobs:
         run: |
           git fetch --no-tags --quiet --deepen=200 origin "$BASE_REF" 2>/dev/null || true
           node scripts/check-doc-revert.mjs --base "origin/$BASE_REF"
+
+  # The same manifest checks, on Windows.
+  #
+  # WHY THIS JOB EXISTS
+  #
+  # Every rule above reads only `package.json` files, the workflow YAML and the
+  # committed binaries — no install, no build, no container. That makes it the
+  # ONE gate in this repository that a Windows runner can execute in full, and
+  # therefore the cheapest place to hold a Windows contract on every PR. Nothing
+  # else does: `main.yml` is Fedora-only, and `cli-cross-platform.yml`'s Windows
+  # leg tests the PUBLISHED CLI on a weekly cron, so it cannot see a regression
+  # in a branch at all.
+  #
+  # It is not hypothetical. Three separate rules were reporting DIFFERENT results
+  # on Windows and Linux for the same commit, in the direction that matters —
+  # green here, red there, so no CI run could have shown it:
+  #   • `classifyAxis` split a repo-relative path on `/`, saw `gjs\unit` as one
+  #     segment, and demanded a `gjsify.runtimes` declaration from five infra
+  #     packages that must not carry one;
+  #   • `platforms-ci` looks for a package's path inside a workflow step's text,
+  #     and `packages\node-gi\node-gi` never occurs in YAML that writes
+  #     `packages/node-gi/node-gi`, so node-gi's macOS legs went uncredited;
+  #   • `audit-test-scripts`' ignore list is spelled with `/`, so its exemption
+  #     for `packages/node-gi` was a no-op on Windows and the script failed on
+  #     the one package it is written to skip.
+  # All three are fixed; this job is what keeps the fourth from shipping.
+  #
+  # WHY A SEPARATE JOB RATHER THAN A MATRIX ON `check`
+  #
+  # A matrix renames the check to `Detect runtime-triplet drift (ubuntu-latest)`,
+  # which silently detaches any branch-protection rule that requires the current
+  # name. A second job adds the signal without touching the required one.
+  #
+  # WHAT IT DELIBERATELY OMITS: the resurrected-prose step. It is advisory, it
+  # needs a deepened fetch and POSIX shell syntax, and running an
+  # OS-independent text diff twice buys nothing.
+  check-windows:
+    name: Manifest checks (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      # Before checkout, so it governs the checkout itself. `core.autocrlf=true`
+      # — Git for Windows' installer default — would rewrite line endings on the
+      # way in, and it is also what `website/…/platform-support.md` tells a
+      # Windows contributor to turn OFF. Pinning it here means this job measures
+      # the setup the docs recommend, and cannot start failing because a runner
+      # image changed its git defaults.
+      - name: Check out with line endings untouched
+        run: git config --global core.autocrlf false
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26.x
+
+      # Same command as the Linux job, deliberately: a divergence between the
+      # two is the finding. Anything a Windows host genuinely cannot do the
+      # audit already reports as a boundary rather than a pass — on win32-x64
+      # there are no committed prebuilds, so the functional `dlopen` half has
+      # nothing to load and says so.
+      - name: Check declared vs detected runtime triplets (strict)
+        run: node scripts/audit-runtimes.mjs --check --strict
+
+      - name: Check test scripts run their declared runtime legs
+        run: node scripts/audit-test-scripts.mjs
+
+      - name: Check CI container images cover their jobs
+        run: node scripts/check-ci-image-packages.mjs
+
+      - name: Check the PR-title type list still matches commitlint
+        run: node scripts/check-pr-title-types.mjs

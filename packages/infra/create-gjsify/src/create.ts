@@ -88,11 +88,25 @@ export async function createProject(options: CreateProjectOptions): Promise<void
 
     if (install) {
         console.log('Running npm install...');
+        // `shell: true` is what makes this work on Windows, where `npm` is
+        // `npm.cmd`: `CreateProcess` appends only `.exe` when it searches PATH
+        // for a bare name, so `spawnSync('npm', …)` is ENOENT there — and
+        // `spawnSync` leaves `status` NULL on a spawn error, so the `!== 0`
+        // below fired and told the user npm had failed. `npm create gjsify
+        // my-app` therefore scaffolded a project, never installed anything, and
+        // blamed npm for it. `shell: true` is the exemption the invariant in
+        // `@gjsify/cli`'s `utils/spawn.ts` sanctions for exactly this case.
         const result = spawnSync('npm', ['install', '--no-audit', '--no-fund'], {
             cwd: targetDir,
             stdio: 'inherit',
+            shell: true,
         });
-        if (result.status !== 0) {
+        // Report the spawn error itself when there is one. Without it a failure
+        // to START npm and a failure OF npm read identically, which is how the
+        // Windows case stayed invisible.
+        if (result.error) {
+            console.warn(`npm install could not start (${result.error.message}); re-run it manually.`);
+        } else if (result.status !== 0) {
             console.warn('npm install failed; re-run it manually in the project directory.');
         }
     }

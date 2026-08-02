@@ -32,14 +32,26 @@ import { execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
-const SCRIPT = join(MONOREPO_ROOT, 'scripts', 'bootstrap-native-facades.mjs');
+// Every `scripts/` file the script under test imports has to be staged with it —
+// the fixture IS its `root`, derived from its own location, so a sibling import
+// resolves inside the fixture and nowhere else. `resolve-gjsify.mjs` is that
+// sibling: it picks the `.cmd` member of npm's shim trio on Windows and routes
+// it through `%COMSPEC%`, because `node_modules/.bin/gjsify` exists there and is
+// the one member the OS cannot execute.
+//
+// Listed rather than copying `scripts/` wholesale: the point of this fixture is
+// that the tree holds the MINIMUM the script needs, so a new undeclared
+// dependency has to show up here as an edit.
+const SCRIPT_FILES = ['bootstrap-native-facades.mjs', 'resolve-gjsify.mjs'];
 const NO_RECURSE_ENV = 'GJSIFY_BOOTSTRAP_NO_BUILD_INFRA';
 
 /** A fixture root holding a copy of the real script at `<root>/scripts/`. */
 function makeFixture({ warm }) {
     const root = mkdtempSync(join(tmpdir(), 'gjsify-bootstrap-cold-'));
     mkdirSync(join(root, 'scripts'), { recursive: true });
-    cpSync(SCRIPT, join(root, 'scripts', 'bootstrap-native-facades.mjs'));
+    for (const name of SCRIPT_FILES) {
+        cpSync(join(MONOREPO_ROOT, 'scripts', name), join(root, 'scripts', name));
+    }
     if (warm) {
         const libDir = join(root, 'packages', 'infra', 'cli', 'lib');
         mkdirSync(libDir, { recursive: true });

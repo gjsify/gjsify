@@ -32,6 +32,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 function runCli(cliEntry, args, { cwd, env, timeoutMs = 60_000 } = {}) {
     return new Promise((resolve, reject) => {
@@ -86,7 +87,7 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
 
     before(() => {
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-build-cache-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
         writeFileSync(
             join(root, 'package.json'),
@@ -289,7 +290,7 @@ describe('gjsify build cache — the dual emit must not clobber itself', { timeo
 
     before(() => {
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-dual-emit-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         writeFileSync(
             join(root, 'package.json'),
             JSON.stringify(

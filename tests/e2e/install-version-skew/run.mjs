@@ -15,6 +15,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
     return new Promise((resolve, reject) => {
@@ -60,7 +61,7 @@ describe('gjsify install — CLI/workspace version-skew warning', { timeout: 60_
     let cliEntry, runningVersion;
 
     before(() => {
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         runningVersion = JSON.parse(
             readFileSync(new URL('../../../packages/infra/cli/package.json', import.meta.url), 'utf-8'),
         ).version;

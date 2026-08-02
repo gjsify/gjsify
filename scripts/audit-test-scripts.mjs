@@ -14,7 +14,7 @@
 // plain runner in .github/workflows/audit-runtimes.yml.
 
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 // Scoped to the surfaces CI's `gjsify foreach test` + the integration/e2e
 // runners actually cover. `examples/` and `showcases/` are excluded from
@@ -27,7 +27,30 @@ const LEGS = ['test:gjs', 'test:node'];
 const IGNORE_DIRS = new Set(['node_modules', 'dist', 'lib', '.git', 'fixtures']);
 // packages/node-gi is the Axis-5 GI engine with its OWN test pipeline
 // (node-gi.yml), not a standard gjsify workspace — exempt (see AGENTS.md).
+//
+// The prefix is spelled with `/`, and so is every path compared against it —
+// see `posixPath`. Left in the host spelling the exemption is a no-op on
+// Windows, and this script then fails there on a package it is written to
+// ignore, for a tree that is green on Linux.
 const IGNORE_PKG_PREFIX = ['packages/node-gi'];
+
+/**
+ * A repo-relative path in the one spelling this script compares against.
+ *
+ * `path.join()` answers in `path.sep`, so on Windows `findPkgJsons` produced
+ * `packages\node-gi\node-gi\package.json` while `IGNORE_PKG_PREFIX` holds
+ * `packages/node-gi` — `startsWith` was false, the exemption never fired, and
+ * `@gjsify/node-gi` was reported as violating a rule it is exempt from. Node
+ * accepts forward slashes in a path on Windows, so normalising at the single
+ * point the path is produced fixes the comparison AND makes the reported path
+ * identical on both platforms.
+ *
+ * `split(sep).join('/')`, not `replaceAll('\\','/')`: a backslash is a legal
+ * character in a POSIX filename, and rewriting it there would corrupt a path.
+ */
+function posixPath(p) {
+    return p.split(sep).join('/');
+}
 
 function findPkgJsons(dir, out = []) {
     let entries;
@@ -38,7 +61,7 @@ function findPkgJsons(dir, out = []) {
     }
     for (const e of entries) {
         if (e.name.startsWith('.')) continue;
-        const full = join(dir, e.name);
+        const full = posixPath(join(dir, e.name));
         if (e.isDirectory()) {
             if (IGNORE_DIRS.has(e.name)) continue;
             findPkgJsons(full, out);

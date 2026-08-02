@@ -24,6 +24,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // Minimal ustar tar archive containing a single `package/package.json`.
 function buildPackageTar(pkgJson) {
@@ -128,7 +129,7 @@ describe('gjsify install — per-extract stall guard', { timeout: 60_000 }, () =
         });
         await new Promise((r) => server.listen(0, '127.0.0.1', r));
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
     });
 
     after(() => {
