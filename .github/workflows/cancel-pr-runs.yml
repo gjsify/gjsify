@@ -1,0 +1,95 @@
+name: Cancel PR runs on close
+
+# WHY THIS EXISTS
+#
+# Closing or merging a PR does NOT stop its in-flight runs, and `concurrency`
+# structurally cannot help: its group is per-REF, so a closed PR's run has no
+# successor on that ref to supersede it. It therefore keeps a full `main.yml`
+# matrix (build + check + 4 test shards + 4 e2e shards + …) burning runner
+# capacity for work whose verdict nobody will ever read.
+#
+# MEASURED, 2026-08-02 18:35: four merged PRs — #929 (merged 17:55), #943
+# (18:23), #939 (18:31) — still held five concurrent `GJS` runs, with `main`'s
+# own post-merge run and an open PR's run queued behind them.
+#
+# The second-order effect is the reason this is a workflow and not a note in a
+# runbook. `main.yml` already sets `cancel-in-progress` for pull_request, but
+# that fires when the SUPERSEDING run STARTS — and starting is exactly what a
+# saturated queue prevents. So a force-push during a backlog leaves the stale
+# run alive, the stale run keeps the queue saturated, and the queue keeps the
+# new run from starting: a deadlock whose only exit is a human cancelling runs
+# by hand. Draining the merged-PR half keeps the queue below the point where
+# that bites.
+#
+# DELIBERATELY `pull_request`, NOT `pull_request_target`. Cancelling needs
+# `actions: write`, and AGENTS.md forbids pairing a write token with head code.
+# The price is that a FORK PR gets a read-only token and the cancel no-ops for
+# it; that is the right trade for a cost control (a gate would be a different
+# discussion). The step is written to report that outcome rather than fail, so a
+# fork PR closing does not leave a red run behind.
+
+on:
+    pull_request:
+        types: [closed]
+
+# Only what the one API call needs.
+permissions:
+    actions: write
+    contents: read
+
+jobs:
+    cancel:
+        name: Cancel remaining runs for this PR
+        runs-on: ubuntu-latest
+        steps:
+            - name: Cancel non-completed runs from this PR's branch
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  HEAD_REF: ${{ github.event.pull_request.head.ref }}
+                  CLOSED_AT: ${{ github.event.pull_request.closed_at }}
+                  SELF_RUN_ID: ${{ github.run_id }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  set -euo pipefail
+
+                  # Matched by HEAD BRANCH, not by head SHA: a PR that was
+                  # force-pushed has runs under several SHAs and every one of
+                  # them is moot now, while a SHA match would leave the older
+                  # ones running — which is half the backlog this exists to
+                  # drain.
+                  #
+                  # Bounded by `created_at <= closed_at` because branch names in
+                  # this repo ARE reused (the agent worktrees and the release
+                  # tooling both do it). Without the bound, closing an old PR
+                  # would cancel a fresh run belonging to whatever reopened that
+                  # name. With it, only runs that existed when this PR closed
+                  # can be touched.
+                  ids=$(gh api \
+                          "repos/${REPO}/actions/runs?per_page=100&event=pull_request" \
+                          --jq "
+                            .workflow_runs[]
+                            | select(.head_branch == \"${HEAD_REF}\")
+                            | select(.status != \"completed\")
+                            | select(.created_at <= \"${CLOSED_AT}\")
+                            | select(.id != ${SELF_RUN_ID})
+                            | .id
+                          " 2>/dev/null || true)
+
+                  if [ -z "${ids}" ]; then
+                      echo "No in-flight runs left for ${HEAD_REF} — nothing to cancel."
+                      exit 0
+                  fi
+
+                  # `|| true` per run: a run that finished between the list and
+                  # the cancel returns 409, and that is the success case arriving
+                  # a second early — not a reason to fail the job.
+                  n=0
+                  for id in ${ids}; do
+                      if gh api -X POST "repos/${REPO}/actions/runs/${id}/cancel" >/dev/null 2>&1; then
+                          echo "cancelled run ${id}"
+                          n=$((n + 1))
+                      else
+                          echo "run ${id} could not be cancelled (already finishing, or read-only token on a fork PR)"
+                      fi
+                  done
+                  echo "::notice::cancelled ${n} in-flight run(s) for ${HEAD_REF} after PR #${{ github.event.pull_request.number }} closed."

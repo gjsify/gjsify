@@ -243,7 +243,7 @@ const OTHER_WORKFLOW_INPUTS = [
     // Each sibling workflow's own definition. `main.yml` is deliberately
     // absent — it is a GLOBAL_TRIGGER, since a job-shape change there is
     // invisible until the workflow re-runs.
-    /^\.github\/workflows\/(deploy-docs|commitlint|release|release-cut|audit-runtimes|prebuilds|node-gi|napi|cli-cross-platform|build-ci-image)\.yml$/,
+    /^\.github\/workflows\/(deploy-docs|commitlint|release|release-cut|audit-runtimes|prebuilds|node-gi|napi|cli-cross-platform|build-ci-image|cancel-pr-runs)\.yml$/,
     // `prebuilds.yml`'s toolchain (#838): the QEMU-emulated build script and
     // the `changed-packages` classifier that decides which native packages a
     // prebuild run rebuilds. `prebuilds.yml` lists `.github/prebuild-toolchain/**`
