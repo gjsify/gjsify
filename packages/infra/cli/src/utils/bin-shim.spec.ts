@@ -289,6 +289,42 @@ export default async () => {
         }
     });
 
+    // ADR 0017 moved each prebuild into a per-target package, so on a musl host
+    // the directory to find is `prebuilds/linux-arm64-musl/` — a name the
+    // launcher never globbed, because the preamble dropped `libc` on the way to
+    // `prebuildDirCandidates` while `detectNativePackages` kept it. Same
+    // question, two answers.
+    await describe('buildNativeEnvPreamble — libc', async () => {
+        /** The prebuild-dir names the `for` line globs, in order. */
+        const globbedDirs = (sh: string): string[] => {
+            const forLine = sh.split('\n').find((l) => l.startsWith('for gjsify_d in')) ?? '';
+            return forLine
+                .split(' ')
+                .filter((t) => t.includes('/prebuilds/'))
+                .map((t) => t.slice(t.lastIndexOf('/') + 1));
+        };
+
+        await it('globs the musl directory FIRST on a musl host', async () => {
+            const dirs = globbedDirs(
+                buildNativeEnvPreamble('/opt/p', [], { platform: 'linux', arch: 'arm64', libc: 'musl' }),
+            );
+            // most-specific first, and the plain token stays as the fallback
+            expect(dirs[0]).toBe('linux-arm64-musl');
+            expect(dirs.includes('linux-arm64')).toBe(true);
+            expect(dirs.indexOf('linux-arm64-musl')).toBeLessThan(dirs.indexOf('linux-arm64'));
+        });
+
+        await it('does not invent a musl directory on a glibc host', async () => {
+            const sh = buildNativeEnvPreamble('/opt/p', [], { platform: 'linux', arch: 'arm64', libc: 'glibc' });
+            expect(sh).not.toContain('linux-arm64-musl');
+        });
+
+        await it('ignores a musl claim off linux — the grammar has no such target', async () => {
+            const sh = buildNativeEnvPreamble('/opt/p', [], { platform: 'darwin', arch: 'arm64', libc: 'musl' });
+            expect(sh).not.toContain('musl');
+        });
+    });
+
     await describe('pickBinMap', async () => {
         await it('prefers `gjsify.bin` over the npm `bin` field', async () => {
             const picked = pickBinMap('@gjsify/cli', {

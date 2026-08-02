@@ -25,7 +25,7 @@
 // declaring `#!/usr/bin/env node` and one declaring `#!/usr/bin/env -S gjs -m`
 // both work without the caller knowing which it is.
 
-import { libraryPathVar, prebuildDirCandidates } from './detect-native-packages.js';
+import { detectHostLibc, type HostLibc, libraryPathVar, prebuildDirCandidates } from './detect-native-packages.js';
 
 /** The three sibling files a Windows bin entry consists of. */
 export interface WindowsShimFiles {
@@ -362,10 +362,19 @@ function shQuote(s: string): string {
 export function buildNativeEnvPreamble(
     scanRoot: string,
     bakedDirs: readonly string[] = [],
-    target: { platform?: string; arch?: string } = {},
+    target: { platform?: string; arch?: string; libc?: HostLibc | null } = {},
 ): string {
     const platform = target.platform ?? process.platform;
     const arch = target.arch ?? process.arch;
+    // The libc is a HOST fact, so it belongs in the glob just as much as the
+    // arch does. Omitting it made the launcher probe only `linux-<arch>` on a
+    // musl host — survivable while every prebuild sat in the depending
+    // package's own tree, but ADR 0017 moved each binary into a per-target
+    // package (`<name>-linux-arm64-musl`, shipping `prebuilds/linux-arm64-musl/`),
+    // so the directory the launcher must find is now the one it did not name.
+    // `detectNativePackages` has always been libc-aware; this is the same
+    // question asked in the shell, and the two must not answer it differently.
+    const libc = target.libc !== undefined ? target.libc : detectHostLibc(platform);
     const { name: libVar, separator } = libraryPathVar(platform);
 
     if (platform === 'win32') {
@@ -390,7 +399,7 @@ export function buildNativeEnvPreamble(
     // platforms is correct here — the shell cannot read a package.json, and a
     // package declaring ONLY a non-canonical spelling of this host has not
     // existed since the audit made that state impossible.
-    const candidates = prebuildDirCandidates(platform, arch);
+    const candidates = prebuildDirCandidates(platform, arch, undefined, libc);
     const patterns: string[] = [];
     for (const candidate of candidates) {
         // Scoped (`@gjsify/x`) and unscoped packages, matching `scanNodeModules`.

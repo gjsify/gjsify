@@ -623,7 +623,7 @@ export function resolveHostLibc(input: {
  * instead of encoding the precedence in an if/else chain here where nothing can
  * reach it.
  */
-function detectHostLibc(platform: string): HostLibc | null {
+export function detectHostLibc(platform: string): HostLibc | null {
     if (platform !== 'linux') return null;
     const header = (process.report?.getReport() as { header?: { glibcVersionRuntime?: unknown } } | undefined)?.header;
     const glibcVersionRuntime =
