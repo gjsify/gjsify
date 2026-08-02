@@ -233,26 +233,35 @@ export async function parseCiPlatforms(
                 const archs = job.archs.size > 0 ? [...job.archs] : [archFromRunner(job.runsOn, os)];
                 for (const arch of archs) targets.add(canonicalPlatform(`${os}-${arch}`));
             }
+            // A job that DOWNLOADS artifacts is consuming what another job
+            // produced, so nothing in it may be read as production — and this
+            // map means exactly "which targets does CI BUILD".
+            //
+            // The per-step verb test cannot make that distinction on its own:
+            // `commit-prebuilds`' steps are called "Download <pkg> <arch>
+            // prebuilds" and `publish-napi`'s is "Confirm both prebuilds are
+            // STAGED", both of which are production verbs, and both of which
+            // then contribute the CONSUMING job's own platform. It was harmless
+            // until ADR 0017 only because those steps named the BRIDGE, which
+            // the real build legs had already credited with the same targets —
+            // so the surplus attribution was invisible. Once they name the
+            // per-target package it is not: `commit-prebuilds` and
+            // `publish-napi` are plain `ubuntu-latest` jobs with no arch matrix,
+            // so every platform package they mention was credited with
+            // `linux-x64` and failed the rule in BOTH directions at once
+            // ("declares darwin-arm64, CI produces none" + "CI builds
+            // linux-x64, not declared").
+            //
+            // Keyed on the ACTION, not on a job-name pattern: `download` is what
+            // makes a job a consumer, and a list of job names is a second copy
+            // of the workflow that drifts from it. No producer downloads — the
+            // build legs compile from a checkout — so this costs no coverage,
+            // which the platform matrix is diffed against to confirm.
+            if (/uses:\s*actions\/download-artifact/.test(job.body)) continue;
             // Attribute per STEP, not per line: a step's package identity and
             // its production verb usually sit on different lines (`- name:
             // Build native addon` + `working-directory: packages/…`).
             for (const step of splitSteps(job.body)) {
-                // A DOWNLOAD is consumption, not production, and the difference
-                // is what this whole map means: "which targets does CI BUILD".
-                // The verb test cannot tell them apart, because every one of
-                // these steps is called "Download <pkg> <arch> prebuilds" and
-                // `prebuild` is a production verb. Harmless until ADR 0017: the
-                // download steps in `commit-prebuilds` named the BRIDGE, which
-                // the build legs had already credited with the same targets, so
-                // the surplus attribution was invisible. Now they name the
-                // per-target package, and `commit-prebuilds` is a plain
-                // `ubuntu-latest` job with no arch matrix — so every one of the
-                // 60 platform packages was credited with `linux-x64`, and each
-                // one failed the rule in BOTH directions at once ("declares
-                // darwin-arm64, CI produces none" + "CI builds linux-x64, not
-                // declared"). Keyed on the ACTION rather than on the job name:
-                // any job that downloads an artifact is consuming one.
-                if (/uses:\s*actions\/download-artifact/.test(step)) continue;
                 if (!/\b(build|collect|stage|prebuild|upload)/i.test(step)) continue;
                 for (const id of identifiers) {
                     if (!step.includes(id.name_re) && !step.includes(id.path_re)) continue;

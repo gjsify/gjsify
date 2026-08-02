@@ -84,6 +84,44 @@ baseline — an old-glibc container (manylinux/RHEL-derived) or
 becomes an input the build satisfies rather than a number someone reads off the
 result. That is a policy decision (how old a distro do we support?) and wants its
 own change.
+### ADR 0017 — the 60 platform-package names need a `gjsify onboard` sweep BEFORE the release that ships the split
+
+Every `@gjsify/<bridge>-<os>-<arch>` name is unpublished. npm Trusted Publishing
+can only publish a new VERSION of an existing package, so an unbootstrapped name
+404s the OIDC exchange and — because `npm:publish` is a serialized
+`gjsify foreach` — stalls every alphabetically-later package with it. That is the
+v0.4.20 incident (`@gjsify/tls-native` unbootstrapped, 60+ packages stuck at
+0.4.19), and here it is 60 names at once rather than one.
+
+`gjsify onboard` is the sweep: it probes each publishable workspace, publishes and
+trusts only the gaps, and takes ONE OTP for the whole run. It is a maintainer
+action from a machine with a live npm token — CI cannot do it, by design.
+
+Two of the sixty are NOT covered by that sweep and need doing by hand:
+`@gjsify/napi-linux-x64` and `@gjsify/napi-darwin-arm64`. `packages/napi/*` is
+deliberately absent from the root `workspaces`, so `onboard` never sees them, for
+the same reason `@gjsify/napi` itself has always needed a manual first publish.
+
+### ADR 0017 — the seven `darwin-x64` exemptions cannot resolve themselves, and the audit is what says so
+
+`commit-prebuilds` downloads a `darwin-x64` artifact for seven bridges, and all
+seven still declare that target in `gjsify.platformsUncommitted`. The moment the
+job runs green, the artifact lands beside a live exemption and
+`prebuild-artifacts` fails — refusing to commit anything, including the targets
+that were fine. Resolving it is a one-line-per-package human edit (delete the
+exemption, run `node scripts/generate-platform-packages.mjs --write` so the
+package stops declaring it), which is what the exemption's own reason text has
+always promised would be needed.
+
+This is PRE-EXISTING — the same deadlock exists on `main`, where the artifact
+lands in `<bridge>/prebuilds/darwin-x64/` and trips the identical check — and the
+split neither fixes nor worsens it; it only moves where the directory appears.
+It is recorded here because the split is what makes the landing spot
+non-obvious, and because it is currently masked: `commit-prebuilds` has been red
+on main since 2026-08-01 for an unrelated reason (`@gjsify/lightningcss-native`'s
+freshly built Linux binaries require GLIBC_2.43 while the package declares 2.39,
+so the `prebuild-libc` floor gate refuses them). Fix that first, then this
+surfaces on the next run.
 
 ### `cli.gjs.mjs` byte-reproducibility is not closed — main shipped a non-reproducing bundle again
 
