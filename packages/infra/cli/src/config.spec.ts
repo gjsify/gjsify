@@ -35,7 +35,16 @@ async function resolveGlobals(
         return data.globals;
     } finally {
         process.chdir(prevCwd);
-        rmSync(dir, { recursive: true, force: true });
+        // `maxRetries` is for Windows, and this row is why: observed here as
+        // `EPERM … rmSync` on the fixture directory, on a run where the same
+        // assertion had passed minutes before. Windows refuses to remove a
+        // directory while any handle into it is still open, and a handle can
+        // outlive the read that opened it by a few milliseconds (a scanner, an
+        // indexer, or the config loader that just parsed this fixture's
+        // package.json). The `chdir` back above is necessary but not
+        // sufficient. Same mitigation `commands/clear.ts` and
+        // `commands/install.ts` already apply, for the same reason.
+        rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
 }
 
