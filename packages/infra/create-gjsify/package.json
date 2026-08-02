@@ -20,7 +20,7 @@
     "scripts": {
         "clear": "gjsify clear lib tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
-        "build": "node scripts/process-template.mjs && tsc && chmod +x ./lib/index.js",
+        "build": "node scripts/process-template.mjs && tsc && node scripts/set-bin-mode.mjs",
         "test": "echo 'nothing to do'"
     },
     "keywords": [
