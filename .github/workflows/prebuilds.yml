@@ -403,7 +403,8 @@ jobs:
         # which requires `edition2024` (rustc ≥ 1.85). Install rustup
         # directly for a current toolchain.
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
+            https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Checkout repository
@@ -853,6 +854,24 @@ jobs:
           PREBUILD_SKIP: ${{ needs.changes.outputs.skip }}
         run: |
           set -euo pipefail
+          # PULL FIRST, AND RETRY IT. `docker run` would pull implicitly, which
+          # conflates two failures that deserve different treatment: a registry
+          # blip and a broken build. On 2026-08-02 the ppc64 leg died on
+          #   Head ".../library/fedora/manifests/43": 502 Bad Gateway
+          # with exit 125 — Docker's "could not even start the container" — and
+          # took a green run down with it. Docker Hub is unauthenticated here
+          # (deliberately: it is what lets these legs work on a fork PR), so it
+          # is both rate-limited and occasionally flaky, and every retry is
+          # cheap next to the ~3 min of emulation behind it.
+          for attempt in 1 2 3 4 5; do
+            if docker pull --platform "$PLATFORM" "$BASE_IMAGE"; then break; fi
+            if [ "$attempt" = 5 ]; then
+              echo "::error::could not pull $BASE_IMAGE for $PLATFORM after 5 attempts"
+              exit 1
+            fi
+            echo "pull failed (attempt $attempt/5) — retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
           docker run --rm --platform "$PLATFORM" \
             -v "$PWD:/workspace" -w /workspace \
             -e ARCH="$ARCH" \
@@ -1077,7 +1096,8 @@ jobs:
             rustup toolchain install stable --profile minimal
             rustup default stable
           else
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+            curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
+            https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           fi
 
