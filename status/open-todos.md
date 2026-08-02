@@ -4,6 +4,48 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
+
+`scripts/cross-runtime.mjs` carves Deno out of exit-code gating for the
+post-pass teardown abort (#47) and deliberately does NOT carve out Bun, on
+measured grounds: *"~7000 Bun runs (arrays + the GObject/boxed-heavy files …,
+full 37-file suite ×40, a probe holding 30k live boxed handles to process exit,
+random `--smol` GC pressure) produced 0 crashes / 0 cores"*, and it closes with
+an instruction — **"if Bun ever hard-crashes here, re-confirm with a gdb
+backtrace (the Deno determination's bar) first."**
+
+It has now happened, twice, on PR #923's CI (`ci-fedora:44`, bun 1.3.14,
+`NODE_GI_NATIVE=prebuild`):
+
+```
+test/arrays.test.mjs:
+  (pass) GStrv return → string[] … 8/8 assertions pass
+free(): invalid pointer
+  ✗ arrays
+```
+
+Note the marker: `free(): invalid pointer` is a **glibc heap abort**, not the
+`SIGSEGV` inside `g_boxed_free` that the Deno determination is built on, and not
+Bun's own `panic(main thread)`. Same family (a corrupt pointer reaching the
+allocator at teardown, after every assertion has passed), different
+manifestation — so the mechanism argument for Bun (deferred finalizers, run
+single-threaded on the JS thread under `DeferGCForAWhile`, `napi_internal_remove_finalizer`
+dedup) does not obviously cover it and should be re-checked rather than assumed.
+
+Nondeterministic, and independent of that PR's contents: attempt 1 failed on
+bun, attempt 2 on **deno**, attempt 3 passed, all on one commit; the job runs
+`npm install` + node-gyp inside `packages/node-gi/node-gi` (sole dependency
+`node-addon-api`), so nothing in that PR is reachable from it; the CI images
+either side of the first failure are package-identical (797 packages, empty
+`diff`, same `glibc-2.43-6`); 10 local `--only arrays` runs on unmodified `main`
+were green.
+
+Next step is the one the note names, not a carve-out: reproduce under gdb (the
+Deno case took ~8 cores on a loop of the boxed-heavy files) and get a backtrace.
+Until then Bun stays on exit-code gating — a `pass>0 && fail===0 && <crash
+marker>` carve-out added now would mask exactly the real Bun teardown bug this
+might be.
+
 ### The prebuild glibc floor is an accident of the build image, and the gate that says so only runs post-merge
 
 Two halves, and the first one is now paid for. `prebuilds.yml`'s base image
