@@ -26,8 +26,11 @@
  * Test hooks (set by tests/e2e/install-script/run.mjs):
  *   GJSIFY_INSTALL_BOOTSTRAP_URL  override the cli.gjs.mjs download origin
  *                                 (accepts file:// for offline tests)
- *   GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL  override the .sha256 companion URL
- *                                 (set to empty string to skip SHA-256)
+ *   GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL  override the .sha256 companion URL.
+ *                                 An EMPTY string is the only way to install
+ *                                 without verification, and it warns loudly; a
+ *                                 digest URL that is set but unreachable is a
+ *                                 hard failure, never a silent downgrade.
  *   GJSIFY_GLOBAL_PREFIX          override install prefix (forwarded to cli)
  *   GJSIFY_GLOBAL_BIN_DIR         override bin dir (forwarded to cli)
  *   GJSIFY_INSTALL_REGISTRY       override npm registry (forwarded as npm_config_registry)
@@ -49,6 +52,11 @@ const DEFAULT_BOOTSTRAP_URL = 'https://github.com/gjsify/gjsify/releases/latest/
 const DEFAULT_BOOTSTRAP_SHA256_URL = `${DEFAULT_BOOTSTRAP_URL}.sha256`;
 
 const USER_AGENT = 'gjsify-installer/1.0';
+
+// The bootstrap cache is CONTENT-ADDRESSED: `cli-<sha256>.gjs.mjs`. See
+// `resolveBootstrap()` for why the digest, not a fixed name, keys it.
+const CACHE_PREFIX = 'cli-';
+const CACHE_SUFFIX = '.gjs.mjs';
 
 function info(msg) {
     print(`[gjsify] ${msg}`);
@@ -168,35 +176,120 @@ function writeBytes(path, bytes) {
     Gio.File.new_for_path(path).replace_contents(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
 }
 
-async function downloadBootstrap(session, bootstrapUrl, sha256Url) {
-    info(`Downloading bootstrap from ${bootstrapUrl} ...`);
-    const bundleBytes = await fetchBytes(session, bootstrapUrl);
-    if (sha256Url && sha256Url !== '') {
-        info('Verifying SHA-256 ...');
-        let sumExpected;
+function readBytesOrNull(path) {
+    try {
+        const [, bytes] = Gio.File.new_for_path(path).load_contents(null);
+        return bytes;
+    } catch {
+        // An absent — or unreadable, e.g. truncated by a killed earlier run —
+        // cache entry is a MISS, not an error. `load_contents` is a real
+        // `throws="1"` GIR call, so this catch has a genuine throw path.
+        return null;
+    }
+}
+
+/**
+ * Drop every other cached bootstrap so the content-addressed cache stays
+ * bounded. Each entry is a ~6.6 MB bundle and the digest changes with every
+ * release — without this, keying the cache by content would trade "the cache
+ * can never be warm" for "the cache grows forever".
+ */
+function pruneCache(dir, keepBasename) {
+    const children = Gio.File.new_for_path(dir).enumerate_children(
+        'standard::name',
+        Gio.FileQueryInfoFlags.NONE,
+        null,
+    );
+    for (;;) {
+        const info_ = children.next_file(null);
+        if (info_ === null) break;
+        const name = info_.get_name();
+        if (name === keepBasename || !name.startsWith(CACHE_PREFIX) || !name.endsWith(CACHE_SUFFIX)) continue;
+        Gio.File.new_for_path(GLib.build_filenamev([dir, name])).delete(null);
+    }
+}
+
+/**
+ * Resolve a VERIFIED bootstrap bundle and return its path.
+ *
+ * The digest is fetched BEFORE the bundle, and the cache is keyed by it. That
+ * ordering is the mechanism, not an optimisation — it fixes two independent
+ * defects that both came from doing it the other way round:
+ *
+ *   1. Verification was skippable by anyone who could break ONE request. The
+ *      bundle was downloaded first and verified after, and a failed `.sha256`
+ *      fetch merely logged "skipping verification" and carried on — so a proxy,
+ *      a 404, or a captive portal silently downgraded the install to no
+ *      verification at all. Fetching the digest first makes that impossible:
+ *      no digest, no install.
+ *   2. The cache could never be warm. It wrote a fixed `cli.gjs.mjs` and never
+ *      read it back, so every run re-downloaded ~6.6 MB. A content-addressed
+ *      name lets a matching entry short-circuit the download entirely.
+ *
+ * Skipping verification is still possible, but only as an EXPLICIT act
+ * (`GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL=''`), and it says so on stderr.
+ */
+async function resolveBootstrap(session, bootstrapUrl, sha256Url) {
+    let expected = null;
+    if (sha256Url) {
+        info(`Fetching published SHA-256 from ${sha256Url} ...`);
+        let sumBytes;
         try {
-            const sumBytes = await fetchBytes(session, sha256Url);
-            sumExpected = new TextDecoder().decode(sumBytes).trim().split(/\s+/)[0];
+            sumBytes = await fetchBytes(session, sha256Url);
         } catch (err) {
-            error(`Could not fetch ${sha256Url} — skipping verification: ${err.message}`);
+            error(`Could not fetch ${sha256Url}: ${err.message}`);
+            error('Refusing to install an UNVERIFIED bootstrap bundle.');
+            error("To bootstrap without verification, set GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL='' explicitly.");
+            exit(1);
         }
-        if (sumExpected) {
-            const sumActual = sha256Hex(bundleBytes);
-            if (sumExpected.toLowerCase() !== sumActual.toLowerCase()) {
-                error(`SHA-256 mismatch: expected ${sumExpected}, got ${sumActual}`);
-                exit(1);
-            }
+        expected = (new TextDecoder().decode(sumBytes).trim().split(/\s+/)[0] ?? '').toLowerCase();
+        if (!/^[0-9a-f]{64}$/.test(expected)) {
+            error(`${sha256Url} did not contain a SHA-256 digest (read ${JSON.stringify(expected.slice(0, 80))}).`);
+            exit(1);
+        }
+    } else {
+        error("SHA-256 verification is DISABLED (GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL='') — the bundle is unverified.");
+    }
+
+    const dir = cacheDir();
+    const basename = expected ? `${CACHE_PREFIX}${expected}${CACHE_SUFFIX}` : `${CACHE_PREFIX}unverified${CACHE_SUFFIX}`;
+    const bundlePath = GLib.build_filenamev([dir, basename]);
+
+    if (expected) {
+        // Re-hash rather than trusting the filename: the name is only a CLAIM
+        // about the contents, and a truncated entry keeps its name.
+        const cached = readBytesOrNull(bundlePath);
+        if (cached && sha256Hex(cached).toLowerCase() === expected) {
+            info(`Reusing verified bootstrap ${bundlePath} (${cached.length} bytes)`);
+            return bundlePath;
         }
     }
-    const dir = cacheDir();
+
+    info(`Downloading bootstrap from ${bootstrapUrl} ...`);
+    const bundleBytes = await fetchBytes(session, bootstrapUrl);
+    if (expected) {
+        const actual = sha256Hex(bundleBytes).toLowerCase();
+        if (actual !== expected) {
+            error(`SHA-256 mismatch: expected ${expected}, got ${actual}`);
+            exit(1);
+        }
+        info('SHA-256 verified.');
+    }
+
     try {
         ensureDir(dir);
     } catch {
         /* exists */
     }
-    const bundlePath = GLib.build_filenamev([dir, 'cli.gjs.mjs']);
     writeBytes(bundlePath, bundleBytes);
     info(`Bootstrap cached at ${bundlePath} (${bundleBytes.length} bytes)`);
+    try {
+        pruneCache(dir, basename);
+    } catch (err) {
+        // Housekeeping only: a read-only or concurrently-modified cache dir
+        // must never fail an install.
+        info(`Could not prune the bootstrap cache: ${err.message}`);
+    }
     return bundlePath;
 }
 
@@ -232,7 +325,7 @@ async function main() {
     const session = new Soup.Session();
     let bundlePath;
     try {
-        bundlePath = await downloadBootstrap(session, opts.bootstrapUrl, opts.bootstrapSha256Url);
+        bundlePath = await resolveBootstrap(session, opts.bootstrapUrl, opts.bootstrapSha256Url);
     } catch (err) {
         error(`Bootstrap download failed: ${err.message}`);
         exit(1);

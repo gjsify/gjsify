@@ -102,13 +102,22 @@ if (!existsSync(PRE_COMMIT_PATH)) {
     process.exit(1);
 }
 
+// Apply each config key on its own and KEEP GOING.
+//
+// This used to `process.exit(0)` right here when `core.hooksPath` already
+// matched, which made everything below unreachable on exactly the clones that
+// need it most: an existing clone has the key set, so any git config the
+// project adds after this point would only ever land on FRESH clones, and the
+// difference is invisible — the script prints "nothing to do" and exits 0 in
+// both cases. Idempotency is a property of each individual write, not a licence
+// to abandon the rest of the script.
 const current = gitConfig(['--get', 'core.hooksPath']);
 if (current === HOOKS_DIR_RELATIVE) {
-    log(`core.hooksPath already set to ${HOOKS_DIR_RELATIVE} — nothing to do.`);
-    process.exit(0);
+    log(`core.hooksPath already set to ${HOOKS_DIR_RELATIVE}.`);
+} else {
+    execFileSync('git', ['config', 'core.hooksPath', HOOKS_DIR_RELATIVE], { cwd: ROOT });
+    log(`core.hooksPath = ${HOOKS_DIR_RELATIVE} (was ${current ?? 'unset / .git/hooks'})`);
 }
 
-execFileSync('git', ['config', 'core.hooksPath', HOOKS_DIR_RELATIVE], { cwd: ROOT });
-log(`core.hooksPath = ${HOOKS_DIR_RELATIVE} (was ${current ?? 'unset / .git/hooks'})`);
 log(`active hooks: pre-commit`);
 log(`bypass with: 'git commit --no-verify' or SKIP_GJSIFY_HOOKS=1`);
