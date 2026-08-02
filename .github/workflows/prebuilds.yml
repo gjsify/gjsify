@@ -2088,8 +2088,40 @@ jobs:
       contents: write
 
     steps:
+      # SSH, not the workflow token, and that is forced rather than preferred.
+      #
+      # `main` is protected by a ruleset requiring three status checks, and a
+      # direct push carries none — the commit is new, nothing has run against it
+      # yet — so the push is rejected with `GH006: 3 of 3 required status checks
+      # are expected` and the binaries this job just downloaded are discarded.
+      # That is what took main red on 2026-08-02 with every build leg green.
+      #
+      # The obvious repair, exempting the Actions bot, IS NOT AVAILABLE: adding
+      # the GitHub Actions integration to the ruleset's bypass list is refused by
+      # the API — "Actor GitHub Actions integration must be part of the ruleset
+      # source or owner organization". Of the actors it does accept, a repository
+      # ROLE (`Write`) would hand the bypass to every human with push access and
+      # make the gate decorative; a DEPLOY KEY is scoped to this repository
+      # alone, cannot open pull requests, cannot reach anything else in the org,
+      # and is listed by name in the ruleset. So the bypass list holds
+      # `DeployKey`, and this job is the only thing that owns one.
+      #
+      # A pull-request flow would need no bypass at all, and was preferred until
+      # it was checked: a PR opened with `GITHUB_TOKEN` does not trigger
+      # workflows, so its required checks would never run and auto-merge would
+      # never fire. That route needs a non-workflow identity too, and a broader
+      # one than a single-repository key.
+      #
+      # SETUP (one-time, maintainer): generate a keypair, add the PUBLIC half
+      # under Settings -> Deploy keys WITH write access, and the PRIVATE half as
+      # the `PREBUILDS_DEPLOY_KEY` secret.
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          # Handing the key to checkout is what makes the later `git push` use
+          # it: checkout writes the remote's auth config, so the push needs no
+          # separate remote or credential juggling.
+          ssh-key: ${{ secrets.PREBUILDS_DEPLOY_KEY }}
 
       # -------- @gjsify/webgl --------
       - name: Download webgl x64 prebuilds
