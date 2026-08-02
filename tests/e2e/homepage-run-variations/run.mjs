@@ -38,9 +38,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const LIB_ENTRY = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
-const GJS_BUNDLE = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
+const LIB_ENTRY = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
+const GJS_BUNDLE = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
 
 // How each host launches the local CLI entry (+ the substring its banner
 // reports so we can prove the CLI booted under THAT runtime). node is the host

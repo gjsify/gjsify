@@ -62,7 +62,8 @@ export async function startServer(
     // LD_LIBRARY_PATH / GI_TYPELIB_PATH get auto-injected from every
     // workspace `@gjsify/*` package's `gjsify.prebuilds` field. Without
     // this the example fails to load the @gjsify/http-soup-bridge typelib.
-    const cmd = target === 'gjs' ? new URL('../../../../node_modules/.bin/gjsify', import.meta.url).pathname : 'node';
+    const cmd =
+        target === 'gjs' ? fileURLToPath(new URL('../../../../node_modules/.bin/gjsify', import.meta.url)) : 'node';
     const args = target === 'gjs' ? ['run', bundle] : [bundle];
 
     const proc = spawn(cmd, args, {

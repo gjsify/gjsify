@@ -57,7 +57,7 @@ function listTarball(cwd, filename) {
     const stdout = execFileSync('tar', ['-tzf', join(cwd, filename)], {
         encoding: 'utf8',
     });
-    return stdout.split('\n').filter(Boolean);
+    return stdout.split(/\r?\n/).filter(Boolean);
 }
 
 describe('gjsify pack — lifecycle scripts', () => {

@@ -16,6 +16,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync, chmodSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // The GJS-only in-process fast path in `run.ts` only activates under `gjs`,
 // not Node — so the double-execution regression can only be exercised by
@@ -91,7 +92,7 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
 
     before(() => {
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-run-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
         // Build a tiny monorepo so we can test:
         //   - script lookup in a workspace package
@@ -238,7 +239,7 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
         'does not double-execute an in-process gjsify subcommand script (GJS)',
         { skip: hasGjs() ? false : 'gjs not on PATH' },
         async () => {
-            const bundle = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
+            const bundle = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
             const pkgPath = join(wsDir, 'package.json');
             const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
             // `gjsify --version` is a single gjsify subcommand → in-process path.
@@ -269,7 +270,7 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
         'propagates a non-zero gjs bundle exit through an in-process run script (GJS)',
         { skip: hasGjs() ? false : 'gjs not on PATH' },
         async () => {
-            const bundle = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
+            const bundle = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
             writeFileSync(join(wsDir, 'fail-bundle.js'), 'imports.system.exit(3);\n');
             const pkgPath = join(wsDir, 'package.json');
             const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
@@ -301,7 +302,7 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
         'propagates a THROWING in-process gjsify subcommand through run (GJS)',
         { skip: hasGjs() ? false : 'gjs not on PATH' },
         async () => {
-            const bundle = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
+            const bundle = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
             const pkgPath = join(wsDir, 'package.json');
             const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
             // Single `gjsify <subcommand>` → in-process fast path.
@@ -345,7 +346,7 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
         'exits cleanly (no core dump) when the script is missing (GJS)',
         { skip: hasGjs() ? false : 'gjs not on PATH' },
         async () => {
-            const bundle = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
+            const bundle = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
             const r = await runGjs(bundle, ['run', 'no-such-script-xyz'], { cwd: wsDir });
             assert.equal(
                 r.status,

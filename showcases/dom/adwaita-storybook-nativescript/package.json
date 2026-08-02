@@ -5,7 +5,7 @@
     "private": true,
     "main": "app/app.ts",
     "scripts": {
-        "sync:theme": "cp ../../../packages/nativescript-bridge/adwaita/src/theme/adwaita.css app/adwaita.css && cp ../../../packages/nativescript-bridge/storybook/src/theme/storybook.css app/storybook.css",
+        "sync:theme": "gjsify copy ../../../packages/nativescript-bridge/adwaita/src/theme/adwaita.css ../../../packages/nativescript-bridge/storybook/src/theme/storybook.css app/",
         "prepare:android": "npm run sync:theme && nativescript prepare android --no-hmr --disable-npm-install",
         "build:android": "npm run sync:theme && nativescript build android --no-hmr --disable-npm-install",
         "run:android": "npm run sync:theme && nativescript run android --no-hmr --disable-npm-install",

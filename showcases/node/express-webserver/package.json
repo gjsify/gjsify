@@ -18,7 +18,7 @@
     "build": "gjsify run build:gjs && gjsify run build:node && gjsify run build:public",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
-    "build:public": "mkdir -p dist/public && cp -r src/public/* dist/public/"
+    "build:public": "gjsify copy src/public dist/public"
   },
   "dependencies": {
     "@gjsify/http-soup-bridge": "workspace:^"

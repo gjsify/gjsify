@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
     return new Promise((resolve, reject) => {
@@ -75,7 +76,7 @@ describe('gjsify install --timeout — slow-registry safety net', { timeout: 60_
         await new Promise((r) => server.listen(0, '127.0.0.1', r));
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
 
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',

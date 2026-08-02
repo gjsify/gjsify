@@ -51,6 +51,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const BLOCK = 512;
 
@@ -302,7 +303,7 @@ describe('gjsify install — never fetch/extract over workspace sources', { time
         server = makeRegistry();
         await new Promise((r) => server.listen(0, '127.0.0.1', r));
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         // Fixture-local caches: the `fetch: @fixture/app` assertions below
         // require the tarball to actually come off the network — a shared
         // user-level XDG cache from a previous local run turns the fetch into
