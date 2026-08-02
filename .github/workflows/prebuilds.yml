@@ -56,7 +56,7 @@ name: Build Native Prebuilds
 # while checking out the PR's head code — precisely the combination that must
 # not exist in a workflow that contains a job which pushes commits. Plain
 # `pull_request` runs with a token GitHub forces to read-only for fork PRs, and
-# the build legs need nothing more: they pull the PUBLIC `fedora:44` image, so
+# the build legs need nothing more: they pull the PUBLIC `fedora:43` image, so
 # unlike main.yml's private `ghcr.io/gjsify/ci-fedora` they also work on a fork
 # PR. Least privilege backs that up rather than relying on it — see
 # `permissions` below.
@@ -320,7 +320,41 @@ jobs:
     needs: [changes]
     runs-on: ${{ matrix.runner }}
     container:
-      image: fedora:44
+      # ══════════════════════════════════════════════════════════════════
+      # THIS IMAGE IS A DISTRIBUTION DECISION, NOT A TEST HOST. DO NOT BUMP
+      # IT TO MATCH THE OTHER WORKFLOWS.
+      #
+      # Every other `fedora:<n>` in this repository picks a machine to RUN
+      # tests on; a newer one is strictly better and bumping them together
+      # is the obvious hygiene. This one picks the glibc our published
+      # binaries are LINKED AGAINST, and that number is a promise to every
+      # consumer — the toolchain's own `gjsify.glibcRequires` floor, which
+      # `lightningcss-native` alone pushes to the highest value in the tree.
+      #
+      # #897 bumped it 43 → 44 as part of exactly that hygiene sweep, with
+      # no functional need, and it took main red for three consecutive
+      # `commit-prebuilds` runs. Measured:
+      #
+      #   fedora:43 → glibc 2.42, floor stays 2.39 (`pidfd_spawnp`, from
+      #               Rust std) — the value every package declares today
+      #   fedora:44 → glibc 2.43, floor jumps to 2.43, because 2.43
+      #               RE-VERSIONS three float-math symbols
+      #               (`acosf`/`asinf`/`atan2f`) that lightningcss's colour
+      #               conversion calls. The linker binds the newest default
+      #               version available, so merely BUILDING there rewrites
+      #               the requirement — no source change, no review.
+      #
+      # The old symbol versions still exist in glibc 2.43 and behave the
+      # way lightningcss needs, so nothing is gained by the newer ones. What
+      # is LOST is every consumer below 2.43: at 2.39 this toolchain runs on
+      # Ubuntu 24.04 and Debian 13; at 2.43 it runs on essentially nothing
+      # shipping today.
+      #
+      # If this must move, the floor moves with it — so decide the floor
+      # first (see `status/open-todos.md` → "the prebuild glibc floor is an
+      # accident of the build image"), do not inherit it from a tag.
+      # ══════════════════════════════════════════════════════════════════
+      image: fedora:43
 
     strategy:
       fail-fast: false
@@ -697,9 +731,9 @@ jobs:
   # emulation, registered at a PINNED version (see the step below) and driven
   # by a plain `docker run --platform`.
   #
-  # ppc64 + s390x: fedora:44 has official images for both → same dnf
+  # ppc64 + s390x: fedora:43 has official images for both → same dnf
   #   package names as the native job above.
-  # riscv64: fedora:44 has no riscv64 image → ubuntu:26.04 is used
+  # riscv64: fedora:43 has no riscv64 image → ubuntu:26.04 is used
   #   instead (package names differ; auto-detected via command -v dnf).
   #
   # Node.js process.arch values used as the prebuilds/ dir suffix:
@@ -738,12 +772,16 @@ jobs:
           # IBM POWER9/10 workstations and servers (e.g. Raptor Computing Talos II)
           - arch: ppc64
             platform: linux/ppc64le
-            base_image: fedora:44
+            # Same image as the native leg, and pinned to it for the same
+            # reason: these artifacts are published too, so the emulated
+            # legs' glibc sets their floor exactly as it does for x64/arm64.
+            # See the block on `build-prebuilds`' own `container:`.
+            base_image: fedora:43
 
           # IBM Z mainframes — enterprise Linux servers
           - arch: s390x
             platform: linux/s390x
-            base_image: fedora:44
+            base_image: fedora:43
 
           # RISC-V boards (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …)
           # ubuntu:26.04 because Fedora publishes no riscv64 image.
