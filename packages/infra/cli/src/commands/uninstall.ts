@@ -15,7 +15,7 @@
 // package.json + refresh the lockfile, which install -g doesn't touch.
 
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 import type { Argv } from 'yargs';
 import type { Command } from '../types/index.js';
 import { defaultGlobalLayout, specToPackageName } from '../utils/install-global.js';
@@ -129,7 +129,42 @@ export const uninstallCommand: Command<unknown, UninstallOptions> = {
  * string in the file, which with the preamble is the prebuild dir list) and
  * check whether it's under `pkgDir`. Non-shim files (e.g. unrelated binaries
  * the user installed via `npm install -g`) are skipped silently.
+ *
+ * WINDOWS
+ *
+ * `linkGlobalBins` writes THREE files there — the `sh` launcher above plus the
+ * `.cmd` and `.ps1` siblings cmd.exe and pwsh need, because Windows runs neither
+ * an extension-less file nor a `#!` line. Two bugs stacked on that:
+ *
+ *   • the containment test was `target.startsWith(pkgDir + '/')`, while both
+ *     `pkgDir` and the baked `targetAbs` use `\` there — so the sh launcher
+ *     never matched either;
+ *   • nothing looked for the `.cmd`/`.ps1` siblings at all — they do not begin
+ *     `#!/bin/sh`, so the scan above skips them by construction.
+ *
+ * Net: `gjsify uninstall -g <pkg>` on Windows deleted the package and left all
+ * three launchers pointing at a deleted path. The user then got a crash rather
+ * than "command not found", and a later install of a different package with the
+ * same bin name stayed shadowed by the stale `.cmd`.
+ *
+ * The sh launcher stays the ANCHOR — it is written on every platform, so it is
+ * the one shape worth parsing — and its siblings are collected by name. That
+ * avoids teaching this function to read batch and PowerShell as well.
  */
+/**
+ * Is `target` `dir` itself, or under it?
+ *
+ * Asked through `path.relative` rather than a string prefix, so it holds
+ * whatever separator either side happens to be spelled with — the string form
+ * was `\`-vs-`/` blind on Windows. It also stops `/opt/foo-backup` from reading
+ * as inside `/opt/foo`, which a bare `startsWith(dir)` would have allowed.
+ */
+function isInside(dir: string, target: string): boolean {
+    const rel = relative(dir, target);
+    if (rel === '') return true;
+    return rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
 function findBinShimsForPackage(binDir: string, pkgDir: string, verbose: boolean): string[] {
     if (!existsSync(binDir)) return [];
     const matches: string[] = [];
@@ -154,8 +189,14 @@ function findBinShimsForPackage(binDir: string, pkgDir: string, verbose: boolean
             const m = execLine.match(/'([^']+)'/);
             if (!m) continue;
             const target = m[1];
-            if (target.startsWith(pkgDir + '/') || target === pkgDir) {
+            if (isInside(pkgDir, target)) {
                 matches.push(fullPath);
+                // The Windows companions, when present. `existsSync` rather
+                // than a platform check: what decides is whether they were
+                // written, and a tree can be inspected from another OS.
+                for (const ext of ['.cmd', '.ps1']) {
+                    if (existsSync(fullPath + ext)) matches.push(fullPath + ext);
+                }
             }
         } catch (err) {
             if (verbose) {
