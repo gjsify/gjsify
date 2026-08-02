@@ -50,7 +50,12 @@ const REFS_SUITES = {
     'js-native-api': join(ROOT, 'refs', 'node', 'test', 'js-native-api'),
     'node-api': join(ROOT, 'refs', 'node', 'test', 'node-api'),
 };
-const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
+// A SIBLING of the package, not a child of it: since ADR 0017 each `<os>-<arch>`
+// prebuild lives in its own npm package (`@gjsify/napi-linux-x64`) so a consumer
+// downloads only the binary their machine can load. `packages/napi/napi` ships no
+// `prebuilds/` and no longer lists it in `files`; the directory name is
+// `platformPackageDirName()`'s `<bridge-dir>-<target>`.
+const PREBUILD_DIR = join(PKG, '..', 'napi-linux-x64', 'prebuilds', 'linux-x64');
 
 // A node-api addon that #includes <uv.h> links against libuv threading
 // symbols (uv_thread_create / uv_hrtime), which Node provides from its own

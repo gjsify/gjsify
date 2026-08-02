@@ -19,7 +19,7 @@
  * parsers) keep working unchanged.
  *
  * Usage: node scripts/check-prebuild-loader-path.mjs <dir> [<dir> …]
- *        node scripts/check-prebuild-loader-path.mjs packages/infra/oxfmt-native/prebuilds/darwin-arm64
+ *        node scripts/check-prebuild-loader-path.mjs packages/infra/oxfmt-native-darwin-arm64/prebuilds/darwin-arm64
  */
 
 import { resolve } from 'node:path';

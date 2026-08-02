@@ -102,8 +102,10 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x64/
-          echo "staged: $(ls -1 prebuilds/linux-x64)"
+          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
+             ../napi-linux-x64/prebuilds/linux-x64/
+          echo "staged: $(ls -1 ../napi-linux-x64/prebuilds/linux-x64)"
 
       # Assert the checked-in stubs.cc is in sync with the sources (a function
       # implemented but still stubbed would fail the meson link; a regeneration
@@ -198,7 +200,9 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x64/
+          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
+             ../napi-linux-x64/prebuilds/linux-x64/
 
       # Build better-sqlite3 from source (the real npm native addon the gate
       # proves runs unmodified on GJS). --force_build so it never uses a shipped
@@ -428,7 +432,9 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x64/
+          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
+             ../napi-linux-x64/prebuilds/linux-x64/
 
       # Build @gjsify/node-gi from source (node-gyp) → build/Release/node_gi.node,
       # the addon both gates load through the shim. Its `install` script IS

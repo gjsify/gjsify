@@ -1001,19 +1001,26 @@ jobs:
       # and stages them into the committed prebuild dir. The freshly built triple
       # overwrites whatever the checkout carried, so the tarball always ships a
       # binary built from the released source.
+      #
+      # Since ADR 0017 that directory belongs to the PER-TARGET package
+      # (`packages/napi/napi-linux-x64/`), not to the bridge: `@gjsify/napi` no
+      # longer lists `prebuilds` in `files`, so staging into it would pack
+      # nothing and every consumer would get a bridge with no binary.
       - name: Build the @gjsify/napi shim (meson) + stage prebuild
         working-directory: packages/napi/napi
         run: |
           meson setup build .
           meson compile -C build
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x64/
-          echo "staged: $(ls -1 prebuilds/linux-x64)"
+          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
+          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
+             ../napi-linux-x64/prebuilds/linux-x64/
+          echo "staged: $(ls -1 ../napi-linux-x64/prebuilds/linux-x64)"
 
       - name: Upload the linux-x64 prebuild artifact
         uses: actions/upload-artifact@v4
         with:
           name: napi-prebuild-linux-x64
-          path: packages/napi/napi/prebuilds/linux-x64
+          path: packages/napi/napi-linux-x64/prebuilds/linux-x64
           if-no-files-found: error
 
   # macOS arm64 leg. Homebrew ships the SAME gjs 1.88.x <-> spidermonkey
@@ -1056,20 +1063,27 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
 
+      # Staged into the per-target package, same as the linux leg above and for
+      # the same reason (ADR 0017). This target is the one `gjsify.platforms`
+      # declares and `gjsify.platformsUncommitted` exempts — built and shipped by
+      # a release, never committed to the repository — so
+      # `packages/napi/napi-darwin-arm64/` exists in the tree carrying that
+      # exemption and no `prebuilds/`, and this is the step that fills it.
       - name: Build the @gjsify/napi shim (meson) + stage darwin-arm64 prebuild
         working-directory: packages/napi/napi
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p prebuilds/darwin-arm64
-          cp build/libgjsifynapi.dylib build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/darwin-arm64/
-          echo "staged: $(ls -1 prebuilds/darwin-arm64)"
+          mkdir -p ../napi-darwin-arm64/prebuilds/darwin-arm64
+          cp build/libgjsifynapi.dylib build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
+             ../napi-darwin-arm64/prebuilds/darwin-arm64/
+          echo "staged: $(ls -1 ../napi-darwin-arm64/prebuilds/darwin-arm64)"
 
       - name: Upload the darwin-arm64 prebuild artifact
         uses: actions/upload-artifact@v4
         with:
           name: napi-prebuild-darwin-arm64
-          path: packages/napi/napi/prebuilds/darwin-arm64
+          path: packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
           if-no-files-found: error
 
   # MAINTAINER ACTION — MANUAL FIRST PUBLISH REQUIRED (like the gtk-runtime and
@@ -1117,31 +1131,35 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
 
-      # Stage BOTH prebuild triples into the package's prebuilds/ dir before the
-      # pack (`prebuilds` is in napi's `files`, and the gjsify packer expands a
-      # plain-dir entry recursively — so every triple present on disk ships).
+      # Stage each prebuild triple into ITS OWN per-target package before the
+      # pack (ADR 0017). `@gjsify/napi` no longer lists `prebuilds` in `files`,
+      # so a triple staged into the bridge would pack nothing at all — silently,
+      # because a `files` entry that is gone cannot warn about a directory that
+      # is present. Each platform package lists exactly `["prebuilds"]`, so the
+      # directory IS the tarball.
       # Downloaded first so a missing artifact fails before the multi-minute
       # workspace install below.
       - name: Download the linux-x64 prebuild
         uses: actions/download-artifact@v4
         with:
           name: napi-prebuild-linux-x64
-          path: packages/napi/napi/prebuilds/linux-x64
+          path: packages/napi/napi-linux-x64/prebuilds/linux-x64
 
       - name: Download the darwin-arm64 prebuild
         uses: actions/download-artifact@v4
         with:
           name: napi-prebuild-darwin-arm64
-          path: packages/napi/napi/prebuilds/darwin-arm64
+          path: packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
 
       - name: Confirm both prebuilds are staged
         run: |
           set -eu
-          ls -la packages/napi/napi/prebuilds/linux-x64 packages/napi/napi/prebuilds/darwin-arm64
-          test -f packages/napi/napi/prebuilds/linux-x64/libgjsifynapi.so
-          test -f packages/napi/napi/prebuilds/linux-x64/GjsifyNapi-1.0.typelib
-          test -f packages/napi/napi/prebuilds/darwin-arm64/libgjsifynapi.dylib
-          test -f packages/napi/napi/prebuilds/darwin-arm64/GjsifyNapi-1.0.typelib
+          ls -la packages/napi/napi-linux-x64/prebuilds/linux-x64 \
+                 packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
+          test -f packages/napi/napi-linux-x64/prebuilds/linux-x64/libgjsifynapi.so
+          test -f packages/napi/napi-linux-x64/prebuilds/linux-x64/GjsifyNapi-1.0.typelib
+          test -f packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64/libgjsifynapi.dylib
+          test -f packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64/GjsifyNapi-1.0.typelib
 
       # No `registry-url` (it would inject a placeholder NODE_AUTH_TOKEN and
       # defeat OIDC — see the ubuntu `publish` job's rationale).
@@ -1192,14 +1210,45 @@ jobs:
           test -f packages/napi/napi/lib/types/index.d.ts
           ls -la packages/napi/napi/lib/esm packages/napi/napi/lib/types
 
-      # OIDC Trusted Publishing from release.yml — publishes ONLY @gjsify/napi,
-      # at whatever version its package.json carries at the released tag (the
-      # release-it bumper's `packages/*/*/package.json` glob covers it, so it
-      # tracks the train). Driven by the workspace's own `gjsify` (the version
-      # being released) rather than an npm-installed CLI, because the install
-      # above already put it on disk. --tolerate-republish makes a manual rerun
-      # over an already-published version a no-op instead of a hard 409/403.
-      - name: Publish @gjsify/napi (OIDC, with both prebuilds)
+      # OIDC Trusted Publishing from release.yml — publishes the @gjsify/napi
+      # SET, at whatever version each package.json carries at the released tag
+      # (the release-it bumper's `packages/*/*/package.json` glob covers all
+      # three, so they track the train together — and they MUST, because the
+      # bridge pins its siblings by literal version, not by `workspace:`).
+      # Driven by the workspace's own `gjsify` (the version being released)
+      # rather than an npm-installed CLI, because the install above already put
+      # it on disk. --tolerate-republish makes a manual rerun over an
+      # already-published version a no-op instead of a hard 409/403.
+      #
+      # WHY THREE COMMANDS AND NOT `gjsify foreach`: `packages/napi/*` is
+      # deliberately not in the root `workspaces` list (own CI, own carve-outs),
+      # so the `npm:publish` sweep never sees any of them. Before ADR 0017 that
+      # cost one explicit publish; now the artifacts live in per-target packages
+      # and each is its own npm name, so each needs its own. They are listed
+      # rather than globbed on purpose — a new napi target is a new published
+      # name and a new Trusted-Publisher bootstrap, which is a decision, not a
+      # thing to pick up silently from a directory listing.
+      #
+      # PLATFORM PACKAGES FIRST: the bridge declares them as
+      # `optionalDependencies`, and an optional dependency that does not resolve
+      # is skipped in silence. Publishing the bridge first would leave a window
+      # in which an install succeeds and produces a bridge with no binary.
+      #
+      # MAINTAINER ACTION: `@gjsify/napi-linux-x64` and
+      # `@gjsify/napi-darwin-arm64` are NEW names. Like `@gjsify/napi` itself
+      # they need a one-time manual first publish + `gjsify trust` (or `gjsify
+      # onboard`) before this job's first CI release, or the OIDC exchange 404s.
+      - name: Publish the @gjsify/napi platform packages (OIDC)
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+        run: |
+          set -eu
+          for pkg in napi-linux-x64 napi-darwin-arm64; do
+            PATH="$PWD/node_modules/.bin:$PATH" gjsify publish "packages/napi/$pkg" \
+              --tolerate-republish --tag latest --access public
+          done
+
+      - name: Publish @gjsify/napi (OIDC)
         env:
           GJSIFY_PUBLISH_DEBUG: '1'
         run: |

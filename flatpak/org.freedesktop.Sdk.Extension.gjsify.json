@@ -75,62 +75,62 @@
         {
           "type": "file",
           "only-arches": ["x86_64"],
-          "path": "../packages/infra/rolldown-native/prebuilds/linux-x64/GjsifyRolldown-1.0.typelib"
+          "path": "../packages/infra/rolldown-native-linux-x64/prebuilds/linux-x64/GjsifyRolldown-1.0.typelib"
         },
         {
           "type": "file",
           "only-arches": ["x86_64"],
-          "path": "../packages/infra/rolldown-native/prebuilds/linux-x64/libgjsify_rolldown.so"
+          "path": "../packages/infra/rolldown-native-linux-x64/prebuilds/linux-x64/libgjsify_rolldown.so"
         },
         {
           "type": "file",
           "only-arches": ["x86_64"],
-          "path": "../packages/infra/rolldown-native/prebuilds/linux-x64/libgjsifyrolldown.so"
+          "path": "../packages/infra/rolldown-native-linux-x64/prebuilds/linux-x64/libgjsifyrolldown.so"
         },
         {
           "type": "file",
           "only-arches": ["x86_64"],
-          "path": "../packages/infra/lightningcss-native/prebuilds/linux-x64/GjsifyLightningcss-1.0.typelib"
+          "path": "../packages/infra/lightningcss-native-linux-x64/prebuilds/linux-x64/GjsifyLightningcss-1.0.typelib"
         },
         {
           "type": "file",
           "only-arches": ["x86_64"],
-          "path": "../packages/infra/lightningcss-native/prebuilds/linux-x64/libgjsify_lightningcss.so"
+          "path": "../packages/infra/lightningcss-native-linux-x64/prebuilds/linux-x64/libgjsify_lightningcss.so"
         },
         {
           "type": "file",
           "only-arches": ["x86_64"],
-          "path": "../packages/infra/lightningcss-native/prebuilds/linux-x64/libgjsifylightningcss.so"
+          "path": "../packages/infra/lightningcss-native-linux-x64/prebuilds/linux-x64/libgjsifylightningcss.so"
         },
         {
           "type": "file",
           "only-arches": ["aarch64"],
-          "path": "../packages/infra/rolldown-native/prebuilds/linux-arm64/GjsifyRolldown-1.0.typelib"
+          "path": "../packages/infra/rolldown-native-linux-arm64/prebuilds/linux-arm64/GjsifyRolldown-1.0.typelib"
         },
         {
           "type": "file",
           "only-arches": ["aarch64"],
-          "path": "../packages/infra/rolldown-native/prebuilds/linux-arm64/libgjsify_rolldown.so"
+          "path": "../packages/infra/rolldown-native-linux-arm64/prebuilds/linux-arm64/libgjsify_rolldown.so"
         },
         {
           "type": "file",
           "only-arches": ["aarch64"],
-          "path": "../packages/infra/rolldown-native/prebuilds/linux-arm64/libgjsifyrolldown.so"
+          "path": "../packages/infra/rolldown-native-linux-arm64/prebuilds/linux-arm64/libgjsifyrolldown.so"
         },
         {
           "type": "file",
           "only-arches": ["aarch64"],
-          "path": "../packages/infra/lightningcss-native/prebuilds/linux-arm64/GjsifyLightningcss-1.0.typelib"
+          "path": "../packages/infra/lightningcss-native-linux-arm64/prebuilds/linux-arm64/GjsifyLightningcss-1.0.typelib"
         },
         {
           "type": "file",
           "only-arches": ["aarch64"],
-          "path": "../packages/infra/lightningcss-native/prebuilds/linux-arm64/libgjsify_lightningcss.so"
+          "path": "../packages/infra/lightningcss-native-linux-arm64/prebuilds/linux-arm64/libgjsify_lightningcss.so"
         },
         {
           "type": "file",
           "only-arches": ["aarch64"],
-          "path": "../packages/infra/lightningcss-native/prebuilds/linux-arm64/libgjsifylightningcss.so"
+          "path": "../packages/infra/lightningcss-native-linux-arm64/prebuilds/linux-arm64/libgjsifylightningcss.so"
         },
         {
           "type": "script",
