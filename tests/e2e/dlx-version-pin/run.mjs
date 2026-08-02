@@ -32,7 +32,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------------------
 // Tar helpers — assemble a ustar archive with multiple files.
@@ -263,7 +263,7 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
         // Run the CLI from the workspace build output. `XDG_CACHE_HOME=<tmp>`
         // makes `dlxCacheRoot()` return `<tmp>/gjsify/dlx`. Forcing the native
         // backend keeps the test independent of npm being on PATH.
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             XDG_CACHE_HOME: cacheRoot,

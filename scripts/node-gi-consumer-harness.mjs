@@ -51,7 +51,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, mkdirSync, symlinkSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -426,6 +426,20 @@ function parseSummary(out) {
 }
 
 // ── build + run one package ──────────────────────────────────────────────────
+//
+// KNOWN-WRONG ON WINDOWS, deliberately left. `node_modules/.bin/gjsify` exists
+// there too — it is the `sh` member of npm's shim trio, and the one member
+// Windows cannot execute — so `existsSync` answering yes says nothing about
+// spawnability, and `execFileSync` returns ENOENT.
+//
+// `scripts/resolve-gjsify.mjs` is the fix, but applying it here is not a
+// one-line change: the cmd.exe form embeds the arguments INSIDE the quoted
+// `/c "…"` line, so the resolved command cannot be threaded through this file
+// as the bare string every `exec(gjsify, …)` call site currently passes around.
+// This harness drives `@gjsify/node-gi`, which needs GObject-Introspection and
+// so is Linux-only in practice — there is no Windows run to fix. Rewriting the
+// threading blind, on a harness this host cannot exercise, would trade a known
+// unreachable bug for an unmeasured change. Recorded in `status/open-todos.md`.
 function resolveGjsify() {
     const local = join(ROOT, 'node_modules', '.bin', 'gjsify');
     if (existsSync(local)) return local;
@@ -464,7 +478,10 @@ function exec(cmd, args, opts) {
 function runPackage(name, { runtimes, timeout, keep, gjsify }) {
     const bare = name.replace(/^@gjsify\//, '');
     const dir = findPackageDir(name);
-    const result = { name, dir: dir ? dir.replace(ROOT + '/', '') : null, build: null, runtimes: {} };
+    // `relative` + a POSIX spelling rather than stripping a `/`-suffixed
+    // prefix: `dir` is host-native, so on Windows the strip matched nothing and
+    // the host's absolute build path ended up verbatim in the survey JSON.
+    const result = { name, dir: dir ? relative(ROOT, dir).split(sep).join('/') : null, build: null, runtimes: {} };
     if (!dir) {
         result.build = { ok: false, reason: 'package-not-found', detail: `no package dir for ${name}` };
         return result;

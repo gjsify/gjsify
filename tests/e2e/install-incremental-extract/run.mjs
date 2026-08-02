@@ -31,6 +31,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ----- tar helpers (ustar v0, a single package.json entry) -----
 const BLOCK = 512;
@@ -170,7 +171,7 @@ describe('gjsify install — incremental extraction (skip already-extracted)', {
         // Per-run cache root so a developer's warm ~/.cache doesn't change the
         // network behaviour, and so the suite stays parallel-safe.
         cacheDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-incremental-cache-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',

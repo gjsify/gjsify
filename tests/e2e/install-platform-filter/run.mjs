@@ -38,6 +38,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ----- tar helpers (ustar v0) — same shape as install-lock-preserve/run.mjs ---
 const BLOCK = 512;
@@ -224,7 +225,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
 
         tmpRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-platform-'));
-        cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         baseEnv = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',

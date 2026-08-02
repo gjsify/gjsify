@@ -78,6 +78,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import { resolveGjsifySpawn } from './resolve-gjsify.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const inActions = Boolean(process.env.GITHUB_ACTIONS);
@@ -247,19 +248,27 @@ function excerpt(buf, offset) {
 }
 
 /**
- * The gjsify CLI to drive the rebuild with. Mirrors `.githooks/pre-commit`:
- * workspace-local shim first (matches the version the workspace declares),
- * then PATH, then the committed GJS bundle (a freshly-cloned tree).
+ * The gjsify CLI to drive one rebuild step with. Mirrors `.githooks/pre-commit`:
+ * workspace-local shim first (matches the version the workspace declares), then
+ * PATH, then the committed GJS bundle (a freshly-cloned tree).
+ *
+ * Resolved PER CALL, because on Windows the invocation embeds the arguments:
+ * `node_modules/.bin/gjsify` is a shell script Windows cannot execute, its
+ * `.cmd` sibling is a batch file `spawn` refuses (CVE-2024-27980), and the only
+ * working form is `%COMSPEC% /d /s /c "<shim> <escaped args…>"`. See
+ * `scripts/resolve-gjsify.mjs` for the measurements. Before this, `existsSync`
+ * said yes to the unexecutable shim and every step here died with `exit null` —
+ * `spawnSync` leaves `status` NULL on ENOENT — reporting a rebuild failure for a
+ * command that never started. That matters more here than anywhere: this is the
+ * check `.githooks/pre-commit` names when it degrades on Windows.
  */
-function resolveGjsify() {
-    const local = join(repoRoot, 'node_modules', '.bin', 'gjsify');
-    if (existsSync(local)) return { cmd: local, args: [] };
-    const onPath = spawnSync('sh', ['-c', 'command -v gjsify'], { encoding: 'utf8' });
-    if (onPath.status === 0 && onPath.stdout.trim()) return { cmd: onPath.stdout.trim(), args: [] };
-    const bundle = join(repoRoot, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
-    if (existsSync(bundle)) return { cmd: 'gjs', args: ['-m', bundle] };
-    fail('no gjsify CLI found (node_modules/.bin/gjsify, PATH, or the committed bundle) — run `gjsify install`.');
-    return process.exit(1);
+function gjsifyStep(argv) {
+    const resolved = resolveGjsifySpawn(repoRoot, argv);
+    if (!resolved) {
+        fail('no gjsify CLI found (node_modules/.bin/gjsify, PATH, or the committed bundle) — run `gjsify install`.');
+        return process.exit(1);
+    }
+    return resolved;
 }
 
 function fail(msg) {
@@ -346,8 +355,12 @@ if (listOnly) process.exit(0);
 
 // ── rebuild + compare ───────────────────────────────────────────────────
 
-const gjsify = resolveGjsify();
-console.log(`Driving rebuilds with: ${gjsify.cmd} ${gjsify.args.join(' ')}`.trim());
+// Probe once for the banner. The real invocations are built per step, since on
+// Windows the arguments live inside the `cmd.exe /c "…"` line.
+{
+    const probe = gjsifyStep([]);
+    console.log(`Driving rebuilds with: gjsify (via ${probe.via})`);
+}
 
 let failures = 0;
 // Never `process.exit()` while a rebuild is in flight — that skips the
@@ -378,12 +391,14 @@ try {
         for (const [workspace, script, ...flags] of recipe.steps) {
             const label = ['workspace', workspace, script, ...flags].join(' ');
             console.log(`\n[verify-bundles] ${recipe.id}: gjsify ${label}`);
-            const r = spawnSync(gjsify.cmd, [...gjsify.args, 'workspace', workspace, script, ...flags], {
+            const step = gjsifyStep(['workspace', workspace, script, ...flags]);
+            const r = spawnSync(step.cmd, step.args, {
                 cwd: repoRoot,
                 stdio: 'inherit',
                 // No `?? {}` — spreading `undefined` into an object literal is
                 // already a no-op (oxlint unicorn/no-useless-fallback-in-spread).
                 env: { ...process.env, ...recipe.env },
+                windowsVerbatimArguments: step.windowsVerbatimArguments,
             });
             if (r.status !== 0) {
                 aborted = `${recipe.id}: \`gjsify ${label}\` failed (exit ${r.status}).`;

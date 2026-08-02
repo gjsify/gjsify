@@ -69,7 +69,7 @@ describe('gjsify pack — files allowlist overrides .gitignore', () => {
         const tgz = readdirSync(dir).find((f) => f.endsWith('.tgz'));
         assert.ok(tgz, 'pack produced a .tgz');
         const entries = execFileSync('tar', ['tzf', join(dir, tgz)], { encoding: 'utf-8' })
-            .split('\n')
+            .split(/\r?\n/)
             .filter(Boolean)
             .map((e) => e.replace(/^package\//, ''));
 

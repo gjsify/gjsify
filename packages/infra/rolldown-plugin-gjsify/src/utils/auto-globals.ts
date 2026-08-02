@@ -454,7 +454,13 @@ export async function detectAutoGlobals(
                     (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
                         ?.GJSIFY_DEBUG_AUTO_GLOBALS
                 ) {
-                    const path = `/tmp/gjsify-auto-globals-failed-chunk-${i}.mjs`;
+                    // `tmpdir()`, not a literal `/tmp` — on Windows that wrote
+                    // to `<drive>:\tmp\`, and the `writeFileSync` is inside a
+                    // `catch`, so the dump silently did not appear where the
+                    // log line below says it did.
+                    const os = await import('node:os');
+                    const nodePath = await import('node:path');
+                    const path = nodePath.join(os.tmpdir(), `gjsify-auto-globals-failed-chunk-${i}.mjs`);
                     try {
                         // Dynamic `import()` on purpose: this is a debug-only
                         // branch and the module graph should not carry

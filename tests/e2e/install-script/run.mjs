@@ -20,6 +20,7 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ----- tar helpers (ustar v0 with a package.json + bundle file) -----
 const BLOCK = 512;
@@ -90,8 +91,8 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
     let server, registryUrl, tmpRoot;
     // Path to the freshly-built gjs bundle we ship as the "bootstrap" asset.
     // In production this would be the GitHub-release-download URL.
-    const cliBundlePath = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
-    const installerPath = new URL('../../../install.mjs', import.meta.url).pathname;
+    const cliBundlePath = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
+    const installerPath = fileURLToPath(new URL('../../../install.mjs', import.meta.url));
 
     const cliBundleBytes = existsSync(cliBundlePath) ? readFileSync(cliBundlePath) : null;
     const cliBundleSha256 = cliBundleBytes ? sha256Hex(cliBundleBytes) : null;
