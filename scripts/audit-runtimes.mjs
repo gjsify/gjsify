@@ -1440,12 +1440,12 @@ const CHECK_RULES = [
     'runtimes-reachability',
     'curated-alias-routing',
     'headless',
-    // Reads only `scripts.clear` out of each manifest — no install, no build, no
+    // Reads only `scripts` out of each manifest — no install, no build, no
     // filesystem beyond the package.json this job already parses. It belongs in
     // THIS job rather than a Windows leg precisely because the defect it guards
-    // is invisible on Linux: a `clear` script that shells out to `rm` runs fine
+    // is invisible on Linux: a script that shells out to `rm`/`cp` runs fine
     // here and cannot run at all under cmd.exe.
-    'portable-clear',
+    'portable-scripts',
     'field-coverage',
     'status-data',
 ];
@@ -1522,7 +1522,7 @@ async function main() {
         const reachability = byId.get('runtimes-reachability');
         const alias = byId.get('curated-alias-routing');
         const headless = byId.get('headless');
-        const portableClear = byId.get('portable-clear');
+        const portableScripts = byId.get('portable-scripts');
         const coverage = byId.get('field-coverage');
         const statusData = byId.get('status-data');
         const reach = reachability.reach;
@@ -1535,7 +1535,7 @@ async function main() {
             console.log(renderPrebuildLibcSummary({ notes: prebuildLibc.notes ?? [], stats: prebuildLibc.stats }));
             console.log(reachability.summary);
             console.log(headless.summary);
-            console.log(portableClear.summary);
+            console.log(portableScripts.summary);
             console.log(coverage.summary);
             console.log(statusData.summary);
             for (const note of coverage.notes ?? []) console.log(`  · ${note}`);
@@ -1675,17 +1675,18 @@ async function main() {
             );
             console.error('');
         }
-        if ((portableClear.failures ?? []).length > 0) {
-            console.error(`UNPORTABLE \`clear\` SCRIPT(S) on ${portableClear.failures.length} package(s):`);
-            for (const line of portableClear.failures) {
+        if ((portableScripts.failures ?? []).length > 0) {
+            console.error(`UNPORTABLE PACKAGE SCRIPT(S) on ${portableScripts.failures.length} package(s):`);
+            for (const line of portableScripts.failures) {
                 console.error(`  - ${line.split('\n').join('\n    ')}`);
             }
             console.error('');
             console.error(
                 'npm runs package scripts through cmd.exe on Windows, which has no `rm`/`cp`/`mkdir -p` and expands no ' +
                     'glob — so such a script cannot run there at all, while looking perfectly healthy on Linux and macOS. ' +
-                    '`gjsify clear <paths…>` is the portable replacement: recursive, and it ignores a missing path, so the ' +
-                    '`|| exit 0` tail goes too (that tail also swallowed real permission errors).',
+                    'Two portable replacements cover almost every case: `gjsify clear <paths…>` (recursive, and it ignores ' +
+                    'a missing path, so the `|| exit 0` tail goes too — that tail also swallowed real permission errors) ' +
+                    'and `gjsify copy <sources…> <dest>` (recursive, creates the destination, overwrites).',
             );
             console.error('');
         }
