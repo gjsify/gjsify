@@ -105,7 +105,7 @@ function resolveBuildDriver() {
     const bundle = join(ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
     if (!existsSync(bundle)) die(`GJSIFY_GATE_ENGINE=gjs but the committed CLI bundle is missing: ${bundle}`);
     const prebuilds = [
-        join(ROOT, 'packages', 'infra', 'rolldown-native', 'prebuilds', 'linux-x64'),
+        join(ROOT, 'packages', 'infra', 'rolldown-native-linux-x64', 'prebuilds', 'linux-x64'),
         join(ROOT, 'node_modules', '@gjsify', 'rolldown-native', 'prebuilds', 'linux-x64'),
         PREBUILD_DIR, // @gjsify/napi's own typelib — the shims resolve it too
     ].filter((d) => existsSync(d));
@@ -119,7 +119,7 @@ function resolveBuildDriver() {
 }
 const ADDONS_DIR = join(HERE, 'addons');
 const NAPI_LIB = join(PKG, 'lib', 'esm', 'index.js');
-const PREBUILD_DIR = join(PKG, 'prebuilds', 'linux-x64');
+const PREBUILD_DIR = join(PKG, '..', 'napi-linux-x64', 'prebuilds', 'linux-x64');
 
 const name = process.argv[2];
 const cfg = ADDONS[name];

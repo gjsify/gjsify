@@ -62,8 +62,16 @@ const fixture = join(pkgRoot, 'fixtures', 'excalibur-webgl-app.ts');
 
 const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 
-// The committed gwebgl Vala prebuild (typelib + .so) @gjsify/webgl ships.
-const gwebglDir = join(repoRoot, 'packages', 'framework', 'webgl', 'prebuilds', `linux-${process.arch}`);
+// The committed gwebgl Vala prebuild (typelib + .so) @gjsify/webgl ships —
+// in its per-target package since ADR 0017, a SIBLING of the bridge.
+const gwebglDir = join(
+    repoRoot,
+    'packages',
+    'framework',
+    `webgl-linux-${process.arch}`,
+    'prebuilds',
+    `linux-${process.arch}`,
+);
 const haveGwebgl = existsSync(join(gwebglDir, 'Gwebgl-0.1.typelib'));
 
 function findGjsify() {
