@@ -40,11 +40,38 @@ either side of the first failure are package-identical (797 packages, empty
 `diff`, same `glibc-2.43-6`); 10 local `--only arrays` runs on unmodified `main`
 were green.
 
+**The RATE has changed, and that is the part the "~7000 runs / 0 crashes"
+baseline no longer describes.** Three further hits inside one afternoon
+(2026-08-02), all on `deno`, all on `arrays`, all on PRs that touch nothing
+under `packages/node-gi/`:
+
+| run | PR | outcome |
+|---|---|---|
+| 30751987456 | #935 | `✗ arrays`, re-run on the SAME commit → green |
+| 30754859011 | #935 | green (the re-run above) |
+| 30757696374 | #929 | `✗ arrays`, re-run on the SAME commit → green |
+
+Every one stops at the identical place — nine assertions `ok`, then the process
+disappears part-way through `INOUT byte-array container is handled, not
+deferred: GLib.base64_decode_inplace()`, with no `ok`, no failure text and no
+crash marker in the job log. That is a THIRD manifestation: not the
+`SIGSEGV` in `g_boxed_free` of the Deno determination, and not the
+`free(): invalid pointer` glibc abort recorded above — just a vanished process.
+The absent marker is itself information: whatever kills it is not reaching the
+glibc allocator's own check.
+
+Two things follow. First, "nondeterministic" is now too weak a word for
+planning — at roughly one hit per two runs on deno it is frequent enough to
+reproduce deliberately rather than opportunistically, which removes the main
+practical obstacle to the gdb step below. Second, anyone reading the 7000-run
+baseline should know it was measured on BUN; nothing of that size has been run
+against deno.
+
 Next step is the one the note names, not a carve-out: reproduce under gdb (the
 Deno case took ~8 cores on a loop of the boxed-heavy files) and get a backtrace.
 Until then Bun stays on exit-code gating — a `pass>0 && fail===0 && <crash
 marker>` carve-out added now would mask exactly the real Bun teardown bug this
-might be.
+might be, and the runs above show the marker is not even reliably present.
 
 ### The prebuild glibc floor is an accident of the build image, and the gate that says so only runs post-merge
 
