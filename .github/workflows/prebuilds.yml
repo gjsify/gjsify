@@ -2590,17 +2590,26 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           xargs -r git add < cleared-manifests.txt
           rm -f cleared-manifests.txt
-          git add \
-            packages/framework/webgl/prebuilds/ \
-            packages/web/webrtc-native/prebuilds/ \
-            packages/node/http-soup-bridge/prebuilds/ \
-            packages/node/http2-native/prebuilds/ \
-            packages/node/sab-native/prebuilds/ \
-            packages/node/terminal-native/prebuilds/ \
-            packages/node/tls-native/prebuilds/ \
-            packages/infra/lightningcss-native/prebuilds/ \
-            packages/infra/oxfmt-native/prebuilds/ \
-            packages/infra/rolldown-native/prebuilds/
+          # A GLOB, not a hand-written list, and that is now the only shape that
+          # can be right. ADR 0017 moved every prebuild out of its bridge and
+          # into a per-target package, so the ten paths this used to name stopped
+          # existing — `fatal: pathspec 'packages/framework/webgl/prebuilds/' did
+          # not match any files`, exit 128, on the first run after the split,
+          # with all eight build legs green and every artifact downloaded.
+          #
+          # Spelling them out again would mean SIXTY entries that grow by one
+          # with every target anyone adds, in a job whose failure mode is a
+          # silently unshipped binary. The glob matches exactly the packages that
+          # own a committed prebuild directory — which since the split is the
+          # per-target packages and nothing else, because a bridge no longer has
+          # one and this job (unlike a build leg) never creates a scratch copy.
+          #
+          # An unmatched glob stays literal and `git add` fails, which is the
+          # right failure: it means the tree carries no prebuild directory at
+          # all, and staging nothing while reporting success is precisely how a
+          # binary goes missing unnoticed. The deletion guard below is unaffected
+          # — it already matches on `*prebuilds/*`.
+          git add packages/*/*/prebuilds/
           git diff --cached --stat | cat
 
       # THE guard. A package this run skipped contributed no artifact, so its
