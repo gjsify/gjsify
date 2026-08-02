@@ -4,6 +4,31 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `@gjsify/child_process` on Windows — 86 of 145 specs fail once the module can load at all
+
+The specs took `TMP_DIR` from a literal `/tmp` and `realpathSync`'d it at MODULE
+EVALUATION. On `win32-x64` that resolves against the current drive to `C:\tmp`,
+which does not exist, so the module threw before defining a single test.
+
+Measured on the win11-gjsify VM (Node 24.18.1), with no `C:\tmp` present:
+
+| | before | after `tmpdir()` |
+|---|---|---|
+| output | 23 lines, `ENOENT: lstat 'C:\tmp'` | full run |
+| tests run | **0** | **145** |
+| failures | — (module never loaded) | 86 |
+
+The 86 are pre-existing POSIX assumptions in the specs, not regressions, and they
+are the bulk of what a Windows port of this package has to work through: shell
+built-ins assumed to exist (`echo`/`pwd`/`cat` under `cmd.exe`), POSIX absolute
+paths, exit-code and signal semantics, and `/bin/sh`-shaped `shell:` options.
+Triage before editing — some of these are the IMPL being wrong on Windows, not
+the spec, and the two need separating.
+
+**Note for anyone re-measuring:** a hand-created `C:\tmp` makes the module-load
+failure vanish without fixing anything (one existed on the test VM for several
+hours and hid exactly this). It has been removed there. Do not re-create it.
+
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 
 `scripts/cross-runtime.mjs` carves Deno out of exit-code gating for the
