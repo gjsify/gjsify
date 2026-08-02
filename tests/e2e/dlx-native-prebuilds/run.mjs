@@ -114,12 +114,12 @@ describe('CLI dlx / native-prebuild env injection E2E', { timeout: 10 * 60 * 100
 
         assert.match(
             env.GI_TYPELIB_PATH ?? '',
-            /@gjsify[\\/]http-soup-bridge[\\/]prebuilds[\\/]linux-/,
+            /@gjsify[\\/]http-soup-bridge-linux-[^\\/:]+[\\/]prebuilds[\\/]linux-/,
             'GI_TYPELIB_PATH should contain @gjsify/http-soup-bridge prebuild dir',
         );
         assert.match(
             env.LD_LIBRARY_PATH ?? '',
-            /@gjsify[\\/]http-soup-bridge[\\/]prebuilds[\\/]linux-/,
+            /@gjsify[\\/]http-soup-bridge-linux-[^\\/:]+[\\/]prebuilds[\\/]linux-/,
             'LD_LIBRARY_PATH should contain @gjsify/http-soup-bridge prebuild dir',
         );
         assert.match(envPrefix, /GI_TYPELIB_PATH=/);
