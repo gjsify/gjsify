@@ -15,7 +15,16 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildCmdShim, buildLauncherShims, buildNativeEnvPreamble, parseShebang } from './bin-shim.js';
+import {
+    buildCmdShim,
+    buildLauncherShims,
+    buildNativeEnvPreamble,
+    buildShLauncher,
+    isGjsBundlePath,
+    normalizeBinMap,
+    parseShebang,
+    pickBinMap,
+} from './bin-shim.js';
 import { writeBinEntry } from './install-backend-native.js';
 
 export default async () => {
@@ -274,6 +283,154 @@ export default async () => {
                 writeBinEntry({ binDir, binName: 'raw', targetAbs: raw, platform: 'win32' });
                 const cmd = readFileSync(join(binDir, 'raw.cmd'), 'utf8');
                 expect(cmd).toContain('"%dp0%\\..\\tool\\bin\\raw.bin"');
+            });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    // ADR 0017 moved each prebuild into a per-target package, so on a musl host
+    // the directory to find is `prebuilds/linux-arm64-musl/` — a name the
+    // launcher never globbed, because the preamble dropped `libc` on the way to
+    // `prebuildDirCandidates` while `detectNativePackages` kept it. Same
+    // question, two answers.
+    await describe('buildNativeEnvPreamble — libc', async () => {
+        /** The prebuild-dir names the `for` line globs, in order. */
+        const globbedDirs = (sh: string): string[] => {
+            const forLine = sh.split('\n').find((l) => l.startsWith('for gjsify_d in')) ?? '';
+            return forLine
+                .split(' ')
+                .filter((t) => t.includes('/prebuilds/'))
+                .map((t) => t.slice(t.lastIndexOf('/') + 1));
+        };
+
+        await it('globs the musl directory FIRST on a musl host', async () => {
+            const dirs = globbedDirs(
+                buildNativeEnvPreamble('/opt/p', [], { platform: 'linux', arch: 'arm64', libc: 'musl' }),
+            );
+            // most-specific first, and the plain token stays as the fallback
+            expect(dirs[0]).toBe('linux-arm64-musl');
+            expect(dirs.includes('linux-arm64')).toBe(true);
+            expect(dirs.indexOf('linux-arm64-musl')).toBeLessThan(dirs.indexOf('linux-arm64'));
+        });
+
+        await it('does not invent a musl directory on a glibc host', async () => {
+            const sh = buildNativeEnvPreamble('/opt/p', [], { platform: 'linux', arch: 'arm64', libc: 'glibc' });
+            expect(sh).not.toContain('linux-arm64-musl');
+        });
+
+        await it('ignores a musl claim off linux — the grammar has no such target', async () => {
+            const sh = buildNativeEnvPreamble('/opt/p', [], { platform: 'darwin', arch: 'arm64', libc: 'musl' });
+            expect(sh).not.toContain('musl');
+        });
+    });
+
+    await describe('pickBinMap', async () => {
+        await it('prefers `gjsify.bin` over the npm `bin` field', async () => {
+            const picked = pickBinMap('@gjsify/cli', {
+                bin: { gjsify: 'lib/index.js' },
+                gjsify: { bin: { gjsify: 'dist/cli.gjs.mjs' } },
+            });
+            expect(picked?.map.get('gjsify')).toBe('dist/cli.gjs.mjs');
+            expect(picked?.isGjsBin).toBe(true);
+        });
+
+        await it('falls back to npm `bin`, flagged as NOT a gjs bin', async () => {
+            const picked = pickBinMap('lodash', { bin: { lodash: 'bin/lodash.js' } });
+            expect(picked?.map.get('lodash')).toBe('bin/lodash.js');
+            expect(picked?.isGjsBin).toBe(false);
+        });
+
+        await it('returns null when a package declares no bin at all', async () => {
+            expect(pickBinMap('plain', {})).toBeNull();
+        });
+
+        await it('expands the string shorthand against the unscoped name', async () => {
+            expect(normalizeBinMap('@scope/tool', 'bin/run.js').get('tool')).toBe('bin/run.js');
+        });
+    });
+
+    await describe('buildShLauncher', async () => {
+        await it('wraps a GJS bundle in `gjs -m` and carries the env preamble', async () => {
+            const sh = buildShLauncher('/opt/p/dist/cli.gjs.mjs', {
+                envPreamble: 'export FOO=1\n',
+                isGjsBundle: true,
+            });
+            expect(sh).toContain('export FOO=1');
+            expect(sh).toContain(`exec gjs -m '/opt/p/dist/cli.gjs.mjs' "$@"`);
+        });
+
+        await it('exec s a non-bundle target directly and omits the preamble', async () => {
+            const sh = buildShLauncher('/opt/p/bin/tool', { envPreamble: 'export FOO=1\n', isGjsBundle: false });
+            expect(sh).not.toContain('FOO');
+            expect(sh).toContain(`exec '/opt/p/bin/tool' "$@"`);
+        });
+
+        await it('quotes a path containing a single quote', async () => {
+            expect(buildShLauncher("/o'brien/x.mjs", { isGjsBundle: true })).toContain(`'/o'\\''brien/x.mjs'`);
+        });
+
+        await it('classifies bundle paths by extension', async () => {
+            expect(isGjsBundlePath('/a/cli.gjs.mjs')).toBe(true);
+            expect(isGjsBundlePath('/a/x.mjs')).toBe(true);
+            expect(isGjsBundlePath('/a/lib/index.js')).toBe(false);
+        });
+    });
+
+    // Regression: a Node-LESS GJS host (postmarketOS/aarch64, gjs 1.88, no node)
+    // got `env: can't execute 'node'` from `.bin/gjsify`, because `linkBins`
+    // linked the npm `bin` (a `#!/usr/bin/env node` script) and ignored
+    // `gjsify.bin`. That launcher is also the only place GI_TYPELIB_PATH can be
+    // exported, so the dead shim took `gjsify build` down with it.
+    await describe('writeBinEntry — gjs bins', async () => {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-binentry-gjs-'));
+        try {
+            const binDir = join(root, 'node_modules', '.bin');
+            const pkgDir = join(root, 'node_modules', '@gjsify', 'cli');
+            mkdirSync(binDir, { recursive: true });
+            mkdirSync(join(pkgDir, 'dist'), { recursive: true });
+            const bundle = join(pkgDir, 'dist', 'cli.gjs.mjs');
+            writeFileSync(bundle, '// bundle\n');
+
+            await it('writes a gjs launcher instead of linking the node shebang', async () => {
+                writeBinEntry({
+                    binDir,
+                    binName: 'gjsify',
+                    targetAbs: bundle,
+                    platform: 'linux',
+                    gjs: { envPreamble: 'export GI_TYPELIB_PATH=/p\n', prebuildDirs: ['/p'] },
+                });
+                const written = readFileSync(join(binDir, 'gjsify'), 'utf8');
+                expect(written).toContain('#!/bin/sh');
+                expect(written).not.toContain('/usr/bin/env node');
+                expect(written).toContain('export GI_TYPELIB_PATH=/p');
+                expect(written).toContain('exec gjs -m');
+            });
+
+            await it('replaces a stale plain link left by an earlier install', async () => {
+                writeBinEntry({ binDir, binName: 'stale', targetAbs: bundle, platform: 'linux' });
+                writeBinEntry({
+                    binDir,
+                    binName: 'stale',
+                    targetAbs: bundle,
+                    platform: 'linux',
+                    gjs: { envPreamble: '', prebuildDirs: [] },
+                });
+                expect(lstatSync(join(binDir, 'stale')).isSymbolicLink()).toBe(false);
+                expect(readFileSync(join(binDir, 'stale'), 'utf8')).toContain('exec gjs -m');
+            });
+
+            await it('writes cmd/ps1 companions for a gjs bin on win32', async () => {
+                writeBinEntry({
+                    binDir,
+                    binName: 'wintool',
+                    targetAbs: bundle,
+                    platform: 'win32',
+                    gjs: { envPreamble: '', prebuildDirs: ['C:/p/prebuilds/win32-x64'] },
+                });
+                const cmd = readFileSync(join(binDir, 'wintool.cmd'), 'utf8');
+                expect(cmd).toContain('gjs -m');
+                expect(cmd).toContain('GI_TYPELIB_PATH');
             });
         } finally {
             rmSync(root, { recursive: true, force: true });
