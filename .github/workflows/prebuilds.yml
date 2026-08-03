@@ -1745,14 +1745,26 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 20
     container:
-      # fedora:43 for the VALAC VERSION, not for its glibc. Everything this job
-      # emits is text — C sources and an XML GIR — so the elaborate glibc-floor
-      # argument on `build-prebuilds`' identical image does not apply here and
-      # this line is not a distribution decision. What it does buy is that ONE
-      # valac produces the C for every target: the same compiler that builds the
-      # committed Linux prebuilds emits what MSVC will compile, so the two halves
-      # cannot disagree about generated code.
-      image: fedora:43
+      # THE BAKED IMAGE, not a bare `fedora:43` — required, and machine-checked
+      # by `scripts/check-ci-image-packages.mjs`: an amd64 containerised job that
+      # COULD run on this image and does not must be ledgered with a reason, and
+      # that ledger is deliberately empty. (It caught this job on its first run.
+      # The three jobs still on a bare image are all `ubuntu-24.04-arm`, which
+      # the check DERIVES as excused because `build-ci-image.yml` publishes
+      # linux/amd64 only.) It also removes the `dnf install` this job used to
+      # carry: the image already bakes meson, vala, gcc, pkgconf, glib2-devel,
+      # gobject-introspection-devel, gtk4-devel, gdk-pixbuf2-devel and
+      # libepoxy-devel, which is exactly this job's set.
+      #
+      # TAG 43, NOT 44, and for the VALAC VERSION rather than for glibc:
+      # `ci-fedora:43` is `FROM fedora:43`, the image `build-prebuilds` pins, so
+      # ONE valac produces the C for every target — the same compiler that builds
+      # the committed Linux prebuilds emits what MSVC will compile, and the two
+      # halves cannot disagree about generated code. The elaborate glibc-floor
+      # argument on `build-prebuilds`' image does NOT apply here: everything this
+      # job emits is text (C sources and an XML GIR), so this line is not a
+      # distribution decision.
+      image: ghcr.io/gjsify/ci-fedora:43
     steps:
       # No `changes` gate anywhere in either job, deliberately. A dispatch has no
       # previous state to diff against, so the `changes` job classifies
@@ -1760,27 +1772,19 @@ jobs:
       # `!contains(needs.changes.outputs.skip, '"webgl"')` here would be a
       # condition that cannot be false, reading as a decision while being dead
       # weight.
-      - name: Install prerequisites
-        # No Rust, no gstreamer, no soup/nghttp2/gnutls: this job compiles ONE
-        # Vala bridge. gtk4/gdk-pixbuf2/libepoxy are what its `dependency()`
-        # calls resolve; gobject-introspection-devel supplies g-ir-compiler for
-        # the Linux-side typelib (built but not shipped — see below).
-        run: >
-          dnf install -y
-          git tar xz findutils
-          meson vala gcc pkgconf
-          glib2-devel gobject-introspection-devel
-          gtk4-devel gdk-pixbuf2-devel
-          libepoxy-devel
-
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Record the generator's provenance
-        # The C is an opaque artifact downstream, so say which compiler made it.
-        # A "MSVC rejects this" finding is only actionable next to a valac
-        # version.
+      - name: Verify the baked toolchain + record the generator's provenance
+        # TWO jobs, one step, because they print the same three facts. Verifying
+        # is the convention every job on this image follows — assert the tools
+        # are there rather than assume the pull was the image you meant, so a
+        # bare `fedora:43` fails HERE naming the cause instead of inside `meson
+        # setup`. Recording is what makes the C downstream actionable: it is an
+        # opaque artifact by the time MSVC sees it, and a "MSVC rejects this"
+        # finding is only useful next to a valac version.
         run: |
+          echo "ci-fedora image major: $(cat /etc/gjsify-ci-fedora-version)"
           valac --version
           meson --version
           pkg-config --modversion glib-2.0 gtk4 epoxy gdk-pixbuf-2.0
