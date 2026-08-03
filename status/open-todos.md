@@ -250,6 +250,43 @@ gjs exposes `$gtype` uniformly (`[object GType for 'X']`); node-gi does not, and
 
 `node packages/infra/cli/scripts/generate-register-closure.mjs` (`--check` reports staleness). A stale map is fail-soft — builds stay correct but pay extra `--globals auto` analysis passes. (The related hazard — the committed CLI bundle inlining a stale map — is closed: `.githooks/pre-commit` triggers on `packages/infra/resolve-npm/lib/` and `packages/infra/rolldown-plugin-gjsify/src/`.)
 
+### `@gjsify/gtk-runtime-darwin-x64` — the batteries-included GTK bundle exists for one macOS arch only
+
+`@gjsify/node-gi` needs GTK + typelibs ON THE HOST; the `gtk-runtime-*` packages are the
+batteries-included answer, and they exist for `darwin-arm64` and `win32-x64` only. Since
+`darwin-x64`'s addon prebuild now ships, an Intel Mac gets a loadable addon and then still has to
+`brew install gtk4 …` by hand, while an Apple-silicon Mac and a Windows box do not — one bridge,
+two policies, which is the asymmetry AGENTS.md warns about.
+
+DELIBERATELY NOT bundled with the addon-prebuild fix: that fix is a release-path edit small enough
+to verify by reading, and this is a new published package whose whole value proposition ("no
+Homebrew") is only demonstrated by CI legs no local host can run. What it needs, measured:
+
+- **The loader half is already free.** `packages/node-gi/node-gi/gtk-runtime.js` resolves
+  `@gjsify/gtk-runtime-${process.platform}-${process.arch}` and probes four candidate locations —
+  nothing keys on a hard-coded target, so a new package is found by the mechanism that finds the
+  existing two. `maybeWireGtkWindowingEnv` is already scoped to darwin+win32.
+- **The build script must be parameterised, not copied.** `gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs`
+  hard-gates `process.arch !== 'arm64'` (exit 2) and stamps `platform: 'darwin-arm64'` into its
+  manifest; everything else (the `otool -L` closure walk, `install_name_tool` → `@loader_path`, the
+  ad-hoc `codesign` that is mandatory on arm64 and harmless on Intel, the `--windowing` superset)
+  is arch-agnostic already. A copy would be the THIRD near-duplicate of a 359-line relocation pass
+  — the shape AGENTS.md names as the place to lift a helper. The open design question is WHERE the
+  shared script lives, since each package's `files` ships its own `scripts/` for provenance.
+- **CI, and this is the bulk of it.** node-gi.yml's arm64 chain is four jobs (`macos-gtk-runtime` →
+  `macos-gtk-batteries-included`, plus the `--windowing` pair). x64 needs at least the first two,
+  because a bundle never LOADED in CI is a bundle nobody tested, and the load test IS the
+  batteries-included conformance (no brew GTK on the host). Plus a `publish-gtk-runtime-darwin-x64`
+  job in release.yml mirroring the arm64 one.
+- **Maintainer action, before the release that ships it:** `gjsify onboard` for the new npm name
+  `@gjsify/gtk-runtime-darwin-x64` (first publish + Trusted Publisher; an unbootstrapped name 404s
+  the OIDC exchange and stalls every alphabetically-later package).
+- **Do NOT make it a dependency of `@gjsify/node-gi`.** #910 did that for the arm64 bundle and #920
+  reverted it: an installed bundle satisfies candidate 4 of `resolveGtkRuntimeBundle()`, so a job
+  that built the addon against Homebrew GTK re-execs onto the BUNDLE's typelibs with native code
+  linked against a different GTK — wrong method entries, then a 29-minute timeout. The precedence
+  question is still open; the same trap applies to any second arch.
+
 ### `@gjsify/rolldown-native` macOS prebuild — the last step to a Node-free toolchain on macOS
 
 The Rust blocker is GONE (eventfd descriptors → portable anonymous pipes in `src/rust/src/wakeup.rs`; `cargo check --target aarch64-apple-darwin` green) and `meson.build` is darwin-ready — but no NATIVE macOS build has been promoted: run the manual-dispatch `build-prebuilds-macos-experimental` job, promote the package into the REQUIRED `build-prebuilds-macos` job, add `darwin-arm64` to `package.json#gjsify.platforms`, and commit the prebuild. Until that leg is green the docs must keep describing the Node-free toolchain as Linux-only. The CLI-side loading follow-ups are DONE (`detectNativePackages()` resolves `<os>-<arch>` for the running host; `buildNativeEnv()` emits the loader variable the host actually reads). Only the artifact itself is missing. (See also the CI coverage item above — the darwin leg is proven, not promoted.)
