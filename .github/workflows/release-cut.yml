@@ -71,12 +71,42 @@ jobs:
       # Full history + tags: the conventional-changelog plugin walks commits
       # since the last tag, and release-it derives the next version from the
       # tags. A shallow clone silently produces an empty changelog.
+      # SSH via the repository DEPLOY KEY, not the workflow token — and that is
+      # forced rather than preferred, for the same reason `commit-prebuilds` in
+      # prebuilds.yml uses it.
+      #
+      # `main` is protected by the `main` ruleset, whose `required_status_checks`
+      # rule applies to DIRECT PUSHES and not only to pull requests. The release
+      # commit is created BY this job, so the three required checks cannot
+      # possibly have run on it — the push is rejected with
+      #
+      #   GH013: Repository rule violations found for refs/heads/main.
+      #     - 3 of 3 required status checks are expected.
+      #
+      # which is not a condition any amount of waiting satisfies. The ruleset
+      # already grants `DeployKey` an `always` bypass precisely for this class of
+      # push (alongside org/repo admins); the workflow token's
+      # `github-actions[bot]` is deliberately NOT a bypass actor, because that
+      # would exempt EVERY workflow holding `contents: write` rather than the two
+      # bot paths that need it. So the fix is to push as the actor the repo has
+      # already sanctioned, NOT to widen the ruleset.
+      #
+      # Measured: the ruleset was created 2026-08-02, one day after v0.26.1, so
+      # the v0.27.0 attempt was the first cut to meet it — it failed AFTER
+      # `verify-committed-bundles` had passed and left nothing behind, because
+      # release-it rolled the remote tag back on the failed push.
+      #
+      # This is not an unverified push: the job installs, builds and runs
+      # `scripts/verify-committed-bundles.mjs` before release-it commits, and the
+      # tree it cuts from is a `main` commit that already went green.
       - name: Checkout main (full history + tags)
         uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
-          # Persist the token so the release commit + tag can be pushed back.
+          # Handing the key to checkout is what makes the later `git push` use
+          # SSH as the deploy key rather than HTTPS as the workflow token.
+          ssh-key: ${{ secrets.PREBUILDS_DEPLOY_KEY }}
           persist-credentials: true
 
       - name: Setup Node.js
