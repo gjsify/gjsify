@@ -112,7 +112,7 @@
         "clear": "gjsify clear lib dist tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "start": "node lib/index.js",
-        "build": "tsc && node scripts/build-assets.mjs",
+        "build": "gjsify tsc && node scripts/build-assets.mjs",
         "build:gjs-bundle": "node lib/index.js build src/index.ts --app gjs --outfile dist/cli.gjs.mjs --shebang",
         "build:affected-bundle": "node lib/index.js build src/affected-entry.ts --app gjs --outfile dist/affected.gjs.mjs",
         "build:test:node": "node lib/index.js build src/test.mts --app node --outfile dist/test.node.mjs",

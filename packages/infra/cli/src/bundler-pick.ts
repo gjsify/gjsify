@@ -105,13 +105,21 @@ function diagnoseNativeEngine(): string {
     if (!existsSync(facade)) {
         return (
             `The engine's JS facade is NOT BUILT: ${facade} does not exist.\n` +
-            'It is a BUILD OUTPUT, not something `gjsify install` produces — so a freshly cloned or freshly ' +
-            'installed tree never has it, and every `gjsify build` under GJS fails here until it is built once. ' +
+            'It is a BUILD OUTPUT, so this is almost certainly a clone of the gjsify REPOSITORY rather than a ' +
+            'consumer install: in a clone, node_modules/@gjsify/rolldown-native is a symlink to the workspace ' +
+            'package, whose `lib/` no `gjsify install` produces. An installed package from npm is NOT affected — ' +
+            'the published tarball does contain `lib/esm/index.js` (verified against 0.26.1), so a consumer that ' +
+            'hit this message should report it.\n' +
             'Building it needs a bundler, which is why it cannot bootstrap itself under GJS; the Node CLI entry ' +
-            'does it instead. From the gjsify repo root:\n' +
+            'does it instead. From the gjsify repo root — NOTE both of these REQUIRE Node:\n' +
             '  gjsify run build:infra                          # the full cold-tree chain (recommended)\n' +
             '  node scripts/bootstrap-native-facades.mjs       # just the facades, if the rest is already built\n' +
-            'Both are idempotent and skip already-built facades in seconds.'
+            'Both are idempotent and skip already-built facades in seconds.\n' +
+            'ON A NODE-LESS GJS HOST there is currently no in-repo way out, and saying so is the point — this ' +
+            'message used to recommend those two commands unconditionally, and on such a host BOTH fail (the ' +
+            "second directly, the first at `@gjsify/create-app`'s `node scripts/process-template.mjs`). Until " +
+            'that is closed, seed `lib/` from the published package — which ships it — or from a host that has ' +
+            'Node. Tracked in `status/open-todos.md` ("A Node-less host cannot bootstrap a fresh CLONE").'
         );
     }
 

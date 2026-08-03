@@ -413,6 +413,18 @@ jobs:
         id: verifyoutputs
         run: su testuser -c 'node scripts/verify-package-outputs.mjs'
 
+      # The same declarations, asked of the TARBALL rather than the repo. The
+      # step above is structurally blind to "the path is not published": in this
+      # tree `lib/` always exists, so a package can declare `main: lib/esm/…`,
+      # build it, pass that check and still ship a tarball without the file
+      # because `files` never named the gitignored build output. Runs here and
+      # not in the packer because the superset needs `declaredPaths()` from the
+      # still-`private` `@gjsify/manifest-conformance` (see the script's header
+      # and `status/open-todos.md`). Post-condition: it reads the CLI's built
+      # `lib/`, so it must follow the build.
+      - name: Verify declared entry points are in the tarball
+        run: su testuser -c 'node scripts/verify-tarball-outputs.mjs'
+
       # THE build-output cache's only writer. `gjsify-setup` deliberately only
       # RESTORES, because `actions/cache`'s automatic post-job save fires in
       # every job that uses the action — and `deploy-docs.yml`, which builds the

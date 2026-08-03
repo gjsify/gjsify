@@ -189,7 +189,7 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
     // default set). The package.json itself is always included with the
     // rewritten contents. We use the post-script `pkgAfterScripts` here so
     // that any `files` array modified by a prepack script is honored.
-    const filesToPack = collectFiles(wsDir, pkgAfterScripts);
+    const filesToPack = collectPackedFiles(wsDir, pkgAfterScripts);
 
     // Guard against the #655 class of bug: a `types`/`typings` declaration that
     // physically exists in the workspace but is excluded from the tarball by the
@@ -270,8 +270,17 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
  *
  * package.json, README*, LICENSE*, NOTICE* and the `bin`/`main` files are
  * always force-included regardless of the rules above.
+ *
+ * EXPORTED because `scripts/verify-tarball-outputs.mjs` — the repo-wide
+ * "is every declared entry point actually in the tarball" post-condition —
+ * must ask THIS function and no other. The packer-glob incident is precisely
+ * what a second oracle costs: `npm pack` expanded `lib/lib*.d.ts` while
+ * `gjsify publish` did not, so a check written against `npm pack --dry-run`
+ * would have been green for the whole v0.4.37–0.7.2 window in which the
+ * published `@gjsify/tsc` shipped an empty `lib/`. The tarballs are produced
+ * here, so the check has to be answered here.
  */
-function collectFiles(wsDir: string, pkg: Record<string, unknown>): string[] {
+export function collectPackedFiles(wsDir: string, pkg: Record<string, unknown>): string[] {
     const always = forceIncluded(pkg);
     const filesField = Array.isArray(pkg.files)
         ? (pkg.files as unknown[]).filter((f): f is string => typeof f === 'string')

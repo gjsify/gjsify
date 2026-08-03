@@ -29,6 +29,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/package-outputs/ → monorepo root is 3 levels up.
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const GUARD = join(MONOREPO_ROOT, 'scripts', 'verify-package-outputs.mjs');
+const TARBALL_GUARD = join(MONOREPO_ROOT, 'scripts', 'verify-tarball-outputs.mjs');
 const TSC_BUNDLE = join(MONOREPO_ROOT, 'packages', 'infra', 'tsc', 'dist', 'tsc.gjs.mjs');
 
 let tmp;
@@ -59,6 +60,16 @@ function addPackage(root, dir, pkg, files = {}) {
 
 function runGuard(root, extra = []) {
     const r = spawnSync(process.execPath, [GUARD, '--root', root, ...extra], { encoding: 'utf8' });
+    return { status: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+}
+
+/**
+ * The TARBALL guard over the same fixture tree. Same shape on purpose: the two
+ * checks share `declaredPaths()`, so a fixture that one understands the other
+ * must understand too.
+ */
+function runTarballGuard(root, extra = []) {
+    const r = spawnSync(process.execPath, [TARBALL_GUARD, '--root', root, ...extra], { encoding: 'utf8' });
     return { status: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
@@ -324,5 +335,73 @@ describe('verify-package-outputs — declared entry points must exist (#67)', ()
         assert.equal(recovered.status, 0, `${recovered.stdout}${recovered.stderr}`);
         assert.deepEqual(readdirSync(join(pkgDir, 'lib')), ['types']);
         assert.equal(runGuard(root).status, 0, 'guard goes green once the declaration is emitted');
+    });
+});
+
+describe('verify-tarball-outputs — declared entry points must be IN THE TARBALL', () => {
+    before(() => {
+        if (!tmp) tmp = mkdtempSync(join(tmpdir(), 'gjsify-tarball-outputs-'));
+    });
+
+    // The sibling guard above answers "does the path exist in the repo". In this
+    // repository `lib/` always does, so it is structurally unable to see the
+    // failure a CONSUMER feels: a declared path that is built and then excluded
+    // from the tarball. These cases pin that difference.
+    const PKG = (extra) => ({
+        name: '@t/shipped',
+        version: '1.0.0',
+        main: 'lib/esm/index.js',
+        types: 'lib/types/index.d.ts',
+        exports: {
+            '.': { types: './lib/types/index.d.ts', default: './lib/esm/index.js' },
+            './register': { default: './lib/esm/register.js' },
+        },
+        ...extra,
+    });
+    const BUILT = {
+        'lib/esm/index.js': 'export const a = 1;\n',
+        'lib/esm/register.js': 'globalThis.a = 1;\n',
+        'lib/types/index.d.ts': 'export declare const a: number;\n',
+    };
+
+    it('passes when `files` names the built output', () => {
+        const root = makeRoot('tarball-ok');
+        addPackage(root, 'shipped', PKG({ files: ['lib'] }), BUILT);
+        const { status, out } = runTarballGuard(root);
+        assert.equal(status, 0, out);
+        assert.match(out, /Every declared entry point is in its tarball/);
+    });
+
+    it('FAILS on a built entry point the `files` allowlist excludes', () => {
+        const root = makeRoot('tarball-unshipped');
+        // `files` ships the types but not the register module — the exact shape
+        // `gjsify pack`'s own types-only guard cannot see.
+        addPackage(root, 'shipped', PKG({ files: ['lib/types', 'lib/esm/index.js'] }), BUILT);
+        const { status, out } = runTarballGuard(root);
+        assert.equal(status, 1, out);
+        assert.match(out, /exports\["\.\/register"\]\["default"\]/);
+        assert.match(out, /lib\/esm\/register\.js/);
+        // `main` is force-included by the packer regardless of `files`, so it
+        // must NOT be reported — the check reads the real selection rules
+        // rather than assuming `files` is the whole story.
+        assert.doesNotMatch(out, /main → lib\/esm\/index\.js/);
+    });
+
+    it('FAILS with NO `files` field, because gitignore semantics drop the build output', () => {
+        const root = makeRoot('tarball-gitignored');
+        addPackage(root, 'shipped', PKG({}), { ...BUILT, '.gitignore': 'lib\n' });
+        const { status, out } = runTarballGuard(root);
+        assert.equal(status, 1, out);
+        assert.match(out, /files.*absent/);
+        assert.match(out, /lib\/types\/index\.d\.ts/);
+    });
+
+    it('stays silent when the declared path does not exist at all', () => {
+        const root = makeRoot('tarball-unbuilt');
+        // Absent-on-disk is the SIBLING guard's finding. Claiming it here would
+        // red-line every unbuilt dev tree for something this check cannot fix.
+        addPackage(root, 'shipped', PKG({ files: ['lib'] }), {});
+        assert.equal(runTarballGuard(root).status, 0, 'unbuilt tree is not this check’s failure');
+        assert.equal(runGuard(root).status, 1, 'but it IS the declared-outputs guard’s');
     });
 });
