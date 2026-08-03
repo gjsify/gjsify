@@ -1,12 +1,33 @@
 // SPDX-License-Identifier: MIT
 // Collect + relocate a standalone, batteries-included GTK/GObject-Introspection
-// runtime bundle for macOS arm64 — so @gjsify/node-gi's display-free conformance
-// runs with NO Homebrew GTK on the host (Phase 2 of cross-platform node-gi).
+// runtime bundle for macOS — so @gjsify/node-gi's conformance runs with NO
+// Homebrew GTK on the host (Phase 2 of cross-platform node-gi).
 //
-//   node scripts/build-gtk-runtime.mjs [--out <dir>] [--addon <node_gi.node>] [--stage <dir>]
+//   node ../scripts/build-gtk-runtime-darwin.mjs [--out <dir>] [--windowing]
+//                                               [--addon <node_gi.node>] [--stage <dir>]
 //
-// Runs ONLY on darwin/arm64 with a build-time Homebrew GTK stack installed (the
-// closure SOURCE — not shipped). It:
+// ONE script for EVERY darwin target. It serves both
+// @gjsify/gtk-runtime-darwin-arm64 and @gjsify/gtk-runtime-darwin-x64, because the
+// only arch-dependent thing about the whole pass was a hard `process.arch` gate and
+// a hardcoded manifest stamp — the otool closure walk, the install_name_tool
+// rewrite to @loader_path, the ad-hoc codesign (mandatory on Apple silicon,
+// harmless on Intel) and the --windowing superset are arch-agnostic. Copying it per
+// package would have been the THIRD near-duplicate of a 359-line relocation pass;
+// it lives HERE — beside the packages, inside packages/node-gi/** — rather than in
+// the repo-root scripts/ dir on purpose: packages/node-gi/** is the affected
+// classifier's IGNORE list and node-gi.yml's `paths:` trigger, so an edit here runs
+// node-gi's own CI and does NOT force a full main.yml run (which every scripts/**
+// edit does, landing in `unmatched`).
+//
+// THE TARGET IS DERIVED, NEVER PASSED: `darwin-${process.arch}` comes from the
+// running Node, exactly like scripts/stage-prebuild.mjs, so a leg structurally
+// cannot stamp one arch's closure with another arch's name. `--out` is additionally
+// cross-checked against the DESTINATION package's own `os`/`cpu` declaration, so an
+// x64 runner cannot populate the arm64 package's `gtk/` (the shape that shipped
+// x86-64 binaries into `prebuilds/linux-ppc64/` for weeks).
+//
+// Runs ONLY on darwin with a build-time Homebrew GTK stack installed (the closure
+// SOURCE — not shipped). It:
 //   1. Walks the dylib graph (`otool -L`, recursively) from the typelib-backing
 //      libraries the conformance loads (glib/gobject/gio + girepository + cairo +
 //      pango + graphene + gdk-pixbuf + gtk4), collecting every Homebrew dylib.
@@ -15,21 +36,28 @@
 //      leaving /usr/lib + /System refs untouched, then AD-HOC RE-SIGNS it
 //      (`codesign -s -`) — mandatory on Apple silicon: install_name_tool
 //      invalidates the code signature and dyld refuses an unsigned/mis-signed
-//      dylib.
-//   3. Copies the typelib set into <out>/girepository-1.0.
-//   4. (optional) Relocates a COPY of the node-gi addon (--addon) so it loads the
+//      dylib. On Intel the signature is not enforced, but re-signing keeps ONE
+//      code path.
+//   3. VERIFIES the relocation (see verifyRelocation) — the assertion is
+//      brew-prefix-DERIVED, because the prefix is /opt/homebrew on Apple silicon
+//      and /usr/local on Intel: a hardcoded `/opt/homebrew` grep passes vacuously
+//      on an Intel runner and would have proven nothing about the arch this script
+//      exists to add.
+//   4. Copies the typelib set into <out>/girepository-1.0.
+//   5. (optional) Relocates a COPY of the node-gi addon (--addon) so it loads the
 //      BUNDLED libgirepository via `@rpath` (add_rpath @loader_path/gtk/lib) with
 //      NO Homebrew — the env-free path the core conformance leg exercises.
 //
-// The result is portable: none of the bundled libraries reference /opt/homebrew.
-// Reference: GJS ships no relocation; the technique mirrors macOS app-bundle
-// dylib fix-up (install_name_tool + @loader_path + ad-hoc codesign).
+// The result is portable: none of the bundled libraries reference the build host's
+// Homebrew prefix. Reference: GJS ships no relocation; the technique mirrors macOS
+// app-bundle dylib fix-up (install_name_tool + @loader_path + ad-hoc codesign).
 import { execFileSync } from 'node:child_process';
 import {
     copyFileSync,
     cpSync,
     existsSync,
     mkdirSync,
+    readFileSync,
     readdirSync,
     realpathSync,
     rmSync,
@@ -39,21 +67,61 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const scriptsDir = dirname(fileURLToPath(import.meta.url)); // packages/node-gi/scripts
+const pillarDir = dirname(scriptsDir); // packages/node-gi
+// Repo-relative path recorded in the shipped manifest, so a consumer holding only
+// the tarball can find the recipe that produced its bytes (the tarball no longer
+// carries a per-package copy of it).
+const BUILDER_ID = 'packages/node-gi/scripts/build-gtk-runtime-darwin.mjs';
+
+if (process.platform !== 'darwin') {
+    console.error(`build-gtk-runtime: only supported on darwin, not ${process.platform}`);
+    process.exit(2);
+}
+
+/** The one true target: what the RUNNING machine is, never an argument. */
+const TARGET = `darwin-${process.arch}`;
 
 // --- args ------------------------------------------------------------------
 function argValue(flag) {
     const i = process.argv.indexOf(flag);
     return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : undefined;
 }
-const OUT = argValue('--out') ?? join(pkgRoot, 'gtk');
+// Default destination = the sibling platform package for THIS arch. Derived, so
+// `npm run build:bundle` from either package lands in the right place and cannot
+// land in the wrong one.
+const OUT = argValue('--out') ?? join(pillarDir, `gtk-runtime-${TARGET}`, 'gtk');
 const ADDON = argValue('--addon'); // optional: a node_gi.node to relocate a copy of
 const STAGE = argValue('--stage'); // optional: sibling layout <stage>/{node_gi.node,gtk/}
 
-if (process.platform !== 'darwin' || process.arch !== 'arm64') {
-    console.error(`build-gtk-runtime: only supported on darwin/arm64, not ${process.platform}/${process.arch}`);
-    process.exit(2);
+// Cross-check an explicit --out against the DESTINATION package's own platform
+// declaration. `os`/`cpu` in that package.json is the npm-enforced truth about
+// which machine may populate it, so this needs no second list to keep in sync. A
+// destination that is not a package (a scratch dir, node-gi's prebuilds staging)
+// is skipped — the derived TARGET above already fixes the manifest stamp.
+function assertOutMatchesHost(outDir) {
+    const manifestPath = join(dirname(outDir), 'package.json');
+    if (!existsSync(manifestPath)) return;
+    let pkg;
+    try {
+        pkg = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    } catch {
+        return; // not our concern — a malformed manifest fails elsewhere, loudly
+    }
+    const os = Array.isArray(pkg.os) ? pkg.os : null;
+    const cpu = Array.isArray(pkg.cpu) ? pkg.cpu : null;
+    if (!os && !cpu) return;
+    const okOs = !os || os.includes(process.platform);
+    const okCpu = !cpu || cpu.includes(process.arch);
+    if (okOs && okCpu) return;
+    console.error(
+        `build-gtk-runtime: --out ${outDir} belongs to ${pkg.name ?? manifestPath}, which declares ` +
+            `os=${JSON.stringify(os)} cpu=${JSON.stringify(cpu)} — this runner is ${process.platform}/${process.arch}. ` +
+            `Refusing to write one arch's closure into another arch's package.`,
+    );
+    process.exit(1);
 }
+assertOutMatchesHost(OUT);
 
 const sh = (bin, args) => execFileSync(bin, args, { encoding: 'utf8' });
 
@@ -140,7 +208,8 @@ function resolveInBrew(leaf) {
 
 // --- 1. discover the closure ----------------------------------------------
 console.log(
-    `build-gtk-runtime: brew prefix ${brewPrefix}${WINDOWING ? ' (windowing superset — + libadwaita + libgtksourceview)' : ' (display-free)'}`,
+    `build-gtk-runtime: target ${TARGET}, brew prefix ${brewPrefix}` +
+        `${WINDOWING ? ' (windowing superset — + libadwaita + libgtksourceview)' : ' (display-free)'}`,
 );
 const seedPatterns = WINDOWING ? [...SEED_PATTERNS, ...WINDOWING_SEED_PATTERNS] : SEED_PATTERNS;
 const seeds = readdirSync(brewLib).filter((f) => seedPatterns.some((re) => re.test(f)));
@@ -193,7 +262,49 @@ for (const leaf of bundledLeaves) {
 }
 console.log(`build-gtk-runtime: relocated + re-signed ${bundledLeaves.size} dylibs → @loader_path`);
 
-// --- 3. typelibs -----------------------------------------------------------
+// --- 3. verify the relocation ---------------------------------------------
+// A leftover absolute reference to a library we DID bundle is the whole failure
+// mode: the bundle looks complete, loads fine on the build host, and resolves
+// nothing on a machine without Homebrew. Assert it here — in the ONE place both
+// arches and both workflows (node-gi.yml, release.yml) go through — rather than as
+// a grep re-typed per YAML job. The predicate is prefix-DERIVED (`brewPrefix`), not
+// the literal `/opt/homebrew`, because that literal is vacuously absent on an Intel
+// runner whose prefix is /usr/local; a passing hardcoded grep there would have been
+// the first thing the darwin-x64 bundle got wrong.
+// Non-system absolute deps we did NOT bundle (e.g. an /opt/X11 leaf) are REPORTED,
+// never failed: the bundle deliberately leaves OS-provided libraries alone, and
+// turning "unbundled" into an error would refuse a correct bundle.
+function verifyRelocation(paths) {
+    const failures = [];
+    const externals = new Set();
+    for (const p of paths) {
+        for (const dep of otoolDeps(p)) {
+            if (!dep.startsWith('/')) continue; // @loader_path / @rpath — relocated
+            if (bundledLeaves.has(basename(dep)) || dep.startsWith(brewPrefix)) {
+                failures.push(`${basename(p)} → ${dep}`);
+            } else {
+                externals.add(dep);
+            }
+        }
+    }
+    if (externals.size > 0) {
+        console.log(`build-gtk-runtime: ${externals.size} OS-provided dep(s) left unbundled: ${[...externals].sort()}`);
+    }
+    if (failures.length > 0) {
+        console.error(
+            `build-gtk-runtime: RELOCATION FAILED — ${failures.length} reference(s) still point outside the bundle ` +
+                `(brew prefix ${brewPrefix}):\n  ${failures.join('\n  ')}\n` +
+                'Two causes: a leaf we DID bundle whose reference was not rewritten (an install_name_tool bug), or a ' +
+                `dependency under ${brewPrefix} that never entered the closure because it is not symlinked into ` +
+                `${brewLib} — add it to the seed patterns or resolve it through its keg.`,
+        );
+        process.exit(1);
+    }
+    console.log(`build-gtk-runtime: relocation verified — ${paths.length} image(s), 0 refs outside the bundle`);
+}
+verifyRelocation([...bundledLeaves].map((leaf) => join(libOut, leaf)));
+
+// --- 4. typelibs -----------------------------------------------------------
 const typelibOut = join(OUT, 'girepository-1.0');
 mkdirSync(typelibOut, { recursive: true });
 let typelibCount = 0;
@@ -207,7 +318,7 @@ if (existsSync(brewTypelibs)) {
 }
 console.log(`build-gtk-runtime: copied ${typelibCount} typelibs`);
 
-// --- 3b. WINDOWING data (schemas / icons / gtksource) ---------------------
+// --- 4b. WINDOWING data (schemas / icons / gtksource) ---------------------
 // The runtime DATA a REAL app needs beyond the dylibs+typelibs: compiled GSettings
 // schemas (Gio.Settings — a HARD startup blocker without them), the Adwaita/hicolor
 // icon themes, and GtkSource's language-specs/styles. These are plain files (no dylib
@@ -225,7 +336,7 @@ if (WINDOWING) {
         return existsSync(inBrew) ? inBrew : leaf; // fall back to PATH
     };
 
-    // 3b-a. Compiled GSettings schemas + (re)compile gschemas.compiled — also the
+    // 4b-a. Compiled GSettings schemas + (re)compile gschemas.compiled — also the
     // windowing-data marker node-gi's loader detects.
     const schemasSrc = join(brewShare, 'glib-2.0', 'schemas');
     if (existsSync(schemasSrc)) {
@@ -251,7 +362,7 @@ if (WINDOWING) {
         );
     }
 
-    // 3b-b. Icon themes (Adwaita symbolic + hicolor) + caches, loaded from
+    // 4b-b. Icon themes (Adwaita symbolic + hicolor) + caches, loaded from
     // XDG_DATA_DIRS/icons/<theme>/.
     const updateIconCache = findTool('gtk4-update-icon-cache');
     for (const theme of ['Adwaita', 'hicolor']) {
@@ -271,7 +382,7 @@ if (WINDOWING) {
             : 'build-gtk-runtime: WARNING — no Adwaita/hicolor icon theme under share/icons',
     );
 
-    // 3b-c. GtkSource-5 language-specs + styles (the editor's syntax highlighting).
+    // 4b-c. GtkSource-5 language-specs + styles (the editor's syntax highlighting).
     const gtksourceSrc = join(brewShare, 'gtksourceview-5');
     if (existsSync(gtksourceSrc)) {
         let copied = 0;
@@ -291,10 +402,10 @@ if (WINDOWING) {
     }
 }
 
-// --- 4. optional: relocate a copy of the node-gi addon --------------------
-// The addon (built against Homebrew) carries absolute /opt/homebrew refs. Rewrite
-// them to @rpath/<leaf> + add an rpath to the SIBLING bundle so it loads the
-// bundled libgirepository with NO Homebrew — the env-free core-conformance path.
+// --- 5. optional: relocate a copy of the node-gi addon --------------------
+// The addon (built against Homebrew) carries absolute Homebrew refs. Rewrite them to
+// @rpath/<leaf> + add an rpath to the SIBLING bundle so it loads the bundled
+// libgirepository with NO Homebrew — the env-free core-conformance path.
 if (ADDON) {
     if (!existsSync(ADDON)) {
         console.error(`build-gtk-runtime: --addon ${ADDON} not found`);
@@ -319,6 +430,10 @@ if (ADDON) {
         // rpath already present — fine.
     }
     execFileSync('codesign', ['--force', '--sign', '-', addonDest]);
+    // The addon gets the SAME assertion as the dylibs: a surviving absolute ref to a
+    // bundled leaf is the "loads on the build host, resolves nothing elsewhere" bug,
+    // and until now only the dylibs were checked for it.
+    verifyRelocation([addonDest]);
     console.log(`build-gtk-runtime: relocated addon → ${addonDest} (rpath @loader_path/gtk/lib)`);
 }
 
@@ -336,8 +451,9 @@ const typelibBytes = dirSize(typelibOut);
 const shareOut = join(OUT, 'share');
 const dataBytes = WINDOWING && existsSync(shareOut) ? dirSize(shareOut) : 0;
 const manifest = {
-    platform: 'darwin-arm64',
+    platform: TARGET,
     windowing: WINDOWING,
+    builder: BUILDER_ID,
     generatedFrom: brewPrefix,
     dylibs: bundledLeaves.size,
     typelibs: typelibCount,
@@ -352,7 +468,7 @@ writeFileSync(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
 const mb = (n) => (n / 1024 / 1024).toFixed(1);
 console.log(
-    `build-gtk-runtime: DONE → ${OUT}\n` +
+    `build-gtk-runtime: DONE (${TARGET}) → ${OUT}\n` +
         `  dylibs:   ${bundledLeaves.size} (${mb(libBytes)} MiB)\n` +
         `  typelibs: ${typelibCount} (${mb(typelibBytes)} MiB)\n` +
         `  total:    ${mb(manifest.totalBytes)} MiB`,

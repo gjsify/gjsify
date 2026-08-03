@@ -250,42 +250,48 @@ gjs exposes `$gtype` uniformly (`[object GType for 'X']`); node-gi does not, and
 
 `node packages/infra/cli/scripts/generate-register-closure.mjs` (`--check` reports staleness). A stale map is fail-soft — builds stay correct but pay extra `--globals auto` analysis passes. (The related hazard — the committed CLI bundle inlining a stale map — is closed: `.githooks/pre-commit` triggers on `packages/infra/resolve-npm/lib/` and `packages/infra/rolldown-plugin-gjsify/src/`.)
 
-### `@gjsify/gtk-runtime-darwin-x64` — the batteries-included GTK bundle exists for one macOS arch only
+### `gjsify onboard` for `@gjsify/gtk-runtime-darwin-x64` — required before the release that ships it
 
-`@gjsify/node-gi` needs GTK + typelibs ON THE HOST; the `gtk-runtime-*` packages are the
-batteries-included answer, and they exist for `darwin-arm64` and `win32-x64` only. Since
-`darwin-x64`'s addon prebuild now ships, an Intel Mac gets a loadable addon and then still has to
-`brew install gtk4 …` by hand, while an Apple-silicon Mac and a Windows box do not — one bridge,
-two policies, which is the asymmetry AGENTS.md warns about.
+npm Trusted Publishing (OIDC) cannot CREATE a package, only publish new versions of an existing
+one, so the new name needs a one-time manual first publish + Trusted Publisher from a maintainer
+machine BEFORE `release.yml`'s `publish-gtk-runtime-darwin` matrix runs its `x64` leg. An
+unbootstrapped name 404s the OIDC exchange and stalls every alphabetically-later package (the
+v0.4.20 `@gjsify/tls-native` incident: 60+ packages stuck). One command:
+`gjsify onboard` (whoami-gated login, per-package state probe, publishes + trusts only the gaps,
+ONE shared OTP). The package itself, its builder and both CI chains are in place.
 
-DELIBERATELY NOT bundled with the addon-prebuild fix: that fix is a release-path edit small enough
-to verify by reading, and this is a new published package whose whole value proposition ("no
-Homebrew") is only demonstrated by CI legs no local host can run. What it needs, measured:
+### The darwin `--windowing` GUI proof runs on Apple silicon only
 
-- **The loader half is already free.** `packages/node-gi/node-gi/gtk-runtime.js` resolves
-  `@gjsify/gtk-runtime-${process.platform}-${process.arch}` and probes four candidate locations —
-  nothing keys on a hard-coded target, so a new package is found by the mechanism that finds the
-  existing two. `maybeWireGtkWindowingEnv` is already scoped to darwin+win32.
-- **The build script must be parameterised, not copied.** `gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs`
-  hard-gates `process.arch !== 'arm64'` (exit 2) and stamps `platform: 'darwin-arm64'` into its
-  manifest; everything else (the `otool -L` closure walk, `install_name_tool` → `@loader_path`, the
-  ad-hoc `codesign` that is mandatory on arm64 and harmless on Intel, the `--windowing` superset)
-  is arch-agnostic already. A copy would be the THIRD near-duplicate of a 359-line relocation pass
-  — the shape AGENTS.md names as the place to lift a helper. The open design question is WHERE the
-  shared script lives, since each package's `files` ships its own `scripts/` for provenance.
-- **CI, and this is the bulk of it.** node-gi.yml's arm64 chain is four jobs (`macos-gtk-runtime` →
-  `macos-gtk-batteries-included`, plus the `--windowing` pair). x64 needs at least the first two,
-  because a bundle never LOADED in CI is a bundle nobody tested, and the load test IS the
-  batteries-included conformance (no brew GTK on the host). Plus a `publish-gtk-runtime-darwin-x64`
-  job in release.yml mirroring the arm64 one.
-- **Maintainer action, before the release that ships it:** `gjsify onboard` for the new npm name
-  `@gjsify/gtk-runtime-darwin-x64` (first publish + Trusted Publisher; an unbootstrapped name 404s
-  the OIDC exchange and stalls every alphabetically-later package).
-- **Do NOT make it a dependency of `@gjsify/node-gi`.** #910 did that for the arm64 bundle and #920
-  reverted it: an installed bundle satisfies candidate 4 of `resolveGtkRuntimeBundle()`, so a job
-  that built the addon against Homebrew GTK re-execs onto the BUNDLE's typelibs with native code
-  linked against a different GTK — wrong method entries, then a 29-minute timeout. The precedence
-  question is still open; the same trap applies to any second arch.
+`node-gi.yml`'s `macos-gtk-windowing-runtime` → `macos-gtk-windowing` pair is arm64-only, while the
+display-free `macos-gtk-runtime` → `macos-gtk-batteries-included` pair is a two-arch matrix. So
+`@gjsify/gtk-runtime-darwin-x64` is proven to satisfy `gi://` with no Homebrew (that job never
+installs GTK, so a green leg IS the conformance) but its `--windowing` superset — libadwaita +
+libgtksourceview + GSettings schemas + icon themes, i.e. a real `Adw.ApplicationWindow` realizing
+and rendering — is not exercised on Intel.
+
+Held back deliberately, not overlooked: it is two more scarce macOS legs per node-gi PR, and the
+darwin windowing bundle has a KNOWN gap that a second arch would duplicate rather than close — the
+gdk-pixbuf image LOADERS are not bundled (they are dylibs needing `@loader_path` relocation from a
+NESTED dir, unlike win32's flat DLL copy), so symbolic icons can render blank. Close that first,
+then matrix the pair the same way (the builder is already arch-agnostic; only the two jobs' `arch`
+matrices and artifact names change).
+
+Related: the darwin bundle has no `share/gtksourceview-5` DATA step, so GtkSource CONSTRUCTS but
+its language-specs/styles are absent — the win32 bundle DOES ship them.
+
+### The GTK-runtime bundle precedence question is still open
+
+`resolveGtkRuntimeBundle()` probes four candidates in order (`GJSIFY_GTK_RUNTIME`, node-gi's own
+`prebuilds/<target>/gtk/`, the sibling monorepo dir, then `require.resolve('@gjsify/gtk-runtime-<target>')`),
+and an INSTALLED bundle satisfying candidate 4 is why the bundles must NOT be dependencies of
+`@gjsify/node-gi`: #910 made the arm64 bundle a dependency and #920 reverted it, because a job that
+built the addon against Homebrew GTK then re-execs onto the BUNDLE's typelibs with native code
+linked against a DIFFERENT GTK — wrong method entries, then a 29-minute timeout. The same trap now
+applies to a second darwin arch. What is missing is a rule that makes the mismatch VISIBLE rather
+than a timeout: the bundle's `manifest.json` records its build prefix and dylib set, and the addon's
+`otool -L`/`LC_RPATH` records what it linked against, so a load-time check could refuse the
+combination outright. Until then the answer is the install-time one — the bundles stay manual
+installs, documented in node-gi's README.
 
 ### `@gjsify/rolldown-native` macOS prebuild — the last step to a Node-free toolchain on macOS
 

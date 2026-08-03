@@ -241,42 +241,68 @@ jobs:
           echo "Packages successfully published to npm for release ${RELEASE_TAG}"
           echo "Published packages: @gjsify/*"
 
-  # macOS publish leg for the batteries-included GTK runtime bundle.
+  # macOS publish legs for the batteries-included GTK runtime bundles — ONE JOB, one
+  # matrix leg per macOS arch (@gjsify/gtk-runtime-darwin-arm64 on `macos-latest`,
+  # @gjsify/gtk-runtime-darwin-x64 on `macos-15-intel`, the last x86_64 macOS image
+  # Actions offers).
   #
-  # WHY A SEPARATE JOB: @gjsify/gtk-runtime-darwin-arm64 ships a HEAVY, relocated
-  # macOS-arm64 GTK/GI dylib + typelib closure in its `gtk/` dir. That bundle is
-  # gitignored and can ONLY be produced on a darwin/arm64 runner (Homebrew closure
-  # -> install_name_tool/@loader_path relocation -> ad-hoc codesign, see the
-  # package's scripts/build-gtk-runtime.mjs). The ubuntu `publish` job above cannot
-  # build it, and it never tries to: `packages/node-gi/*` is NOT a root workspace
-  # (see root package.json#workspaces), so `gjsify foreach` — the enumerator behind
-  # `gjsify run npm:publish` — never touches this package. Without this job the
-  # published tarball is only ever an empty ~18 KB shell (its first 0.19.0 publish
-  # was exactly that: isPresent=false, so macOS consumers silently fell back to
-  # Homebrew GTK). Here we BUILD the bundle on macOS and OIDC-publish JUST this one
-  # package WITH the populated `gtk/`, so `require('@gjsify/gtk-runtime-darwin-arm64')`
-  # reports isPresent=true and the "no brew needed" promise is actually delivered.
+  # WHY A SEPARATE JOB: each package ships a HEAVY, relocated macOS GTK/GI dylib +
+  # typelib closure in its `gtk/` dir. That bundle is gitignored and can ONLY be
+  # produced on a darwin runner OF THAT ARCH (Homebrew closure ->
+  # install_name_tool/@loader_path relocation -> ad-hoc codesign, see the shared
+  # packages/node-gi/scripts/build-gtk-runtime-darwin.mjs). The ubuntu `publish` job
+  # above cannot build it, and it never tries to: `packages/node-gi/*` is NOT a root
+  # workspace (see root package.json#workspaces), so `gjsify foreach` — the
+  # enumerator behind `gjsify run npm:publish` — never touches these packages.
+  # Without this job the published tarball is only ever an empty ~18 KB shell (the
+  # arm64 package's first 0.19.0 publish was exactly that: isPresent=false, so macOS
+  # consumers silently fell back to Homebrew GTK). Here we BUILD the bundle on macOS
+  # and OIDC-publish JUST that one package WITH the populated `gtk/`, so
+  # `require('@gjsify/gtk-runtime-darwin-<arch>')` reports isPresent=true and the "no
+  # brew needed" promise is actually delivered.
+  #
+  # WHY A MATRIX RATHER THAN A SECOND JOB: the two packages share ONE builder (the
+  # relocation pass is arch-agnostic; the script derives its target from the running
+  # Node and cross-checks `--out` against the destination package's own os/cpu), so
+  # every path below derives from `matrix.arch`. Copying ~90 lines of job would have
+  # been the duplication. The Windows sibling stays its own job — its builder is
+  # genuinely different (no relocation; Windows resolves DLLs by search path).
   #
   # RACE SAFETY: `packages/node-gi/*` not being a workspace means the ubuntu job can
-  # never enumerate — let alone shell-publish — this package (nothing can overwrite
-  # the real bundle with an empty one). If `packages/node-gi/*` is EVER added to the
-  # root `workspaces` list, add `--exclude '@gjsify/gtk-runtime-darwin-arm64'` to the
-  # `npm:publish` script's `gjsify foreach` so the ubuntu job keeps skipping it.
+  # never enumerate — let alone shell-publish — these packages (nothing can overwrite
+  # a real bundle with an empty one). If `packages/node-gi/*` is EVER added to the
+  # root `workspaces` list, add `--exclude '@gjsify/gtk-runtime-*'` to the
+  # `npm:publish` script's `gjsify foreach` so the ubuntu job keeps skipping them.
   #
   # `needs: publish` so @gjsify/cli@<release-version> is already on npm (this job
-  # installs it to drive the OIDC publish) and the two publish legs are serialized.
+  # installs it to drive the OIDC publish) and the publish legs are serialized.
   #
-  # PATTERN: the future @gjsify/gtk-runtime-win32-x64 sibling mirrors this job
-  # (windows-latest runner, gvsbuild closure source, its own relocation step).
-  publish-gtk-runtime-darwin-arm64:
-    name: Publish @gjsify/gtk-runtime-darwin-arm64 (macOS bundle)
+  # MAINTAINER ACTION — @gjsify/gtk-runtime-darwin-x64 is a NEW npm name: npm Trusted
+  # Publishing (OIDC) cannot CREATE a package, only publish new versions of an
+  # existing one, so it needs a one-time `gjsify onboard` (first publish + Trusted
+  # Publisher) BEFORE the first release that runs this leg — otherwise the OIDC
+  # exchange 404s and stalls every alphabetically-later package. Same requirement the
+  # win32 job below documents.
+  publish-gtk-runtime-darwin:
+    name: Publish @gjsify/gtk-runtime-darwin-${{ matrix.arch }} (macOS bundle)
     needs: publish
     # Same gate as the ubuntu npm-publish step: a real release, or a dispatch that
     # opts INTO publishing; never in verify_only (audit) mode. On an asset-only
     # re-upload dispatch (skip_publish=true) this whole job is skipped.
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    strategy:
+      # NOT fail-fast: one arch's Homebrew hiccup must not cancel the other arch's
+      # publish. A failed leg leaves that ONE package at the previous version, which
+      # is recoverable by re-dispatching; cancelling both is not better.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
     permissions:
       # id-token: write = npm Trusted Publishing (OIDC). The package's Trusted
       # Publisher is configured for THIS workflow file (release.yml), so an OIDC
@@ -301,7 +327,7 @@ jobs:
       - name: Install GTK4 + GObject-Introspection (Homebrew, build-time closure source)
         run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
 
-      # Node 24 runs build-gtk-runtime.mjs (node:child_process/fs) and the publish.
+      # Node 24 runs build-gtk-runtime-darwin.mjs (node:child_process/fs) and the publish.
       # No `registry-url` here — setting it makes actions/setup-node inject a
       # placeholder NODE_AUTH_TOKEN, which `gjsify publish` reads as "token auth
       # requested" and skips OIDC (see the ubuntu publish job's note). Omitting it
@@ -319,24 +345,39 @@ jobs:
       # addon build here.
       - name: Build the GTK runtime bundle (populate gtk/)
         run: |
-          node packages/node-gi/gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs \
-            --out packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          node packages/node-gi/scripts/build-gtk-runtime-darwin.mjs \
+            --out packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk
 
-      # Gate the publish on a genuinely populated, portable bundle: assert no
-      # /opt/homebrew refs survived relocation, and that the two dirs index.js's
-      # isPresent check requires actually exist. Mirrors node-gi.yml's sanity check.
+      # Gate the publish on a genuinely populated, portable bundle. The build step is
+      # already the hard gate on relocation (the script fails on any surviving
+      # reference into the brew prefix); this re-asserts it visibly with a DERIVED
+      # prefix — `/opt/homebrew` hardcoded is vacuously absent on the Intel leg, where
+      # the prefix is /usr/local — plus the two dirs index.js's isPresent check needs,
+      # plus that the bundle's own derived target stamp matches this leg.
       - name: Verify bundle (relocation clean + layout present)
+        env:
+          TAG: darwin-${{ matrix.arch }}
         run: |
-          B=packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          B="packages/node-gi/gtk-runtime-$TAG/gtk"
+          BREW_PREFIX="$(brew --prefix)"
           cat "$B/manifest.json"
           echo "--- bundle size ---"; du -sh "$B"
-          echo "--- assert NO /opt/homebrew refs remain in the bundle ---"
-          if otool -L "$B"/lib/*.dylib | grep -F /opt/homebrew; then
-            echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
+          echo "--- assert NO $BREW_PREFIX refs remain in the bundle ---"
+          if otool -L "$B"/lib/*.dylib | grep -F "$BREW_PREFIX"; then
+            echo "RELOCATION FAILED: bundled dylibs still reference $BREW_PREFIX"; exit 1
           fi
           if [ ! -d "$B/lib" ] || [ ! -d "$B/girepository-1.0" ]; then
             echo "BUNDLE INCOMPLETE: gtk/lib + gtk/girepository-1.0 are required (index.js isPresent)"; exit 1
           fi
+          node -e '
+            const m = require(`./packages/node-gi/gtk-runtime-${process.env.TAG}/gtk/manifest.json`);
+            const want = `darwin-${process.arch}`;
+            if (m.platform !== want) {
+              console.error(`bundle manifest says ${m.platform}, this runner is ${want}`);
+              process.exit(1);
+            }
+            console.log(`bundle target ${m.platform} matches the runner`);
+          '
           echo "clean — bundle populated + portable"
 
       # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
@@ -359,16 +400,19 @@ jobs:
       # (id-token: write above, no NODE_AUTH_TOKEN) and exchanges the JWT for a
       # short-lived per-package token. --tolerate-republish makes a manual rerun over
       # an already-published version a no-op instead of a hard 409/403.
-      - name: Publish @gjsify/gtk-runtime-darwin-arm64 (OIDC, with bundle)
+      - name: Publish @gjsify/gtk-runtime-darwin-${{ matrix.arch }} (OIDC, with bundle)
         env:
           GJSIFY_PUBLISH_DEBUG: '1'
         run: |
           node "${{ steps.cli.outputs.bin }}" publish \
-            packages/node-gi/gtk-runtime-darwin-arm64 \
+            packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }} \
             --tolerate-republish --tag latest --access public
 
   # Windows publish leg for the batteries-included GTK runtime bundle — the sibling
-  # of publish-gtk-runtime-darwin-arm64 above (see that job's rationale in full).
+  # of publish-gtk-runtime-darwin above (see that job's rationale in full). It stays
+  # a SEPARATE job rather than a third matrix leg because its builder is genuinely
+  # different, not a parameterisation: gvsbuild closure source, no relocation step,
+  # no codesign, and PowerShell throughout.
   #
   # WHY A SEPARATE JOB: @gjsify/gtk-runtime-win32-x64 ships a HEAVY GTK/GI DLL +
   # typelib closure in its `gtk/` dir. That bundle is gitignored and can ONLY be
