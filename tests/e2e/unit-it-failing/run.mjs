@@ -100,6 +100,45 @@ run({
 });
 `;
 
+// `when: false` — the expectation is scoped OUT (e.g. the platform that cannot
+// satisfy it is not the one running). The marker must then behave as a plain
+// `it()`: a FAILING body reddens the run. Only observable from outside, same as
+// the stale-marker case above.
+const SCOPED_OUT_FAILING_SUITE = `
+import { run, describe, it, expect } from '@gjsify/unit';
+run({
+    async ScopedOutSuite() {
+        await describe('platform-scoped gap', async () => {
+            await it.failing(
+                'asserts POSIX-only behaviour, but the expectation is out of scope here',
+                async () => { expect('actual').toBe('spec-correct'); },
+                'declared failing on win32 only',
+                { when: false },
+            );
+        });
+    },
+});
+`;
+
+// `when: true` — in scope, so the same failing body is tolerated and the run
+// stays green. The pair is what proves `when` gates the EXPECTATION and not the
+// test.
+const SCOPED_IN_FAILING_SUITE = `
+import { run, describe, it, expect } from '@gjsify/unit';
+run({
+    async ScopedInSuite() {
+        await describe('platform-scoped gap', async () => {
+            await it.failing(
+                'asserts POSIX-only behaviour, expectation in scope',
+                async () => { expect('actual').toBe('spec-correct'); },
+                'declared failing on win32 only',
+                { when: true },
+            );
+        });
+    },
+});
+`;
+
 // oxlint-disable-next-line no-control-regex -- ANSI SGR sequences are ESC-prefixed by design
 const stripAnsi = (s) => s.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 
@@ -135,5 +174,30 @@ describe('@gjsify/unit it.failing', () => {
         assert.match(clean, /remove the marker/, 'the failure must say what to do about it');
         // The reason travels with the diagnostic so the reader need not dig.
         assert.match(clean, /pretend upstream defect, tracked at example#1/);
+    });
+
+    it('when:false does NOT tolerate a failure — it is a plain it()', () => {
+        const outFile = join(tmpDir, 'xfail-scoped-out.mjs');
+        buildEntryFromUnitSrc('__e2e_xfail_scoped_out_entry.mts', SCOPED_OUT_FAILING_SUITE, outFile);
+        const { status, out } = runBundle(outFile);
+        const clean = stripAnsi(out);
+
+        // The whole point of scoping: off the declared platform the assertion is
+        // enforced normally. A skip would have exited 0 and told nobody.
+        assert.equal(status, 1, `expected exit 1 with the expectation scoped out, got ${status}:\n${clean}`);
+        assert.match(clean, /tests failed/, 'the failure must be charged normally');
+        assert.doesNotMatch(clean, /expected failure/, 'nothing may be tolerated when when:false');
+        assert.doesNotMatch(clean, /ignored/, 'when:false must not skip the test');
+    });
+
+    it('when:true tolerates the same failure', () => {
+        const outFile = join(tmpDir, 'xfail-scoped-in.mjs');
+        buildEntryFromUnitSrc('__e2e_xfail_scoped_in_entry.mts', SCOPED_IN_FAILING_SUITE, outFile);
+        const { status, out } = runBundle(outFile);
+        const clean = stripAnsi(out);
+
+        assert.equal(status, 0, `expected exit 0 with the expectation in scope, got ${status}:\n${clean}`);
+        assert.match(clean, /1 expected failure/, 'the summary should report the xfail count');
+        assert.doesNotMatch(clean, /tests failed/, 'an in-scope expected failure must not be charged');
     });
 });
