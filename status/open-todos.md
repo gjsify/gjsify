@@ -36,6 +36,34 @@ better option, and it would serve every repo script, not these four).
 Until then the engine diagnostic says the limitation out loud rather than
 recommending two commands that cannot work there; that wording is already fixed.
 
+### Every DISPLAY-gated GTK test silently skips on macOS, so the darwin GTK path is near-uncovered
+
+`test/gtk-smoke.test.mjs`, `gtk-template*.test.mjs`, `adw-smoke.test.mjs` and
+`cairo-drawfunc.test.mjs` each gate on
+`!!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY`. GTK's macOS backend is
+quartz, which sets NEITHER — so on both macOS matrix legs every one of them
+reports as a clean skip, and the `macos` job has never executed a GTK assertion.
+That is how two independent darwin defects shipped in v0.27.0 together (the
+bare-leaf `dlopen` and the ELF-soname-only template API): nothing on that job
+could fail.
+
+The new `test/gtk-typelib-backers.test.mjs` closes the part that needs no
+display, which is the loader question and was the reported bug. What is still
+uncovered is everything downstream of `gtk_init`: real windows, composite
+templates, the Cairo draw func. **Measured, and it is the encouraging half:** on
+the local macOS 15.7.8 test VM the fireworks showcase constructs a
+`Gtk.ApplicationWindow` from a `.blp` template and runs its main loop cleanly
+over a plain SSH session with no GUI login — so quartz needs far less than
+`DISPLAY` implies, and the honest predicate is probably
+`process.platform === 'darwin' || DISPLAY || WAYLAND_DISPLAY`.
+
+Not changed here because the predicate is copy-pasted into five test files
+(lift it to one shared helper in the same change — that duplication is the
+reason it drifted this far) and because "a GitHub macOS runner has a usable
+window server" is an assumption this PR has no way to measure; getting it wrong
+turns five clean skips into five red legs on an unrelated PR. Do it as its own
+change, where a red macOS leg means what it says.
+
 ### Six published showcases declare `exports` subpaths their tarball does not contain
 
 Found by `scripts/verify-tarball-outputs.mjs` on its first run — `--scope

@@ -698,6 +698,36 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: npm install --no-audit --no-fund --foreground-scripts
 
+      # THE LOADER GATE. Every other check on this job — and `gjsify system-check`
+      # — asks "is GTK INSTALLED". This asks the question that actually failed:
+      # "can dyld find the dylibs a typelib names by BARE LEAF, from a plain
+      # `node`". Those had different answers on a fully-installed macOS 15 host
+      # (Homebrew's `gjs` carries an rpath into <prefix>/lib, `node` does not), so
+      # `showcase canvas2d-fireworks --runtime node` died on
+      # `Gtk.DrawingArea is not a subclassable GObject type` while system-check
+      # reported GTK4 4.22.4, GI 1.86.0 and everything else present.
+      #
+      # `env -u` is the load-bearing part, not hygiene: the Homebrew step above
+      # exports DYLD_FALLBACK_LIBRARY_PATH=$BREW_PREFIX/lib into GITHUB_ENV, and
+      # that hand-written compensation is EXACTLY what hid this from CI — with it
+      # set, the broken code passes. Unsetting both loader variables is what makes
+      # this step prove node-gi's own env-free resolution (gtk-runtime.js's
+      # re-exec over the libdirs system-gi.js derives). Never re-add the variable
+      # to this step to "make it more robust"; that reinstates the blind spot.
+      #
+      # Display-free by construction, which is why it can run here at all:
+      # registerClass resolves the parent's get_type() before any window, display
+      # or main loop exists. Every DISPLAY/WAYLAND_DISPLAY-gated GTK test in this
+      # package skips on macOS (quartz sets neither), so this is currently the
+      # only GTK-touching assertion the macOS legs execute. It runs on BOTH matrix
+      # arches, so the arm64 leg measures /opt/homebrew and the Intel leg
+      # /usr/local — the two prefixes the derivation must handle.
+      - name: GTK typelib backers resolve with NO loader env (darwin-${{ matrix.arch }})
+        working-directory: packages/node-gi/node-gi
+        run: env -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_LIBRARY_PATH node --test test/gtk-typelib-backers.test.mjs
+        env:
+          NODE_GI_NATIVE: build
+
       # The display-free conformance subset on Node — the primary proof. Loads the
       # just-built build/Release addon (cross-runtime.mjs defaults NODE_GI_NATIVE to
       # `build`). Same curated list as the Bun/Deno legs (single source of truth).
