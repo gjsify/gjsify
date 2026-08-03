@@ -1680,11 +1680,21 @@ jobs:
   # `Gwebgl-0.1.typelib` BYTE-IDENTICAL to the valac branch's, and both load
   # `Gwebgl.WebGLRenderingContext` under stock gjs).
   #
-  # ── THE ONE GENUINE UNKNOWN THIS EXISTS TO ANSWER ─────────────────────────
+  # ── THE ONE GENUINE UNKNOWN — ANSWERED: YES, MSVC COMPILES IT ─────────────
   #
-  # DOES MSVC COMPILE VALA-GENERATED C? docs.vala.dev states Vala targets the
-  # same C ABI and GObject stack on Windows as elsewhere, and a source scan of
-  # the emitted C (10266 lines across 4 `.c` + `gwebgl.h`) found no construct
+  # MEASURED on the first dispatch (run 30808356641, cl.exe 19.51.36252, VS
+  # 2026): of the four generated `.c` files, MSVC compiled `handle-types.c` and
+  # `webgl-rendering-context.c` CLEANLY and reported ZERO language diagnostics on
+  # any of them. The two that failed did so with `C1083: Cannot open include
+  # file: 'epoxy/gl.h'` — a missing include DIRECTORY on a header that was
+  # present on disk (see the `INCLUDE` line in the build step for the mechanism
+  # and the fix). So the question this job was created to answer is settled:
+  # Vala-generated C is MSVC-compatible, and nothing about the generated code
+  # needed changing.
+  #
+  # The pre-dispatch source scan that predicted this is kept because it explains
+  # WHY, and because it is the thing to re-run if a valac bump ever breaks it —
+  # across 10266 lines of emitted C (4 `.c` + `gwebgl.h`) there is no construct
   # MSVC rejects:
   #   • ZERO statement expressions, `typeof`, `__extension__`, `__builtin_*`,
   #     nested functions, VLAs or `long long`.
@@ -1697,13 +1707,13 @@ jobs:
   #     is the property that makes this split work at all.
   #   • The only remaining GCC-isms are 3 `#pragma GCC/clang diagnostic` lines,
   #     which MSVC ignores as unknown pragmas (C4068).
-  # That is strong evidence, NOT proof — nobody here has run cl.exe over it. The
-  # first dispatch is the experiment. If MSVC rejects something, RECORD WHAT IT
-  # REJECTED: do not reach for flags that hide a real incompatibility, and do
-  # not fall back to MinGW (see the ABI hazard above). Selecting a C STANDARD
-  # (`-Dc_std=…`) is a legitimate answer to a standards diagnostic; `/w` is not.
-  # `c_std` is deliberately NOT preset here — MSVC's default C mode is its most
-  # permissive, so the first run should be asked the plainest possible question.
+  # `c_std` is deliberately NOT preset — MSVC's default C mode is its most
+  # permissive, and the first run confirmed nothing stricter is needed. THE RULE
+  # THAT GOT THIS ANSWER, kept for whoever hits the next wall: record what the
+  # compiler actually rejected. Do not reach for flags that hide a real
+  # incompatibility, and do not fall back to MinGW (see the ABI hazard above).
+  # Selecting a C STANDARD or supplying a missing include DIRECTORY answers a
+  # real question about the platform; `/w` answers none.
   #
   # ── WHAT PROMOTION WOULD STILL OWE, beyond a green run ────────────────────
   #
@@ -1921,6 +1931,18 @@ jobs:
           }
           Write-Host "--- epoxy header ---"
           Write-Host $(if (Test-Path "$env:GTK_PREFIX\include\epoxy\gl.h") { 'epoxy/gl.h present' } else { 'epoxy/gl.h MISSING' })
+          # MEASURED, not inferred: the first dispatch failed C1083 on
+          # `epoxy/gl.h` while the header was present and `epoxy.pc` resolved,
+          # because `epoxy.pc` emits NO -I at all. On a POSIX prefix
+          # `<prefix>/include` is a default compiler search path so a .pc has
+          # nothing to add; MSVC has no such default, so the header is present
+          # and unreachable. Print the cflags each dependency contributes so
+          # that mechanism stays visible in the log instead of living only in a
+          # comment — glib is the contrast case, it names its own subdirectory.
+          Write-Host "--- cflags each dependency contributes ---"
+          foreach ($pc in @('epoxy','glib-2.0','gtk4')) {
+            Write-Host ("{0,-12} {1}" -f $pc, (& pkg-config --define-prefix --cflags-only-I $pc 2>&1))
+          }
 
       - name: Download the Vala C + GIR
         uses: actions/download-artifact@v8
@@ -1959,6 +1981,26 @@ jobs:
           if not defined VSPATH ( echo ::error::vswhere found no Visual Studio installation & exit /b 1 )
           call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
           cl 2>&1 | findstr /C:"Version"
+          rem Supply the include ROOT of the gvsbuild prefix, which no .pc file
+          rem names. MEASURED on the first dispatch (run 30808356641): MSVC
+          rem compiled 2 of the 4 generated .c files and failed the other two
+          rem with C1083 on `epoxy/gl.h` — a header that WAS present at
+          rem %GTK_PREFIX%\include\epoxy\gl.h while `pkg-config epoxy` resolved
+          rem 1.5.10 and contributed no -I whatsoever. `epoxy.pc` installs its
+          rem headers straight into <prefix>/include, which on a POSIX prefix is
+          rem already a default compiler search path, so the .pc has nothing to
+          rem add; MSVC has no equivalent default. (glib is the contrast: it
+          rem names include/glib-2.0, so its -I is explicit and it compiled.)
+          rem
+          rem This is SUPPLYING A PLATFORM DEFAULT, not hiding an
+          rem incompatibility — the same class as this job's vcpkg ffi.h step
+          rem and node-gi.yml's, which exists because gvsbuild omits ffi.h
+          rem outright. It is deliberately NOT a `-Dc_args=` in meson.build:
+          rem meson.build must stay free of Windows specifics, and `INCLUDE` is
+          rem the variable MSVC itself defines for exactly this, set right next
+          rem to the vcvars call that establishes the rest of the toolchain env.
+          rem What it is NOT: /w, /std:cNN, or any diagnostic suppression.
+          set INCLUDE=%GTK_PREFIX%\include;%INCLUDE%
           meson setup build . -Dprebuilt_vala_c=vala-c-export || exit /b 1
           meson compile -C build || exit /b 1
 
