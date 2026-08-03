@@ -92,9 +92,76 @@ run({
 });
 `;
 
+// The LEDGER case. An `expect` fails inside a host callback that is off the
+// awaited promise's reject path, so the promise is never settled and the test can
+// only end by timing out.
+//
+// This must be a plain `it()`: the whole observable effect is that the reported
+// failure carries the ASSERTION's message instead of a bare "Timeout", and that
+// can only be seen in a run that FAILS — hence a child process, like the leak
+// case above. (`it.failing` deliberately ignores the ledger, so the probes in
+// `callback-assertion.spec.ts` cannot cover this.)
+//
+// A short per-test timeout keeps the fixture fast; the ledger does not care how
+// long the wait was.
+const LOST_ASSERTION_SUITE = `
+import { run, describe, it, expect } from '@gjsify/unit';
+run({
+    async LostAssertionSuite() {
+        await describe('assertion lost in a host callback', async () => {
+            await it('reports the assertion, not the timeout', async () => {
+                await new Promise((resolve) => {
+                    setTimeout(() => {
+                        expect('actual-value').toBe('expected-value');
+                        resolve();
+                    }, 0);
+                });
+            }, 300);
+        });
+    },
+});
+`;
+
 // oxlint-disable-next-line no-control-regex -- ANSI SGR sequences are ESC-prefixed by design
 const ANSI = /\x1B\[[0-9;]*m/g;
 const stripAnsi = (s) => s.replace(ANSI, '');
+
+/** Is a real `gjs` on PATH? The ledger case below can only be observed there. */
+function hasGjs() {
+    try {
+        execFileSync('gjs', ['--version'], { stdio: 'pipe', timeout: 20 * 1000 });
+        return true;
+    } catch {
+        return false; // e.g. the Windows test VM — the gjs half runs on the Linux legs
+    }
+}
+
+function buildGjsEntryFromUnitSrc(entryName, source, outFile) {
+    const tmpEntry = join(UNIT_SRC, entryName);
+    writeFileSync(tmpEntry, source, 'utf-8');
+    try {
+        execFileSync('node', [CLI_ENTRY, 'build', tmpEntry, '--app', 'gjs', '--outfile', outFile], {
+            stdio: 'pipe',
+            timeout: 120 * 1000,
+            encoding: 'utf8',
+        });
+    } finally {
+        if (existsSync(tmpEntry)) unlinkSync(tmpEntry);
+    }
+}
+
+function runGjsBundle(outFile) {
+    try {
+        const stdout = execFileSync('gjs', ['-m', outFile], {
+            stdio: 'pipe',
+            timeout: 60 * 1000,
+            encoding: 'utf8',
+        });
+        return { code: 0, out: stdout };
+    } catch (e) {
+        return { code: e.status ?? -1, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
+    }
+}
 
 function runBundle(outFile) {
     try {
@@ -163,5 +230,47 @@ describe('@gjsify/unit failure attribution E2E', { timeout: 5 * 60 * 1000 }, () 
         assert.doesNotMatch(plain, /tests failed/, 'no failure summary');
         assert.doesNotMatch(plain, /outside any it\(\)/, 'no stray');
         assert.strictEqual(code, 0, 'clean run exits 0');
+    });
+
+    it('a lost assertion is charged once and keeps its message (host-hook path)', () => {
+        // On the Node family the `uncaughtException`/`unhandledRejection` hook
+        // claims the escaped assertion and fails THIS test with it directly —
+        // measured at ~2ms, i.e. the 300ms timeout never elapses. So this case
+        // pins the hook path, and the ledger's own diagnosis is NOT expected here.
+        const out = join(tmpDir, 'lost-assertion.node.mjs');
+        buildEntryFromUnitSrc('__e2e_lost_assertion.mts', LOST_ASSERTION_SUITE, out);
+        const { code, out: stdout } = runBundle(out);
+        const plain = stripAnsi(stdout);
+
+        assert.match(plain, /1 of \d+ tests failed/, 'the lost assertion is charged exactly once');
+        assert.strictEqual(code, 1, 'a lost assertion must fail the run');
+        // The point of the whole mechanism: the run SAYS what was wrong instead of
+        // dying with no summary.
+        assert.match(plain, /expected-value/, 'the assertion message must survive');
+        assert.match(plain, /actual-value/, 'both sides of the comparison must survive');
+    });
+
+    it('on GJS the same loss is recovered from the timeout by the ledger', (t) => {
+        // GJS installs no host hook (nothing emits those events there), so the
+        // promise stays unsettled and the test can only end by timing out. The
+        // ledger is what turns that bare timeout back into the assertion — and
+        // this is the ONLY place that path is observable: `it.failing` ignores the
+        // ledger by design, so the probes in `callback-assertion.spec.ts` cannot
+        // reach it.
+        if (!hasGjs()) {
+            t.skip('no gjs on PATH (Windows VM); covered by the Linux/GJS legs');
+            return;
+        }
+        const out = join(tmpDir, 'lost-assertion.gjs.mjs');
+        buildGjsEntryFromUnitSrc('__e2e_lost_assertion_gjs.mts', LOST_ASSERTION_SUITE, out);
+        const { code, out: stdout } = runGjsBundle(out);
+        const plain = stripAnsi(stdout);
+
+        assert.strictEqual(code, 1, 'a lost assertion must fail the run on GJS too');
+        assert.match(plain, /1 of \d+ tests failed/, 'charged exactly once');
+        // Recovered from the timeout — the assertion, not "Timeout: … exceeded".
+        assert.match(plain, /expected-value/, 'the ledger must recover the assertion message');
+        // And it must explain itself, or the next reader re-derives the cause.
+        assert.match(plain, /OUTSIDE this test's awaited chain/, 'the diagnosis must be stated');
     });
 });

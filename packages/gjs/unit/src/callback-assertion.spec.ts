@@ -34,6 +34,29 @@ const fireDetached = (fn: () => void): void => {
     setTimeout(fn, 0);
 };
 
+/**
+ * Every inner probe gets an EXPLICIT short timeout, and that is not a speed
+ * tweak — it is required for correctness.
+ *
+ * A probe whose promise is never settled can only end by timing out, and it runs
+ * NESTED inside an `it()` that has its own budget. Left at the 5 s default both
+ * budgets are equal, so the OUTER test times out first: it reported ⏱ 5.00s while
+ * its own probe was still running, and that orphaned probe's xfail then landed
+ * inside the NEXT test's before/after window (measured on gjs 1.88.1 — three
+ * failures from one cause). On Node the bug is invisible because the host hook
+ * ends the probe in milliseconds.
+ */
+const PROBE_TIMEOUT_MS = 300;
+
+/**
+ * True on real GJS. Same signal `installUncaughtHooks` gates on, and it must be
+ * this one: `@gjsify/process` DOES provide `process.on`, so probing for that
+ * function is not a test for "is there a host hook here" — it silently passes on
+ * GJS, where nothing ever emits the event.
+ */
+const gjsVersion = (globalThis as { process?: { versions?: { gjs?: string } } }).process?.versions?.gjs;
+const isGjs = typeof gjsVersion === 'string';
+
 export default async () => {
     await describe('assertion in a callback off the awaited chain', async () => {
         await it('is charged to the test that armed the callback', async () => {
@@ -53,6 +76,7 @@ export default async () => {
                 },
                 'probe for callback-assertion detection — the assertion is thrown from a ' +
                     'host callback the awaited promise never observes',
+                PROBE_TIMEOUT_MS,
             );
 
             const after = getTestCounters();
@@ -72,6 +96,7 @@ export default async () => {
                     expect(1).toBe(2);
                 },
                 'probe: a plain synchronous assertion failure, already visible before this change',
+                PROBE_TIMEOUT_MS,
             );
             const after = getTestCounters();
             expect(after.xfail - before.xfail).toBe(1);
@@ -106,7 +131,7 @@ export default async () => {
                 },
                 'probe: the assertion rejects a detached async callback, so the awaited promise ' +
                     'is never settled — the failure must still be attributed to this test',
-                300,
+                PROBE_TIMEOUT_MS,
             );
             const after = getTestCounters();
             expect(after.xfail - before.xfail).toBe(1);
@@ -147,8 +172,11 @@ export default async () => {
                 on?: (event: string, listener: (error: unknown) => void) => void;
                 removeListener?: (event: string, listener: (error: unknown) => void) => void;
             }
+            // GJS has no host hook, so nothing can be absorbed and nothing warned.
+            // Gate on the RUNTIME, not on `typeof proc.on` — see `isGjs`.
+            if (isGjs) return;
             const proc = (globalThis as { process?: HostProcess }).process;
-            if (typeof proc?.on !== 'function') return; // GJS: no host hook to test
+            if (typeof proc?.on !== 'function') return; // no host hook at all
 
             const before = getTestCounters();
             const expected = new Error('deliberately escaped, handled by this spec');
