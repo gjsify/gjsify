@@ -5,12 +5,21 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { globSync, glob, promises, mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 
 function makeTmp(): string {
     return mkdtempSync(join(tmpdir(), 'gjsify-glob-'));
 }
+
+// Measured against NATIVE Node on win32-x64: `globSync` ACCEPTS a POSIX pattern
+// (`sub/*.ts` matches) but RETURNS platform-native separators
+// (`sub\\nested.ts`). Patterns therefore stay POSIX below — that is Node's
+// documented contract and reads the same everywhere — while every expected
+// RESULT goes through `r()`, which is the only part that has to vary by OS.
+// Hardcoding `'sub/nested.ts'` as an expectation was the bug: it asserted the
+// pattern dialect against the result dialect.
+const r = (posix: string) => posix.split('/').join(sep);
 
 export default async () => {
     await describe('fs.globSync', async () => {
@@ -33,7 +42,7 @@ export default async () => {
             writeFileSync(join(tmp, 'sub', 'other.txt'), '');
 
             const results = globSync('**/*.ts', { cwd: tmp });
-            expect(results.sort()).toStrictEqual(['root.ts', 'sub/nested.ts']);
+            expect(results.sort()).toStrictEqual(['root.ts', r('sub/nested.ts')]);
             rmSync(tmp, { recursive: true, force: true });
         });
 
@@ -45,7 +54,7 @@ export default async () => {
             writeFileSync(join(tmp, 'index.ts'), '');
 
             const results = globSync('src/*.ts', { cwd: tmp });
-            expect(results.sort()).toStrictEqual(['src/index.ts', 'src/util.ts']);
+            expect(results.sort()).toStrictEqual([r('src/index.ts'), r('src/util.ts')]);
             rmSync(tmp, { recursive: true, force: true });
         });
 
@@ -69,7 +78,7 @@ export default async () => {
             const results = globSync('**', { cwd: tmp });
             // Should include '.', 'a.ts', 'sub', 'sub/b.ts'
             expect(results.includes('a.ts')).toBe(true);
-            expect(results.includes('sub/b.ts')).toBe(true);
+            expect(results.includes(r('sub/b.ts'))).toBe(true);
             rmSync(tmp, { recursive: true, force: true });
         });
 
@@ -81,7 +90,7 @@ export default async () => {
 
             const results = globSync('sub/**', { cwd: tmp });
             expect(results.includes('sub')).toBe(true);
-            expect(results.includes('sub/x.ts')).toBe(true);
+            expect(results.includes(r('sub/x.ts'))).toBe(true);
             expect(results.includes('root.ts')).toBe(false);
             rmSync(tmp, { recursive: true, force: true });
         });
@@ -187,7 +196,7 @@ export default async () => {
                 results.push(match);
             }
 
-            expect(results.sort()).toStrictEqual(['index.ts', 'lib/helper.ts']);
+            expect(results.sort()).toStrictEqual(['index.ts', r('lib/helper.ts')]);
             rmSync(tmp, { recursive: true, force: true });
         });
     });

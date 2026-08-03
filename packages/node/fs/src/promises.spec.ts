@@ -17,9 +17,16 @@ import {
     stat,
     unlink,
 } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Buffer } from 'node:buffer';
+
+// Node on win32 returns the first created directory in EXTENDED-LENGTH form
+// (`\\?\C:\…`) from a recursive mkdir, while `join()` yields the plain form.
+// Same directory, different spelling — measured against native Node, which
+// returns the plain form on Linux. So the comparison, not the value, was the
+// POSIX-only part here.
+const plainPath = (p: string | undefined) => p?.replace(/^\\\\\?\\/, '');
 
 export default async () => {
     await describe('fs/promises', async () => {
@@ -614,7 +621,7 @@ export default async () => {
             await writeFile(file, 'data');
             const resolved = await promises.realpath(file);
             // Should be an absolute path
-            expect(resolved.startsWith('/')).toBe(true);
+            expect(isAbsolute(resolved)).toBe(true);
             // Should end with the file name
             expect(resolved.endsWith('real.txt')).toBe(true);
             await rm(file);
@@ -672,7 +679,11 @@ export default async () => {
 
     await describe('fs.promises return types', async () => {
         await it('readFile should return a Promise', async () => {
-            const p = promises.readFile('/etc/hosts');
+            // Spec-created file rather than `/etc/hosts`, which is POSIX-only.
+            const dir = await mkdtemp(join(tmpdir(), 'fs-pret-rf-'));
+            const file = join(dir, 'read.txt');
+            await promises.writeFile(file, 'data');
+            const p = promises.readFile(file);
             expect(p instanceof Promise).toBe(true);
             await p; // consume
         });
@@ -688,7 +699,7 @@ export default async () => {
         });
 
         await it('stat should return a Promise', async () => {
-            const p = stat('/tmp');
+            const p = stat(tmpdir());
             expect(p instanceof Promise).toBe(true);
             await p;
         });
@@ -702,7 +713,7 @@ export default async () => {
         });
 
         await it('access should return a Promise', async () => {
-            const p = access('/tmp', fsConstants.F_OK);
+            const p = access(tmpdir(), fsConstants.F_OK);
             expect(p instanceof Promise).toBe(true);
             await p;
         });
@@ -725,7 +736,7 @@ export default async () => {
             const result = await mkdir(nested, { recursive: true });
             // Should return the first directory created (x)
             expect(typeof result).toBe('string');
-            expect(result).toBe(join(dir, 'x'));
+            expect(plainPath(result)).toBe(join(dir, 'x'));
             expect(existsSync(nested)).toBe(true);
             await promises.rm(dir, { recursive: true });
         });

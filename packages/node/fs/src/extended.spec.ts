@@ -28,7 +28,7 @@ import {
     writeFile,
 } from 'node:fs';
 import * as promises from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Buffer } from 'node:buffer';
 
@@ -44,15 +44,17 @@ export default async () => {
             const resolved = realpathSync(filePath);
             expect(typeof resolved).toBe('string');
             expect(resolved.length).toBeGreaterThan(0);
-            // Should be an absolute path
-            expect(resolved.startsWith('/')).toBeTruthy();
+            // Should be an absolute path. `isAbsolute`, not `startsWith('/')`:
+            // the resolved value is correct on Windows too, it just begins with
+            // a drive letter, so the POSIX SHAPE check was the only thing wrong.
+            expect(isAbsolute(resolved)).toBeTruthy();
 
             rmSync(filePath);
             rmdirSync(dir);
         });
 
         await it('should resolve /tmp to its real path', async () => {
-            const resolved = realpathSync('/tmp');
+            const resolved = realpathSync(tmpdir());
             expect(typeof resolved).toBe('string');
             expect(resolved.length).toBeGreaterThan(0);
         });
@@ -77,7 +79,7 @@ export default async () => {
                 });
             });
             expect(typeof resolved).toBe('string');
-            expect(resolved.startsWith('/')).toBeTruthy();
+            expect(isAbsolute(resolved)).toBeTruthy();
 
             rmSync(filePath);
             rmdirSync(dir);
@@ -112,7 +114,7 @@ export default async () => {
         });
 
         await it('should return stats for directory', async () => {
-            const stats = await promises.stat('/tmp');
+            const stats = await promises.stat(tmpdir());
             expect(stats.isDirectory()).toBeTruthy();
             expect(stats.isFile()).toBeFalsy();
         });
@@ -519,7 +521,7 @@ export default async () => {
 
             const resolved = await promises.realpath(filePath);
             expect(typeof resolved).toBe('string');
-            expect(resolved.startsWith('/')).toBeTruthy();
+            expect(isAbsolute(resolved)).toBeTruthy();
 
             rmSync(filePath);
             rmdirSync(dir);

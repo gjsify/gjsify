@@ -161,7 +161,7 @@ export default async () => {
         await it('throws if callback is not a function', async () => {
             let threw = false;
             try {
-                (opendir as any)('/tmp');
+                (opendir as any)(tmpdir());
             } catch (_e: unknown) {
                 threw = true;
             }

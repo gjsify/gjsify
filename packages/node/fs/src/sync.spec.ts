@@ -24,9 +24,22 @@ import {
 import { Buffer } from 'node:buffer';
 import { tmpdir } from 'node:os';
 
+// Node on win32 returns the first created directory in EXTENDED-LENGTH form
+// (`\\?\C:\…`) from a recursive mkdir, while `join()` yields the plain form.
+// Same directory, different spelling — measured against native Node, which
+// returns the plain form on Linux. So the comparison, not the value, was the
+// POSIX-only part here.
+const plainPath = (p: string | undefined) => p?.replace(/^\\\\\?\\/, '');
+
 export default async () => {
     await describe('fs.existsSync', async () => {
-        const existingFiles = ['/tmp', '/etc/hosts'];
+        // A spec-created file, not a system one: `/etc/hosts` does not exist on
+        // Windows (it lives under %SystemRoot%\\System32\\drivers\\etc), and the
+        // test only needs "a path that exists".
+        const existingDir = mkdtempSync(join(tmpdir(), 'fs-exists-'));
+        const existingFile = join(existingDir, 'present.txt');
+        writeFileSync(existingFile, 'x');
+        const existingFiles = [tmpdir(), existingFile];
         const nonExistingFiles = ['asdasd', '/asdasd', ''];
 
         await it('should return true for existing files', () => {
@@ -119,8 +132,13 @@ export default async () => {
 
     await describe('fs.readFileSync', async () => {
         await it('should return a Buffer if no encoding was specified', () => {
-            const bufferData = readFileSync('/etc/hosts');
+            // Spec-created file rather than `/etc/hosts`, which is POSIX-only.
+            const dir = mkdtempSync(join(tmpdir(), 'fs-rfs-buf-'));
+            const filePath = join(dir, 'bytes.bin');
+            writeFileSync(filePath, 'payload');
+            const bufferData = readFileSync(filePath);
             expect(bufferData instanceof Buffer).toBeTruthy();
+            rmSync(dir, { recursive: true, force: true });
         });
 
         await it('should return a string when encoding is utf-8', () => {
@@ -254,7 +272,7 @@ export default async () => {
             const result = mkdirSync(nested, { recursive: true });
             // The first created directory should be 'a' (the top-level new dir)
             expect(typeof result).toBe('string');
-            expect(result).toBe(join(dir, 'a'));
+            expect(plainPath(result)).toBe(join(dir, 'a'));
             expect(existsSync(nested)).toBe(true);
             rmSync(dir, { recursive: true });
         });
