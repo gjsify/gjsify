@@ -1,14 +1,5 @@
 # @gjsify/webgl-darwin-arm64
 
-> **No artifact in this tarball yet.** `darwin-arm64` is declared by
-> `@gjsify/webgl` and built by CI, but not committed to the repository:
-> prebuilds.yml's `build-prebuilds-macos` matrix builds, load-tests and uploads it, but `commit-prebuilds` is main-only, so the directory lands on the first run after this change merges. `scripts/clear-committed-platform-exemptions.mjs` (wired into that job) deletes this entry in the same commit that adds the artifact, so it retires itself
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/webgl` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **darwin-arm64** native artifacts of [`@gjsify/webgl`](https://www.npmjs.com/package/@gjsify/webgl) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
