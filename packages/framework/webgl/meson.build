@@ -23,24 +23,24 @@ libGwebgl = library('gwebgl', sources,
 )
 
 # ----------------------------------------------------------------------------
-# Host-dependent shared-library leaf name.
+# The shared-library leaf name the typelib records — ASKED, not predicted.
 #
-# The typelib records the exact filename gjs' g_module_open() resolves at load
-# time, and meson names the shared library per host convention: lib<name>.so on
-# ELF hosts, lib<name>.dylib on macOS. Recording the wrong leaf yields a typelib
-# that IS found via GI_TYPELIB_PATH but whose library never loads — a silent,
-# confusing failure. Mirrors the branch in packages/napi/napi/meson.build.
+# g-ir-compiler bakes this string into the typelib and it is exactly what
+# g_module_open() resolves at load time, so getting it wrong yields a typelib
+# that IS found via GI_TYPELIB_PATH but whose library never loads: a silent
+# failure that looks like a broken rpath.
 #
-# Windows is deliberately absent: this bridge has had no Windows portability
-# work, so `else` (ELF naming) is the honest fallback rather than a .dll branch
-# that would imply support which does not exist.
+# This used to be an `if host_machine.system() == 'darwin'` chain with an ELF
+# fallback, and the chain was the problem rather than any single branch. It has
+# to predict a filename meson has ALREADY decided, and the mapping is not a
+# function of the OS alone — on Windows the same `library()` is `gwebgl.dll`
+# under MSVC and `libgwebgl.dll` under MinGW, so an OS branch cannot be right
+# for both. Reading the name back off the target is correct by construction for
+# every host and toolchain, including ones nobody has tried yet, and it removes
+# the one thing a Windows port would otherwise have had to guess.
 # ----------------------------------------------------------------------------
-host_system = host_machine.system()
-if host_system == 'darwin'
-    shared_lib_name = 'libgwebgl.dylib'
-else
-    shared_lib_name = 'libgwebgl.so'
-endif
+fs = import('fs')
+shared_lib_name = fs.name(libGwebgl.full_path())
 
 g_ir_compiler = find_program('g-ir-compiler')
 
