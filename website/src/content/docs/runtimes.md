@@ -99,7 +99,8 @@ named, not labelled with a runtime class:
 | Platform | node-gi (Node / Bun / Deno) | GTK / Adwaita GUI | Prebuilt-GTK bundle |
 |---|---|---|---|
 | **Linux** | Full — builds + display-free conformance on Node, Bun and Deno | Proven (GJS native *and* node-gi) | Uses the system GTK |
-| **macOS** (`macos-latest`, arm64) | Builds + display-free conformance on Node, Bun and Deno | Proven in CI — an Adw window realizes + renders + reacts (render-to-texture, no visible desktop) | `@gjsify/gtk-runtime-darwin-arm64` ships the GTK 4 / Adwaita closure (the GUI uses its `--windowing` variant, with libadwaita) |
+| **macOS, Apple silicon** (`macos-latest`, arm64) | Builds + display-free conformance on Node, Bun and Deno | Proven in CI — an Adw window realizes + renders + reacts (render-to-texture, no visible desktop) | `@gjsify/gtk-runtime-darwin-arm64` ships the GTK 4 / Adwaita closure (the GUI uses its `--windowing` variant, with libadwaita) |
+| **macOS, Intel** (`macos-15-intel`, x64) | Builds + display-free conformance on Node, Bun and Deno | Not exercised on Intel — the `--windowing` GUI proof runs on Apple silicon only | `@gjsify/gtk-runtime-darwin-x64` ships the display-free GTK 4 closure; CI proves it with **no** Homebrew GTK on the host |
 | **Windows** (`windows-latest`, x64) | Builds (MSVC + gvsbuild) + display-free conformance on Node | GTK GUI **and** the full Libadwaita Storybook both render in CI (render-to-texture, no visible desktop) | `@gjsify/gtk-runtime-win32-x64` ships the GTK 4 / Adwaita closure (also selected by `--windowing`; no gvsbuild at consume time) |
 
 Node-API is the common ABI, so a single `--app node` prebuilt binary serves

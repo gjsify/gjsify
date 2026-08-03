@@ -8,8 +8,16 @@ installed on the host — Phase 2 of cross-platform node-gi.
 Platform-gated (`os: ["darwin"]`, `cpu: ["arm64"]`), tier 3 (experimental). On any
 other platform npm skips it and `@gjsify/node-gi` falls back to a system/Homebrew
 GTK. The heavy `gtk/` payload is **not committed** — it is built on a macOS CI
-runner (`scripts/build-gtk-runtime.mjs`) and shipped via the package tarball /
-staged into node-gi's `prebuilds/darwin-arm64/gtk/`.
+runner ([`../scripts/build-gtk-runtime-darwin.mjs`](../scripts/build-gtk-runtime-darwin.mjs))
+and shipped via the package tarball / staged into node-gi's
+`prebuilds/darwin-arm64/gtk/`.
+
+The Intel sibling [`@gjsify/gtk-runtime-darwin-x64`](../gtk-runtime-darwin-x64)
+shares that ONE builder: nothing in the relocation pass is arch-dependent, so the
+target is derived from the running Node (`darwin-${process.arch}`) and `--out` is
+cross-checked against the destination package's own `os`/`cpu`. Neither package
+ships a copy of the script; `gtk/manifest.json` records its repo path under
+`builder` so a consumer holding only the tarball can find the recipe.
 
 ## Layout
 
@@ -22,8 +30,8 @@ gtk/
 
 ## How it is built (the relocation, the crux)
 
-`node scripts/build-gtk-runtime.mjs` runs on a macOS runner **with** a build-time
-Homebrew GTK stack (the closure *source*, not shipped):
+`node ../scripts/build-gtk-runtime-darwin.mjs` runs on a macOS runner **with** a
+build-time Homebrew GTK stack (the closure *source*, not shipped):
 
 1. **Collect** — walk the dylib graph with `otool -L`, recursively, from the
    typelib-backing libraries the display-free conformance loads
@@ -34,13 +42,20 @@ Homebrew GTK stack (the closure *source*, not shipped):
    sibling reference to `@loader_path/<leaf>` with `install_name_tool`, then
    **ad-hoc re-sign** it (`codesign --force --sign -`). Re-signing is mandatory
    on Apple silicon: `install_name_tool` invalidates the code signature and dyld
-   refuses to load a mis-signed dylib. After this, **no bundled library
-   references `/opt/homebrew`** — the bundle is portable.
-3. **Typelibs** — copy the typelib set into `gtk/girepository-1.0`.
-4. **Addon (optional, `--addon`)** — relocate a *copy* of the node-gi addon
-   (`node_gi.node`): rewrite its `/opt/homebrew/...` refs to `@rpath/<leaf>` and
-   add `@loader_path/gtk/lib` as an rpath, so the addon loads the **bundled**
-   `libgirepository` with no Homebrew. This is the env-free path.
+   refuses to load a mis-signed dylib. On Intel the signature is not enforced, but
+   re-signing keeps ONE code path.
+3. **Verify** — re-read every relocated image and fail on any absolute reference to
+   a library the bundle *does* carry. The predicate is `$(brew --prefix)`-**derived**,
+   not the literal `/opt/homebrew`: that literal is vacuously absent on an Intel
+   runner (prefix `/usr/local`), so a hardcoded grep would have passed while proving
+   nothing. OS-provided libraries the bundle deliberately leaves alone are reported,
+   never failed.
+4. **Typelibs** — copy the typelib set into `gtk/girepository-1.0`.
+5. **Addon (optional, `--addon`)** — relocate a *copy* of the node-gi addon
+   (`node_gi.node`): rewrite its Homebrew-prefix refs to `@rpath/<leaf>` and add
+   `@loader_path/gtk/lib` as an rpath, so the addon loads the **bundled**
+   `libgirepository` with no Homebrew. This is the env-free path, and it gets the
+   same verification as the dylibs.
 
 ## How node-gi finds it
 
@@ -73,18 +88,20 @@ batteries-included install, and nothing elsewhere.
 
 ## Release flow — how the `gtk/` bundle reaches npm
 
-The `gtk/` payload is gitignored and built ONLY on macOS/arm64, so it cannot be
-produced by the main (ubuntu) release publish. A dedicated macOS job in
+The `gtk/` payload is gitignored and built ONLY on macOS, so it cannot be produced
+by the main (ubuntu) release publish. A dedicated macOS job in
 [`.github/workflows/release.yml`](../../../.github/workflows/release.yml) —
-`publish-gtk-runtime-darwin-arm64` — owns this package's publish end to end:
+`publish-gtk-runtime-darwin`, a two-leg matrix over `arm64` (`macos-latest`) and
+`x64` (`macos-15-intel`) — owns both darwin packages' publish end to end:
 
 1. On `release: published` it checks out the tag (the version `@release-it/bumper`
    already bumped in this package's `package.json`, in lockstep with the train).
 2. `brew install`s the GTK/GI stack as the build-time closure **source**.
-3. Runs `scripts/build-gtk-runtime.mjs --out gtk` to populate `gtk/` (relocated
-   dylibs + typelibs + `manifest.json`), then asserts no `/opt/homebrew` refs
-   survived and that `gtk/lib` + `gtk/girepository-1.0` exist (the two dirs
-   [`index.js`](./index.js)'s `isPresent` gate checks).
+3. Runs `../scripts/build-gtk-runtime-darwin.mjs --out gtk` to populate `gtk/`
+   (relocated dylibs + typelibs + `manifest.json`) — the script itself fails on a
+   surviving Homebrew-prefix reference — then asserts that `gtk/lib` +
+   `gtk/girepository-1.0` exist (the two dirs [`index.js`](./index.js)'s `isPresent`
+   gate checks).
 4. OIDC-publishes **only this package** (Trusted Publisher configured for
    `release.yml`), so `files: ["gtk"]` ships the whole bundle recursively (the
    gjsify packer expands a plain-directory `files` entry). Consumers then see
@@ -98,9 +115,12 @@ flags of the build script are a *separate* node-gi concern (see
 [`node-gi.yml`](../../../.github/workflows/node-gi.yml) → `macos-gtk-runtime`) and
 are **not** part of this tarball.
 
-**This is the PATTERN the future Windows sibling `@gjsify/gtk-runtime-win32-x64`
-will mirror**: a `windows-latest` publish job using the gvsbuild GTK stack as its
-closure source and its own MSVC-ABI relocation step, publishing only that package.
+This was the PATTERN the two siblings now follow:
+[`@gjsify/gtk-runtime-win32-x64`](../gtk-runtime-win32-x64) has its own
+`windows-latest` publish job (gvsbuild closure source, no relocation step — Windows
+resolves DLLs by search path), and
+[`@gjsify/gtk-runtime-darwin-x64`](../gtk-runtime-darwin-x64) is a second leg of
+*this* job, since it shares this package's builder outright.
 
 ## Scope & what a full windowing bundle still needs
 

@@ -183,7 +183,11 @@
     },
     "@gjsify/gtk-runtime-darwin-arm64": {
       "status": "full",
-      "note": "Prebuilt GTK runtime data bundle for node-gi on macOS arm64 (darwin twin of the win32 bundle)."
+      "note": "Prebuilt GTK runtime data bundle for node-gi on macOS arm64 (darwin twin of the win32 bundle). Built by the shared `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs`, which serves both darwin arches: the target is derived from the running Node and `--out` is cross-checked against the destination package's `os`/`cpu`, so a leg cannot write one arch's closure into the other's package."
+    },
+    "@gjsify/gtk-runtime-darwin-x64": {
+      "status": "full",
+      "note": "Intel-macOS sibling of the arm64 bundle, closing the asymmetry left when node-gi's darwin-x64 addon prebuild shipped without one (an Intel Mac got a loadable addon and still had to `brew install gtk4` by hand). Shares the arm64 package's builder outright; the relocation assertion moved into that script and is brew-prefix-DERIVED, because the literal `/opt/homebrew` is vacuously absent on Intel, where the prefix is /usr/local. Display-free chain only: node-gi.yml's `macos-gtk-runtime` -> `macos-gtk-batteries-included` matrix (runner `macos-15-intel`, never brew-installs GTK, so a green leg IS the batteries-included proof); the `--windowing` GUI pair stays arm64-only (see Open TODOs)."
     },
     "@gjsify/gtk-runtime-win32-x64": {
       "status": "full",

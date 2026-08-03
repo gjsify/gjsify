@@ -98,23 +98,27 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
   (Fedora: `glib2-devel gobject-introspection-devel cairo-devel gcc-c++`;
    Debian/Ubuntu: `libglib2.0-dev libgirepository-2.0-dev libcairo2-dev g++`)
 - At runtime, the target libraries' typelibs must be installed (same as `gi://`
-  under GJS) — **except on macOS arm64 and Windows x64**, where a
-  batteries-included, relocated GTK/GI runtime bundle ships so `gi://` works with
-  no Homebrew/gvsbuild GTK (Phase 2). node-gi auto-detects a bundle at load and
-  prepends its typelib dir to the GIRepository search path (`gtk-runtime.js`).
+  under GJS) — **except on macOS (both arm64 and Intel x64) and Windows x64**,
+  where a batteries-included, relocated GTK/GI runtime bundle ships so `gi://`
+  works with no Homebrew/gvsbuild GTK (Phase 2). node-gi auto-detects a bundle at
+  load and prepends its typelib dir to the GIRepository search path
+  (`gtk-runtime.js`) — nothing in that loader keys on a specific target, so each
+  new bundle is found by the mechanism that found the first.
 - **Those bundles are a MANUAL install today.**
-  [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64) and
+  [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64),
+  [`@gjsify/gtk-runtime-darwin-x64`](../gtk-runtime-darwin-x64) and
   [`@gjsify/gtk-runtime-win32-x64`](../gtk-runtime-win32-x64) are published, and
-  node-gi finds either one the moment it is present in the tree — but **no
+  node-gi finds whichever one is present in the tree — but **no
   package declares them as a dependency**, so nothing installs them for you.
   Install the one for your platform alongside node-gi:
 
   ```bash
   npm install @gjsify/gtk-runtime-win32-x64      # Windows x64
-  npm install @gjsify/gtk-runtime-darwin-arm64   # macOS arm64
+  npm install @gjsify/gtk-runtime-darwin-arm64   # macOS Apple silicon
+  npm install @gjsify/gtk-runtime-darwin-x64     # macOS Intel
   ```
 
-  Both declare `os`/`cpu`, so npm/yarn/pnpm skip them off-platform. Making them
+  All three declare `os`/`cpu`, so npm/yarn/pnpm skip them off-platform. Making them
   `optionalDependencies` of this package (which would remove the manual step
   without any consumer-side platform branching) is pending two decisions outside
   this package — the ADR-0003 dependency-direction rule between node-gi's tier

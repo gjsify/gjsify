@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 // @gjsify/node-gi/gtk-runtime — locate + activate a batteries-included, relocated
 // GTK/GObject-Introspection runtime bundle so gi:// namespaces load with NO system
-// or Homebrew GTK (Phase 2 of cross-platform node-gi). Today only darwin-arm64
-// ships such a bundle (@gjsify/gtk-runtime-darwin-arm64); this is a no-op on every
-// other platform, and harmless when no bundle is present (the addon then uses the
-// host's GTK exactly as before).
+// or Homebrew GTK (Phase 2 of cross-platform node-gi). Bundles ship for darwin-arm64,
+// darwin-x64 and win32-x64 (@gjsify/gtk-runtime-<platform>-<arch>); NOTHING below
+// keys on a specific target — the tag is derived from the running process, so a new
+// bundle is found by the mechanism that found the first. This is a no-op on every
+// platform without a bundle, and harmless when no bundle is present (the addon then
+// uses the host's GTK exactly as before).
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';

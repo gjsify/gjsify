@@ -123,8 +123,9 @@ const native = loadNative();
 // staged prebuilds/<platform>-<arch>/gtk/). This prepends the bundle's typelib
 // dir to the GIRepository search path (env-free) so gi:// namespaces load with
 // no Homebrew/system GTK. No-op on platforms without a bundle, and harmless when
-// none is present (the addon then uses the host's GTK as before). Darwin-only
-// today — see gtk-runtime.js + @gjsify/gtk-runtime-darwin-arm64.
+// none is present (the addon then uses the host's GTK as before). Scoped to
+// darwin + win32 — see gtk-runtime.js + @gjsify/gtk-runtime-{darwin-arm64,
+// darwin-x64,win32-x64}.
 try {
     activateBundledGtkRuntime(native);
 } catch {

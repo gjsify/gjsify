@@ -896,16 +896,37 @@ jobs:
 
   # macOS Phase 2 — BUILD the batteries-included GTK runtime bundle. Brew-installs
   # the GTK stack as the closure SOURCE (build-time only; NOT shipped), CONSUMES
-  # the darwin-arm64 node-gi addon prebuild the `macos` job produced (PR #767),
+  # the darwin-<arch> node-gi addon prebuild the `macos` job produced (PR #767),
   # walks its dylib graph + relocates the whole display-free closure to
-  # @loader_path (+ ad-hoc re-sign — mandatory on arm64), and relocates a COPY of
-  # the addon to @rpath so it loads the bundled libgirepository with no Homebrew.
-  # Uploads the bundle + the relocated addon for the no-brew conformance job below.
+  # @loader_path (+ ad-hoc re-sign — mandatory on arm64, harmless on Intel), and
+  # relocates a COPY of the addon to @rpath so it loads the bundled libgirepository
+  # with no Homebrew. Uploads the bundle + the relocated addon for the no-brew
+  # conformance job below.
+  #
+  # A MATRIX, one leg per macOS arch. This job used to be single-arch, and its
+  # comment said a second arch "is a second package, not a matrix entry". That was
+  # true of the PACKAGE and false of the JOB, and the distinction only became
+  # visible once the second package existed: @gjsify/gtk-runtime-darwin-x64 is
+  # indeed its own npm package, but it SHARES one parameterised builder
+  # (packages/node-gi/scripts/build-gtk-runtime-darwin.mjs) whose target is derived
+  # from the running Node, so every path here derives from `matrix.arch` and two
+  # copies of a 70-line job would have been the duplication, not the fix.
+  # `macos-15-intel` is the Intel runner label (the last x86_64 macOS image Actions
+  # offers, through August 2027) — the same label the `macos` job's x64 addon leg
+  # uses, so the brew formula list below is already proven on it.
   macos-gtk-runtime:
-    name: macOS GTK runtime bundle (build + relocate / macos-latest arm64)
-    runs-on: macos-latest
+    name: macOS GTK runtime bundle (build + relocate / darwin-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: macos
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
     env:
       HOMEBREW_NO_AUTO_UPDATE: '1'
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
@@ -923,56 +944,59 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Consume the darwin-arm64 addon prebuild the `macos` job staged + uploaded.
-      # ONLY arm64: the relocatable GTK stack is its own package
-      # (packages/node-gi/gtk-runtime-darwin-arm64/) with its own dylib-rewriting
-      # pass, so a second arch is a second package, not a matrix entry — unlike the
-      # `macos` job above, where every path already derives its own target. This
-      # job therefore stays single-arch while depending on the whole matrix; an
-      # x64 addon failure blocking it is deliberate, since darwin-x64 is a declared
-      # platform and a broken leg must not pass quietly.
+      # Consume the darwin-<arch> addon prebuild the `macos` job staged + uploaded.
       - name: Download node-gi addon prebuild (from the macos job)
         uses: actions/download-artifact@v4
         with:
-          name: node-gi-prebuild-darwin-arm64
+          name: node-gi-prebuild-darwin-${{ matrix.arch }}
           path: addon
 
       # Collect + relocate: --out = the platform package's shippable bundle;
       # --addon + --stage = a relocated addon + a SIBLING bundle copy under
-      # node-gi's prebuilds/darwin-arm64/ (the layout the addon's @rpath expects,
-      # and the layout the conformance job consumes).
+      # node-gi's prebuilds/darwin-<arch>/ (the layout the addon's @rpath expects,
+      # and the layout the conformance job consumes). The script derives its own
+      # target from the running Node and cross-checks --out against the destination
+      # package's os/cpu, so an Intel leg cannot populate the arm64 package.
       - name: Build + relocate the GTK runtime bundle
         run: |
-          node packages/node-gi/gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs \
-            --out packages/node-gi/gtk-runtime-darwin-arm64/gtk \
+          node packages/node-gi/scripts/build-gtk-runtime-darwin.mjs \
+            --out packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk \
             --addon "$PWD/addon/node_gi.node" \
-            --stage packages/node-gi/node-gi/prebuilds/darwin-arm64
+            --stage packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}
 
+      # The build step is already the hard gate on relocation (build-gtk-runtime-darwin
+      # exits non-zero on any surviving reference into the brew prefix, for the dylibs
+      # AND the addon). This step is the log-visible echo of that claim — and it derives
+      # the prefix rather than hardcoding `/opt/homebrew`, which is the Apple-silicon
+      # prefix only: on this job's Intel leg the prefix is /usr/local, so the literal
+      # would have matched nothing and "clean" would have meant nothing.
       - name: Report bundle size + relocation sanity
         run: |
-          cat packages/node-gi/gtk-runtime-darwin-arm64/gtk/manifest.json
+          B=packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk
+          BREW_PREFIX="$(brew --prefix)"
+          cat "$B/manifest.json"
           echo "--- bundle size ---"
-          du -sh packages/node-gi/gtk-runtime-darwin-arm64/gtk
-          echo "--- assert NO /opt/homebrew refs remain in the bundle ---"
-          if otool -L packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib/*.dylib | grep -F /opt/homebrew; then
-            echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
+          du -sh "$B"
+          echo "--- assert NO $BREW_PREFIX refs remain in the bundle ---"
+          if otool -L "$B"/lib/*.dylib | grep -F "$BREW_PREFIX"; then
+            echo "RELOCATION FAILED: bundled dylibs still reference $BREW_PREFIX"; exit 1
           fi
           echo "clean — no Homebrew references"
           echo "--- relocated addon load commands ---"
-          otool -l packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node | grep -A2 LC_RPATH || true
+          otool -l packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/node_gi.node | grep -A2 LC_RPATH || true
 
       - name: Upload GTK runtime bundle
         uses: actions/upload-artifact@v4
         with:
-          name: gtk-runtime-darwin-arm64
-          path: packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          name: gtk-runtime-darwin-${{ matrix.arch }}
+          path: packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk
           if-no-files-found: error
 
       - name: Upload relocated node-gi addon
         uses: actions/upload-artifact@v4
         with:
-          name: node-gi-addon-relocated-darwin-arm64
-          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node
+          name: node-gi-addon-relocated-darwin-${{ matrix.arch }}
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/node_gi.node
           if-no-files-found: error
 
   # macOS Phase 2 — PROVE batteries-included. This job does NOT `brew install` the
@@ -988,11 +1012,26 @@ jobs:
   #     g_module_open lookups for the NON-addon-linked backers (Pango→cairo.test,
   #     Gdk/Graphene→struct-construct) resolve from the bundle. Runs the whole
   #     scripts/cross-runtime.mjs node subset.
+  #
+  # A MATRIX, one leg per macOS arch, mirroring macos-gtk-runtime. THIS is the
+  # conformance for @gjsify/gtk-runtime-darwin-x64: the job never brew-installs GTK,
+  # so a green x64 leg IS the proof that the Intel bundle self-satisfies — there is
+  # no other GTK on the host to fall back to. (`needs:` cannot be scoped to a single
+  # matrix leg in GitHub Actions, so each batteries leg waits for BOTH build legs;
+  # that costs latency, never correctness.)
   macos-gtk-batteries-included:
-    name: macOS batteries-included conformance (no brew GTK / macos-latest arm64)
-    runs-on: macos-latest
+    name: macOS batteries-included conformance (no brew GTK / darwin-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: macos-gtk-runtime
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
     steps:
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -1008,7 +1047,9 @@ jobs:
       # transitively via unrelated preinstalled formulae (imagemagick/graphviz),
       # but they DON'T interfere: node-gi PREPENDS the bundle's typelib dir, and
       # the explicit DYLD_FALLBACK_LIBRARY_PATH=<bundle>/lib:/usr/lib below removes
-      # /usr/local from the search + /opt/homebrew/lib is never a leaf-dlopen dir,
+      # /usr/local from the search (which is DIRECTLY load-bearing on the Intel leg,
+      # where /usr/local IS the Homebrew prefix AND is in dyld's DEFAULT fallback
+      # path — on Apple silicon /opt/homebrew/lib is never a leaf-dlopen dir anyway),
       # so the bundle is authoritative regardless. Report them for transparency.
       - name: Assert the GTK toolkit is NOT installed (clean batteries-included host)
         run: |
@@ -1020,28 +1061,43 @@ jobs:
           echo "clean host — the GTK toolkit was never brew-installed in this job"
 
       # Stage the bundle + relocated addon in the SIBLING layout node-gi expects
-      # (prebuilds/darwin-arm64/{node_gi.node, gtk/}). The addon's @rpath is
+      # (prebuilds/darwin-<arch>/{node_gi.node, gtk/}). The addon's @rpath is
       # @loader_path/gtk/lib, and node-gi's loader finds gtk/ at that prebuilds path.
       - name: Download GTK runtime bundle
         uses: actions/download-artifact@v4
         with:
-          name: gtk-runtime-darwin-arm64
-          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/gtk
+          name: gtk-runtime-darwin-${{ matrix.arch }}
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/gtk
 
       - name: Download relocated node-gi addon
         uses: actions/download-artifact@v4
         with:
-          name: node-gi-addon-relocated-darwin-arm64
-          path: packages/node-gi/node-gi/prebuilds/darwin-arm64
+          name: node-gi-addon-relocated-darwin-${{ matrix.arch }}
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}
 
       - name: Verify staged layout
         working-directory: packages/node-gi/node-gi
+        env:
+          TAG: darwin-${{ matrix.arch }}
         run: |
-          ls -la prebuilds/darwin-arm64
-          echo "--- dylibs ---"; ls prebuilds/darwin-arm64/gtk/lib | head
-          echo "--- typelibs ---"; ls prebuilds/darwin-arm64/gtk/girepository-1.0 | head
-          echo "--- addon deps (should be @rpath, no /opt/homebrew) ---"
-          otool -L prebuilds/darwin-arm64/node_gi.node | head -20
+          ls -la "prebuilds/$TAG"
+          echo "--- bundle manifest (target must match this leg) ---"; cat "prebuilds/$TAG/gtk/manifest.json" | head -8
+          echo "--- dylibs ---"; ls "prebuilds/$TAG/gtk/lib" | head
+          echo "--- typelibs ---"; ls "prebuilds/$TAG/gtk/girepository-1.0" | head
+          echo "--- addon deps (should be @rpath, no Homebrew prefix) ---"
+          otool -L "prebuilds/$TAG/node_gi.node" | head -20
+          # The bundle carries its own derived target stamp; assert it is THIS leg's.
+          # An artifact-name mixup would otherwise run the arm64 closure on Intel and
+          # fail as an inscrutable dlopen error four steps later.
+          node -e '
+            const m = require(`./prebuilds/${process.env.TAG}/gtk/manifest.json`);
+            const want = `darwin-${process.arch}`;
+            if (m.platform !== want) {
+              console.error(`bundle manifest says ${m.platform}, this runner is ${want}`);
+              process.exit(1);
+            }
+            console.log(`bundle target ${m.platform} matches the runner`);
+          '
 
       # Fast probe FIRST — one clean process, NO library-lookup env. Reproduces the
       # exact paths that need a leaf-soname g_module_open against the bundle
@@ -1079,9 +1135,18 @@ jobs:
   # Build the WINDOWING superset darwin bundle — the display-free macos-gtk-runtime
   # bundle omits libadwaita (conformance never touches Adwaita), so a real
   # `new Adw.Application()` fails on it with "Failed to load shared library
-  # 'libadwaita-1.0.dylib'". This variant passes `--windowing` so build-gtk-runtime.mjs
-  # seeds libadwaita into the relocated closure. Mirrors windows-gtk-windowing-runtime;
+  # 'libadwaita-1.0.dylib'". This variant passes `--windowing` so the shared darwin
+  # builder seeds libadwaita into the relocated closure. Mirrors windows-gtk-windowing-runtime;
   # feeds the macos-gtk-windowing GUI proof below.
+  #
+  # DELIBERATELY arm64-ONLY, unlike the display-free pair above. The windowing pair
+  # is a GUI RENDER proof, not the batteries-included conformance: it costs two more
+  # scarce macOS legs per node-gi PR, and the darwin --windowing bundle has a KNOWN
+  # gap (the gdk-pixbuf image LOADERS are not bundled yet, so symbolic icons can be
+  # blank) that a second arch would duplicate rather than close. The Intel bundle's
+  # own claim — "gi:// works with no Homebrew" — is fully covered by
+  # macos-gtk-batteries-included's x64 leg, which never installs GTK. Extending the
+  # windowing pair to x64 is tracked in status/open-todos.md.
   macos-gtk-windowing-runtime:
     name: macOS windowing GTK runtime bundle (build + relocate / macos-latest arm64)
     runs-on: macos-latest
@@ -1112,7 +1177,7 @@ jobs:
       # relocated closure.
       - name: Build + relocate the WINDOWING GTK runtime bundle
         run: |
-          node packages/node-gi/gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs \
+          node packages/node-gi/scripts/build-gtk-runtime-darwin.mjs \
             --windowing \
             --out packages/node-gi/gtk-runtime-darwin-arm64/gtk \
             --addon "$PWD/addon/node_gi.node" \
@@ -1132,9 +1197,12 @@ jobs:
           test -f "$B/share/glib-2.0/schemas/gschemas.compiled" || { echo "gschemas.compiled MISSING — Gio.Settings would fail on macOS"; exit 1; }
           test -d "$B/share/gtksourceview-5/language-specs" || { echo "GtkSource-5 language-specs MISSING from the windowing bundle"; exit 1; }
           echo "--- icon themes present (Adwaita/hicolor) ---"; ls "$B/share/icons" 2>/dev/null || echo "(no icon themes — symbolic icons may be blank)"
-          echo "--- assert NO /opt/homebrew refs remain ---"
-          if otool -L packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib/*.dylib | grep -F /opt/homebrew; then
-            echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
+          # Prefix-DERIVED, not the literal /opt/homebrew — see macos-gtk-runtime's
+          # note: the literal is vacuously absent on an Intel host.
+          BREW_PREFIX="$(brew --prefix)"
+          echo "--- assert NO $BREW_PREFIX refs remain ---"
+          if otool -L "$B"/lib/*.dylib | grep -F "$BREW_PREFIX"; then
+            echo "RELOCATION FAILED: bundled dylibs still reference $BREW_PREFIX"; exit 1
           fi
           echo "clean — no Homebrew references"
 
