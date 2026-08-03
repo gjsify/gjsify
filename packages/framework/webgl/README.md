@@ -113,9 +113,11 @@ yarn build:prebuilds
 
 ## Prebuilt binaries
 
-Prebuilds for `linux-x64`, `linux-arm64`, `linux-ppc64`, `linux-s390x`, and `linux-riscv64` are built automatically by CI
+Prebuilds for every target in `package.json#gjsify.platforms` are built automatically by CI
 (`.github/workflows/prebuilds.yml`) when the Vala source changes and committed back
-to the repository. They are included in the npm package via the `files` field.
+to the repository. Since ADR 0017 each one ships in its own
+`@gjsify/webgl-<os>-<arch>` package, referenced from here as an `optionalDependency`, so a
+consumer installs only the artifact that fits its platform.
 
 ## Inspirations and credits
 
@@ -130,17 +132,40 @@ to the repository. They are included in the npm package via the `files` field.
 | `linux-x64` | ✅ `libgwebgl.so` + `Gwebgl-0.1.typelib` | native runner |
 | `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
-| macOS (`darwin-arm64` / `darwin-x64`) | ❌ | **unverified, see below** |
+| `darwin-arm64` / `darwin-x64` | ✅ `libgwebgl.dylib` + `Gwebgl-0.1.typelib` | native runner — **WebGL1 only, see below** |
 | Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
 
-**macOS is not blocked — it is unverified, and a green build would not be enough.** The
-build needs gtk4 + libepoxy + gdk-pixbuf from Homebrew (all available). The real question is
-runtime: GTK4's macOS (Quartz) backend goes through CGL, which tops out at desktop OpenGL 4.1
-Core and offers no GLES 3.2 — the profile this Vala bridge is written against. So compiling
-successfully on macOS would say nothing about whether `Gtk.GLArea` can actually render a
-WebGL2 context there. `meson.build` already emits the correct `.dylib` typelib leaf; the
-manual-dispatch `build-prebuilds-macos-experimental` job in the prebuilds workflow exists to
-establish the compile half of the answer.
+**macOS renders — WebGL1 only.** Measured on macOS 15.7.8 / x86_64 with gtk 4.22 and
+libepoxy 1.5.10: `Gtk.GLArea` realizes a `GdkMacosGLContext`, and this bridge draws real
+pixels through it. Two limits come from the platform, not from the bridge:
+
+- GTK4's macOS backend goes through **CGL, which offers desktop OpenGL only** — no GLES
+  profile at any version. A GLES-exclusive request (`gtk_gl_area_set_use_es(TRUE)`) fails
+  with *"Application does not support OpenGL API"*, so `WebGLBridge` declares
+  `set_allowed_apis(GL | GLES)` and lets GDK choose: GLES 3.2 where it exists, desktop
+  GL 4.1 on macOS.
+- Desktop GL 4.1 has **no GLSL ES 3.00 compiler** (that needs `ARB_ES3_compatibility`, GL 4.3),
+  so `#version 300 es` shaders — i.e. all WebGL2 content, including three.js ≥ r163 and
+  Excalibur 0.32 — do not compile. `#version 100` (WebGL1) does, via `ARB_ES2_compatibility`.
+  Of the 219 GL entry points the library references, exactly two are absent from Apple's
+  `OpenGL.framework` (`glInvalidateFramebuffer`, `glInvalidateSubFramebuffer`, both GL 4.3);
+  they are gated on `epoxy_gl_version() >= 43` because libepoxy aborts rather than returning
+  null.
+
+Remaining darwin gaps are tracked in [`status/open-todos.md`](../../../status/open-todos.md).
+
+## Diagnosing a host
+
+```bash
+gjsify run packages/framework/webgl/scripts/probe-gl-host.js [--seconds N]
+```
+
+Configures a bare `Gtk.GLArea` exactly as `WebGLBridge` does and reports the negotiated GL API
+and version, the widget scale factor, the logical allocation versus the device-pixel drawing
+buffer, the GL vendor/renderer/GLSL strings and which shader dialects compile — then draws a
+recognisable pattern using only `clearColor` + `scissor` + `clear`, so a blank window can never
+be mistaken for a failed shader. Exits non-zero when the GLArea does not realize. It needs a
+real display, which is why it is a script rather than a spec.
 
 ## License
 

@@ -2,7 +2,9 @@
 // Provides a Gtk.GLArea subclass that handles all WebGL bootstrapping boilerplate.
 
 import GObject from 'gi://GObject';
-import type Gdk from 'gi://Gdk?version=4.0';
+// Value import (not `import type`): `Gdk.GLAPI` is read at construction to
+// declare which GL APIs this widget accepts — see the constructor.
+import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as OurHTMLCanvasElement } from './html-canvas-element.js';
@@ -82,7 +84,22 @@ export const WebGLBridge = GObject.registerClass(
 
         constructor(params?: Partial<Gtk.GLArea.ConstructorProps>) {
             super(params);
-            this.set_use_es(true);
+            // GLES where the platform HAS a GLES profile, desktop GL where it does
+            // not. `set_use_es(true)` is `set_allowed_apis(GDK_GL_API_GLES)` — i.e.
+            // GLES-ONLY — and macOS offers NO GLES profile at all (CGL caps at
+            // desktop GL 4.1), so on every darwin host that call left the GLArea
+            // permanently in error (`get_error()` = "Application does not support
+            // OpenGL API", `get_context()` null, no `render` signal ever): the
+            // widget could not draw one pixel. Allowing BOTH changes nothing where
+            // GLES exists — GDK prefers it (measured on gtk 4.22 / Wayland / Mesa:
+            // both-allowed realizes GLES 3.2, byte-for-byte the API and version
+            // `set_use_es(true)` produced) — and picks desktop GL 4.1 on macOS.
+            //
+            // The choice MUST be made before realize: `gtk_gl_area_set_allowed_apis`
+            // asserts `!gtk_widget_get_realized`, so "retry wider after a failed
+            // realize" is not available (measured, gtk 4.22). Hence no probe and no
+            // platform sniffing — declare what we accept and let GDK pick.
+            this.set_allowed_apis(Gdk.GLAPI.GL | Gdk.GLAPI.GLES);
             this.set_required_version(3, 2);
             this.set_has_depth_buffer(true);
             this.set_has_stencil_buffer(true);

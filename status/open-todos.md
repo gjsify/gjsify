@@ -325,6 +325,52 @@ v0.4.20 `@gjsify/tls-native` incident: 60+ packages stuck). One command:
 `gjsify onboard` (whoami-gated login, per-package state probe, publishes + trusts only the gaps,
 ONE shared OTP). The package itself, its builder and both CI chains are in place.
 
+### `@gjsify/webgl` renders on darwin-x64, but no WebGL2 CONTENT can
+
+First rendering proof on darwin, measured 2026-08-03 on the Intel macOS 15.7.8 test VM
+(`docs/workstation/macos-test-vm.md`): the committed `darwin-x64` prebuild draws real pixels onto
+the desktop through `Gtk.GLArea` + libepoxy + CGL — a `clearColor`/`scissor`/`clear` pattern,
+`gl.getError()` 0, screenshotted. Everything before this proved a `dlopen`, not a pixel. The
+`set_use_es(true)` defect that made it impossible is fixed (§ Bridge pattern). What is still open:
+
+- **GLSL ES 3.00 does not exist on macOS, so every WebGL2-only consumer is dead there.**
+  `#version 300 es` needs ARB_ES3_compatibility (GL 4.3) and macOS caps CGL at 4.1; measured
+  through the shipped stack, `gl2.compileShader` reports `version '300' is not supported`. WebGL1
+  (`#version 100`) compiles. Consequence: `three-geometry-teapot`, `three-postprocessing-pixel` and
+  the Excalibur showcases BUILD and RUN on darwin-x64 (the GLArea realizes, the log says
+  `Context version: OpenGL 4.1`) and draw nothing, because three.js ≥ r163 and Excalibur 0.32 are
+  WebGL2-only. Three honest resolutions — pick one deliberately rather than leaving the third
+  state: (a) declare darwin WebGL1-only and say so in the showcase preflight + the platform matrix;
+  (b) translate GLSL ES 3.00 → GLSL 4.10 in the Vala layer for a desktop-GL context (`in`/`out` are
+  already common, the work is `texture()` sampling, `layout` qualifiers and the precision
+  statements — this is what ANGLE does and it is not small); (c) ship/link ANGLE on darwin and get a
+  real GLES 3 driver. Until one is chosen, "webgl works on darwin" must be stated as
+  **WebGL1-only**, and the OS-axis declaration in `packages/framework/webgl/package.json` promises a
+  loadable prebuild, NOT a WebGL2-capable one.
+- **`getSupportedExtensions()` trips a GLib assertion on every desktop-GL context.**
+  `g_strsplit: assertion 'string != NULL' failed`, three times per context: a core profile makes
+  `glGetString(GL_EXTENSIONS)` return NULL (it is `glGetStringi(GL_EXTENSIONS, i)` + `GL_NUM_EXTENSIONS`
+  there). The Vala side must read the indexed form when the context is desktop GL ≥ 3.0. Not fatal
+  today — the JS layer still returned 3 entries — but it is a NULL deref away from one, and it is
+  the same class as the `invalidateFramebuffer` gate: GLES semantics assumed on a GL context.
+- **A `GL_INVALID_OPERATION` (0x502) is pending before the first draw**, and an `Adw.Application`
+  app whose `WebGLBridge` draws from `requestAnimationFrame` produced a BLACK window while the
+  identical tick-callback + `queue_render` + `render` mechanism animated correctly in a plain
+  `Gtk.Window` + `GLib.MainLoop` (~13 renders/s on the software renderer). Two candidates, neither
+  confirmed: a desktop GL core profile has NO default vertex-array object (a draw with VAO 0 is
+  exactly `GL_INVALID_OPERATION`, while GLES permits it), and/or the `_gtkFboId` captured from
+  `GL_FRAMEBUFFER_BINDING` is not the framebuffer GTK presents on this backend. Reproduce with the
+  probe below plus a `--globals auto,dom` bundle that drives the real bridge; this is the next thing
+  to chase, and it is what stands between "the native bridge draws" and "an app draws".
+- **The HiDPI path stays unproven on darwin.** The VM reports scale factor 1 (its LaunchAgent pins
+  `res:1920x1080 scaling:off`), so `clientWidth × devicePixelRatio === canvas.width` holds
+  trivially and this host cannot falsify the drawing-buffer bug class. Only a real HiDPI Mac can.
+
+Host diagnosis is repeatable: `gjsify run packages/framework/webgl/scripts/probe-gl-host.js`
+(negotiated API/version, scale factor, logical-vs-device sizes, shader-dialect matrix, shader-free
+pattern; exits non-zero when the GLArea does not realize). It needs a display, which is why it is a
+script and not a spec — no CI runner here has one.
+
 ### The darwin `--windowing` GUI proof runs on Apple silicon only
 
 `node-gi.yml`'s `macos-gtk-windowing-runtime` → `macos-gtk-windowing` pair is arm64-only, while the
@@ -737,14 +783,16 @@ state:
 - **Delete it.** Every showcase that needs the bridge already declares
   `@gjsify/webgl` as a runtime dependency, which is what actually gets the
   typelib into the dlx tree. The field then encodes nothing the manifests do not.
-- **Make it load-bearing.** `@gjsify/webgl` ships prebuilds for linux-x64,
-  linux-arm64 and darwin-arm64 only, so `gjsify showcase three-geometry-teapot`
-  on win32 installs a tree with no `prebuilds/<target>/` and dies at
-  `gi://Gwebgl` with a raw GI error. A pre-flight keyed on this field could say
-  which showcase needs which bridge and that the host has no prebuild for it —
-  worth having while win32/darwin are active port targets. Needs the fix to
-  `excalibur-jelly-jumper` in the same change, and a check so the next entry
-  cannot be wrong for free.
+- **Make it load-bearing.** `@gjsify/webgl` ships no win32 prebuild (its declared
+  targets are the five linux ones plus darwin-arm64/darwin-x64), so
+  `gjsify showcase three-geometry-teapot` on win32 installs a tree with no
+  `prebuilds/<target>/` and dies at `gi://Gwebgl` with a raw GI error. A pre-flight
+  keyed on this field could say which showcase needs which bridge and that the host
+  has no prebuild for it — worth having while win32/darwin are active port targets.
+  It would also be the right place to say "this host has a prebuild but no GLSL ES
+  3.00", which is what makes the three WebGL2 showcases silently blank on darwin
+  (see the darwin webgl item above). Needs the fix to `excalibur-jelly-jumper` in
+  the same change, and a check so the next entry cannot be wrong for free.
 
 ### `@gjsify/lightningcss-native` references `gnu_get_libc_version`, which musl lacks
 
