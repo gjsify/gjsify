@@ -16,12 +16,14 @@ import { describe, it, expect } from '@gjsify/unit';
 import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
 import { Buffer } from 'node:buffer';
 import { realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
-// See the note in `index.spec.ts`: a child's reported cwd is the RESOLVED
-// path, which differs from the literal wherever the directory is a symlink
-// (macOS `/tmp` → `/private/tmp`).
-const TMP_DIR = '/tmp';
+// See the note in `index.spec.ts`: a child's reported cwd is the RESOLVED path,
+// which differs from the literal wherever the directory is a symlink, and
+// `tmpdir()` rather than a literal `/tmp` because that throws here at module
+// evaluation on Windows and takes the entire module's tests with it.
+const TMP_DIR = tmpdir();
 const TMP_DIR_RESOLVED = realpathSync(TMP_DIR);
 
 export default async () => {

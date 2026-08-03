@@ -4,6 +4,37 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `@gjsify/child_process` on Windows — 86 of 145 specs fail once the module can load at all
+
+The specs took `TMP_DIR` from a literal `/tmp` and `realpathSync`'d it at MODULE
+EVALUATION. On `win32-x64` that resolves against the current drive to `C:\tmp`,
+which does not exist, so the module threw before defining a single test.
+
+Measured on the win11-gjsify VM (Node 24.18.1), with no `C:\tmp` present:
+
+| | before | after `tmpdir()` |
+|---|---|---|
+| output | 23 lines, `ENOENT: lstat 'C:\tmp'` | full run |
+| tests run | **0** | **145** |
+| failures | — (module never loaded) | 86 |
+
+The 86 are pre-existing POSIX assumptions in the SPECS, not regressions and not
+impl gaps — which is structural, not a judgement call: `@gjsify/child_process`
+declares `runtimes.node: "none"`, so `test:node` never aliases
+`node:child_process` to our polyfill and those specs run against NATIVE Node. Per
+the testing rules a failure there means the TEST is wrong. What they encode:
+shell built-ins assumed to exist (`echo`/`pwd`/`cat` under `cmd.exe`), POSIX
+absolute paths, exit-code and signal semantics, and `/bin/sh`-shaped `shell:`
+options. Node's own behaviour on Windows is the oracle for each.
+
+The GJS run is the one that measures our impl, and it cannot run on Windows at
+all (no `gjs` there) — so this package's Windows impl story is still unmeasured;
+only its specs have been.
+
+**Note for anyone re-measuring:** a hand-created `C:\tmp` makes the module-load
+failure vanish without fixing anything (one existed on the test VM for several
+hours and hid exactly this). It has been removed there. Do not re-create it.
+
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 
 `scripts/cross-runtime.mjs` carves Deno out of exit-code gating for the
@@ -243,7 +274,7 @@ Decisions in [docs/adr/](../docs/adr/README.md), prioritized backlog in [docs/re
 - **ADR 0001 (P1)** — install non-destructive invariant: the Phase D.8 dedup pass is still open (the e2e guards, per-prefix lock, atomic writes and conflict warning have landed).
 - **ADR 0006 (P1)** — per-package build cache: **CI wiring DEFERRED** — enabling it on the `main.yml` build steps timed out the serial `Build examples` step (cold cache + per-package closure re-hashing at scale). Remaining: (a) memoize input hashes across a single `foreach` before re-enabling in CI; (b) phase 2 = source-direct workspace-consumption spike.
 - **ADR 0003 (P1)** — tiering shipped; the website still lacks a per-package tier index (the tier model is documented on the versioning page).
-- **ADR 0002 (P1, after 0006)** — minimal committed `bootstrap.gjs.mjs` (install+run only), full CLI/tsc consumed from the registry via the lockfile; `tests/e2e/bootstrap-install` fresh-clone gate BEFORE removing `dist/cli.gjs.mjs`/`dist/tsc.gjs.mjs`/committed `lib/lib*.d.ts`; pre-commit hook shrinks to the bootstrap.
+- **ADR 0002 (P1, after 0006)** — **amended 2026-08-02**; read the amendment before implementing, the original decision 2 is unimplementable. Minimal version-free `bootstrap/bootstrap.gjs.mjs` (install+run+integrity) built from the SAME commit stays tracked; the full CLI/tsc/bundler-engine come from a pinned `.gjsify/toolchain/` prefix, NOT from `gjsify-lock.json` (it holds 0 `@gjsify/*` entries — a workspace name can never appear there). `affected.gjs.mjs` and `tsc/lib/lib*.d.ts` now STAY tracked, with reasons; only `dist/cli.gjs.mjs` + `dist/tsc.gjs.mjs` get untracked. `tests/e2e/bootstrap-install` (does not exist yet — `bootstrap-cold-tree` stops at `--print-plan`) + `tests/e2e/bootstrap-pin` are the gate BEFORE the untracking. The pre-commit hook's four-path heuristic is replaced by a derived `bootstrap.inputs.json` + build-free verifier, not merely shrunk. Byte-reproducibility moves to `release-cut.yml`, it does not disappear.
 - **ADR 0007 (P3, easy6502)** — superseded into the full Learn6502 app-web rewrite (own project). Foundation pieces (phone-shell trio, `<adw-source-view>`) have landed on adwaita-web; remaining: the app-web view implementations over these + the classic-tutorial removal + the learn-package HTML target.
 
 (ADRs 0004, 0005 and 0008 are fully implemented.)

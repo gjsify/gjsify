@@ -97,16 +97,12 @@ export class PixelWindow extends Adw.ApplicationWindow {
         // Initialize three.js when GL context is ready
         glArea.onReady((canvas) => {
             glArea.grab_focus();
-            // Sync canvas dimensions with GTK widget allocation so the
-            // three.js resize check in the animation loop picks up changes
-            // (e.g. when the sidebar is toggled).
-            const syncSize = (_widget: unknown, w: number, h: number) => {
-                canvas.width = w;
-                canvas.height = h;
-            };
-            canvas.width = glArea.get_allocated_width();
-            canvas.height = glArea.get_allocated_height();
-            glArea.connect('resize', syncSize);
+            // No canvas.width/height sync here: the GLArea-backed canvas reports
+            // the LIVE drawing buffer (allocation × scale-factor) and ignores
+            // writes — GTK owns the framebuffer. The three.js resize check in the
+            // animation loop reads those getters, so it sees a sidebar toggle by
+            // itself. The writes this replaces were silent no-ops whose comment
+            // claimed they were what made the resize check work.
 
             const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
             const assetBase = `file://${bundleDir}/`;
