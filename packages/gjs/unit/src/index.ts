@@ -1165,11 +1165,31 @@ it.failing = async function (
     expectation: string,
     callback: () => void | Promise<void>,
     reason: string,
-    // Same shape as `it()`'s third argument, for the same reason: a probe whose
-    // expected failure IS a timeout should not have to wait the full default.
-    options?: { timeout?: number } | number,
+    // `timeout` mirrors `it()`'s third argument, for the same reason: a probe
+    // whose expected failure IS a timeout should not wait the full default.
+    //
+    // `when` scopes the EXPECTATION without touching the test. See below.
+    options?: { timeout?: number; when?: boolean } | number,
 ) {
     const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
+
+    // `when: false` → this is an ordinary `it()`. Not a skip, not a tolerated
+    // failure: the test runs and must PASS, exactly as if the marker were absent.
+    //
+    // This exists for the failure class that is neither a bug nor a test defect:
+    // an assertion a PLATFORM cannot satisfy. `chmod` reading back 0o666 on NTFS,
+    // a stat-able character device, a directory with `size > 0`, `S_IRUSR` — each
+    // is correct on POSIX and impossible on win32, and the two bad options were
+    // to let CI stay red forever or to guard the test away and lose it.
+    //
+    // Scoping the marker keeps BOTH properties that make `it.failing` worth
+    // having: the assertion is never weakened, and it still fails the run the day
+    // it starts passing — on the platform where it was declared failing. A plain
+    // platform `if` around the test gives up the second half, which is the half
+    // that stops the note from rotting.
+    if (typeof options === 'object' && options?.when === false) {
+        return it(expectation, callback, { timeout: timeoutMs });
+    }
     const t0 = now();
     ++activeTestDepth;
     // Own ledger frame, so an assertion thrown inside THIS probe is attributed
