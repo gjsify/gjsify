@@ -31,7 +31,12 @@ const SCRIPT = join(MONOREPO_ROOT, 'scripts', 'clear-committed-platform-exemptio
 const GENERATOR = join(MONOREPO_ROOT, 'scripts', 'generate-platform-packages.mjs');
 
 const { clearSatisfiedExemptions } = await import(`file://${SCRIPT}`);
-const { auditPlatformPackages, generatorContext } = await import(`file://${GENERATOR}`);
+const { auditPlatformPackages, expectedFiles, generatorContext, planPlatformPackages } = await import(
+    `file://${GENERATOR}`
+);
+
+/** The deferral reason the fixture declares. Any non-empty string works. */
+const FIXTURE_WHY = 'a fixture reason — the deferral text is not what this suite is about';
 
 /**
  * A realistic POST-SPLIT pair, copied out of the real tree so the fixture IS
@@ -41,6 +46,26 @@ const { auditPlatformPackages, generatorContext } = await import(`file://${GENER
  * `@gjsify/thing` fixture above has no generated `README.md`, so a suite that
  * ran on every PR shard could not see that clearing an exemption invalidates
  * one. A fixture that cannot reach the bug is not coverage.
+ *
+ * The pair is copied for SHAPE and then re-emitted into the state under test —
+ * it does not INHERIT that state. The distinction is the second half of this
+ * suite's own lesson, and it cost `main`:
+ *
+ *   `commit-prebuilds` pushes under `[skip ci]`, so nothing runs on the commit
+ *   it makes. On 2026-08-03 that commit landed the darwin-x64 artifacts and —
+ *   exactly as designed — cleared `platformsUncommitted` from the live
+ *   `tls-native-darwin-x64` manifest. This fixture used to copy that field in,
+ *   so the moment the mechanism under test worked in production, the test for it
+ *   lost its precondition: `cleared` went to `[]` on every subsequent PR, with a
+ *   bare deepEqual diff naming nothing about the cause. `main` was red for every
+ *   PR and the commit that broke it had no CI at all.
+ *
+ * So the exemption is DECLARED here, via the generator, in the `uncommitted`
+ * state. `state`/`why` are the same two fields the script under test overrides
+ * in the other direction. Seeding both generated files matters: the script only
+ * reports a path it actually had to write, so a README already in cleared shape
+ * would silently shrink `paths` to the manifest alone and the assertion below
+ * would pass while proving half of what it claims.
  */
 function splitPairFixture() {
     const root = mkdtempSync(join(tmpdir(), 'gjsify-split-pair-'));
@@ -80,13 +105,45 @@ function splitPairFixture() {
         Object.entries(parent.optionalDependencies ?? {}).filter(([name]) => name.endsWith('-darwin-x64')),
     );
     writeFileSync(parentManifest, `${JSON.stringify(parent, null, 4)}\n`);
+
+    // Put the child INTO the state under test, from the generator, so the
+    // fixture owns its own precondition. Done before the artifact directory
+    // exists: `expectedFiles` measures a binary when one is there, and the
+    // point here is the no-artifact shape.
+    const childDir = join(root, 'packages', 'node', 'tls-native-darwin-x64');
+    const childName = JSON.parse(readFileSync(join(childDir, 'package.json'), 'utf8')).name;
+    const plan = planPlatformPackages(generatorContext(root));
+    // Matched by NAME, like the script under test: `platformPackageName()` is the
+    // one truth for the parent→child mapping, and a path comparison breaks the
+    // first time a root sits behind a symlink (macOS `/var` vs `/private/var`).
+    let plannedParent = null;
+    let planned = null;
+    for (const candidate of plan.parents) {
+        const hit = candidate.targets.find((t) => t.name === childName);
+        if (hit) {
+            plannedParent = candidate;
+            planned = hit;
+            break;
+        }
+    }
+    // A fixture that silently proves nothing is the failure mode this whole
+    // comment block is about, so say so instead of asserting on the aftermath.
+    assert.ok(planned, `fixture is not a pair: the plan found no target named ${childName}`);
+    for (const [name, contents] of Object.entries(
+        expectedFiles(plannedParent, { ...planned, state: 'uncommitted', why: FIXTURE_WHY }),
+    )) {
+        writeFileSync(join(childDir, name), contents);
+    }
+
     // The landing: an EMPTY directory is enough, because `expectedFiles` is
     // artifact-independent for a darwin target (`measureLibcFields`
     // short-circuits off linux to the same shape as the no-directory fallback).
-    mkdirSync(join(root, 'packages', 'node', 'tls-native-darwin-x64', 'prebuilds', 'darwin-x64'), { recursive: true });
+    mkdirSync(join(childDir, 'prebuilds', 'darwin-x64'), { recursive: true });
     return {
         root,
-        childDir: join(root, 'packages', 'node', 'tls-native-darwin-x64'),
+        childDir,
+        childName,
+        target: planned.target,
         cleanup: () => rmSync(root, { recursive: true, force: true }),
     };
 }
@@ -230,7 +287,7 @@ describe('clear-committed-platform-exemptions', () => {
         const f = splitPairFixture();
         try {
             const { cleared, paths } = clearSatisfiedExemptions(f.root);
-            assert.deepEqual(cleared, ['@gjsify/tls-native-darwin-x64 darwin-x64']);
+            assert.deepEqual(cleared, [`${f.childName} ${f.target}`]);
             // Both generated files, not just the manifest.
             assert.deepEqual(paths.sort(), [
                 'packages/node/tls-native-darwin-x64/README.md',
@@ -250,7 +307,7 @@ describe('clear-committed-platform-exemptions', () => {
         try {
             const before = readFileSync(join(f.childDir, 'README.md'), 'utf8');
             const { cleared } = clearSatisfiedExemptions(f.root, { dryRun: true });
-            assert.deepEqual(cleared, ['@gjsify/tls-native-darwin-x64 darwin-x64']);
+            assert.deepEqual(cleared, [`${f.childName} ${f.target}`]);
             assert.equal(readFileSync(join(f.childDir, 'README.md'), 'utf8'), before);
             assert.match(readFileSync(join(f.childDir, 'package.json'), 'utf8'), /platformsUncommitted/);
         } finally {
