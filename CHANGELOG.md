@@ -1,5 +1,112 @@
 # Changelog
 
+## [0.27.0](https://github.com/gjsify/gjsify/compare/v0.26.1...v0.27.0) (2026-08-03)
+
+### Features
+
+* **ci:** build darwin-x64 prebuilds ([#916](https://github.com/gjsify/gjsify/issues/916)) ([be7729d](https://github.com/gjsify/gjsify/commit/be7729d72a7d5ef79801990cab17aad2287da833))
+* **cli:** add a portable `gjsify clear` ([6c9084b](https://github.com/gjsify/gjsify/commit/6c9084b86ff0d9d34253f7b072ca4d9fb7542cfc)), closes [#914](https://github.com/gjsify/gjsify/issues/914) [#914](https://github.com/gjsify/gjsify/issues/914)
+* **cli:** install only the host's prebuilds ([#897](https://github.com/gjsify/gjsify/issues/897)) ([7896c51](https://github.com/gjsify/gjsify/commit/7896c51b0227e7bb8b66f83bd07ebcf36b0f6cc6))
+* **fs:** support numeric std fds 0/1/2 ([cdcf0cf](https://github.com/gjsify/gjsify/commit/cdcf0cf5043d878348e4c3bcbb449d4d1bb50032))
+* **macos:** bundler engine, node-gi x64, brew install hints ([#921](https://github.com/gjsify/gjsify/issues/921)) ([b963a3a](https://github.com/gjsify/gjsify/commit/b963a3ac3793f2f5c26e611a2cc2c50cd57b8ee3))
+* **node-gi:** add the Intel-macOS GTK bundle ([#964](https://github.com/gjsify/gjsify/issues/964)) ([3c01072](https://github.com/gjsify/gjsify/commit/3c0107209d981e398302cbb0f69382abce904c0b)), closes [#961](https://github.com/gjsify/gjsify/issues/961)
+* **node-gi:** install the GTK runtime bundles by default ([#910](https://github.com/gjsify/gjsify/issues/910)) ([da9ca40](https://github.com/gjsify/gjsify/commit/da9ca4001cbac6ae6af7f45eec09d3dee557b0e6)), closes [#909](https://github.com/gjsify/gjsify/issues/909)
+* portable package scripts via `gjsify copy` ([#929](https://github.com/gjsify/gjsify/issues/929)) ([c68f69e](https://github.com/gjsify/gjsify/commit/c68f69e3b6a939410d6c8effd54be95494896ae4)), closes [#914](https://github.com/gjsify/gjsify/issues/914)
+* **prebuilds:** package every declared target, CI included ([7e6d878](https://github.com/gjsify/gjsify/commit/7e6d8788d7331569e047aad965b950f21e4c4794))
+* **prebuilds:** split into per-target packages ([1f38fb1](https://github.com/gjsify/gjsify/commit/1f38fb15e7e52da47d3bb4a4f82959d42f2ca276)), closes [pre-#897](https://github.com/gjsify/pre-/issues/897) [#897](https://github.com/gjsify/gjsify/issues/897) [#910](https://github.com/gjsify/gjsify/issues/910) [#919](https://github.com/gjsify/gjsify/issues/919) [#910](https://github.com/gjsify/gjsify/issues/910)
+* **unit:** scope an expected failure with `when` ([#953](https://github.com/gjsify/gjsify/issues/953)) ([29579d9](https://github.com/gjsify/gjsify/commit/29579d993227aa11753542aefc170f847fcb5bf3))
+* **webgl:** ship darwin-arm64 + darwin-x64 prebuilds ([#956](https://github.com/gjsify/gjsify/issues/956)) ([886e9a1](https://github.com/gjsify/gjsify/commit/886e9a16ef5d2e323e319477c5518a414c1cbb29))
+
+### Bug Fixes
+
+* **child_process:** take TMP_DIR from os.tmpdir() ([#948](https://github.com/gjsify/gjsify/issues/948)) ([9caff52](https://github.com/gjsify/gjsify/commit/9caff52bdfba62c8e962113f98aa4c87c0bb3c6f))
+* **ci:** let commit-prebuilds push past the branch ruleset ([#928](https://github.com/gjsify/gjsify/issues/928)) ([cedd7f2](https://github.com/gjsify/gjsify/commit/cedd7f2eb0a46bcfef02a96e74a29797e634a200)), closes [#927](https://github.com/gjsify/gjsify/issues/927)
+* **ci:** push the release cut as the deploy key ([#965](https://github.com/gjsify/gjsify/issues/965)) ([69e5665](https://github.com/gjsify/gjsify/commit/69e56654eab11c6be643ed92e3ec365753247ef6))
+* **ci:** re-emit README when exemption clears ([#951](https://github.com/gjsify/gjsify/issues/951)) ([52386d6](https://github.com/gjsify/gjsify/commit/52386d6acf3b69c1efc9d1b5b81ecccfedf0b1af)), closes [#927](https://github.com/gjsify/gjsify/issues/927)
+* **ci:** run the musl legs, and fix what they found ([#955](https://github.com/gjsify/gjsify/issues/955)) ([582e1d6](https://github.com/gjsify/gjsify/commit/582e1d6eb65aafa2e3f4460db1c0b218d8659a29))
+* **ci:** stage the prebuilds where the split put them ([#938](https://github.com/gjsify/gjsify/issues/938)) ([3a2ae0f](https://github.com/gjsify/gjsify/commit/3a2ae0ff9a4139eda0de88cc6b1bfba922fb5e55)), closes [#923](https://github.com/gjsify/gjsify/issues/923)
+* **ci:** stop the prebuild image from moving the glibc floor ([#927](https://github.com/gjsify/gjsify/issues/927)) ([8d7f781](https://github.com/gjsify/gjsify/commit/8d7f7819c435d66998eb88ddfa23889089c3cbe3)), closes [#897](https://github.com/gjsify/gjsify/issues/897)
+* **cli:** build assets in node, not a POSIX shell ([c0b845d](https://github.com/gjsify/gjsify/commit/c0b845d885d29b35cac2ee43d9ea70d786922127))
+* **cli:** detect the script runner in check, don't assume npm ([#934](https://github.com/gjsify/gjsify/issues/934)) ([606ec9f](https://github.com/gjsify/gjsify/commit/606ec9fe23c23eb05b265bace12cce9117f50ed3))
+* **cli:** make bin linking work on a Node-less GJS host ([#931](https://github.com/gjsify/gjsify/issues/931)) ([fae34a0](https://github.com/gjsify/gjsify/commit/fae34a0fe79ad00bae311895c1f137733195b983)), closes [#923](https://github.com/gjsify/gjsify/issues/923)
+* **cli:** name the missing interpreter, not the tool ([#933](https://github.com/gjsify/gjsify/issues/933)) ([bfff45c](https://github.com/gjsify/gjsify/commit/bfff45cc9c33e60afdbd4610b19e0efb5eae4f90))
+* **cli:** name the missing key in the dlx entry warning ([#941](https://github.com/gjsify/gjsify/issues/941)) ([60ef404](https://github.com/gjsify/gjsify/commit/60ef404603dc5dade067cd8a984351b9c9ccc183))
+* **cli:** read a package.json that carries a BOM ([9e712a9](https://github.com/gjsify/gjsify/commit/9e712a91019ef6131928e3f904ac27c67a2188ab))
+* **cli:** restore the reproducible cli.gjs.mjs ([#913](https://github.com/gjsify/gjsify/issues/913)) ([9ca8c90](https://github.com/gjsify/gjsify/commit/9ca8c90041e3bb3f44d56df79c229e2d50c0f620)), closes [#906](https://github.com/gjsify/gjsify/issues/906) [#905](https://github.com/gjsify/gjsify/issues/905) [#912](https://github.com/gjsify/gjsify/issues/912)
+* **cli:** route every npm spawn through the helper ([3fcac89](https://github.com/gjsify/gjsify/commit/3fcac893e0bb9045e5b2069aa4dde5af9c4393d5))
+* **cli:** skip an unavailable default runtime in test ([#937](https://github.com/gjsify/gjsify/issues/937)) ([9a3e22e](https://github.com/gjsify/gjsify/commit/9a3e22e45dcf79ee7a5f1ba5b782169dadd8acef))
+* **cli:** spawn npm via cmd.exe on Windows ([c559cf7](https://github.com/gjsify/gjsify/commit/c559cf72eb33300d8b3e54bfb26b8efdac00b099))
+* **cli:** stop path-normalizing glob entry points ([f7b0979](https://github.com/gjsify/gjsify/commit/f7b09796db292d553d87b0a56cf3a0cb8ced2e96)), closes [#914](https://github.com/gjsify/gjsify/issues/914) [#914](https://github.com/gjsify/gjsify/issues/914)
+* close three silent bootstrap-chain holes ([#944](https://github.com/gjsify/gjsify/issues/944)) ([ca5e0fb](https://github.com/gjsify/gjsify/commit/ca5e0fbae2d9f66d046c2f378b6c658258a90aaf))
+* **create-app:** set the bin mode without chmod ([293a9a1](https://github.com/gjsify/gjsify/commit/293a9a1f5a5c9f28b0fff781874b84132ad2bad7))
+* **devtools:** reply Screenshot via manual-invocation convention ([bda879f](https://github.com/gjsify/gjsify/commit/bda879f2d233e9b5b384a4fae79e8f97bb88bafc))
+* **dom-elements:** make window an instance of Window ([#943](https://github.com/gjsify/gjsify/issues/943)) ([14eff50](https://github.com/gjsify/gjsify/commit/14eff50c0d3887d11882bd95f8c2ab1baacf0cb0))
+* **e2e:** give the prebuild path one definition ([bf29a44](https://github.com/gjsify/gjsify/commit/bf29a443e166733f2b58d657761987cb99f3b070))
+* **e2e:** the dlx assertions encoded the old prebuild layout too ([8f2893e](https://github.com/gjsify/gjsify/commit/8f2893e09cd333dc2b3a9f214581c636d54c2b09))
+* **fs:** drop POSIX-only assumptions from the specs ([#952](https://github.com/gjsify/gjsify/issues/952)) ([9feb672](https://github.com/gjsify/gjsify/commit/9feb6724865f0c2b5e26bbf8799cdba9303f555a))
+* **fs:** resolve every component in realpath ([#950](https://github.com/gjsify/gjsify/issues/950)) ([03998da](https://github.com/gjsify/gjsify/commit/03998dae790d7982355f69cf04ac6ca414821ef9)), closes [#948](https://github.com/gjsify/gjsify/issues/948)
+* **git:** keep verified artifacts byte-exact on Windows ([a9fa31a](https://github.com/gjsify/gjsify/commit/a9fa31ad3c263e323ce27195e3e03f565180f1a4))
+* **hooks:** warn on a failed bundle rebuild, keep the commit ([78a21c9](https://github.com/gjsify/gjsify/commit/78a21c923f0b6520c728b589cf57eb048a157a99))
+* make gjsify work on macOS ([#906](https://github.com/gjsify/gjsify/issues/906)) ([6257afe](https://github.com/gjsify/gjsify/commit/6257afe46b3e5707e58b7484dce19f5639a8e68a))
+* **napi:** repoint the gates at the per-target package ([0669bf6](https://github.com/gjsify/gjsify/commit/0669bf6de891b24870edc77090cac72bf1ee297e))
+* **napi:** stop committing the linux-x64 prebuild ([#960](https://github.com/gjsify/gjsify/issues/960)) ([dea1464](https://github.com/gjsify/gjsify/commit/dea1464a1a7d3febe8666a5c576b7e031c2d51e7)), closes [#ifdef](https://github.com/gjsify/gjsify/issues/ifdef)
+* **node-gi:** use the shipped prebuild, don't always rebuild ([#909](https://github.com/gjsify/gjsify/issues/909)) ([b8d40c0](https://github.com/gjsify/gjsify/commit/b8d40c0eb26acdb9aba56a1fae4c0f8e1064f3b0)), closes [#897](https://github.com/gjsify/gjsify/issues/897)
+* **plugin:** inline static reads on Windows too ([203d470](https://github.com/gjsify/gjsify/commit/203d470cef58639286421118e2b81b6946fc9926))
+* **plugin:** resolve node_modules specs on Windows ([68376a6](https://github.com/gjsify/gjsify/commit/68376a6684aef50a4141afcab797082876618cbd)), closes [#917](https://github.com/gjsify/gjsify/issues/917)
+* **prebuilds:** make the split generator resumable ([d717e47](https://github.com/gjsify/gjsify/commit/d717e471a725b46092d5f4dab719da53c164acdb)), closes [#897](https://github.com/gjsify/gjsify/issues/897)
+* **prebuilds:** move the binary facts to the binary ([6961ea9](https://github.com/gjsify/gjsify/commit/6961ea95045fbba25083c679d53692dc80fa05fc))
+* **prebuilds:** move the exemption to the package that can clear it ([cb25079](https://github.com/gjsify/gjsify/commit/cb250794fd2e733162d73330a7738abf45854eaa))
+* **prebuilds:** repoint every consumer of the old layout ([dc90af3](https://github.com/gjsify/gjsify/commit/dc90af32b63b751f1d786fc59610cb95581f8f4a))
+* **release:** stage node-gi prebuilds per artifact ([#904](https://github.com/gjsify/gjsify/issues/904)) ([cd51746](https://github.com/gjsify/gjsify/commit/cd51746791d20e91333fceb76c50b9fad181a010)), closes [#900](https://github.com/gjsify/gjsify/issues/900) [#900](https://github.com/gjsify/gjsify/issues/900)
+* **sab-native:** declare the lowered glibc floor ([#963](https://github.com/gjsify/gjsify/issues/963)) ([bf4ac60](https://github.com/gjsify/gjsify/commit/bf4ac60a1693fdb458886d819305e86ba8ae20b7)), closes [#955](https://github.com/gjsify/gjsify/issues/955) [#955](https://github.com/gjsify/gjsify/issues/955) [#955](https://github.com/gjsify/gjsify/issues/955)
+* **unit:** attribute callback-thrown assertions ([#947](https://github.com/gjsify/gjsify/issues/947)) ([172d6e4](https://github.com/gjsify/gjsify/commit/172d6e49b724298b72e8f7828a72e9f596bc887f))
+* **webgl:** report the drawing buffer in device pixels ([#939](https://github.com/gjsify/gjsify/issues/939)) ([b51a792](https://github.com/gjsify/gjsify/commit/b51a792e3df12ce2b33765f24a0cde8414cc1644))
+* **webrtc:** tell missing from not-packaged for webrtcbin ([#940](https://github.com/gjsify/gjsify/issues/940)) ([703e5d1](https://github.com/gjsify/gjsify/commit/703e5d1156cc7caec2f2f1da821cf3fadbed6588))
+
+### Documentation
+
+* **adr:** correct ADR 0002's toolchain bootstrap ([#945](https://github.com/gjsify/gjsify/issues/945)) ([d567309](https://github.com/gjsify/gjsify/commit/d56730985bd99f880c2f7389f0e06e1aa09ce9a3))
+* **prebuilds:** record the split and what it leaves open ([e5b28f0](https://github.com/gjsify/gjsify/commit/e5b28f0439e1f992a145e6e31521b081dd7b5f28))
+* record the 744 CRLF-committed files ([c4ff21b](https://github.com/gjsify/gjsify/commit/c4ff21b16388bfbc97bd9ced58914aad95e30c67))
+* state what Windows can do, and the trap ([f33fc69](https://github.com/gjsify/gjsify/commit/f33fc6958c1d0f943bb2244d20e79d1ce740e1bb))
+* **status:** correct the onboard coverage claim ([5f9542f](https://github.com/gjsify/gjsify/commit/5f9542f0325a24cda30072b5e6bfa3daf675f765))
+* **status:** drop resolved unused-disable-directive TODO ([b241d90](https://github.com/gjsify/gjsify/commit/b241d905e74d7f1f5377b435ee5e02028a7ce003)), closes [859/#861](https://github.com/859/gjsify/issues/861)
+* **status:** drop the resolved squash-subject TODO ([#912](https://github.com/gjsify/gjsify/issues/912)) ([63cb221](https://github.com/gjsify/gjsify/commit/63cb2210cfa4360ae58516c4078f243cd3e2c5a1))
+* **status:** the deno teardown crash got frequent ([#942](https://github.com/gjsify/gjsify/issues/942)) ([768837c](https://github.com/gjsify/gjsify/commit/768837cb74b8f783d19290386bb4a66a8a13adcd))
+* **status:** track the bundle reproducibility gap ([#915](https://github.com/gjsify/gjsify/issues/915)) ([8b52e50](https://github.com/gjsify/gjsify/commit/8b52e50cdf036978b663acde8c04aa1edefc0eb2)), closes [#906](https://github.com/gjsify/gjsify/issues/906) [#913](https://github.com/gjsify/gjsify/issues/913)
+
+### Code Refactoring
+
+* replace `rm -rf` in every clear script ([fb00590](https://github.com/gjsify/gjsify/commit/fb00590545d8cbb506cd8445d07d5ba5d864fc62)), closes [#914](https://github.com/gjsify/gjsify/issues/914)
+
+### Continuous Integration
+
+* cancel a PR's runs when it closes ([#946](https://github.com/gjsify/gjsify/issues/946)) ([79af8fe](https://github.com/gjsify/gjsify/commit/79af8fe409dd695f7b7d3e12952afe7663ce7efd)), closes [#929](https://github.com/gjsify/gjsify/issues/929) [#943](https://github.com/gjsify/gjsify/issues/943) [#939](https://github.com/gjsify/gjsify/issues/939)
+* catch what silently reaches main — resurrected prose and unlinted PR titles ([#908](https://github.com/gjsify/gjsify/issues/908)) ([0bdb911](https://github.com/gjsify/gjsify/commit/0bdb9116eeca950abd8bf801ae0c9747d5d1bcb8)), closes [#886](https://github.com/gjsify/gjsify/issues/886) [#885](https://github.com/gjsify/gjsify/issues/885) [#892](https://github.com/gjsify/gjsify/issues/892) [pre-#885](https://github.com/gjsify/pre-/issues/885) [#892](https://github.com/gjsify/gjsify/issues/892) [#886](https://github.com/gjsify/gjsify/issues/886) [#886](https://github.com/gjsify/gjsify/issues/886) [#849](https://github.com/gjsify/gjsify/issues/849)
+* derive the baked-image exemptions ([#911](https://github.com/gjsify/gjsify/issues/911)) ([b2261fd](https://github.com/gjsify/gjsify/commit/b2261fd7f9ba28fd40cdc29c039ed19e94ed17b0)), closes [#900](https://github.com/gjsify/gjsify/issues/900) [#900](https://github.com/gjsify/gjsify/issues/900)
+* dispatch the cross-platform probe after publish ([#905](https://github.com/gjsify/gjsify/issues/905)) ([16e1aa8](https://github.com/gjsify/gjsify/commit/16e1aa86de9bf06e3118aae804c77a65614a3a7b)), closes [#901](https://github.com/gjsify/gjsify/issues/901) [#895](https://github.com/gjsify/gjsify/issues/895)
+* gate merges on a real GJS verdict ([#919](https://github.com/gjsify/gjsify/issues/919)) ([0275b20](https://github.com/gjsify/gjsify/commit/0275b20966988c1d3f0f4c621e2ca8ab219b723a)), closes [#910](https://github.com/gjsify/gjsify/issues/910) [#910](https://github.com/gjsify/gjsify/issues/910)
+* **prebuilds:** gate the tree the bot pushes ([#959](https://github.com/gjsify/gjsify/issues/959)) ([bf4a613](https://github.com/gjsify/gjsify/commit/bf4a6137f398ab3c84f4d41cf9891948cb5bfaef)), closes [#958](https://github.com/gjsify/gjsify/issues/958) [#958](https://github.com/gjsify/gjsify/issues/958)
+* **prebuilds:** retry the network fetches the emulated legs depend on ([#930](https://github.com/gjsify/gjsify/issues/930)) ([b019134](https://github.com/gjsify/gjsify/commit/b0191345355949290f399a0c7e776b05a14b9176))
+* **release:** ship node-gi's darwin-x64 prebuild ([#961](https://github.com/gjsify/gjsify/issues/961)) ([7563791](https://github.com/gjsify/gjsify/commit/7563791fc0e4c1c9986f58b8df5b20de6ef1ed5b)), closes [#921](https://github.com/gjsify/gjsify/issues/921) [#921](https://github.com/gjsify/gjsify/issues/921) [#900](https://github.com/gjsify/gjsify/issues/900) [#921](https://github.com/gjsify/gjsify/issues/921)
+* run the node-gi and napi jobs on the baked image ([#902](https://github.com/gjsify/gjsify/issues/902)) ([fd14f3c](https://github.com/gjsify/gjsify/commit/fd14f3c2acc384ca41805bf7d484b50b04ee90a9)), closes [#896](https://github.com/gjsify/gjsify/issues/896) [#896](https://github.com/gjsify/gjsify/issues/896) [#900](https://github.com/gjsify/gjsify/issues/900)
+* **webgl:** explore a win32-x64 prebuild ([#957](https://github.com/gjsify/gjsify/issues/957)) ([f67c492](https://github.com/gjsify/gjsify/commit/f67c492ae12266f07e5ff81177c197ac08501ff4)), closes [#if](https://github.com/gjsify/gjsify/issues/if) [#define](https://github.com/gjsify/gjsify/issues/define) [#pragma](https://github.com/gjsify/gjsify/issues/pragma) [#955](https://github.com/gjsify/gjsify/issues/955)
+
+### Maintenance
+
+* **cli:** rebuild the committed GJS bundle ([2626569](https://github.com/gjsify/gjsify/commit/2626569de4450445f2f4182bbcbc7613e1fba96a)), closes [#914](https://github.com/gjsify/gjsify/issues/914)
+* **prebuilds:** bootstrap the 60 platform-package names ([49dd1a2](https://github.com/gjsify/gjsify/commit/49dd1a2b1976c67212dbfa8f5110204e9040ff92))
+* rebuild the committed CLI bundle ([40856de](https://github.com/gjsify/gjsify/commit/40856de53f10f79fc95fd9eebfee0ed71627a2bb)), closes [#906](https://github.com/gjsify/gjsify/issues/906) [#910](https://github.com/gjsify/gjsify/issues/910) [#911](https://github.com/gjsify/gjsify/issues/911)
+* update native prebuilds [skip ci] ([7f4e812](https://github.com/gjsify/gjsify/commit/7f4e81291fd9a9fba7bcf129e955c7b428d46f61))
+* update native prebuilds [skip ci] ([f5d250b](https://github.com/gjsify/gjsify/commit/f5d250b32ee83b69e9872c3c654c9b7a2025f7c6))
+
+### Tests
+
+* **ci:** make the exemption fixture hermetic ([#958](https://github.com/gjsify/gjsify/issues/958)) ([96dcd0f](https://github.com/gjsify/gjsify/commit/96dcd0f8e42dc0de331947db0771e4904c1af079)), closes [#951](https://github.com/gjsify/gjsify/issues/951) [#951](https://github.com/gjsify/gjsify/issues/951)
+* **cli:** make the suite runnable on Windows ([1f15ed2](https://github.com/gjsify/gjsify/commit/1f15ed25ec3af5255f8b7e0ada5c300a0c81d6b1))
+* **cli:** skip the rows the host cannot run ([2ca573f](https://github.com/gjsify/gjsify/commit/2ca573fe5215ac30517ca1661feb4c90994a83d8))
+* **fs:** declare the ten win32 gaps as expected failures ([#954](https://github.com/gjsify/gjsify/issues/954)) ([1d4de3d](https://github.com/gjsify/gjsify/commit/1d4de3dd58f9b982660097e380b5ad43b837499a)), closes [#952](https://github.com/gjsify/gjsify/issues/952)
+
 ## [0.26.1](https://github.com/gjsify/gjsify/compare/v0.26.0...v0.26.1) (2026-08-01)
 
 ### Bug Fixes
