@@ -31,6 +31,13 @@ import * as promises from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Buffer } from 'node:buffer';
+import { platform } from 'node:process';
+
+// Assertions below marked `it.failing(..., { when: IS_WIN32 })` describe POSIX
+// concepts win32 does not have. The marker keeps them RUNNING and keeps the
+// assertion unweakened; it tolerates the failure only here, and fails the run the
+// day it starts passing — unlike a platform guard, which would hide it forever.
+const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     // ==================== realpathSync ====================
@@ -242,19 +249,24 @@ export default async () => {
     await describe('fs.chmodSync (paths with spaces)', async () => {
         // Same shell-out bug class as linkSync — chmod/chown used to route
         // through an unquoted shell command line too. Now native Gio attributes.
-        await it('should chmod a path containing a space and metacharacters', async () => {
-            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'chmod meta-');
-            const filePath = join(dir, 'mode $(x) file.txt');
-            writeFileSync(filePath, 'x');
+        await it.failing(
+            'should chmod a path containing a space and metacharacters',
+            async () => {
+                const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'chmod meta-');
+                const filePath = join(dir, 'mode $(x) file.txt');
+                writeFileSync(filePath, 'x');
 
-            chmodSync(filePath, 0o600);
-            expect(statSync(filePath).mode & 0o777).toBe(0o600);
-            chmodSync(filePath, 0o644);
-            expect(statSync(filePath).mode & 0o777).toBe(0o644);
+                chmodSync(filePath, 0o600);
+                expect(statSync(filePath).mode & 0o777).toBe(0o600);
+                chmodSync(filePath, 0o644);
+                expect(statSync(filePath).mode & 0o777).toBe(0o644);
 
-            rmSync(filePath);
-            rmdirSync(dir);
-        });
+                rmSync(filePath);
+                rmdirSync(dir);
+            },
+            'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
+            { when: IS_WIN32 },
+        );
     });
 
     await describe('fs.link (callback)', async () => {
@@ -329,60 +341,75 @@ export default async () => {
     // ==================== chmodSync / chmod ====================
 
     await describe('fs.chmodSync', async () => {
-        await it('should change file permissions', async () => {
-            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'chmod-');
-            const filePath = join(dir, 'file.txt');
-            writeFileSync(filePath, 'data');
+        await it.failing(
+            'should change file permissions',
+            async () => {
+                const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'chmod-');
+                const filePath = join(dir, 'file.txt');
+                writeFileSync(filePath, 'data');
 
-            chmodSync(filePath, 0o644);
-            const stats = statSync(filePath);
-            // Check permission bits (mask out file type bits)
-            expect(stats.mode & 0o777).toBe(0o644);
+                chmodSync(filePath, 0o644);
+                const stats = statSync(filePath);
+                // Check permission bits (mask out file type bits)
+                expect(stats.mode & 0o777).toBe(0o644);
 
-            chmodSync(filePath, 0o755);
-            const stats2 = statSync(filePath);
-            expect(stats2.mode & 0o777).toBe(0o755);
+                chmodSync(filePath, 0o755);
+                const stats2 = statSync(filePath);
+                expect(stats2.mode & 0o777).toBe(0o755);
 
-            rmSync(filePath);
-            rmdirSync(dir);
-        });
+                rmSync(filePath);
+                rmdirSync(dir);
+            },
+            'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
+            { when: IS_WIN32 },
+        );
     });
 
     await describe('fs.chmod (callback)', async () => {
-        await it('should change file permissions asynchronously', async () => {
-            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'chmod-cb-');
-            const filePath = join(dir, 'file.txt');
-            writeFileSync(filePath, 'data');
+        await it.failing(
+            'should change file permissions asynchronously',
+            async () => {
+                const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'chmod-cb-');
+                const filePath = join(dir, 'file.txt');
+                writeFileSync(filePath, 'data');
 
-            await new Promise<void>((resolve, reject) => {
-                chmod(filePath, 0o600, (err) => {
-                    if (err) reject(err);
-                    else resolve();
+                await new Promise<void>((resolve, reject) => {
+                    chmod(filePath, 0o600, (err) => {
+                        if (err) reject(err);
+                        else resolve();
+                    });
                 });
-            });
-            const stats = statSync(filePath);
-            expect(stats.mode & 0o777).toBe(0o600);
+                const stats = statSync(filePath);
+                expect(stats.mode & 0o777).toBe(0o600);
 
-            rmSync(filePath);
-            rmdirSync(dir);
-        });
+                rmSync(filePath);
+                rmdirSync(dir);
+            },
+            'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
+            { when: IS_WIN32 },
+        );
     });
 
     // ==================== promises.chmod ====================
 
     await describe('fs.promises.chmod', async () => {
-        await it('should change file permissions', async () => {
-            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'pchmod-');
-            const filePath = join(dir, 'file.txt');
-            writeFileSync(filePath, 'data');
+        await it.failing(
+            'should change file permissions',
+            async () => {
+                const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'pchmod-');
+                const filePath = join(dir, 'file.txt');
+                writeFileSync(filePath, 'data');
 
-            await promises.chmod(filePath, 0o640);
-            const stats = statSync(filePath);
-            expect(stats.mode & 0o777).toBe(0o640);
+                await promises.chmod(filePath, 0o640);
+                const stats = statSync(filePath);
+                expect(stats.mode & 0o777).toBe(0o640);
 
-            rmSync(filePath);
-            rmdirSync(dir);
-        });
+                rmSync(filePath);
+                rmdirSync(dir);
+            },
+            'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
+            { when: IS_WIN32 },
+        );
     });
 
     // ==================== promises.writeFile / readFile ====================

@@ -23,8 +23,15 @@ import {
 } from 'node:fs';
 import { constants } from 'node:fs';
 import { Buffer } from 'node:buffer';
+import { platform } from 'node:process';
 
 const TEST_DIR = './test-callback-' + Date.now();
+
+// Assertions below marked `it.failing(..., { when: IS_WIN32 })` describe POSIX
+// concepts win32 does not have. The marker keeps them RUNNING and keeps the
+// assertion unweakened; it tolerates the failure only here, and fails the run the
+// day it starts passing — unlike a platform guard, which would hide it forever.
+const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     await describe('fs callback API', async () => {
@@ -286,23 +293,28 @@ export default async () => {
 
         // ==================== chmod ====================
         await describe('chmod', async () => {
-            await it('should change file mode', async () => {
-                const path = TEST_DIR + '-chmod.txt';
-                await new Promise<void>((resolve, reject) => {
-                    writeFile(path, 'chmod test', (err) => {
-                        if (err) return reject(err);
-                        chmod(path, 0o644, (err2) => {
-                            if (err2) return reject(err2);
-                            stat(path, (err3, stats) => {
-                                if (err3) return reject(err3);
-                                // Check that mode includes the permission bits
-                                expect(stats.mode & 0o777).toBe(0o644);
-                                rm(path, () => resolve());
+            await it.failing(
+                'should change file mode',
+                async () => {
+                    const path = TEST_DIR + '-chmod.txt';
+                    await new Promise<void>((resolve, reject) => {
+                        writeFile(path, 'chmod test', (err) => {
+                            if (err) return reject(err);
+                            chmod(path, 0o644, (err2) => {
+                                if (err2) return reject(err2);
+                                stat(path, (err3, stats) => {
+                                    if (err3) return reject(err3);
+                                    // Check that mode includes the permission bits
+                                    expect(stats.mode & 0o777).toBe(0o644);
+                                    rm(path, () => resolve());
+                                });
                             });
                         });
                     });
-                });
-            });
+                },
+                'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
+                { when: IS_WIN32 },
+            );
         });
     });
 };

@@ -34,43 +34,6 @@ only its specs have been.
 **Note for anyone re-measuring:** a hand-created `C:\tmp` makes the module-load
 failure vanish without fixing anything (one existed on the test VM for several
 hours and hid exactly this). It has been removed there. Do not re-create it.
-### `@gjsify/fs` on Windows — 10 assertions win32 cannot satisfy
-
-Everything mechanical here is FIXED. What remains is one honest residue: ten
-assertions that encode a concept Windows does not have, so no spec edit can make
-them pass.
-
-History worth keeping, because both numbers were wrong once. Making
-`@gjsify/unit` report an assertion thrown from a host callback turned this suite
-from "144 lines, dead process, no summary, 1 of 19 spec modules reached" into a
-full run — first measured at 24 failures, which was itself understated: a
-hand-created `C:\tmp` on the test VM was masking 8 more. **32 is the clean-host
-baseline**; 22 of those were spec bugs and are gone (see the `fix(fs)` commit for
-the five classes).
-
-That the surviving 10 are not impl gaps is structural, not a judgement:
-`@gjsify/fs` declares `runtimes.node: "none"`, so `test:node` never aliases
-`node:fs` to our polyfill — those specs run against NATIVE Node fs, and per the
-testing rules a failure there means the TEST is wrong. Measured on the
-win11-gjsify VM (Node 24.18.1):
-
-- **POSIX mode bits (6)** — `chmod`/`chmodSync`/`fchmodSync`/`promises.chmod`
-  assert `0o644`/`0o600`/`0o640` and read back `0o666`. NTFS carries no POSIX
-  permission bits; Node reports `0o666` (`0o444` read-only).
-- **a stat-able character device (1)** — `statSync('/dev/null').isCharacterDevice()`.
-  Windows has no path that stats as one.
-- **directory `size > 0` (2)** — `statSync(dir).size` is 0 on Windows.
-- **`S_IRUSR`-style mode constants (1)** — absent from `fs.constants` on Windows.
-
-The sanctioned tool for declaring these is `it.failing`'s `when` option, so each
-keeps RUNNING, is tolerated only on win32, and fails the run the day it starts
-passing — rather than being guarded away and forgotten. NOT a platform `if`, and
-NOT a warning: both give up the self-retiring half.
-
-**Note for anyone re-measuring:** do not create `C:\tmp` to make things pass. It
-masks a real defect (that is how the 8 stayed hidden), and it has been removed
-from the VM.
-
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 
 `scripts/cross-runtime.mjs` carves Deno out of exit-code gating for the
