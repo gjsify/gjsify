@@ -722,9 +722,31 @@ jobs:
       # only GTK-touching assertion the macOS legs execute. It runs on BOTH matrix
       # arches, so the arm64 leg measures /opt/homebrew and the Intel leg
       # /usr/local — the two prefixes the derivation must handle.
+      #
+      # TWO invocations, because the derivation has two reachable halves and the
+      # convenient one is not the one users take. (a) keeps GI_TYPELIB_PATH, so the
+      # typelib half is guaranteed and the test can never degrade into a silent
+      # skip; it exercises the "host stated where typelibs live" source. (b) unsets
+      # GI_TYPELIB_PATH as well — the actual end-user environment, where nothing is
+      # exported and the pkg-config / probed-prefix sources are the only thing that
+      # can work. (a) alone would pass even if both of those were broken.
+      #
+      # (b) asserts the PASS COUNT rather than trusting the exit code: a missing
+      # typelib makes the test SKIP, which exits 0 and would quietly stop gating.
       - name: GTK typelib backers resolve with NO loader env (darwin-${{ matrix.arch }})
         working-directory: packages/node-gi/node-gi
-        run: env -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_LIBRARY_PATH node --test test/gtk-typelib-backers.test.mjs
+        run: |
+          set -euo pipefail
+          echo "--- (a) loader vars unset, GI_TYPELIB_PATH kept"
+          env -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_LIBRARY_PATH \
+            node --test --test-reporter=tap test/gtk-typelib-backers.test.mjs
+          echo "--- (b) end-user environment: no GI env at all"
+          env -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_LIBRARY_PATH -u GI_TYPELIB_PATH \
+            node --test --test-reporter=tap test/gtk-typelib-backers.test.mjs | tee /tmp/loader-gate-b.tap
+          grep -qx '# pass 2' /tmp/loader-gate-b.tap || {
+            echo "::error::env-free leg did not PASS 2 tests (a SKIP means the gate stopped gating)"
+            exit 1
+          }
         env:
           NODE_GI_NATIVE: build
 
