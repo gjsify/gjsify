@@ -1,5 +1,9 @@
-// E2E test for the runner-label → `<os>-<arch>` derivation in
-// `scripts/manifest-conformance/rules/platforms-ci.mjs`.
+// E2E test for the pure functions of
+// `scripts/manifest-conformance/rules/platforms-ci.mjs` — the repo-scoped half
+// of the OS axis. Four questions, each with its own `describe` below: the
+// runner-label → `<os>-<arch>` derivation the file is named for, the
+// release-only target set, release coverage, and the glyphs the platform matrix
+// renders.
 //
 // The platform audit learns which targets CI PRODUCES by reading each job's
 // `runs-on`, and attributes those targets to the packages the job builds. When
@@ -18,17 +22,27 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/ci-runner-arch/ → monorepo root is 3 levels up.
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const RULE = join(MONOREPO_ROOT, 'scripts', 'manifest-conformance', 'rules', 'platforms-ci.mjs');
+const LIB = join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'index.mjs');
 
-const { archFromRunner, auditReleaseCoverage, osFromRunner, parseMatrixIncludes, releaseOnlyTargets } = await import(
-    `file://${RULE}`
-);
+const {
+    archFromRunner,
+    auditReleaseCoverage,
+    creditPlatformArtifacts,
+    osFromRunner,
+    parseMatrixIncludes,
+    platformRows,
+    releaseOnlyTargets,
+    renderPlatformMatrix,
+} = await import(`file://${RULE}`);
+const { canonicalPlatform, createContext, platformPackageDirName, platformPackageName } = await import(`file://${LIB}`);
 
 /** `<os>-<arch>` exactly as the audit composes it from a bare runner label. */
 const target = (runsOn) => `${osFromRunner(runsOn)}-${archFromRunner(runsOn)}`;
@@ -263,5 +277,203 @@ describe('release coverage', () => {
         };
         const built = new Map([['@gjsify/terminal-native-linux-ppc64', new Set(['linux-ppc64'])]]);
         assert.deepEqual(auditReleaseCoverage([exotic], new Map(), built), []);
+    });
+});
+
+// The fourth question, and the one that had no check at all until this file grew
+// one: does a GLYPH in the platform matrix mean what its legend says?
+//
+// `✓ declared, a CI job targets it, artifact committed` was rendered for
+// `@gjsify/napi` (both targets deferred by its per-target packages, the linux-x64
+// directory DELETED in #960) and for `@gjsify/node-gi` (node-gyp at install time,
+// no committed directory anywhere) — because ADR 0017 moved `shipped`/
+// `platformsUncommitted` onto the per-target CHILD packages, which `matrixRows`
+// filters out of the table, so the `○` and `⚠` branches read those fields off a
+// parent that no longer carries them and were unreachable. The table is rendered
+// into the website's Platform Support page, so the cell that exists to stop
+// "declared" reading as "delivered" was itself claiming a delivery.
+//
+// Two layers, because either alone can pass while the other's failure ships:
+// synthetic rows pin the FUNCTION contract for all four shapes (a real tree only
+// ever holds some of them at a time), and a pass over the REAL tree pins the
+// legend as a PROPERTY — a `✓` iff a `prebuilds/<target>/` directory exists —
+// which cannot rot the way a copied snapshot of the table would.
+describe('platform matrix glyphs', () => {
+    /** A split bridge (ADR 0017): declares the targets, commits nothing itself. */
+    const bridge = (name, declared, { ci = declared, builder = 'meson' } = {}) => ({
+        name,
+        path: `packages/node/${basename(name)}`,
+        tier: 1,
+        builder,
+        declared,
+        shipped: [],
+        prebuildsField: null,
+        uncommitted: null,
+        ci,
+    });
+    /** One of that bridge's per-target packages — the tarball that holds the binary. */
+    const child = (parentName, target, { committed = true, ci = [target] } = {}) => ({
+        name: platformPackageName(parentName, target),
+        path: `packages/node/${platformPackageDirName(basename(parentName), target)}`,
+        tier: 1,
+        builder: 'meson',
+        declared: [target],
+        shipped: committed ? [target] : [],
+        prebuildsField: 'prebuilds',
+        uncommitted: committed
+            ? null
+            : { [target]: 'built + load-tested by CI; no job commits it back into this repo' },
+        ci,
+    });
+
+    /** The rendered table as `{ package: { target: glyph } }`. */
+    const glyphsOf = (rows, shown) => {
+        const credited = creditPlatformArtifacts(rows);
+        const md = renderPlatformMatrix(
+            credited.filter((r) => shown.includes(r.name)),
+            { markdown: true },
+        );
+        return parseMarkdownMatrix(md);
+    };
+
+    it('renders `✓` where a per-target package really commits the artifact', () => {
+        // The `@gjsify/tls-native` / `@gjsify/webgl` shape: the bridge contains no
+        // binary, its children contain all of them. `✓` is correct here and must
+        // survive the fix — a change that made every cell honest by making none of
+        // them `✓` would be no better than the inversion.
+        const rows = [
+            bridge('@gjsify/tls-native', ['linux-x64', 'darwin-arm64']),
+            child('@gjsify/tls-native', 'linux-x64'),
+            child('@gjsify/tls-native', 'darwin-arm64'),
+        ];
+        assert.deepEqual(glyphsOf(rows, ['@gjsify/tls-native'])['@gjsify/tls-native'], {
+            'darwin-arm64': '✓',
+            'linux-x64': '✓',
+        });
+    });
+
+    it('renders `○` when every child DEFERS its artifact', () => {
+        // `@gjsify/napi`: both per-target packages carry `gjsify.platformsUncommitted`
+        // — permanently, because no job commits either back (AGENTS.md § OS axis
+        // enforcement, "two kinds of exemption"). This is the cell that rendered
+        // `✓` while the repo held no napi binary at all.
+        const rows = [
+            bridge('@gjsify/napi', ['linux-x64', 'darwin-arm64']),
+            child('@gjsify/napi', 'linux-x64', { committed: false }),
+            child('@gjsify/napi', 'darwin-arm64', { committed: false }),
+        ];
+        assert.deepEqual(glyphsOf(rows, ['@gjsify/napi'])['@gjsify/napi'], {
+            'darwin-arm64': '○',
+            'linux-x64': '○',
+        });
+    });
+
+    it('renders `○` for an install-time bridge with no per-target packages', () => {
+        // `@gjsify/node-gi`: node-gyp, no `gjsify.prebuilds`, no children, nothing
+        // committed for ANY target — every declared one reaches a consumer only
+        // inside a `release.yml` tarball, which is what `auditReleaseCoverage` above
+        // guarantees. So the honest cell is `○`, and there is no exemption entry
+        // anywhere to key it on: absence of a committed artifact IS the signal.
+        const rows = [bridge('@gjsify/node-gi', ['linux-x64', 'darwin-x64', 'win32-x64'], { builder: 'node-gyp' })];
+        assert.deepEqual(glyphsOf(rows, ['@gjsify/node-gi'])['@gjsify/node-gi'], {
+            'darwin-x64': '○',
+            'linux-x64': '○',
+            'win32-x64': '○',
+        });
+    });
+
+    it('renders `⚠` for a committed artifact no CI job targets', () => {
+        // The other branch the parent-only read made unreachable. A green tree
+        // cannot show it (`auditPlatforms` fails declared-⊄-CI first), which is
+        // exactly why it needs a test: `--platforms` is ALSO printed on failure, to
+        // explain one.
+        const rows = [
+            bridge('@gjsify/terminal-native', ['linux-x64'], { ci: [] }),
+            child('@gjsify/terminal-native', 'linux-x64', { ci: [] }),
+        ];
+        assert.equal(glyphsOf(rows, ['@gjsify/terminal-native'])['@gjsify/terminal-native']['linux-x64'], '⚠');
+    });
+
+    it('refuses rows that never went through the credit pass', () => {
+        // The mechanism. Crediting AFTER `matrixRows` filters the children out finds
+        // nothing to credit and silently renders `✓` everywhere — a reporting path
+        // fails by answering a different question, never by exiting non-zero. So the
+        // renderer demands the field instead of defaulting it.
+        assert.throws(() => renderPlatformMatrix([bridge('@gjsify/webgl', ['linux-x64'])]), /artifacts/);
+    });
+});
+
+/** `renderPlatformMatrix(..., {markdown:true})` → `{ package: { target: glyph } }`. */
+function parseMarkdownMatrix(md) {
+    const rows = md.split('\n').filter((line) => line.startsWith('|'));
+    const cells = (line) =>
+        line
+            .split('|')
+            .slice(1, -1)
+            .map((c) => c.trim());
+    const header = cells(rows[0]); // package | tier | <target>…
+    const out = {};
+    for (const line of rows.slice(2)) {
+        const cols = cells(line);
+        const table = {};
+        for (let i = 2; i < cols.length; i++) table[header[i]] = cols[i];
+        out[cols[0].replaceAll('`', '')] = table;
+    }
+    return out;
+}
+
+// The same claim, against the tree as it actually is. The synthetic rows above
+// describe shapes; this one cannot be satisfied by a renderer that agrees with a
+// fixture and disagrees with the repository.
+describe('platform matrix glyphs — the real tree', () => {
+    /** Every directory a committed artifact for `<row, target>` could legally be in. */
+    const artifactDirs = (row, target) => [
+        join(MONOREPO_ROOT, row.path, 'prebuilds', target),
+        join(MONOREPO_ROOT, dirname(row.path), platformPackageDirName(basename(row.path), target), 'prebuilds', target),
+    ];
+
+    it('shows `✓` for a declared target iff a prebuild directory is committed for it', async () => {
+        const { matrixRows } = await platformRows(createContext({ root: MONOREPO_ROOT, discoveryRoots: ['packages'] }));
+        assert.ok(matrixRows.length > 0, 'no native bridges found — the context or discovery root moved');
+        const table = parseMarkdownMatrix(renderPlatformMatrix(matrixRows, { markdown: true }));
+        for (const row of matrixRows) {
+            for (const target of row.declared ?? []) {
+                const canon = canonicalPlatform(target);
+                const glyph = table[row.name][canon];
+                const committed = artifactDirs(row, target).some(existsSync);
+                assert.equal(
+                    glyph === '✓',
+                    committed,
+                    `${row.name} ${canon}: rendered \`${glyph}\`, but a committed prebuild directory ${committed ? 'DOES' : 'does NOT'} exist (${artifactDirs(row, target).join(' | ')}). \`✓\` claims "artifact committed" and nothing else may.`,
+                );
+            }
+        }
+    });
+
+    it('pins the two bridges this repository commits nothing for', async () => {
+        const { matrixRows } = await platformRows(createContext({ root: MONOREPO_ROOT, discoveryRoots: ['packages'] }));
+        const table = parseMarkdownMatrix(renderPlatformMatrix(matrixRows, { markdown: true }));
+        const rowFor = (name) => matrixRows.find((r) => r.name === name);
+        // Asserted over each bridge's OWN declared list rather than a target count,
+        // so adding a target does not red-line this test — the claim is about the
+        // package's contract, not about today's matrix width.
+        for (const name of ['@gjsify/napi', '@gjsify/node-gi']) {
+            const row = rowFor(name);
+            assert.ok(row, `${name} is not in the matrix any more`);
+            for (const target of row.declared) {
+                assert.equal(
+                    table[name][canonicalPlatform(target)],
+                    '○',
+                    `${name} ${target}: commits no artifact here (napi defers BOTH targets in its per-target packages; node-gi builds with node-gyp at install time), so the honest glyph is \`○\`. A \`✓\` here is either the rendering regression or a genuine policy change — a committed copy for ONE of a bridge's targets is the shape AGENTS.md § OS axis enforcement forbids.`,
+                );
+            }
+        }
+        for (const name of ['@gjsify/tls-native', '@gjsify/webgl']) {
+            const row = rowFor(name);
+            assert.ok(row, `${name} is not in the matrix any more`);
+            for (const target of row.declared) {
+                assert.equal(table[name][canonicalPlatform(target)], '✓', `${name} ${target}`);
+            }
+        }
     });
 });

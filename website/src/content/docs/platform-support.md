@@ -128,20 +128,20 @@ verified as far as the checking host allows — see
 
 <!-- Regenerate with: node scripts/audit-runtimes.mjs --platforms --markdown -->
 
-| package | tier | darwin-arm64 | linux-arm64 | linux-ppc64 | linux-riscv64 | linux-s390x | linux-x64 | win32-x64 |
-|---|---|---|---|---|---|---|---|---|
-| `@gjsify/http-soup-bridge` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
-| `@gjsify/http2-native` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
-| `@gjsify/lightningcss-native` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
-| `@gjsify/napi` | 3 | ○ | · | · | · | · | ✓ | · |
-| `@gjsify/node-gi` | 2 | ✓ | ✓ | · | · | · | ✓ | ✓ |
-| `@gjsify/oxfmt-native` | 1 | ✓ | ✓ | · | · | · | ✓ | · |
-| `@gjsify/rolldown-native` | 1 | · | ✓ | · | · | · | ✓ | · |
-| `@gjsify/sab-native` | 1 | · | ✓ | ○ | ○ | ○ | ✓ | · |
-| `@gjsify/terminal-native` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
-| `@gjsify/tls-native` | 1 | ✓ | ✓ | ○ | ○ | ○ | ✓ | · |
-| `@gjsify/webgl` | 1 | · | ✓ | ○ | ○ | ○ | ✓ | · |
-| `@gjsify/webrtc-native` | 1 | · | ✓ | ○ | ○ | ○ | ✓ | · |
+| package | tier | darwin-arm64 | darwin-x64 | linux-arm64 | linux-ppc64 | linux-riscv64 | linux-s390x | linux-x64 | win32-x64 |
+|---|---|---|---|---|---|---|---|---|---|
+| `@gjsify/http-soup-bridge` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+| `@gjsify/http2-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+| `@gjsify/lightningcss-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+| `@gjsify/napi` | 3 | ○ | · | · | · | · | · | ○ | · |
+| `@gjsify/node-gi` | 2 | ○ | ○ | ○ | · | · | · | ○ | ○ |
+| `@gjsify/oxfmt-native` | 1 | ✓ | ✓ | ✓ | · | · | · | ✓ | · |
+| `@gjsify/rolldown-native` | 1 | ✓ | ✓ | ✓ | · | · | · | ✓ | · |
+| `@gjsify/sab-native` | 1 | · | · | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+| `@gjsify/terminal-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+| `@gjsify/tls-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+| `@gjsify/webgl` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+| `@gjsify/webrtc-native` | 1 | · | · | ✓ | ✓ | ✓ | ✓ | ✓ | · |
 
 `✓` declared, a CI job targets it, artifact committed ·
 `○` declared, a CI job targets it, artifact NOT committed here ·
@@ -150,8 +150,16 @@ verified as far as the checking host allows — see
 
 The marks are read out of the workflow YAML, so "a CI job targets it" is exactly
 what they claim — not that a green run of that job exists. `○` in particular says
-nothing about whether the job currently succeeds; each `○` entry carries its own
-reason, printed on every `--check` run.
+nothing about whether the job currently succeeds.
+
+One row per bridge, and `✓` means the binary is committed **in this repository** —
+in the bridge's per-target package (`@gjsify/<bridge>-<os>-<arch>`, an
+`optionalDependencies` entry a package manager installs or silently skips), not in
+the bridge's own tarball. Since that split the bridge itself carries no
+`prebuilds/` directory at all, so a cell that asked the bridge alone answered
+"declared and built" and printed `✓` for two bridges that commit nothing anywhere;
+the glyphs are now machine-checked against the directories on disk
+(`tests/e2e/ci-runner-arch`).
 
 Every column above is a real directory name. Targets are spelled the one way a running
 process can compute about itself — `${process.platform}-${process.arch}` — so
@@ -162,25 +170,27 @@ the resolver that loads it all use the same string, with nothing to translate be
 
 `○` is the one state that needs reading carefully: CI produces the artifact, but
 this repository does not carry it, so a `git clone` has nothing to load and an
-`npm install` gets whatever the last publish shipped. It is never implicit — the
-package has to name the target and the reason in
-`package.json#gjsify.platformsUncommitted`, and the audit prints that reason on every
-run. The two current causes:
+`npm install` gets whatever the last publish shipped. It is never a gap the audit
+overlooked — every `○` target is held to a `release.yml` job that builds,
+load-tests and uploads it, because a release cannot download another workflow's
+artifact and that tarball is the only route by which one reaches a consumer. The
+two current causes:
 
-- **`@gjsify/napi` on darwin-arm64** — `napi.yml`'s macOS job builds it, load-tests
-  it and uploads it as a workflow artifact for a release to ship. No job commits it
-  back.
-- **The three emulated Linux targets** (`linux-ppc64`, `linux-s390x`,
-  `linux-riscv64`) — the build works again, the artifacts land on the next
-  `commit-prebuilds` run on `main`. Two defects had stacked in the emulated
-  prebuild legs: the target architecture was passed in an input
-  `uraimo/run-on-arch-action` ignores whenever a custom `base_image` is given (so
-  every "emulated" leg compiled on the runner and staged **x86-64** into those
-  directories), and the action also reset the emulator to a qemu old enough that
-  Fedora's package manager could not run under it. The legs now register a pinned
-  current qemu and build in the target-arch image; the mis-staged x86-64 artifacts
-  were removed in the meantime, so a consumer on those architectures hits the
-  guarded `imports.gi` degrade rather than an unloadable library.
+- **`@gjsify/napi`, both targets** — `napi.yml` rebuilds and gates on the
+  linux-x64 prebuild, and its macOS job builds, load-tests and uploads the
+  darwin-arm64 one; no job commits either back, and each per-target package states
+  exactly that in `package.json#gjsify.platformsUncommitted`, printed on every
+  `--check` run. The linux-x64 directory used to be committed while its darwin
+  sibling was exempt — one bridge running two policies, where every job that
+  touched the path overwrote the checked-out bytes before reading them and the
+  declaration checks stayed green across a week of source drift. Deleting it made
+  freshness real by removal: the only linux-x64 artifact anyone can load is now one
+  CI just built.
+- **`@gjsify/node-gi`, every declared target** — it builds with node-gyp at install
+  time, or installs a prebuild straight from a release artifact, so there is no
+  committed directory anywhere and no exemption entry to key the cell on: the
+  absence *is* the state. `release.yml` carries a prebuild leg per target, which is
+  what the audit checks.
 
 Check the matrix against reality at any time:
 
@@ -201,8 +211,13 @@ audit splits what it verifies and says which it did:
   `readelf`/`otool`); every `libgjsify*` sibling it records must be staged beside it
   and reachable through `$ORIGIN`/`@loader_path`; and every library leaf the typelib
   records must be present, because that leaf is what GObject-Introspection hands to
-  the loader the moment a consumer resolves a class. This is the half that caught both
-  the missing macOS sibling cdylib and the x86-64-as-ppc64 staging above.
+  the loader the moment a consumer resolves a class. This is the half that caught
+  both the missing macOS sibling cdylib and an emulated prebuild leg that compiled
+  **x86-64** and staged it into `prebuilds/linux-{ppc64,s390x,riscv64}/`:
+  `uraimo/run-on-arch-action` ignores its `arch` input whenever a custom
+  `base_image` is supplied, so every other check passed and the artifact even
+  loaded on the runner. Only reading the image's own machine field against its
+  directory name catches that.
 - **Functionally, only for the checking host's own target.** The library is
   `dlopen`ed with every library-path environment variable stripped, which proves the
   self-relative sibling hop for real instead of inferring it from the headers. A
