@@ -1682,15 +1682,22 @@ jobs:
   #
   # ── THE ONE GENUINE UNKNOWN — ANSWERED: YES, MSVC COMPILES IT ─────────────
   #
-  # MEASURED on the first dispatch (run 30808356641, cl.exe 19.51.36252, VS
-  # 2026): of the four generated `.c` files, MSVC compiled `handle-types.c` and
-  # `webgl-rendering-context.c` CLEANLY and reported ZERO language diagnostics on
-  # any of them. The two that failed did so with `C1083: Cannot open include
-  # file: 'epoxy/gl.h'` — a missing include DIRECTORY on a header that was
-  # present on disk (see the `INCLUDE` line in the build step for the mechanism
-  # and the fix). So the question this job was created to answer is settled:
-  # Vala-generated C is MSVC-compatible, and nothing about the generated code
-  # needed changing.
+  # MEASURED END TO END, and the leg is GREEN (run 30808747504, cl.exe
+  # 19.51.36252 / VS 2026, valac 0.56.19, gvsbuild 2026.6.0 = GLib 2.88.1 /
+  # GTK 4.22.4 / epoxy 1.5.10):
+  #   • all four generated `.c` files compiled, `gwebgl.dll` linked (189440 B),
+  #     `Gwebgl-0.1.typelib` generated (41744 B — the Linux one is 41752 B, and
+  #     the 8-byte delta is the recorded leaf string, `gwebgl.dll` vs
+  #     `libgwebgl.so`);
+  #   • ZERO language diagnostics on any file, so nothing about the generated
+  #     code needed changing;
+  #   • `Gwebgl.WebGLRenderingContext` resolved through node-gi, i.e. GI called
+  #     `…_get_type` and the DLL was really loaded.
+  # The FIRST dispatch (run 30808356641) is worth knowing about because it is
+  # what located the one real obstacle: it compiled 2 of the 4 files and failed
+  # the other two on `C1083: Cannot open include file: 'epoxy/gl.h'` — a header
+  # present on disk that no `.pc` file names. See the `INCLUDE` line in the build
+  # step; the mechanism is now printed by the diagnostics step every run.
   #
   # The pre-dispatch source scan that predicted this is kept because it explains
   # WHY, and because it is the thing to re-run if a valac bump ever breaks it —

@@ -700,11 +700,16 @@ compiles that C with MSVC against gvsbuild and load-tests through
 `@gjsify/node-gi`) — behind the package's `prebuilt_vala_c` meson option. No
 `win32-x64` token is in `gjsify.platforms`, deliberately: the declared-vs-built
 invariant is symmetric, so the leg proves itself first. Full rationale, the
-researched rejection of valac-on-Windows/MinGW, and the pre-dispatch source scan
-of the generated C live in that block's header comment — do not duplicate them
-here.
+researched rejection of valac-on-Windows/MinGW, and the measured MSVC result live
+in that block's header comment — do not duplicate them here.
 
-What is still OPEN, i.e. what a promotion owes beyond a green dispatch:
+**The leg is GREEN** (run 30808747504): all four generated `.c` files compile
+under cl.exe 19.51 with zero language diagnostics, `gwebgl.dll` links, the
+typelib records a `.dll` leaf, and `Gwebgl.WebGLRenderingContext` resolves
+through `@gjsify/node-gi` — so the library is really loaded, not merely found.
+What remains is a DECLARATION decision, not an engineering unknown.
+
+What is still OPEN, i.e. what a promotion owes beyond that green dispatch:
 
 - **`gwebgl.dll` imports `epoxy-0.dll`, and Windows has no system libepoxy.** On
   Linux and macOS libepoxy is a distro/Homebrew package, so the committed
