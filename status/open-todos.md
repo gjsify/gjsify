@@ -33,6 +33,41 @@ freshness gate — the expensive option) or a `gjsify run --node-script <file>`
 mode that bundles-and-runs on the fly (one mechanism, no new artifacts — the
 better option, and it would serve every repo script, not these four).
 
+Until then the engine diagnostic says the limitation out loud rather than
+recommending two commands that cannot work there; that wording is already fixed.
+
+### Six published showcases declare `exports` subpaths their tarball does not contain
+
+Found by `scripts/verify-tarball-outputs.mjs` on its first run — `--scope
+examples`, 13 declared entry points across 6 of the 8 published showcases, every
+one present on disk and absent from the tarball because `files` is `["dist"]`
+while the export names `./src/…`:
+
+- `example-dom-canvas2d-fireworks` — `./browser`
+- `example-dom-excalibur-jelly-jumper` — `./browser`, `./assets/*`
+- `example-dom-minimalist-browser` — `./browser`, `./browser-demo`
+- `example-dom-three-geometry-teapot` — `./browser`, `./three-demo`, `./assets/*`
+- `example-dom-three-postprocessing-pixel` — `./browser`, `./three-demo`, `./assets/*`
+- `example-dom-webrtc-loopback` — `./browser`, `./loopback-demo`
+
+Invisible until now for the same reason the cold-clone finding was misread: the
+website resolves `@gjsify/example-dom-<name>/browser` through the workspace
+symlink, where `src/` is on disk. Published, each is a dangling pointer — and
+`./assets/*` is worse than cosmetic, because AGENTS.md documents
+`require.resolve('@gjsify/example-dom-<name>/assets/<file>')` as the RUNTIME
+asset path.
+
+Deliberately NOT fixed in the PR that found it, because both repairs are
+publishing-policy decisions rather than drive-bys. (a) Add `src` to `files`:
+makes the declaration true, and costs up to 3.9 MB per tarball
+(`excalibur-jelly-jumper`'s `src/`; `three-geometry-teapot/src/assets` alone is
+1.3 MB) to ship TypeScript no published consumer compiles. (b) Delete the
+subpaths: cheaper, but it also removes them inside the workspace — an `exports`
+map gates subpath access, so the website's imports break with them. Pick (a) for
+`./assets/*` at minimum. `--scope examples` is what closes it: the core scope is
+wired into `main.yml` and green, the examples scope is not wired precisely
+because it would red-line `main` on this finding.
+
 ### `@gjsify/child_process` on Windows — 86 of 145 specs fail once the module can load at all
 
 The specs took `TMP_DIR` from a literal `/tmp` and `realpathSync`'d it at MODULE
@@ -221,6 +256,7 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 
 - **`gjsify manifest-check` is designed but not shipped.** The portable rules (`package-outputs`, `prebuild-artifacts`, `headless`, `field-coverage`) are already extracted into a package with a hand-written `lib/index.d.ts`, so the command is a thin wrapper over `selectRules({ scope: 'portable' })`. It was held back because it carries two costs a refactor must not smuggle in: the package has to flip from `private` to published, which needs the manual first-publish + Trusted-Publisher bootstrap BEFORE the next release train, and adding a command rebuilds `dist/{cli,affected}.gjs.mjs`, coupling the change to the committed-bundle gate. The name is settled: `manifest-check` — a sibling of `system-check` (machine has what the project needs) and distinct from `check` (types compile). Evidence it is worth doing: downstream consumers already declare `gjsify.storybook` (buchhaltung, pixel-rpg/map-editor) and `gjsify.prebuilds` (buchhaltung's ERiC package, which declares a prebuilds directory with NO `gjsify.platforms` — a hard failure in this repo, unchecked in theirs).
 - **Five `gjsify.*` declaration kinds have no rule** and are deferred with a written reason in `scripts/manifest-conformance/unchecked-fields.mjs`, printed on every audit run. Four are judged unverifiable-by-construction (`defineFromPackageJson`, `flatpak`, `buildCache`, and `nativescriptPlatforms` until there is a per-platform artifact to compare against); the one remaining FINDING is `gjsify.storybook` (a typo in `stories` produces an empty component browser, not an error). `gjsify.main` and `gjsify.example` left the ledger when `package-outputs` claimed them.
+- **`gjsify pack`'s own shipped-vs-declared guard is still types-only, and the same `private` flag is why.** `assertTypeDeclarationsShipped` refuses to pack a `types`/`typings` file it can see but would not ship (the #655 guard) — the right place, because it fires at the moment of packing and protects CONSUMER trees too. The superset (every declared entry point, not just the type fields) lives in `scripts/verify-tarball-outputs.mjs` instead, because it needs `declaredPaths()` from this package and a published `@gjsify/cli` cannot depend on a `private: true` one — the same blocker as `gjsify manifest-check` above, and it closes with the same npm bootstrap. Measured gap while it stands: narrow a package's `files` so only `lib/esm/register.js` is excluded and `gjsify pack` exits 0 and writes a tarball whose declared `exports["./register"].default` is absent (13 type files shipped, so the existing guard stays quiet); the script catches it. Fold the script's check INTO the packer when the package is published, and keep the script as its repo-wide sweep.
 - **The affected classifier does not know the conformance/status paths.** `scripts/audit-runtimes.mjs` is a `GLOBAL_TRIGGER`; `scripts/manifest-conformance/**`, `packages/infra/manifest-conformance/**`, `scripts/generate-status.mjs` and the authored `status/**` data are not classified (unknown paths fall back to a conservative full run). `status/*.md` is already covered by the blanket `*.md` IGNORE, but `status/status.json` is NOT — editing a package's authored status therefore forces a full CI run today, and `status/**` should join the docs-shaped IGNORE set. No coverage is lost today because `audit-runtimes.yml` carries no `paths` filter and runs on every PR, but the trigger/ignore tables and the rule locations should be brought back into agreement — an affected-classifier change rebuilds the committed `dist/affected.gjs.mjs`, so batch it with the next CLI-src touch.
 
 ### Toolchain hygiene follow-ups
