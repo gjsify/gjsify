@@ -492,6 +492,54 @@ mid-release. Worth fixing at the source (reproducible flags) rather than by
 suppressing the commit, since byte-reproducibility is what would let a future
 check compare a committed prebuild against a CI-built one at all.
 
+### What still writes to `main` unverified, after the bot push got a gate
+
+`commit-prebuilds` now runs the checks that read its own output on the tree it is
+about to push (`Gate the tree being pushed`), which closed the incident where
+f5d250b32 cleared `gjsify.platformsUncommitted` under a CI-skip directive and left
+`tests/e2e/platform-exemption-clearing` red on every open PR for hours. A sweep
+done while fixing it found five more holes in the same write path. All five are
+verified reads, none is fixed:
+
+- **`packages/napi/napi-*/prebuilds/**` is committed but written by no job.**
+  `napi.yml` rebuilds it, overwrites the checked-out copy and throws the result
+  away; `prebuilds.yml` has no napi download step. So any change to
+  `packages/napi/napi/src/` leaves the committed bytes at their old commit while
+  every declaration check stays green.
+- **`download-artifact` MERGES and nothing prunes.** Each step extracts into an
+  existing `prebuilds/<target>/` without clearing it, `git add` only adds, and
+  `Refuse to delete a committed prebuild` forbids removal — so a `meson.build`
+  change that renames a library or drops a `.gir` leaves the stale file beside the
+  new one, and `files: ["prebuilds"]` publishes both.
+- **The committed `.gir` files are validated by nothing on Linux.**
+  `prebuild-artifacts` looks at `LIB_EXT[os]` and `.typelib`; `prebuild-libc` reads
+  ELF. No rule enumerates expected files, only "at least one lib + at least one
+  typelib", so a leg that stops emitting a `.gir` is silent.
+- **`prebuild-artifacts`' dlopen probe degrades to a NOTE on `ubuntu-latest`,**
+  which is the runner that gates the push: no libsoup3 / GStreamer / GTK4 /
+  libepoxy, so the linux-x64 artifacts of http-soup-bridge, http2-native, webgl and
+  webrtc-native are never actually loaded there. The gate proves declarations and
+  file shape, not that an artifact loads.
+- **Two `commit-prebuilds` jobs can race.** Non-PR runs get a concurrency group
+  keyed by `run_id` with `cancel-in-progress: false`, deliberately — so a
+  `workflow_dispatch` run overlapping a `push` run means one `git push` is rejected
+  non-fast-forward, the step fails, and every binary that run downloaded is
+  discarded with no retry.
+
+Adjacent, same cause, different workflow: `commitlint.yml` triggers on
+`pull_request` only, so neither bot path to `main` — the prebuild push nor
+`chore: release v${version}` — is ever linted, while
+`@release-it/conventional-changelog` walks exactly those commits to build the
+CHANGELOG.
+
+The one lever not pulled is **dropping the CI-skip directive from the prebuild
+push**. Checked: it cannot loop (`prebuilds.yml`'s own `push` paths list sources,
+meson files and scripts — not `packages/*/*/prebuilds/**`), and it would buy the
+only coverage the new gate structurally cannot reach: the two specs that genuinely
+LOAD a committed prebuild under GJS in `main.yml`'s `test` job. It costs one full
+`main.yml` run per landing, which is rare. It detects rather than prevents, so it
+is a complement to the gate, not a replacement — decide it deliberately.
+
 ### A workflow GitHub refuses to load reports the PR as GREEN
 
 When GitHub rejects a workflow file it creates a run with ZERO jobs, hence zero

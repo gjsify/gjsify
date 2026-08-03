@@ -2729,21 +2729,96 @@ jobs:
       # so this needs no install and no build. It runs on the STAGED tree — after
       # every download, before the commit — which is the only moment the new
       # binaries and the old declarations exist side by side.
+      #
+      # This step is the FAST FAIL. It is deliberately kept even though the gate
+      # below subsumes it: failing before a commit exists is a clearer log than
+      # failing after a commit and a rebase.
       - name: Gate on the measured glibc floor + libc flavour
         run: |
           set -euo pipefail
           node scripts/audit-runtimes.mjs --check
 
       - name: Commit prebuilds
+        id: commit
         run: |
           set -euo pipefail
           if git diff --cached --quiet; then
             echo "No prebuild changes to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "chore: update native prebuilds [skip ci]"
+            # Rebase, but DO NOT push yet — the gate below has to see the tree
+            # that will actually land, and this is the line that changes it.
             git pull --rebase origin main
-            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # THE THIRD guard, and the one that closes the hole the first two share:
+      # they check a tree nobody pushes.
+      #
+      # Two separate defects, both measured, both fixed by putting one step here:
+      #
+      # 1. ORDERING. The gate above ran before `git pull --rebase origin main`,
+      #    so the audited tree was provably not the pushed tree. A PR that edits a
+      #    bridge's `gjsify.platforms`, drops a per-target package or bumps a
+      #    version can merge while this job sits between the two steps; the rebase
+      #    replays the prebuild commit onto it cleanly, because the hunks do not
+      #    overlap, and the combination nobody audited is what lands.
+      #
+      # 2. SCOPE. The push carries `[skip ci]`, which suppresses BOTH required
+      #    checks on the resulting commit — `CI gate (GJS)` and `Detect runtime-
+      #    triplet drift` — and the step above substitutes exactly one of
+      #    audit-runtimes.yml's steps. Everything else that reads what this job
+      #    writes ran nowhere. That is not hypothetical: on 2026-08-03 f5d250b32
+      #    cleared `gjsify.platformsUncommitted` from the darwin manifests (its own
+      #    step, 90 lines up) and broke `tests/e2e/platform-exemption-clearing`,
+      #    whose fixture had seeded itself from one of them. `main` was red for
+      #    every open PR for hours, each one blaming its own diff, and the commit
+      #    that caused it had no CI to blame. The fixture is hermetic now — but
+      #    hermetic fixtures are not the general answer, because several of these
+      #    suites measure the REAL committed artifact on purpose:
+      #    `prebuild-loader-path` asserts exact glibc floors, exact DT_NEEDED sets
+      #    and a `=== null`; `prebuild-declaration-invariant` hard-codes measured
+      #    floors. Those are properties of bytes THIS JOB REWRITES.
+      #
+      # So: the checks that read this job's output now run on the exact tree this
+      # job is about to push, and a bot that would break `main` fails instead —
+      # `main` stays green and the next PR author is never handed someone else's
+      # failure.
+      #
+      # `--strict` and not plain `--check`, because audit-runtimes.yml already runs
+      # `--check --strict` on this very runner (plain `ubuntu-latest`). Leaving the
+      # bot's command weaker than the branch's is a standing exemption for every
+      # future strict-only rule.
+      #
+      # The suite list is explicit rather than a glob: it is exactly the set whose
+      # fixtures read the state this job mutates. A glob would drag in suites that
+      # need a built workspace or a GJS runtime, which this runner has not got.
+      # Every entry imports nothing but `node:*` and repo-local paths, so this
+      # needs no install and no container — measured on main: 110 tests, seconds.
+      #
+      # WHAT THIS DOES NOT COVER, so a green verdict is not misread: the two
+      # assertions that actually LOAD a committed prebuild live in main.yml's
+      # `test` job under GJS and are unreachable from here, and
+      # `prebuild-artifacts`' dlopen probe degrades to a note on a runner without
+      # libsoup/GStreamer/GTK4/libepoxy. This gate proves declarations and file
+      # shape, not that every artifact loads.
+      - name: Gate the tree being pushed
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          node scripts/audit-runtimes.mjs --check --strict
+          node scripts/audit-test-scripts.mjs
+          node --test --test-concurrency=4 \
+            tests/e2e/platform-exemption-clearing/run.mjs \
+            tests/e2e/prebuild-declaration-invariant/run.mjs \
+            tests/e2e/prebuild-loader-path/run.mjs \
+            tests/e2e/prebuild-change-gate/run.mjs \
+            tests/e2e/stage-prebuild/run.mjs
+
+      - name: Push
+        if: steps.commit.outputs.changed == 'true'
+        run: git push
 
   # ----------------------------------------------------------------
   # Coverage summary — what this run actually built, and what it did not
