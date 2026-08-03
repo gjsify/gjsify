@@ -3,6 +3,12 @@
 
 [CCode (cprefix = "GL", gir_version = "1.0", lower_case_cprefix = "gl_", cheader_filename = "epoxy/gl.h")]
 namespace GL {
+	// libepoxy's own capability query, as `major * 10 + minor` (41 for GL 4.1).
+	// Needed because epoxy resolves entry points LAZILY and aborts the process on
+	// a miss, so an entry point that a host's GL version does not provide has to
+	// be avoided rather than called and recovered from. Not part of valagl.
+	[CCode (cheader_filename = "epoxy/gl.h", cname = "epoxy_gl_version")]
+	public static int epoxyGlVersion ();
 	[CCode (cheader_filename = "epoxy/gl.h", cname = "GLsync", free_function = "")]
 	[Compact]
 	public class GLsync {
