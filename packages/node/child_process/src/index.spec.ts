@@ -2,14 +2,21 @@ import { describe, it, expect, on } from '@gjsify/unit';
 // Testing the child_process module API — all commands are hardcoded safe literals
 import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 // A process's working directory is the RESOLVED path, so `pwd` in a child
 // spawned with `cwd: TMP_DIR` prints the symlink target, not the string that
-// was passed in. On macOS `/tmp` is a symlink to `/private/tmp`, so asserting
-// the literal fails there while passing on Linux; Node reports the resolved
-// path on both. Comparing against the resolved value keeps ONE assertion
-// correct on every OS (on Linux `realpathSync('/tmp')` is `/tmp`).
-const TMP_DIR = '/tmp';
+// was passed in. On macOS the temp dir sits under `/var`, a symlink to
+// `/private/var`, so asserting the literal fails there while passing on Linux;
+// Node reports the resolved path on both. Comparing against the resolved value
+// keeps ONE assertion correct on every OS.
+//
+// `tmpdir()`, never the literal `/tmp`: on Windows that resolves against the
+// current drive to `C:\tmp`, which does not exist, and `realpathSync` throws at
+// MODULE EVALUATION — so the whole spec module fails to load and not one of its
+// tests runs. A hand-created `C:\tmp` makes the symptom disappear without fixing
+// anything, which is how this stayed hidden.
+const TMP_DIR = tmpdir();
 const TMP_DIR_RESOLVED = realpathSync(TMP_DIR);
 
 // Ported from refs/node/test/parallel/test-child-process-exec*.js
