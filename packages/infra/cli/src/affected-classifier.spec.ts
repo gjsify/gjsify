@@ -345,6 +345,12 @@ export default async (): Promise<void> => {
             const r = await runClassify(root, [
                 '.github/workflows/deploy-docs.yml',
                 '.github/workflows/audit-runtimes.yml',
+                // `cancel-pr-runs.yml` is listed by NAME in OTHER_WORKFLOW_INPUTS,
+                // like every sibling — the table is an alternation, not a glob, so
+                // a new workflow is `unmatched` (a conservative FULL run) until it
+                // is added. Asserting it here is what makes that a test failure
+                // rather than a silent slowdown on every PR touching the file.
+                '.github/workflows/cancel-pr-runs.yml',
             ]);
             expect(r.skipAll).toBe(true);
         });
