@@ -4,6 +4,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import {
     symlink as symlinkCb,
+    mkdirSync,
     mkdtempSync,
     rmdirSync,
     unlinkSync,
@@ -181,6 +182,38 @@ export default async () => {
 
             await unlink(link);
             await unlink(target);
+            await rmdir(dir);
+        });
+
+        await it('resolves a symlinked ANCESTOR, not just a trailing symlink', async () => {
+            // The gap the two cases above could not see, twice over: they assert
+            // only `typeof real === 'string'` plus a non-zero length, and they
+            // only ever put the symlink LAST. `realpathSync` used to query the
+            // full path once and return it unchanged when the leaf was a real
+            // file, so a symlink anywhere ABOVE the leaf survived into the result.
+            //
+            // Invisible on Linux CI (`/tmp` is a real directory, so identity is
+            // also correct) and wrong on macOS, where `/var` symlinks to
+            // `private/var` — six `@gjsify/child_process` cwd tests failed on
+            // main's macOS leg because `realpathSync(os.tmpdir())` disagreed with
+            // the cwd a spawned process reports. This asserts the VALUE, so it
+            // fails on the defect instead of on a symptom somewhere downstream.
+            const dir = mkdtempSync(join(tmpdir(), 'fs-rp-anc-'));
+            const realDir = join(dir, 'real');
+            const linkDir = join(dir, 'link');
+            mkdirSync(join(realDir, 'leaf'), { recursive: true });
+            await symlink(realDir, linkDir);
+
+            // `dir` itself may sit behind a symlink (it does on macOS), so the
+            // expectation is anchored on the resolved parent rather than on `dir`.
+            const resolvedDir = realpathSync(dir);
+            expect(realpathSync(join(linkDir, 'leaf'))).toBe(join(resolvedDir, 'real', 'leaf'));
+            // The leaf-symlink case must keep working — with its value checked.
+            expect(realpathSync(linkDir)).toBe(join(resolvedDir, 'real'));
+
+            await unlink(linkDir);
+            await rmdir(join(realDir, 'leaf'));
+            await rmdir(realDir);
             await rmdir(dir);
         });
     });

@@ -133,12 +133,48 @@ export function readdirSync(
 
 const MAX_SYMLINK_DEPTH = 40; // matches Linux MAXSYMLINKS
 
+/**
+ * POSIX `realpath(3)`: resolve EVERY component, not merely a trailing symlink.
+ *
+ * This used to `query_info` the path once and return it UNCHANGED whenever the
+ * LEAF was not a symlink, so a symlinked ANCESTOR survived into the result. On a
+ * typical Linux box that is invisible — `/tmp` is a real directory, so the
+ * identity answer happens to be the right one. On macOS `/var` is a symlink to
+ * `private/var`, so `realpathSync(os.tmpdir())` returned `/var/folders/…` while a
+ * child process asked for its own cwd reported `/private/var/folders/…`. That
+ * surfaced as six `@gjsify/child_process` cwd failures on main's macOS leg — the
+ * only leg that runs it, macOS being off for pull requests. The platform was
+ * incidental: reproduced on Linux with nothing but a symlinked parent directory.
+ *
+ * The symlink budget is shared across the whole walk because POSIX counts total
+ * resolutions rather than per-component ones, so a cycle reachable through any
+ * component still terminates.
+ */
 export function realpathSync(path: PathLike): string {
     const pathStr = normalizePath(path);
-    let current = Gio.File.new_for_path(pathStr);
-    let depth = 0;
+    return resolveEveryComponent(Gio.File.new_for_path(pathStr), { left: MAX_SYMLINK_DEPTH }, pathStr);
+}
 
-    while (true) {
+/** Resolve `file`'s ancestors first, then `file` itself. */
+function resolveEveryComponent(file: Gio.File, budget: { left: number }, original: string): string {
+    const parent = file.get_parent();
+    // At the root there is nothing above left to resolve.
+    const here =
+        parent === null
+            ? file
+            : Gio.File.new_for_path(resolveEveryComponent(parent, budget, original)).get_child(file.get_basename()!);
+    return expandSymlinks(here, budget, original);
+}
+
+/**
+ * Expand `file` for as long as it is a symlink. A target may itself sit behind
+ * symlinked ancestors, so every hop is resolved in full rather than just
+ * appended — which is what makes this mutually recursive with
+ * {@link resolveEveryComponent}. Both directions consume the same budget.
+ */
+function expandSymlinks(file: Gio.File, budget: { left: number }, original: string): string {
+    let current = file;
+    for (;;) {
         const info = current.query_info(
             'standard::is-symlink,standard::symlink-target',
             Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
@@ -149,13 +185,19 @@ export function realpathSync(path: PathLike): string {
             return current.get_path()!;
         }
 
+        if (--budget.left < 0) {
+            throw new Error(`ELOOP: too many levels of symbolic links, realpath '${original}'`);
+        }
+
         const target = info.get_symlink_target()!;
         const parent = current.get_parent();
-        current = parent ? parent.resolve_relative_path(target) : Gio.File.new_for_path(target);
-
-        if (++depth > MAX_SYMLINK_DEPTH) {
-            throw new Error(`ELOOP: too many levels of symbolic links, realpath '${pathStr}'`);
-        }
+        // An ABSOLUTE target is not relative to anything — `resolve_relative_path`
+        // is documented for relative inputs only, so branch explicitly instead of
+        // relying on how the local-file backend happens to treat one.
+        const hop = GLib.path_is_absolute(target)
+            ? Gio.File.new_for_path(target)
+            : (parent ?? current).resolve_relative_path(target);
+        current = Gio.File.new_for_path(resolveEveryComponent(hop, budget, original));
     }
 }
 (realpathSync as unknown as { native: typeof realpathSync }).native = realpathSync;
