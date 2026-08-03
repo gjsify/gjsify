@@ -166,6 +166,43 @@ conformance subset since 2.9 (the marshalling/async N-API quirks that excluded
 `arrays`/`async-error` on Deno 2.1 are fixed upstream) — the Node-only co-pump
 cases are the remaining, by-design gap. The authoritative full suite runs on Node.
 
+**Architectures.** CI runs the Bun/Deno legs on x86-64 only, so `linux-arm64` was
+measured by hand on a OnePlus 6T / postmarketOS (2026-08-03) against the PUBLISHED
+0.27.0 `prebuilds/linux-arm64/node_gi.node`: **Bun 1.3.14 → 38/38** cross-runtime
+files, **Deno 2.9.4 → 35/38 plus the three known non-gating Deno teardown exits,
+0 failed**. Two libc notes from that run:
+
+- the prebuild declares glibc, yet it **loads and runs on a pure-musl host** (Alpine
+  / postmarketOS, no glibc, no `gcompat`) under Bun's musl build: musl's dynamic
+  loader maps the `libc.so.6` / `libm.so.6` `DT_NEEDED` entries onto ITSELF via its
+  reserved-name list, and every other dependency (`libglib-2.0`,
+  `libgirepository-2.0`, `libcairo`, `libstdc++`, `libgcc_s`) exists musl-built.
+  **Do not read a successful load as "every symbol resolved".** Measured on that
+  host: an absent *strong* undefined symbol fails `dlopen` at load (same under
+  `RTLD_NOW` and `RTLD_LAZY`, same for a versioned `sym@VERS_1.0` reference — musl
+  has no symbol versioning and matches by name), but an absent **weak** undefined
+  symbol loads fine, runs unrelated code in the same library, and then SIGSEGVs at
+  the first call that needs it. This binary is clear on that point by audit, not by
+  inference: 5 of its 579 undefined symbols are weak, and the 3 unresolvable on musl
+  (`_ITM_{,de}registerTMCloneTable`, `__gmon_start__`) are the NULL-guarded gcc
+  boilerplate every DSO carries.
+- **Deno publishes no musl build** (`aarch64-unknown-linux-gnu` only), so on such a
+  host Deno needs a glibc environment (here the `org.gnome.Platform//49` flatpak
+  runtime: glibc 2.42, gjs 1.86.0). With `node_modules/` already materialised, both
+  `--node-modules-dir=manual` and Deno's default worked.
+
+On **Linux** the typelib's bare library leaf needs no help: `Gtk`/`Gdk`/`Adw`/`Pango`/
+`Graphene` all resolve and `Gtk.DrawingArea` subclasses correctly with no
+`GI_TYPELIB_PATH` and no `LD_LIBRARY_PATH`, both on the musl host and inside the
+flatpak runtime, because the system loader's default search path already covers the
+distro's own libraries. That is worth stating explicitly because the same step FAILS
+on macOS (`Failed to load shared library 'libgtk-4.1.dylib' referenced by the
+typelib` → `Gtk.DrawingArea is not a subclassable GObject type`): dyld has no
+`ld.so.conf` equivalent, and a plain `node`/`bun`/`deno` binary carries no rpath into
+Homebrew's prefix, where `gjs` itself does. A loader-path failure of that shape is
+never a node-gi or runtime defect — see `gtk-runtime.js` and the CLI's
+`detectNativePackages()` / `buildNativeEnv()` for how the env normally gets wired.
+
 Promise draining during a blocking loop is cross-runtime because the engine runs
 a **microtask checkpoint at every outermost loop-dispatched GLib→JS callback
 boundary**: Node's `napi_make_callback` performs it natively; Bun's and Deno's

@@ -78,7 +78,21 @@ test('an empty typed array marshals as an empty GBytes', () => {
 test('a callee that KEEPS the bytes stays valid after the engine drops its ref', () => {
     // g_bytes_new_from_bytes refs the parent GBytes and shares its memory — the
     // child must still read correctly after the invoke released our fresh copy.
-    const child = GLib.Bytes.new_from_bytes(new Uint8Array([5, 6, 7, 8]), 1, 2);
+    //
+    // Its INTROSPECTION is GLib-version dependent, so the test follows the running
+    // GLib instead of hardcoding one spelling: GLib >= 2.88 exposes it as a static
+    // CONSTRUCTOR (arg 0 = the parent GBytes), earlier GLib as an INSTANCE METHOD on
+    // the parent. Measured on aarch64 — gjs 1.88.1 / GLib 2.88.1 static-only,
+    // gjs 1.86.0 / GLib 2.86.5 (org.gnome.Platform//49, the repo's declared gjs floor)
+    // instance-only — and node-gi mirrors whichever the typelib says, which is the
+    // fidelity that surfaced this. A `typeof` probe cannot tell them apart: the L1
+    // exposes every static lazily, so the "is an instance method" refusal only lands at
+    // CALL time. Either branch drops the parent handle immediately, so the gc() below
+    // still exercises "the child survives the engine releasing the parent".
+    const staticCtor = GLib.check_version(2, 88, 0) === null;
+    const child = staticCtor
+        ? GLib.Bytes.new_from_bytes(new Uint8Array([5, 6, 7, 8]), 1, 2)
+        : GLib.Bytes.new(new Uint8Array([5, 6, 7, 8])).new_from_bytes(1, 2);
     if (globalThis.gc) globalThis.gc();
     assert.deepEqual([...child.toArray()], [6, 7]);
 });

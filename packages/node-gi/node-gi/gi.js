@@ -1956,25 +1956,74 @@ function paramSpecToNative(desc, key) {
     return spec;
 }
 
-// Normalise a signal param/return type to the native type-name vocabulary: a
-// string passes through; a ParamSpec descriptor contributes its `.type`.
+// Normalise a signal param/return type to the native type-name vocabulary the
+// engine resolves with g_type_from_name (src/class.cc TypeNameToGType). THREE
+// spellings are accepted, in the order tried:
+//   • a string — node-gi's own shorthand ('int', 'GBytes', any registered GType name)
+//   • a GObject.ParamSpec descriptor — contributes its `.type`
+//   • a GTYPE — `GObject.TYPE_INT`, `SomeClass.$gtype`. This is what GJS documents
+//     and what every ported GJS class writes, and it is an OPAQUE tagged External
+//     (marshal.cc kGTypeHandleTag): neither a string nor a carrier of `.type`, so it
+//     has to be turned back into its canonical name via the introspected
+//     `g_type_name()` — the same GType→name round-trip TypeNameToGType inverts.
+// `undefined` = "not a type at all"; the caller REJECTS it (see signalSpecToNative).
 function normalizeSignalType(t) {
     if (typeof t === 'string') return t;
-    if (t !== null && typeof t === 'object' && typeof t.type === 'string') return t.type;
-    return undefined;
+    if (t === null || typeof t !== 'object') return undefined;
+    if (typeof t.type === 'string') return t.type;
+    // Lazy + namespaceCache'd; GObject is necessarily loaded already (the caller got
+    // here through GObject.registerClass), same shape as the Symbol.hasInstance GType
+    // lookup above. `type_name` THROWS a TypeError for anything that is not a GType
+    // handle (marshal.cc UnwrapGTypeArg) — that IS the "not a type" answer, and the
+    // caller turns it into a message naming the signal, so it is caught here.
+    try {
+        const name = requireGi('GObject', '2.0').type_name(t);
+        return typeof name === 'string' && name.length > 0 ? name : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function describeSignalType(t) {
+    return t === null ? 'null' : typeof t === 'object' ? 'an object' : typeof t === 'string' ? `'${t}'` : String(t);
 }
 
 // Map a meta.Signals entry (`{ param_types?, return_type?, flags? }`, GJS keys,
 // camelCase also accepted) to a native SignalSpec; the signal name is the key.
+//
+// An unresolvable entry THROWS, it is never dropped. Dropping is what shipped: the
+// GJS-canonical `Signals: { changed: { param_types: [GObject.TYPE_INT] } }` produced
+// a signal registered with ZERO parameters, so `emit('changed', 42)` delivered
+// nothing and the handler's payload argument was silently `undefined` — no error on
+// either side (the engine's own loop skips a G_TYPE_INVALID param too). Measured
+// against gjs 1.88 (n_params 1, payload 42) on aarch64.
 function signalSpecToNative(spec, key) {
     const s = spec !== null && typeof spec === 'object' ? spec : {};
     const out = { name: key };
     const params = s.param_types !== undefined ? s.param_types : s.paramTypes;
     if (Array.isArray(params)) {
-        out.paramTypes = params.map(normalizeSignalType).filter((t) => t !== undefined);
+        out.paramTypes = params.map((t, i) => {
+            const name = normalizeSignalType(t);
+            if (name === undefined) {
+                throw new TypeError(
+                    `GObject.registerClass: signal '${key}' param_types[${i}] is not a type — pass a GType ` +
+                        `(GObject.TYPE_INT, SomeClass.$gtype) or a type name ('int', 'GBytes'), got ${describeSignalType(t)}`,
+                );
+            }
+            return name;
+        });
     }
-    const ret = normalizeSignalType(s.return_type !== undefined ? s.return_type : s.returnType);
-    if (ret !== undefined) out.returnType = ret;
+    const rawRet = s.return_type !== undefined ? s.return_type : s.returnType;
+    if (rawRet !== undefined) {
+        const ret = normalizeSignalType(rawRet);
+        if (ret === undefined) {
+            throw new TypeError(
+                `GObject.registerClass: signal '${key}' return_type is not a type — pass a GType ` +
+                    `(GObject.TYPE_INT, SomeClass.$gtype) or a type name ('int', 'GBytes'), got ${describeSignalType(rawRet)}`,
+            );
+        }
+        out.returnType = ret;
+    }
     if (typeof s.flags === 'number') out.flags = s.flags;
     return out;
 }
@@ -2144,6 +2193,18 @@ function registerClass(metaOrClass, maybeClass) {
     // Reverse index for runCtorForCObject: the engine identifies a C-created instance
     // by its GType name (= gtypeName, what native.registerClass registered).
     classesByGType.set(gtypeName, klass);
+    // GJS parity: registration must be COMPLETE when registerClass returns. The
+    // engine installs the custom properties, signals and vfunc trampolines in
+    // class_init (src/class.cc), which GObject runs lazily on the first
+    // g_type_class_ref — so without this the declared surface did not exist until the
+    // first instance was constructed, and `GObject.signal_lookup('changed',
+    // Klass.$gtype)` answered 0 where gjs answers the real signal id (measured: gjs
+    // 1.88.1 vs node-gi on aarch64). g_type_class_ref is what forces it, exactly as
+    // gjs's own registerClass does; the ref is deliberately never released (a class
+    // struct outlives its GType, which is permanent). Placed LAST so every L1 record
+    // above is in place before any class_init side effect (a Gtk template install)
+    // runs. Idempotent — GObject initialises a class exactly once.
+    requireGi('GObject', '2.0').type_class_ref(typeHandle);
     return klass;
 }
 
