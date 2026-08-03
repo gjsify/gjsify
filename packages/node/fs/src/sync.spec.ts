@@ -23,6 +23,7 @@ import {
 } from 'node:fs';
 import { Buffer } from 'node:buffer';
 import { tmpdir } from 'node:os';
+import { platform } from 'node:process';
 
 // Node on win32 returns the first created directory in EXTENDED-LENGTH form
 // (`\\?\C:\…`) from a recursive mkdir, while `join()` yields the plain form.
@@ -30,6 +31,12 @@ import { tmpdir } from 'node:os';
 // returns the plain form on Linux. So the comparison, not the value, was the
 // POSIX-only part here.
 const plainPath = (p: string | undefined) => p?.replace(/^\\\\\?\\/, '');
+
+// Assertions below marked `it.failing(..., { when: IS_WIN32 })` describe POSIX
+// concepts win32 does not have. The marker keeps them RUNNING and keeps the
+// assertion unweakened; it tolerates the failure only here, and fails the run the
+// day it starts passing — unlike a platform guard, which would hide it forever.
+const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     await describe('fs.existsSync', async () => {
@@ -423,15 +430,20 @@ export default async () => {
             rmdirSync(dir);
         });
 
-        await it('statSync should detect isCharacterDevice for /dev/null', () => {
-            const s = statSync('/dev/null');
-            expect(s.isCharacterDevice()).toBe(true);
-            expect(s.isFile()).toBe(false);
-            expect(s.isDirectory()).toBe(false);
-            expect(s.isSocket()).toBe(false);
-            expect(s.isFIFO()).toBe(false);
-            expect(s.isBlockDevice()).toBe(false);
-        });
+        await it.failing(
+            'statSync should detect isCharacterDevice for /dev/null',
+            () => {
+                const s = statSync('/dev/null');
+                expect(s.isCharacterDevice()).toBe(true);
+                expect(s.isFile()).toBe(false);
+                expect(s.isDirectory()).toBe(false);
+                expect(s.isSocket()).toBe(false);
+                expect(s.isFIFO()).toBe(false);
+                expect(s.isBlockDevice()).toBe(false);
+            },
+            "win32 has no path that stats as a character device — there is no /dev/null, and \\\\.\\NUL does not report S_IFCHR through Node's stat.",
+            { when: IS_WIN32 },
+        );
     });
 
     await describe('fs.FSWatcher ref/unref', async () => {
