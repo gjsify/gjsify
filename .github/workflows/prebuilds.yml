@@ -1825,21 +1825,41 @@ jobs:
     needs: [changes]
     runs-on: ${{ matrix.runner }}
     if: github.event_name == 'workflow_dispatch'
-    container:
-      image: alpine:3.24
     timeout-minutes: 60
 
-    defaults:
-      run:
-        # THE ALPINE BASE IMAGE HAS NO BASH — only busybox `sh` (ash). GitHub's
-        # default is `bash -e {0}` with a documented fallback to `sh`, but an
-        # implicit fallback is not something to build a leg on: say `sh` and
-        # keep every script below POSIX. Verified in `alpine:3.24` that busybox
-        # ash takes everything these steps use — `set -euo pipefail`, the
-        # `case`-based `built()` helper, `while IFS='|' read` over a heredoc,
-        # `${var%%pattern}`, `env -u`. No arrays anywhere, which is the one
-        # bashism the macOS legs above rely on.
-        shell: sh
+    # NO job-level `container:`, and that is the fix rather than a preference.
+    #
+    # This leg used `container: image: alpine:3.24`, which puts GitHub's own
+    # action runtime inside the container. On the arm64 runner that fails before
+    # anything is built:
+    #
+    #     JavaScript Actions in Alpine containers are only supported on x64
+    #     Linux runners. Detected Linux Arm64
+    #
+    # `actions/checkout` is a JavaScript action and its runtime ships for musl
+    # only as an x64 binary, so the arm64 leg could never go green as written —
+    # it died at `Checkout repository` on every run. Nothing about gjs or Alpine
+    # on arm64 is at fault: the container runs natively there, and the
+    # limitation is entirely in the action runtime.
+    #
+    # Inverting the containment costs nothing and buys a property this leg
+    # lacked: the JS actions run on the glibc host, everything that must see
+    # musl runs inside `alpine:3.24` via one script, and that script is
+    # reproducible by hand (see its header). Both arches stay NATIVE — no
+    # emulation, no binfmt pin — and the script asserts that rather than
+    # assuming it, by requiring `stage-prebuild.mjs` to resolve the host as the
+    # matrix entry's own token before it builds anything.
+    #
+    # `continue-on-error` because this leg is a CANARY, not a gate: it is
+    # dispatch-only, it appears in no `needs:` (see `commit-prebuilds`), and its
+    # artifacts are NEVER committed — it builds targets no package declares yet,
+    # so it proves itself before the declaration exists. What it must not do is
+    # colour the run red, because that is how it spent 2026-08-01..03 hiding the
+    # real blocker: `commit-prebuilds` was failing at its gate for 41 hours with
+    # every build leg green, and two permanently-red musl legs sat next to it
+    # making the workflow look broken for a reason nobody was chasing. A
+    # canary's failure has to be visible and harmless, in that order.
+    continue-on-error: true
 
     strategy:
       fail-fast: false
@@ -1886,168 +1906,37 @@ jobs:
       PREBUILD_SKIP: ${{ needs.changes.outputs.skip }}
 
     steps:
-      - name: Install the Alpine toolchain
-        run: |
-          set -eux
-          apk add --no-cache \
-            meson ninja-build gcc build-base pkgconf file binutils linux-headers \
-            vala glib-dev gobject-introspection-dev \
-            cargo rust musl-dev \
-            gjs nodejs git
-          cat /etc/alpine-release
-          valac --version
-          meson --version
-          cargo --version
-          rustc --version
-          # The host triple decides the crt-static default, which decides
-          # whether a cdylib can be produced at all — print it, so a log alone
-          # answers the question if this ever fails.
-          rustc -vV | grep '^host:'
-          gjs --version
-          node --version
-          command -v g-ir-compiler
-
+      # Checkout runs on the GLIBC HOST — that is the entire point of dropping
+      # `container:` (see the job comment). It also means it can come first:
+      # under the old shape `apk add … git` had to run before it, because the
+      # Alpine base image has no git.
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Confirm this container resolves as a musl target
-        # The clobber guard, run BEFORE anything is built. `hostStagingTarget()`
-        # is the exact function `stage-prebuild.mjs` uses to pick the directory
-        # it will `rmSync` and rewrite; if node ever failed to see this host as
-        # musl it would resolve `linux-<arch>` — a DECLARED, COMMITTED target —
-        # and the leg would silently replace a shipped glibc prebuild with a
-        # musl one. Importing the module runs no `main()` (it is guarded on
-        # `process.argv[1]`), so this is a pure read.
+      # One step, one container, one script — and the script is the same one a
+      # human runs by hand (its header carries the command). Everything that
+      # must observe musl lives in there; nothing that needs GitHub's action
+      # runtime does.
+      #
+      # No `--platform`: the runner's own architecture IS the target, so pulling
+      # `alpine:3.24` natively is both correct and fastest. Getting that wrong
+      # would silently emulate, which is why the script REFUSES unless
+      # `stage-prebuild.mjs` resolves the host as this entry's own token — and
+      # why the per-artifact `file(1)` machine check is inside it too. (Measured
+      # locally: without a forced platform, a cached foreign-arch image runs
+      # emulated and podman warns rather than fails — an assertion is the only
+      # thing that catches that in CI.)
+      - name: Build and verify every musl prebuild inside alpine:3.24
         run: |
           set -euo pipefail
-          resolved="$(node -e 'import("./scripts/stage-prebuild.mjs").then((m) => console.log(m.hostStagingTarget()))')"
-          echo "stage-prebuild.mjs resolves this host as: ${resolved}"
-          if [ "$resolved" != "$PREBUILD" ]; then
-            echo "::error::this container resolves as \`${resolved}\`, not \`${PREBUILD}\`. Refusing to build:"
-            echo "::error::staging would write into a committed glibc prebuild directory and overwrite it."
-            exit 1
-          fi
+          docker run --rm \
+            -v "$PWD:/workspace" -w /workspace \
+            -e PREBUILD -e MACHINE -e PREBUILD_SKIP \
+            alpine:3.24 sh .github/prebuild-toolchain/musl-build.sh
 
-      # -------- @gjsify/sab-native (GjsifySabNative) --------
-      - name: Build @gjsify/sab-native against musl
-        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
-        working-directory: packages/node/sab-native
-        run: |
-          set -euo pipefail
-          meson setup build .
-          meson compile -C build
-          node "$GITHUB_WORKSPACE/scripts/stage-prebuild.mjs" . --allow-undeclared
-          ls -lh "prebuilds/${PREBUILD}/"
-
-      # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
-      - name: Build @gjsify/lightningcss-native against musl (Rust cdylib + Vala bridge)
-        if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
-        working-directory: packages/infra/lightningcss-native
-        run: |
-          set -euo pipefail
-          meson setup build .
-          meson compile -C build
-          # Matching by EXTENSION is what picks up both halves of the pair here
-          # (`libgjsifylightningcss.so` + the `libgjsify_lightningcss.so` cdylib
-          # it links), and the stager then runs `checkPrebuildDir()` over what it
-          # wrote — the staged-sibling + `$ORIGIN` invariant, verified on musl.
-          node "$GITHUB_WORKSPACE/scripts/stage-prebuild.mjs" . --allow-undeclared
-          ls -lh "prebuilds/${PREBUILD}/"
-
-      - name: Verify each staged artifact's machine matches its directory
-        run: |
-          set -euo pipefail
-          # Did THIS run build it? Keyed on the directory basename, the key
-          # `changed-packages.mjs` emits, quoted so `"sab-native"` cannot match
-          # a longer key. An unset/empty PREBUILD_SKIP verifies everything —
-          # the same fail-open direction the `if:` gates take.
-          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
-          rc=0
-          for dir in packages/node/sab-native packages/infra/lightningcss-native; do
-            built "$dir" || { echo "--- $dir: not built by this run, not verified"; continue; }
-            out="$dir/prebuilds/${PREBUILD}"
-            if [ ! -d "$out" ]; then
-              echo "::error::$out does not exist — the build ran but staged somewhere else"
-              rc=1
-              continue
-            fi
-            for lib in "$out"/*.so; do
-              desc="$(file -b "$lib")"
-              echo "$lib: $desc"
-              case "$desc" in
-                *"$MACHINE"*) ;;
-                *) echo "::error file=$lib::expected a $MACHINE object in ${PREBUILD}, got: $desc"; rc=1 ;;
-              esac
-            done
-          done
-          exit $rc
-
-      - name: Load-test every musl prebuild under Alpine gjs
-        # The protocol the Fedora and macOS legs use, unchanged: resolving a
-        # GObject class forces GI to call the class's `…_get_type` symbol, which
-        # is what dlopens the recorded shared library. A typelib that is merely
-        # FOUND resolves the namespace and then throws here.
-        #
-        # LD_LIBRARY_PATH is set on purpose and is NOT a workaround for a musl
-        # defect: a typelib records the BARE leaf name of its library, so a
-        # GI_TYPELIB_PATH-only load fails identically for every bridge on glibc
-        # (verified on both). The CLI's `buildNativeEnv()` exports exactly this
-        # variable for exactly this reason, so passing it here makes the test
-        # match what a real `gjsify` run does — do not "fix" the non-bug.
-        run: |
-          set -euo pipefail
-          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
-          rc=0
-          while IFS='|' read -r dir ns sym; do
-            [ -n "$dir" ] || continue
-            built "$dir" || { echo "--- ${ns}: not built by this run, not load-tested"; continue; }
-            abs="$PWD/${dir}/prebuilds/${PREBUILD}"
-            echo "--- ${ns}.${sym} from ${abs}"
-            # `< /dev/null`: the loop's stdin is the heredoc below, and a child
-            # that reads it would eat the remaining rows.
-            if GI_TYPELIB_PATH="$abs" LD_LIBRARY_PATH="$abs" gjs -c \
-                 "const T = imports.gi.${ns}.${sym};
-                  if (typeof T !== 'function') { throw new Error('${ns}.${sym} did not resolve to a class'); }
-                  print('${ns}.${sym} resolved — shared library loaded');" < /dev/null
-            then :; else
-              echo "::error::${ns} prebuild in ${abs} does not load under gjs"
-              rc=1
-            fi
-          done <<'EOF'
-          packages/node/sab-native|GjsifySabNative|SharedBuffer
-          packages/infra/lightningcss-native|GjsifyLightningcss|Engine
-          EOF
-          exit $rc
-
-      - name: Prove every relocation resolves with no library-path variable
-        # The stricter half, and the one that makes this leg worth running: GI
-        # opens a library with G_MODULE_BIND_LAZY, so the gjs step above binds
-        # only what it touches — and a missing symbol is precisely why both
-        # packages in this leg need a musl build in the first place
-        # (`fcntl64`, `__cmsg_nxthdr`, `gnu_get_libc_version`). RTLD_NOW binds
-        # everything. With LD_LIBRARY_PATH unset, the only way the Vala half of
-        # lightningcss-native can find its sibling cdylib is its own `$ORIGIN`
-        # RUNPATH — the dynamic twin of `check-prebuild-loader-path.mjs`.
-        run: |
-          set -euo pipefail
-          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
-          # No `-ldl`: musl has no separate libdl.
-          cc -o /tmp/dlopen-rtld-now .github/prebuild-toolchain/dlopen-rtld-now.c
-          rc=0
-          for lib in \
-            "packages/node/sab-native/prebuilds/${PREBUILD}/libgjsifysabnative.so" \
-            "packages/infra/lightningcss-native/prebuilds/${PREBUILD}/libgjsifylightningcss.so"
-          do
-            pkg="${lib%%/prebuilds/*}"
-            built "$pkg" || { echo "--- $pkg: not built by this run, not dlopened"; continue; }
-            echo "--- dlopen(RTLD_NOW) $lib with LD_LIBRARY_PATH unset"
-            if env -u LD_LIBRARY_PATH /tmp/dlopen-rtld-now "$PWD/$lib"; then :; else
-              echo "::error::$lib does not fully resolve on musl"
-              rc=1
-            fi
-          done
-          exit $rc
-
+      # The uploads stay on the host: their paths are in the bind-mounted
+      # workspace, and `upload-artifact` is a JS action that must not be asked to
+      # run inside Alpine.
       - name: Upload @gjsify/sab-native musl prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/upload-artifact@v7
@@ -2065,6 +1954,7 @@ jobs:
           path: packages/infra/lightningcss-native/prebuilds/linux-${{ matrix.arch }}-musl/
           if-no-files-found: error
           retention-days: 30
+
 
   # ----------------------------------------------------------------
   # Commit all prebuilds back to the repo — main only, and never from a PR
