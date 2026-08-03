@@ -510,16 +510,25 @@ jobs:
   # `gjsify install` consumer (which does not run the `install` script) or Deno got no
   # binary at all.
   #
-  # ONE LEG PER DECLARED TARGET. `gjsify.platforms` promises four
-  # (linux-x64, linux-arm64, darwin-arm64, win32-x64) and only the two linux ones were
-  # ever wired up here, so 0.26.0 shipped a tarball with `prebuilds/linux-*` only and
-  # `npx @gjsify/cli showcase … --runtime node` died on Windows and macOS with
-  # "native addon not found for node on win32-x64" — a promised platform that
-  # `audit-runtimes --check` reported as GREEN, because node-gi.yml genuinely BUILDS
-  # win32-x64 and darwin-arm64 on every node-gi PR. "Built in CI" was never the same
-  # claim as "published to consumers", and until the `platforms-ci` rule grew the
-  # release-staging half (see scripts/manifest-conformance/rules/platforms-ci.mjs)
-  # nothing compared the second.
+  # ONE LEG PER DECLARED TARGET — the list is `gjsify.platforms` and is deliberately
+  # NOT restated here; the staging assertion in publish-node-gi reads it from the
+  # manifest, and `platforms-ci`'s release-coverage check holds this workflow to it.
+  # 0.26.0 shipped a tarball with `prebuilds/linux-*` only, because only the two linux
+  # legs were ever wired up, and `npx @gjsify/cli showcase … --runtime node` died on
+  # Windows and macOS with "native addon not found for node on win32-x64" — a promised
+  # platform that `audit-runtimes --check` reported as GREEN, because node-gi.yml
+  # genuinely BUILDS win32-x64 and darwin-arm64 on every node-gi PR. "Built in CI" was
+  # never the same claim as "published to consumers".
+  #
+  # It then happened a SECOND time, which is why the check now exists: #921 added
+  # `darwin-x64` to `gjsify.platforms` and a matrix leg to node-gi.yml's `macos` job,
+  # and no release leg. `audit-runtimes --check` stayed green for the same reason as
+  # before (it compares the declaration against the UNION of all four workflows, and
+  # node-gi.yml covered it), while the staging assertion below — which derives its list
+  # from the manifest — would have failed the whole publish at release time, taking
+  # @gjsify/node-gi out of that release entirely. The gap closed by adding the leg; the
+  # CLASS closed by `platforms-ci` asking the release workflow ALONE whether it produces
+  # every declared target whose artifact this repo never commits.
   #
   # WHY THE WIN32/DARWIN LEGS ARE REBUILT HERE rather than reused from node-gi.yml: a
   # GitHub artifact belongs to the workflow RUN that produced it and cannot be
@@ -722,23 +731,49 @@ jobs:
           path: packages/node-gi/node-gi/prebuilds/win32-x64
           if-no-files-found: error
 
-  # darwin-arm64 leg. Same gap, same shape: `gjsify.platforms` promises darwin-arm64,
-  # node-gi.yml's `macos` job builds + load-tests + uploads it, and release.yml never
-  # picked it up — so every macOS `--runtime node` consumer of a published tarball hit
+  # darwin legs. Same gap, same shape: `gjsify.platforms` promises both darwin arches,
+  # node-gi.yml's `macos` job builds + load-tests + uploads each, and release.yml never
+  # picked them up — so every macOS `--runtime node` consumer of a published tarball hit
   # the identical "native addon not found" as Windows. Derived from that job, minus its
   # Node/Bun/Deno conformance legs (gated there on every node-gi PR).
+  #
+  # A MATRIX, unlike the win32 leg beside it and like `node-gi-prebuild-linux` above —
+  # and the reason is the same one node-gi.yml's `macos` job states for its own matrix:
+  # nothing in these steps is arch-conditional. `brew --prefix` answers /opt/homebrew on
+  # Apple silicon and /usr/local on Intel, and `scripts/stage-prebuild.mjs` names its
+  # directory from `${process.platform}-${process.arch}` on the running machine, so the
+  # second leg differs from the first in its `runs-on` and in nothing else. The
+  # alternative — a second job — would be a THIRD copy of the brew formula line, the
+  # PKG_CONFIG/GI_TYPELIB/DYLD env block and the pkg-config gate, on the one path where
+  # a drifted copy is unrecoverable; the formula list is deliberately verbatim (below),
+  # which is exactly the kind of value copies get wrong. `fail-fast: false` keeps an
+  # Intel failure from cancelling the arm64 leg, and publish-node-gi needs the whole
+  # matrix, so neither can be silently dropped either way.
+  #
+  # `macos-15-intel` is the x64 image node-gi.yml's own `macos` matrix uses, and the one
+  # `archFromRunner` in the `platforms-ci` rule reads as darwin-x64. It is also the LAST
+  # x86_64 image Actions will offer (through August 2027), so this promise has a horizon
+  # — recorded in that rule, where the parser that has to keep believing it lives.
   #
   # The brew line is kept VERBATIM rather than trimmed to the addon's actual link
   # closure (girepository-2.0 + cairo, per binding.gyp). Trimming would probably work
   # and would save minutes on a scarce macOS runner — but a release-blocking job is the
   # wrong place to discover that a trimmed formula list dropped a transitive, and a
   # release happens far less often than node-gi.yml proves this exact list green.
-  node-gi-prebuild-darwin-arm64:
-    name: Build @gjsify/node-gi darwin-arm64 prebuild
+  node-gi-prebuild-darwin:
+    name: Build @gjsify/node-gi darwin-${{ matrix.arch }} prebuild
     needs: publish
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
     env:
       HOMEBREW_NO_AUTO_UPDATE: '1'
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
@@ -784,13 +819,16 @@ jobs:
 
       # binding.gyp's non-win branch feeds `pkg-config --cflags/--libs
       # girepository-2.0 cairo` through xcode_settings.OTHER_CFLAGS →
-      # darwin-arm64 build/Release/node_gi.node; stage-prebuild copies it to
-      # prebuilds/darwin-arm64.
-      - name: Build + stage the darwin-arm64 prebuild
+      # darwin-<arch> build/Release/node_gi.node; stage-prebuild copies it to
+      # prebuilds/darwin-<arch>, named from the RUNNING machine rather than from
+      # `matrix.arch`, so a leg cannot stage a binary into a directory naming a
+      # different machine (the mistake the emulated linux legs shipped for weeks).
+      - name: Build + stage the darwin-${{ matrix.arch }} prebuild
         working-directory: packages/node-gi/node-gi
         run: |
           npm install --no-audit --no-fund --foreground-scripts
           node scripts/stage-prebuild.mjs
+          ls -la prebuilds/*/node_gi.node
 
       - name: Verify the staged prebuild loads (Node)
         working-directory: packages/node-gi/node-gi
@@ -801,8 +839,8 @@ jobs:
       - name: Upload the prebuild artifact
         uses: actions/upload-artifact@v4
         with:
-          name: node-gi-prebuild-darwin-arm64
-          path: packages/node-gi/node-gi/prebuilds/darwin-arm64
+          name: node-gi-prebuild-darwin-${{ matrix.arch }}
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}
           if-no-files-found: error
 
   publish-node-gi:
@@ -817,7 +855,7 @@ jobs:
       - publish
       - node-gi-prebuild-linux
       - node-gi-prebuild-win32-x64
-      - node-gi-prebuild-darwin-arm64
+      - node-gi-prebuild-darwin
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -861,6 +899,11 @@ jobs:
         with:
           name: node-gi-prebuild-darwin-arm64
           path: packages/node-gi/node-gi/prebuilds/darwin-arm64
+      - name: Download + stage the darwin-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-darwin-x64
+          path: packages/node-gi/node-gi/prebuilds/darwin-x64
       - name: Download + stage the win32-x64 prebuild
         uses: actions/download-artifact@v4
         with:

@@ -426,6 +426,83 @@ export function renderPlatformMatrix(rows, { markdown = false } = {}) {
 }
 
 /**
+ * The declared targets whose artifact this repository never commits, so the only
+ * way one can reach a consumer is inside the tarball a `release.yml` job stages.
+ *
+ * `auditPlatforms` above compares a declaration against the UNION of every
+ * workflow, which answers "does CI build this?" and deliberately says nothing
+ * about who SHIPS it. For a package whose binary is committed here that is the
+ * whole story — the normal `publish` job packs the checked-out directory. For a
+ * package that commits nothing it is only half of one, and the missing half is
+ * where both node-gi platform gaps came from: `win32-x64`/`darwin-arm64` in
+ * 0.26.0 and `darwin-x64` right after #921 added it. Each time the union was
+ * green because `node-gi.yml` genuinely builds the target on every node-gi PR,
+ * and each time the published tarball had no such binary in it.
+ *
+ * The three ownership states (`prebuildOwnership`) answer this exactly:
+ *   · `install-time` — nothing is committed here for ANY target, so every
+ *     declared one needs a release leg. Today `@gjsify/node-gi`.
+ *   · `committed-here` — the committed directories ship themselves; only the
+ *     targets the package itself records as NOT committed
+ *     (`gjsify.platformsUncommitted`) need one. Today `@gjsify/napi`'s two
+ *     per-target packages, whose exemption reasons name these very legs.
+ *   · `split` — SKIPPED. The parent holds the declaration but owns no artifact;
+ *     each per-target child is its own row here and answers for its own target.
+ *
+ * @param {object} pkg a row from `collectNativePackages()`
+ * @returns {string[]} canonical targets, possibly empty
+ */
+export function releaseOnlyTargets(pkg) {
+    const ownership = prebuildOwnership(pkg);
+    if (ownership === 'split') return [];
+    const uncommitted = new Set(Object.keys(pkg.uncommitted ?? {}).map(canonicalPlatform));
+    return (pkg.declared ?? [])
+        .map(canonicalPlatform)
+        .filter((target) => ownership === 'install-time' || uncommitted.has(target));
+}
+
+/**
+ * Hold `release.yml` to every target that can only ship from it.
+ *
+ * WHY `prebuildsCi` IS SUBTRACTED and not merely ignored: a target that
+ * `prebuilds.yml` builds is on its way to being COMMITTED — `commit-prebuilds`
+ * lands the directory and `clear-committed-platform-exemptions.mjs` deletes the
+ * exemption in the same commit. That is the TEMPORARY half of the exemption
+ * contract (§ Runtime & platform model), and it is the NORMAL state of a
+ * newly-added target: for the days between "the leg is green" and "the artifact
+ * is committed", the package legitimately declares a target with no artifact and
+ * no release leg. Without this subtraction the rule would demand a release leg
+ * for every such target — a leg that must not exist — and the next exotic-arch
+ * addition would have to route around the check to land at all.
+ *
+ * ADVISORY-SAFE in the same way as `auditPlatforms`: a package the parser found
+ * no release coverage for at all still fails, because for these packages "no
+ * release leg" IS the defect. There is nothing here that a workflow shape the
+ * parser misunderstands could turn into a false pass — an unrecognised leg reads
+ * as absent, which is the failing direction, so the message names the parser.
+ *
+ * @param {Array<object>} nativePkgs rows from `collectNativePackages()`
+ * @param {Map<string, Set<string>>} releaseCi coverage parsed from `release.yml` alone
+ * @param {Map<string, Set<string>>} prebuildsCi coverage parsed from `prebuilds.yml` alone
+ * @returns {string[]} failure lines (empty = ok)
+ */
+export function auditReleaseCoverage(nativePkgs, releaseCi, prebuildsCi) {
+    const failures = [];
+    for (const pkg of nativePkgs) {
+        const released = releaseCi.get(pkg.name);
+        const committing = prebuildsCi.get(pkg.name);
+        for (const target of releaseOnlyTargets(pkg)) {
+            if (committing?.has(target)) continue; // on its way to being committed
+            if (released?.has(target)) continue;
+            failures.push(
+                `${pkg.name} (${pkg.path}): declares \`${target}\` in \`gjsify.platforms\` and commits no artifact for it, but no job in .github/workflows/release.yml produces that target — the published tarball would ship every OTHER platform and silently omit this one. Add a release prebuild leg that builds, LOAD-TESTS and uploads it (mirror the nearest existing leg), and a matching download into the publish job's staging path. Another workflow building it is not enough: an artifact belongs to the run that produced it, so a release cannot download node-gi.yml's or napi.yml's uploads.`,
+            );
+        }
+    }
+    return failures;
+}
+
+/**
  * Credit each per-target platform package (ADR 0017) with its PARENT's CI
  * coverage, narrowed to its own target.
  *
@@ -470,11 +547,24 @@ export function creditPlatformPackages(nativePkgs, byPackage, ctx) {
 /** Shared by the rule and by `--platforms`, so both see the same rows. */
 export async function platformRows(ctx) {
     const nativePkgs = collectNativePackages(ctx);
-    const ciPlatforms = creditPlatformPackages(nativePkgs, await parseCiPlatforms(ctx.root, nativePkgs), ctx);
+    const coverage = async (files) =>
+        creditPlatformPackages(nativePkgs, await parseCiPlatforms(ctx.root, nativePkgs, files), ctx);
+    const ciPlatforms = await coverage(undefined); // the union — every workflow
     const { failures, rows } = auditPlatforms(nativePkgs, ciPlatforms);
+    // Two extra single-file passes, deliberately not folded into the union: the
+    // union answers "does CI build it", these answer "who SHIPS it" and "is it on
+    // its way to being committed", and collapsing three different questions into
+    // one map is what let a promise pass for a delivery twice. Each pass is a
+    // regex sweep over one already-read workflow file — microseconds, no install.
+    failures.push(
+        ...auditReleaseCoverage(nativePkgs, await coverage(['release.yml']), await coverage(['prebuilds.yml'])),
+    );
     return {
         failures,
         rows,
+        // How many declared targets ship ONLY from a release job, so the summary
+        // states what was checked rather than implying the whole tree was.
+        releaseOnly: nativePkgs.reduce((n, pkg) => n + releaseOnlyTargets(pkg).length, 0),
         // The MATRIX answers "can I install this bridge there?" — one row per
         // bridge. 51 single-cell platform-package rows would say nothing the
         // parent's row does not already say and would bury the twelve rows a
@@ -490,18 +580,20 @@ export async function platformRows(ctx) {
 export const platformsCiRule = defineRule({
     id: 'platforms-ci',
     scope: 'repo',
-    fields: ['gjsify.platforms', 'gjsify.prebuilds'],
-    description: 'declared `<os>-<arch>` targets, committed prebuild dirs and the CI matrix that builds them agree',
+    fields: ['gjsify.platforms', 'gjsify.prebuilds', 'gjsify.platformsUncommitted'],
+    description:
+        'declared `<os>-<arch>` targets, committed prebuild dirs and the CI matrix that builds them agree — and a target this repo commits nothing for is produced by `release.yml`, which is the only job that can ship it',
     async run(ctx) {
-        const { failures, rows, matrixRows } = await platformRows(ctx);
+        const { failures, rows, matrixRows, releaseOnly } = await platformRows(ctx);
         const unverified = rows.filter((r) => !r.ci).length;
         return {
             failures,
-            stats: { packages: rows.length, unverified },
+            stats: { packages: rows.length, unverified, releaseOnly },
             rows: matrixRows,
             summary:
                 `platform audit: OK. ${rows.length} native package(s) declare \`gjsify.platforms\`; ` +
                 'committed prebuilds and CI-produced targets agree with every declaration' +
+                `${releaseOnly > 0 ? `; ${releaseOnly} target(s) that ship only from a release job have a release.yml leg` : ''}` +
                 `${unverified > 0 ? ` (${unverified} package(s) had no CI job the parser recognised — reported, not enforced)` : ''}.`,
         };
     },
