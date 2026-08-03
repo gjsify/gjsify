@@ -139,9 +139,36 @@ jobs:
           git config --global --add safe.directory "$PWD"
 
       # release-it does the rest: bump every package.json (the bumper globs),
-      # regenerate CHANGELOG.md from the conventional commits, run `after:bump`
-      # (docs version + bundle rebuild), commit, tag, push, and create the
-      # GitHub release — whose `published` event triggers release.yml.
+      # regenerate CHANGELOG.md from the conventional commits, run `after:bump`,
+      # commit, tag, push, and create the GitHub release — whose `published`
+      # event triggers release.yml.
+      #
+      # THE `after:bump` CHAIN IS THE ONLY GATE THAT CAN SEE THE BUMPED TREE.
+      # bump → hooks → commit → tag → push all happen inside this ONE step, so a
+      # workflow step cannot sit between the bump and the commit; the hook can.
+      # It runs, in order (`.release-it.json`):
+      #
+      #   1. bump-docs-version.mjs           — docs follow the version
+      #   2. generate-platform-packages --write — RE-DERIVE what the bumper cannot
+      #   3. audit-runtimes --check --strict  — REFUSE to commit an inconsistent tree
+      #   4. verify-committed-bundles --rebuild — bundles reproduce at the new version
+      #
+      # Step 2 exists because `@release-it/bumper` rewrites ONLY the `version`
+      # field. That is enough for a workspace member, whose siblings are pinned
+      # `workspace:^` and resolved at pack time — but `@gjsify/napi` is NOT a
+      # workspace member (its own CI, its own carve-out), so its
+      # `optionalDependencies` on `@gjsify/napi-{linux-x64,darwin-arm64}` carry
+      # LITERAL versions that nothing rewrote. v0.27.0 was cut with the parent at
+      # 0.27.0 and both children pinned 0.26.1; `main` went red on
+      # `platform-packages` and the tag would have published a bridge pinned to
+      # the previous release's binaries. Measured: simulating the bumper's
+      # version-only rewrite reproduces exactly those two findings, and
+      # `--write` clears them.
+      #
+      # Step 3 is the mechanism, not a belt-and-braces repeat: step 2 fixes what
+      # is DERIVABLE, and anything it cannot fix must stop the cut rather than
+      # ride a tag out to npm. The audit already runs on every PR — it just never
+      # ran on the tree the bump creates, which exists for only these few seconds.
       #
       # `--ci` keeps it non-interactive (no prompts on a runner). The dry run
       # resolves and prints the whole plan without writing.
