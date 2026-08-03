@@ -139,12 +139,20 @@ export function pkgConfigSearchDirs(env) {
  * Sources 2 and 3 are GUESSES at a prefix, so each must show the
  * `girepository-1.0/` marker before it is believed.
  *
- * Empty off darwin, and that is a statement about LOADERS, not about GI: Linux
+ * Empty off darwin, and that is a statement about LOADERS, not about GI. Linux
  * resolves these leaves through `ld.so`'s system-wide configured cache
- * (`/etc/ld.so.conf.d`), and Windows re-reads its DLL search path at every
- * `LoadLibrary`, which `gtk-runtime.js` already mutates in-process. dyld is the
- * one loader that neither consults a system-wide config nor re-reads its search
- * path after launch.
+ * (`/etc/ld.so.conf.d`), which a package install populates — nothing per-process
+ * is needed. dyld is the one loader that neither consults a system-wide config
+ * NOR re-reads its search path after launch, which is why darwin needs a re-exec
+ * and nobody else does.
+ *
+ * win32 is deliberately absent rather than proven unnecessary: `PATH` is the DLL
+ * search path, a Windows GTK distribution puts its `bin` there itself, and
+ * Windows re-reads that path at every `LoadLibrary` — so if a system GTK ever
+ * turns out not to be on it, the repair is an in-process `process.env.PATH`
+ * prepend (the shape `maybePrependGtkRuntimeDllPath()` already uses for the
+ * bundle), never this re-exec. Untested there, and node-gi's win32 GTK support is
+ * Phase 2 regardless.
  * @param {object} [opts]
  * @param {string} [opts.platform] defaults to `process.platform`
  * @param {NodeJS.ProcessEnv} [opts.env] defaults to `process.env`
