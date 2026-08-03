@@ -154,7 +154,9 @@ if (!existsSync(NAPI_LIB)) {
 // on a fresh clone this is the normal state — name the command rather than the
 // path alone.
 if (!existsSync(PREBUILD_DIR))
-    die(`shim prebuild dir missing: ${PREBUILD_DIR} — not committed; build it: (cd ${PKG} && gjsify run build:prebuilds)`);
+    die(
+        `shim prebuild dir missing: ${PREBUILD_DIR} — not committed; build it: (cd ${PKG} && gjsify run build:prebuilds)`,
+    );
 
 // --- make @gjsify/napi resolvable by BARE specifier from the build graph (the
 //     `gjsify install @gjsify/napi` stand-in). The shim emits require('@gjsify/napi');

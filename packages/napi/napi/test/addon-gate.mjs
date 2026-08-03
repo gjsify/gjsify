@@ -96,7 +96,9 @@ if (!existsSync(NAPI_LIB)) {
 // on a fresh clone this is the normal state — name the command rather than the
 // path alone.
 if (!existsSync(PREBUILD_DIR))
-    die(`shim prebuild dir missing: ${PREBUILD_DIR} — not committed; build it: (cd ${PKG} && gjsify run build:prebuilds)`);
+    die(
+        `shim prebuild dir missing: ${PREBUILD_DIR} — not committed; build it: (cd ${PKG} && gjsify run build:prebuilds)`,
+    );
 stage(`addon .node: ${addonPath.replace(ADDONS_DIR + '/', '')}`);
 
 // Extra binding-module descriptors for entries that self-require the addon via
