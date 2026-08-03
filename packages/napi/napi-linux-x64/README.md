@@ -1,5 +1,14 @@
 # @gjsify/napi-linux-x64
 
+> **No artifact in this tarball yet.** `linux-x64` is declared by
+> `@gjsify/napi` and built by CI, but not committed to the repository:
+> napi.yml's Fedora jobs rebuild it and gate on it, and release.yml's `napi-prebuild-linux` job rebuilds it from the released tag for a release to ship; no job commits it back into this repo
+>
+> The package exists so the artifact has somewhere to land — and so its npm name
+> is claimed before the release that first ships it. Until then installing it is
+> harmless and does nothing: `@gjsify/napi` finds no typelib and takes its
+> no-native path, exactly as if this package were absent.
+
 
 The **linux-x64** native artifacts of [`@gjsify/napi`](https://www.npmjs.com/package/@gjsify/napi) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no

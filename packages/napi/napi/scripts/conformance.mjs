@@ -124,6 +124,24 @@ if (listOnly) {
     process.exit(0);
 }
 
+// The shim's prebuild is NOT committed (`gjsify.platformsUncommitted` on
+// `@gjsify/napi-linux-x64`), so on a fresh clone this directory does not exist —
+// that is the normal state, not an anomaly. Without this check every program
+// still RUNS, each one failing inside GJS with "Requiring GjsifyNapi, version
+// none: Typelib file for namespace 'GjsifyNapi' not found", and the run reports
+// 21 conformance failures. A missing toolchain output reading as a mass
+// implementation regression is the wrong diagnosis in the most expensive
+// direction, so say which one it is. Placed AFTER `--list` so listing the
+// programs needs no build. The gates check the same thing (test/*-gate.mjs).
+if (!existsSync(PREBUILD_DIR)) {
+    console.error(
+        `conformance: shim prebuild dir missing: ${PREBUILD_DIR}\n` +
+            'This directory is not committed — build it first:\n' +
+            '  cd packages/napi/napi && gjsify run build:prebuilds',
+    );
+    process.exit(2);
+}
+
 // ---- ledger -----------------------------------------------------------------
 const ledger = JSON.parse(readFileSync(LEDGER_PATH, 'utf8'));
 if (!Array.isArray(ledger.entries)) {

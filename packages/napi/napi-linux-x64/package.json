@@ -13,8 +13,8 @@
         "prebuilds"
     ],
     "gjsify": {
-        "glibcRequires": {
-            "linux-x64": "2.34"
+        "platformsUncommitted": {
+            "linux-x64": "napi.yml's Fedora jobs rebuild it and gate on it, and release.yml's `napi-prebuild-linux` job rebuilds it from the released tag for a release to ship; no job commits it back into this repo"
         },
         "platforms": [
             "linux-x64"
