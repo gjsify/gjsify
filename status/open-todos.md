@@ -732,3 +732,17 @@ repository has the same "valac does not run on Windows" problem, and
 `prebuilt_vala_c` is a per-package option today rather than a shared mechanism.
 Lifting it is premature until a second bridge wants it — but the second one is
 where the helper gets lifted, not the third.
+
+The win32 leg deliberately hand-copies its artifacts instead of going through
+`scripts/stage-prebuild.mjs`, and the reason is worth stating because the shared
+stager is normally the rule: since ADR 0017 `resolveStageDir()` requires a
+sibling per-target package for any bridge that declares no `gjsify.prebuilds`,
+and creating `@gjsify/webgl-win32-x64` IS the declaration this leg exists to earn
+first. That is not hypothetical — `build-prebuilds-musl` walks straight into it
+today and both its legs fail on it (`sab-native-linux-x64-musl/ does not exist …
+Generate the platform packages first`), so the musl exploration is currently
+blocked on the same ordering problem rather than on anything about musl. Either
+`--allow-undeclared` grows a "stage into the bridge as scratch" mode for exactly
+this pre-declaration state, or every exploratory leg keeps its own `cp` and the
+stager's safety guarantees do not cover the legs that most need them. Pick one
+deliberately.
