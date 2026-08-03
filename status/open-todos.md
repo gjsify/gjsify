@@ -559,6 +559,32 @@ legs already carry, added to both release legs; deliberately not done in the cha
 that removed the committed copy, because that PR landed hours before a `minor`
 release and the release path is the one place a bad edit is unrecoverable.
 
+### A PR touching only classifier-ignored paths is never linted, and the red lands on a stranger
+
+AGENTS.md records this as a residual gap of selective CI: `check` (which runs the
+repo-wide `gjsify lint` + `oxfmt --check`) is gated on the affected classifier's
+`skip-all`, so a PR touching ONLY `packages/napi/**`, `packages/node-gi/**`,
+`website/**` or docs does not lint. What the note understates is WHERE the failure
+surfaces. It has now happened twice:
+
+- `#949` (`style: satisfy the format gate after #944`)
+- `#960` — four `packages/napi/napi/test/*-gate.mjs` files landed 3 lines over the
+  120-column width. The PR was green because `check` was skipped; the first
+  unrelated PR to run the repo-wide check (`#957`, which touches `prebuilds.yml`
+  and `tests/`) went red on someone else's diff, and `main`'s own push run went red
+  behind it.
+
+Same shape as the `[skip ci]` prebuild incident: a change lands unvalidated and its
+failure is attributed to whoever runs next. The difference is that this one is
+cheap to close — `format --check` and `lint` are repo-wide, need no build, and cost
+~0.3 s and a few seconds respectively. The blocker is that they live in the `check`
+job together with the expensive tsc gate, so un-gating the job would un-gate tsc
+too. So the fix is to split the two cheap repo-wide steps out of `check` into a job
+that always runs (or move them into `audit-runtimes.yml`, which already runs on
+every PR with no paths filter — but that job deliberately performs no install, and
+both tools are devDeps, so it would need one). Pick deliberately; either way the
+claim "lint is clean" stops depending on which paths a PR happened to touch.
+
 ### A workflow GitHub refuses to load reports the PR as GREEN
 
 When GitHub rejects a workflow file it creates a run with ZERO jobs, hence zero
