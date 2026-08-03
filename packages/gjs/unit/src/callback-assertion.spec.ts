@@ -82,16 +82,16 @@ export default async () => {
             // The second shape: an `async` callback, whose assertion REJECTS that
             // function's promise rather than raising synchronously.
             //
-            // Measured on Node 24: a sync callback throw arrives as
-            // `uncaughtException`, while an async one arrives as
-            // `unhandledRejection` *if a listener exists* — and otherwise Node's
-            // default `--unhandled-rejections=throw` re-raises it as
-            // `uncaughtException`. Since this runner deliberately registers no
-            // `unhandledRejection` listener, BOTH shapes reach the one hook it
-            // does install. That is why not hooking rejections costs no coverage
-            // here (see `installUncaughtHooks`).
+            // This probe is why `installUncaughtHooks` listens for
+            // `unhandledRejection` as well. On Node the two shapes collapse — its
+            // default re-raises an unhandled rejection as `uncaughtException`
+            // when no listener exists — so a Node-only run cannot tell the
+            // difference. Bun does NOT: it terminates the process. This probe
+            // failed the cross-runtime CI leg on bun (no summary, exit 1) while
+            // passing on Node and Windows, which is exactly the asymmetry it now
+            // guards.
             //
-            // Short timeout so that if the hook ever stops firing, this probe
+            // Short timeout so that if the hooks ever stop firing, this probe
             // falls back to the ledger's timeout path in 0.3 s rather than 5 s.
             const before = getTestCounters();
             await it.failing(

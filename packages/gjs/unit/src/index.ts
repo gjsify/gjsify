@@ -268,16 +268,26 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
  * logs the exception — still reports a bare 5 s timeout instead of the
  * assertion.
  *
- * Deliberately `uncaughtException` ONLY, not `unhandledRejection` — and that
- * costs no coverage, which is the non-obvious part. Measured on Node 24: a
- * synchronous throw in a host callback arrives as `uncaughtException`; an ASYNC
- * callback's throw arrives as `unhandledRejection` *only if a listener exists*,
- * and otherwise Node's default `--unhandled-rejections=throw` re-raises it as
- * `uncaughtException`. So by NOT listening for rejections, both shapes reach this
- * one hook. Listening would be actively worse: this runner intentionally creates
- * settled-late rejections (the `.catch(() => {})` claims above), and charging
- * those to whatever test happens to be running would invent failures rather than
- * reveal them.
+ * BOTH `uncaughtException` and `unhandledRejection` are needed, and the reason is
+ * a runtime disagreement that only CI surfaced:
+ *
+ * - a SYNCHRONOUS throw in a host callback arrives as `uncaughtException`
+ *   everywhere;
+ * - an ASYNC callback's throw rejects that function's promise, and what happens
+ *   next differs. Node (measured, v24/v26) re-raises it as `uncaughtException`
+ *   under its default `--unhandled-rejections=throw` *when no rejection listener
+ *   exists* — so on Node alone, hooking the one event is enough. **Bun does not**
+ *   (measured, v1.3.14): it terminates the process on the unhandled rejection,
+ *   killing the run with no summary — exactly the failure this whole change
+ *   exists to remove, reintroduced on a different runtime.
+ *
+ * So both are hooked, which makes the three runtimes agree instead of encoding
+ * Node's default into a cross-runtime test framework.
+ *
+ * An earlier version of this comment argued that hooking rejections would
+ * mis-charge the runner's own deliberate late rejections. That was wrong on its
+ * own terms: every one of those carries a `.catch(() => {})` (see `withTimeout`),
+ * which makes it HANDLED, so it can never raise this event.
  */
 let uncaughtHooksInstalled = false;
 
@@ -292,13 +302,19 @@ const installUncaughtHooks = (): void => {
     if (typeof proc.versions?.gjs === 'string') return;
 
     uncaughtHooksInstalled = true;
-    proc.on('uncaughtException', (error: unknown) => {
+    const handle = (error: unknown) => {
         const hook = abortHooks[abortHooks.length - 1];
         // No test in flight → it belongs to no test; report it as its own entry
         // rather than charging a bystander (same rule as a stray assertion).
         if (hook) hook(error);
         else noteStrayFailure((error as { message?: string })?.message ?? String(error));
-    });
+    };
+    // A given error reaches exactly one of these: the runtimes route an unhandled
+    // rejection to `unhandledRejection` once a listener exists, and only re-raise
+    // it as `uncaughtException` when none does. Registering both is therefore not
+    // double-handling.
+    proc.on('uncaughtException', handle);
+    proc.on('unhandledRejection', handle);
 };
 
 export const configure = (overrides: Partial<TimeoutConfig>) => {
