@@ -17,7 +17,7 @@
     ],
     "gjsify": {
         "glibcRequires": {
-            "linux-riscv64": "2.28"
+            "linux-riscv64": "2.27"
         },
         "platforms": [
             "linux-riscv64"
