@@ -4,6 +4,35 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### A Node-less host cannot bootstrap a fresh CLONE — four `node scripts/*.mjs` calls remain
+
+Measured on a postmarketOS/aarch64 phone (musl, gjs 1.88.1, no node/npm/git) and
+reproduced locally by removing the only `node` from `PATH`: on a fresh clone
+`gjsify install` succeeds (982 packages, all 10 native prebuild packages
+detected, `linux-arm64` selected) and `gjsify build` then fails with "no usable
+bundler engine under GJS", because `@gjsify/rolldown-native`'s JS facade is a
+build output a clone does not carry. **A consumer install is NOT affected** — the
+published tarball ships `lib/esm/index.js` (verified against 0.26.1: 27 files,
+`package/lib/esm/index.js` present), and inside a clone the workspace symlink is
+what shadows it. So this is a repo-development limitation, not a shipped defect.
+
+`build:infra` no longer dies at its FIRST entry: the nine bare `tsc` calls now go
+through `gjsify tsc` (byte-identical emit, verified per package against the npm
+`tsc`), which carries the first five entries. It now dies at the sixth,
+`@gjsify/create-app`, exit 127 on `node scripts/process-template.mjs`. Four
+`node` invocations remain in the chain, and they are the whole residual:
+`create-gjsify/scripts/process-template.mjs` (151 LOC),
+`create-gjsify/scripts/set-bin-mode.mjs` (35), `cli/scripts/build-assets.mjs`
+(49) and `scripts/bootstrap-native-facades.mjs` itself. All four import only
+`node:fs`/`node:path`/`node:url` — every one of which gjsify polyfills — so
+nothing about them is intrinsically Node-bound; what is missing is a way to RUN
+an unbundled `.mjs` that imports `node:*` under GJS, since GJS's ESM loader
+cannot resolve those specifiers. Closing it means either bundling each to a
+committed `dist/*.gjs.mjs` (four more artifacts under the committed-bundle
+freshness gate — the expensive option) or a `gjsify run --node-script <file>`
+mode that bundles-and-runs on the fly (one mechanism, no new artifacts — the
+better option, and it would serve every repo script, not these four).
+
 ### `@gjsify/child_process` on Windows — 86 of 145 specs fail once the module can load at all
 
 The specs took `TMP_DIR` from a literal `/tmp` and `realpathSync`'d it at MODULE

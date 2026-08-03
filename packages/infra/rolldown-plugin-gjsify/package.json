@@ -35,7 +35,7 @@
     "scripts": {
         "clear": "gjsify clear lib tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
-        "build": "tsc"
+        "build": "gjsify tsc"
     },
     "repository": {
         "type": "git",
