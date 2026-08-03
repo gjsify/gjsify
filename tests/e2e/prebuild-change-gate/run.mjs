@@ -392,21 +392,49 @@ describe('prebuild change gate — fail open', () => {
         // `download-artifact` throws `Artifact '<name>' not found` and has no
         // `if-no-artifact-found` input — so upload and download must turn on and
         // off together, per package, everywhere.
+        //
+        // SCOPED TO THE AUTOMATIC LEGS, because the decision it enforces only
+        // exists there. A `workflow_dispatch`-only job is not in `needs: [changes]`
+        // — `needs.changes.outputs.skip` is not in scope inside it, so requiring
+        // the gate string would buy a dead `if:` that READS like a live decision,
+        // which is worse than none. It is also unnecessary: an exploratory leg
+        // uploads for a human to inspect, `commit-prebuilds` never downloads it,
+        // and an artifact nothing consumes cannot desync from anything.
+        //
+        // Pairs are matched by JOB SCOPE rather than by artifact name on purpose:
+        // uploads are matrix-parameterised (`…-prebuilds-linux-${{ matrix.arch }}`)
+        // while the downloads spell each arch out, so a name-level set comparison
+        // reports every automatic leg as unpaired — measured, and it is a property
+        // of the spelling, not of the workflow.
         const text = readFileSync(workflow, 'utf8');
-        const steps = text.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1);
+        // Two-space-indented `<name>:` on its own line = a job. `on:`'s children
+        // match too and contribute no artifact steps, which is harmless.
+        const jobs = text.split(/^ {2}(?=[a-z0-9-]+:\s*$)/m).slice(1);
         let checked = 0;
-        for (const step of steps) {
-            if (!/actions\/(up|down)load-artifact/.test(step)) continue;
-            const artifact = /\n\s*name:\s*([\w-]+)-prebuilds-/.exec(step);
-            if (!artifact) continue;
-            const key = artifact[1];
-            checked++;
-            assert.ok(
-                step.includes(`'"${key}"'`),
-                `an artifact step for "${key}" is not gated on its own package:\n${step.slice(0, 200)}`,
-            );
+        let exempt = 0;
+        for (const job of jobs) {
+            const jobIf = /^ {4}if:\s*(.+)$/m.exec(job);
+            const dispatchOnly = jobIf?.[1].trim() === "github.event_name == 'workflow_dispatch'";
+            for (const step of job.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1)) {
+                if (!/actions\/(up|down)load-artifact/.test(step)) continue;
+                const artifact = /\n\s*name:\s*([\w-]+)-prebuilds-/.exec(step);
+                if (!artifact) continue;
+                if (dispatchOnly) {
+                    exempt++;
+                    continue;
+                }
+                const key = artifact[1];
+                checked++;
+                assert.ok(
+                    step.includes(`'"${key}"'`),
+                    `an artifact step for "${key}" is not gated on its own package:\n${step.slice(0, 200)}`,
+                );
+            }
         }
-        assert.ok(checked >= 60, `expected every artifact step to be checked, saw ${checked}`);
+        // The exemption must stay a carve-out, not become the rule: the automatic
+        // legs are ~60 steps and every one of them is still held to the gate.
+        assert.ok(checked >= 60, `expected every automatic artifact step to be checked, saw ${checked}`);
+        assert.ok(exempt < checked / 4, `too many artifact steps exempted as dispatch-only (${exempt})`);
     });
 });
 
