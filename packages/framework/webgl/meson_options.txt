@@ -1,0 +1,35 @@
+# valac does not run on Windows, so a win32 build of this bridge has to be split
+# across two hosts: one that HAS valac emits the C sources and the GIR, and the
+# Windows half compiles those with MSVC. This option is how the second half is
+# told where the first half's output is.
+#
+# EMPTY (the default) IS THE ORDINARY BUILD. valac runs, meson drives it exactly
+# as before, and this file changes nothing — every Linux/macOS leg keeps the code
+# path it already had.
+#
+# Set it to a directory RELATIVE TO THIS PACKAGE (meson's source sandbox refuses
+# a `files()` outside the tree, and an artifact unpacked into the package dir is
+# also the only shape a CI download can produce without a copy step), holding:
+#
+#   <dir>/gwebgl.h              the generated public header (`#include "gwebgl.h"`)
+#   <dir>/Gwebgl-0.1.gir        valac's GIR — the g-ir-compiler input
+#   <dir>/src/vala/<name>.c     one .c per .vala, MIRRORING the source path,
+#                               which is what valac does with `--directory`
+#
+# WHY AN OPTION AND NOT A SECOND meson.build: a second build description is only
+# ever exercised by the platform that uses it, so it drifts from the one Linux CI
+# runs on every PR and nobody finds out until somebody dispatches the Windows
+# leg. One description with a branch keeps both halves inside the file that every
+# green Linux build already reads.
+#
+# WHY THE C IS NEVER COMMITTED: generation and consumption happen in the SAME
+# workflow run, from the same commit and the same valac, so the two cannot drift.
+# A committed copy would recreate the stale-artifact class this repo keeps paying
+# for (AGENTS.md § Committed-artifact freshness) — with no guard, because nothing
+# would rebuild it.
+option(
+    'prebuilt_vala_c',
+    type: 'string',
+    value: '',
+    description: 'Directory with pre-generated Vala C sources + GIR; skips valac (see comment in meson_options.txt)',
+)

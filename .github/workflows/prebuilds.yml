@@ -1618,6 +1618,515 @@ jobs:
           packages/web/webrtc-native|GjsifyWebrtc|WebrtcbinBridge
           EOF
 
+  # ════════════════════════════════════════════════════════════════════════════
+  # win32-x64 exploratory — @gjsify/webgl, SPLIT ACROSS TWO JOBS
+  #
+  # MANUAL DISPATCH ONLY (both halves), absent from `commit-prebuilds`, and NO
+  # `win32-x64` token is added to any `gjsify.platforms` — the same posture the
+  # macOS and musl exploratory legs take, for the same reason: the
+  # declared-vs-built invariant is SYMMETRIC, so the leg proves itself first and
+  # the declaration follows. `parseCiPlatforms()` EXCLUDES jobs gated on
+  # `github.event_name == 'workflow_dispatch'`, so while these are unproven they
+  # contribute nothing to the audit in either direction. Both `if:` lines below
+  # are what that parser matches CHARACTER FOR CHARACTER — an equivalent
+  # rewriting would credit `@gjsify/webgl` with a `win32-x64` it does not
+  # declare and fail the audit for a package nobody touched.
+  #
+  # ── WHY IT IS TWO JOBS: valac MUST NOT RUN ON WINDOWS ─────────────────────
+  #
+  # This is the whole shape of the thing, and it is a researched conclusion
+  # rather than a preference:
+  #   • There is no standalone MSVC valac. `supercamel/ValaOnWindows` ships no
+  #     compiler of its own (it points at Ooblerg or MSYS2 pacman), builds with
+  #     MinGW-w64 gcc, and explicitly does not cover shared libraries or
+  #     GIR/typelib generation — i.e. it omits both artifacts this bridge IS.
+  #   • gvsbuild has no `vala` project at all. Its project list (checked against
+  #     `repos/wingtk/gvsbuild/contents/gvsbuild/projects`) carries libepoxy,
+  #     gtk, glib, gobject_introspection, libsoup, nghttp2, libnice and
+  #     gstreamer — and no Vala compiler.
+  #   • Reaching for MinGW anyway is an ABI HAZARD, not a shortcut. gvsbuild's
+  #     GTK4 is MSVC-ABI, and this job's load test goes through
+  #     `@gjsify/node-gi`, whose Windows stack loads girepository out of that
+  #     same bundle. A MinGW-built DLL against MSVC-ABI GLib mixes CRTs, and
+  #     GLib routinely allocates what the consumer frees. `napi.yml`'s `windows`
+  #     job records the identical wall for the identical reason — read its
+  #     header before proposing MinGW here.
+  #
+  # So: a host that HAS valac emits the C sources AND the GIR (valac produces
+  # both; `vala_gir:` in the package's meson.build is what asks for the GIR),
+  # and the Windows half compiles that C with MSVC and runs gvsbuild's
+  # `g-ir-compiler` on that GIR.
+  #
+  # ── WHY THE C IS AN ARTIFACT AND NEVER A COMMIT ───────────────────────────
+  #
+  # Generation and consumption are two jobs of ONE RUN: same commit, same valac,
+  # so drift between them is structurally impossible rather than merely
+  # unlikely. A committed copy would be a build input nothing regenerates and
+  # nothing byte-checks — precisely the stale-artifact class AGENTS.md
+  # § Committed-artifact freshness exists to keep out, and the one committed
+  # artifact family that still has no byte-check is `prebuilds/**` itself. The
+  # package's `.gitignore` entry for `vala-c-export/` is the mechanism; the
+  # option's comment is only the explanation.
+  #
+  # ── WHY ONE meson.build AND NOT A SECOND ──────────────────────────────────
+  #
+  # The Windows path lives in `packages/framework/webgl/meson.build` behind
+  # `-Dprebuilt_vala_c=<dir>`, not in a parallel build file. A second
+  # description is only ever exercised by the platform that uses it, so it
+  # drifts from the one Linux CI reads on every PR and nobody finds out until
+  # somebody dispatches this. The branch is "somebody else ran valac", NOT "this
+  # is MSVC" — which is why a Linux host can and does exercise it (measured
+  # locally before this landed: the prebuilt-C branch under GCC produces a
+  # `Gwebgl-0.1.typelib` BYTE-IDENTICAL to the valac branch's, and both load
+  # `Gwebgl.WebGLRenderingContext` under stock gjs).
+  #
+  # ── THE ONE GENUINE UNKNOWN — ANSWERED: YES, MSVC COMPILES IT ─────────────
+  #
+  # MEASURED END TO END, and the leg is GREEN (run 30808747504, cl.exe
+  # 19.51.36252 / VS 2026, valac 0.56.19, gvsbuild 2026.6.0 = GLib 2.88.1 /
+  # GTK 4.22.4 / epoxy 1.5.10):
+  #   • all four generated `.c` files compiled, `gwebgl.dll` linked (189440 B),
+  #     `Gwebgl-0.1.typelib` generated (41744 B — the Linux one is 41752 B, and
+  #     the 8-byte delta is the recorded leaf string, `gwebgl.dll` vs
+  #     `libgwebgl.so`);
+  #   • ZERO language diagnostics on any file, so nothing about the generated
+  #     code needed changing;
+  #   • `Gwebgl.WebGLRenderingContext` resolved through node-gi, i.e. GI called
+  #     `…_get_type` and the DLL was really loaded.
+  # The FIRST dispatch (run 30808356641) is worth knowing about because it is
+  # what located the one real obstacle: it compiled 2 of the 4 files and failed
+  # the other two on `C1083: Cannot open include file: 'epoxy/gl.h'` — a header
+  # present on disk that no `.pc` file names. See the `INCLUDE` line in the build
+  # step; the mechanism is now printed by the diagnostics step every run.
+  #
+  # The pre-dispatch source scan that predicted this is kept because it explains
+  # WHY, and because it is the thing to re-run if a valac bump ever breaks it —
+  # across 10266 lines of emitted C (4 `.c` + `gwebgl.h`) there is no construct
+  # MSVC rejects:
+  #   • ZERO statement expressions, `typeof`, `__extension__`, `__builtin_*`,
+  #     nested functions, VLAs or `long long`.
+  #   • The single `__attribute__` in the whole set sits inside valac's OWN
+  #     `#if defined(_MSC_VER)` ladder in `gwebgl.h`, whose MSVC arm is
+  #     `#define VALA_EXTERN __declspec(dllexport) extern`. Vala therefore
+  #     already handles Windows symbol export itself — no `.def` file, unlike
+  #     the napi shim. And because that ladder is a PREPROCESSOR decision, C
+  #     generated on Linux still takes the MSVC arm when MSVC compiles it, which
+  #     is the property that makes this split work at all.
+  #   • The only remaining GCC-isms are 3 `#pragma GCC/clang diagnostic` lines,
+  #     which MSVC ignores as unknown pragmas (C4068).
+  # `c_std` is deliberately NOT preset — MSVC's default C mode is its most
+  # permissive, and the first run confirmed nothing stricter is needed. THE RULE
+  # THAT GOT THIS ANSWER, kept for whoever hits the next wall: record what the
+  # compiler actually rejected. Do not reach for flags that hide a real
+  # incompatibility, and do not fall back to MinGW (see the ABI hazard above).
+  # Selecting a C STANDARD or supplying a missing include DIRECTORY answers a
+  # real question about the platform; `/w` answers none.
+  #
+  # ── WHAT PROMOTION WOULD STILL OWE, beyond a green run ────────────────────
+  #
+  # Recorded because "it built and loaded" is NOT the whole bill:
+  #   • `gwebgl.dll` imports `epoxy-0.dll`. On Linux libepoxy is a distro
+  #     package; Windows has no system libepoxy, so a shipped win32 prebuild is
+  #     NOT self-contained the way the Linux ones are — it needs node-gi's
+  #     batteries-included GTK bundle (which carries epoxy because GTK4 does).
+  #     Whose tarball ships what is a promotion decision, not a build detail.
+  #   • The load test proves `dlopen` + `…_get_type`, never RENDERING. A
+  #     display-less runner cannot drive a `Gtk.GLArea`, exactly as the macOS
+  #     note above says. Pixels need a real desktop.
+  #   • Promotion is one change: the `win32-x64` token in `gjsify.platforms`, a
+  #     generated `@gjsify/webgl-win32-x64` package (`generate-platform-packages
+  #     .mjs --write`) with its npm name bootstrapped via `gjsify onboard`, both
+  #     `if:` gates dropped, and the matching download + `git add` in
+  #     `commit-prebuilds`.
+  # ════════════════════════════════════════════════════════════════════════════
+  webgl-vala-c-win32:
+    name: Emit Vala C + GIR for the win32 experiment (fedora)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 20
+    container:
+      # THE BAKED IMAGE, not a bare `fedora:43` — required, and machine-checked
+      # by `scripts/check-ci-image-packages.mjs`: an amd64 containerised job that
+      # COULD run on this image and does not must be ledgered with a reason, and
+      # that ledger is deliberately empty. (It caught this job on its first run.
+      # The three jobs still on a bare image are all `ubuntu-24.04-arm`, which
+      # the check DERIVES as excused because `build-ci-image.yml` publishes
+      # linux/amd64 only.) It also removes the `dnf install` this job used to
+      # carry: the image already bakes meson, vala, gcc, pkgconf, glib2-devel,
+      # gobject-introspection-devel, gtk4-devel, gdk-pixbuf2-devel and
+      # libepoxy-devel, which is exactly this job's set.
+      #
+      # TAG 43, NOT 44, and for the VALAC VERSION rather than for glibc:
+      # `ci-fedora:43` is `FROM fedora:43`, the image `build-prebuilds` pins, so
+      # ONE valac produces the C for every target — the same compiler that builds
+      # the committed Linux prebuilds emits what MSVC will compile, and the two
+      # halves cannot disagree about generated code. The elaborate glibc-floor
+      # argument on `build-prebuilds`' image does NOT apply here: everything this
+      # job emits is text (C sources and an XML GIR), so this line is not a
+      # distribution decision.
+      image: ghcr.io/gjsify/ci-fedora:43
+    steps:
+      # No `changes` gate anywhere in either job, deliberately. A dispatch has no
+      # previous state to diff against, so the `changes` job classifies
+      # everything as built and `skip` is always `[]` — an
+      # `!contains(needs.changes.outputs.skip, '"webgl"')` here would be a
+      # condition that cannot be false, reading as a decision while being dead
+      # weight.
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Verify the baked toolchain + record the generator's provenance
+        # TWO jobs, one step, because they print the same three facts. Verifying
+        # is the convention every job on this image follows — assert the tools
+        # are there rather than assume the pull was the image you meant, so a
+        # bare `fedora:43` fails HERE naming the cause instead of inside `meson
+        # setup`. Recording is what makes the C downstream actionable: it is an
+        # opaque artifact by the time MSVC sees it, and a "MSVC rejects this"
+        # finding is only useful next to a valac version.
+        run: |
+          echo "ci-fedora image major: $(cat /etc/gjsify-ci-fedora-version)"
+          valac --version
+          meson --version
+          pkg-config --modversion glib-2.0 gtk4 epoxy gdk-pixbuf-2.0
+
+      # The ORDINARY Linux build — no options, the same two commands every other
+      # Linux leg runs. Meson drives valac as part of it and leaves the emitted
+      # `.c` in its private object dir; running the full compile (rather than
+      # just the codegen rule) also proves on the cheapest possible host that the
+      # C compiles at all, so a Windows failure is unambiguously about MSVC.
+      - name: Build @gjsify/webgl Vala library (generates the C + GIR)
+        working-directory: packages/framework/webgl
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      # Meson has no declared output for the Vala→C step, so the export reads its
+      # private object dir. That path is derived the same way this workflow's
+      # other Linux steps derive `build/libgwebgl.so` — and every assumption in
+      # it is ASSERTED rather than trusted, because a silent partial export would
+      # surface on Windows as an undefined symbol at link time, a long way from
+      # its cause.
+      #
+      # The `.vala` list is read off DISK and each file's `.c` is required to
+      # exist. That also catches a `src/vala/*.vala` the package's `meson.build`
+      # does not list — a file the Linux build silently ignores today.
+      - name: Export the generated C + GIR
+        working-directory: packages/framework/webgl
+        run: |
+          set -euo pipefail
+          PRIV=build/libgwebgl.so.p
+          OUT=vala-c-export
+          if [ ! -d "$PRIV" ]; then
+            echo "::error::$PRIV is missing. Meson keeps the Vala-generated C in <builddir>/<library-file>.p/; either that layout changed or the library target was renamed. Fix this path, do not glob for it — picking the wrong private dir exports the TEST APP's subset and fails on Windows at link time."
+            exit 1
+          fi
+          mkdir -p "$OUT/src/vala"
+          rc=0
+          for vala in src/vala/*.vala; do
+            rel="src/vala/$(basename "$vala" .vala).c"
+            if [ -f "$PRIV/$rel" ]; then
+              cp "$PRIV/$rel" "$OUT/$rel"
+            else
+              echo "::error file=$vala::valac emitted no $rel — this .vala is not in meson.build's \`vala_sources\`, so the Linux build is ignoring it too."
+              rc=1
+            fi
+          done
+          # `gwebgl.h` is what every generated `.c` `#include`s; the GIR is the
+          # g-ir-compiler input. Both are meson-declared outputs of the library
+          # target, so these two paths are not layout guesses.
+          cp build/gwebgl.h "$OUT/gwebgl.h"
+          cp build/Gwebgl-0.1.gir "$OUT/Gwebgl-0.1.gir"
+          echo "--- exported ---"
+          find "$OUT" -type f | sort
+          echo "--- the leaf THIS host's typelib recorded (for contrast, not shipped) ---"
+          grep -m1 -o 'shared-library="[^"]*"' build/Gwebgl-0.1.gir || true
+          exit $rc
+
+      - name: Upload the Vala C + GIR
+        uses: actions/upload-artifact@v7
+        with:
+          name: webgl-vala-c-win32
+          path: packages/framework/webgl/vala-c-export/
+          if-no-files-found: error
+          # Short on purpose: this is an intermediate consumed by the next job of
+          # the SAME run. Nothing should ever reach for an old one — that would
+          # be the committed-generated-C failure wearing a different hat.
+          retention-days: 1
+
+  build-prebuilds-win32-experimental:
+    name: Build prebuilds (win32-x64) [experimental — webgl via MSVC]
+    needs: [webgl-vala-c-win32]
+    runs-on: windows-latest
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    env:
+      PREBUILD: win32-x64
+      # gvsbuild setup is REUSED VERBATIM from node-gi.yml's `windows` job,
+      # down to the cache key, so the two share one warm cache and there is
+      # exactly one place that knows how a Windows GTK/GI toolchain is acquired
+      # in this repository. Do not hand-roll a second copy; if this needs to
+      # move, move it there.
+      GVSBUILD_VERSION: '2026.6.0'
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Node 24 builds `@gjsify/node-gi` (node-gyp) and runs the load test — the
+      # same version node-gi.yml's Windows jobs pin.
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Cache gvsbuild GTK4 bundle
+        id: cache-gtk
+        uses: actions/cache@v4
+        with:
+          path: C:\gtk-build\gtk\x64\release
+          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+
+      - name: Download + extract gvsbuild GTK4 (MSVC-ABI, girepository-2.0)
+        if: steps.cache-gtk.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      - name: Put GTK on PATH + set GI/PKG env
+        shell: pwsh
+        run: |
+          "$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "PKG_CONFIG_PATH=$env:GTK_PREFIX\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # The typelib DIRECTORY is historically named girepository-1.0 even for
+          # the girepository-2.0 API.
+          "GI_TYPELIB_PATH=$env:GTK_PREFIX\lib\girepository-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GSETTINGS_SCHEMA_DIR=$env:GTK_PREFIX\share\glib-2.0\schemas" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install meson + ninja
+        run: python -m pip install --disable-pip-version-check meson ninja
+
+      # THE EVIDENCE THIS JOB EXISTS TO PRODUCE, printed before anything can
+      # fail on it — the same posture `build-prebuilds-macos-experimental` takes
+      # with its "Report what pkg-config actually resolved" step. Two open
+      # questions live here:
+      #   • does the gvsbuild GTK4 bundle export `epoxy.pc`? GTK4 links libepoxy
+      #     on Windows and gvsbuild has a libepoxy project, but the release ZIP's
+      #     dev files are what decide it, and this bridge's C
+      #     `#include <epoxy/gl.h>`.
+      #   • is the typelib compiler still called `g-ir-compiler.exe`? GLib ≥ 2.80
+      #     moved girepository in-tree and ships `gi-compile-repository`; the
+      #     package's meson.build asks `find_program('g-ir-compiler')`, so an
+      #     absent alias fails at `meson setup` with a message that does not
+      #     explain itself. Naming both here turns that into a diagnosis. If it
+      #     IS missing, teaching meson.build to accept either name is the fix —
+      #     and it touches Linux and macOS too, so make it deliberately.
+      - name: Report what the Windows toolchain actually resolved
+        shell: pwsh
+        run: |
+          Write-Host "pkg-config: $((Get-Command pkg-config -ErrorAction SilentlyContinue).Source)"
+          foreach ($pc in @('glib-2.0','gobject-2.0','gdk-pixbuf-2.0','gtk4','epoxy','girepository-2.0')) {
+            $v = & pkg-config --define-prefix --modversion $pc 2>$null
+            if ($LASTEXITCODE -ne 0) { $v = 'MISSING' }
+            Write-Host ("{0,-20} {1}" -f $pc, $v)
+          }
+          Write-Host "--- typelib compilers on PATH ---"
+          foreach ($exe in @('g-ir-compiler','gi-compile-repository')) {
+            $c = Get-Command "$exe" -ErrorAction SilentlyContinue
+            Write-Host ("{0,-24} {1}" -f $exe, $(if ($c) { $c.Source } else { 'MISSING' }))
+          }
+          Write-Host "--- epoxy header ---"
+          Write-Host $(if (Test-Path "$env:GTK_PREFIX\include\epoxy\gl.h") { 'epoxy/gl.h present' } else { 'epoxy/gl.h MISSING' })
+          # MEASURED, not inferred: the first dispatch failed C1083 on
+          # `epoxy/gl.h` while the header was present and `epoxy.pc` resolved,
+          # because `epoxy.pc` emits NO -I at all. On a POSIX prefix
+          # `<prefix>/include` is a default compiler search path so a .pc has
+          # nothing to add; MSVC has no such default, so the header is present
+          # and unreachable. Print the cflags each dependency contributes so
+          # that mechanism stays visible in the log instead of living only in a
+          # comment — glib is the contrast case, it names its own subdirectory.
+          Write-Host "--- cflags each dependency contributes ---"
+          foreach ($pc in @('epoxy','glib-2.0','gtk4')) {
+            Write-Host ("{0,-12} {1}" -f $pc, (& pkg-config --define-prefix --cflags-only-I $pc 2>&1))
+          }
+
+      - name: Download the Vala C + GIR
+        uses: actions/download-artifact@v8
+        with:
+          name: webgl-vala-c-win32
+          # The meson option takes a path RELATIVE to the package, because
+          # meson's source sandbox refuses a `files()` outside the tree. Landing
+          # the download here is what makes `-Dprebuilt_vala_c=vala-c-export`
+          # resolvable, and `vala-c-export/` is gitignored so it can never be
+          # committed by accident.
+          path: packages/framework/webgl/vala-c-export
+
+      - name: Show what arrived
+        shell: pwsh
+        run: Get-ChildItem packages/framework/webgl/vala-c-export -Recurse -File | ForEach-Object { $_.FullName }
+
+      # ONE `cmd` step, because vcvars64.bat exports its environment into the
+      # shell it runs in and meson needs `cl.exe` on PATH. Deliberately NOT a
+      # third-party "setup MSVC" action and NOT a vcvars→$GITHUB_ENV dump:
+      # GitHub ignores PATH written through $GITHUB_ENV (it wants $GITHUB_PATH),
+      # so that dump silently loses the one variable that matters. vswhere is how
+      # this repo already locates the VS install (node-gi.yml's windowing bundle
+      # finds dumpbin the same way) rather than hard-coding an edition.
+      #
+      # `meson compile` runs BOTH halves of the Windows build: cl.exe over the
+      # imported C into `gwebgl.dll`, then g-ir-compiler over the imported GIR
+      # into `Gwebgl-0.1.typelib` — recording whatever leaf name meson chose,
+      # which is the point of `fs.name(libGwebgl.full_path())` in meson.build
+      # (`gwebgl.dll` under MSVC, `libgwebgl.dll` under MinGW; no
+      # `host_machine.system()` branch can be right for both).
+      - name: Build @gjsify/webgl with MSVC from the imported C
+        working-directory: packages/framework/webgl
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VSPATH=%%i
+          if not defined VSPATH ( echo ::error::vswhere found no Visual Studio installation & exit /b 1 )
+          call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          cl 2>&1 | findstr /C:"Version"
+          rem Supply the include ROOT of the gvsbuild prefix, which no .pc file
+          rem names. MEASURED on the first dispatch (run 30808356641): MSVC
+          rem compiled 2 of the 4 generated .c files and failed the other two
+          rem with C1083 on `epoxy/gl.h` — a header that WAS present at
+          rem %GTK_PREFIX%\include\epoxy\gl.h while `pkg-config epoxy` resolved
+          rem 1.5.10 and contributed no -I whatsoever. `epoxy.pc` installs its
+          rem headers straight into <prefix>/include, which on a POSIX prefix is
+          rem already a default compiler search path, so the .pc has nothing to
+          rem add; MSVC has no equivalent default. (glib is the contrast: it
+          rem names include/glib-2.0, so its -I is explicit and it compiled.)
+          rem
+          rem This is SUPPLYING A PLATFORM DEFAULT, not hiding an
+          rem incompatibility — the same class as this job's vcpkg ffi.h step
+          rem and node-gi.yml's, which exists because gvsbuild omits ffi.h
+          rem outright. It is deliberately NOT a `-Dc_args=` in meson.build:
+          rem meson.build must stay free of Windows specifics, and `INCLUDE` is
+          rem the variable MSVC itself defines for exactly this, set right next
+          rem to the vcvars call that establishes the rest of the toolchain env.
+          rem What it is NOT: /w, /std:cNN, or any diagnostic suppression.
+          set INCLUDE=%GTK_PREFIX%\include;%INCLUDE%
+          meson setup build . -Dprebuilt_vala_c=vala-c-export || exit /b 1
+          meson compile -C build || exit /b 1
+
+      - name: Collect @gjsify/webgl prebuilds
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dest = "packages/framework/webgl/prebuilds/$env:PREBUILD"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item packages/framework/webgl/build/gwebgl.dll -Destination $dest
+          Copy-Item packages/framework/webgl/build/Gwebgl-0.1.typelib -Destination $dest
+          # The GIR comes from the ARTIFACT, not from build/: on the
+          # prebuilt-C branch meson never re-emits it (valac did, one job ago),
+          # so `build/` legitimately has none. Staging it keeps this directory
+          # the same shape the darwin legs produce, which is what lets the leaf
+          # assertion below be the same assertion.
+          Copy-Item packages/framework/webgl/vala-c-export/Gwebgl-0.1.gir -Destination $dest
+          Get-ChildItem $dest | Select-Object Name, Length
+
+      # A typelib whose recorded leaf is wrong is FOUND via GI_TYPELIB_PATH and
+      # then never loads — the silent failure `fs.name()` replaced an OS-branch
+      # chain to prevent. Assert it before the load test so a mismatch is named
+      # here rather than diagnosed from a GI error.
+      - name: Verify the typelib records a .dll leaf
+        shell: pwsh
+        run: |
+          $gir = "packages/framework/webgl/prebuilds/$env:PREBUILD/Gwebgl-0.1.gir"
+          $leaf = (Select-String -Path $gir -Pattern 'shared-library="([^"]*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          Write-Host "$gir -> shared-library=$leaf"
+          # The GIR is the LINUX-generated one, so its recorded leaf is still
+          # `libgwebgl.so`; what matters is the TYPELIB, which meson rebuilt here
+          # with `--shared-library` set from the target meson actually produced.
+          # Read the string out of the compiled typelib rather than trusting the
+          # command line that made it.
+          $bytes = [System.IO.File]::ReadAllBytes("packages/framework/webgl/prebuilds/$env:PREBUILD/Gwebgl-0.1.typelib")
+          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($text -notmatch 'gwebgl\.dll') {
+            Write-Host "::error::the compiled typelib does not record a .dll leaf. Strings found: $(($text -split "`0" | Where-Object { $_ -match 'gwebgl' }) -join ', ')"
+            exit 1
+          }
+          Write-Host "typelib records a .dll leaf"
+
+      # ── THE LOAD TEST ────────────────────────────────────────────────────
+      #
+      # "A prebuild never LOADED in CI is a prebuild nobody tested", and this one
+      # cannot use gjs: there is no libgjs for Windows (napi.yml's `windows` job
+      # documents that open wall in detail). On Windows this project's runtime IS
+      # Node, and GObject comes from `@gjsify/node-gi` — so going through node-gi
+      # is not a workaround, it is the platform's actual GObject path, which is
+      # what makes a pass here mean something to a real user.
+      #
+      # node-gi is built FROM SOURCE against the same gvsbuild bundle rather than
+      # installed from npm, so the test cannot silently pass against a published
+      # binary that has nothing to do with this run.
+      - name: Supply libffi headers (gvsbuild omits ffi.h)
+        # Verbatim from node-gi.yml's `windows` job, which explains why: gvsbuild
+        # installs ffi.lib but not ffi.h/ffitarget.h, while GLib's girffi.h
+        # (which it DOES install) includes ffi.h — so the addon will not compile
+        # (C1083) without them. libffi's public ABI is frozen across 3.x.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install libffi:x64-windows
+          $inc = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include"
+          Copy-Item "$inc\ffi.h","$inc\ffitarget.h" -Destination "$env:GTK_PREFIX\include" -Force
+
+      - name: Build @gjsify/node-gi (node-gyp / MSVC)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      # Resolving a CLASS is the trigger, not a formality: `getGType` is what
+      # forces GI to call the type's `…_get_type`, and THAT is what LoadLibrary's
+      # the leaf the typelib records. A typelib merely FOUND resolves the
+      # namespace and then returns null here — which is why the check below is on
+      # the GType and not on `requireNamespace` succeeding.
+      #
+      # `node --input-type=module -e` from inside the node-gi package rather than
+      # a written probe file: `-e`'s module base is the cwd, so `./index.js`
+      # resolves with nothing to clean up afterwards. The array-join is not style
+      # — a PowerShell here-string has to start at column 0, which terminates the
+      # YAML block scalar the step is written in.
+      - name: Load-test the win32-x64 prebuild through node-gi
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $abs = (Resolve-Path "packages/framework/webgl/prebuilds/$env:PREBUILD").Path
+          # PATH is the DLL search path on Windows — the analogue of
+          # LD_LIBRARY_PATH/DYLD_LIBRARY_PATH in the Linux/darwin load tests, and
+          # what `buildNativeEnv()` exports for win32.
+          $env:PATH = "$abs;$env:PATH"
+          $env:GI_TYPELIB_PATH = "$abs;$env:GI_TYPELIB_PATH"
+          $env:NODE_GI_NATIVE = 'build'
+          $probe = @(
+            "import { requireNamespace, getGType } from './index.js';",
+            "requireNamespace('Gwebgl', '0.1');",
+            "const g = getGType('Gwebgl', 'WebGLRenderingContext');",
+            "if (g == null) throw new Error('getGType returned null - the typelib was found but gwebgl.dll never loaded');",
+            "console.log('Gwebgl.WebGLRenderingContext resolved via node-gi - gwebgl.dll loaded, GType', g);"
+          ) -join "`n"
+          Push-Location packages/node-gi/node-gi
+          try { node --input-type=module -e $probe } finally { Pop-Location }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload @gjsify/webgl win32-x64 prebuilds artifact
+        # Uploaded so a dispatch can be inspected and diffed. NOT downloaded by
+        # `commit-prebuilds` — committing it is the promotion step, together with
+        # the declaration and the per-target package (see this block's header).
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: webgl-prebuilds-win32-x64
+          path: packages/framework/webgl/prebuilds/win32-x64/
+          if-no-files-found: warn
+          retention-days: 30
+
   # ----------------------------------------------------------------
   # Alpine / musl — prebuilds/linux-{x64,arm64}-musl
   #
@@ -2736,6 +3245,8 @@ jobs:
       - build-prebuilds-qemu
       - build-prebuilds-macos
       - build-prebuilds-macos-experimental
+      - webgl-vala-c-win32
+      - build-prebuilds-win32-experimental
       - build-prebuilds-musl
       - commit-prebuilds
     if: always()
@@ -2800,10 +3311,11 @@ jobs:
               echo 'skipped leg that matters is `build-prebuilds-macos` — every Linux target in'
               echo '`package.json#gjsify.platforms` is built, neither `darwin-arm64` nor'
               echo '`darwin-x64` is (both are legs of that one matrixed job). Label the PR'
-              echo '`ci:macos` to add them. (`build-prebuilds-macos-experimental` and'
-              echo '`build-prebuilds-musl` are dispatch-only by design — the musl leg builds targets'
-              echo 'no package declares yet, so it proves itself before the declaration exists —'
-              echo 'and `commit-prebuilds` is main-only by design.)'
+              echo '`ci:macos` to add them. (`build-prebuilds-macos-experimental`,'
+              echo '`build-prebuilds-musl` and the win32 pair `webgl-vala-c-win32` +'
+              echo '`build-prebuilds-win32-experimental` are dispatch-only by design — each builds'
+              echo 'targets no package declares yet, so they prove themselves before the'
+              echo 'declaration exists — and `commit-prebuilds` is main-only by design.)'
             else
               echo '**Every prebuild leg in this workflow ran.**'
             fi

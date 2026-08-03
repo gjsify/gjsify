@@ -19,6 +19,15 @@ repo/
 # `check-refs-pin.mjs` pins the refs/ half. See each package's README.
 packages/infra/*/src/rust/target/
 
+# Vala-generated C + GIR handed from a valac host to a host that has no valac
+# (today: the win32 webgl experiment in prebuilds.yml, via the package's
+# `prebuilt_vala_c` meson option). Generation and consumption happen in the SAME
+# workflow run, so these must NEVER be committed: a tracked copy would be a
+# build input nothing regenerates and nothing byte-checks — the stale-artifact
+# class AGENTS.md § Committed-artifact freshness exists to keep out. The ignore
+# is the mechanism; the option's comment is only the explanation.
+vala-c-export/
+
 *.tsbuildinfo
 
 node_modules/
