@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.27.0, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime). Pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/` | **NativeScript bridge** `packages/nativescript-bridge/` | `packages/infra/` + `packages/gjs/` = supporting infra. Package counts, per-package status tables and metrics are DERIVED — authored status data in `status/`, rendered on demand by `npm run status:generate`, never here.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.26.1, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime). Pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/` | **NativeScript bridge** `packages/nativescript-bridge/` | `packages/infra/` + `packages/gjs/` = supporting infra. Package counts, per-package status tables and metrics are DERIVED — authored status data in `status/`, rendered on demand by `npm run status:generate`, never here.
 
 ## Governance — non-negotiable
 
