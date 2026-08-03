@@ -438,6 +438,111 @@ describe('prebuild change gate — fail open', () => {
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Staging goes through the SHARED stager — asserted on the workflow text.
+//
+// AGENTS.md § Prebuilds states it categorically ("never a hand-written `cp`"),
+// and the drift was already committed when this was written: ~19 `mkdir -p
+// …prebuilds/ && cp <named files>` bodies in `prebuilds.yml` against 30-odd
+// `stage-prebuild` references elsewhere. It cost exactly what the rule predicts —
+// the linux `cp` lists for `webgl` and `webrtc-native` omitted the `.gir` while
+// darwin's included it, so ten of the sixty per-target directories had a
+// different file shape from every other one, and nothing anywhere said so.
+//
+// A hand-written body also skips everything the stager DOES: the target comes
+// from the package's own `gjsify.platforms` (not from a literal a job can get
+// wrong), artifacts are matched by EXTENSION (so a library renamed in
+// `meson.build` cannot ship a stale set), and it ends in `checkPrebuildDir()` —
+// the staged-sibling + `$ORIGIN`/`@loader_path` check that is the whole of #832.
+//
+// This lives in the e2e suite that already asserts things about `prebuilds.yml`'s
+// TEXT rather than in a conformance rule: `platforms-ci` reads the same file, but
+// its question is "which targets does CI build", and it is deliberately advisory
+// so an unparsed shape can never fail a package nobody touched. "Was this staged
+// by hand" is a HARD property of the file and belongs where a hard assertion can
+// live.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('prebuild change gate — staging goes through the shared stager', () => {
+    /**
+     * The workflow's step bodies, with comment lines dropped.
+     *
+     * Comments are stripped because several of them NAME the anti-pattern in
+     * order to explain why it is forbidden (the musl leg's header, the Linux
+     * leg's guard). A shell comment stages nothing, so reading one as a
+     * violation would make the rule unstatable in the very place it is
+     * justified — and a rule that cannot cite its incident gets simplified back
+     * into the bug.
+     *
+     * @param {string} text workflow YAML
+     * @returns {{name: string, body: string}[]}
+     */
+    function stepBodies(text) {
+        const steps = [];
+        for (const raw of text.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1)) {
+            const name = (/^name:\s*(.+)$/m.exec(raw)?.[1] ?? '(unnamed)').trim();
+            const body = raw
+                .split('\n')
+                .filter((l) => !/^\s*(#|rem\s)/.test(l))
+                .join('\n');
+            steps.push({ name, body });
+        }
+        return steps;
+    }
+
+    // Both spellings of "make the directory and copy into it by hand". `mkdir -p`
+    // is the POSIX one every converted step used; `New-Item -ItemType Directory`
+    // is PowerShell's, and the win32 legs are written in pwsh — leaving it out
+    // would make "move the cp to Windows" the trivial escape.
+    const HAND_STAGING = [
+        { label: 'mkdir -p …prebuilds/', re: /mkdir\s+-p\s+\S*prebuilds\// },
+        { label: 'New-Item …prebuilds…', re: /New-Item[^\n]*prebuilds/i },
+    ];
+
+    for (const file of [workflow, emulated, muslScript]) {
+        it(`no step in ${file.split('/').pop()} stages a prebuild by hand`, () => {
+            const text = readFileSync(file, 'utf8');
+            // `.sh` files are one body; `.yml` splits into steps. Either way the
+            // unit reported is what a reviewer would go and read.
+            const units = file.endsWith('.yml')
+                ? stepBodies(text)
+                : [{ name: file.split('/').pop(), body: text.replace(/^\s*#.*$/gm, '') }];
+            assert.ok(units.length > 0, `${file}: nothing to scan — the parser no longer understands it`);
+            for (const unit of units) {
+                for (const { label, re } of HAND_STAGING) {
+                    assert.ok(
+                        !re.test(unit.body),
+                        `${file}: step "${unit.name}" stages a prebuild by hand (${label}).\n` +
+                            '  Use `node scripts/stage-prebuild.mjs <pkg-dir> [--scratch]` instead: it derives the\n' +
+                            "  target from the package's own `gjsify.platforms`, matches artifacts by EXTENSION\n" +
+                            '  (so a renamed library cannot ship a stale set) and runs checkPrebuildDir() over\n' +
+                            '  what it wrote. AGENTS.md § Prebuilds: "never a hand-written `cp`".',
+                    );
+                }
+            }
+        });
+    }
+
+    it('every build leg that stages DOES call the shared stager', () => {
+        // The other direction, and it is not redundant: deleting a collect step
+        // outright also satisfies the ban above. A leg that compiles and stages
+        // nothing uploads an empty artifact, which `commit-prebuilds` would then
+        // commit as a deletion — the failure its own "Refuse to delete a
+        // committed prebuild" guard exists for, one job too late.
+        const text = readFileSync(workflow, 'utf8');
+        const collectSteps = stepBodies(text).filter((s) => /^Collect @gjsify\//.test(s.name));
+        assert.ok(collectSteps.length >= 18, `expected the per-package collect steps, saw ${collectSteps.length}`);
+        for (const step of collectSteps) {
+            assert.match(
+                step.body,
+                /scripts\/stage-prebuild\.mjs/,
+                `step "${step.name}" collects a prebuild without the shared stager`,
+            );
+        }
+        // And the emulated leg, whose single `build_pkg` helper is its collect step.
+        assert.match(readFileSync(emulated, 'utf8'), /scripts\/stage-prebuild\.mjs/);
+    });
+});
+
 describe('prebuild change gate — the emulated leg obeys the same decision', () => {
     it('skips a package in PREBUILD_SKIP and builds everything when it is unset', () => {
         // The emulated build is a single `docker run`, so the decision travels

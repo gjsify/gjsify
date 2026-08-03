@@ -375,9 +375,14 @@ jobs:
         # gnutls-devel provides the gnutls.pc + gnutls/ocsp.h that
         # @gjsify/tls-native needs for OCSP-response parsing.
         # `curl` is needed by rustup-init below.
+        # `nodejs` runs `scripts/stage-prebuild.mjs` — the shared stager every
+        # collect step below goes through, which is also what runs
+        # `checkPrebuildDir()` on what it wrote. It is a build-time tool here,
+        # not a runtime: nothing in this job executes JavaScript otherwise.
         run: >
           dnf install -y
           git tar xz findutils curl
+          nodejs
           meson vala gcc pkgconf
           glib2-devel gobject-introspection-devel
           gtk4-devel gdk-pixbuf2-devel
@@ -410,6 +415,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # THE INVARIANT THE `cp` USED TO GET FOR FREE, now asserted once.
+      #
+      # Every collect step below stages through `scripts/stage-prebuild.mjs`,
+      # which DERIVES the target directory from the host it runs on. The upload
+      # steps, by contrast, still name `linux-${{ matrix.arch }}` literally — so
+      # where a hand-written `mkdir -p "prebuilds/linux-${ARCH}"` could not
+      # disagree with them (same string, one place), a derived name can. A
+      # disagreement would upload nothing under a path that does not exist, or —
+      # worse on a mixed runner pool — stage a foreign arch into a directory that
+      # names another.
+      #
+      # `hostStagingTarget()` is the exact function the stager calls, imported
+      # rather than reimplemented, and importing runs no `main()` (it is guarded
+      # on `process.argv[1]`). Same guard, same reason, as the musl leg's
+      # "Confirm this container resolves as ${PREBUILD}" step — which is where
+      # this shape was paid for.
+      - name: Confirm this runner resolves as linux-${{ matrix.arch }}
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          resolved="$(node -e 'import("./scripts/stage-prebuild.mjs").then((m) => console.log(m.hostStagingTarget()))')"
+          echo "stage-prebuild.mjs resolves this runner as: ${resolved}"
+          if [ "$resolved" != "linux-${ARCH}" ]; then
+            echo "::error::this runner resolves as \`${resolved}\`, not \`linux-${ARCH}\`. Every collect step"
+            echo "::error::below derives its target directory from that answer while the upload steps name"
+            echo "::error::\`linux-${ARCH}\` literally, so the two would disagree: refusing to build."
+            exit 1
+          fi
+
       # -------- @gjsify/webgl (gwebgl) --------
       - name: Build @gjsify/webgl Vala library
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
@@ -421,13 +456,9 @@ jobs:
       - name: Collect @gjsify/webgl prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgwebgl.so build/Gwebgl-0.1.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/webgl prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        # `--scratch`: this leg commits nothing, `commit-prebuilds` downloads the
+        # artifact into the per-target package. See the stager's own note.
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/webgl prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
@@ -448,13 +479,7 @@ jobs:
       - name: Collect @gjsify/webrtc-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         working-directory: packages/web/webrtc-native
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifywebrtc.so build/GjsifyWebrtc-0.1.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/webrtc-native prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/webrtc-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
@@ -475,13 +500,7 @@ jobs:
       - name: Collect @gjsify/http-soup-bridge prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         working-directory: packages/node/http-soup-bridge
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifyhttpsoupbridge.so build/GjsifyHttpSoupBridge-1.0.gir build/GjsifyHttpSoupBridge-1.0.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/http-soup-bridge prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/http-soup-bridge prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
@@ -502,13 +521,7 @@ jobs:
       - name: Collect @gjsify/http2-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         working-directory: packages/node/http2-native
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifyhttp2.so build/GjsifyHttp2-1.0.gir build/GjsifyHttp2-1.0.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/http2-native prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/http2-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
@@ -532,13 +545,7 @@ jobs:
       - name: Collect @gjsify/sab-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         working-directory: packages/node/sab-native
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifysabnative.so build/GjsifySabNative-1.0.gir build/GjsifySabNative-1.0.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/sab-native prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/sab-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
@@ -563,13 +570,7 @@ jobs:
       - name: Collect @gjsify/tls-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         working-directory: packages/node/tls-native
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifytls.so build/GjsifyTls-1.0.gir build/GjsifyTls-1.0.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/tls-native prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/tls-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
@@ -595,13 +596,7 @@ jobs:
       - name: Collect @gjsify/terminal-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         working-directory: packages/node/terminal-native
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifyterminal.so build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/terminal-native prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/terminal-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
@@ -626,13 +621,7 @@ jobs:
       - name: Collect @gjsify/lightningcss-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         working-directory: packages/infra/lightningcss-native
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifylightningcss.so build/libgjsify_lightningcss.so build/GjsifyLightningcss-1.0.gir build/GjsifyLightningcss-1.0.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/lightningcss-native prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/lightningcss-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
@@ -665,13 +654,7 @@ jobs:
       - name: Collect @gjsify/oxfmt-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         working-directory: packages/infra/oxfmt-native
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifyoxfmt.so build/libgjsify_oxfmt.so build/GjsifyOxfmt-1.0.gir build/GjsifyOxfmt-1.0.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/oxfmt-native prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/oxfmt-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
@@ -709,13 +692,7 @@ jobs:
       - name: Collect @gjsify/rolldown-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         working-directory: packages/infra/rolldown-native
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p "prebuilds/linux-${ARCH}"
-          cp build/libgjsifyrolldown.so build/libgjsify_rolldown.so build/GjsifyRolldown-1.0.gir build/GjsifyRolldown-1.0.typelib "prebuilds/linux-${ARCH}/"
-          echo "@gjsify/rolldown-native prebuilds for linux-${ARCH}:"
-          ls -lh "prebuilds/linux-${ARCH}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       - name: Upload @gjsify/rolldown-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
@@ -1116,6 +1093,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # The same guard the Linux and musl legs carry, for the same reason: every
+      # collect step below DERIVES its target directory from the host, while
+      # `PREBUILD` (and therefore every verify step, every upload path) names it
+      # literally. On a two-runner matrix that is the one place an Intel leg could
+      # stage into `darwin-arm64/` and be believed.
+      - name: Confirm this runner resolves as ${{ env.PREBUILD }}
+        run: |
+          set -euo pipefail
+          resolved="$(node -e 'import("./scripts/stage-prebuild.mjs").then((m) => console.log(m.hostStagingTarget()))')"
+          echo "stage-prebuild.mjs resolves this runner as: ${resolved}"
+          if [ "$resolved" != "$PREBUILD" ]; then
+            echo "::error::this runner resolves as \`${resolved}\`, not \`${PREBUILD}\` — the collect steps"
+            echo "::error::would stage somewhere the verify and upload steps do not look. Refusing to build."
+            exit 1
+          fi
+
       # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
       # Pure crates.io deps (no submodule) — the easiest Rust bridge to port.
       - name: Build @gjsify/lightningcss-native (Rust cdylib + Vala bridge)
@@ -1128,11 +1121,7 @@ jobs:
       - name: Collect @gjsify/lightningcss-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         working-directory: packages/infra/lightningcss-native
-        run: |
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgjsifylightningcss.dylib build/libgjsify_lightningcss.dylib \
-             build/GjsifyLightningcss-1.0.gir build/GjsifyLightningcss-1.0.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # -------- @gjsify/oxfmt-native (GjsifyOxfmt) --------
       - name: Init refs/oxc submodule (oxfmt-native source dep)
@@ -1149,11 +1138,7 @@ jobs:
       - name: Collect @gjsify/oxfmt-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"oxfmt-native"') }}
         working-directory: packages/infra/oxfmt-native
-        run: |
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgjsifyoxfmt.dylib build/libgjsify_oxfmt.dylib \
-             build/GjsifyOxfmt-1.0.gir build/GjsifyOxfmt-1.0.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # -------- @gjsify/rolldown-native (GjsifyRolldown) --------
       # Promoted out of `build-prebuilds-macos-experimental` on the evidence that
@@ -1184,15 +1169,12 @@ jobs:
       - name: Collect @gjsify/rolldown-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"rolldown-native"') }}
         working-directory: packages/infra/rolldown-native
-        run: |
-          mkdir -p "prebuilds/${PREBUILD}"
-          # BOTH libraries: the Vala library records `@rpath/libgjsify_rolldown.dylib`
-          # (underscore) for its Rust cdylib, a different leaf than its own. Omitting
-          # it is the #832 failure — a missing FILE that reads exactly like a broken
-          # rpath, caught only by the env-free dlopen further down.
-          cp build/libgjsifyrolldown.dylib build/libgjsify_rolldown.dylib \
-             build/GjsifyRolldown-1.0.gir build/GjsifyRolldown-1.0.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+        # BOTH libraries land here without either being named: the stager matches by
+        # EXTENSION, so the Vala `.dylib` AND the `libgjsify_rolldown.dylib` cdylib it
+        # records under `@rpath/` are picked up together. Omitting the second was the
+        # #832 failure — a missing FILE that reads exactly like a broken rpath — and a
+        # hand-written `cp` list is precisely where it went missing.
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # -------- @gjsify/terminal-native (GjsifyTerminal) --------
       # Plain POSIX; the only Linux dependency it had was Vala's `linux.vapi`
@@ -1208,10 +1190,7 @@ jobs:
       - name: Collect @gjsify/terminal-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"terminal-native"') }}
         working-directory: packages/node/terminal-native
-        run: |
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgjsifyterminal.dylib build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # -------- @gjsify/tls-native (GjsifyTls) --------
       # Builds against gnutls headers only. Its Phase-2 SessionAccess reaches
@@ -1229,10 +1208,7 @@ jobs:
       - name: Collect @gjsify/tls-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         working-directory: packages/node/tls-native
-        run: |
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgjsifytls.dylib build/GjsifyTls-1.0.gir build/GjsifyTls-1.0.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # -------- @gjsify/http-soup-bridge (GjsifyHttpSoupBridge) --------
       - name: Build @gjsify/http-soup-bridge Vala library
@@ -1245,11 +1221,7 @@ jobs:
       - name: Collect @gjsify/http-soup-bridge prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http-soup-bridge"') }}
         working-directory: packages/node/http-soup-bridge
-        run: |
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgjsifyhttpsoupbridge.dylib build/GjsifyHttpSoupBridge-1.0.gir \
-             build/GjsifyHttpSoupBridge-1.0.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # -------- @gjsify/http2-native (GjsifyHttp2) --------
       - name: Build @gjsify/http2-native Vala library
@@ -1262,10 +1234,7 @@ jobs:
       - name: Collect @gjsify/http2-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"http2-native"') }}
         working-directory: packages/node/http2-native
-        run: |
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgjsifyhttp2.dylib build/GjsifyHttp2-1.0.gir build/GjsifyHttp2-1.0.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # @gjsify/webgl was built by the EXPLORATORY job below for months without
       # anything downloading its output, so it built, proved it worked and threw
@@ -1286,10 +1255,7 @@ jobs:
       - name: Collect @gjsify/webgl prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
-        run: |
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgwebgl.dylib build/Gwebgl-0.1.gir build/Gwebgl-0.1.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # A typelib whose recorded shared-library leaf still says `.so` is found via
       # GI_TYPELIB_PATH but never loads — the exact silent failure this job's
@@ -1577,12 +1543,14 @@ jobs:
       - name: Build @gjsify/webrtc-native Vala library
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         working-directory: packages/web/webrtc-native
+        # `--allow-undeclared` is not decoration here: `darwin-arm64` is deliberately
+        # absent from this package's `gjsify.platforms` (that is what makes this leg
+        # exploratory), so the stager prints its own "do NOT commit this" warning and
+        # `--scratch` keeps the bytes in the bridge for the advisory load test below.
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgjsifywebrtc.dylib build/GjsifyWebrtc-0.1.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
+          node ../../../scripts/stage-prebuild.mjs . --scratch --allow-undeclared
 
       # The gate these two still owe before they can be promoted. rolldown-native
       # left this job on exactly this evidence and nothing less: BUILT is not
@@ -2019,17 +1987,19 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $dest = "packages/framework/webgl/prebuilds/$env:PREBUILD"
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          Copy-Item packages/framework/webgl/build/gwebgl.dll -Destination $dest
-          Copy-Item packages/framework/webgl/build/Gwebgl-0.1.typelib -Destination $dest
-          # The GIR comes from the ARTIFACT, not from build/: on the
-          # prebuilt-C branch meson never re-emits it (valac did, one job ago),
-          # so `build/` legitimately has none. Staging it keeps this directory
-          # the same shape the darwin legs produce, which is what lets the leaf
-          # assertion below be the same assertion.
-          Copy-Item packages/framework/webgl/vala-c-export/Gwebgl-0.1.gir -Destination $dest
-          Get-ChildItem $dest | Select-Object Name, Length
+          # The GIR comes from the ARTIFACT, not from build/: on the prebuilt-C branch
+          # meson never re-emits it (valac did, one job ago), so `build/` legitimately
+          # has none. Put valac's copy INTO build/ rather than staging it separately —
+          # then the one shared stager sees the whole set in the one directory it reads,
+          # and this leg stages by the same rule as every other (by EXTENSION, with
+          # `checkPrebuildDir()` at the end) instead of by a second hand-written list.
+          Copy-Item packages/framework/webgl/vala-c-export/Gwebgl-0.1.gir `
+            -Destination packages/framework/webgl/build/
+          # `--allow-undeclared`: `win32-x64` is deliberately in no `gjsify.platforms`
+          # while this leg is exploratory (see this block's header), so the stager warns
+          # that the result must not be committed — which is exactly the intent.
+          node scripts/stage-prebuild.mjs packages/framework/webgl --scratch --allow-undeclared
+          Get-ChildItem "packages/framework/webgl/prebuilds/$env:PREBUILD" | Select-Object Name, Length
 
       # A typelib whose recorded leaf is wrong is FOUND via GI_TYPELIB_PATH and
       # then never loads — the silent failure `fs.name()` replaced an OS-branch

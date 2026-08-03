@@ -19,6 +19,22 @@ repo/
 # `check-refs-pin.mjs` pins the refs/ half. See each package's README.
 packages/infra/*/src/rust/target/
 
+# A BACKSTOP, not the fix. After ADR 0017 a bridge owns no `prebuilds/` — the
+# artifacts live in the per-target `@gjsify/<x>-<os>-<arch>` packages — so a
+# `prebuilds/` inside `packages/napi/napi/` is by definition not shippable: it is
+# in no `files` list and no conformance rule can see it (they key on
+# `gjsify.prebuilds`, which the bridge does not declare).
+#
+# It is listed because it REGREW: `napi.yml`'s macOS and Windows jobs staged
+# straight into the bridge, six commits after #960 deliberately deleted the
+# tracked copy for the linux sibling. Untracked AND unignored is the dangerous
+# combination — one `git add -A` commits a binary back into the bridge. Those two
+# jobs now stage where the stager resolves; this line is what stops the next hand
+# from putting it back silently. The real mechanism is
+# `tests/e2e/prebuild-change-gate`, which fails a workflow step that stages by
+# hand at all.
+packages/napi/napi/prebuilds/
+
 # Vala-generated C + GIR handed from a valac host to a host that has no valac
 # (today: the win32 webgl experiment in prebuilds.yml, via the package's
 # `prebuilt_vala_c` meson option). Generation and consumption happen in the SAME

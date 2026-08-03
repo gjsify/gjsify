@@ -232,6 +232,50 @@ describe('stage-prebuild: staging', () => {
         }
     });
 
+    it('--scratch stages into a SPLIT bridge that owns no prebuilds/', () => {
+        // `prebuilds.yml`'s build legs. Without a flag this fixture is exactly the
+        // case `resolveStageDir` refuses (no `gjsify.prebuilds`, no sibling platform
+        // package) — and the refusal is right for a developer, because the directory
+        // ships in no tarball. What makes the same path correct in a build leg is
+        // ownership of the BYTES: that job uploads an artifact and commits nothing;
+        // `commit-prebuilds` is what writes the per-target package. Writing the
+        // per-target package from a build leg is the shape #960 removed for
+        // `@gjsify/napi` — every job that touched the path overwrote the checked-out
+        // bytes before reading them.
+        const dir = splitBridgeFixture([HOST_TARGET], ['libfoo.so', 'Foo-1.0.gir', 'Foo-1.0.typelib']);
+        try {
+            const out = runStager(dir, '--scratch');
+            assert.deepEqual(readdirSync(join(dir, 'prebuilds', HOST_TARGET)).sort(), [
+                'Foo-1.0.gir',
+                'Foo-1.0.typelib',
+                'libfoo.so',
+            ]);
+            // The log must SAY it is scratch. A build leg's directory and a shipped
+            // one are the same path in two different jobs, so the distinction has to
+            // be visible in the one place a reader looks.
+            assert.match(out, /\[scratch\]/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses --scratch together with --dest', () => {
+        // `--scratch` IS a destination. Accepting both would leave which one wins
+        // to argument order — the kind of quiet ambiguity that puts a binary in a
+        // directory nobody uploads.
+        const dir = splitBridgeFixture([HOST_TARGET], ['libfoo.so']);
+        const dest = mkdtempSync(join(tmpdir(), 'gjsify-stage-dest-'));
+        try {
+            assert.throws(
+                () => runStager(dir, '--scratch', '--allow-undeclared', '--dest', dest),
+                /mutually exclusive/,
+            );
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+            rmSync(dest, { recursive: true, force: true });
+        }
+    });
+
     it('refuses --dest without --allow-undeclared', () => {
         // The two together mean "not a promised target AND not going into a
         // package". Allowing `--dest` alone would let a DECLARED target's shipped
