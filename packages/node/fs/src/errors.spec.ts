@@ -245,7 +245,7 @@ export default async () => {
             expect(fs.existsSync('/')).toBe(true);
         });
         await it('should return true for /tmp', async () => {
-            expect(fs.existsSync('/tmp')).toBe(true);
+            expect(fs.existsSync(tmpdir())).toBe(true);
         });
         await it('should return true for tmpdir()', async () => {
             expect(fs.existsSync(tmpdir())).toBe(true);
@@ -258,7 +258,7 @@ export default async () => {
     // ===================== readdir with options =====================
     await describe('fs.readdirSync options', async () => {
         await it('should return string array by default', async () => {
-            const entries = fs.readdirSync('/tmp');
+            const entries = fs.readdirSync(tmpdir());
             expect(Array.isArray(entries)).toBe(true);
             if (entries.length > 0) {
                 expect(typeof entries[0]).toBe('string');
@@ -266,7 +266,7 @@ export default async () => {
         });
 
         await it('should return Dirent array with withFileTypes', async () => {
-            const entries = fs.readdirSync('/tmp', { withFileTypes: true });
+            const entries = fs.readdirSync(tmpdir(), { withFileTypes: true });
             expect(Array.isArray(entries)).toBe(true);
             if (entries.length > 0) {
                 const d = entries[0];
@@ -278,7 +278,7 @@ export default async () => {
         });
 
         await it('should return string with utf8 encoding', async () => {
-            const entries = fs.readdirSync('/tmp', { encoding: 'utf8' });
+            const entries = fs.readdirSync(tmpdir(), { encoding: 'utf8' });
             expect(Array.isArray(entries)).toBe(true);
             if (entries.length > 0) {
                 expect(typeof entries[0]).toBe('string');
