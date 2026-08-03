@@ -1562,6 +1562,14 @@ async function main() {
         const portableScripts = byId.get('portable-scripts');
         const coverage = byId.get('field-coverage');
         const statusData = byId.get('status-data');
+        // `platform-packages` is selected by CHECK_RULES, so its failures set the
+        // exit code — but it was never fetched here, in EITHER branch, so its
+        // findings were structurally unprintable and its summary printed on no
+        // run. That is what made the 2026-08-01 `commit-prebuilds` outage cost six
+        // main runs and ~41 hours: the gate said `DRIFT DETECTED.` and named
+        // nothing, because the only rule that could fail was the one rule with no
+        // print block. See the accountant at the end of this branch.
+        const platformPackages = byId.get('platform-packages');
         const reach = reachability.reach;
 
         if (run.ok) {
@@ -1575,6 +1583,7 @@ async function main() {
             console.log(portableScripts.summary);
             console.log(coverage.summary);
             console.log(statusData.summary);
+            console.log(platformPackages.summary);
             for (const note of coverage.notes ?? []) console.log(`  · ${note}`);
             renderReachabilityNotes(reach);
             process.exit(0);
@@ -1754,8 +1763,71 @@ async function main() {
             );
             console.error('');
         }
+        if ((platformPackages.failures ?? []).length > 0) {
+            console.error(`PLATFORM-PACKAGE FAILURES on ${platformPackages.failures.length} finding(s):`);
+            for (const line of platformPackages.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'The per-target packages (ADR 0017) are GENERATED — both their `package.json` AND their ' +
+                    '`README.md`. Re-emit with `node scripts/generate-platform-packages.mjs --write` and commit ' +
+                    'the result; never hand-edit one. If the difference is a `libc` / `gjsify.glibcRequires` ' +
+                    'field, a rebuild MEASURED a different floor: that is a declaration change and belongs in a ' +
+                    'reviewed commit, not in a job that pushes under `[skip ci]`.',
+            );
+            console.error('');
+        }
         for (const note of coverage.notes ?? []) console.error(`  · ${note}`);
         renderReachabilityNotes(reach);
+
+        // THE ACCOUNTANT — a verdict may not be emitted without the findings that
+        // caused it.
+        //
+        // Everything above is a HAND-WRITTEN list of rule ids while the verdict
+        // comes from the AGGREGATE (`run.failures`, over every selected rule). A
+        // rule missing from the list therefore fails in total silence, and one
+        // was: `platform-packages`. Six main runs were spent on `DRIFT DETECTED.`
+        // followed by nothing but informational notes.
+        //
+        // This closes the class rather than the instance: the set below is what
+        // has a print block, and anything selected but absent from it gets dumped
+        // verbatim. It can only ADD output to a run that is already failing, so it
+        // can never turn a green run red. (Deriving the whole report from
+        // `run.results` — which removes this list entirely — is the follow-up;
+        // until then, adding an id here without a print block is a deliberate lie.)
+        const REPORTED_RULE_IDS = new Set([
+            'runtimes-drift',
+            'tier',
+            'platforms-ci',
+            'prebuild-artifacts',
+            'prebuild-libc',
+            'runtimes-reachability',
+            'curated-alias-routing',
+            'headless',
+            'portable-scripts',
+            'field-coverage',
+            'status-data',
+            'platform-packages',
+        ]);
+        const unreported = run.results.filter(
+            ({ rule, result }) => (result.failures ?? []).length > 0 && !REPORTED_RULE_IDS.has(rule.id),
+        );
+        if (unreported.length > 0) {
+            console.error('');
+            console.error('UNREPORTED FINDING(S) — this is a REPORTER bug, not a new drift:');
+            for (const { rule, result } of unreported) {
+                for (const line of result.failures) console.error(`  - [${rule.id}] ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A rule was selected by CHECK_RULES but has no print block in scripts/audit-runtimes.mjs, so ' +
+                    'it set the exit code without naming anything. Add its block next to the others — and add ' +
+                    'its id to REPORTED_RULE_IDS only together with that block.',
+            );
+            console.error('');
+        }
+
         console.error(
             "Either update the package's source-code signals (the GJS-binding shape changed) or update its package.json#gjsify.runtimes to match the new reality. See AGENTS.md `## Strategic direction — cross-runtime portability` for the slot model. For tier-contract failures see docs/adr/0003-package-tiering.md + docs/adr/0005-node-gi-scope.md. For reachability failures see docs/adr/0014-utils-core-subpath-and-platform-entry-routing.md. For headless-contract failures see docs/adr/0015-headless-package-contract.md.",
         );
