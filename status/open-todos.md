@@ -738,16 +738,23 @@ repository has the same "valac does not run on Windows" problem, and
 Lifting it is premature until a second bridge wants it — but the second one is
 where the helper gets lifted, not the third.
 
-The win32 leg deliberately hand-copies its artifacts instead of going through
-`scripts/stage-prebuild.mjs`, and the reason is worth stating because the shared
-stager is normally the rule: since ADR 0017 `resolveStageDir()` requires a
-sibling per-target package for any bridge that declares no `gjsify.prebuilds`,
-and creating `@gjsify/webgl-win32-x64` IS the declaration this leg exists to earn
-first. That is not hypothetical — `build-prebuilds-musl` walks straight into it
-today and both its legs fail on it (`sab-native-linux-x64-musl/ does not exist …
-Generate the platform packages first`), so the musl exploration is currently
-blocked on the same ordering problem rather than on anything about musl. Either
-`--allow-undeclared` grows a "stage into the bridge as scratch" mode for exactly
-this pre-declaration state, or every exploratory leg keeps its own `cp` and the
-stager's safety guarantees do not cover the legs that most need them. Pick one
-deliberately.
+The win32 leg hand-copies its artifacts instead of going through
+`scripts/stage-prebuild.mjs`, and that is now the ONLY thing keeping a second
+copy of staging logic alive. The reason it started that way: since ADR 0017
+`resolveStageDir()` requires a sibling per-target package for any bridge that
+declares no `gjsify.prebuilds`, and creating `@gjsify/webgl-win32-x64` IS the
+declaration this leg exists to earn first — so there was no destination to stage
+into. `build-prebuilds-musl` hit the identical wall (`sab-native-linux-x64-musl/
+does not exist … Generate the platform packages first`), which is what made this
+an ordering problem rather than anything about win32 or musl.
+
+That question is ANSWERED, not open: the stager grew a NAMED scratch destination
+(`--dest <dir>`, only valid together with `--allow-undeclared` — a relaxed
+default would have been the wrong shape, since a destination outside the package
+tree is only meaningful for a target the package does not promise), and
+`musl-build.sh` uses it. **The remaining work is to delete this leg's `cp` and
+call the stager the same way**, so the extension-matching and loader-path checks
+cover the leg that most needs them: an exploratory port is exactly where a
+renamed library or a missing sibling is most likely, and a hand-written `cp` is
+the one path that cannot notice either. Left undone here only because it would
+have made this PR depend on that one landing first.
