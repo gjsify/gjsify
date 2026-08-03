@@ -691,3 +691,44 @@ still unusable on a whole libc's worth of hosts, and because the reflex fix —
 teaching the musl check to verify GStreamer elements — would be an accepted gap
 from day one. Revisit when Alpine's libnice reaches 0.1.23; the right check then
 is a real element probe, which would go green rather than being born red.
+
+### `@gjsify/webgl` on win32-x64 — the exploratory leg exists; the declaration does not
+
+`prebuilds.yml` carries a dispatch-only PAIR — `webgl-vala-c-win32` (Linux, emits
+the Vala C + GIR) and `build-prebuilds-win32-experimental` (windows-latest,
+compiles that C with MSVC against gvsbuild and load-tests through
+`@gjsify/node-gi`) — behind the package's `prebuilt_vala_c` meson option. No
+`win32-x64` token is in `gjsify.platforms`, deliberately: the declared-vs-built
+invariant is symmetric, so the leg proves itself first. Full rationale, the
+researched rejection of valac-on-Windows/MinGW, and the pre-dispatch source scan
+of the generated C live in that block's header comment — do not duplicate them
+here.
+
+What is still OPEN, i.e. what a promotion owes beyond a green dispatch:
+
+- **`gwebgl.dll` imports `epoxy-0.dll`, and Windows has no system libepoxy.** On
+  Linux and macOS libepoxy is a distro/Homebrew package, so the committed
+  prebuild is a single library plus a typelib. On win32 the loadable unit is
+  bigger than the artifact: it needs node-gi's batteries-included GTK bundle
+  (which carries epoxy because GTK4 does). Which tarball ships what is a
+  packaging decision nobody has taken — and it is the first case in this repo
+  where a prebuild's runtime closure is not satisfiable from the host.
+- **The load test proves `dlopen` + `…_get_type`, never RENDERING.** A
+  display-less runner cannot drive a `Gtk.GLArea`, the same gap the darwin note
+  in `build-prebuilds-macos-experimental` records. Pixels need a real desktop —
+  the win11-gjsify VM is the machine for it.
+- **Promotion is ONE change**: the `win32-x64` token in `gjsify.platforms`, a
+  generated `@gjsify/webgl-win32-x64` package (`generate-platform-packages.mjs
+  --write`) whose npm name is bootstrapped via `gjsify onboard` BEFORE the
+  release that ships it, both `if: github.event_name == 'workflow_dispatch'`
+  gates dropped, and the matching download + `git add` in `commit-prebuilds`.
+- **It would close the concrete failure the `needsWebgl` entry above records** —
+  `gjsify showcase three-geometry-teapot` dying at `gi://Gwebgl` on win32 — so
+  the two are worth reading together, and a win32 prebuild changes which of that
+  entry's two resolutions is the honest one.
+
+The split itself generalises past webgl: every other Vala bridge in this
+repository has the same "valac does not run on Windows" problem, and
+`prebuilt_vala_c` is a per-package option today rather than a shared mechanism.
+Lifting it is premature until a second bridge wants it — but the second one is
+where the helper gets lifted, not the third.
