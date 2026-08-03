@@ -193,7 +193,12 @@ export function platformManifest(parent, target, measured, exemption = null) {
     if (!osCpu) throw new Error(`generate-platform-packages: ${parent.name} declares an invalid target \`${target}\``);
     const name = platformPackageName(parent.name, target);
     const dirName = platformPackageDirName(basename(parent.dir), target);
-    const repoDir = `${relative(ROOT, dirname(parent.dir)).replaceAll('\\', '/')}/${dirName}`;
+    // Relative to the CONTEXT's root, not the module-level one: the emitters are
+    // also driven against a temp-root fixture (see
+    // tests/e2e/platform-exemption-clearing), where closing over `ROOT` computes
+    // a `../../../tmp/…` traversal. An equality-only test would then compare
+    // garbage to garbage and notice nothing.
+    const repoDir = `${relative(parent.root ?? ROOT, dirname(parent.dir)).replaceAll('\\', '/')}/${dirName}`;
 
     /** @type {Record<string, unknown>} */
     const manifest = {
@@ -589,6 +594,9 @@ export function planPlatformPackages(ctx) {
             name: row.name,
             path: row.path,
             dir: pkg.dir,
+            // The root this plan was built against, so every emitter derives
+            // repo-relative paths from it rather than from the module-level ROOT.
+            root: ctx.root ?? ROOT,
             version: pkg.manifest.version,
             tier: row.tier,
             manifest: pkg.manifest,
@@ -657,6 +665,7 @@ export function expectedFiles(parent, planned) {
                     name: parent.name,
                     version: parent.version,
                     dir: parent.dir,
+                    root: parent.root,
                     tier: parent.tier,
                 },
                 planned.target,
@@ -886,7 +895,7 @@ export function auditPlatformPackages(ctx) {
 }
 
 /** The first differing line of two strings, so a mismatch names itself. */
-function firstDifference(have, want) {
+export function firstDifference(have, want) {
     const a = have.split('\n');
     const b = want.split('\n');
     for (let i = 0; i < Math.max(a.length, b.length); i++) {

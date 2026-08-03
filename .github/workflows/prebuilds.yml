@@ -2577,19 +2577,26 @@ jobs:
       - name: Clear platform exemptions the downloads satisfied
         run: |
           set -euo pipefail
-          # stdout is the list of manifests it changed, so the next step stages
+          # stdout is the list of every FILE it wrote, so the next step stages
           # exactly those (a `packages/*/*/package.json` glob in a job that
           # pushes to `main` would sweep in whatever else happened to be dirty).
-          node scripts/clear-committed-platform-exemptions.mjs > cleared-manifests.txt
-          cat cleared-manifests.txt
+          #
+          # More than the manifest, because `gjsify.platformsUncommitted` is an
+          # input to TWO generated files of a platform package: the manifest block
+          # and a deferred-artifact paragraph in the generated `README.md`. Writing
+          # only the manifest left a README the generator disagreed with, and the
+          # gate below then failed on a byte comparison — that is what kept this
+          # job red from 2026-08-01 with every build leg green.
+          node scripts/clear-committed-platform-exemptions.mjs > regenerated-files.txt
+          cat regenerated-files.txt
 
       - name: Stage prebuilds
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          xargs -r git add < cleared-manifests.txt
-          rm -f cleared-manifests.txt
+          xargs -r git add < regenerated-files.txt
+          rm -f regenerated-files.txt
           # A GLOB, not a hand-written list, and that is now the only shape that
           # can be right. ADR 0017 moved every prebuild out of its bridge and
           # into a per-target package, so the ten paths this used to name stopped
@@ -2611,6 +2618,21 @@ jobs:
           # — it already matches on `*prebuilds/*`.
           git add packages/*/*/prebuilds/
           git diff --cached --stat | cat
+
+          # Nothing this job wrote may stay UNSTAGED. The gate two steps below
+          # audits the working tree, but what gets pushed is the INDEX — so an
+          # unstaged write means the gate blessed a tree that is not the one that
+          # lands. That gap is how a half-written generated package shipped: the
+          # clear step rewrote a manifest and left its generated README behind,
+          # and nothing noticed until the gate compared bytes. Now it is the clear
+          # step's job to report every file it wrote, and this asserts it did.
+          unstaged="$(git status --porcelain -uall | grep -v '^[ACDMRT] ' || true)"
+          if [ -n "$unstaged" ]; then
+            echo "::error::this job changed files it did not stage — the gate below would audit a tree that is not the one being pushed:"
+            printf '::error::  %s\n' $unstaged
+            exit 1
+          fi
+          echo "no unstaged change left behind."
 
       # THE guard. A package this run skipped contributed no artifact, so its
       # committed prebuild must come through untouched — and "untouched" has to
