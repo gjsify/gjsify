@@ -34,6 +34,45 @@ only its specs have been.
 **Note for anyone re-measuring:** a hand-created `C:\tmp` makes the module-load
 failure vanish without fixing anything (one existed on the test VM for several
 hours and hid exactly this). It has been removed there. Do not re-create it.
+### `@gjsify/fs` on Windows — 24 failures that only became visible once the runner stopped dying
+
+Making `@gjsify/unit` report an assertion thrown from a host callback turned the
+`@gjsify/fs` Node suite on `win32-x64` from "144 lines, dead process, no summary,
+1 of 19 spec modules reached" into "611 tests, 24 failures, exit 1". None of the
+24 is new; all 24 were unreachable behind the crash.
+
+**All 24 are SPEC bugs, not impl gaps, and that is structural rather than a
+guess:** `@gjsify/fs` declares `runtimes.node: "none"`, so `test:node` does not
+alias `node:fs` to our polyfill — the specs run against NATIVE Node fs. Per the
+testing rules, a `test:node` failure means the TEST is wrong; native Node's
+`realpathSync` and `chmod` are not in question. So the work is correcting POSIX
+assumptions, with Node's own behaviour on Windows as the oracle. Do NOT go
+looking for an impl bug here — an earlier version of this entry guessed
+"`realpath` looks like a genuine impl gap" and was simply wrong: the assertion is
+`expect(resolved.startsWith('/')).toBeTruthy()`.
+
+Measured on the win11-gjsify test VM (Node 24.18.1), and they fall into five
+classes, not 24 problems:
+
+- **POSIX mode bits (7)** — `chmod`/`chmodSync`/`fchmodSync`/`promises.chmod`
+  specs assert `0o644`/`0o600`/`0o640` and read back `0o666`. NTFS carries no
+  POSIX permission bits; Node reports `0o666` (`0o444` read-only). The specs, not
+  the impl, encode the POSIX assumption.
+- **POSIX absolute-path shape asserted (5)** — `realpathSync`, `realpath` and
+  `promises.realpath` specs assert `resolved.startsWith('/')`, which no Windows
+  path satisfies. The values returned are correct; the shape check is what is
+  POSIX-only. `isAbsolute()` from `node:path` is the portable spelling.
+- **POSIX absolute paths hardcoded in specs (3)** — `/etc/hosts` and `/dev/null`
+  resolve to `C:\etc\hosts` / `C:\dev\null` and `ENOENT`. Same class the
+  `@gjsify/child_process` specs hit with `realpathSync('/tmp')`.
+- **glob separators (5)** — specs expect `sub/nested.ts`, Node's `fs.glob`
+  yields `sub\nested.ts`. Decide deliberately whether the contract is POSIX-
+  normalised or platform-native, then fix one side.
+- **remainder (4)** — `existsSync` on an existing file, `statSync().size` zero,
+  `mkdirSync`/`promises.mkdir` recursive return value, missing mode constants.
+
+A shared path-form helper covers classes 2, 3 and 4 — they are all one question
+(POSIX shape vs `node:path`). Classes 1 and 5 are per-assertion work.
 
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 
