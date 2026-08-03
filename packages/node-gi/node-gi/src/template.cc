@@ -6,10 +6,9 @@
 namespace nodegi {
 
 // Resolve the GTK template API once (C++11 function-local static init is
-// thread-safe; node-gi calls these only on the main thread). dlopen with
-// RTLD_NOLOAD first — requireGi('Gtk','4.0') already dlopened libgtk-4 via the
-// typelib, so this just bumps the refcount; fall back to a plain dlopen so a
-// caller that never required Gtk through the typelib still resolves the symbols.
+// thread-safe; node-gi calls these only on the main thread). How the library
+// handle is obtained — and why the leaf name has to be per-OS — is documented at
+// the dlopen below.
 const GtkTemplateApi* GetGtkTemplateApi() {
   static GtkTemplateApi api = {};
   static bool initialised = false;
