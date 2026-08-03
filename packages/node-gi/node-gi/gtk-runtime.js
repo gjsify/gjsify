@@ -108,6 +108,16 @@ export function maybeReexecForGtkRuntime() {
     // their DYLD path for non-addon-linked backers is a documented follow-up), so the
     // darwin path can never spawn a malformed re-exec under a non-Node runtime.
     if (typeof globalThis.Bun !== 'undefined' || typeof globalThis.Deno !== 'undefined') return;
+    // GJS host mode (@gjsify/napi loads this addon inside gjs): the process is
+    // `gjs`, so process.execPath/execArgv describe an interpreter that cannot be
+    // re-launched with a Node argv — and `createRequire` there is
+    // @gjsify/module's polyfill, which rejects synchronous BUILTIN loads, so even
+    // REACHING the child_process require below would throw during module init.
+    // Nothing needs the repair anyway: gjs itself resolves these leaves (its
+    // binary carries the rpath this whole module exists to compensate for).
+    // Same probe index.js uses for RUNTIME — as with the Bun/Deno pair above, the
+    // check has to live here too because this runs before that const is defined.
+    if (typeof globalThis.imports !== 'undefined' && typeof globalThis.print === 'function') return;
     if (process.env[REEXEC_SENTINEL]) return; // already re-exec'd — the child path
 
     // A bundle, when installed, is the whole answer and stays the ONLY entry (see
