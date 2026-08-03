@@ -349,11 +349,42 @@ namespace Gwebgl {
             glBlitFramebuffer((GL.GLint) srcX0, (GL.GLint) srcY0, (GL.GLint) srcX1, (GL.GLint) srcY1, (GL.GLint) dstX0, (GL.GLint) dstY0, (GL.GLint) dstX1, (GL.GLint) dstY1, (GL.GLbitfield) mask, (GL.GLenum) filter);
         }
 
+        /**
+         * Are ``glInvalidateFramebuffer``/``glInvalidateSubFramebuffer`` reachable?
+         *
+         * They arrived in desktop GL 4.3 (GLES 3.0). macOS caps CGL at desktop
+         * GL 4.1 and offers no GLES profile at all, and its OpenGL.framework
+         * exports neither — MEASURED on macOS 15.7: of every entry point this
+         * bridge uses, these two are the only ones absent (``glTexStorage3D`` and
+         * ``glGetInternalformativ`` are GL 4.2 yet Apple ships them). libepoxy
+         * resolves lazily and ABORTS the process on a miss, so calling them
+         * unguarded would kill any macOS app that touched a WebGL2 framebuffer.
+         *
+         * Skipping is conformant where aborting is not: both calls are HINTS that
+         * an attachment's contents are discardable, and the spec permits an
+         * implementation to ignore them.
+         *
+         * ``epoxy_gl_version()`` reads the CURRENT context, so it may only be
+         * called from a path that has one — which is why the query lives here
+         * rather than at construction, and why it is not a compile-time decision.
+         * Cached per process: every GL context in one process comes from the same
+         * driver, so the ceiling does not move between them.
+         */
+        private static int invalidate_available = -1;
+        private static bool canInvalidateFramebuffer() {
+            if (invalidate_available < 0) {
+                invalidate_available = GL.epoxyGlVersion() >= 43 ? 1 : 0;
+            }
+            return invalidate_available == 1;
+        }
+
         public void invalidateFramebuffer(int target, uint[] attachments) {
+            if (!canInvalidateFramebuffer()) return;
             glInvalidateFramebuffer((GL.GLenum) target, (GL.GLsizei) attachments.length, (GL.GLenum[]) attachments);
         }
 
         public void invalidateSubFramebuffer(int target, uint[] attachments, int x, int y, int width, int height) {
+            if (!canInvalidateFramebuffer()) return;
             glInvalidateSubFramebuffer((GL.GLenum) target, (GL.GLsizei) attachments.length, (GL.GLenum[]) attachments, (GL.GLint) x, (GL.GLint) y, (GL.GLsizei) width, (GL.GLsizei) height);
         }
 

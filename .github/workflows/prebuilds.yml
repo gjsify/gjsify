@@ -1066,7 +1066,10 @@ jobs:
           #   libnghttp2 → @gjsify/http2-native
           #   json-glib  → @gjsify/rolldown-native (its Vala bridge passes
           #                rolldown's options/output across as JSON)
-          brew install gobject-introspection vala meson ninja pkgconf gnutls libsoup libnghttp2 json-glib
+          #   gtk4, libepoxy → @gjsify/webgl (Gtk.GLArea + the GL entry points;
+          #                libepoxy is what the generated Vala calls into)
+          brew install gobject-introspection vala meson ninja pkgconf gnutls libsoup libnghttp2 json-glib \
+            gtk4 libepoxy
           BREW_PREFIX="$(brew --prefix)"
           # libnghttp2 is keg-only on macOS (the OS ships its own copy for curl),
           # so it is NOT symlinked into the brew prefix. http2-native reaches it
@@ -1264,6 +1267,30 @@ jobs:
           cp build/libgjsifyhttp2.dylib build/GjsifyHttp2-1.0.gir build/GjsifyHttp2-1.0.typelib "prebuilds/${PREBUILD}/"
           ls -lh "prebuilds/${PREBUILD}/"
 
+      # @gjsify/webgl was built by the EXPLORATORY job below for months without
+      # anything downloading its output, so it built, proved it worked and threw
+      # the result away. Nothing about it needed fixing to move here: its
+      # `meson.build` already branches on `host_machine.system()` and records
+      # `libgwebgl.dylib` in the typelib. Verified before promoting it, by
+      # building it on a darwin-x64 host and resolving a class through GI —
+      # `Gwebgl.WebGLRenderingContext` resolves, which is what proves the dlopen
+      # actually happened, and `check-prebuild-loader-path.mjs` reads the Mach-O
+      # as sound (one library, so no sibling hop to get wrong).
+      - name: Build @gjsify/webgl Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
+        working-directory: packages/framework/webgl
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/webgl prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
+        working-directory: packages/framework/webgl
+        run: |
+          mkdir -p "prebuilds/${PREBUILD}"
+          cp build/libgwebgl.dylib build/Gwebgl-0.1.gir build/Gwebgl-0.1.typelib "prebuilds/${PREBUILD}/"
+          ls -lh "prebuilds/${PREBUILD}/"
+
       # A typelib whose recorded shared-library leaf still says `.so` is found via
       # GI_TYPELIB_PATH but never loads — the exact silent failure this job's
       # meson `host_machine.system()` branches exist to prevent. Assert it once
@@ -1286,7 +1313,8 @@ jobs:
             packages/node/terminal-native \
             packages/node/tls-native \
             packages/node/http-soup-bridge \
-            packages/node/http2-native
+            packages/node/http2-native \
+            packages/framework/webgl
           do
             built "$dir" || { echo "--- $dir: not built by this run, not verified"; continue; }
             for gir in "$dir/prebuilds/${PREBUILD}"/*.gir; do
@@ -1322,7 +1350,8 @@ jobs:
             packages/node/terminal-native \
             packages/node/tls-native \
             packages/node/http-soup-bridge \
-            packages/node/http2-native
+            packages/node/http2-native \
+            packages/framework/webgl
           do
             built "$dir" && dirs+=("$dir/prebuilds/${PREBUILD}")
           done
@@ -1378,6 +1407,7 @@ jobs:
           packages/node/tls-native|GjsifyTls|Tls
           packages/node/http-soup-bridge|GjsifyHttpSoupBridge|Server
           packages/node/http2-native|GjsifyHttp2|SessionBridge
+          packages/framework/webgl|Gwebgl|WebGLRenderingContext
           EOF
           exit $rc
 
@@ -1475,6 +1505,15 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Upload @gjsify/webgl prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: webgl-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/framework/webgl/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
   # ----------------------------------------------------------------
   # macOS exploratory — @gjsify/webgl + @gjsify/webrtc-native
   #
@@ -1482,12 +1521,22 @@ jobs:
   # so it can never red a normal run — the same honest posture napi.yml uses for
   # its Windows attempt. These two are not known-blocked; they are UNVERIFIED:
   #
-  #   • webgl needs gtk4 + libepoxy + gdk-pixbuf. GTK4's macOS (Quartz) backend
-  #     goes through CGL, which tops out at desktop OpenGL 4.1 Core and offers no
-  #     GLES 3.2 — the profile the Vala bridge is written against. Whether the
-  #     bridge merely COMPILES there says nothing about whether Gtk.GLArea can
-  #     actually render, so a green build here is a starting point, not a ship
-  #     signal.
+  #   • webgl: RESOLVED, promoted into `build-prebuilds-macos` above. The concern
+  #     recorded here was real and is now measured rather than suspected. On
+  #     macOS 15.7, CGL does cap out at desktop GL 4.1 (asking for the 3.2 Core
+  #     profile returns a 4.1 context) and offers no GLES profile at all — but of
+  #     every GL entry point this bridge uses, exactly TWO are absent from
+  #     OpenGL.framework: `glInvalidateFramebuffer` and
+  #     `glInvalidateSubFramebuffer` (GL 4.3). `glTexStorage3D` and
+  #     `glGetInternalformativ` are GL 4.2 and Apple ships them anyway. Since
+  #     libepoxy resolves lazily and ABORTS on a miss, those two would have killed
+  #     any macOS app touching a WebGL2 framebuffer; both are discardable-contents
+  #     HINTS the spec lets an implementation ignore, so they are now guarded on
+  #     `epoxy_gl_version() >= 43` and skipped instead. What remains unverified is
+  #     RENDERING: a display-less host can create a GL context but not drive a
+  #     `Gtk.GLArea`, so the first real macOS desktop run is still the one that
+  #     proves pixels. The prebuild is declared because it builds and LOADS, which
+  #     is this repo's documented bar; the CI load test holds that.
   #   • webrtc-native needs gstreamer-sdp-1.0 + gstreamer-webrtc-1.0, which come
   #     from gst-plugins-base/bad inside Homebrew's unified `gstreamer` formula.
   #     Whether that formula exports both .pc files is the open question.
@@ -1496,7 +1545,7 @@ jobs:
   # above (with an upload step + commit wiring) — or record the specific failure.
   # ----------------------------------------------------------------
   build-prebuilds-macos-experimental:
-    name: Build prebuilds (darwin-arm64) [experimental — webgl + webrtc]
+    name: Build prebuilds (darwin-arm64) [experimental — webrtc]
     needs: [changes]
     runs-on: macos-latest
     if: github.event_name == 'workflow_dispatch'
@@ -1524,16 +1573,6 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v6
-
-      - name: Build @gjsify/webgl Vala library
-        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
-        working-directory: packages/framework/webgl
-        run: |
-          meson setup build .
-          meson compile -C build
-          mkdir -p "prebuilds/${PREBUILD}"
-          cp build/libgwebgl.dylib build/Gwebgl-0.1.typelib "prebuilds/${PREBUILD}/"
-          ls -lh "prebuilds/${PREBUILD}/"
 
       - name: Build @gjsify/webrtc-native Vala library
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
@@ -1576,7 +1615,6 @@ jobs:
               echo "::warning::${ns} builds on darwin but does not load — that IS the finding this job exists for"
             fi
           done <<'EOF'
-          packages/framework/webgl|Gwebgl|WebGLRenderingContext
           packages/web/webrtc-native|GjsifyWebrtc|WebrtcbinBridge
           EOF
 
@@ -2513,8 +2551,15 @@ jobs:
           name: http2-native-prebuilds-darwin-arm64
           path: packages/node/http2-native-darwin-arm64/prebuilds/darwin-arm64/
 
+      - name: Download webgl darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webgl-prebuilds-darwin-arm64
+          path: packages/framework/webgl-darwin-arm64/prebuilds/darwin-arm64/
+
       # -------- darwin-x64 (macOS, Intel) --------
-      # The SAME six packages as the arm64 block above, because both come from
+      # The SAME seven packages as the arm64 block above, because both come from
       # the one matrixed `build-prebuilds-macos` job — the sets cannot drift.
       - name: Download lightningcss-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
@@ -2564,6 +2609,13 @@ jobs:
         with:
           name: http2-native-prebuilds-darwin-x64
           path: packages/node/http2-native-darwin-x64/prebuilds/darwin-x64/
+
+      - name: Download webgl darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webgl-prebuilds-darwin-x64
+          path: packages/framework/webgl-darwin-x64/prebuilds/darwin-x64/
 
       # A `gjsify.platformsUncommitted` entry says "declared and CI-built, but no
       # artifact in this repo yet", and the conformance rule makes it a FAILURE
