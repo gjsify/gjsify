@@ -1264,26 +1264,29 @@ jobs:
       - name: Verify every typelib records a .dylib leaf
         run: |
           set -euo pipefail
-          # Shared by every verify step in this job: did THIS run build it?
-          # Keyed on the directory basename, the key `changed-packages.mjs`
-          # emits, quoted so `"http2-native"` cannot match `"http2-native-x"`.
-          # An unset/empty PREBUILD_SKIP verifies everything, which is the same
-          # fail-open direction the `if:` gates take.
-          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
           # `rc`, not `status`: `status` is a read-only special variable in zsh,
           # so the same snippet stays copy-pasteable outside the bash CI shell.
           rc=0
-          for dir in \
-            packages/infra/lightningcss-native \
-            packages/infra/oxfmt-native \
-            packages/node/terminal-native \
-            packages/node/tls-native \
-            packages/node/http-soup-bridge \
-            packages/node/http2-native \
-            packages/framework/webgl
-          do
-            built "$dir" || { echo "--- $dir: not built by this run, not verified"; continue; }
-            for gir in "$dir/prebuilds/${PREBUILD}"/*.gir; do
+          # The one table, filtered to what this run built. `PREBUILD_SKIP` is
+          # applied by the script, so the `built()` helper this step used to carry
+          # (in four copies across this job) is gone.
+          while read -r dir; do
+            [ -n "$dir" ] || continue
+            # `nullglob` + an explicit count, because the OLD loop's failure here
+            # was UNNAMED: with no `.gir` in the directory the glob stayed literal,
+            # `grep` failed on a path that does not exist, and `set -e` killed the
+            # step with no mention of which package was missing what. The ten
+            # committed linux directories that carry no `.gir` are exactly how that
+            # state arises.
+            shopt -s nullglob
+            girs=("$dir"/*.gir)
+            shopt -u nullglob
+            if [ ${#girs[@]} -eq 0 ]; then
+              echo "::error::$dir holds no .gir — the collect step staged an incomplete set (a typelib's recorded shared-library leaf cannot be verified without it)"
+              rc=1
+              continue
+            fi
+            for gir in "${girs[@]}"; do
               # -m1 rather than `| head -1`: under `set -o pipefail` a closed pipe
               # would surface as a spurious failure of the grep itself.
               leaf="$(grep -m1 -o 'shared-library="[^"]*"' "$gir")"
@@ -1293,7 +1296,8 @@ jobs:
                 *) echo "::error file=$gir::expected a .dylib shared-library leaf, got: $leaf"; rc=1 ;;
               esac
             done
-          done
+          done < <(node .github/prebuild-toolchain/darwin-bridges.mjs prebuild-dirs \
+                     --target "$PREBUILD" --skip "${PREBUILD_SKIP:-}")
           exit $rc
 
       # The Vala+Rust bridges ship TWO libraries whose leaf names differ on
@@ -1308,19 +1312,23 @@ jobs:
       - name: Verify every prebuild resolves its own siblings
         run: |
           set -euo pipefail
-          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
+          # ONE invocation over every directory — the checker's output is a
+          # per-directory report and a single verdict — so the rows are collected
+          # into an array first.
+          #
+          # NOT `mapfile`/`readarray`: this job runs on macOS, where `/bin/bash` is
+          # **3.2** (Apple ships no GPLv3 bash) and both are bash-4 builtins. It
+          # failed exactly that way — `mapfile: command not found`, exit 127 — while
+          # `bash -n` on a Linux bash 5 host had passed, which is the same
+          # wrong-shell false green AGENTS.md records for git-bash on Windows. The
+          # `while read` + `+=` form is bash 3.2 (and POSIX-ish); the machine check
+          # that keeps this from regrowing lives in
+          # `tests/e2e/prebuild-change-gate`.
           dirs=()
-          for dir in \
-            packages/infra/lightningcss-native \
-            packages/infra/oxfmt-native \
-            packages/node/terminal-native \
-            packages/node/tls-native \
-            packages/node/http-soup-bridge \
-            packages/node/http2-native \
-            packages/framework/webgl
-          do
-            built "$dir" && dirs+=("$dir/prebuilds/${PREBUILD}")
-          done
+          while IFS= read -r d; do
+            [ -n "$d" ] && dirs+=("$d")
+          done < <(node .github/prebuild-toolchain/darwin-bridges.mjs prebuild-dirs \
+                     --target "$PREBUILD" --skip "${PREBUILD_SKIP:-}")
           if [ ${#dirs[@]} -eq 0 ]; then
             echo "no bridge was rebuilt on this run — nothing to verify"
             exit 0
@@ -1342,11 +1350,13 @@ jobs:
         run: |
           set -euo pipefail
           brew install gjs
-          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
           rc=0
+          # Rows from the one table (`dir|namespace|class`), already filtered to
+          # what this run built — the heredoc this replaced was the third copy of
+          # the package set and the one that carried `rolldown-native` while two
+          # others did not.
           while IFS='|' read -r dir ns sym; do
             [ -n "$dir" ] || continue
-            built "$dir" || { echo "--- ${ns}: not built by this run, not load-tested"; continue; }
             abs="$PWD/${dir}/prebuilds/${PREBUILD}"
             echo "--- ${ns}.${sym} from ${abs}"
             # GI_TYPELIB_PATH locates the typelib; DYLD_LIBRARY_PATH is what lets
@@ -1355,8 +1365,8 @@ jobs:
             # exports via detectNativePackages()/buildNativeEnv() on darwin, so a
             # pass here is a pass for a real `gjsify` run. The sibling cdylib is
             # deliberately NOT covered by that variable — see the next step.
-            # `< /dev/null`: the loop's stdin is the heredoc below, and a child
-            # that reads it would eat the remaining rows.
+            # `< /dev/null`: the loop's stdin is the table rows, and a child that
+            # reads it would eat the remaining ones.
             if GI_TYPELIB_PATH="$abs" DYLD_LIBRARY_PATH="$abs" gjs -c \
                  "const T = imports.gi.${ns}.${sym};
                   if (typeof T !== 'function') { throw new Error('${ns}.${sym} did not resolve to a class'); }
@@ -1365,16 +1375,8 @@ jobs:
               echo "::error::${ns} prebuild in ${abs} does not load"
               rc=1
             fi
-          done <<'EOF'
-          packages/infra/lightningcss-native|GjsifyLightningcss|Engine
-          packages/infra/oxfmt-native|GjsifyOxfmt|Formatter
-          packages/infra/rolldown-native|GjsifyRolldown|Bundler
-          packages/node/terminal-native|GjsifyTerminal|Terminal
-          packages/node/tls-native|GjsifyTls|Tls
-          packages/node/http-soup-bridge|GjsifyHttpSoupBridge|Server
-          packages/node/http2-native|GjsifyHttp2|SessionBridge
-          packages/framework/webgl|Gwebgl|WebGLRenderingContext
-          EOF
+          done < <(node .github/prebuild-toolchain/darwin-bridges.mjs load-tests \
+                     --target "$PREBUILD" --skip "${PREBUILD_SKIP:-}")
           exit $rc
 
       # The stricter half: prove the Vala→Rust hop needs NO environment variable.
@@ -1389,23 +1391,23 @@ jobs:
       - name: Prove the sibling cdylib resolves with no environment variable
         run: |
           set -euo pipefail
-          built() { case "${PREBUILD_SKIP:-}" in *"\"${1##*/}\""*) return 1 ;; *) return 0 ;; esac; }
           rc=0
-          for lib in \
-            "packages/infra/lightningcss-native/prebuilds/${PREBUILD}/libgjsifylightningcss.dylib" \
-            "packages/infra/oxfmt-native/prebuilds/${PREBUILD}/libgjsifyoxfmt.dylib" \
-            "packages/infra/rolldown-native/prebuilds/${PREBUILD}/libgjsifyrolldown.dylib"
-          do
-            pkg="${lib%%/prebuilds/*}"
-            built "$pkg" || { echo "--- $pkg: not built by this run, not dlopened"; continue; }
+          # Only the bridges that HAVE a sibling cdylib, which the table declares
+          # (`rustSibling`) rather than this step re-deciding. A bridge with one
+          # library has no hop to prove, so listing it would claim coverage its
+          # artifact does not need — and the library leaf comes from the table's
+          # own derivation, so it cannot drift from the name the typelib records.
+          while IFS='|' read -r pkg lib; do
+            [ -n "$lib" ] || continue
             echo "--- dlopen $lib with no DYLD_* set"
             if env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH /usr/bin/python3 -c \
                  'import ctypes, sys; ctypes.CDLL(sys.argv[1]); print("loaded", sys.argv[1])' "$PWD/$lib"
             then :; else
-              echo "::error::$lib does not resolve its sibling Rust cdylib via @loader_path"
+              echo "::error::$lib ($pkg) does not resolve its sibling Rust cdylib via @loader_path"
               rc=1
             fi
-          done
+          done < <(node .github/prebuild-toolchain/darwin-bridges.mjs rust-libs \
+                     --target "$PREBUILD" --skip "${PREBUILD_SKIP:-}")
           exit $rc
 
       - name: Upload @gjsify/lightningcss-native prebuilds artifact
