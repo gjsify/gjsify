@@ -21,6 +21,7 @@ import {
     rmSync,
     symlinkSync,
     writeFileSync,
+    statSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -30,6 +31,7 @@ const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const script = fileURLToPath(new URL('../../../.github/prebuild-toolchain/changed-packages.mjs', import.meta.url));
 const workflow = fileURLToPath(new URL('../../../.github/workflows/prebuilds.yml', import.meta.url));
 const emulated = fileURLToPath(new URL('../../../.github/prebuild-toolchain/emulated-build.sh', import.meta.url));
+const muslScript = fileURLToPath(new URL('../../../.github/prebuild-toolchain/musl-build.sh', import.meta.url));
 
 // A scratch dir this suite owns, for the per-run GITHUB_OUTPUT files below.
 const scratch = mkdtempSync(join(tmpdir(), 'prebuild-gate-out-'));
@@ -442,5 +444,18 @@ done`;
     it('is a real, executable file the workflow mounts', () => {
         assert.ok(existsSync(emulated));
         assert.equal(spawnSync('bash', ['-n', emulated]).status, 0, 'emulated-build.sh must parse');
+    });
+
+    it('the musl leg\u2019s script parses under POSIX sh and is executable', () => {
+        // Checked with `sh -n`, not `bash -n`: it runs in `alpine:3.24`, whose
+        // only shell is busybox ash. A bashism would pass a bash check and then
+        // fail in the container, which is the one place this leg cannot be
+        // debugged cheaply — it is dispatch-only and main-only in effect.
+        assert.ok(existsSync(muslScript));
+        assert.equal(spawnSync('sh', ['-n', muslScript]).status, 0, 'musl-build.sh must parse under POSIX sh');
+        // Mounted and invoked as `sh <script>`, so the bit is not strictly
+        // required — but its sibling has it, and a script a human is told to run
+        // by hand (see its header) should be runnable.
+        assert.ok(statSync(muslScript).mode & 0o111, 'musl-build.sh must be executable');
     });
 });

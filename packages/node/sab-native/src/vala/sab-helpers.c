@@ -3,6 +3,34 @@
  *
  * Linux-only. Compile with -D_GNU_SOURCE so memfd_create, MFD_CLOEXEC,
  * and the FUTEX_*_PRIVATE constants are visible.
+ *
+ * ONE ARTIFACT MUST SERVE BOTH LIBCS — no glibc-private symbols.
+ *
+ * This translation unit is compiled against glibc and the resulting
+ * `@gjsify/sab-native-linux-<arch>` declares no npm `libc` filter, so npm
+ * installs it on musl hosts too. That is deliberate (musl binds a `DT_NEEDED`
+ * of `libc.so.6` to itself), but it only holds while every symbol we reference
+ * exists in BOTH libcs — and two glibc conveniences quietly broke it:
+ *
+ *   - `fcntl()` is redirected to `fcntl64()` by glibc >= 2.28 for large-file
+ *     support. musl exports no `fcntl64`.
+ *   - `CMSG_NXTHDR()` expands to a call to `__cmsg_nxthdr()`, a glibc-internal
+ *     function musl does not have.
+ *
+ * GI opens the library with G_MODULE_BIND_LAZY, so neither is a load failure:
+ * the typelib resolved, `SharedBuffer.create()` worked, and the two unbound
+ * relocations surfaced only when their code path was first called. Measured on
+ * alpine:3.24 (x86-64) and on a OnePlus 6T under postmarketOS (aarch64): the
+ * package's own suite lost exactly its two fd-passing tests, and
+ * `@gjsify/worker_threads` lost all four SharedBuffer cross-process tests
+ * (timeout, not error) while both suites were fully green on glibc. So the
+ * `transferList` SharedBuffer path was broken on every musl host and no check
+ * could see it.
+ *
+ * Hence: reach the kernel directly (the same reason `memfd_create` below is a
+ * raw syscall) and do the cmsg arithmetic here, out of pure macros both libcs
+ * define identically. `ldd` under musl must report no unresolved symbol — that
+ * is what `.github/prebuild-toolchain/musl-build.sh` asserts with RTLD_NOW.
  */
 
 #include "sab-helpers.h"
@@ -32,6 +60,41 @@ static int
 gjsify_memfd_create (const char *name, unsigned int flags)
 {
   return (int) syscall (SYS_memfd_create, name, flags);
+}
+
+/* `fcntl()` compiles to `fcntl64()` on glibc >= 2.28 (LFS redirect) and musl
+ * exports no such symbol — see the libc note in the file header. Every target
+ * in `gjsify.platforms` is LP64, where `SYS_fcntl` already takes 64-bit
+ * offsets, so there is no `SYS_fcntl64` case to pick between. */
+static int
+gjsify_dup_cloexec (int fd)
+{
+  return (int) syscall (SYS_fcntl, fd, F_DUPFD_CLOEXEC, 0);
+}
+
+/* musl defines CMSG_ALIGN under _GNU_SOURCE, as does glibc; the fallback is
+ * here so a libc that omits it cannot turn into a silent miscompile. */
+#ifndef CMSG_ALIGN
+#  define CMSG_ALIGN(len) (((len) + sizeof (size_t) - 1) & (size_t) ~(sizeof (size_t) - 1))
+#endif
+
+/* `CMSG_NXTHDR()` is a call to glibc-private `__cmsg_nxthdr()` — see the file
+ * header. This is that function's own logic, and BOTH of its bounds checks are
+ * kept: room for the next header, and room for that header's aligned payload.
+ * Dropping either would read past `msg_control` on a truncated control buffer,
+ * which is attacker-influenced data on a socket. */
+static struct cmsghdr *
+gjsify_cmsg_nxthdr (const struct msghdr *msg, struct cmsghdr *cmsg)
+{
+  if (cmsg->cmsg_len < sizeof (struct cmsghdr)) return NULL;
+
+  unsigned char *end  = (unsigned char *) msg->msg_control + msg->msg_controllen;
+  unsigned char *next = (unsigned char *) cmsg + CMSG_ALIGN (cmsg->cmsg_len);
+
+  if (next + sizeof (struct cmsghdr) > end) return NULL;
+  if (next + CMSG_ALIGN (((struct cmsghdr *) next)->cmsg_len) > end) return NULL;
+
+  return (struct cmsghdr *) next;
 }
 
 /* ────────────────────────────────────────────────────────────────────── *
@@ -108,7 +171,7 @@ gjsify_sab_region_new_from_fd (gint fd, gsize size)
   if (fd < 0 || size == 0) { errno = EINVAL; return NULL; }
 
   /* dup so the caller can close their copy without unmapping ours. */
-  int dup_fd = fcntl (fd, F_DUPFD_CLOEXEC, 0);
+  int dup_fd = gjsify_dup_cloexec (fd);
   if (dup_fd < 0) return NULL;
 
   void *ptr = mmap (NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, dup_fd, 0);
@@ -435,7 +498,7 @@ gjsify_sab_recv_fd (gint socket_fd, guint32 *tag)
   *tag = GUINT32_FROM_BE (tag_be);
 
   /* Extract the fd from the control message. */
-  for (struct cmsghdr *cm = CMSG_FIRSTHDR (&msg); cm != NULL; cm = CMSG_NXTHDR (&msg, cm)) {
+  for (struct cmsghdr *cm = CMSG_FIRSTHDR (&msg); cm != NULL; cm = gjsify_cmsg_nxthdr (&msg, cm)) {
     if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS) {
       int fd;
       memcpy (&fd, CMSG_DATA (cm), sizeof (int));

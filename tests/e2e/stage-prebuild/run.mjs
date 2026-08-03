@@ -62,8 +62,17 @@ function fixture(platforms, files) {
     return dir;
 }
 
-function runStager(dir) {
-    return execFileSync(process.execPath, [STAGER, dir], { encoding: 'utf8' });
+function runStager(dir, ...extra) {
+    return execFileSync(process.execPath, [STAGER, dir, ...extra], { encoding: 'utf8' });
+}
+
+/** A POST-SPLIT bridge: declares platforms, owns no `prebuilds/` (ADR 0017). */
+function splitBridgeFixture(platforms, files) {
+    const dir = mkdtempSync(join(tmpdir(), 'gjsify-stage-split-'));
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: '@gjsify/fixture-bridge', gjsify: { platforms } }));
+    mkdirSync(join(dir, 'build'), { recursive: true });
+    for (const f of files) writeFileSync(join(dir, 'build', f), f);
+    return dir;
 }
 
 describe('stage-prebuild: target selection', () => {
@@ -193,6 +202,48 @@ describe('stage-prebuild: staging', () => {
             assert.deepEqual(staged, ['libnew.so'], 'the renamed-away library must not survive');
         } finally {
             rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('--dest stages OUTSIDE the package for a target undeclared by design', () => {
+        // `prebuilds.yml`'s musl leg. After ADR 0017 a bridge owns no
+        // `prebuilds/`, so `resolveStageDir` resolves to a sibling platform
+        // package and REFUSES when there is none — and for this leg there never
+        // is one, because it builds targets no package declares yet. Measured in
+        // `alpine:3.24`: the musl build succeeds and staging failed with
+        // `sab-native-linux-x64-musl/ does not exist`.
+        //
+        // The escape is a NAMED destination, not a relaxed default: everything
+        // after it — replace-not-merge, the extension match, `checkPrebuildDir()`
+        // — still runs, which is why the leg routes through this script at all
+        // instead of a `cp`.
+        const other = process.platform === 'linux' ? 'darwin-arm64' : 'linux-x64';
+        const dir = splitBridgeFixture([other], ['libfoo.so', 'Foo-1.0.typelib']);
+        const dest = mkdtempSync(join(tmpdir(), 'gjsify-stage-dest-'));
+        try {
+            runStager(dir, '--allow-undeclared', '--dest', dest);
+            assert.deepEqual(readdirSync(join(dest, HOST_TARGET)).sort(), ['Foo-1.0.typelib', 'libfoo.so']);
+            // And nothing inside the package — the directory `files` does not
+            // ship and no conformance rule can see is exactly what must not appear.
+            assert.ok(!readdirSync(dir).includes('prebuilds'), 'must not stage into the bridge');
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+            rmSync(dest, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses --dest without --allow-undeclared', () => {
+        // The two together mean "not a promised target AND not going into a
+        // package". Allowing `--dest` alone would let a DECLARED target's shipped
+        // artifact be redirected out of the one directory `files` ships, which is
+        // the quiet failure `resolveStageDir` was written to remove.
+        const dir = splitBridgeFixture([HOST_TARGET], ['libfoo.so']);
+        const dest = mkdtempSync(join(tmpdir(), 'gjsify-stage-dest-'));
+        try {
+            assert.throws(() => runStager(dir, '--dest', dest), /requires .--allow-undeclared./);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+            rmSync(dest, { recursive: true, force: true });
         }
     });
 

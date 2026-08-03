@@ -180,7 +180,14 @@ function main() {
     const args = process.argv.slice(2);
     const buildFlag = args.indexOf('--build-dir');
     const buildDirName = buildFlag >= 0 ? args[buildFlag + 1] : 'build';
-    const pkgDir = resolve(args.find((a) => !a.startsWith('--') && a !== buildDirName) ?? process.cwd());
+    const destFlag = args.indexOf('--dest');
+    const destArg = destFlag >= 0 ? args[destFlag + 1] : null;
+    // Excluded from the positional scan for the same reason `buildDirName` is: a
+    // flag VALUE does not start with `--`, so without this it would be taken for
+    // the package directory.
+    const pkgDir = resolve(
+        args.find((a) => !a.startsWith('--') && a !== buildDirName && a !== destArg) ?? process.cwd(),
+    );
 
     const pkgJsonPath = join(pkgDir, 'package.json');
     if (!existsSync(pkgJsonPath)) {
@@ -263,12 +270,49 @@ function main() {
         process.exit(1);
     }
 
-    const staged = resolveStageDir(pkgDir, pkg, target);
-    if ('error' in staged) {
-        console.error(`[stage-prebuild] ${staged.error}`);
-        process.exit(1);
+    let outDir;
+    if (destArg !== null) {
+        // AN EXPLICIT DESTINATION OUTSIDE ANY PACKAGE, for a target that is
+        // undeclared BY DESIGN.
+        //
+        // `resolveStageDir` refuses when a bridge has no `gjsify.prebuilds` and no
+        // sibling platform package, and that refusal is correct — staging into the
+        // bridge would create a directory `files` does not ship and no conformance
+        // rule can see. But it makes `prebuilds.yml`'s musl leg unstageable, and
+        // not by oversight: that leg exists to build targets NO package declares
+        // yet ("it proves itself before the declaration exists"), so by
+        // construction there is no platform package to stage into, and generating
+        // one would publish a promise CI must then reproduce and commit.
+        //
+        // Measured: after ADR 0017 that leg's `stage-prebuild . --allow-undeclared`
+        // fails with `sab-native-linux-x64-musl/ does not exist` — the musl build
+        // itself succeeds. Reproduced locally in `alpine:3.24`.
+        //
+        // So the escape is a NAMED destination rather than a relaxed default, and
+        // it requires `--allow-undeclared` as well: the two together say "this
+        // host is not a promised target AND these bytes are not going into a
+        // package". Everything after this point — the replace-not-merge, the
+        // extension match, `checkPrebuildDir()` — runs unchanged, which is the
+        // whole point of routing a CI leg through this script instead of a `cp`.
+        if (!allowUndeclared) {
+            console.error(
+                '[stage-prebuild] `--dest` requires `--allow-undeclared`.\n' +
+                    '  A destination outside the package tree is only meaningful for a target this\n' +
+                    '  package does not promise. For a DECLARED target the destination is resolved,\n' +
+                    '  never chosen: that is what keeps a shipped artifact in the one directory\n' +
+                    '  `files` ships and the conformance rules can see.',
+            );
+            process.exit(1);
+        }
+        outDir = join(resolve(destArg), target);
+    } else {
+        const staged = resolveStageDir(pkgDir, pkg, target);
+        if ('error' in staged) {
+            console.error(`[stage-prebuild] ${staged.error}`);
+            process.exit(1);
+        }
+        outDir = staged.dir;
     }
-    const outDir = staged.dir;
     // Replace rather than merge: a stale artifact from a previous build (a
     // renamed library, a dropped typelib) must not survive into the shipped set.
     rmSync(outDir, { recursive: true, force: true });
