@@ -26,6 +26,7 @@ interface _RuntimeGlobals {
         versions?: { gjs?: string; node?: string };
         exit?: (code: number) => never;
         on?: (event: string, listener: (error: unknown) => void) => unknown;
+        listenerCount?: (event: string) => number;
     };
     performance?: { now?: () => number };
     document?: {
@@ -302,19 +303,40 @@ const installUncaughtHooks = (): void => {
     if (typeof proc.versions?.gjs === 'string') return;
 
     uncaughtHooksInstalled = true;
-    const handle = (error: unknown) => {
+
+    const handle = (event: 'uncaughtException' | 'unhandledRejection') => (error: unknown) => {
+        // An escaped ASSERTION is unambiguously a test failure — that is the
+        // whole class this hook exists for, and it is claimed unconditionally.
+        const isAssertion = (error as _CountedError)?.__testFailureCounted === true;
+
+        // Anything else may be an error a SPEC provokes on purpose. Some do:
+        // `@gjsify/diagnostics_channel`'s "should continue notifying remaining
+        // subscribers when one throws" makes a subscriber throw, installs its own
+        // `uncaughtException` listener to swallow it, and asserts the remaining
+        // subscribers still ran. Node invokes every listener, so this hook fired
+        // too and failed a test that was working exactly as intended.
+        //
+        // A spec having installed its OWN listener for this event is the signal
+        // that the escape is deliberate. Counting listeners is precise (the
+        // alternative — ignoring all non-assertion errors — would SILENTLY
+        // swallow a genuine impl error, since merely registering here already
+        // suppresses the runtime's default crash).
+        const otherListeners = (proc.listenerCount?.(event) ?? 1) - 1;
+        if (!isAssertion && otherListeners > 0) return;
+
         const hook = abortHooks[abortHooks.length - 1];
         // No test in flight → it belongs to no test; report it as its own entry
         // rather than charging a bystander (same rule as a stray assertion).
         if (hook) hook(error);
         else noteStrayFailure((error as { message?: string })?.message ?? String(error));
     };
+
     // A given error reaches exactly one of these: the runtimes route an unhandled
     // rejection to `unhandledRejection` once a listener exists, and only re-raise
     // it as `uncaughtException` when none does. Registering both is therefore not
     // double-handling.
-    proc.on('uncaughtException', handle);
-    proc.on('unhandledRejection', handle);
+    proc.on('uncaughtException', handle('uncaughtException'));
+    proc.on('unhandledRejection', handle('unhandledRejection'));
 };
 
 export const configure = (overrides: Partial<TimeoutConfig>) => {

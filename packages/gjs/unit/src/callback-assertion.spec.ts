@@ -129,6 +129,45 @@ export default async () => {
             expect(after.failed - before.failed).toBe(0);
         });
 
+        await it('leaves an escaped error a spec handles itself alone', async () => {
+            // Not every error that escapes to the host is a test failure. A spec
+            // may provoke one on purpose and install its own listener to swallow
+            // it — `@gjsify/diagnostics_channel` does exactly that to prove a
+            // throwing subscriber does not stop the remaining subscribers. This
+            // hook used to claim that error and fail a test that was behaving
+            // exactly as designed (caught by CI's GJS shard, not by Node or
+            // Windows).
+            //
+            // Non-assertion + another listener present ⇒ deliberate ⇒ not ours.
+            interface HostProcess {
+                on?: (event: string, listener: (error: unknown) => void) => void;
+                removeListener?: (event: string, listener: (error: unknown) => void) => void;
+            }
+            const proc = (globalThis as { process?: HostProcess }).process;
+            if (typeof proc?.on !== 'function') return; // GJS: no host hook to test
+
+            const before = getTestCounters();
+            const expected = new Error('deliberately escaped, handled by this spec');
+            const own = (err: unknown) => {
+                if (err === expected) return; // suppress, exactly as the real spec does
+            };
+            proc.on('uncaughtException', own);
+            try {
+                // Escapes into the host, like the real spec's throwing
+                // subscriber. Must NOT be charged to this test.
+                setTimeout(() => {
+                    throw expected;
+                }, 0);
+                // Give the host a turn to deliver it.
+                await new Promise<void>((resolve) => setTimeout(resolve, 50));
+            } finally {
+                proc.removeListener?.('uncaughtException', own);
+            }
+
+            const after = getTestCounters();
+            expect(after.failed - before.failed).toBe(0);
+        });
+
         await it('does not flag an assertion a matcher deliberately absorbed', async () => {
             // `toThrow` catching a nested `expect` is how the matchers' own
             // specs are written. Such an error is observed and handled, so it
