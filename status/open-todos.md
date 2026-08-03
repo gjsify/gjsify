@@ -498,14 +498,12 @@ check compare a committed prebuild against a CI-built one at all.
 about to push (`Gate the tree being pushed`), which closed the incident where
 f5d250b32 cleared `gjsify.platformsUncommitted` under a CI-skip directive and left
 `tests/e2e/platform-exemption-clearing` red on every open PR for hours. A sweep
-done while fixing it found five more holes in the same write path. All five are
-verified reads, none is fixed:
+done while fixing it found five more holes in the same write path. One is fixed
+(`packages/napi/napi-linux-x64/prebuilds/` is no longer committed — it had no
+producer, so the honest shape was a `gjsify.platformsUncommitted` entry, which is
+what its darwin sibling already carried). The remaining four are verified reads,
+none is fixed:
 
-- **`packages/napi/napi-*/prebuilds/**` is committed but written by no job.**
-  `napi.yml` rebuilds it, overwrites the checked-out copy and throws the result
-  away; `prebuilds.yml` has no napi download step. So any change to
-  `packages/napi/napi/src/` leaves the committed bytes at their old commit while
-  every declaration check stays green.
 - **`download-artifact` MERGES and nothing prunes.** Each step extracts into an
   existing `prebuilds/<target>/` without clearing it, `git add` only adds, and
   `Refuse to delete a committed prebuild` forbids removal — so a `meson.build`
@@ -539,6 +537,27 @@ only coverage the new gate structurally cannot reach: the two specs that genuine
 LOAD a committed prebuild under GJS in `main.yml`'s `test` job. It costs one full
 `main.yml` run per landing, which is rare. It detects rather than prevents, so it
 is a complement to the gate, not a replacement — decide it deliberately.
+
+### Neither `@gjsify/napi` release prebuild leg load-tests the artifact it ships
+
+`release.yml`'s `napi-prebuild-linux` and `napi-prebuild-darwin-arm64` do `meson
+setup` → `meson compile` → `cp` → `upload-artifact`, and stop. AGENTS.md's rule is
+"ANY new prebuild job MUST end in a load test", and every other producer obeys it:
+`napi.yml`'s own jobs run the full gate set, `node-gi`'s release legs run
+`node --test test/smoke.test.mjs` against the staged prebuild, `prebuilds.yml`'s
+macOS matrix ends in `gjs -c 'imports.gi.<Ns>.<Class>'` plus an env-free
+`ctypes.CDLL`. `publish-napi` only `test -f`s the four downloaded files, which is
+existence, not loadability — the exact distinction #832 was written about.
+
+Pre-existing, and now load-bearing for linux-x64 rather than only for darwin: with
+`packages/napi/napi-linux-x64/prebuilds/` no longer committed, `prebuild-artifacts`'
+env-free `dlopen` no longer runs on it (it was the one napi check that actually
+EXECUTED the artifact — verified loading under `gjs 1.88.1` before removal), and
+napi.yml's gates load from `build/`, not from the prebuild path. So no job now proves
+that the bytes a release publishes can be opened. Fix = the same two steps the macOS
+legs already carry, added to both release legs; deliberately not done in the change
+that removed the committed copy, because that PR landed hours before a `minor`
+release and the release path is the one place a bad edit is unrecoverable.
 
 ### A workflow GitHub refuses to load reports the PR as GREEN
 

@@ -150,7 +150,11 @@ if (!existsSync(NAPI_LIB)) {
     stage('building @gjsify/napi L1 lib …');
     runGjsify(['build', '--library', 'src/ts/**/*.{ts,js}'], { cwd: PKG, stdio: 'inherit' });
 }
-if (!existsSync(PREBUILD_DIR)) die(`shim prebuild dir missing: ${PREBUILD_DIR}`);
+// Not committed (`gjsify.platformsUncommitted` on `@gjsify/napi-linux-x64`), so
+// on a fresh clone this is the normal state — name the command rather than the
+// path alone.
+if (!existsSync(PREBUILD_DIR))
+    die(`shim prebuild dir missing: ${PREBUILD_DIR} — not committed; build it: (cd ${PKG} && gjsify run build:prebuilds)`);
 
 // --- make @gjsify/napi resolvable by BARE specifier from the build graph (the
 //     `gjsify install @gjsify/napi` stand-in). The shim emits require('@gjsify/napi');

@@ -44,7 +44,11 @@ const die = (msg) => {
 const stage = (msg) => console.error(`[gate] ${msg}`);
 
 if (!existsSync(CLI)) die(`gjsify Node CLI not built at ${CLI} (or set GJSIFY_CLI_ENTRY)`);
-if (!existsSync(PREBUILD_DIR)) die(`shim prebuild dir missing: ${PREBUILD_DIR}`);
+// Not committed (`gjsify.platformsUncommitted` on `@gjsify/napi-linux-x64`), so
+// on a fresh clone this is the normal state — name the command rather than the
+// path alone.
+if (!existsSync(PREBUILD_DIR))
+    die(`shim prebuild dir missing: ${PREBUILD_DIR} — not committed; build it: (cd ${PKG} && gjsify run build:prebuilds)`);
 if (!existsSync(NODE_GI_ADDON)) {
     die(
         `node-gi addon not built at ${NODE_GI_ADDON} — run: (cd ${NODE_GI} && npm install && npm exec -- node-gyp rebuild)`,
