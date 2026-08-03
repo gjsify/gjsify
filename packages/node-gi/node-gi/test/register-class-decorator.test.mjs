@@ -195,6 +195,93 @@ test('a value-returning custom signal returns the handler result', () => {
     assert.equal(s.emit('sum', 3, 4), 7);
 });
 
+// The GJS-canonical spelling of `Signals` is GTYPE-valued, not string-valued: GJS's
+// own override hands `param_types` straight to g_signal_new (refs/gjs
+// modules/core/overrides/GObject.js), so every ported GJS class writes
+// `[GObject.TYPE_INT]`. That spelling silently registered a ZERO-param signal until
+// the L1 learned to read a GType handle — the handler's payload arrived as
+// `undefined` and neither layer complained. Oracle: gjs 1.88.1 reports n_params 1
+// and delivers 42.
+test('Signals param_types/return_type accept GTypes (GJS-canonical)', () => {
+    const Counter = GObject.registerClass(
+        {
+            GTypeName: 'NodeGiDecoratorGTypeSignals',
+            Signals: {
+                changed: { param_types: [GObject.TYPE_INT, GObject.TYPE_STRING] },
+                sum: { param_types: [GObject.TYPE_INT, GObject.TYPE_INT], return_type: GObject.TYPE_INT },
+            },
+        },
+        class Counter extends GObject.Object {},
+    );
+    const c = new Counter();
+    const query = GObject.signal_query(GObject.signal_lookup('changed', Counter.$gtype));
+    assert.equal(query.n_params, 2, 'both declared params reached g_signal_newv');
+
+    let seen = null;
+    c.connect('changed', (_emitter, n, s) => {
+        seen = [n, s];
+    });
+    c.emit('changed', 42, 'hi');
+    assert.deepEqual(seen, [42, 'hi']);
+
+    c.connect('sum', (_emitter, a, b) => a + b);
+    assert.equal(c.emit('sum', 3, 4), 7);
+});
+
+test('registration is complete when registerClass returns', () => {
+    const Eager = GObject.registerClass(
+        {
+            GTypeName: 'NodeGiDecoratorEagerClassInit',
+            Signals: { pinged: { param_types: [GObject.TYPE_INT] } },
+        },
+        class Eager extends GObject.Object {},
+    );
+    // The engine installs custom signals in class_init, which GObject runs lazily on
+    // the first g_type_class_ref — so this answered 0 until the first instance was
+    // constructed, while gjs (which class_refs during registerClass) answers the real
+    // signal id. NO instance is created here on purpose.
+    const id = GObject.signal_lookup('pinged', Eager.$gtype);
+    assert.notEqual(id, 0, 'the declared signal exists before the first instance');
+    assert.equal(GObject.signal_query(id).n_params, 1);
+});
+
+test('Signals accept a class $gtype as a param type', () => {
+    const Gio = requireGi('Gio', '2.0');
+    const Holder = GObject.registerClass(
+        {
+            GTypeName: 'NodeGiDecoratorGTypeObjectSignal',
+            Signals: { got: { param_types: [Gio.SimpleAction.$gtype] } },
+        },
+        class Holder extends GObject.Object {},
+    );
+    const h = new Holder();
+    let seen = null;
+    h.connect('got', (_emitter, a) => {
+        seen = a;
+    });
+    h.emit('got', new Gio.SimpleAction({ name: 'x' }));
+    assert.equal(seen.get_name(), 'x');
+});
+
+test('error: an unresolvable Signals type is loud, never dropped', () => {
+    assert.throws(
+        () =>
+            GObject.registerClass(
+                { GTypeName: 'NodeGiDecoratorBadSignalParam', Signals: { bad: { param_types: [42] } } },
+                class BadParam extends GObject.Object {},
+            ),
+        /signal 'bad' param_types\[0\] is not a type/,
+    );
+    assert.throws(
+        () =>
+            GObject.registerClass(
+                { GTypeName: 'NodeGiDecoratorBadSignalReturn', Signals: { bad: { return_type: {} } } },
+                class BadReturn extends GObject.Object {},
+            ),
+        /signal 'bad' return_type is not a type/,
+    );
+});
+
 test('unwrap() returns the native handle of a decorated instance', () => {
     const Thing = GObject.registerClass(class NodeGiDecoratorUnwrap extends GObject.Object {});
     const t = new Thing();

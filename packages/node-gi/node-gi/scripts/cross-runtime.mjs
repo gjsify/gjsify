@@ -118,12 +118,20 @@ const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 // process.execPath so the current Node runs the children); Bun/Deno spawn their
 // PATH binary. One process per file keeps Node's isolation identical to Bun/Deno,
 // which share a process across files by default.
+// Deno gets `--node-modules-dir=manual`: the tree is ALREADY materialised (this is a
+// checkout with its own `npm install`), and `auto` makes Deno own the directory —
+// which means resolving `node-addon-api` from the REGISTRY on every child, a
+// build-time-only dependency no test file imports. Invisible on CI (network), a hard
+// stop without it: measured in a network-less flatpak sandbox on aarch64, where all
+// 38 files failed with `Failed loading https://registry.npmjs.org/node-addon-api`
+// while `manual` runs the same 38 offline. Same flag the CLI's `--runtime deno`
+// launcher passes for the same reason.
 const argsFor = (file) =>
     runtime === 'node'
         ? ['--test', file]
         : runtime === 'bun'
           ? ['test', file]
-          : ['test', '-A', '--node-modules-dir=auto', file];
+          : ['test', '-A', '--node-modules-dir=manual', file];
 const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 
 // Deno's N-API env teardown can abort a test FILE with a non-zero exit AFTER every
