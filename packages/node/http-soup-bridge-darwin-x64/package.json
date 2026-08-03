@@ -13,9 +13,6 @@
         "prebuilds"
     ],
     "gjsify": {
-        "platformsUncommitted": {
-            "darwin-x64": "prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does"
-        },
         "platforms": [
             "darwin-x64"
         ],

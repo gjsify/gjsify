@@ -1,14 +1,5 @@
 # @gjsify/oxfmt-native-darwin-x64
 
-> **No artifact in this tarball yet.** `darwin-x64` is declared by
-> `@gjsify/oxfmt-native` and built by CI, but not committed to the repository:
-> prebuilds.yml's `build-prebuilds-macos` Intel leg builds, load-tests and uploads it; the artifact lands here on the first main-branch run of `commit-prebuilds` after this declaration merges, and this entry becomes a failure the moment it does
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/oxfmt-native` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **darwin-x64** native artifacts of [`@gjsify/oxfmt-native`](https://www.npmjs.com/package/@gjsify/oxfmt-native) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
