@@ -350,46 +350,63 @@ export function auditPlatforms(nativePkgs, ciPlatforms) {
     return { failures, rows };
 }
 
-/** The OS × package matrix — the honest answer to "where does this run?". */
+/**
+ * The OS × package matrix — the honest answer to "where does this run?".
+ *
+ * Takes rows that have been through {@link creditPlatformArtifacts} and REFUSES
+ * anything else. Every glyph below except `·` turns on where the artifact for a
+ * cell is, and since ADR 0017 that fact lives on a package this table does not
+ * have a row for; a renderer that reads it off the bridge alone cannot fail, it
+ * just quietly answers a different question — which is the whole defect this
+ * signature exists to make unrepeatable.
+ */
 export function renderPlatformMatrix(rows, { markdown = false } = {}) {
+    const uncredited = rows.filter((r) => r.artifacts == null || typeof r.artifacts !== 'object');
+    if (uncredited.length > 0) {
+        throw new TypeError(
+            `renderPlatformMatrix: ${uncredited.length} row(s) carry no \`artifacts\` map (first: ${uncredited[0].name}). ` +
+                'Rows must come from `platformRows()`, which runs `creditPlatformArtifacts()` BEFORE filtering the ' +
+                'per-target platform packages out of the table — the artifact state of a split bridge lives on its ' +
+                'children, so crediting after the filter finds nothing and every declared target renders `✓`.',
+        );
+    }
     const all = new Set();
     for (const r of rows) {
         for (const p of r.declared ?? []) all.add(canonicalPlatform(p));
-        for (const p of r.shipped) all.add(canonicalPlatform(p));
+        for (const p of Object.keys(r.artifacts)) all.add(canonicalPlatform(p));
         for (const p of r.ci ?? []) all.add(canonicalPlatform(p));
     }
     const platforms = [...all].sort();
     const mark = (r, p) => {
         const declared = (r.declared ?? []).some((d) => canonicalPlatform(d) === p);
-        const shipped = r.shipped.some((s) => canonicalPlatform(s) === p);
         const built = (r.ci ?? []).some((c) => canonicalPlatform(c) === p);
-        // A declared target the package itself records as not-committed is a
-        // distinct state from "shipped" — the matrix is the document people
-        // read to answer "can I install this there?", and collapsing the two
-        // is how "declared" came to look like "delivered" in the first place.
+        // "Is there a committed artifact for this cell ANYWHERE in this repo",
+        // asked of the credit map rather than of this row's own `prebuilds/`.
+        // A declared target with no committed artifact is a distinct state from
+        // one with — the matrix is the document people read to answer "can I
+        // install this there?", and collapsing the two is how "declared" came to
+        // look like "delivered" in the first place.
         //
-        // Gated on OWNERSHIP, not on `gjsify.prebuilds`. Keying it on the field
-        // meant that the moment ADR 0017 moved the directories out of the
-        // bridges, every split parent lost its exemption state and fell through
-        // to `declared && built` — rendering `✓` "artifact committed" for the
-        // seven `darwin-x64` targets and `@gjsify/napi`'s `darwin-arm64`, none
-        // of which has an artifact anywhere. This table is rendered into the
-        // website's Platform Support page, so that is the documentation lie the
-        // cell exists to prevent, reintroduced through the back door. What the
-        // field was really standing in for is "is this package under the
-        // committed-artifact contract at all" — `@gjsify/node-gi` builds on
-        // install and an exemption there means nothing — and that question has
-        // a name.
-        const exempt =
-            prebuildOwnership(r) !== 'install-time' &&
-            r.uncommitted != null &&
-            typeof r.uncommitted === 'object' &&
-            Object.keys(r.uncommitted).some((t) => canonicalPlatform(t) === p);
-        if (declared && exempt) return built ? '○' : '!';
-        if (declared && built) return '✓';
-        if (declared && shipped) return '⚠'; // committed once, nothing rebuilds it
+        // The previous spelling read `r.shipped`/`r.uncommitted` off the row and
+        // gated the exemption on OWNERSHIP rather than on `gjsify.prebuilds` —
+        // both correct as far as they went, and both blind to WHERE the state
+        // moved. ADR 0017 put it on the per-target CHILD packages, which
+        // `matrixRows` filters out of this table, so on a bridge row `shipped` is
+        // always `[]` and `uncommitted` always `null`: the `○` and `⚠` branches
+        // became unreachable and every declared target a CI job builds rendered
+        // `✓` "artifact committed". Measured on 0.27.0: `@gjsify/napi` claimed a
+        // committed artifact on both its targets while its two children defer
+        // BOTH via `gjsify.platformsUncommitted` (the linux-x64 directory was
+        // deleted in #960 precisely so the only loadable copy is one CI just
+        // built), and `@gjsify/node-gi` claimed one on all five while building
+        // with node-gyp at install time and committing nothing anywhere. This
+        // table is rendered into the website's Platform Support page, so that
+        // cell is exactly the documentation lie it exists to prevent.
+        const artifact = r.artifacts[p];
+        if (declared && artifact?.committed === true) return built ? '✓' : '⚠'; // ⚠ committed, nothing rebuilds it
+        if (declared && built) return '○'; // built, but no artifact committed here
         if (declared) return '!'; // promised, nothing produces it at all
-        if (shipped || built) return '?'; // produced, never promised
+        if (artifact?.committed === true || built) return '?'; // produced, never promised
         return '·';
     };
     // "a CI job targets it", not "a green build exists": this is parsed out of
@@ -544,6 +561,80 @@ export function creditPlatformPackages(nativePkgs, byPackage, ctx) {
     return byPackage;
 }
 
+/**
+ * Credit each bridge with the artifact state its per-target packages hold.
+ *
+ * The MIRROR IMAGE of `creditPlatformPackages` above, along the same single
+ * naming derivation and for the same reason: ADR 0017 records a fact about a
+ * bridge's binaries on a DIFFERENT package than the one a reader asks about.
+ * That function moves CI coverage DOWN to the children so each answers for its
+ * own target; this one moves the ARTIFACT state UP to the bridge, because the
+ * matrix has exactly one row per bridge and none for its children — and every
+ * glyph but `·` turns on where the artifact for that cell is.
+ *
+ * NOT folded into `collectNativePackages()`: that row is the input to the
+ * FAILURE set (`prebuild-artifacts` holds each tarball to the directories IT
+ * contains, `releaseOnlyTargets` asks what THIS package commits), and a row
+ * whose `shipped` silently included a sibling's directories would make both ask
+ * the wrong question. The credit is additive and derived, so it goes in a field
+ * of its own, on a copy, at the point of RENDERING.
+ *
+ * A record per target rather than a flat set of tokens, because the bridge does
+ * not contain the artifact: `package` names the tarball the binary is really in,
+ * which is what a reader needs in order to go and check it, and a row claiming
+ * `shipped: ['linux-x64']` would replace one wrong answer with another.
+ *
+ * OWN state wins over a child's. A bridge that still names its own
+ * `gjsify.prebuilds` is legal (none today) and then IS the owner; a child could
+ * only contradict it, and picking the child would make the state depend on row
+ * order.
+ *
+ * @param {Array<object>} rows rows from {@link auditPlatforms}, children INCLUDED
+ * @returns {Array<object>} copies carrying
+ *   `artifacts: Record<target, {package: string, committed: boolean, reason?: string}>`
+ */
+export function creditPlatformArtifacts(rows) {
+    /** @type {Map<string, Record<string, {package: string, committed: boolean, reason?: string}>>} */
+    const byName = new Map(rows.map((r) => [r.name, {}]));
+    const record = (owner, target, state) => {
+        const artifacts = byName.get(owner);
+        if (artifacts && !(target in artifacts)) artifacts[target] = state;
+    };
+    // Raw on purpose — `prebuild-artifacts` validates the shape and names the
+    // package when it is wrong. A reporter must not crash on data a rule is
+    // already failing, so a malformed value reads here as "no exemption".
+    const deferrals = (row) =>
+        row.uncommitted != null && typeof row.uncommitted === 'object' && !Array.isArray(row.uncommitted)
+            ? Object.entries(row.uncommitted)
+            : [];
+    const stateOf = (row, target) => {
+        if (row.shipped.some((s) => canonicalPlatform(s) === target)) return { package: row.name, committed: true };
+        const deferred = deferrals(row).find(([t]) => canonicalPlatform(t) === target);
+        return deferred ? { package: row.name, committed: false, reason: String(deferred[1]) } : null;
+    };
+
+    for (const row of rows) {
+        const own = [...row.shipped, ...deferrals(row).map(([t]) => t)].map(canonicalPlatform);
+        for (const target of new Set(own)) record(row.name, target, stateOf(row, target));
+    }
+    for (const child of rows) {
+        // A row is a bridge's per-target package when the ONE derivation
+        // reproduces its name from that bridge's name plus its single declared
+        // target — the same test `creditPlatformPackages` applies in the other
+        // direction, rather than string-stripping the suffix here.
+        const declared = child.declared ?? [];
+        if (declared.length !== 1) continue;
+        const parent = rows.find(
+            (p) => p.name !== child.name && platformPackageName(p.name, declared[0]) === child.name,
+        );
+        if (!parent) continue;
+        const canon = canonicalPlatform(declared[0]);
+        const state = stateOf(child, canon);
+        if (state) record(parent.name, canon, state);
+    }
+    return rows.map((row) => ({ ...row, artifacts: byName.get(row.name) ?? {} }));
+}
+
 /** Shared by the rule and by `--platforms`, so both see the same rows. */
 export async function platformRows(ctx) {
     const nativePkgs = collectNativePackages(ctx);
@@ -559,9 +650,15 @@ export async function platformRows(ctx) {
     failures.push(
         ...auditReleaseCoverage(nativePkgs, await coverage(['release.yml']), await coverage(['prebuilds.yml'])),
     );
+    // BEFORE the `matrixRows` filter, which is the whole ordering constraint: the
+    // artifact state of a split bridge lives on the children the filter removes,
+    // so crediting afterwards would find nothing to credit and every declared,
+    // CI-targeted cell would render `✓` — see `renderPlatformMatrix`. Reporting
+    // only; the failure set above is computed from the uncredited rows.
+    const credited = creditPlatformArtifacts(rows);
     return {
         failures,
-        rows,
+        rows: credited,
         // How many declared targets ship ONLY from a release job, so the summary
         // states what was checked rather than implying the whole tree was.
         releaseOnly: nativePkgs.reduce((n, pkg) => n + releaseOnlyTargets(pkg).length, 0),
@@ -570,7 +667,7 @@ export async function platformRows(ctx) {
         // parent's row does not already say and would bury the twelve rows a
         // reader came for, so they are filtered from the report while staying
         // fully in the failure set above.
-        matrixRows: rows.filter((r) => {
+        matrixRows: credited.filter((r) => {
             const record = ctx.get(r.name);
             return !record || !isPlatformPackageManifest(record.manifest);
         }),
