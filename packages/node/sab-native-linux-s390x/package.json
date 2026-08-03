@@ -14,7 +14,7 @@
     ],
     "gjsify": {
         "glibcRequires": {
-            "linux-s390x": "2.28"
+            "linux-s390x": "2.2"
         },
         "platforms": [
             "linux-s390x"

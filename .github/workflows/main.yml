@@ -773,6 +773,21 @@ jobs:
       # nothing to run. That is why the fatal rule in `gjsify foreach` is scoped
       # to "an --include pattern matched no workspace" and not to "the selection
       # came out empty" — the latter would red this job on every small PR.
+      #
+      # BOTH branches exclude `@gjsify/example-*`, and the selective one has to
+      # say so explicitly even though it looks redundant next to the global
+      # branch's `--no-private`. An example's `test` is `gjsify run start` — it
+      # RUNS the built bundle — and this job never has one: the example dist
+      # travels to the `examples` job as the `example-dist-fedora<N>` ARTIFACT,
+      # while this job restores the build-output cache, whose path list is
+      # `packages/*/*` only. So a closure that pulls an example in (any change to
+      # a package an example depends on — measured on `@gjsify/sab-native-*`,
+      # which drags in `@gjsify/example-node-cli-sab-parallel-hash`) died on
+      # `Error opening file …/dist/index.gjs.js: No such file or directory`,
+      # attributing a CI-plumbing gap to whatever package the PR touched.
+      # Examples keep their coverage — `Build examples` + `Check examples` here,
+      # `Test CLI/net examples` in the `examples` job — this only stops the test
+      # shards from running something they cannot have built.
       - name: Test
         env:
           GLOBAL: ${{ needs.changes.outputs.global }}
@@ -785,7 +800,7 @@ jobs:
             if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ]; then
               gjsify foreach test -v --no-private --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\" --shard \$SHARD/4
             else
-              gjsify foreach test \$INCLUDE_ARGS --exclude \"@gjsify/integration-*\" --shard \$SHARD/4
+              gjsify foreach test \$INCLUDE_ARGS --exclude \"@gjsify/integration-*\" --exclude \"@gjsify/example-*\" --shard \$SHARD/4
             fi
           '"
 
