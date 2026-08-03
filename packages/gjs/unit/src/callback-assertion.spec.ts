@@ -129,7 +129,7 @@ export default async () => {
             expect(after.failed - before.failed).toBe(0);
         });
 
-        await it('leaves an escaped error a spec handles itself alone', async () => {
+        await it('warns about an escaped error a spec handles itself, without failing', async () => {
             // Not every error that escapes to the host is a test failure. A spec
             // may provoke one on purpose and install its own listener to swallow
             // it — `@gjsify/diagnostics_channel` does exactly that to prove a
@@ -138,7 +138,11 @@ export default async () => {
             // exactly as designed (caught by CI's GJS shard, not by Node or
             // Windows).
             //
-            // Non-assertion + another listener present ⇒ deliberate ⇒ not ours.
+            // Non-assertion + another listener present ⇒ probably deliberate ⇒
+            // not a failure. But "a listener exists" only proves SOME error was
+            // anticipated, not THIS one, so it is reported as a non-gating
+            // warning rather than dropped — visible to a reader, invisible to the
+            // exit code.
             interface HostProcess {
                 on?: (event: string, listener: (error: unknown) => void) => void;
                 removeListener?: (event: string, listener: (error: unknown) => void) => void;
@@ -165,7 +169,12 @@ export default async () => {
             }
 
             const after = getTestCounters();
+            // Not a failure...
             expect(after.failed - before.failed).toBe(0);
+            // ...but not silent either. This is the assertion that keeps the
+            // "spec installed a listener" proxy from becoming a place where a
+            // genuine impl error can disappear.
+            expect(after.warnings - before.warnings).toBe(1);
         });
 
         await it('does not flag an assertion a matcher deliberately absorbed', async () => {

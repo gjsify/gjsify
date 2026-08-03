@@ -90,6 +90,24 @@ let activeTestDepth = 0;
 const strayFailures: Array<{ suite: string; message: string }> = [];
 
 /**
+ * Non-gating observations: things a reader must SEE, that the runner refuses to
+ * turn into a verdict because it cannot know whether they are intended.
+ *
+ * Distinct from every other counter here. `countTestsFailed` gates the run,
+ * `it.failing`'s xfail is a DECLARED expectation that self-retires (it fails the
+ * run the day it starts passing), and `countTestsIgnored` means "did not run".
+ * A warning is none of those: it ran, nothing is claimed about it, and there is
+ * nothing to retire — so it is reported and deliberately left out of the exit
+ * code. Anything with an owner who could declare it belongs in `it.failing`
+ * instead; a warning that could self-retire would just rot into background noise.
+ */
+const warnings: Array<{ suite: string; message: string }> = [];
+
+const noteWarning = (message: string): void => {
+    warnings.push({ suite: currentSuite, message });
+};
+
+/**
  * Record an assertion failure that fired with no `it()` on the stack. These are
  * real bugs in a test (a missing `await`, an unclosed socket, a late callback),
  * but they belong to NO currently-running test, so they get their own pseudo-
@@ -168,6 +186,13 @@ const forgetThrownAssertion = (error: unknown): void => {
 let runtime = '';
 let runStartTime = 0;
 let currentSuite = '';
+/**
+ * Name of the `it()` currently on the stack, for attributing an out-of-band
+ * observation (see `noteWarning`). Only meaningful while `activeTestDepth > 0`;
+ * a settled test deliberately leaves the last name in place rather than clearing
+ * it, because a late callback naming its likely origin beats naming nothing.
+ */
+let currentTest = '';
 let testErrors: Array<{ suite: string; test: string; message: string }> = [];
 
 export interface TimeoutConfig {
@@ -321,8 +346,19 @@ const installUncaughtHooks = (): void => {
         // alternative — ignoring all non-assertion errors — would SILENTLY
         // swallow a genuine impl error, since merely registering here already
         // suppresses the runtime's default crash).
+        //
+        // But "a listener exists" is only a PROXY for "this one was expected",
+        // and the proxy is wrong in a real case: a spec that installs a listener
+        // for ONE anticipated error is equally deaf to a genuine impl error
+        // escaping beside it. So this is reported as a non-gating WARNING rather
+        // than dropped — the runner cannot decide it, and the reader can.
         const otherListeners = (proc.listenerCount?.(event) ?? 1) - 1;
-        if (!isAssertion && otherListeners > 0) return;
+        if (!isAssertion && otherListeners > 0) {
+            const text = (error as { message?: string })?.message ?? String(error);
+            const where = activeTestDepth > 0 ? ` during "${currentTest}"` : '';
+            noteWarning(`${event}: ${text}${where} — absorbed by a listener the spec installed itself`);
+            return;
+        }
 
         const hook = abortHooks[abortHooks.length - 1];
         // No test in flight → it belongs to no test; report it as its own entry
@@ -996,6 +1032,7 @@ export const it = async function (
     // a late assertion that fires after this test resolved is then correctly
     // recognised as out-of-band (see triggerResult / noteStrayFailure).
     ++activeTestDepth;
+    currentTest = expectation;
     // This test's ledger of thrown-but-not-yet-observed assertions. Whatever
     // survives to the drain below never reached the `catch` (see
     // `assertionLedgers`).
@@ -1110,11 +1147,18 @@ it.skip = async function (expectation: string, _callback?: () => void | Promise<
  * on what the CI gate reads (the counters) instead of scraping printed text —
  * the summary's wording is free to change, its accounting is not.
  */
-export const getTestCounters = (): { overall: number; failed: number; ignored: number; xfail: number } => ({
+export const getTestCounters = (): {
+    overall: number;
+    failed: number;
+    ignored: number;
+    xfail: number;
+    warnings: number;
+} => ({
     overall: countTestsOverall,
     failed: countTestsFailed,
     ignored: countTestsIgnored,
     xfail: countTestsXfail,
+    warnings: warnings.length,
 });
 
 it.failing = async function (
@@ -1301,6 +1345,17 @@ const printResult = () => {
         );
     }
 
+    if (warnings.length) {
+        // Non-gating by design (see `warnings`). Printed with its own glyph and
+        // an explicit "not counted" so nobody reads it as part of the verdict.
+        print(
+            `\n${BLUE}⚠ ${warnings.length} warning${warnings.length > 1 ? 's' : ''} (not counted — nothing is claimed about these)${RESET}`,
+        );
+        for (const w of warnings) {
+            print(`  ${BLUE}↳ ${w.message.trim().split('\n')[0]}${RESET}`);
+        }
+    }
+
     if (strayFailures.length) {
         // Late assertions that fired with no it() on the stack (a leaked timer
         // / unawaited promise in some test). Surface them as their own line so
@@ -1378,6 +1433,7 @@ export const run = async (
     runStartTime = now();
     skipReasons = new Map();
     countTestsXfail = 0;
+    warnings.length = 0;
 
     if (options) {
         if (typeof options === 'number') {
