@@ -137,7 +137,11 @@ consumer installs only the artifact that fits its platform.
 
 **macOS renders — WebGL1 only.** Measured on macOS 15.7.8 / x86_64 with gtk 4.22 and
 libepoxy 1.5.10: `Gtk.GLArea` realizes a `GdkMacosGLContext`, and this bridge draws real
-pixels through it. Two limits come from the platform, not from the bridge:
+pixels through it. That describes the GL stack once GTK is loaded — reaching it needed
+`DYLD_LIBRARY_PATH=/usr/local/lib` exported by hand, because the `Gtk-4.0` typelib names a
+bare `libgtk-4.1.dylib` leaf that a Homebrew prefix does not put on the loader's search path
+for every host; that defect is tracked and fixed separately. Two further limits come from the
+platform, not from the bridge:
 
 - GTK4's macOS backend goes through **CGL, which offers desktop OpenGL only** — no GLES
   profile at any version. A GLES-exclusive request (`gtk_gl_area_set_use_es(TRUE)`) fails

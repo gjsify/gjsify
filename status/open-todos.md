@@ -232,6 +232,53 @@ What is MEASURED, and what is not:
   shape, a different place. **Its provenance was NOT established**: nothing was
   knowingly built, and the trigger was not found before it was discarded. Treat
   it as a corroborating observation, not proof.
+- **2026-08-03 — one instance of this mismatch class was traced to a STALE
+  DEPENDENCY CLOSURE, and the same tree then reproduced CI byte-for-byte.** #969
+  edited `packages/infra/rolldown-plugin-gjsify/src/`, ran the two bundle
+  recipes, and shipped bundles the verify step rejected: `cli.gjs.mjs` 6605940 B
+  committed vs 6606274 B rebuilt (first difference at byte 440886),
+  `affected.gjs.mjs` 248598 B vs 248929 B (byte 230496) — ~330 B per bundle, the
+  familiar magnitude. The cause was NOT non-determinism: the recipes had run
+  WITHOUT `gjsify workspace @gjsify/cli build --with-dependencies` first, over a
+  workspace whose `lib/` trees came from an install 64 commits back, so the
+  missing bytes were other packages' CURRENT output, not the branch's own change.
+  Re-running the full command triple in the same checkout produced bundles
+  BYTE-IDENTICAL to the `rebuilt-bundles` artifact of the failing CI run —
+  sha256 `5954cf86a99fec92e3f24dbd30ce95833cac19890f2cf0e1f6b9ba73bd81bf69`
+  (`cli.gjs.mjs`, 6606274 B) and
+  `68747c73a982116185f41cec70c54f36512f070bef9fb3d950e47e99fbe7f9e2`
+  (`affected.gjs.mjs`, 248929 B) — built on **darwin-x64 (macOS 15.7.8, Node
+  24.18.1)** against CI's **Fedora 44** container. That is a cross-platform,
+  cross-toolchain reproduction of both artifacts, which is more than this entry
+  had in either direction. It also makes the 6595935 B third variant above
+  PLAUSIBLY the same stale-closure cause rather than a separate order input —
+  plausibly, not confirmed: that specific artifact was never rebuilt, and the
+  `$N`-suffix question it was cited for stays open.
+- **A rebase MERGES these artifacts silently, and "no conflict" says nothing
+  either way.** Rebasing that same branch onto a main that had itself rebuilt
+  `cli.gjs.mjs` (#970) reported NO conflict and produced a 6607054 B file
+  matching neither input (main's 6606669 B, the branch's 6606274 B): the artifact
+  is minified but newline-bearing, so git 3-way-merged the two bodies as text.
+  **Rebuilding on the merged closure then produced those exact bytes** — sha256
+  `e4bba05063d13b8005bf360cde933b08fd2eec4c9a2164eabef71a136e329cdb` — so in this
+  instance the text merge was RIGHT. It was right for a reason that a merge cannot
+  promise: the two sides had touched disjoint lines, and the union of disjoint
+  line edits happens to coincide with a rebuild of the union of the sources. Any
+  overlap in the emitted lines, or any change that shifts the minifier's
+  identifier assignment (the `$N` drift this entry is about), breaks that
+  coincidence with no conflict and no size anomaly to notice. So the operational
+  rule is unchanged and now has a measurement behind BOTH halves: a clean rebase
+  is not evidence the artifact survived, and the only way to find out is to take
+  the upstream bytes and re-run the triple. Worth weighing against the second
+  direction below — if CI were the only producer, neither this nor the staleness
+  case above could arise.
+
+AGENTS.md § Committed-artifact freshness already says `--with-dependencies` pins
+the INPUTS so that "a mismatch means staleness"; the run above is that sentence
+DEMONSTRATED rather than asserted, on a host CI never touches. It argues the
+remaining open half is narrower than this entry reads: what is unexplained is
+specifically the `$N`-suffix order drift seen on a FULLY REBUILT closure, not
+"local builds diverge".
 
 So the standing repair is real but manual — take CI's `rebuilt-bundles` bytes —
 and it will be needed again. Worth closing properly, because the failure lands
@@ -331,7 +378,21 @@ First rendering proof on darwin, measured 2026-08-03 on the Intel macOS 15.7.8 t
 (`docs/workstation/macos-test-vm.md`): the committed `darwin-x64` prebuild draws real pixels onto
 the desktop through `Gtk.GLArea` + libepoxy + CGL — a `clearColor`/`scissor`/`clear` pattern,
 `gl.getError()` 0, screenshotted. Everything before this proved a `dlopen`, not a pixel. The
-`set_use_es(true)` defect that made it impossible is fixed (§ Bridge pattern). What is still open:
+`set_use_es(true)` defect that made it impossible is fixed (§ Bridge pattern).
+
+**Read every measurement below with one precondition stated.** Each one was taken with
+`DYLD_LIBRARY_PATH=/usr/local/lib` exported by hand, because without it the `Gtk-4.0` typelib's bare
+`libgtk-4.1.dylib` leaf does not resolve on this host at all — the darwin loader defect #973 fixes.
+So these results describe the GL stack ONCE libgtk is loaded; they do NOT say a user who runs
+`gjsify showcase` on macOS gets that far, and the darwin webgl claim is contingent on #973 or an
+equivalent. Worth naming explicitly because it is the same masking pattern #973 found in CI, where
+the workflow exports `DYLD_FALLBACK_LIBRARY_PATH` itself and thereby hides the defect from every
+job: a loader variable supplied by the harness rather than by the user's environment turns "it
+works" into "it works for us". SIP makes it worse than a normal env var — `DYLD_*` is stripped when
+exec'ing a protected binary, so putting `nohup`/`env` in front of `gjs` silently drops it and the
+failure comes back looking like a broken prebuild.
+
+What is still open:
 
 - **GLSL ES 3.00 does not exist on macOS, so every WebGL2-only consumer is dead there.**
   `#version 300 es` needs ARB_ES3_compatibility (GL 4.3) and macOS caps CGL at 4.1; measured
