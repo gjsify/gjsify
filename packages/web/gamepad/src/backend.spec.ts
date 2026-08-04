@@ -138,9 +138,8 @@ export default async () => {
         await it('reports a backend and no diagnostic when the namespace loads', async () => {
             _resetGamepadBackendCache();
             const fake = fakeManetteModule();
-            let backend: GamepadBackend | null = null;
             const captured = await capturingConsole(async () => {
-                backend = await loadGamepadBackend({ importer: importerResolving(fake) });
+                const backend = await loadGamepadBackend({ importer: importerResolving(fake) });
                 expect(backend.status).toBe('manette');
                 expect(backend.module).toBe(fake);
                 expect(backend.error).toBeNull();
@@ -168,8 +167,9 @@ export default async () => {
             expect(quiet.warnings).toStrictEqual([]);
             expect(quiet.errors).toStrictEqual([]);
             // …and the text exists, it is just emitted by whoever wanted a monitor.
+            expect(backend).not.toBeNull();
             const spoken = await capturingConsole(async () => {
-                reportGamepadBackendOnce(backend as unknown as GamepadBackend);
+                reportGamepadBackendOnce(backend!);
             });
             expect(spoken.warnings).toHaveLength(1);
             expect(spoken.warnings[0]).toContain('No gamepad backend on this host');
