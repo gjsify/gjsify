@@ -1285,3 +1285,28 @@ cover the leg that most needs them: an exploratory port is exactly where a
 renamed library or a missing sibling is most likely, and a hand-written `cp` is
 the one path that cannot notice either. Left undone here only because it would
 have made this PR depend on that one landing first.
+
+### The GTK bundles declare `license: MIT` while shipping an LGPL closure
+
+`@gjsify/gtk-runtime-{darwin-arm64,darwin-x64,win32-x64}` each carry 37–45
+relocated LGPL/MPL/GPL libraries (GTK, GLib, Pango, cairo, freetype, fontconfig,
+harfbuzz, libadwaita, GtkSourceView, and on win32 also ANGLE, librsvg, libxml2)
+and all three declare `"license": "MIT"` — the terms of their own three source
+files, not of the payload.
+
+The TEXTS are no longer missing: `packages/node-gi/scripts/bundle-licenses.mjs`
+derives `gtk/licenses/` + `gtk/THIRD-PARTY-NOTICES.md` from the source prefix,
+per-binary on darwin through each dylib's Homebrew keg (an unattributable dylib
+fails the build) and prefix-wide on win32, and `release.yml` gates on
+`m.licenses.texts > 0`. What is still wrong is the MACHINE-READABLE half: an
+automated consumer, a corporate license scanner or an SBOM generator reads the
+`license` field and never opens the notices, so the one declaration a tool can
+act on says something the tarball contradicts.
+
+Not fixed alongside the notices because the correct spelling is a judgement, not
+a mechanical edit: an SPDX expression naming the payload's real mix, versus
+`SEE LICENSE IN gtk/THIRD-PARTY-NOTICES.md`, versus splitting the package's own
+terms from the bundled ones. Whichever is chosen wants the same treatment as
+everything else here — derived from what the builder measured, so it cannot drift
+from the payload, which means `bundle-licenses.mjs` emitting the expression and a
+conformance rule comparing it to the manifest rather than a hand-edited string.

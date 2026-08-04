@@ -396,33 +396,15 @@ jobs:
           echo "--- assert the third-party terms ship with the binaries ---"
           test -s "$B/THIRD-PARTY-NOTICES.md" || { echo "THIRD-PARTY-NOTICES.md MISSING or empty"; exit 1; }
           test -d "$B/licenses" || { echo "licenses/ MISSING — relocated LGPL binaries with no terms attached"; exit 1; }
-          node -e '
-            const m = require(`./packages/node-gi/gtk-runtime-${process.env.TAG}/gtk/manifest.json`);
-            const want = `darwin-${process.arch}`;
-            if (m.platform !== want) {
-              console.error(`bundle manifest says ${m.platform}, this runner is ${want}`);
-              process.exit(1);
-            }
-            // The manifest is what a consumer holding only the tarball can read, so the
-            // release gates on IT, not on the build log that produced it.
-            if (m.windowing !== true || !(m.dataBytes > 0)) {
-              console.error(`published bundle must be the windowing superset with runtime data: windowing=${m.windowing} dataBytes=${m.dataBytes}`);
-              process.exit(1);
-            }
-            if (!(m.typelibSymmetry?.backed > 0) || !(m.licenses?.texts > 0)) {
-              console.error(`manifest records no verified typelib symmetry / no license texts: ${JSON.stringify({ typelibSymmetry: m.typelibSymmetry, licenses: m.licenses })}`);
-              process.exit(1);
-            }
-            // The builder now FAILS on a missing declared data set instead of warning,
-            // and records which sets it verified; require that record, so a bundle built
-            // by an older builder (or with the gate bypassed) cannot publish.
-            const verified = m.windowingData?.verified ?? [];
-            if (!verified.length || verified.some((v) => !(v.files > 0))) {
-              console.error(`manifest records no verified windowing data sets: ${JSON.stringify(m.windowingData)}`);
-              process.exit(1);
-            }
-            console.log(`bundle target ${m.platform} matches the runner; windowing superset, ${m.typelibSymmetry.backed} backed typelibs, ${m.licenses.texts} license texts, data sets ${verified.map((v) => v.id).join('+')}`);
-          '
+          # The manifest half is a SCRIPT, shared with the win32 leg, because it was
+          # twice an inline `node -e '…'` whose last line spliced `join('+')` into a
+          # single-quoted shell string — the shell closed the body there and node died
+          # with a SyntaxError before one assertion ran, failing all three v0.28.0
+          # bundle publishes while the bundles themselves were correct. Guarded against
+          # regrowth by scripts/check-workflow-inline-scripts.mjs.
+          node packages/node-gi/scripts/verify-bundle-manifest.mjs \
+            --bundle "$B" \
+            --expect-host-target darwin
           echo "clean — bundle populated, portable, complete + license-covered"
 
       # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
@@ -575,23 +557,11 @@ jobs:
           Write-Host "--- assert the third-party terms ship with the binaries ---"
           if (-not (Test-Path "$B/THIRD-PARTY-NOTICES.md")) { Write-Host "THIRD-PARTY-NOTICES.md MISSING"; exit 1 }
           if (-not (Test-Path "$B/licenses")) { Write-Host "licenses/ MISSING - LGPL DLLs with no terms attached"; exit 1 }
-          node -e '
-            const m = require("./packages/node-gi/gtk-runtime-win32-x64/gtk/manifest.json");
-            if (m.windowing !== true || !(m.dataBytes > 0)) {
-              console.error(`published bundle must be the windowing superset with runtime data: windowing=${m.windowing} dataBytes=${m.dataBytes}`);
-              process.exit(1);
-            }
-            if (!(m.typelibSymmetry?.backed > 0) || !(m.licenses?.texts > 0)) {
-              console.error(`manifest records no verified typelib symmetry / no license texts: ${JSON.stringify({ typelibSymmetry: m.typelibSymmetry, licenses: m.licenses })}`);
-              process.exit(1);
-            }
-            const verified = m.windowingData?.verified ?? [];
-            if (!verified.length || verified.some((v) => !(v.files > 0))) {
-              console.error(`manifest records no verified windowing data sets: ${JSON.stringify(m.windowingData)}`);
-              process.exit(1);
-            }
-            console.log(`windowing superset, ${m.typelibSymmetry.backed} backed typelibs, ${m.licenses.texts} license texts, data sets ${verified.map((v) => v.id).join('+')}`);
-          '
+          # Same shared script as the darwin leg — see the comment there for why the
+          # manifest half stopped being an inline `node -e`. No --expect-host-target:
+          # win32-x64 is the only Windows bundle, so there is no arch to cross-check.
+          node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle $B
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           Write-Host "bundle populated, complete + license-covered"
 
       # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
