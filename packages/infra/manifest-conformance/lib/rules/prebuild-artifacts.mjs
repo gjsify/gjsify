@@ -333,9 +333,9 @@ export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
             }
             // The `.gir` the typelib was compiled from. PLATFORM-AGNOSTIC on
             // purpose: the assertion that existed before this one was a shell
-            // loop in `prebuilds.yml`'s macOS job, so it held for the fourteen
-            // darwin directories and for none of the forty-six others — which is
-            // exactly why the ten that were missing a `.gir` were all linux.
+            // loop in `prebuilds.yml`'s macOS job, so it held for the 16 darwin
+            // directories and for none of the other 44 — which is exactly why the
+            // ten that were missing a `.gir` were all linux.
             // Deliberately checked per DIRECTORY rather than per package: the
             // shape that went wrong was one bridge shipping two different file
             // sets, so a package-level "has a gir somewhere" would have passed it.

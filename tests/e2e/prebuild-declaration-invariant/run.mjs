@@ -251,9 +251,9 @@ describe('prebuild invariant — half 1: a declared platform must have a body', 
     it('FAILS on a directory with a library + typelib but no `.gir`', () => {
         // The blind spot this closes. `.gir` presence was asserted in exactly one
         // place — a shell loop in `prebuilds.yml`'s macOS job — so it held for the
-        // fourteen darwin directories and for none of the forty-six others. Ten
-        // committed linux directories carried only the library and the typelib for
-        // their whole life, and every check in the tree was green: this one asked
+        // 16 darwin directories and for none of the other 44. Ten committed linux
+        // directories carried only the library and the typelib for their whole
+        // life, and every check in the tree was green: this one asked
         // for "a `.so` plus a `.typelib`", `prebuild-libc` reads ELF, and
         // `audit-runtimes`' declaration invariants compare declarations to each
         // other. Asserted HERE, so it holds for every target from any host.
