@@ -18,6 +18,7 @@ import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
 import dirLinkSuite from './utils/dir-link.spec.js';
+import checkSystemDepsSuite from './utils/check-system-deps.spec.js';
 import dlxCacheSuite from './utils/dlx-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import installLockSuite from './utils/install-lock.spec.js';
@@ -183,6 +184,7 @@ run(
         authNpmrcSuite,
         promptKeySuite,
         dirLinkSuite,
+        checkSystemDepsSuite,
         dlxCacheSuite,
         installCacheFsSuite,
         installLockSuite,

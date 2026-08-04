@@ -12,7 +12,7 @@
 // project never sees a warning about libmanette.
 
 import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
@@ -660,4 +660,195 @@ export function buildInstallCommand(pm: PackageManager, missing: DepCheck[]): st
     }
 
     return lines.length > 0 ? lines.join('\n  ') : null;
+}
+
+// ---- @girs types vs the library actually installed ---------------------------
+//
+// `import Gtk from 'gi://Gtk?version=4.0'` gets its types from `@girs/gtk-4.0`,
+// generated ahead of time from ONE upstream GTK's GIR — and loads a typelib from
+// whatever GTK the host has. Nothing compares the two, and GIRepository cannot:
+// it matches the API version (`4.0`) only, so a typelib from GTK 4.12 and one from
+// 4.23 both satisfy `?version=4.0`.
+//
+// Measured on a maintainer workstation, 2026-08-04: host GTK 4.22.4,
+// `@girs/gtk-4.0@4.1.0` generated from 4.23.0. `Gtk.RestoreReason.RECOVER` is
+// `@since 4.24`; `gjsify tsc` exits 0 with no diagnostic, and the same line at
+// runtime is `TypeError: can't access property "RECOVER", Gtk.RestoreReason is
+// undefined`. `gjsify system-check` reported `✓ GTK4 (4.22.4)` and said nothing.
+//
+// The declaration to check against already exists: every `@girs/*` package carries
+// `libraryVersion` (ADR 0008 names it). Nothing in this repo reads it — `grep -rn
+// libraryVersion packages/ scripts/ .github/` matched nothing before this. So this
+// is not a new mechanism, it is the missing half of one.
+//
+// SCOPE, and why it is not every package. `libraryVersion` is only an upstream
+// version where the GIR declares a `<package version>`; otherwise ts-for-gir falls
+// back to the NAMESPACE version, which looks like a version and is not one.
+// Measured across 32 installed `@girs/*`: 12 real, 17 degenerate, 3 absent —
+// `@girs/gdk-4.0` says `4.0.0` while GDK ships inside GTK 4.22.4, so comparing it
+// would report an 18-minor skew that does not exist. Hence an explicit binding
+// table plus `isDegenerate`, and a deliberate false NEGATIVE: a library genuinely
+// at exactly `<namespace>.0` is skipped rather than risk a false alarm. Closing
+// that gap needs the installed library's own `.gir`, which the bundles do not ship
+// (`status/open-todos.md`) — it is not reachable from this field.
+
+interface TypePackageBinding {
+    /** pkg-config module whose `--modversion` is the runtime truth. */
+    pkgConfig: string;
+    /** The `@girs/*` package generated from that library's GIR. */
+    typePackage: string;
+    /** Namespace version in the package name — the degenerate fallback value. */
+    namespaceVersion: string;
+}
+
+/**
+ * Only libraries whose GIR carries a real `<package version>`, verified against
+ * the published packages rather than assumed. A binding whose value turns out
+ * degenerate is skipped at runtime by `isDegenerate`, so a wrong entry here
+ * cannot produce a false alarm — it can only produce silence.
+ */
+const TYPE_PACKAGE_BINDINGS: TypePackageBinding[] = [
+    { pkgConfig: 'gtk4', typePackage: '@girs/gtk-4.0', namespaceVersion: '4.0' },
+    { pkgConfig: 'libadwaita-1', typePackage: '@girs/adw-1', namespaceVersion: '1' },
+    { pkgConfig: 'libsoup-3.0', typePackage: '@girs/soup-3.0', namespaceVersion: '3.0' },
+    { pkgConfig: 'glib-2.0', typePackage: '@girs/glib-2.0', namespaceVersion: '2.0' },
+    { pkgConfig: 'gobject-2.0', typePackage: '@girs/gobject-2.0', namespaceVersion: '2.0' },
+    { pkgConfig: 'gio-2.0', typePackage: '@girs/gio-2.0', namespaceVersion: '2.0' },
+    { pkgConfig: 'gstreamer-1.0', typePackage: '@girs/gst-1.0', namespaceVersion: '1.0' },
+    { pkgConfig: 'webkitgtk-6.0', typePackage: '@girs/webkit-6.0', namespaceVersion: '6.0' },
+    { pkgConfig: 'manette-0.2', typePackage: '@girs/manette-0.2', namespaceVersion: '0.2' },
+    { pkgConfig: 'pango', typePackage: '@girs/pango-1.0', namespaceVersion: '1.0' },
+    { pkgConfig: 'harfbuzz', typePackage: '@girs/harfbuzz-0.0', namespaceVersion: '0.0' },
+];
+
+export interface TypeSkew {
+    typePackage: string;
+    pkgConfig: string;
+    /** `libraryVersion` declared by the installed `@girs/*` package. */
+    declared: string;
+    /** `pkg-config --modversion` of the library the host actually has. */
+    installed: string;
+    /**
+     * `ahead` = the types describe a NEWER library than is installed. This is the
+     * direction that compiles and then throws, so it is the one worth reporting.
+     * `behind` = API the host has is invisible to the compiler; limiting, not wrong.
+     */
+    relation: 'ahead' | 'behind';
+}
+
+/**
+ * Read `libraryVersion` from an installed `@girs/*` package.
+ *
+ * Resolves the package's MAIN entry and walks up to its root `package.json`
+ * rather than resolving the `package.json` subpath: `@girs/*` exports maps do not
+ * expose `./package.json` (verified on all 32 installed packages), so
+ * `require.resolve('@girs/gtk-4.0/package.json')` throws
+ * `ERR_PACKAGE_PATH_NOT_EXPORTED`. The same trap silently disabled the
+ * `@nativescript/vite` major-version gate until it was found by measurement.
+ */
+function readGirsLibraryVersion(cwd: string, typePackage: string): string | null {
+    for (const from of [pathToFileURL(join(cwd, '_girs_.js')).href, import.meta.url]) {
+        let dir: string;
+        try {
+            dir = dirname(createRequire(from).resolve(typePackage));
+        } catch {
+            continue;
+        }
+        // Walk up to the package root — the entry may sit in a subdirectory.
+        for (let i = 0; i < 5; i++) {
+            const manifest = join(dir, 'package.json');
+            if (existsSync(manifest)) {
+                try {
+                    const parsed = JSON.parse(readFileSync(manifest, 'utf-8')) as {
+                        name?: string;
+                        libraryVersion?: string;
+                    };
+                    if (parsed.name === typePackage) return parsed.libraryVersion ?? null;
+                } catch {
+                    return null; // present but unreadable — nothing to compare against
+                }
+            }
+            const parent = dirname(dir);
+            if (parent === dir) break;
+            dir = parent;
+        }
+    }
+    return null;
+}
+
+/** `[major, minor]`, or null when the string is not a comparable version. */
+function majorMinor(version: string): [number, number] | null {
+    const match = /^(\d+)\.(\d+)/.exec(version.trim());
+    if (!match) return null;
+    return [Number(match[1]), Number(match[2])];
+}
+
+/**
+ * True when `libraryVersion` is ts-for-gir's namespace-version fallback rather
+ * than a real upstream release — `@girs/gdk-4.0`'s `4.0.0` against namespace `4.0`.
+ *
+ * Compares against every `.0`-padded spelling of the namespace version, not just
+ * the three-component one: `4.0` and `4.0.0` are the same claim, and matching only
+ * the padded form let the bare spelling through as a bogus 18-minor "behind"
+ * finding. Deliberately NOT a major.minor comparison — `@girs/adw-1` has namespace
+ * `1` and a real `libraryVersion` of `1.10.0`, which any major-only rule discards.
+ */
+function isDegenerate(declared: string, namespaceVersion: string): boolean {
+    const trimmed = declared.trim();
+    const parts = namespaceVersion.split('.');
+    for (let n = parts.length; n <= 3; n++) {
+        if (trimmed === [...parts, ...Array<string>(n - parts.length).fill('0')].join('.')) return true;
+    }
+    return false;
+}
+
+/**
+ * Readers the comparison depends on, injectable so every branch is unit-testable
+ * from ANY host. Same reasoning as `resolvePrebuildDirName`, which is a pure
+ * function of injected values precisely so its darwin/win32 branches are tested
+ * from Linux: a check whose only test is "run it on the maintainer's machine and
+ * look" is a check whose skew cases are never exercised.
+ */
+export interface TypeSkewReaders {
+    /** `libraryVersion` of an installed `@girs/*` package, or null when absent. */
+    readDeclared?: (cwd: string, typePackage: string) => string | null;
+    /** `pkg-config --modversion` of a library, or null when absent. */
+    readInstalled?: (pkgConfig: string) => string | null;
+}
+
+/**
+ * Compare each installed `@girs/*` package's declared upstream version against the
+ * library the host actually has. Only reports a `major.minor` difference: a micro
+ * difference does not change the API set, and reporting it would train people to
+ * ignore the output.
+ */
+export function checkTypeSkew(cwd: string, readers: TypeSkewReaders = {}): TypeSkew[] {
+    const readDeclared = readers.readDeclared ?? readGirsLibraryVersion;
+    const readInstalled =
+        readers.readInstalled ?? ((pkgConfig: string) => tryExecFile('pkg-config', ['--modversion', pkgConfig]));
+    const findings: TypeSkew[] = [];
+
+    for (const binding of TYPE_PACKAGE_BINDINGS) {
+        const declared = readDeclared(cwd, binding.typePackage);
+        if (declared === null) continue; // types not installed, or no declaration
+        if (isDegenerate(declared, binding.namespaceVersion)) continue;
+
+        const installed = readInstalled(binding.pkgConfig);
+        if (installed === null) continue; // library absent — the presence check owns that
+
+        const want = majorMinor(declared);
+        const have = majorMinor(installed.split('\n')[0] ?? installed);
+        if (!want || !have) continue;
+        if (want[0] === have[0] && want[1] === have[1]) continue;
+
+        findings.push({
+            typePackage: binding.typePackage,
+            pkgConfig: binding.pkgConfig,
+            declared,
+            installed: installed.split('\n')[0] ?? installed,
+            relation: want[0] > have[0] || (want[0] === have[0] && want[1] > have[1]) ? 'ahead' : 'behind',
+        });
+    }
+
+    return findings;
 }
