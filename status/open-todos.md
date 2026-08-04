@@ -788,11 +788,44 @@ directions — the rule fails an entry whose file arrived, and
 adds the file. A `workflow_dispatch` run of `prebuilds.yml` on `main` classifies
 `--all` and lands all ten at once if the merge that added them does not.
 
+Two ways that "transient" could have been a lie, both now gates rather than
+prose: a build that stops emitting the `.gir` fails `stage-prebuild.mjs` (a
+`.typelib` with no `.gir` beside it is refused — `g-ir-compiler` takes the `.gir`
+as input, so one WAS there), and a deferral for a target no `prebuilds.yml` leg
+builds fails `platforms-ci`. All ten are credited by `prebuilds.yml` with exactly
+the target whose directory is short a file, and the audit prints that leg per
+entry.
+
 WHAT IS LEFT FOR A HUMAN: when the last entry goes, the clearing script leaves
 `PREBUILD_GIR_GAPS = {}` behind rather than deleting a module that
 `scripts/audit-runtimes.mjs` imports — a bot pushing under `[skip ci]` must not be
 removing imports. Delete the ledger file and its import in a reviewed commit, and
-delete this entry with them.
+delete this entry with them. That importer list is machine-checked (the e2e suite
+finds every static importer and fails if the ledger's own instruction does not
+name it), so the cleanup cannot break an importer nobody remembered.
+
+### A gate whose fixture reads what the gated job writes — SECOND instance
+
+`gate-pushed-tree.sh` exists because `tests/e2e/platform-exemption-clearing`
+seeded its fixture from a `gjsify.platformsUncommitted` value that the bot then
+CLEARED, and `main` was red for every open PR for hours (f5d250b32, 2026-08-03).
+The same shape reappeared inside the fix for it, and was caught in review rather
+than in production: `tests/e2e/prebuild-declaration-invariant` copied the
+missing-`.gir` ledger out of the checkout and asserted it had at least two
+entries — while the clearing script that runs earlier in the same job exists to
+reduce that file to `{}`. The first `main` run to land the ten `.gir` files would
+have cleared all ten, failed the gate on the ledger it had just correctly
+emptied, and discarded every downloaded binary. That fixture is hermetic now.
+
+Twice is a class. What is missing is a check on the GATE LIST itself: no suite in
+`gate-pushed-tree.sh`'s `node --test` list may read repository state that the
+steps before it write (the two clearing scripts' outputs, the staged
+`prebuilds/` directories, the manifests the generator rewrites). The awkward part
+is that some of those suites read committed artifacts ON PURPOSE —
+`prebuild-loader-path` asserts exact glibc floors of bytes this job replaces — so
+the rule cannot be "fixtures may not read the tree". A first cut that would have
+caught both instances: fail a gate-listed suite that reads a path the same job's
+clearing scripts print on stdout, which is a set the job already computes.
 
 ### What still writes to `main` unverified, after the bot push got a gate
 
