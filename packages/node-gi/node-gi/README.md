@@ -175,9 +175,19 @@ files, **Deno 2.9.4 → 35/38 plus the three known non-gating Deno teardown exit
 - the prebuild declares glibc, yet it **loads and runs on a pure-musl host** (Alpine
   / postmarketOS, no glibc, no `gcompat`) under Bun's musl build: musl's dynamic
   loader maps the `libc.so.6` / `libm.so.6` `DT_NEEDED` entries onto ITSELF via its
-  reserved-name list, every other dependency (`libglib-2.0`, `libgirepository-2.0`,
-  `libcairo`, `libstdc++`, `libgcc_s`) exists musl-built, and musl resolves
-  relocations eagerly — so a successful load means the whole symbol set resolved.
+  reserved-name list, and every other dependency (`libglib-2.0`,
+  `libgirepository-2.0`, `libcairo`, `libstdc++`, `libgcc_s`) exists musl-built.
+  **Do not read a successful load as "every symbol resolved".** Measured with a real
+  artifact (`@gjsify/sab-native`'s pre-#955 prebuild) on aarch64 musl and in
+  `alpine:3.24` x86-64: `dlopen` behaves oppositely by mode — `RTLD_NOW` fails at
+  load, `RTLD_LAZY` **loads** and the process dies at the first call through the
+  deferred PLT slot. GI opens typelib backers with `G_MODULE_BIND_LAZY`, so on musl a
+  glibc-only symbol really does hide from a load. Both arches behave identically.
+  A weak undefined symbol hides the same way. So this binary is clear by audit, not
+  by its load: 5 of its 579 undefined symbols are weak, and the 3 unresolvable on
+  musl (`_ITM_{,de}registerTMCloneTable`, `__gmon_start__`) are the NULL-guarded gcc
+  boilerplate every DSO carries. What defeats the hiding is `dlopen(RTLD_NOW)`, or —
+  with no musl machine at all — a glibc-floor `SHT_GNU_verneed` audit.
 - **Deno publishes no musl build** (`aarch64-unknown-linux-gnu` only), so on such a
   host Deno needs a glibc environment (here the `org.gnome.Platform//49` flatpak
   runtime: glibc 2.42, gjs 1.86.0). With `node_modules/` already materialised, both
