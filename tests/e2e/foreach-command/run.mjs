@@ -280,6 +280,65 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         assert.ok(idxCore < idxApp, `expected core before app, got core=${idxCore} app=${idxApp}`);
     });
 
+    // The release sweep depends on this specific edge kind, not just on
+    // `dependencies`. `npm:publish` runs `gjsify foreach --topological --exec --
+    // gjsify publish`, and the ONLY thing that keeps a platform child ahead of
+    // its bridge is that `optionalDependencies` count as topological edges. If
+    // they ever stopped counting, the sweep would silently go back to publishing
+    // a bridge whose exact-pinned siblings do not exist yet — and npm skips an
+    // unresolvable optional dependency in silence, so the broken install looks
+    // like a success. Measured before the flag was added: 60 of the 60
+    // platform-sibling edges published parent-first.
+    it('foreach --topological counts optionalDependencies as edges', async () => {
+        const optRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-foreach-opt-'));
+        try {
+            writeFileSync(
+                join(optRoot, 'package.json'),
+                `${JSON.stringify({ name: 'opt-monorepo', version: '0.0.0', private: true, workspaces: ['packages/*'] }, null, 2)}\n`,
+            );
+            // `bridge` sorts BEFORE both children alphabetically, so an unordered
+            // (discovery-order) sweep publishes it first — exactly the measured
+            // 0.27.0 order. Only the optionalDependencies edges can invert that.
+            const pkgs = [
+                {
+                    dir: 'bridge',
+                    name: '@opt/bridge',
+                    optionalDependencies: { '@opt/child-a': 'workspace:*', '@opt/child-b': 'workspace:*' },
+                },
+                { dir: 'child-a', name: '@opt/child-a' },
+                { dir: 'child-b', name: '@opt/child-b' },
+            ];
+            for (const p of pkgs) {
+                mkdirSync(join(optRoot, 'packages', p.dir), { recursive: true });
+                writeFileSync(
+                    join(optRoot, 'packages', p.dir, 'package.json'),
+                    `${JSON.stringify(
+                        {
+                            name: p.name,
+                            version: '0.0.1',
+                            ...(p.optionalDependencies ? { optionalDependencies: p.optionalDependencies } : {}),
+                            scripts: { echo: `node -e "console.log('${p.name}')"` },
+                        },
+                        null,
+                        2,
+                    )}\n`,
+                );
+            }
+            const r = await runCli(cliEntry, ['foreach', 'echo', '--topological'], { cwd: optRoot });
+            assert.equal(r.status, 0, `topological run failed: ${r.stderr}`);
+            const idxBridge = r.stdout.indexOf('@opt/bridge');
+            const idxA = r.stdout.indexOf('@opt/child-a');
+            const idxB = r.stdout.indexOf('@opt/child-b');
+            assert.ok(idxA !== -1 && idxB !== -1 && idxBridge !== -1, `missing output: ${r.stdout}`);
+            assert.ok(
+                idxA < idxBridge && idxB < idxBridge,
+                `an optionalDependencies target must run BEFORE its dependent, got child-a=${idxA} child-b=${idxB} bridge=${idxBridge}`,
+            );
+        } finally {
+            rmSync(optRoot, { recursive: true, force: true });
+        }
+    });
+
     it('foreach surfaces non-zero exit codes', async () => {
         const r = await runCli(cliEntry, ['foreach', 'fail'], { cwd: root });
         assert.notEqual(r.status, 0, 'expected failure for `fail` script');
