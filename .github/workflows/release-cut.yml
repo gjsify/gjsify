@@ -170,8 +170,53 @@ jobs:
       # ride a tag out to npm. The audit already runs on every PR — it just never
       # ran on the tree the bump creates, which exists for only these few seconds.
       #
+      # A SECOND hook fires later, and it has to: `after:bump` sees the bumped
+      # TREE, but CHANGELOG.md is not regenerated until the changelog plugin's
+      # `beforeRelease`. So `before:git:beforeRelease` —
+      # `check-changelog-references.mjs --write` — is the last point that sees the
+      # regenerated infile before `Git.beforeRelease()` stages it and
+      # `Git.release()` commits and tags it.
+      #
+      # THAT HOOK REPAIRS THE FILE AND ONLY THE FILE. The published release body
+      # is a DIFFERENT artefact: release-it computes `changelog` once, in memory
+      # (`lib/index.js:63`, frozen into the context at `:92`), and
+      # `lib/plugin/GitRelease.js:34` posts that context — a shell hook runs in
+      # its own process and cannot mutate it. Measured in a throwaway repo with
+      # both plugins: after `--write` had repaired CHANGELOG.md, an
+      # `after:git:beforeRelease` hook dumping `${changelog}` still contained
+      # `pre-#955`, `Post-#955`, `#version`, `442/#121`, `859/#861`, `220-#222`,
+      # `PKCS#1`. That is how 0.27.1's notes went public carrying links to
+      # `github.com/gjsify/pre-/issues/955` and `.../issues/version`.
+      #
+      # So the body is DERIVED FROM THE FILE rather than repaired beside it:
+      # `.release-it.json` sets `github.releaseNotes` to
+      # `check-changelog-references.mjs --release-notes ${version}`, which
+      # `GitRelease.processReleaseNotes()` execs and whose stdout becomes the
+      # body. It re-asserts the whole infile, then prints the top section
+      # verbatim — so the notes are a slice of the bytes that get committed, and
+      # the two cannot disagree. It also refuses (exit 1, aborting the cut before
+      # the commit, the tag and the release exist) if the section is dirty, if
+      # its heading does not name `${version}`, or if it exceeds GitHub's
+      # 124000-char body cap — which means broken notes cannot be published even
+      # if the repair hook above is removed.
+      #
+      # WHEN THEY SUCCEED, THIS LOG SHOWS NOTHING. release-it captures a hook's
+      # output (`lib/shell.js` runs it through `child_process.exec` and routes
+      # both streams into `log.verbose`, which `shouldLog()` suppresses without
+      # `--verbose`, which this step does not pass) — measured on the rehearsal
+      # cut: zero of the script's lines reached the log. A FAILURE does surface,
+      # because release-it rejects with the hook's stderr and logs it as ERROR.
+      # But repair is LOSSY (an unlinked mention, a dropped cross-repo entry) and
+      # that happens on the SUCCESS path, so the script also writes its repairs,
+      # its findings and the emitted section to `$GITHUB_STEP_SUMMARY`, which no
+      # verbosity setting swallows. Read the job summary, not this log, for what
+      # the cut changed in CHANGELOG.md.
+      #
       # `--ci` keeps it non-interactive (no prompts on a runner). The dry run
-      # resolves and prints the whole plan without writing.
+      # resolves and prints the whole plan without writing — note that release-it
+      # skips hooks AND `github.releaseNotes` under `--dry-run`
+      # (`lib/shell.js` returns early when `isDryRun`), and does not write the
+      # infile either, so a dry run exercises none of these three chains.
       - name: release-it
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
