@@ -115,6 +115,16 @@ jobs:
       - name: Check the PR-title type list still matches commitlint
         run: node scripts/check-pr-title-types.mjs
 
+      # A multi-line inline `node -e '…'` whose body contains the quote that opened
+      # it: the shell truncates the program and the step dies before asserting
+      # anything, so the gate reports nothing about what it was gating. Belongs here
+      # for the same reason as the rest of this job, plus one more — the workflows
+      # most in need of it (`release.yml`, `cli-cross-platform.yml`) never run on a
+      # pull request, so this is the only place their inline scripts get read before
+      # a release. Incident + scope in the script header.
+      - name: Check inline workflow scripts are not self-truncating
+        run: node scripts/check-workflow-inline-scripts.mjs
+
       - name: Check for resurrected prose (advisory)
         continue-on-error: true
         env:
@@ -197,3 +207,13 @@ jobs:
 
       - name: Check the PR-title type list still matches commitlint
         run: node scripts/check-pr-title-types.mjs
+
+      # A multi-line inline `node -e '…'` whose body contains the quote that opened
+      # it: the shell truncates the program and the step dies before asserting
+      # anything, so the gate reports nothing about what it was gating. Belongs here
+      # for the same reason as the rest of this job, plus one more — the workflows
+      # most in need of it (`release.yml`, `cli-cross-platform.yml`) never run on a
+      # pull request, so this is the only place their inline scripts get read before
+      # a release. Incident + scope in the script header.
+      - name: Check inline workflow scripts are not self-truncating
+        run: node scripts/check-workflow-inline-scripts.mjs
