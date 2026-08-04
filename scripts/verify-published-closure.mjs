@@ -231,9 +231,18 @@ async function probeAll(names) {
 }
 
 const isLive = (name) => state.get(name) === true;
+/**
+ * CONFIRMED absent — a 404, not merely "we did not get a `true`". The three
+ * states are distinct on purpose: an errored probe (5xx, timeout, DNS) means we
+ * do not KNOW, and treating it as absent would turn one transient registry hiccup
+ * into a fabricated "this platform package was never published" verdict on a
+ * release that is in fact intact. Unknown belongs to `probeErrors()`, which fails
+ * the job for what it is: no evidence.
+ */
+const isAbsent = (name) => state.get(name) === false;
 const probeErrors = () => candidates.filter((p) => state.get(p.manifest.name) instanceof Error);
-/** A pinned edge is violated when its parent IS live and its target is not. */
-const violations = () => pinnedEdges.filter((e) => isLive(e.from) && !isLive(e.to));
+/** A pinned edge is violated when its parent IS live and its target is CONFIRMED absent. */
+const violations = () => pinnedEdges.filter((e) => isLive(e.from) && isAbsent(e.to));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -255,7 +264,7 @@ for (let round = 2; round <= attempts; round++) {
 }
 
 const live = candidates.filter((p) => isLive(p.manifest.name)).map((p) => p.manifest.name);
-const notLive = candidates.filter((p) => state.get(p.manifest.name) === false).map((p) => p.manifest.name);
+const notLive = candidates.filter((p) => isAbsent(p.manifest.name)).map((p) => p.manifest.name);
 const errored = probeErrors().map((p) => ({ name: p.manifest.name, error: String(state.get(p.manifest.name)) }));
 const bad = violations();
 const examined = pinnedEdges.filter((e) => isLive(e.from));
@@ -270,7 +279,12 @@ if (errored.length > 0) {
             'not be completed is not evidence of anything; re-run the job.',
     );
 }
-if (live.length === 0) {
+// The liveness-derived conclusions below are only sound when EVERY probe was
+// answered. With an unanswered probe in the set, "nothing is live" and "the
+// release is complete" are both unknowable, and stating either would replace a
+// missing signal with a wrong one — the very substitution this file exists to
+// prevent. The probe-error problem above already fails the job.
+if (errored.length === 0 && live.length === 0) {
     problems.push(
         `0 of ${candidates.length} candidate package(s) are on ${registry} at ${version} — this release published ` +
             'NOTHING. Nothing on npm is broken; the closure check simply verified nothing, and a check that verified ' +
@@ -285,7 +299,7 @@ if (pinnedEdges.length === 0) {
             'means the enumeration above no longer sees them, and every future release would pass on an empty set.',
     );
 }
-if (live.length > 0 && notLive.length === 0 && examined.length === 0) {
+if (errored.length === 0 && live.length > 0 && notLive.length === 0 && examined.length === 0) {
     // Implied by the two assertions above (pinned edges exist AND every package
     // is live ⇒ some pinned parent is live). Asserted explicitly so a future
     // change to either derivation cannot silently yield an empty examination.

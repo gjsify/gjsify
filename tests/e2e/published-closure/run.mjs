@@ -88,12 +88,19 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
     let published = new Map();
     /** name → number of packument requests served (for the retry case). */
     let hits = new Map();
+    /** Names the registry answers 5xx for — "we do not know", not "absent". */
+    let broken = new Set();
 
     before(async () => {
         tmp = mkdtempSync(join(tmpdir(), 'gjsify-e2e-closure-'));
         server = createServer((req, res) => {
             const name = decodeURIComponent((req.url ?? '/').replace(/^\//, '').split('?')[0]);
             hits.set(name, (hits.get(name) ?? 0) + 1);
+            if (broken.has(name)) {
+                res.writeHead(503, { 'content-type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Service Unavailable' }));
+                return;
+            }
             const versions = published.get(name);
             if (!versions) {
                 res.writeHead(404, { 'content-type': 'application/json' });
@@ -219,6 +226,34 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
         assert.notEqual(r.status, 0, `no subject matter must not exit 0:\n${r.out}`);
         assert.match(r.out, /declares NO release-pinned intra-repo dependency at all/);
+    });
+
+    it('an UNANSWERED probe is "unknown", never reported as missing', async () => {
+        // A 5xx/timeout on one platform package must not be laundered into a
+        // fabricated "never published" verdict on a release that is intact. The
+        // three probe states are distinct: live, confirmed-absent (404), unknown.
+        // The job still fails — no evidence is not a pass — but for the right
+        // reason, and without naming a package that may be perfectly fine.
+        const root = fixture('probe-error', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        broken = new Set(['@fix/bridge-darwin-arm64']);
+        try {
+            const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+            assert.notEqual(r.status, 0, `an unanswered probe is not evidence of a pass:\n${r.out}`);
+            assert.match(r.out, /probe failed: @fix\/bridge-darwin-arm64 — Error: 503/);
+            assert.match(r.out, /never produced an answer/);
+            // The bug this case pins: `!isLive(target)` would have called it a
+            // dangling optionalDependency.
+            assert.doesNotMatch(r.out, /UNRESOLVABLE/);
+            assert.doesNotMatch(r.out, /absent at 1\.2\.3/);
+        } finally {
+            broken = new Set();
+        }
     });
 
     it('a spec shape it cannot classify FAILS rather than skipping quietly', async () => {
