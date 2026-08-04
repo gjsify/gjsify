@@ -2483,9 +2483,11 @@ jobs:
   #   git 2.0, so anything that removed a file under `prebuilds/` — a download
   #   action that starts clearing its destination, a `path:` typo landing an
   #   artifact somewhere else, a future clean step — would be committed as a
-  #   deletion and silently unship a binary. `Refuse to delete a committed
-  #   prebuild` below asserts that no staged change under a `prebuilds/`
-  #   directory is a deletion, and fails the job if one is. (An empty directory
+  #   deletion and silently unship a binary. The staging script
+  #   (`.github/prebuild-toolchain/sync-and-stage.sh`) asserts that no staged
+  #   change under a `prebuilds/` directory is a deletion, and fails the job if
+  #   one is — inside the script rather than in a step of its own so that it
+  #   holds on every re-stage the push retry performs. (An empty directory
   #   cannot be committed at all: git does not track directories, so "never
   #   commit an empty directory" is free — the reachable failure is the
   #   deletion, and that is what is checked.)
@@ -2515,6 +2517,16 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
       contents: write
+
+    # Both paths live OUTSIDE the repository, so nothing here can be staged by
+    # accident, and both are named once: the two shell scripts below and the steps
+    # that call them must agree about them, and three literals would not.
+    env:
+      # Where the downloaded artifacts are parked before the worktree is synced to
+      # origin/main — see the snapshot step.
+      PREBUILD_SNAPSHOT: ${{ runner.temp }}/prebuild-downloads.tar
+      # The tree hash the gate certified. The push refuses anything else.
+      PREBUILD_GATED_TREE: ${{ runner.temp }}/gated-tree.sha
 
     steps:
       # SSH, not the workflow token, and that is forced rather than preferred.
@@ -2988,93 +3000,56 @@ jobs:
           name: webgl-prebuilds-darwin-x64
           path: packages/framework/webgl-darwin-x64/prebuilds/darwin-x64/
 
-      # A `gjsify.platformsUncommitted` entry says "declared and CI-built, but no
-      # artifact in this repo yet", and the conformance rule makes it a FAILURE
-      # the moment the directory appears — so the deferral cannot outlive its
-      # cause. THIS job is what ends the cause, which makes it the job that has
-      # to end the marker: without this step, the first run that lands a new
-      # target pushes a self-contradictory manifest and `main` goes red until a
-      # human sends a follow-up. An entry whose artifact did NOT arrive (a
-      # skipped package, a leg that did not run) is left alone — it still
-      # describes reality.
-      - name: Clear platform exemptions the downloads satisfied
+      # ── Everything from here is about getting the downloaded binaries onto the
+      # CURRENT `main` without ever asking git to MERGE one. The old shape did the
+      # opposite — commit first, `git pull --rebase origin main` second — and that
+      # ordering is fatal on darwin, deterministically rather than as a race. The
+      # measurement is in `.github/prebuild-toolchain/sync-and-stage.sh`.
+      - name: Snapshot the downloaded artifacts
         run: |
           set -euo pipefail
-          # stdout is the list of every FILE it wrote, so the next step stages
-          # exactly those (a `packages/*/*/package.json` glob in a job that
-          # pushes to `main` would sweep in whatever else happened to be dirty).
+          # The next step syncs the worktree to `origin/main` with `git reset
+          # --hard`, which restores every tracked file — including the prebuild
+          # binaries this job just downloaded. So they have to be parked somewhere
+          # git will not touch and re-applied over the synced tree. `$RUNNER_TEMP`
+          # is outside the repository, so nothing parked there can be staged by
+          # accident.
           #
-          # More than the manifest, because `gjsify.platformsUncommitted` is an
-          # input to TWO generated files of a platform package: the manifest block
-          # and a deferred-artifact paragraph in the generated `README.md`. Writing
-          # only the manifest left a README the generator disagreed with, and the
-          # gate below then failed on a byte comparison — that is what kept this
-          # job red from 2026-08-01 with every build leg green.
-          node scripts/clear-committed-platform-exemptions.mjs > regenerated-files.txt
-          cat regenerated-files.txt
-
-      - name: Stage prebuilds
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          xargs -r git add < regenerated-files.txt
-          rm -f regenerated-files.txt
-          # A GLOB, not a hand-written list, and that is now the only shape that
-          # can be right. ADR 0017 moved every prebuild out of its bridge and
-          # into a per-target package, so the ten paths this used to name stopped
-          # existing — `fatal: pathspec 'packages/framework/webgl/prebuilds/' did
-          # not match any files`, exit 128, on the first run after the split,
-          # with all eight build legs green and every artifact downloaded.
-          #
-          # Spelling them out again would mean SIXTY entries that grow by one
-          # with every target anyone adds, in a job whose failure mode is a
-          # silently unshipped binary. The glob matches exactly the packages that
-          # own a committed prebuild directory — which since the split is the
-          # per-target packages and nothing else, because a bridge no longer has
-          # one and this job (unlike a build leg) never creates a scratch copy.
-          #
-          # An unmatched glob stays literal and `git add` fails, which is the
-          # right failure: it means the tree carries no prebuild directory at
-          # all, and staging nothing while reporting success is precisely how a
-          # binary goes missing unnoticed. The deletion guard below is unaffected
-          # — it already matches on `*prebuilds/*`.
-          git add packages/*/*/prebuilds/
-          git diff --cached --stat | cat
-
-          # Nothing this job wrote may stay UNSTAGED. The gate two steps below
-          # audits the working tree, but what gets pushed is the INDEX — so an
-          # unstaged write means the gate blessed a tree that is not the one that
-          # lands. That gap is how a half-written generated package shipped: the
-          # clear step rewrote a manifest and left its generated README behind,
-          # and nothing noticed until the gate compared bytes. Now it is the clear
-          # step's job to report every file it wrote, and this asserts it did.
-          unstaged="$(git status --porcelain -uall | grep -v '^[ACDMRT] ' || true)"
-          if [ -n "$unstaged" ]; then
-            echo "::error::this job changed files it did not stage — the gate below would audit a tree that is not the one being pushed:"
-            printf '::error::  %s\n' $unstaged
+          # `tar`, not `cp -r`: it captures exactly this path set, restores it with
+          # no directory logic of its own, and can be COUNTED — which is what the
+          # restore assertion in the sync script is built on.
+          tar -cf "$PREBUILD_SNAPSHOT" packages/*/*/prebuilds/
+          files="$(tar -tf "$PREBUILD_SNAPSHOT" | grep -cv '/$' || true)"
+          echo "snapshot: ${files} artifact file(s) -> $PREBUILD_SNAPSHOT"
+          # A positive fact, not an exit code. An empty snapshot means the
+          # downloads produced nothing, and every step after this one would then
+          # operate on main's own bytes while reporting success — which is the
+          # failure class this job keeps being bitten by.
+          if [ "$files" -eq 0 ]; then
+            echo "::error::the snapshot holds no files — the download steps put nothing into packages/*/*/prebuilds/"
             exit 1
           fi
-          echo "no unstaged change left behind."
+          # What the downloads actually CHANGED, relative to this checkout.
+          # Deliberately NOT a gate: a run whose every artifact is byte-identical
+          # is legitimate — the ELF legs reproduce exactly, and the 16 darwin
+          # dylibs are the ones that never do. It is the number a reader needs to
+          # tell "nothing to commit" from "nothing was downloaded".
+          echo "downloads changed $(git status --porcelain -- 'packages/*/*/prebuilds/' | wc -l) tracked path(s) relative to the checkout."
 
-      # THE guard. A package this run skipped contributed no artifact, so its
-      # committed prebuild must come through untouched — and "untouched" has to
-      # be asserted, not assumed, because the one way this job can destroy a
-      # binary is by staging its REMOVAL (`git add <dir>` stages deletions).
-      # Nothing here should ever delete a prebuild: this job only downloads
-      # into those directories. If something did, that is a bug whose symptom
-      # is a silently unshipped binary — the exact class of failure the OS axis
-      # exists to prevent — so it stops the run instead.
-      - name: Refuse to delete a committed prebuild
-        run: |
-          set -euo pipefail
-          deleted="$(git diff --cached --diff-filter=D --name-only -- '*prebuilds/*')"
-          if [ -n "$deleted" ]; then
-            echo "::error::this run would DELETE committed prebuild file(s); refusing to commit:"
-            printf '::error::  %s\n' $deleted
-            exit 1
-          fi
-          echo "no committed prebuild would be deleted."
+      # SYNC FIRST, THEN STAGE — the ordering that is the whole fix. The script
+      # fetches `origin/main`, resets the worktree onto it, re-applies the snapshot
+      # over that tree, clears the platform exemptions the downloads satisfied,
+      # stages, and refuses both a staged prebuild DELETION and any write it left
+      # unstaged.
+      #
+      # In a script rather than inline because the push step calls it AGAIN per
+      # attempt: `main` can still move between this sync and the push, and retrying
+      # the push alone would push a tree built on a stale base. A second inline
+      # copy is how the two would drift. `tests/e2e/prebuild-change-gate` scans it
+      # for hand-written prebuild staging alongside this workflow, so moving shell
+      # out of the YAML does not move it out from under that ban.
+      - name: Sync to origin/main and stage the artifacts
+        run: bash .github/prebuild-toolchain/sync-and-stage.sh 1
 
       # THE SECOND guard, and the one that closes a hole the first cannot see: a
       # rebuilt binary that is perfectly well-formed but needs a NEWER glibc than
@@ -3103,12 +3078,23 @@ jobs:
       #
       # This step is the FAST FAIL. It is deliberately kept even though the gate
       # below subsumes it: failing before a commit exists is a clearer log than
-      # failing after a commit and a rebase.
+      # failing after one.
       - name: Gate on the measured glibc floor + libc flavour
         run: |
           set -euo pipefail
           node scripts/audit-runtimes.mjs --check
 
+      # NO REBASE HERE, and its absence is the fix. This step used to end in
+      # `git pull --rebase origin main` — commit the binaries, then ask git to
+      # replay that commit onto a moved `main`. git has no merge driver for a
+      # binary file, and Mach-O output is not byte-reproducible, so the replay
+      # conflicted on the first dylib on every run that had a darwin artifact
+      # (run 30864276535: `Cannot merge binary files: …libgjsifytls.dylib`,
+      # exit 1, 26848 insertions discarded, nothing pushed).
+      #
+      # The sync moved to BEFORE the staging, where it is a `reset --hard` onto
+      # `origin/main` with the artifacts re-applied on top — an operation with no
+      # merge in it at all. This step therefore only commits.
       - name: Commit prebuilds
         id: commit
         run: |
@@ -3118,9 +3104,6 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "chore: update native prebuilds [skip ci]"
-            # Rebase, but DO NOT push yet — the gate below has to see the tree
-            # that will actually land, and this is the line that changes it.
-            git pull --rebase origin main
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -3136,13 +3119,23 @@ jobs:
       #    replays the prebuild commit onto it cleanly, because the hunks do not
       #    overlap, and the combination nobody audited is what lands.
       #
+      #    That rebase is gone now — the sync happens BEFORE the staging — but the
+      #    ordering requirement did not go away with it, it just changed shape: the
+      #    PUSH step re-syncs and re-stages whenever `main` moved under it, so
+      #    there is still a way for the tree to change after this step ran. Which
+      #    is why the certification below is a STAMP the push checks rather than a
+      #    position in this file: the gate script writes the tree hash it read, the
+      #    push refuses any tree that does not match it and re-runs the gate after
+      #    every re-stage. Step order is now the readable form of the invariant;
+      #    the stamp is the enforced one.
+      #
       # 2. SCOPE. The push carries `[skip ci]`, which suppresses BOTH required
       #    checks on the resulting commit — `CI gate (GJS)` and `Detect runtime-
       #    triplet drift` — and the step above substitutes exactly one of
       #    audit-runtimes.yml's steps. Everything else that reads what this job
       #    writes ran nowhere. That is not hypothetical: on 2026-08-03 f5d250b32
-      #    cleared `gjsify.platformsUncommitted` from the darwin manifests (its own
-      #    step, 90 lines up) and broke `tests/e2e/platform-exemption-clearing`,
+      #    cleared `gjsify.platformsUncommitted` from the darwin manifests (now the
+      #    sync script's job) and broke `tests/e2e/platform-exemption-clearing`,
       #    whose fixture had seeded itself from one of them. `main` was red for
       #    every open PR for hours, each one blaming its own diff, and the commit
       #    that caused it had no CI to blame. The fixture is hermetic now — but
@@ -3152,44 +3145,81 @@ jobs:
       #    and a `=== null`; `prebuild-declaration-invariant` hard-codes measured
       #    floors. Those are properties of bytes THIS JOB REWRITES.
       #
-      # So: the checks that read this job's output now run on the exact tree this
-      # job is about to push, and a bot that would break `main` fails instead —
-      # `main` stays green and the next PR author is never handed someone else's
-      # failure.
+      # So: the checks that read this job's output run on the exact tree this job
+      # pushes, and a bot that would break `main` fails instead — `main` stays
+      # green and the next PR author is never handed someone else's failure.
       #
-      # `--strict` and not plain `--check`, because audit-runtimes.yml already runs
-      # `--check --strict` on this very runner (plain `ubuntu-latest`). Leaving the
-      # bot's command weaker than the branch's is a standing exemption for every
-      # future strict-only rule.
-      #
-      # The suite list is explicit rather than a glob: it is exactly the set whose
-      # fixtures read the state this job mutates. A glob would drag in suites that
-      # need a built workspace or a GJS runtime, which this runner has not got.
-      # Every entry imports nothing but `node:*` and repo-local paths, so this
-      # needs no install and no container — measured on main: 110 tests, seconds.
-      #
-      # WHAT THIS DOES NOT COVER, so a green verdict is not misread: the two
-      # assertions that actually LOAD a committed prebuild live in main.yml's
-      # `test` job under GJS and are unreachable from here, and
-      # `prebuild-artifacts`' dlopen probe degrades to a note on a runner without
-      # libsoup/GStreamer/GTK4/libepoxy. This gate proves declarations and file
-      # shape, not that every artifact loads.
+      # The command list, why `--strict`, and what a green verdict does NOT cover
+      # all live in the script, next to the commands themselves.
       - name: Gate the tree being pushed
+        if: steps.commit.outputs.changed == 'true'
+        run: bash .github/prebuild-toolchain/gate-pushed-tree.sh
+
+      # `main` can move between the gate and this push, and that is the remaining
+      # race — handled honestly rather than hoped away.
+      #
+      # Before this, a rejected push was the END of the run: the step failed and
+      # every binary the run had downloaded was discarded with no retry (recorded
+      # in `status/open-todos.md` as "Two `commit-prebuilds` jobs can race" — the
+      # non-PR concurrency group is keyed by `run_id` with `cancel-in-progress:
+      # false`, deliberately, so a `workflow_dispatch` run overlapping a `push` run
+      # produces exactly that).
+      #
+      # The retry RE-STAGES rather than re-pushing. Retrying the push alone would
+      # push a tree built on a stale base — the same defect as the old rebase, one
+      # layer out — so each attempt re-runs the whole sequence: sync onto the new
+      # `origin/main`, re-apply the snapshot, re-stage, re-commit, RE-GATE. Nothing
+      # reaches `main` that the gate did not read, which the stamp check enforces
+      # at the top of every attempt.
+      #
+      # A successful push whose ref is no longer ours is NOT an error: a second run
+      # can land after us. It falls into the same re-stage, which answers the only
+      # question that matters — are our bytes in `origin/main`? If the re-stage has
+      # nothing to stage, they are, and the run is done.
+      - name: Push
         if: steps.commit.outputs.changed == 'true'
         run: |
           set -euo pipefail
-          node scripts/audit-runtimes.mjs --check --strict
-          node scripts/audit-test-scripts.mjs
-          node --test --test-concurrency=4 \
-            tests/e2e/platform-exemption-clearing/run.mjs \
-            tests/e2e/prebuild-declaration-invariant/run.mjs \
-            tests/e2e/prebuild-loader-path/run.mjs \
-            tests/e2e/prebuild-change-gate/run.mjs \
-            tests/e2e/stage-prebuild/run.mjs
-
-      - name: Push
-        if: steps.commit.outputs.changed == 'true'
-        run: git push
+          # No stamp means the gate did not run. Fail rather than push: this is the
+          # assertion that makes the gate unskippable, not its `if:`.
+          if [ ! -f "$PREBUILD_GATED_TREE" ]; then
+            echo "::error::no gated-tree stamp at $PREBUILD_GATED_TREE — the gate did not certify a tree, so nothing may be pushed"
+            exit 1
+          fi
+          attempts=5
+          attempt=1
+          while [ "$attempt" -le "$attempts" ]; do
+            gated="$(cat "$PREBUILD_GATED_TREE")"
+            tree="$(git rev-parse 'HEAD^{tree}')"
+            if [ "$tree" != "$gated" ]; then
+              echo "::error::HEAD's tree ($tree) is not the tree the gate certified ($gated) — something changed the tree after the gate ran; refusing to push"
+              exit 1
+            fi
+            echo "::group::push attempt ${attempt}/${attempts} (tree ${tree})"
+            if git push origin "HEAD:refs/heads/main"; then
+              remote="$(git ls-remote origin refs/heads/main | cut -f1)"
+              head="$(git rev-parse HEAD)"
+              echo "::endgroup::"
+              if [ "$remote" = "$head" ]; then
+                echo "pushed ${head} — origin/main is now this commit."
+                exit 0
+              fi
+              echo "push succeeded but origin/main is ${remote}, not ${head} — another run landed after us; re-syncing to verify our artifacts survived."
+            else
+              echo "::endgroup::"
+              echo "push rejected — origin/main moved. Re-syncing and RE-STAGING onto the new tip."
+            fi
+            attempt=$((attempt + 1))
+            bash .github/prebuild-toolchain/sync-and-stage.sh "$attempt"
+            if git diff --cached --quiet; then
+              echo "origin/main already carries these artifacts — nothing left to push."
+              exit 0
+            fi
+            git commit -m "chore: update native prebuilds [skip ci]"
+            bash .github/prebuild-toolchain/gate-pushed-tree.sh
+          done
+          echo "::error::could not land the prebuild commit in ${attempts} attempts — origin/main is moving faster than this job can re-stage. The artifacts are still in the run's uploads; re-run this job."
+          exit 1
 
   # ----------------------------------------------------------------
   # Coverage summary — what this run actually built, and what it did not

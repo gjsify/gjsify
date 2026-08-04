@@ -749,37 +749,78 @@ mid-release. Worth fixing at the source (reproducible flags) rather than by
 suppressing the commit, since byte-reproducibility is what would let a future
 check compare a committed prebuild against a CI-built one at all.
 
+**Now measured to the byte, because the same non-reproducibility killed the
+commit channel outright** (fixed separately, by removing the rebase — see the
+sync script). Diffing two consecutive bot commits of unchanged sources
+(`7f4e81291` -> `a03206649`): all **16** committed darwin dylibs changed, every
+one at an identical size, and no linux `.so` changed at all — the ELF legs
+reproduce exactly. Per file, on darwin-x64, EVERY differing byte is one of two
+things: the 16-byte `LC_UUID` payload, and the `n_value` of the `N_OSO`
+debug-map stabs, which is each intermediate object file's mtime (e.g.
+`libgjsifytls.dylib`: 25 of 44264 bytes — 16 UUID + 9 spread over three
+`N_OSO` timestamps, and nothing else). darwin-arm64 adds one more block, its
+ad-hoc `LC_CODE_SIGNATURE` blob, whose hashes cover the header those bytes are
+in. Zero bytes of `__TEXT`, `__DATA_CONST`, the string table, the chained
+fixups or the exports trie differ in any of the sixteen.
+
+That names the fix precisely rather than as "reproducible flags": the UUID needs
+`-Wl,-no_uuid` (or a `--build-id`-style deterministic value) and the `N_OSO`
+timestamps need the object mtimes normalised — `ZERO_AR_DATE=1` handles the
+archive case, but these are direct `.o` references from meson's per-target
+directory. The arm64 signature follows automatically once the bytes it hashes
+are stable. Worth doing: it is the last thing standing between this repo and a
+byte-comparison of a committed prebuild against a CI-built one.
+
+### Ten committed prebuild directories still owe their `.gir`
+
+`prebuild-artifacts` requires a `.gir` in every committed `prebuilds/<target>/`,
+and ten directories do not have one: `@gjsify/webgl` and
+`@gjsify/webrtc-native` on all five linux targets, whose pre-stager `cp` lists
+copied the `.so` and the `.typelib` only. They are deferred with their reason in
+`scripts/manifest-conformance/prebuild-gir-gaps.mjs`, which
+`audit-runtimes --check` prints on every run.
+
+Deliberately NOT repaired by hand: the commit channel was dead when the assertion
+was written (it rebased over the binaries), so landing the ten files THROUGH
+`commit-prebuilds` is what proves the channel works. The exit is automatic in both
+directions — the rule fails an entry whose file arrived, and
+`scripts/clear-satisfied-gir-gaps.mjs` deletes that entry in the same commit that
+adds the file. A `workflow_dispatch` run of `prebuilds.yml` on `main` classifies
+`--all` and lands all ten at once if the merge that added them does not.
+
+WHAT IS LEFT FOR A HUMAN: when the last entry goes, the clearing script leaves
+`PREBUILD_GIR_GAPS = {}` behind rather than deleting a module that
+`scripts/audit-runtimes.mjs` imports — a bot pushing under `[skip ci]` must not be
+removing imports. Delete the ledger file and its import in a reviewed commit, and
+delete this entry with them.
+
 ### What still writes to `main` unverified, after the bot push got a gate
 
 `commit-prebuilds` now runs the checks that read its own output on the tree it is
 about to push (`Gate the tree being pushed`), which closed the incident where
 f5d250b32 cleared `gjsify.platformsUncommitted` under a CI-skip directive and left
 `tests/e2e/platform-exemption-clearing` red on every open PR for hours. A sweep
-done while fixing it found five more holes in the same write path. One is fixed
-(`packages/napi/napi-linux-x64/prebuilds/` is no longer committed — it had no
-producer, so the honest shape was a `gjsify.platformsUncommitted` entry, which is
-what its darwin sibling already carried). The remaining four are verified reads,
-none is fixed:
+done while fixing it found five more holes in the same write path. THREE are now
+fixed and deleted from this list: `packages/napi/napi-linux-x64/prebuilds/` is no
+longer committed (it had no producer, so the honest shape was the
+`gjsify.platformsUncommitted` entry its darwin sibling already carried); the
+committed `.gir` files are validated on every target rather than only darwin; and
+a rejected `git push` no longer discards the run's binaries. Two remain verified
+reads with nothing done about them:
 
 - **`download-artifact` MERGES and nothing prunes.** Each step extracts into an
-  existing `prebuilds/<target>/` without clearing it, `git add` only adds, and
-  `Refuse to delete a committed prebuild` forbids removal — so a `meson.build`
-  change that renames a library or drops a `.gir` leaves the stale file beside the
-  new one, and `files: ["prebuilds"]` publishes both.
-- **The committed `.gir` files are validated by nothing on Linux.**
-  `prebuild-artifacts` looks at `LIB_EXT[os]` and `.typelib`; `prebuild-libc` reads
-  ELF. No rule enumerates expected files, only "at least one lib + at least one
-  typelib", so a leg that stops emitting a `.gir` is silent.
+  existing `prebuilds/<target>/` without clearing it, `git add` only adds, and the
+  staging script's deletion refusal forbids removal — so a `meson.build` change
+  that renames a library or drops a `.gir` leaves the stale file beside the new
+  one, and `files: ["prebuilds"]` publishes both. One direction of the `.gir` half
+  is closed (a directory with NO `.gir` now fails `prebuild-artifacts`); a STALE
+  extra file is still silent, and that is the half this entry is about — no rule
+  enumerates the expected file set, only its minimum.
 - **`prebuild-artifacts`' dlopen probe degrades to a NOTE on `ubuntu-latest`,**
   which is the runner that gates the push: no libsoup3 / GStreamer / GTK4 /
   libepoxy, so the linux-x64 artifacts of http-soup-bridge, http2-native, webgl and
   webrtc-native are never actually loaded there. The gate proves declarations and
   file shape, not that an artifact loads.
-- **Two `commit-prebuilds` jobs can race.** Non-PR runs get a concurrency group
-  keyed by `run_id` with `cancel-in-progress: false`, deliberately — so a
-  `workflow_dispatch` run overlapping a `push` run means one `git push` is rejected
-  non-fast-forward, the step fails, and every binary that run downloaded is
-  discarded with no retry.
 
 Adjacent, same cause, different workflow: `commitlint.yml` triggers on
 `pull_request` only, so neither bot path to `main` — the prebuild push nor

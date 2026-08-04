@@ -27,7 +27,16 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -65,7 +74,14 @@ const realPrebuild = (pillar, bridge, target) =>
 
 /** A real, correctly-linked linux-x64 prebuild to copy from. */
 const REAL_X64 = realPrebuild('node', 'terminal-native', 'linux-x64');
-const REAL_X64_FILES = ['libgjsifyterminal.so', 'GjsifyTerminal-1.0.typelib'];
+/**
+ * The COMPLETE artifact set a committed directory owes: library, typelib and the
+ * `.gir` the typelib was compiled from. All three, because "well-shaped" is what
+ * every fixture below that expects a PASS has to be — and the third one is the
+ * newest requirement, added after ten of the sixty committed directories turned
+ * out to have only the first two.
+ */
+const REAL_X64_FILES = ['libgjsifyterminal.so', 'GjsifyTerminal-1.0.typelib', 'GjsifyTerminal-1.0.gir'];
 /** A real arm64 one — the wrong-machine fixture, from this x64 host's view. */
 const REAL_ARM64 = realPrebuild('node', 'terminal-native', 'linux-arm64');
 /**
@@ -97,6 +113,33 @@ const GLIBC_LOADER = {
     files: ['libgjsifytls.so', 'GjsifyTls-1.0.typelib'],
     floor: '2.27',
 };
+
+/**
+ * Where a package with this npm name lives, found by READING the manifests rather
+ * than by mapping a name to a pillar. `@gjsify/webgl-*` is under `framework/` and
+ * `@gjsify/webrtc-native-*` under `web/`, and a test that encodes that mapping is
+ * a second naming rule to keep in step with `platformPackageName()`.
+ *
+ * @param {string} name npm package name
+ * @returns {string} absolute package directory
+ */
+function realPackageDir(name) {
+    const packagesDir = join(MONOREPO_ROOT, 'packages');
+    for (const pillar of readdirSync(packagesDir)) {
+        let entries;
+        try {
+            entries = readdirSync(join(packagesDir, pillar));
+        } catch {
+            continue; // a file, not a pillar directory
+        }
+        for (const dir of entries) {
+            const manifest = join(packagesDir, pillar, dir, 'package.json');
+            if (!existsSync(manifest)) continue;
+            if (JSON.parse(readFileSync(manifest, 'utf8')).name === name) return join(packagesDir, pillar, dir);
+        }
+    }
+    throw new Error(`no package named ${name} in this tree`);
+}
 
 /** @type {string[]} */ const tmpDirs = [];
 function scratch() {
@@ -204,6 +247,182 @@ describe('prebuild invariant — half 1: a declared platform must have a body', 
         // so this repo owes no committed body for its declared targets.
         assert.deepEqual(failuresFor(pkg({ declared: ['linux-x64', 'win32-x64'], namesPrebuildDir: false })), []);
     });
+
+    it('FAILS on a directory with a library + typelib but no `.gir`', () => {
+        // The blind spot this closes. `.gir` presence was asserted in exactly one
+        // place — a shell loop in `prebuilds.yml`'s macOS job — so it held for the
+        // fourteen darwin directories and for none of the forty-six others. Ten
+        // committed linux directories carried only the library and the typelib for
+        // their whole life, and every check in the tree was green: this one asked
+        // for "a `.so` plus a `.typelib`", `prebuild-libc` reads ELF, and
+        // `audit-runtimes`' declaration invariants compare declarations to each
+        // other. Asserted HERE, so it holds for every target from any host.
+        const problems = failuresFor(
+            pkg({
+                declared: ['linux-x64'],
+                stage: { 'linux-x64': ['libgjsifyterminal.so', 'GjsifyTerminal-1.0.typelib'] },
+            }),
+        );
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /holds no `\.gir`/);
+        // The message must say what a missing `.gir` does and does NOT cost, or the
+        // next reader treats a tooling gap as a broken runtime (or the reverse).
+        assert.match(problems[0], /Nothing LOADS a `\.gir`/);
+        assert.match(problems[0], /ts-for-gir/);
+        // And it must name both ways out — restage, or record the gap.
+        assert.match(problems[0], /prebuild-gir-gaps\.mjs/);
+    });
+
+    it('does NOT reach the `.gir` check when the library or typelib is missing', () => {
+        // Ordering, asserted: a directory with nothing in it should report the ONE
+        // thing a consumer needs first, not a pile. A `.gir` complaint next to
+        // "holds no `.so`" is noise that hides the real answer.
+        const problems = failuresFor(pkg({ declared: ['linux-x64'], stage: { 'linux-x64': [] } }));
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /holds no `\.so`/);
+    });
+});
+
+describe('prebuild invariant — the missing-`.gir` ledger is honest, not a mute button', () => {
+    const WHY = 'staged by a pre-stager `cp` list that omitted it; the next rebuild lands it';
+    const INCOMPLETE = ['libgjsifyterminal.so', 'GjsifyTerminal-1.0.typelib'];
+
+    it('accepts a deferred directory with a reason, and SAYS so on every run', () => {
+        const { failures, notes, stats } = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': INCOMPLETE } })],
+            { girGaps: { '@gjsify/fixture': WHY } },
+        );
+        assert.deepEqual(failures, []);
+        assert.equal(stats.girDeferred, 1);
+        assert.ok(
+            notes.some((n) => n.includes('@gjsify/fixture') && n.includes(WHY)),
+            notes.join('\n'),
+        );
+    });
+
+    it('REJECTS a ledger entry with no reason', () => {
+        const problems = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': INCOMPLETE } })],
+            { girGaps: { '@gjsify/fixture': '  ' } },
+        ).failures;
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /with no reason/);
+    });
+
+    it('reports the entry as UNUSED once the `.gir` is there, so the rule can retire it', () => {
+        // The self-retiring half. This function is also driven against single rows,
+        // so it reports what it CONSUMED and the rule — the only caller that sees
+        // every package — turns an unmatched entry into the failure. Asserting the
+        // consumption set here is what makes that split checkable from both ends.
+        const { failures, girGapsUsed } = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': REAL_X64_FILES } })],
+            { girGaps: { '@gjsify/fixture': WHY } },
+        );
+        assert.deepEqual(failures, []);
+        assert.equal(girGapsUsed.has('@gjsify/fixture'), false);
+    });
+
+    it('the RULE fails on a ledger entry nothing matched — the half only it can see', async () => {
+        // `auditPrebuildArtifacts` cannot decide this: it is handed one row at a
+        // time by these fixtures, so an unmatched key there would mean nothing. The
+        // rule is the caller with the whole population, which is why the stale-entry
+        // check lives in it — and why it needs its own test rather than riding on
+        // the function's.
+        const { prebuildArtifactsRule } = await import(
+            `file://${join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'rules', 'prebuild-artifacts.mjs')}`
+        );
+        const root = scratch();
+        mkdirSync(join(root, 'prebuilds', 'linux-x64'), { recursive: true });
+        for (const f of REAL_X64_FILES) copyFileSync(join(REAL_X64, f), join(root, 'prebuilds', 'linux-x64', f));
+        const result = await prebuildArtifactsRule.run({
+            // One well-shaped package, so the ledger entry is the only thing that
+            // can fail.
+            allPackages: [
+                {
+                    dir: root,
+                    rel: 'packages/fixture',
+                    manifest: { name: '@gjsify/fixture' },
+                    gjsify: { prebuilds: 'prebuilds', platforms: ['linux-x64'], tier: 3 },
+                },
+            ],
+            options: { prebuildGirGaps: { '@gjsify/gone': 'a reason nothing in the tree needs any more' } },
+        });
+        assert.equal(result.failures.length, 1, result.failures.join('\n'));
+        assert.match(result.failures[0], /@gjsify\/gone/);
+        assert.match(result.failures[0], /tells the next reader something false/);
+    });
+
+    it('is CLEARED by the job that lands the file, so the deferral cannot redden `main`', async () => {
+        // The other half of the contract, and the half whose absence has already
+        // cost this repo 41 hours: the rule fails an entry whose file arrived, and
+        // `commit-prebuilds` pushes under `[skip ci]`, so the run that lands a
+        // `.gir` would push a self-contradictory tree with nothing running to say
+        // so. The clearing script is what makes the rule safe to arm.
+        //
+        // It lives in THIS suite rather than beside its `platformsUncommitted`
+        // sibling's because the ledger it edits is this suite's subject: rule,
+        // escape hatch and expiry read as one story.
+        const { clearSatisfiedGirGaps } = await import(
+            `file://${join(MONOREPO_ROOT, 'scripts', 'clear-satisfied-gir-gaps.mjs')}`
+        );
+        const root = scratch();
+        // A synthetic root with its own copy of the real ledger, so the test never
+        // writes into the checkout other suites are reading.
+        const ledgerDir = join(root, 'scripts', 'manifest-conformance');
+        mkdirSync(ledgerDir, { recursive: true });
+        const ledgerName = 'prebuild-gir-gaps.mjs';
+        copyFileSync(join(MONOREPO_ROOT, 'scripts', 'manifest-conformance', ledgerName), join(ledgerDir, ledgerName));
+        const before = Object.keys((await import(`file://${join(ledgerDir, ledgerName)}`)).PREBUILD_GIR_GAPS);
+        assert.ok(before.length >= 2, 'the ledger needs at least two entries for this test to distinguish anything');
+
+        // Two real per-target packages out of the ledger: give the FIRST its
+        // `.gir` and the second only a library, so the assertion below can tell
+        // "cleared what landed" from "cleared everything".
+        const landed = before[0];
+        const stillMissing = before[1];
+        for (const [name, files] of [
+            [landed, ['libx.so', 'X-0.1.typelib', 'X-0.1.gir']],
+            [stillMissing, ['libx.so', 'X-0.1.typelib']],
+        ]) {
+            // The real manifest, so `gjsify.prebuilds`/`platforms` are the real
+            // declarations the script reads rather than a fixture's guess at them.
+            const src = realPackageDir(name);
+            const dest = join(root, 'packages', 'fixture', name.replace('@gjsify/', ''));
+            mkdirSync(dest, { recursive: true });
+            const manifest = JSON.parse(readFileSync(join(src, 'package.json'), 'utf8'));
+            writeFileSync(join(dest, 'package.json'), JSON.stringify(manifest, null, 4));
+            for (const target of manifest.gjsify.platforms) {
+                mkdirSync(join(dest, manifest.gjsify.prebuilds, target), { recursive: true });
+                for (const f of files) writeFileSync(join(dest, manifest.gjsify.prebuilds, target, f), '');
+            }
+        }
+
+        const { cleared, paths } = await clearSatisfiedGirGaps(root);
+        assert.deepEqual(cleared, [landed], 'only the entry whose `.gir` landed may be cleared');
+        // The caller stages exactly what was written — a `git add` glob in a job
+        // that pushes to `main` would sweep in whatever else was dirty.
+        assert.deepEqual(paths, [`scripts/manifest-conformance/${ledgerName}`]);
+        const after = Object.keys(
+            (await import(`file://${join(ledgerDir, ledgerName)}?t=${Date.now()}`)).PREBUILD_GIR_GAPS,
+        );
+        assert.deepEqual(
+            after,
+            before.filter((n) => n !== landed),
+        );
+        assert.ok(after.includes(stillMissing), 'an entry whose file did NOT arrive still describes reality');
+    });
+
+    it('does not let a ledger entry excuse a MISSING typelib or library', () => {
+        // The scope of the deferral is one file. A ledger entry must not become a
+        // general "this directory is exempt" switch, which is the shape every
+        // escape hatch in this repo is written to avoid.
+        const problems = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': ['libgjsifyterminal.so'] } })],
+            { girGaps: { '@gjsify/fixture': WHY } },
+        ).failures;
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /holds no `\.typelib`/);
+    });
 });
 
 describe('prebuild invariant — half 2: a body that exists must be loadable', () => {
@@ -224,7 +443,12 @@ describe('prebuild invariant — half 2: a body that exists must be loadable', (
         // The typelib records `libgjsifyterminal.so`; stage a DIFFERENTLY
         // named real library instead, exactly as a `meson.build` rename that
         // the staging step follows but the typelib does not would produce.
-        const row = pkg({ declared: ['linux-x64'], stage: { 'linux-x64': ['GjsifyTerminal-1.0.typelib'] } });
+        // The `.gir` is staged so the renamed library is the ONLY defect and the
+        // single-problem assertion below still means what it says.
+        const row = pkg({
+            declared: ['linux-x64'],
+            stage: { 'linux-x64': ['GjsifyTerminal-1.0.typelib', 'GjsifyTerminal-1.0.gir'] },
+        });
         copyFileSync(join(REAL_X64, 'libgjsifyterminal.so'), join(row.prebuildDir, 'linux-x64', 'libgjsifyrenamed.so'));
         const problems = failuresFor(row);
         assert.equal(problems.length, 1);

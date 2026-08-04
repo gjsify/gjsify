@@ -140,6 +140,7 @@ import {
     walkEntryGraph,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import { UNCHECKED_FIELDS } from './manifest-conformance/unchecked-fields.mjs';
+import { PREBUILD_GIR_GAPS } from './manifest-conformance/prebuild-gir-gaps.mjs';
 import { platformRows, renderPlatformMatrix } from './manifest-conformance/rules/platforms-ci.mjs';
 import './manifest-conformance/rules/tier.mjs';
 import './manifest-conformance/rules/refs-pin.mjs';
@@ -1496,6 +1497,10 @@ function repoContext() {
         extra: {
             fieldCoverage: 'enforce',
             uncheckedFields: UNCHECKED_FIELDS,
+            // The missing-`.gir` ledger. Injected here rather than declared in a
+            // manifest because the manifests it would live in are GENERATED from
+            // derived fields only — see the rule's header.
+            prebuildGirGaps: PREBUILD_GIR_GAPS,
         },
     });
 }
