@@ -269,7 +269,16 @@ const live = candidates.filter((p) => isLive(p.manifest.name)).map((p) => p.mani
 const notLive = candidates.filter((p) => isAbsent(p.manifest.name)).map((p) => p.manifest.name);
 const errored = probeErrors().map((p) => ({ name: p.manifest.name, error: String(state.get(p.manifest.name)) }));
 const bad = violations();
-const examined = pinnedEdges.filter((e) => isLive(e.from));
+/**
+ * EXAMINED means resolved to a definite answer, not merely "looked at": the
+ * parent is confirmed live AND the target's probe came back live or 404. An edge
+ * whose target ERRORED was inspected and decided nothing, and counting it would
+ * overstate the very number the empty-result assertion is built on. It cannot
+ * currently produce a false green (an errored probe already fails the job), but a
+ * count that reports more than it verified is the shape this whole guard exists
+ * to remove — so it is defined honestly rather than defended by a side condition.
+ */
+const examined = pinnedEdges.filter((e) => isLive(e.from) && (isLive(e.to) || isAbsent(e.to)));
 const byBlock = (list, block) => list.filter((e) => e.block === block).length;
 
 // ── report ───────────────────────────────────────────────────────────────────
