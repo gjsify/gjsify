@@ -415,7 +415,22 @@ if (summaryPath) {
         );
     }
     for (const p of problems) lines.push('> [!CAUTION]', `> ${p}`, '');
-    appendFileSync(summaryPath, `${lines.join('\n')}\n`);
+    // A REPORTING side-channel must never be able to decide the verdict. An
+    // unwritable summary file threw out of here, and because the throw happens
+    // AFTER the closure has been computed but BEFORE `process.exit`, a run that
+    // had verified every edge exited 1 for a reason that has nothing to do with
+    // npm — the report fabricating a finding. Measured, not hypothetical: under
+    // the ci-fedora container the job's `GITHUB_STEP_SUMMARY` belongs to the
+    // runner user and `EACCES`'d, and four green fixtures went red on it.
+    // The verdict is `problems`; this file is a courtesy. So warn and carry on.
+    try {
+        appendFileSync(summaryPath, `${lines.join('\n')}\n`);
+    } catch (err) {
+        console.error(
+            `WARNING: could not write the GitHub step summary at ${summaryPath} — ${err instanceof Error ? err.message : String(err)}. ` +
+                'The verdict below is unaffected; only the rendered summary is missing.',
+        );
+    }
 }
 
 process.exit(problems.length === 0 ? 0 : 1);

@@ -26,9 +26,16 @@ import { fileURLToPath } from 'node:url';
 const SCRIPT = fileURLToPath(new URL('../../../scripts/verify-published-closure.mjs', import.meta.url));
 const VERSION = '1.2.3';
 
-function runScript(args, { timeoutMs = 30_000 } = {}) {
+function runScript(args, { timeoutMs = 30_000, env: extraEnv } = {}) {
+    // GITHUB_STEP_SUMMARY is stripped unless a case sets it deliberately. A
+    // suite must not append to the enclosing job's summary — and inheriting it
+    // is how the real defect surfaced: under the ci-fedora container that file
+    // belongs to the runner user, the child EACCES'd on it, and four fixtures
+    // that had verified their closure perfectly went red on a reporting write.
+    const env = { ...process.env, ...extraEnv };
+    if (!extraEnv || !('GITHUB_STEP_SUMMARY' in extraEnv)) delete env.GITHUB_STEP_SUMMARY;
     return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [SCRIPT, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = spawn(process.execPath, [SCRIPT, ...args], { stdio: ['ignore', 'pipe', 'pipe'], env });
         let stdout = '';
         let stderr = '';
         child.stdout.setEncoding('utf-8');
@@ -167,6 +174,51 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
             /release-pinned intra-repo edges examined:\s+3 \(2 optionalDependencies, 1 dependencies\)/,
         );
         assert.match(r.stdout, /Every one of 3 release-pinned dependency edge\(s\)/);
+    });
+
+    it('an unwritable step summary cannot change the verdict', async () => {
+        // The report is a courtesy; `problems` is the verdict. The write happens
+        // AFTER the closure is computed and BEFORE the exit, so a throw there
+        // turned "every edge resolves" into exit 1 — a reporting side-channel
+        // fabricating a finding, which is the same class of defect as everything
+        // else this guard exists to remove. Both directions are pinned: a clean
+        // tree must still exit 0, and the missing summary must be SAID.
+        const root = fixture('summary-unwritable', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1'], {
+            // A directory that does not exist → ENOENT on append, deterministically
+            // and without needing a permission-restricted path.
+            env: { GITHUB_STEP_SUMMARY: join(tmp, 'no-such-dir', 'summary.md') },
+        });
+        assert.equal(r.status, 0, `a failed summary write must not change the verdict:\n${r.out}`);
+        assert.match(r.out, /WARNING: could not write the GitHub step summary/);
+        assert.match(r.out, /The verdict below is unaffected/);
+        assert.match(r.stdout, /Every one of 3 release-pinned dependency edge\(s\)/);
+    });
+
+    it('the step summary IS written when the path is usable', async () => {
+        const root = fixture('summary-ok', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        const summary = join(root, 'summary.md');
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1'], {
+            env: { GITHUB_STEP_SUMMARY: summary },
+        });
+        assert.equal(r.status, 0, `expected a clean pass:\n${r.out}`);
+        // Tolerating a write failure must not become tolerating never writing.
+        const written = readFileSync(summary, 'utf8');
+        assert.match(written, /## Published dependency closure/);
+        assert.match(written, /\| Pinned edges examined \| 3 \|/);
+        assert.doesNotMatch(r.out, /WARNING: could not write/);
     });
 
     it('a bridge published WITHOUT one platform child FAILS and names it', async () => {
