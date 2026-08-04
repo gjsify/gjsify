@@ -895,6 +895,18 @@ and left a step carrying only a `name:`. GitHub refused the whole file, six
 node-gi jobs silently did not run, and the PR reported **24 green checks**. It
 was caught by asking why the expected job names were missing, not by any signal.
 
+Measured AGAIN on 2026-08-04, with a different cause and the same silence:
+`PREBUILD_SNAPSHOT: ${{ runner.temp }}/…` in `jobs.commit-prebuilds.env` — the
+`runner` context does not exist outside steps. GitHub refused the file and raised
+run 30890615702 as a `push`-event run on a topic branch that `prebuilds.yml`'s
+`push` trigger does not even cover (a file it cannot parse never gets its triggers
+evaluated), while `gh pr checks` reported only passes. So the class has now cost
+two incidents, and the second one was a CONTEXT error rather than a shape error —
+whatever gate is chosen must evaluate expression scope, not just outline shape.
+`tests/e2e/prebuild-change-gate` now fails a `runner`/`steps` reference in any
+job-level `env:` block, which covers that one mistake in that one file; it is a
+point fix, not the general gate this entry is about.
+
 Another workflow CAN see what the broken one cannot report — `audit-runtimes.yml`
 already runs pure-Node repo checks on every PR with no install — so the gate has
 an obvious home. The trap is the checker itself: a hand-rolled YAML outline

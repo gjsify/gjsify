@@ -812,6 +812,44 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
         assert.match(push.body, /while \[ "\$attempt" -le "\$attempts" \]/, 'the retry must be BOUNDED');
     });
 
+    it('no job-level `env:` reads a context that only exists inside steps', () => {
+        // MEASURED, on this PR: `PREBUILD_SNAPSHOT: ${{ runner.temp }}/…` in
+        // `jobs.commit-prebuilds.env` made GitHub refuse to load the whole file —
+        // the `runner` context exists only in steps. The cost is the interesting
+        // part: an unloadable workflow is raised as a run with "This run likely
+        // failed because of a workflow file issue", attached to whatever event it
+        // could not filter (here a `push` on a branch this workflow's push trigger
+        // does not cover), and it is NOT a PR check. `gh pr checks` showed green.
+        // That is the standing hazard `status/open-todos.md` records, and a file
+        // that cannot be parsed cannot check itself — so the check lives here.
+        //
+        // Scoped to job-level `env:` because that is where the mistake is
+        // available: step-level `env:` may read `runner` freely, and so may `run:`.
+        const text = readFileSync(workflow, 'utf8');
+        const jobs = text
+            .slice(text.search(/^jobs:\s*$/m))
+            .split(/^ {2}(?=[a-z0-9-]+:\s*$)/m)
+            .slice(1);
+        let scanned = 0;
+        for (const job of jobs) {
+            const name = /^([a-z0-9-]+):/.exec(job)?.[1] ?? '(unnamed)';
+            // A four-space `env:` is the job's own; a step's is indented deeper.
+            const block = /^ {4}env:\n((?: {6}\S[^\n]*\n)+)/m.exec(job);
+            if (!block) continue;
+            scanned++;
+            const bad = /\$\{\{\s*(runner|steps)\./.exec(block[1]);
+            assert.ok(
+                !bad,
+                `job "${name}" reads \`${bad?.[1]}\` in its job-level \`env:\`. That context does not exist ` +
+                    'there, and GitHub then refuses to load the ENTIRE workflow — surfaced as a bare "workflow ' +
+                    'file issue" run that is not a PR check, so the PR reads green. Publish the value from a ' +
+                    'step instead (`echo "K=$RUNNER_TEMP/…" >> "$GITHUB_ENV"`).',
+            );
+        }
+        // The scan must find something, or a shape change turns it into a pass.
+        assert.ok(scanned >= 1, 'no job-level `env:` block was recognised — the parser no longer understands the file');
+    });
+
     it('both commit-path scripts parse and are the files the job names', () => {
         for (const script of [syncAndStage, gatePushedTree]) {
             assert.ok(existsSync(script), `${script} is missing`);

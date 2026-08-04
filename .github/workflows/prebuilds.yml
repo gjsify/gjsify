@@ -2518,16 +2518,6 @@ jobs:
     permissions:
       contents: write
 
-    # Both paths live OUTSIDE the repository, so nothing here can be staged by
-    # accident, and both are named once: the two shell scripts below and the steps
-    # that call them must agree about them, and three literals would not.
-    env:
-      # Where the downloaded artifacts are parked before the worktree is synced to
-      # origin/main — see the snapshot step.
-      PREBUILD_SNAPSHOT: ${{ runner.temp }}/prebuild-downloads.tar
-      # The tree hash the gate certified. The push refuses anything else.
-      PREBUILD_GATED_TREE: ${{ runner.temp }}/gated-tree.sha
-
     steps:
       # SSH, not the workflow token, and that is forced rather than preferred.
       #
@@ -2999,6 +2989,29 @@ jobs:
         with:
           name: webgl-prebuilds-darwin-x64
           path: packages/framework/webgl-darwin-x64/prebuilds/darwin-x64/
+
+      # Two scratch paths, named ONCE, both OUTSIDE the repository so nothing
+      # parked in them can be staged by accident. Four steps and two scripts have
+      # to agree about them, and six literals would not.
+      #
+      # Published from `$RUNNER_TEMP` in a step rather than declared in a job-level
+      # `env:` block, and that is not a style choice: the `runner` context does not
+      # EXIST outside steps, so `${{ runner.temp }}` in `jobs.<id>.env` makes GitHub
+      # refuse to load the whole file. Measured here — run 30890615702, "This run
+      # likely failed because of a workflow file issue", raised as a `push`-event
+      # run on a branch this workflow's `push` trigger does not even cover, because
+      # a file GitHub cannot parse never gets its triggers evaluated. That is the
+      # failure mode `status/open-todos.md` records as "a workflow GitHub refuses to
+      # load reports the PR as GREEN": it is not a PR check, so `gh pr checks` does
+      # not show it. `tests/e2e/prebuild-change-gate` now fails a `runner`/`steps`
+      # reference in any job-level `env:` block, since the file cannot self-check.
+      - name: Name this run's scratch paths
+        run: |
+          set -euo pipefail
+          {
+            echo "PREBUILD_SNAPSHOT=$RUNNER_TEMP/prebuild-downloads.tar"
+            echo "PREBUILD_GATED_TREE=$RUNNER_TEMP/gated-tree.sha"
+          } >> "$GITHUB_ENV"
 
       # ── Everything from here is about getting the downloaded binaries onto the
       # CURRENT `main` without ever asking git to MERGE one. The old shape did the
