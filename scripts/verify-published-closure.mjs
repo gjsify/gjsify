@@ -146,12 +146,14 @@ const candidates = ctx.allPackages.filter(
 const candidateByName = new Map(candidates.map((p) => [p.manifest.name, p]));
 
 /**
- * Classify one dependency spec against the release version.
+ * Classify one dependency spec against the release version. Two outcomes only —
+ * "points somewhere off this train" is already excluded by the caller, which
+ * only ever passes specs whose TARGET is a candidate at the release version.
  *
- * `release`   — satisfiable only by `version`, so the registry answer is exact.
- * `not-train` — points at a package that is not on this release train (its own
- *               version differs), so the release cannot have broken it.
- * `unknown`   — a shape this script cannot decide. Never silently skipped.
+ * `release` — satisfiable only by `version`, so exact presence is a full answer.
+ * `unknown` — a shape this script cannot decide. Never silently skipped; the
+ *             caller turns it into a failure, because an edge nobody could
+ *             classify is coverage lost with no signal.
  */
 function classify(spec) {
     if (spec.startsWith('workspace:')) {
