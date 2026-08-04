@@ -95,17 +95,26 @@ jobs:
           echo "addons: js-native-api=$(ls test/js-native-api | wc -l) node-api=$(ls test/node-api | wc -l) dirs"
 
       # Build the Vala+C++ shim → libgjsifynapi.so + GjsifyNapi-1.0.{gir,typelib}
-      # and stage it into the committed prebuild dir (imports.gi loads the staged
-      # .so, and the conformance orchestrator pins GI_TYPELIB_PATH there).
+      # and stage it into the PER-TARGET package `@gjsify/napi-linux-x64` (imports.gi
+      # loads the staged .so, and the conformance orchestrator pins GI_TYPELIB_PATH
+      # there).
+      #
+      # NOT "the committed prebuild dir", which is what this comment said until now
+      # and stopped being true at #960: that commit deleted the tracked
+      # `napi-linux-x64/prebuilds/` precisely so the only linux-x64 artifact anyone
+      # can load is one CI just built. The directory is untracked scratch this job
+      # creates, which is why staging into it overwrites nothing.
+      #
+      # Through the shared stager, never a `cp`: it derives the destination from the
+      # manifests (`gjsify.platforms` + the sibling platform package), matches by
+      # extension so a renamed library cannot ship a stale set, and ends in
+      # `checkPrebuildDir()`.
       - name: Build the @gjsify/napi shim (meson) + stage prebuild
         working-directory: packages/napi/napi
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
-             ../napi-linux-x64/prebuilds/linux-x64/
-          echo "staged: $(ls -1 ../napi-linux-x64/prebuilds/linux-x64)"
+          node ../../../scripts/stage-prebuild.mjs .
 
       # Assert the checked-in stubs.cc is in sync with the sources (a function
       # implemented but still stubbed would fail the meson link; a regeneration
@@ -200,9 +209,7 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
-             ../napi-linux-x64/prebuilds/linux-x64/
+          node ../../../scripts/stage-prebuild.mjs .
 
       # Build better-sqlite3 from source (the real npm native addon the gate
       # proves runs unmodified on GJS). --force_build so it never uses a shipped
@@ -424,17 +431,16 @@ jobs:
         uses: actions/checkout@v4
 
       # Build the Vala+C++ shim → libgjsifynapi.so + GjsifyNapi-1.0.{gir,typelib}
-      # and stage it into the committed prebuild dir the gates load via
-      # GI_TYPELIB_PATH/LD_LIBRARY_PATH. meson-direct (not `gjsify run
-      # build:prebuilds`) avoids an ordering dependency on the not-yet-set-up CLI.
+      # and stage it into the per-target package the gates load via
+      # GI_TYPELIB_PATH/LD_LIBRARY_PATH (untracked since #960 — see the Fedora job).
+      # meson + the stager directly, not `gjsify run build:prebuilds`, to avoid an
+      # ordering dependency on the not-yet-set-up CLI.
       - name: Build the @gjsify/napi shim (meson) + stage prebuild
         working-directory: packages/napi/napi
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
-             ../napi-linux-x64/prebuilds/linux-x64/
+          node ../../../scripts/stage-prebuild.mjs .
 
       # Build @gjsify/node-gi from source (node-gyp) → build/Release/node_gi.node,
       # the addon both gates load through the shim. Its `install` script IS
@@ -640,15 +646,23 @@ jobs:
         uses: actions/checkout@v4
 
       # Build the Vala+C++ shim → libgjsifynapi.dylib + GjsifyNapi-1.0.{gir,typelib}
-      # and stage it into the shim's own darwin-arm64 prebuild dir.
+      # and stage it into `@gjsify/napi-darwin-arm64`, the per-target package a
+      # release ships it from.
+      #
+      # NOT into the bridge, which is what this step did until now
+      # (`prebuilds/darwin-arm64/` under `packages/napi/napi/`). That is the ONE
+      # directory `resolveStageDir` exists to refuse: after ADR 0017 a bridge owns no
+      # `prebuilds/`, so the path was in neither `files` nor `.gitignore` — untracked,
+      # unshipped, invisible to every conformance rule, and one `git add -A` on a
+      # maintainer's machine away from committing a binary back into the bridge, six
+      # commits after #960 deliberately removed exactly that. Going through the shared
+      # stager makes the destination derived instead of typed, so it cannot come back.
       - name: Build the @gjsify/napi shim (meson) + stage darwin-arm64 prebuild
         working-directory: packages/napi/napi
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p prebuilds/darwin-arm64
-          cp build/libgjsifynapi.dylib build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/darwin-arm64/
-          echo "staged: $(ls -1 prebuilds/darwin-arm64)"
+          node ../../../scripts/stage-prebuild.mjs .
 
       # The gate + conformance addons (raw C/C++ N-API, node-gyp) — same script the
       # Fedora job uses; node-gyp targets darwin-arm64 here.
@@ -700,12 +714,13 @@ jobs:
         run: npm run test:gate:tsfn-teardown
 
       # Upload the staged darwin-arm64 prebuild (.dylib + .gir + .typelib) so a
-      # release can ship prebuilds/darwin-arm64/ alongside linux-x64/.
+      # release can ship it alongside linux-x64. Path follows the stager's resolved
+      # destination — the per-target package, matching `release.yml`'s own napi legs.
       - name: Upload darwin-arm64 prebuild artifact
         uses: actions/upload-artifact@v4
         with:
           name: napi-prebuild-darwin-arm64
-          path: packages/napi/napi/prebuilds/darwin-arm64
+          path: packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
           if-no-files-found: error
 
   # Windows attempt (win32-x64) — EXPERIMENTAL, manual-dispatch only. UNLIKE the
@@ -878,6 +893,13 @@ jobs:
       # build above succeeded (default `if: success()`). The meson `windows`
       # branch (.def exports + gjsifynapi.dll leaf) + the module.cc `#ifdef
       # _WIN32` loader shims make this build possible once libgjs exists.
+      # `--dest` into the repo's gitignored `tmp/`, and both halves are deliberate.
+      # `win32-x64` is in no `gjsify.platforms` and has no per-target package (that is
+      # what makes this leg an attempt rather than a target), so `--allow-undeclared`
+      # is honest and the stager warns that the result must not be committed — while a
+      # destination OUTSIDE every package means there is no bridge-local `prebuilds/`
+      # for a `git add -A` to pick up. `tmp/` is already ignored at the repo root and
+      # is inside the workspace, so the upload below still finds it.
       - name: Build the @gjsify/napi shim (meson) + stage win32-x64 prebuild
         working-directory: packages/napi/napi
         shell: pwsh
@@ -885,9 +907,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           meson setup build .
           meson compile -C build
-          New-Item -ItemType Directory -Force -Path prebuilds/win32-x64 | Out-Null
-          Copy-Item build/gjsifynapi.dll,build/GjsifyNapi-1.0.gir,build/GjsifyNapi-1.0.typelib prebuilds/win32-x64/
-          Write-Host "staged: $(Get-ChildItem prebuilds/win32-x64 | Select-Object -ExpandProperty Name)"
+          node ../../../scripts/stage-prebuild.mjs . --allow-undeclared --dest ../../../tmp/napi-prebuilds
+          Write-Host "staged: $(Get-ChildItem ../../../tmp/napi-prebuilds/win32-x64 | Select-Object -ExpandProperty Name)"
 
       - name: Build gate test addons (node-gyp / MSVC)
         working-directory: packages/napi/napi
@@ -933,5 +954,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: napi-prebuild-win32-x64
-          path: packages/napi/napi/prebuilds/win32-x64
+          path: tmp/napi-prebuilds/win32-x64
           if-no-files-found: error

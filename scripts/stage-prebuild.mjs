@@ -30,6 +30,7 @@
  *    {@link pickDeclaredTarget}.
  *
  * Usage: node scripts/stage-prebuild.mjs [package-dir] [--build-dir build]
+ *                                        [--scratch | --dest <dir> --allow-undeclared]
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, copyFileSync, rmSync } from 'node:fs';
@@ -182,6 +183,7 @@ function main() {
     const buildDirName = buildFlag >= 0 ? args[buildFlag + 1] : 'build';
     const destFlag = args.indexOf('--dest');
     const destArg = destFlag >= 0 ? args[destFlag + 1] : null;
+    const scratch = args.includes('--scratch');
     // Excluded from the positional scan for the same reason `buildDirName` is: a
     // flag VALUE does not start with `--`, so without this it would be taken for
     // the package directory.
@@ -270,8 +272,39 @@ function main() {
         process.exit(1);
     }
 
+    if (scratch && destArg !== null) {
+        console.error(
+            '[stage-prebuild] `--scratch` and `--dest` are mutually exclusive — `--scratch` IS a destination\n' +
+                "  (this package's own `prebuilds/<target>/`). Pass one.",
+        );
+        process.exit(1);
+    }
+
     let outDir;
-    if (destArg !== null) {
+    if (scratch) {
+        // THE CI BUILD-LEG DESTINATION: this package's own `prebuilds/<target>/`,
+        // as SCRATCH SPACE for a job that uploads the artifact and commits
+        // nothing.
+        //
+        // This is the directory `resolveStageDir` deliberately refuses to
+        // default to, and the refusal is right: a developer whose
+        // `build:prebuilds` quietly filled a bridge-local `prebuilds/` would be
+        // looking at a directory `files` does not ship and no conformance rule
+        // can see. What makes the same path CORRECT here is ownership of the
+        // bytes, which is a property of the JOB, not of the path:
+        // `prebuilds.yml`'s build legs never commit — a separate
+        // `commit-prebuilds` job downloads their artifacts into the per-target
+        // packages — and writing the per-target package from a build leg would
+        // overwrite checked-out bytes before the verify steps read them, which
+        // is exactly the shape #960 removed for `@gjsify/napi`.
+        //
+        // So it is a NAMED flag rather than a fallback: the workflow says
+        // "scratch" out loud, `resolveStageDir` keeps its refusal for everyone
+        // else, and `--allow-undeclared` keeps meaning what it says (this host is
+        // not a promised target) instead of being borrowed to unlock a
+        // destination.
+        outDir = join(pkgDir, 'prebuilds', target);
+    } else if (destArg !== null) {
         // AN EXPLICIT DESTINATION OUTSIDE ANY PACKAGE, for a target that is
         // undeclared BY DESIGN.
         //
@@ -322,7 +355,10 @@ function main() {
     // The whole PATH, not just the target directory name: after the split the
     // destination is usually a sibling package, and "→ linux-x64/" would read as
     // if it had landed in the package that was built.
-    console.log(`[stage-prebuild] ${pkg.name} → ${relative(pkgDir, outDir)}/ (${artifacts.sort().join(', ')})`);
+    console.log(
+        `[stage-prebuild] ${pkg.name} → ${relative(pkgDir, outDir)}/${scratch ? ' [scratch]' : ''}` +
+            ` (${artifacts.sort().join(', ')})`,
+    );
 
     // Staging and verifying belong together: a set that is copied but does not
     // resolve its own siblings is exactly the artifact that builds green and

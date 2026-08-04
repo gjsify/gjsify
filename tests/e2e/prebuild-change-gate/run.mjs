@@ -438,6 +438,246 @@ describe('prebuild change gate — fail open', () => {
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Staging goes through the SHARED stager — asserted on the workflow text.
+//
+// AGENTS.md § Prebuilds states it categorically ("never a hand-written `cp`"),
+// and the drift was already committed when this was written: ~19 `mkdir -p
+// …prebuilds/ && cp <named files>` bodies in `prebuilds.yml` against 30-odd
+// `stage-prebuild` references elsewhere. It cost exactly what the rule predicts —
+// the linux `cp` lists for `webgl` and `webrtc-native` omitted the `.gir` while
+// darwin's included it, so ten of the sixty per-target directories had a
+// different file shape from every other one, and nothing anywhere said so.
+//
+// A hand-written body also skips everything the stager DOES: the target comes
+// from the package's own `gjsify.platforms` (not from a literal a job can get
+// wrong), artifacts are matched by EXTENSION (so a library renamed in
+// `meson.build` cannot ship a stale set), and it ends in `checkPrebuildDir()` —
+// the staged-sibling + `$ORIGIN`/`@loader_path` check that is the whole of #832.
+//
+// This lives in the e2e suite that already asserts things about `prebuilds.yml`'s
+// TEXT rather than in a conformance rule: `platforms-ci` reads the same file, but
+// its question is "which targets does CI build", and it is deliberately advisory
+// so an unparsed shape can never fail a package nobody touched. "Was this staged
+// by hand" is a HARD property of the file and belongs where a hard assertion can
+// live.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('prebuild change gate — staging goes through the shared stager', () => {
+    /**
+     * The workflow's step bodies, with comment lines dropped.
+     *
+     * Comments are stripped because several of them NAME the anti-pattern in
+     * order to explain why it is forbidden (the musl leg's header, the Linux
+     * leg's guard). A shell comment stages nothing, so reading one as a
+     * violation would make the rule unstatable in the very place it is
+     * justified — and a rule that cannot cite its incident gets simplified back
+     * into the bug.
+     *
+     * @param {string} text workflow YAML
+     * @returns {{name: string, body: string}[]}
+     */
+    function stepBodies(text) {
+        const steps = [];
+        for (const raw of text.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1)) {
+            const name = (/^name:\s*(.+)$/m.exec(raw)?.[1] ?? '(unnamed)').trim();
+            const body = raw
+                .split('\n')
+                .filter((l) => !/^\s*(#|rem\s)/.test(l))
+                .join('\n');
+            steps.push({ name, body });
+        }
+        return steps;
+    }
+
+    // Both spellings of "make the directory and copy into it by hand". `mkdir -p`
+    // is the POSIX one every converted step used; `New-Item -ItemType Directory`
+    // is PowerShell's, and the win32 legs are written in pwsh — leaving it out
+    // would make "move the cp to Windows" the trivial escape.
+    const HAND_STAGING = [
+        { label: 'mkdir -p …prebuilds/', re: /mkdir\s+-p\s+\S*prebuilds\// },
+        { label: 'New-Item …prebuilds…', re: /New-Item[^\n]*prebuilds/i },
+    ];
+
+    for (const file of [workflow, emulated, muslScript]) {
+        it(`no step in ${file.split('/').pop()} stages a prebuild by hand`, () => {
+            const text = readFileSync(file, 'utf8');
+            // `.sh` files are one body; `.yml` splits into steps. Either way the
+            // unit reported is what a reviewer would go and read.
+            const units = file.endsWith('.yml')
+                ? stepBodies(text)
+                : [{ name: file.split('/').pop(), body: text.replace(/^\s*#.*$/gm, '') }];
+            assert.ok(units.length > 0, `${file}: nothing to scan — the parser no longer understands it`);
+            for (const unit of units) {
+                for (const { label, re } of HAND_STAGING) {
+                    assert.ok(
+                        !re.test(unit.body),
+                        `${file}: step "${unit.name}" stages a prebuild by hand (${label}).\n` +
+                            '  Use `node scripts/stage-prebuild.mjs <pkg-dir> [--scratch]` instead: it derives the\n' +
+                            "  target from the package's own `gjsify.platforms`, matches artifacts by EXTENSION\n" +
+                            '  (so a renamed library cannot ship a stale set) and runs checkPrebuildDir() over\n' +
+                            '  what it wrote. AGENTS.md § Prebuilds: "never a hand-written `cp`".',
+                    );
+                }
+            }
+        });
+    }
+
+    it('every build leg that stages DOES call the shared stager', () => {
+        // The other direction, and it is not redundant: deleting a collect step
+        // outright also satisfies the ban above. A leg that compiles and stages
+        // nothing uploads an empty artifact, which `commit-prebuilds` would then
+        // commit as a deletion — the failure its own "Refuse to delete a
+        // committed prebuild" guard exists for, one job too late.
+        const text = readFileSync(workflow, 'utf8');
+        const collectSteps = stepBodies(text).filter((s) => s.name.startsWith('Collect @gjsify/'));
+        assert.ok(collectSteps.length >= 18, `expected the per-package collect steps, saw ${collectSteps.length}`);
+        for (const step of collectSteps) {
+            assert.match(
+                step.body,
+                /scripts\/stage-prebuild\.mjs/,
+                `step "${step.name}" collects a prebuild without the shared stager`,
+            );
+        }
+        // And the emulated leg, whose single `build_pkg` helper is its collect step.
+        assert.match(readFileSync(emulated, 'utf8'), /scripts\/stage-prebuild\.mjs/);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The darwin verify steps read ONE table.
+//
+// `build-prebuilds-macos` verified its output through four steps, each with its
+// own hand-written package list — and they had drifted:
+// `packages/infra/rolldown-native` was in two of them and absent from the other
+// two, so the bridge whose #832 incident IS the reason the loader-path check
+// exists was the one bridge that check never opened. The table lives in
+// `.github/prebuild-toolchain/darwin-bridges.mjs`; what has to be held is that
+// the steps still read it and that it still matches the job.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('prebuild change gate — the darwin verify steps share one table', () => {
+    const darwinTable = fileURLToPath(
+        new URL('../../../.github/prebuild-toolchain/darwin-bridges.mjs', import.meta.url),
+    );
+
+    it('the table covers exactly what the macOS job collects', () => {
+        // The script's own `--check`, driven from here so a bridge promoted into
+        // `build-prebuilds-macos` without a table row reds a one-second test
+        // instead of shipping a prebuild whose typelib leaf, loader path, GI load
+        // and env-free dlopen were never checked.
+        const r = spawnSync(process.execPath, [darwinTable, '--check'], { encoding: 'utf8' });
+        assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+        assert.match(r.stdout, /table matches `build-prebuilds-macos`/);
+    });
+
+    it('no step in the macOS job carries its own list of bridges', () => {
+        // Stated as a PROPERTY rather than a list of step names, because a list of
+        // step names is the same drift one level up. A step that iterates over the
+        // bridge set is exactly a step whose body names TWO OR MORE package
+        // directories; a per-package step names one (its `working-directory`), and
+        // a table-reading step names none. The four copies this replaced named 7,
+        // 7, 8 and 3.
+        const text = readFileSync(workflow, 'utf8');
+        const jobs = text.slice(text.search(/^jobs:\s*$/m)).split(/^ {2}(?=[a-z0-9-]+:\s*$)/m);
+        const job = jobs.find((j) => j.startsWith('build-prebuilds-macos:'));
+        assert.ok(job, 'the macOS job must exist');
+
+        let readsTable = 0;
+        for (const step of job.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1)) {
+            const name = /^name:\s*(.+)$/m.exec(step)?.[1].trim() ?? '(unnamed)';
+            if (/darwin-bridges\.mjs/.test(step)) readsTable++;
+            // Comment lines may still MENTION packages — they explain the
+            // incident. A shell line naming them is the copy.
+            const code = step
+                .split('\n')
+                .filter((l) => !/^\s*#/.test(l))
+                .join('\n');
+            const named = [
+                ...new Set(
+                    [...code.matchAll(/\bpackages\/(?:infra|node|web|framework)\/[a-z0-9-]+/g)].map((m) => m[0]),
+                ),
+            ];
+            assert.ok(
+                named.length <= 1,
+                `step "${name}" hard-codes ${named.length} bridge directories (${named.join(', ')}) — ` +
+                    'a step that walks the bridge set must read `.github/prebuild-toolchain/darwin-bridges.mjs`',
+            );
+        }
+        // And the table is actually consumed by all four verify steps, so the ban
+        // above cannot be satisfied by deleting the verification instead.
+        assert.equal(readsTable, 4, `expected 4 steps to read the darwin table, saw ${readsTable}`);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A macOS job's shell is bash 3.2, and `bash -n` on any Linux host says otherwise.
+//
+// Apple ships no GPLv3 bash, so `/bin/bash` on every macos runner is 3.2.57 —
+// and `shell: bash` in Actions is `/bin/bash` (not the Homebrew bash 5 that also
+// exists on the image). A bash-4 builtin therefore syntax-checks clean
+// everywhere a developer or a Linux CI leg would test it and dies at run time
+// with `command not found`, exit 127.
+//
+// Measured: `mapfile -t dirs < <(…)` in `build-prebuilds-macos`' loader-path step
+// passed `bash -n` locally on bash 5.3 and failed the darwin-arm64 leg at exit
+// 127, skipping the GI load test, the env-free dlopen and all eight uploads. Same
+// wrong-shell false-green class AGENTS.md records for git-bash on Windows — which
+// is why the answer is a check rather than a note.
+//
+// Scoped to the jobs that ACTUALLY run on macOS, derived from the workflow (a
+// `runs-on:`/`runner:` naming a `macos-*` image), because on a Linux leg these
+// builtins are perfectly fine and banning them everywhere would be a rule this
+// repo does not mean.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('prebuild change gate — macOS steps stay bash-3.2 clean', () => {
+    // Each entry: what bash 4+ added, and the 3.2-safe spelling to use instead.
+    const BASH4_ONLY = [
+        { re: /\bmapfile\b/, what: 'mapfile', instead: 'dirs=(); while IFS= read -r d; do dirs+=("$d"); done < <(…)' },
+        { re: /\breadarray\b/, what: 'readarray', instead: 'the same `while read` + `+=` loop' },
+        {
+            re: /\bdeclare\s+-A\b/,
+            what: 'declare -A (associative arrays)',
+            instead: 'two parallel arrays, or a `case`',
+        },
+        { re: /\$\{[A-Za-z_][A-Za-z0-9_]*(\^\^|,,)\}/, what: '${var^^} / ${var,,}', instead: 'tr' },
+        { re: /&>>/, what: '&>> (append both streams)', instead: '>>file 2>&1' },
+        { re: /\bcoproc\b/, what: 'coproc', instead: 'a plain pipeline or process substitution' },
+    ];
+
+    it('no macOS job uses a bash-4-only builtin', () => {
+        const text = readFileSync(workflow, 'utf8');
+        const jobs = text
+            .slice(text.search(/^jobs:\s*$/m))
+            .split(/^ {2}(?=[a-z0-9-]+:\s*$)/m)
+            .slice(1);
+        let macosJobs = 0;
+        for (const job of jobs) {
+            const name = /^([a-z0-9-]+):/.exec(job)?.[1] ?? '(unnamed)';
+            // A job runs on macOS when it names a macos image as its runner —
+            // either directly or through a matrix `runner:` entry.
+            if (!/^\s*(runs-on|-?\s*runner):\s*\S*macos/m.test(job)) continue;
+            macosJobs++;
+            for (const step of job.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1)) {
+                const stepName = /^name:\s*(.+)$/m.exec(step)?.[1].trim() ?? '(unnamed)';
+                const code = step
+                    .split('\n')
+                    .filter((l) => !/^\s*#/.test(l))
+                    .join('\n');
+                for (const { re, what, instead } of BASH4_ONLY) {
+                    assert.ok(
+                        !re.test(code),
+                        `job "${name}" step "${stepName}" uses ${what}, which does not exist in bash 3.2 — ` +
+                            `the version /bin/bash IS on every macos runner (Apple ships no GPLv3 bash). ` +
+                            `\`bash -n\` on a Linux host cannot catch this. Use ${instead}.`,
+                    );
+                }
+            }
+        }
+        // The scan must have found the macOS jobs at all — a shape change that made
+        // the runner unrecognisable would otherwise turn this into a silent pass.
+        assert.ok(macosJobs >= 2, `expected the macOS jobs to be recognised, saw ${macosJobs}`);
+    });
+});
+
 describe('prebuild change gate — the emulated leg obeys the same decision', () => {
     it('skips a package in PREBUILD_SKIP and builds everything when it is unset', () => {
         // The emulated build is a single `docker run`, so the decision travels
