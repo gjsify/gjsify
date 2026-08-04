@@ -3028,26 +3028,81 @@ jobs:
           # is outside the repository, so nothing parked there can be staged by
           # accident.
           #
-          # `tar`, not `cp -r`: it captures exactly this path set, restores it with
-          # no directory logic of its own, and can be COUNTED — which is what the
-          # restore assertion in the sync script is built on.
-          tar -cf "$PREBUILD_SNAPSHOT" packages/*/*/prebuilds/
-          files="$(tar -tf "$PREBUILD_SNAPSHOT" | grep -cv '/$' || true)"
-          echo "snapshot: ${files} artifact file(s) -> $PREBUILD_SNAPSHOT"
-          # A positive fact, not an exit code. An empty snapshot means the
-          # downloads produced nothing, and every step after this one would then
-          # operate on main's own bytes while reporting success — which is the
-          # failure class this job keeps being bitten by.
-          if [ "$files" -eq 0 ]; then
-            echo "::error::the snapshot holds no files — the download steps put nothing into packages/*/*/prebuilds/"
+          # A positive fact about the downloads FIRST, and it is not the same
+          # question as the one below: did files land at all. `download-artifact`
+          # fails hard on a missing artifact, so this can only be zero if the
+          # `path:` inputs stopped pointing into the tree — in which case every
+          # later step would operate on main's own bytes while reporting success,
+          # which is the failure class this job keeps being bitten by.
+          landed="$(find packages/*/*/prebuilds -type f | wc -l)"
+          echo "prebuild directories hold ${landed} file(s) after the downloads."
+          if [ "$landed" -eq 0 ]; then
+            echo "::error::no files under packages/*/*/prebuilds — the download steps put nothing into the tree"
             exit 1
           fi
-          # What the downloads actually CHANGED, relative to this checkout.
-          # Deliberately NOT a gate: a run whose every artifact is byte-identical
-          # is legitimate — the ELF legs reproduce exactly, and the 16 darwin
-          # dylibs are the ones that never do. It is the number a reader needs to
-          # tell "nothing to commit" from "nothing was downloaded".
-          echo "downloads changed $(git status --porcelain -- 'packages/*/*/prebuilds/' | wc -l) tracked path(s) relative to the checkout."
+
+          # The snapshot is scoped to WHAT THIS RUN CHANGED, not to all sixty
+          # directories, and that scoping is a correctness property rather than an
+          # optimisation (though it also takes the archive from ~132 MB to a few).
+          # Re-applying every directory over a freshly-synced tree would resurrect
+          # a prebuild file that `main` legitimately DELETED while this run was in
+          # flight — a target retired, a library renamed — and `git add` stages a
+          # resurrection as an ADDITION, so the deletion guard would not see it.
+          # Silently reverting someone else's commit is not a trade this job may
+          # make; it exists to stop binaries going missing, not to start.
+          #
+          # Deletions are filtered out by the `-f` test: a download only ever
+          # writes, so a ` D ` entry cannot come from this run, and `tar` would
+          # fail on a path that is not there.
+          #
+          # `:(glob)` is load-bearing and was MEASURED. A bare
+          # `packages/*/*/prebuilds/` pathspec matches NOTHING — git's default
+          # wildmatch runs without WM_PATHNAME, so `*` crosses `/` and the pattern
+          # has to match the whole path, which a file three levels deeper does not.
+          # It reports a clean tree on a dirty one: the snapshot comes out empty,
+          # `Commit prebuilds` says "No prebuild changes to commit", and the run is
+          # green with every binary discarded. Caught by rehearsing the step against
+          # a scratch repository rather than by reading it. `:(glob)` switches on
+          # pathname-aware matching, so `*` stops at `/` and `**` spans the rest.
+          changed="$RUNNER_TEMP/changed-prebuilds.txt"
+          : > "$changed"
+          while IFS= read -r line; do
+            f="${line:3}"
+            if [ -f "$f" ]; then printf '%s\n' "$f" >> "$changed"; fi
+          done < <(git status --porcelain -uall -- ':(glob)packages/*/*/prebuilds/**')
+          count="$(wc -l < "$changed")"
+          echo "the downloads changed ${count} prebuild path(s) relative to this checkout:"
+          cat "$changed"
+
+          # TWO oracles for the one question, because the failure above is silent
+          # by nature: a pathspec that matches nothing is indistinguishable from a
+          # tree with nothing to commit, and this job reports the second as success.
+          # So the scoped count is checked against an unscoped status filtered by
+          # plain text. Every tracked `/prebuilds/` path in this repository is under
+          # `packages/<pillar>/<pkg>/`, so the two sets are identical (187 = 187 on
+          # main) and any disagreement means the pathspec stopped meaning what it
+          # says. `-prebuilds/` directory names (the `dlx-native-prebuilds` fixture)
+          # do not match `/prebuilds/` and cannot inflate the second count.
+          textual="$(git status --porcelain -uall | grep -c '/prebuilds/' || true)"
+          if [ "$count" -ne "$textual" ]; then
+            echo "::error::the prebuild pathspec matched ${count} path(s) while an unscoped status shows ${textual} — the pathspec no longer selects what it names, and an empty selection here reads as 'nothing to commit'"
+            git status --porcelain -uall | grep '/prebuilds/' || true
+            exit 1
+          fi
+
+          # `tar`, not `cp -r`: it takes the path set from a file, restores it with
+          # no directory logic of its own, and can be COUNTED — which is what the
+          # restore assertion in the sync script is built on. An EMPTY set is
+          # legitimate and deliberately not an error: the ELF legs reproduce
+          # exactly, so a linux-only run can rebuild every artifact byte for byte.
+          # (The 16 darwin dylibs never do — see the sync script.) `Commit
+          # prebuilds` reports that as "nothing to commit", which is the truth.
+          if [ "$count" -eq 0 ]; then
+            tar -cf "$PREBUILD_SNAPSHOT" --files-from /dev/null
+          else
+            tar -cf "$PREBUILD_SNAPSHOT" --files-from "$changed"
+          fi
+          echo "snapshot: ${count} file(s) -> $PREBUILD_SNAPSHOT"
 
       # SYNC FIRST, THEN STAGE — the ordering that is the whole fix. The script
       # fetches `origin/main`, resets the worktree onto it, re-applies the snapshot

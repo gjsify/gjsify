@@ -84,6 +84,11 @@ echo "::group::attempt ${attempt}: re-apply the downloaded artifacts over that t
 # `tar`, not `cp -r`: it restores exactly the captured paths, creates the
 # directories it needs without a line of directory logic here, and can be
 # counted — which is what the assertion below is built on.
+#
+# The archive holds only what THIS RUN CHANGED (see the snapshot step), so this
+# writes over the synced tree without touching a directory the run did not
+# rebuild. An empty archive is legitimate — a linux-only run can reproduce every
+# artifact byte for byte — and means there is simply nothing to commit.
 tar -xf "$PREBUILD_SNAPSHOT"
 expected=0
 present=0
@@ -101,14 +106,16 @@ while IFS= read -r entry; do
         present=$((present + 1))
     fi
 done < <(tar -tf "$PREBUILD_SNAPSHOT")
-# Again a positive fact: every file the snapshot holds is back on disk. An
-# extraction that silently wrote nothing is indistinguishable from a run with
-# no changes, and "no changes" is the outcome this job reports as success.
-if [ "$expected" -eq 0 ] || [ "$present" -ne "$expected" ]; then
+# Again a positive fact: EVERY file the snapshot holds is back on disk. Not
+# "extraction exited 0" — an extraction that wrote nothing is indistinguishable
+# from a run with no changes, and "no changes" is an outcome this job reports as
+# success. The count may legitimately be zero (nothing changed); what may never
+# happen is a shortfall.
+if [ "$present" -ne "$expected" ]; then
     echo "::error::restored ${present} of ${expected} snapshot file(s) — the downloaded artifacts are not on disk, so anything committed below would be main's own bytes"
     exit 1
 fi
-echo "restored ${present} artifact file(s) from the snapshot."
+echo "restored ${present} of ${expected} artifact file(s) from the snapshot."
 echo "::endgroup::"
 
 echo "::group::attempt ${attempt}: clear the markers the downloads satisfied, then stage"
