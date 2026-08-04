@@ -534,13 +534,35 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         );
         const script = rootManifest.scripts['npm:publish'];
         assert.ok(script, 'root package.json must declare npm:publish');
-        assert.match(
-            script,
-            /gjsify foreach[^&]*\s(--topological|-t\b|-[a-zA-Z]*t[a-zA-Z]*\s)/,
-            'npm:publish must run its `gjsify foreach` sweep --topological: the graph counts optionalDependencies, ' +
-                'so every platform child precedes its bridge and any prefix of an aborted sweep is still a ' +
-                'resolvable tree. Unordered, a fail-fast abort can publish a bridge pinning siblings that do not ' +
-                `exist. Got: ${script}`,
+
+        // The flag has to belong to `gjsify foreach`, NOT to the command it
+        // execs. Matching it anywhere in the segment also accepted
+        // `--exec -- gjsify publish --topological`, where `gjsify publish` has no
+        // such flag and the sweep is UNORDERED — the assertion would have been
+        // green over the exact hazard it exists to pin. So split each segment at
+        // its `--exec`: group 1 is foreach's own argv, group 2 the execed
+        // command. `[^&|]` keeps a segment from spilling across a `&&`.
+        const SWEEP = /gjsify foreach\b((?:(?!--exec\b)[^&|])*)--exec\b([^&|]*)/g;
+        const ORDER_FLAG = /(?:^|\s)(?:--topological\b|-[a-zA-Z]*t[a-zA-Z]*\b)/; // --topological | -t | a cluster like -vt
+        const sweeps = [...script.matchAll(SWEEP)].filter(([, , execed]) => /\bgjsify publish\b/.test(execed));
+        // Not "no sweep, nothing to check": an assertion that cannot locate its
+        // subject has verified nothing, and passing there is the failure mode
+        // this whole PR is about. If the publish sweep is respelled, this test
+        // gets updated deliberately.
+        assert.ok(
+            sweeps.length > 0,
+            'this test could not find a `gjsify foreach … --exec … gjsify publish …` sweep in npm:publish, so it ' +
+                `verified NOTHING about publish order. Update it to match the new shape. Got: ${script}`,
         );
+        for (const [, foreachArgv] of sweeps) {
+            assert.match(
+                foreachArgv,
+                ORDER_FLAG,
+                'the `gjsify foreach` publish sweep must carry --topological in its OWN arguments: the graph counts ' +
+                    'optionalDependencies, so every platform child precedes its bridge and any prefix of an aborted ' +
+                    'sweep is still a resolvable tree. Unordered, a fail-fast abort can publish a bridge pinning ' +
+                    `siblings that do not exist. Got: ${script}`,
+            );
+        }
     });
 });
