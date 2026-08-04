@@ -472,7 +472,44 @@ export interface AddonPackageJson {
     exports?: unknown;
     browser?: string;
     napi?: unknown;
+    gjsify?: unknown;
     optionalDependencies?: Record<string, string>;
+}
+
+/**
+ * Is this manifest a gjsify NATIVE BRIDGE whose prebuilds live in per-target
+ * sibling packages (ADR 0017) — `@gjsify/webgl` + `@gjsify/webgl-darwin-x64`, …?
+ *
+ * Such a bridge ships a GObject-Introspection typelib plus a `.so`/`.dylib`/`.dll`
+ * loaded through `gi://`, NEVER a Node-API `.node` addon, so it must never be
+ * routed through `loadAddon()`.
+ *
+ * It has to be excluded EXPLICITLY because the two conventions are
+ * indistinguishable by name: ADR 0017 spells a target `<os>-<arch>` and names the
+ * package `<self>-<os>-<arch>` in `optionalDependencies` — which is exactly
+ * napi-rs' `<self>-<triple>` sibling scheme whenever the target happens to be a
+ * name napi-rs also uses. On Linux the two vocabularies differ by the libc token
+ * (`linux-x64` vs napi-rs' `linux-x64-gnu`), so `hostNapiRsTriple()` never matched
+ * and nothing fired; on macOS napi-rs' triple IS `darwin-x64` / `darwin-arm64`,
+ * so every split bridge looked like a napi-rs package to
+ * {@link isNapiRsPackageJson} and {@link resolveNapiRsEntryAddon} then probed
+ * `ctx.resolve('@gjsify/webgl-darwin-x64')` — an artifact-only package with no JS
+ * entry at all. That probe does not return null: the `unresolved-workspace-import`
+ * guard (correctly) treats an unresolvable bare `@gjsify/*` as FATAL, so
+ * `gjsify build --app gjs` of any consumer of any split bridge died on darwin with
+ * "cannot resolve the workspace package" — invisible to every Linux CI job.
+ *
+ * `gjsify.platforms` is the right discriminator: it is the OS-axis declaration
+ * every native bridge carries (§ Runtime & platform model) and no napi-rs package
+ * has any reason to declare it.
+ *
+ * Exported for the unit tests.
+ */
+export function isGjsifyNativeBridge(pkg: AddonPackageJson): boolean {
+    const gjsify = pkg?.gjsify;
+    if (gjsify === null || typeof gjsify !== 'object') return false;
+    const { platforms, prebuilds } = gjsify as { platforms?: unknown; prebuilds?: unknown };
+    return Array.isArray(platforms) || typeof prebuilds === 'string';
 }
 
 /**
@@ -656,6 +693,9 @@ function napiSiblingPrefixes(pkg: AddonPackageJson): string[] {
  */
 export function isNapiRsSibling(pkg: AddonPackageJson, dep: string): boolean {
     if (!NAPI_RS_TRIPLE_RE.test(dep)) return false;
+    // A gjsify ADR-0017 platform package wears the same name — see
+    // {@link isGjsifyNativeBridge} for the darwin-only build break that caused.
+    if (isGjsifyNativeBridge(pkg)) return false;
     return napiSiblingPrefixes(pkg).some((prefix) => dep.startsWith(`${prefix}-`));
 }
 
@@ -736,7 +776,24 @@ async function resolveNapiRsEntryAddon(
     // loaders do, so this matches the binary Node would have loaded.
     const ordered = triple === null ? siblings : siblings.filter((dep) => dep.endsWith(`-${triple}`));
     for (const dep of ordered) {
-        const resolved = await ctx.resolve(dep, importer, { skipSelf: true });
+        // This resolve is a QUESTION ("is a host-triple binary installed?"), but it
+        // can THROW rather than answer: `skipSelf` skips only THIS plugin, so the
+        // `unresolved-workspace-import` guard still runs at `order:'post'` and
+        // (correctly, for a real import) makes an unresolvable bare `@gjsify/*`
+        // FATAL. A misread sibling name then kills the whole build instead of
+        // declining — measured on darwin, where every ADR-0017 platform package
+        // matched this path. The name check above is the fix; this keeps the class
+        // from ever being fatal again, and says which specifier was asked about.
+        let resolved: { id: string } | null = null;
+        try {
+            resolved = await ctx.resolve(dep, importer, { skipSelf: true });
+        } catch (err) {
+            warnSafe(
+                ctx,
+                `[gjsify-napi] probing the platform sibling "${dep}" of "${pkg.name ?? pkgRoot}" failed; not rewriting its entry (${err instanceof Error ? err.message.split('\n')[0] : String(err)})`,
+            );
+            continue;
+        }
         if (!resolved) continue;
         const abs = rawAddonPath(resolved.id);
         if (abs.endsWith('.node') && existsSync(abs)) return abs;

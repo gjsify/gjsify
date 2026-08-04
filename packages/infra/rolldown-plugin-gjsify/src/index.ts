@@ -54,6 +54,7 @@ export {
     ADDON_FILTER_RE,
     isNapiRsPackageJson,
     isNapiRsSibling,
+    isGjsifyNativeBridge,
     detectNapiRsEntry,
     hostNapiRsTriple,
     AddonNotBuiltError,

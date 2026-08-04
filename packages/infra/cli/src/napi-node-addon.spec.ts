@@ -23,6 +23,7 @@ import {
     ADDON_FILTER_RE,
     isNapiRsPackageJson,
     isNapiRsSibling,
+    isGjsifyNativeBridge,
     detectNapiRsEntry,
     hostNapiRsTriple,
     AddonNotBuiltError,
@@ -453,6 +454,46 @@ export default async () => {
                     napi: { packageName: '@rolldown/binding' },
                 }),
             ).toBe(true);
+        });
+        await it('does NOT claim a gjsify ADR-0017 platform package (the darwin build break)', () => {
+            // `@gjsify/webgl`'s real manifest shape. Its `optionalDependencies` are
+            // GI typelib prebuild packages, not napi-rs binaries — but on darwin the
+            // ADR-0017 target token IS napi-rs' triple, so the name test alone
+            // claimed them and `gjsify build --app gjs` of any consumer died with
+            // "cannot resolve the workspace package `@gjsify/webgl-darwin-x64`".
+            const webgl = {
+                name: '@gjsify/webgl',
+                gjsify: { platforms: ['linux-x64', 'darwin-arm64', 'darwin-x64'] },
+                optionalDependencies: {
+                    '@gjsify/webgl-darwin-arm64': 'workspace:*',
+                    '@gjsify/webgl-darwin-x64': 'workspace:*',
+                    '@gjsify/webgl-linux-x64': 'workspace:*',
+                },
+            };
+            expect(isNapiRsSibling(webgl, '@gjsify/webgl-darwin-x64')).toBe(false);
+            expect(isNapiRsSibling(webgl, '@gjsify/webgl-darwin-arm64')).toBe(false);
+            // Linux was green only by accident of the libc token, so assert it too.
+            expect(isNapiRsSibling(webgl, '@gjsify/webgl-linux-x64')).toBe(false);
+            expect(isNapiRsPackageJson(webgl)).toBe(false);
+            // The per-target package itself declares `gjsify.prebuilds` and is
+            // equally not a napi-rs loader.
+            expect(
+                isGjsifyNativeBridge({
+                    name: '@gjsify/webgl-darwin-x64',
+                    gjsify: { platforms: ['darwin-x64'], prebuilds: 'prebuilds' },
+                }),
+            ).toBe(true);
+        });
+        await it('keeps claiming a napi-rs sibling when `gjsify` is unrelated metadata', () => {
+            // A gjsify package MAY consume a napi-rs dep; only the OS-axis
+            // declaration disqualifies it, not the presence of a `gjsify` block.
+            const consumer = {
+                name: '@gjsify/thing',
+                gjsify: { tier: 3, runtimes: { gjs: 'polyfill' } },
+                napi: { name: 'thing' },
+            };
+            expect(isNapiRsSibling(consumer, '@gjsify/thing-darwin-x64')).toBe(true);
+            expect(isGjsifyNativeBridge(consumer)).toBe(false);
         });
     });
 
