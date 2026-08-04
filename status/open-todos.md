@@ -1310,3 +1310,45 @@ terms from the bundled ones. Whichever is chosen wants the same treatment as
 everything else here — derived from what the builder measured, so it cannot drift
 from the payload, which means `bundle-licenses.mjs` emitting the expression and a
 conformance rule comparing it to the manifest rather than a hand-edited string.
+
+### 17 of 32 `@girs/*` packages cannot be version-checked against the installed library
+
+`gjsify system-check` now compares each `@girs/*` package's declared
+`libraryVersion` against `pkg-config --modversion` and reports a `major.minor`
+skew — which caught two real ones on the first host it ran on (`@girs/gtk-4.0`
+4.23.0 vs GTK 4.22.4, `@girs/adw-1` 1.10.0 vs libadwaita 1.9.2, the second of
+which nothing had ever surfaced).
+
+It structurally cannot cover the rest. `libraryVersion` is only an upstream
+release where the GIR declares a `<package version>`; otherwise ts-for-gir falls
+back to the NAMESPACE version, which is shaped like a version and carries no
+information. Measured across 32 installed packages: **12 real, 17 degenerate, 3
+absent**. `@girs/gdk-4.0` declares `4.0.0` while GDK ships inside GTK 4.22.4, so
+comparing it would report an 18-minor skew that does not exist — the check skips
+those by construction rather than guessing, which is a false negative it takes
+knowingly.
+
+The 17 include `gdk-4.0` and `gsk-4.0` (GTK's own namespaces), `cairo-1.0`,
+`graphene-1.0`, `gdkpixbuf-2.0`, `pangocairo-1.0`, the five `gst*-1.0`
+satellites, `libxml2-2.0`, `gudev-1.0`, `gmodule-2.0`, `giounix-2.0`,
+`freetype2-2.0`, `gda-6.0`. Several are exactly the libraries a canvas or media
+path depends on, so this is not a tail of exotica.
+
+Two ways out, and they are not equivalent:
+
+1. **Fix it at the source.** ts-for-gir could emit a distinguishable value — the
+   real `<package version>` when the GIR has one, and an explicit null (or a
+   `libraryVersionSource` field) when it does not — instead of silently
+   substituting the namespace version. That removes the guess from every
+   consumer at once and is the smaller change, but it only helps namespaces whose
+   GIR carries the version at all.
+2. **Ship the `.gir` beside the artifact.** For the batteries-included bundles
+   this is the only exact answer: the installed library's own GIR states its
+   version, and `prebuild-artifacts` ALREADY requires a `.gir` next to every
+   `.typelib` for packages declaring `gjsify.prebuilds` — for exactly this
+   reason, quoting its own header, "it breaks regenerating that bridge's types
+   from the artifact it ships". The `@gjsify/gtk-runtime-*` packages declare no
+   `gjsify.prebuilds`, so that requirement does not reach them and they ship 37
+   typelibs with no `.gir` at all. Bringing them into scope is the follow-up; it
+   also unlocks generating types from the shipped artifact, which is the only
+   route to types that cannot be skewed rather than merely checked.
