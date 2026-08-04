@@ -33,12 +33,39 @@
 //
 // Reference: GJS ships no relocation; gvsbuild ships the MSVC-ABI GTK4 stack whose
 // DLLs load into stock (MSVC-ABI) Node.
+//
+// The typelib set and the license payload are NOT built here: both rules are shared
+// with the darwin builder and live in packages/node-gi/scripts/{typelib-backers,
+// bundle-licenses}.mjs — one home for "a bundle ships exactly the typelibs it can
+// back" and for "the terms of what it ships travel with it", because two copies of a
+// gate are two gates that drift.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+    assertLicenseCoverage,
+    formatLicenseProblems,
+    renderThirdPartyNotice,
+    scanLicenseFiles,
+    writeLicensePayload,
+} from '../../scripts/bundle-licenses.mjs';
+import {
+    REQUIRED_NAMESPACES,
+    WINDOWING_REQUIRED_NAMESPACES,
+    formatTypelibProblems,
+    nativeLibraryIndex,
+    planTypelibSet,
+    readTypelibDir,
+    verifyBundleTypelibs,
+} from '../../scripts/typelib-backers.mjs';
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+// Repo-relative path recorded in the shipped manifest so a consumer holding only the
+// tarball can find the recipe that produced its bytes — the tarball itself no longer
+// carries this script (the package's `files` no longer lists `scripts`, which would
+// otherwise ship a copy whose relative imports above resolve to nothing).
+const BUILDER_ID = 'packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs';
 
 // --- args ------------------------------------------------------------------
 function argValue(flag) {
@@ -280,19 +307,48 @@ for (const src of binDlls.values()) {
 }
 console.log(`build-gtk-runtime: copied ${binDlls.size} DLLs -> ${binOut}`);
 
-// --- 3. typelibs -----------------------------------------------------------
+// --- 3. typelibs — only the ones this bundle can actually BACK -------------
+// gvsbuild's typelib dir covers its whole build, not our closure, so copying it
+// wholesale shipped typelibs with no DLL behind them. Measured on the published
+// 0.27.1 win32 tarball: 3 of 37 (Adw-1, GtkSource-5, Rsvg-2.0) — a real
+// `new Adw.Application()` on that bundle fails with "Failed to load shared library
+// 'adwaita-1-0.dll'" while the typelib advertises the class. The plan reads each
+// typelib's OWN shared_library field, and refuses to drop one that a KEPT typelib
+// depends on (see typelib-backers.mjs).
 const typelibOut = join(OUT, 'girepository-1.0');
 mkdirSync(typelibOut, { recursive: true });
-let typelibCount = 0;
-if (existsSync(gtkTypelibs)) {
-    for (const f of readdirSync(gtkTypelibs)) {
-        if (f.endsWith('.typelib')) {
-            copyFileSync(join(gtkTypelibs, f), join(typelibOut, f));
-            typelibCount++;
-        }
-    }
+const requiredNamespaces = [...REQUIRED_NAMESPACES, ...(WINDOWING ? WINDOWING_REQUIRED_NAMESPACES : [])];
+// Windows resolves a DLL name case-INSENSITIVELY at LoadLibrary time, so the check
+// models that rather than byte equality.
+const typelibPlan = planTypelibSet({
+    typelibs: readTypelibDir(gtkTypelibs),
+    libraries: nativeLibraryIndex(binOut, { caseInsensitive: true }),
+    caseInsensitive: true,
+    requiredNamespaces,
+});
+if (typelibPlan.problems.length > 0) {
+    console.error(
+        `build-gtk-runtime: ${formatTypelibProblems(typelibPlan.problems, {
+            stage: `planning the typelib set from ${gtkTypelibs}`,
+            nativeDirLabel: 'bin/',
+        })}`,
+    );
+    process.exit(1);
 }
-console.log(`build-gtk-runtime: copied ${typelibCount} typelibs`);
+for (const typelib of typelibPlan.copy) copyFileSync(typelib.file, join(typelibOut, typelib.name));
+const typelibCount = typelibPlan.copy.length;
+console.log(
+    `build-gtk-runtime: copied ${typelibCount} typelibs ` +
+        `(${typelibPlan.backed.length} library-backed + ${typelibPlan.headerOnly.length} header-only)`,
+);
+if (typelibPlan.dropped.length > 0) {
+    console.log(
+        `build-gtk-runtime: dropped ${typelibPlan.dropped.length} typelib(s) with no backing DLL in this bundle ` +
+            `(nothing shipped depends on them): ${typelibPlan.dropped
+                .map((t) => `${t.key} -> ${t.missing.join(' + ')}`)
+                .join(', ')}`,
+    );
+}
 
 // --- 4. WINDOWING data (loaders / schemas / icons / fonts) ----------------
 // Each step is independent + defensive: a missing tree/tool WARNS + continues so a
@@ -446,22 +502,103 @@ if (WINDOWING) {
     }
 }
 
+// --- 5. verify the typelib/library symmetry of the FINISHED bundle ---------
+// Re-derived from the OUTPUT dirs (both sets read back off disk), so the gate is on
+// the bytes that ship, and stated as a POSITIVE fact: at least one DLL-backed
+// typelib, plus every namespace the package promises actually present (+ Adw and
+// GtkSource under --windowing, which is what that flag is for).
+const symmetry = verifyBundleTypelibs({
+    typelibDir: typelibOut,
+    nativeDir: binOut,
+    caseInsensitive: true,
+    requiredNamespaces,
+});
+if (symmetry.problems.length > 0) {
+    console.error(
+        `build-gtk-runtime: ${formatTypelibProblems(symmetry.problems, {
+            stage: 'verifying the finished bundle',
+            nativeDirLabel: 'bin/',
+        })}`,
+    );
+    process.exit(1);
+}
+console.log(
+    `build-gtk-runtime: typelib symmetry verified — ${symmetry.backed.length} backed typelib(s), every ` +
+        `shared_library present in bin/; ${symmetry.headerOnly.length} header-only (no library by design); ` +
+        `namespaces ${requiredNamespaces.join(', ')} all present`,
+);
+
+// --- 6. license compliance -------------------------------------------------
+// The bundle carries 37–41 third-party LGPL/MPL/GPL DLLs and shipped no terms at all.
+// UNLIKE darwin there is no per-binary attribution to derive: the gvsbuild prefix is
+// one flat build tree (and its DLLs' VERSIONINFO is inconsistent — glib/gtk/zlib carry
+// ProductName, adwaita/harfbuzz/libpng carry nothing), so the mapping cannot be read
+// out of the prefix and is NOT invented here. What the prefix does document is its
+// license corpus — share/doc/<project>/{COPYING,LICENSE} + share/licenses/<project>/*
+// (36 files in GTK4_Gvsbuild_2026.6.0_x64) — so the whole corpus ships and the notice
+// says plainly that the per-binary mapping is not recoverable. Over-inclusive beats
+// silent.
+const licenseTexts = scanLicenseFiles({ root: PREFIX, subdirs: ['share/licenses', 'share/doc'], maxDepth: 2 });
+const byComponent = new Map();
+for (const text of licenseTexts) {
+    if (!byComponent.has(text.component)) byComponent.set(text.component, { name: text.component, texts: [] });
+    byComponent.get(text.component).texts.push(text);
+}
+const licenseComponents = [...byComponent.values()].sort((a, b) => a.name.localeCompare(b.name));
+const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
+const dllLeaves = [...binDlls.values()].map((f) => basename(f));
+writeFileSync(
+    join(OUT, 'THIRD-PARTY-NOTICES.md'),
+    renderThirdPartyNotice({
+        target: 'win32-x64',
+        builder: BUILDER_ID,
+        provenance: PREFIX,
+        windowing: WINDOWING,
+        // Windows needs no relocation: the DLLs are byte-identical copies and the
+        // bundle is made portable by the loader's PATH prepend alone.
+        modifications: [],
+        components: licenseComponents,
+        binaries: dllLeaves,
+        attribution: 'prefix',
+        payloadDir: 'licenses',
+    }),
+);
+const licenseProblems = assertLicenseCoverage({
+    components: licenseComponents,
+    binaries: dllLeaves,
+    attribution: 'prefix',
+    textCount: licensePayload.files.length,
+});
+if (licenseProblems.length > 0) {
+    console.error(`build-gtk-runtime: ${formatLicenseProblems(licenseProblems, { prefix: PREFIX })}`);
+    process.exit(1);
+}
+console.log(
+    `build-gtk-runtime: licenses — ${licensePayload.files.length} text(s) from ${licenseComponents.length} ` +
+        `project(s) (${(licensePayload.bytes / 1024).toFixed(0)} KiB) -> licenses/, notice -> THIRD-PARTY-NOTICES.md`,
+);
+
 // --- manifest + size -------------------------------------------------------
+// lstat, NOT stat: an icon theme is copied with its alias symlinks intact and
+// following them counts every alias at its target's full size, so a stat-based total
+// reports more bytes than the bundle occupies.
 function dirSize(dir) {
     if (!existsSync(dir)) return 0;
     let total = 0;
     for (const f of readdirSync(dir, { withFileTypes: true })) {
         const p = join(dir, f.name);
-        total += f.isDirectory() ? dirSize(p) : statSync(p).size;
+        total += f.isDirectory() ? dirSize(p) : lstatSync(p).size;
     }
     return total;
 }
 const binBytes = dirSize(binOut);
 const typelibBytes = dirSize(typelibOut);
 const dataBytes = WINDOWING ? dirSize(join(OUT, 'lib')) + dirSize(join(OUT, 'share')) + dirSize(join(OUT, 'etc')) : 0;
+const licenseBytes = dirSize(join(OUT, 'licenses'));
 const manifest = {
     platform: 'win32-x64',
     windowing: WINDOWING,
+    builder: BUILDER_ID,
     generatedFrom: PREFIX,
     walkedWith: dumpbin ? 'dumpbin' : 'copy-all-fallback',
     dlls: binDlls.size,
@@ -469,8 +606,26 @@ const manifest = {
     binBytes,
     typelibBytes,
     dataBytes,
-    totalBytes: binBytes + typelibBytes + dataBytes,
+    licenseBytes,
+    totalBytes: binBytes + typelibBytes + dataBytes + licenseBytes,
     dllList: [...binDlls.values()].map((f) => basename(f)).sort((a, b) => a.localeCompare(b)),
+    // Proof-of-symmetry, recorded so a consumer holding only the tarball can see that
+    // the claim was checked and what it excluded (and why).
+    typelibSymmetry: {
+        backed: symmetry.backed.length,
+        headerOnly: symmetry.headerOnly.length,
+        dropped: typelibPlan.dropped.map((t) => ({ namespace: t.key, missing: t.missing })),
+        requiredNamespaces,
+    },
+    licenses: {
+        notice: 'THIRD-PARTY-NOTICES.md',
+        dir: 'licenses',
+        attribution: 'prefix',
+        components: licenseComponents.length,
+        texts: licensePayload.files.length,
+        binariesModified: false,
+        modifications: [],
+    },
     ...(WINDOWING ? { windowingData: windowing } : {}),
 };
 writeFileSync(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
@@ -483,5 +638,6 @@ console.log(
         (WINDOWING
             ? `  data:     loaders=${windowing.pixbufLoaders} schemas=${windowing.schemas} icons=[${windowing.iconThemes.join(',')}] fontconfig=${windowing.fontconfig} (${mb(dataBytes)} MiB)\n`
             : '') +
+        `  licenses: ${licensePayload.files.length} text(s) (${mb(licenseBytes)} MiB)\n` +
         `  total:    ${mb(manifest.totalBytes)} MiB`,
 );

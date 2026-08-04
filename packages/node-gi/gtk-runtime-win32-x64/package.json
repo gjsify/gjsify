@@ -23,7 +23,6 @@
   "files": [
     "index.js",
     "index.d.ts",
-    "scripts",
     "gtk"
   ],
   "gjsify": {

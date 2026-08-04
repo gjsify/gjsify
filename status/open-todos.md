@@ -479,19 +479,56 @@ script and not a spec — no CI runner here has one.
 `node-gi.yml`'s `macos-gtk-windowing-runtime` → `macos-gtk-windowing` pair is arm64-only, while the
 display-free `macos-gtk-runtime` → `macos-gtk-batteries-included` pair is a two-arch matrix. So
 `@gjsify/gtk-runtime-darwin-x64` is proven to satisfy `gi://` with no Homebrew (that job never
-installs GTK, so a green leg IS the conformance) but its `--windowing` superset — libadwaita +
-libgtksourceview + GSettings schemas + icon themes, i.e. a real `Adw.ApplicationWindow` realizing
-and rendering — is not exercised on Intel.
+installs GTK, so a green leg IS the conformance) but a real `Adw.ApplicationWindow` realizing and
+rendering off its bundle is not exercised on Intel.
 
-Held back deliberately, not overlooked: it is two more scarce macOS legs per node-gi PR, and the
-darwin windowing bundle has a KNOWN gap that a second arch would duplicate rather than close — the
-gdk-pixbuf image LOADERS are not bundled (they are dylibs needing `@loader_path` relocation from a
-NESTED dir, unlike win32's flat DLL copy), so symbolic icons can render blank. Close that first,
-then matrix the pair the same way (the builder is already arch-agnostic; only the two jobs' `arch`
-matrices and artifact names change).
+Sharper since `release.yml` publishes the `--windowing` superset on BOTH arches: the Intel windowing
+bundle is now BUILT and gated on every release (typelib symmetry, `Adw-1` beside libadwaita,
+`gschemas.compiled`, `share/icons`, license coverage) — it is only the ON-SCREEN render that no
+Intel leg performs. Held back deliberately: two more scarce macOS legs per node-gi PR. Matrixing is
+mechanical (the builder is already arch-agnostic; only the two jobs' `arch` matrices and artifact
+names change).
 
-Related: the darwin bundle has no `share/gtksourceview-5` DATA step, so GtkSource CONSTRUCTS but
-its language-specs/styles are absent — the win32 bundle DOES ship them.
+### The darwin `--windowing` bundle ships icon themes but no gdk-pixbuf image loaders
+
+`build-gtk-runtime-darwin.mjs` § 4b copies `share/icons/{Adwaita,hicolor}` and refreshes their
+caches, but not the gdk-pixbuf loader MODULES + `loaders.cache` — unlike the win32 builder, which
+copies them from `lib/gdk-pixbuf-2.0/2.10.0/loaders` and rewrites the cache bundle-relative. The
+loaders are dylibs living in a NESTED dir, so they need their own `@loader_path` relocation pass
+(the flat `lib/` walk does not reach them) plus `librsvg` in the closure, which is why they were
+deferred.
+
+Consequence, now that this variant is what gets PUBLISHED: an SVG symbolic icon can render blank on
+macOS while the theme is present, i.e. the failure looks like a theming bug rather than a missing
+decoder. `Rsvg-2.0.typelib` is correctly DROPPED from the bundle by the symmetry rule (nothing
+shipped depends on it and librsvg is absent) — that is orthogonal: the pixbuf loader is loaded
+through gdk-pixbuf's module system, not through the typelib.
+
+### `@gjsify/gamepad` silently degrades to "no gamepads" on every platform without libmanette
+
+`packages/web/gamepad/src/gamepad-manager.ts:58` does `await import('gi://Manette')` inside a
+`try`/`catch` whose catch sets `_initialized = true` and returns, so `navigator.getGamepads()`
+answers an empty array with no diagnostic. Nothing distinguishes "no controller plugged in" from
+"this platform has no gamepad backend at all", and the package is tier 1 with
+`runtimes.gjs = "polyfill"`.
+
+Measured: no GTK-runtime bundle carries the Manette typelib or libmanette, so on macOS and Windows
+that import has never succeeded — the W3C Gamepad surface is a permanent no-op there.
+
+Deliberately NOT fixed by seeding libmanette into the bundles. There is nothing to seed FROM:
+homebrew-core has no `libmanette` formula (`formulae.brew.sh/api/formula/libmanette.json` → 404) and
+`GTK4_Gvsbuild_2026.6.0_x64.zip` contains zero manette/evdev entries, so the seed pattern would
+match nothing and — with the typelib-symmetry rule in place — a Manette typelib could not ship
+anyway. And a hypothetical port would not help: libmanette's backend reads Linux `/dev/input/event*`
+via evdev/udev, so a `Manette.Monitor` on macOS/Windows would enumerate nothing while satisfying
+every symmetry check. That is the same "looks available, does nothing" shape, moved one layer down.
+
+The fix belongs in the CONSUMER: make unavailability observable (a one-time diagnostic, or a
+capability flag the caller can read) instead of an indistinguishable empty array — and, if gamepads
+on macOS/Windows are wanted, a platform backend (GameController.framework / XInput) behind the same
+W3C surface. Same shape as the ten other namespaces the workspace imports and no bundle ships
+(`gi://Gst` ×17, `gi://WebKit` ×4, `Soup`, `Gda`, `JavaScriptCore`, `X`): the generalisable answer
+is a per-namespace availability contract, not an ever-growing bundle.
 
 ### The GTK-runtime bundle precedence question is still open
 

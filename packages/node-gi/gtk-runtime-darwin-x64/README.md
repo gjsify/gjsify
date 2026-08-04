@@ -58,14 +58,23 @@ this bundle got wrong.
 
 ```
 gtk/
-  lib/                 relocated dylibs (@loader_path-linked, ad-hoc re-signed)
-  girepository-1.0/    typelibs (GLib/GObject/Gio/cairo/Pango/Graphene/Gdk/…)
-  manifest.json        target + builder + counts + sizes + dylib list
+  lib/                     relocated dylibs (@loader_path-linked, ad-hoc re-signed)
+  girepository-1.0/        typelibs — ONLY those this bundle can back
+  share/                   --windowing only: GSettings schemas, icon themes, GtkSource data
+  licenses/                license texts of the bundled libraries, per component
+  THIRD-PARTY-NOTICES.md   what is bundled, under which terms, and how it was modified
+  manifest.json            target + builder + counts + sizes + symmetry/license proof
 ```
 
 `manifest.json` records the `builder` path, so a consumer holding only the tarball
 can find the recipe that produced its bytes — the tarballs no longer carry a
 per-package copy of the script.
+
+The bundle ships **exactly the typelibs whose backing library it carries** (derived
+from each typelib's own header, dependency-aware, re-verified on the finished bundle)
+and the license terms of every library it carries — both rules are shared with the
+win32 builder and documented in the
+[arm64 sibling's README](../gtk-runtime-darwin-arm64/README.md#typelib-symmetry--a-typelib-without-its-library-is-worse-than-none).
 
 ## Install
 
@@ -92,8 +101,10 @@ npm install @gjsify/node-gi @gjsify/gtk-runtime-darwin-x64
   `brew install`s GTK, so a green run *is* the conformance: the bundle self-satisfies
   or nothing loads.
 - **Published** by `release.yml`'s `publish-gtk-runtime-darwin` job (matrix leg
-  `x64`), which builds the bundle on an Intel runner and OIDC-publishes only this
-  package with the populated `gtk/`.
+  `x64`), which builds the `--windowing` superset on an Intel runner and
+  OIDC-publishes only this package with the populated `gtk/`. Through 0.27.1 that job
+  built the display-free variant, so the published tarball carried
+  `Adw-1.typelib` with no libadwaita, no GSettings schemas and no icon themes.
 - **NOT yet covered:** the `--windowing` GUI proof (`macos-gtk-windowing-runtime` →
   `macos-gtk-windowing`) runs on arm64 only. Tracked in `status/open-todos.md`.
 
