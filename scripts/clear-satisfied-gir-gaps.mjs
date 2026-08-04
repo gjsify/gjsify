@@ -49,6 +49,53 @@ const ROOT = rootFlag >= 0 ? resolve(argv[rootFlag + 1]) : resolve(dirname(fileU
 const LEDGER_REL = 'scripts/manifest-conformance/prebuild-gir-gaps.mjs';
 
 /**
+ * The key on a ledger ENTRY LINE, or `null` if this line is not one.
+ *
+ * The grammar of the shape this script edits: four spaces, a quoted `@`-scoped
+ * package name, a colon. EXPORTED because it is the coupling between this script
+ * and the ledger, and a coupling with two copies is a coupling that drifts — the
+ * e2e suite asserts the REAL ledger conforms to it, and it has to be asking about
+ * the same grammar the surgery below uses, not a paraphrase of it.
+ *
+ * @param {string} line
+ * @returns {string | null}
+ */
+export function entryKeyOnLine(line) {
+    const match = /^ {4}(['"])(@[^'"]+)\1\s*:/.exec(line);
+    return match ? match[2] : null;
+}
+
+/**
+ * Import the ledger's CURRENT contents, never a cached copy.
+ *
+ * Both reads below have to bypass the ES module cache, and they have to do it
+ * with something better than a timestamp. Found by the e2e suite calling this
+ * function twice in one process, which is the shape `sync-and-stage.sh` promises
+ * ("IDEMPOTENT BY DESIGN — the push step calls this again per attempt"): the
+ * second call read the FIRST call's module from cache, re-derived the entry it had
+ * already deleted, found no line for it and threw
+ *
+ *     could not find a one-line entry for … Restore it, or teach this script the
+ *     new shape
+ *
+ * — an error blaming the ledger for being malformed when the ledger was correct
+ * and this script's own view of it was stale. In `commit-prebuilds` that is exit
+ * 1 with no push and every downloaded binary discarded, for no defect at all.
+ * Today's shell caller happens to be safe (one process per invocation), so this
+ * is the kind of latent trap that only fires once someone folds the two clearing
+ * scripts into one node process — which is exactly where they are heading.
+ *
+ * A monotonic counter and not `Date.now()` alone: two calls inside the same
+ * millisecond would produce the same specifier and hit the cache again, which is
+ * the bug rather than a smaller version of it.
+ */
+let importSeq = 0;
+async function readLedger(ledgerPath) {
+    const mod = await import(`file://${ledgerPath}?read=${++importSeq}`);
+    return Object.keys(mod.PREBUILD_GIR_GAPS ?? {});
+}
+
+/**
  * Does this package's committed prebuild directory hold a `.gir` now?
  *
  * Answered from the package's OWN declaration rather than from the ledger key's
@@ -107,7 +154,7 @@ export async function clearSatisfiedGirGaps(root, { dryRun: dry = false } = {}) 
 
     // Read the ledger through the module system, never by parsing it: the keys
     // are what the rule reads, so they are what has to be compared.
-    const before = Object.keys((await import(`file://${ledgerPath}`)).PREBUILD_GIR_GAPS ?? {});
+    const before = await readLedger(ledgerPath);
     const cleared = before.filter((name) => girIsCommitted(root, name) === true);
     if (cleared.length === 0) return { cleared: [], paths: [] };
 
@@ -116,10 +163,9 @@ export async function clearSatisfiedGirGaps(root, { dryRun: dry = false } = {}) 
     const kept = [];
     const removedKeys = new Set();
     for (const line of lines) {
-        // An entry line and nothing else: four spaces, the quoted key, a colon.
-        const match = /^ {4}(['"])(@[^'"]+)\1\s*:/.exec(line);
-        if (match && cleared.includes(match[2])) {
-            removedKeys.add(match[2]);
+        const key = entryKeyOnLine(line);
+        if (key !== null && cleared.includes(key)) {
+            removedKeys.add(key);
             continue;
         }
         kept.push(line);
@@ -142,9 +188,9 @@ export async function clearSatisfiedGirGaps(root, { dryRun: dry = false } = {}) 
 
     if (!dry) {
         writeFileSync(ledgerPath, next);
-        // VERIFY, do not assume. A cache-busting query keeps this from reading the
-        // copy imported above.
-        const after = Object.keys((await import(`file://${ledgerPath}?after=${Date.now()}`)).PREBUILD_GIR_GAPS ?? {});
+        // VERIFY, do not assume. Through the same cache-bypassing read as above,
+        // so there is one place that knows how to look at this file freshly.
+        const after = await readLedger(ledgerPath);
         const want = before.filter((name) => !cleared.includes(name)).sort();
         if (after.slice().sort().join('\n') !== want.join('\n')) {
             writeFileSync(ledgerPath, original);
