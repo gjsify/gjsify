@@ -90,6 +90,14 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
     let hits = new Map();
     /** Names the registry answers 5xx for — "we do not know", not "absent". */
     let broken = new Set();
+    /**
+     * name → the request number from which the version becomes visible. Models
+     * CDN propagation by REQUEST COUNT rather than by a timer: a wall-clock
+     * fixture would race child-process startup on a loaded runner and flake in
+     * both directions (revealing too early → no retry to assert; too late →
+     * attempts exhausted).
+     */
+    let revealAfter = new Map();
 
     before(async () => {
         tmp = mkdtempSync(join(tmpdir(), 'gjsify-e2e-closure-'));
@@ -101,7 +109,8 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
                 res.end(JSON.stringify({ error: 'Service Unavailable' }));
                 return;
             }
-            const versions = published.get(name);
+            const hidden = revealAfter.has(name) && hits.get(name) < revealAfter.get(name);
+            const versions = hidden ? undefined : published.get(name);
             if (!versions) {
                 res.writeHead(404, { 'content-type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Not found' }));
@@ -279,26 +288,32 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
             ['@fix/util', [VERSION]],
             ['@fix/bridge', [VERSION]],
             ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
         ]);
         hits = new Map();
-        const late = setTimeout(() => published.set('@fix/bridge-darwin-arm64', [VERSION]), 150);
-        const r = await runScript([
-            '--root',
-            root,
-            '--registry',
-            registryUrl,
-            '--attempts',
-            '4',
-            '--retry-delay-ms',
-            '200',
-        ]);
-        clearTimeout(late);
-        assert.equal(r.status, 0, `a late-propagating version must pass on a later round:\n${r.out}`);
-        assert.match(r.stdout, /round 2\/4 — re-querying/);
-        // Only the ABSENT name is re-queried; a present version never becomes
-        // absent, so re-asking for it would be wasted round trips.
-        assert.equal(hits.get('@fix/bridge'), 1, 'a package already found live must not be re-queried');
-        assert.ok(hits.get('@fix/bridge-darwin-arm64') >= 2, 'the absent name must be re-queried');
+        // Published, but the registry hides it until the SECOND request for that
+        // name — so round 1 must 404 and round 2 must find it, deterministically.
+        revealAfter = new Map([['@fix/bridge-darwin-arm64', 2]]);
+        try {
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '4',
+                '--retry-delay-ms',
+                '50',
+            ]);
+            assert.equal(r.status, 0, `a late-propagating version must pass on a later round:\n${r.out}`);
+            assert.match(r.stdout, /round 2\/4 — re-querying 1 unresolved name\(s\)/);
+            // Only the ABSENT name is re-queried; a present version never becomes
+            // absent, so re-asking for it would be wasted round trips.
+            assert.equal(hits.get('@fix/bridge'), 1, 'a package already found live must not be re-queried');
+            assert.equal(hits.get('@fix/bridge-darwin-arm64'), 2, 'the absent name must be re-queried exactly once');
+        } finally {
+            revealAfter = new Map();
+        }
     });
 
     it('private packages are out of scope entirely', async () => {
