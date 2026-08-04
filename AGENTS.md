@@ -139,7 +139,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | webrtc | Gst, GstWebRTC, GstSDP | Full W3C WebRTC (RTCPeerConnection, RTCDataChannel, senders/receivers/transceivers, MediaStream(Track), getUserMedia via pipewiresrc/pulsesrc/v4l2src chain, DTMF, certs, stats). Tee-multiplexer for shared-source fan-out. Backed by `@gjsify/webrtc-native` |
 | webrtc-native | Gst, GstWebRTC | **Vala/GObject prebuild** — three main-thread signal bridges (Webrtcbin/DataChannel/Promise) capturing webrtcbin's streaming-thread callbacks in C and re-emitting via `GLib.Idle.add()` on the main context, so they are safe to handle from JS. Prebuilds linux-{x64,arm64} |
 | domparser | — | DOMParser.parseFromString (XML/HTML), minimal DOM sized for excalibur-tiled + config parsing |
-| gamepad | Manette 0.2 | Gamepad polling via libmanette signals, GamepadEvent, dual-rumble haptics. Lazy Monitor init, graceful without libmanette |
+| gamepad | Manette 0.2 | Gamepad polling via libmanette signals, GamepadEvent, dual-rumble haptics. Lazy Monitor init; `getGamepads()` = the spec's `[[gamepads]]`, EMPTY until a device connects. **No backend on macOS/Windows** (libmanette is Linux-only), made observable by a quiet `hasGamepadBackend()` + one diagnostic from the USE. Details: `packages/web/gamepad/README.md` |
 | web-globals | — | re-exports all web API globals |
 | polyfills | — | `@gjsify/web-polyfills` dep-only umbrella (templates + scaffolds) |
 | adwaita-web | — | Browser Adwaita components (Custom Elements + SCSS mirroring `refs/adwaita-web/scss/`), built to `dist/adwaita-web.css` via sass, light/dark. No GJS deps. Port queue: `status/sections/adwaita-web-roadmap.md` |

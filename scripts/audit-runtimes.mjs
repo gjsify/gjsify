@@ -855,6 +855,15 @@ async function runProbes(rows) {
 //                           `partial` silently means "crashes at first use"
 //                           instead of "degrades at call time". FATAL. Full
 //                           rationale at `auditCuratedAliasRouting`.
+//   5. `globals-entry-parity`
+//                         — the `native` mirror of check 3: a `native` slot
+//                           routes the package ROOT to `@gjsify/<X>/globals`, so
+//                           `globals.mjs` must carry every VALUE export of the
+//                           root entry or the routed bundle dies with
+//                           MISSING_EXPORT. REPORTED, not fatal — 23 packages
+//                           / 152 export names are narrower today. Rationale,
+//                           and which part of the gap a `globals.mjs` cannot
+//                           close at all: `nativeGlobalsGap`.
 //
 // Unrouted-but-exported platform entries (today: the ten `partial` packages)
 // are listed as an informational line on every run. Check 3 gates the
@@ -969,6 +978,10 @@ async function auditReachability(meta) {
     const failures = [];
     const warnings = [];
     const unrouted = [];
+    /** @type {Map<string, {name:string, targets:string[], missing:string[]}>} */
+    const globalsGaps = new Map();
+    /** `native` slots whose globals.mjs star-re-exports a runtime module (not enumerable). */
+    const globalsStarExports = new Set();
     let checked = 0;
 
     for (const rec of [...meta.values()].sort((a, b) => a.rel.localeCompare(b.rel))) {
@@ -977,6 +990,17 @@ async function auditReachability(meta) {
 
         for (const target of REACH_TARGETS) {
             const slot = rec.runtimes[target];
+            // Check 5 — the `native` mirror of `platform-entry-parity`.
+            if (slot === 'native') {
+                const missing = await nativeGlobalsGap(rec, srcDir);
+                if (missing === 'star') globalsStarExports.add(rec.name);
+                else if (missing !== null) {
+                    const seen = globalsGaps.get(rec.name);
+                    if (seen) seen.targets.push(target);
+                    else globalsGaps.set(rec.name, { name: rec.name, targets: [target], missing });
+                }
+                continue;
+            }
             if (slot !== 'polyfill' && slot !== 'partial') continue;
 
             const entryFile = join(srcDir, `${target}.ts`);
@@ -1056,7 +1080,70 @@ async function auditReachability(meta) {
             else warnings.push(`${line} (gjs-only-reach, ${why})`);
         }
     }
-    return { failures, warnings, unrouted, aliasFailures, checked };
+    return {
+        failures,
+        warnings,
+        unrouted,
+        aliasFailures,
+        checked,
+        globalsGaps: [...globalsGaps.values()],
+        globalsStarExports: [...globalsStarExports].sort(),
+    };
+}
+
+/**
+ * Check 5 — `globals-entry-parity`: the `native` mirror of `platform-entry-parity`.
+ *
+ * A `native` slot routes the package ROOT to `@gjsify/<X>/globals` (§ Slot
+ * routing), exactly as `polyfill` + a declared subpath routes it to
+ * `src/<target>.ts`. So the same invariant applies for the same reason: a name
+ * the root entry exports and `globals.mjs` does not is a `MISSING_EXPORT` the
+ * moment a consumer imports it on that target. It went unnoticed until a build of
+ * `@gjsify/gamepad`'s OWN README example died with
+ * `"hasGamepadBackend" is not exported by "packages/web/gamepad/globals.mjs"`,
+ * because `probeGlobalsExports` (the `globals-broken` probe) only validates the
+ * `export … from '<spec>'` SOURCES a `globals.mjs` names — a file that re-exports
+ * nothing, like every hand-written `export const X = globalThis.X` one, passes it
+ * vacuously.
+ *
+ * REPORTED, not fatal — measured 2026-08-04 by this very check: 23 of the 40
+ * comparable `native`-slot packages, 152 export names. Making it fatal is a
+ * cross-cutting rewrite of all 152 (AGENTS.md exception (c): Plan + user confirm +
+ * split PRs), and part of the gap is not closable in a
+ * `globals.mjs` at ALL: no `globals.mjs` in the tree imports its own package body,
+ * so a name with no runtime-native source needs a platform entry rather than a
+ * re-export. Tracked in `status/open-todos.md`.
+ *
+ * @returns {Promise<string[]|null>} the missing value exports, or `null` when the
+ *          slot does not route here / there is nothing to compare.
+ */
+async function nativeGlobalsGap(rec, srcDir) {
+    if (!rec.exportKeys.has('./globals')) return null;
+    const globalsFile = join(rec.pkgDir, 'globals.mjs');
+    const rootEntry = join(srcDir, 'index.ts');
+    if (!existsSync(globalsFile) || !existsSync(rootEntry)) return null;
+    const globalsSrc = await readFile(globalsFile, 'utf8');
+    // A star re-export from a NON-relative specifier is not statically
+    // enumerable and must not be read as a gap. `@gjsify/util`'s globals.mjs is
+    // `export * from 'node:util'`: it surfaces the runtime's ENTIRE surface, so
+    // every root name it "does not name" is in fact present — and
+    // `tests/e2e/runtimes-routing` proves it by importing `format`/`inspect`
+    // through exactly that file. Counting those 20-odd packages as findings was
+    // the first version of this check crying wolf; a check nobody can trust is
+    // worse than no check. Skipped, and the skip is COUNTED and printed so it
+    // stays visible rather than becoming a silent carve-out.
+    //
+    // Residual blind spot, stated rather than hidden: a `globals.mjs` that stars
+    // a runtime module AND has a root export that module does not carry is skipped
+    // too, so its real gap is invisible here. Closing that means asking the
+    // runtime for the star target's export set — runtime EVALUATION, which this
+    // audit deliberately does not do (it must not crash on a browser-only
+    // re-export). Recorded in `status/open-todos.md`.
+    if (/^export\s*\*\s*from\s*['"](?!\.)/m.test(globalsSrc)) return 'star';
+    const rootExports = await collectValueExports(rootEntry);
+    const globalsExports = await collectValueExports(globalsFile);
+    const missing = [...rootExports].filter((e) => !globalsExports.has(e)).sort();
+    return missing.length > 0 ? missing : null;
 }
 
 // ─── Curated-alias routing (the `partial`-slot crash gap) ───────────────────
@@ -1135,6 +1222,26 @@ function renderReachabilityNotes(reach) {
             '  These are the promotion path from `partial` to `polyfill`: reach export parity with the root entry, flip the slot to `polyfill`, and ADR-0014 routing picks the entry up automatically (the `platform-entry-parity` check gates it).',
         );
         for (const line of reach.unrouted) console.error(`  · ${line}`);
+    }
+    if ((reach.globalsGaps ?? []).length > 0) {
+        const names = reach.globalsGaps.reduce((n, g) => n + g.missing.length, 0);
+        console.error(
+            `\nreachability notes — ${reach.globalsGaps.length} \`native\` slot package(s) whose globals.mjs is NARROWER than the root entry (${names} export(s); globals-entry-parity, reported not enforced):`,
+        );
+        console.error(
+            '  A `native` slot routes the package ROOT to `@gjsify/<X>/globals`, so each name below is a MISSING_EXPORT the moment a consumer imports it on that target — the invariant `platform-entry-parity` already enforces for `polyfill`. See `nativeGlobalsGap` for why this is reported rather than fatal, and which part of the gap a `globals.mjs` cannot close at all.',
+        );
+        for (const g of reach.globalsGaps) {
+            const shown = g.missing.slice(0, 12).join(', ');
+            const rest = g.missing.length > 12 ? ` … (+${g.missing.length - 12})` : '';
+            console.error(`  · ${g.name} (${g.targets.join(', ')}) — ${g.missing.length}: ${shown}${rest}`);
+        }
+        if ((reach.globalsStarExports ?? []).length > 0) {
+            console.error(
+                `  (${reach.globalsStarExports.length} further package(s) NOT compared: their globals.mjs star-re-exports a runtime module — ` +
+                    `${reach.globalsStarExports.slice(0, 6).join(', ')}${reach.globalsStarExports.length > 6 ? ', …' : ''} — which surfaces the whole runtime surface and is not statically enumerable.)`,
+            );
+        }
     }
 }
 

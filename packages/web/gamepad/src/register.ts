@@ -5,8 +5,6 @@
 import { GamepadEvent } from './gamepad-event.js';
 import { GamepadManager } from './gamepad-manager.js';
 
-const manager = new GamepadManager();
-
 /** Module-local typed view of the globals this file writes. */
 interface _GamepadGlobals {
     navigator?: { getGamepads?: () => (Gamepad | null)[] };
@@ -20,8 +18,19 @@ if (typeof g.navigator === 'undefined') {
     g.navigator = {};
 }
 
-// Register navigator.getGamepads()
-g.navigator!.getGamepads = () => manager.getGamepads();
+// Register navigator.getGamepads() — but NEVER over a runtime that has its own.
+//
+// `runtimes.browser` and `runtimes.nativescript` are both `"native"`: on a
+// browser the Gamepad API IS the platform's, and replacing it with the
+// libmanette-backed manager would swap a working implementation for one that can
+// only ever answer "no controllers" (a `--app browser` build maps `gi://Manette`
+// to an empty module by design). The manager is not even constructed there —
+// nothing probes, nothing is reported. Same guard the `GamepadEvent`
+// registration below has always used.
+if (typeof g.navigator!.getGamepads !== 'function') {
+    const manager = new GamepadManager();
+    g.navigator!.getGamepads = () => manager.getGamepads();
+}
 
 // Register GamepadEvent globally
 if (typeof g.GamepadEvent === 'undefined') {
