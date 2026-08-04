@@ -92,7 +92,14 @@ while IFS= read -r entry; do
         */) continue ;;
     esac
     expected=$((expected + 1))
-    [ -f "$entry" ] && present=$((present + 1))
+    # An explicit `if`, not `[ -f … ] && …`: under `set -e` an AND-list whose
+    # first command fails is exempt from errexit, so the short form works — but
+    # relying on that exemption to keep a MISSING file from killing the script
+    # before its own error message is a subtlety a reader should not have to
+    # check.
+    if [ -f "$entry" ]; then
+        present=$((present + 1))
+    fi
 done < <(tar -tf "$PREBUILD_SNAPSHOT")
 # Again a positive fact: every file the snapshot holds is back on disk. An
 # extraction that silently wrote nothing is indistinguishable from a run with
