@@ -33,9 +33,11 @@ The bridge dials a **peer address** when there is no session bus — see [`@gjsi
 
 1. `--address <addr>` (equivalently `gjsify.devtools.address` in `package.json`, `profile.address`, or `new DbusDevtoolsClient(base, { address })`)
 2. `GJSIFY_DEVTOOLS_ADDRESS`
-3. the address file the app publishes under `<runtime-dir>/gjsify-devtools/` — **positive evidence** that an app of exactly this id is listening right now, which is why it outranks the bus
-4. the session bus (Linux default, unchanged: with nothing in peer mode no address file exists, so step 3 is a `stat` that misses)
+3. the address file the app publishes under `<runtime-dir>/gjsify-devtools/` — it outranks the bus because it is meant to be evidence that an app of exactly this id is listening right now, so the bridge **checks** it: the address is dialled, and if nothing answers the file is deleted and resolution continues at step 4. Ctrl-C, `SIGKILL` and a crash all leave the file behind (and on macOS/Windows `GLib.get_user_runtime_dir()` degrades to the user cache dir, where it survives reboots), so a claim that is merely *present* proves nothing
+4. the session bus (Linux default, unchanged: with nothing in peer mode no address file exists, so step 3 is a `stat` that misses — and a stale one degrades to exactly this row)
 5. otherwise a hard error naming all three ways in, rather than a client that cannot call anything
+
+An **explicit** address (steps 1–2) deliberately does *not* fall back: it is pinned on both sides, so a dead one fails with a message naming that address instead of quietly talking to something else.
 
 In peer mode a call carries **no destination bus name** (a peer connection has no name registry), `list_instances` reports the single connected app instead of enumerating the bus, and a failure names the address rather than a bus name.
 
@@ -68,7 +70,7 @@ await runDevtoolsMcp({ name: 'my-app-devtools', version: '0.10.0', busNameBase: 
 
 - `runDevtoolsMcp(profile)` — build the MCP server, register the profile's tools, serve over `GjsStdioTransport`.
 - `DbusDevtoolsClient` — the DBus client (`control()` for raw GVariant replies, `jsonCall()` for `…->s` JSON methods, `transport` for the resolved transport, `describeTarget()` for diagnostics).
-- `chooseClientTransport(input)` — the precedence above as a pure function; `ClientTransportChoice`, `DbusDevtoolsClientOptions`, `DevtoolsInstanceRef`.
+- `chooseClientTransport(input)` — the precedence above as a pure function; `connectToDevtools(ctx, deps?)` — that precedence turned into a live connection (dial-then-fallback; `deps` exists so every row is testable on a host with no bus daemon); `ClientTransportChoice`, `DbusDevtoolsClientOptions`, `DevtoolsInstanceRef`.
 - `registerGenericTools`, `storybookProfile` / `registerStorybookTools`.
 - `GjsStdioTransport` — stdio transport (Node's `StdioServerTransport` does not work under the GJS bundle).
 - `ok` / `fail` / `image` (`ToolResult` helpers; `image` takes base64), `dbusError` (error mapping).

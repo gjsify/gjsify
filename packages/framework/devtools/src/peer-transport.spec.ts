@@ -14,7 +14,7 @@ import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 import { describe, expect, it } from '@gjsify/unit';
 import { DEVTOOLS_INTERFACE, devtoolsAddressFilePath } from '@gjsify/devtools-protocol';
-import { chooseDevtoolsTransport, describeMissingConnection, installDevtools } from './install.js';
+import { chooseDevtoolsTransport, describeMissingConnection, installDevtools, uninstallDevtools } from './install.js';
 import { startDevtoolsPeerServer, writeDevtoolsAddressFile, removeDevtoolsAddressFile } from './peer-transport.js';
 import { DevtoolsService } from './devtools-service.js';
 
@@ -209,6 +209,38 @@ export default async () => {
             }
         });
 
+        await it('keeps nonce-tcp access control on the nonce FILE, readable only by us', async () => {
+            // `nonce-tcp:` must be served with `DBusServerFlags.NONE`, because
+            // AUTHENTICATION_REQUIRE_SAME_USER rejects every TCP client (no peer
+            // credentials on TCP). That is only defensible if the nonce is a real
+            // secret, so assert what GDBus actually does rather than assume it:
+            // the nonce file is mode 0600 and the listener is loopback-only. On a
+            // shared machine another user can open the port but cannot read the
+            // nonce, and without those 16 bytes the server never speaks (measured:
+            // the connection just times out).
+            const app = new Gtk.Application({ application_id: 'org.gjsify.PeerSpecNonce' });
+            const service = new DevtoolsService(app, {});
+            const peer = startDevtoolsPeerServer(
+                service,
+                '/org/gjsify/PeerSpecNonce/devtools',
+                'nonce-tcp:host=127.0.0.1',
+            );
+            try {
+                expect(peer.address).toContain('nonce-tcp:host=127.0.0.1');
+                const nonce = /noncefile=([^,]+)/.exec(peer.address)?.[1];
+                expect(typeof nonce).toBe('string');
+                if (!nonce) return;
+                const info = Gio.File.new_for_path(decodeURIComponent(nonce)).query_info(
+                    'unix::mode',
+                    Gio.FileQueryInfoFlags.NONE,
+                    null,
+                );
+                expect(info.get_attribute_uint32('unix::mode') & 0o777).toBe(0o600);
+            } finally {
+                peer.stop();
+            }
+        });
+
         await it('honours an explicit unix:path address', async () => {
             const path = `${GLib.get_tmp_dir()}/gjsify-devtools-spec-${GLib.random_int_range(0, 1_000_000)}.sock`;
             const app = new Gtk.Application({ application_id: 'org.gjsify.PeerSpecPath' });
@@ -258,6 +290,130 @@ export default async () => {
             } finally {
                 service.unexport();
             }
+        });
+
+        await it('removes the published address on unexport, not only on shutdown', async () => {
+            // The file is a CLAIM that an app of this id is listening now, and the
+            // bridge ranks it above the session bus. `uninstallDevtools` stops the
+            // socket, so leaving the file behind pointed the bridge at a dead
+            // address — with `GApplication::shutdown` never firing here at all.
+            const path = `${GLib.get_tmp_dir()}/gjsify-devtools-unexport-${GLib.random_int_range(0, 1_000_000)}.sock`;
+            const app = new Gtk.Application({ application_id: 'org.gjsify.PeerUnexport' });
+            const service = installDevtools(app, { enabled: true, address: `unix:path=${path}`, instance: 'gone' });
+            expect(service).not.toBeNull();
+            if (!service) return;
+            const file = devtoolsAddressFilePath(GLib.get_user_runtime_dir(), 'org.gjsify.PeerUnexport', 'gone');
+            // Positive fact first: it really was published (a test that passes
+            // because nothing was ever written would prove nothing).
+            expect(service.addressFile).toBe(file);
+            expect(GLib.file_test(file, GLib.FileTest.EXISTS)).toBe(true);
+
+            uninstallDevtools(service);
+            expect(GLib.file_test(file, GLib.FileTest.EXISTS)).toBe(false);
+            // The socket is gone too, so the claim and the reality retract together.
+            expect(GLib.file_test(path, GLib.FileTest.EXISTS)).toBe(false);
+        });
+    });
+
+    await describe('installDevtools stays TOTAL', async () => {
+        await it('keeps the app running when the pinned address is already taken', async () => {
+            // Two apps on one pinned address is the README's headline recipe used
+            // twice ("two devtools apps from one shell"), and `Gio.DBusServer` then
+            // throws G_IO_ERROR_ADDRESS_IN_USE (measured, gjs 1.88.1). An OPT-IN
+            // diagnostic must not be able to abort the app lifecycle.
+            const path = `${GLib.get_tmp_dir()}/gjsify-devtools-collide-${GLib.random_int_range(0, 1_000_000)}.sock`;
+            const address = `unix:path=${path}`;
+            const firstApp = new Gtk.Application({ application_id: 'org.gjsify.PeerCollideA' });
+            const holder = installDevtools(firstApp, { enabled: true, address, instance: 'a' });
+            expect(holder).not.toBeNull();
+            if (!holder) return;
+            try {
+                const secondApp = new Gtk.Application({ application_id: 'org.gjsify.PeerCollideB' });
+                let second: DevtoolsService | null | undefined;
+                let windowPresented = false;
+                // Call it from a real GObject signal handler, because that is where
+                // both consumers call it (storybook's `activate`, adwaita-app's
+                // `startup`) and GJS LOGS a throw from a handler and SWALLOWS it:
+                // everything after it in the handler — `this._window.present()`,
+                // `options.onStartup?.(this)` — is silently skipped, and the app is
+                // diagnosed as "hangs with no window".
+                const startup = Gio.SimpleAction.new('startup', null);
+                startup.connect('activate', () => {
+                    second = installDevtools(secondApp, { enabled: true, address, instance: 'b' });
+                    windowPresented = true;
+                });
+                startup.activate(null);
+
+                expect(windowPresented).toBe(true);
+                expect(second).toBeNull();
+                // No address was published for the app that failed to listen: the
+                // bridge must not be handed a claim nothing is behind.
+                const orphan = devtoolsAddressFilePath(GLib.get_user_runtime_dir(), 'org.gjsify.PeerCollideB', 'b');
+                expect(GLib.file_test(orphan, GLib.FileTest.EXISTS)).toBe(false);
+
+                // And the FIRST app's control plane is untouched — the collision
+                // must never unlink a LIVE socket out from under a running app.
+                const connection = await connectPeer(address);
+                const reply = await peerCall(connection, '/org/gjsify/PeerCollideA/devtools', 'GetStatus', null, '(s)');
+                const [json] = reply.recursiveUnpack() as [string];
+                expect((JSON.parse(json) as { appId: string }).appId).toBe('org.gjsify.PeerCollideA');
+                connection.close_sync(null);
+            } finally {
+                uninstallDevtools(holder);
+            }
+        });
+
+        await it('reclaims a socket inode a killed process left behind', async () => {
+            // `stop()` unlinks the socket; an abnormal exit (Ctrl-C, SIGKILL,
+            // crash) does not. Binding over that leftover inode fails with
+            // ADDRESS_IN_USE exactly like a live server does (measured), so
+            // "Ctrl-C then restart" bricked the pinned address until someone
+            // deleted the file by hand.
+            const path = `${GLib.get_tmp_dir()}/gjsify-devtools-stale-${GLib.random_int_range(0, 1_000_000)}.sock`;
+            const orphaned = Gio.Socket.new(Gio.SocketFamily.UNIX, Gio.SocketType.STREAM, Gio.SocketProtocol.DEFAULT);
+            orphaned.bind(Gio.UnixSocketAddress.new(path), true);
+            orphaned.listen();
+            orphaned.close();
+            expect(GLib.file_test(path, GLib.FileTest.EXISTS)).toBe(true);
+
+            const app = new Gtk.Application({ application_id: 'org.gjsify.PeerStale' });
+            const service = installDevtools(app, { enabled: true, address: `unix:path=${path}`, instance: 'stale' });
+            expect(service).not.toBeNull();
+            if (!service) return;
+            try {
+                // POSITIVE proof the reclaim actually produced a working control
+                // plane at the address the operator pinned — not merely "no throw".
+                expect(service.peerAddress).toBe(`unix:path=${path}`);
+                const connection = await connectPeer(`unix:path=${path}`);
+                const reply = await peerCall(connection, '/org/gjsify/PeerStale/devtools', 'GetStatus', null, '(s)');
+                const [json] = reply.recursiveUnpack() as [string];
+                expect((JSON.parse(json) as { appId: string }).appId).toBe('org.gjsify.PeerStale');
+                connection.close_sync(null);
+            } finally {
+                uninstallDevtools(service);
+            }
+        });
+
+        await it('never deletes a non-socket file that happens to sit at the address', async () => {
+            // `GJSIFY_DEVTOOLS_ADDRESS=unix:path=<typo>` must not be a delete
+            // primitive: only a proven-dead SOCKET is reclaimable.
+            const path = `${GLib.get_tmp_dir()}/gjsify-devtools-notasocket-${GLib.random_int_range(0, 1_000_000)}`;
+            expect(GLib.file_set_contents(path, 'precious user data\n')).toBe(true);
+            try {
+                const app = new Gtk.Application({ application_id: 'org.gjsify.PeerNotASocket' });
+                const service = installDevtools(app, { enabled: true, address: `unix:path=${path}` });
+                expect(service).toBeNull();
+                const [read, contents] = GLib.file_get_contents(path);
+                expect(read).toBe(true);
+                expect(new TextDecoder().decode(contents)).toBe('precious user data\n');
+            } finally {
+                removeDevtoolsAddressFile(path);
+            }
+        });
+
+        await it('reports an unusable address family instead of throwing', async () => {
+            const app = new Gtk.Application({ application_id: 'org.gjsify.PeerBadAddress' });
+            expect(installDevtools(app, { enabled: true, address: 'not-a-dbus-address' })).toBeNull();
         });
     });
 

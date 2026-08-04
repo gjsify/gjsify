@@ -15,7 +15,7 @@ import {
 import { activateAction, changeActionState, describeActions } from './actions.js';
 import { buildDevtoolsIfaceXml } from './devtools-iface.js';
 import type { DevtoolsExtension, InstallDevtoolsOptions } from './extension.js';
-import type { DevtoolsPeerServer } from './peer-transport.js';
+import { type DevtoolsPeerServer, removeDevtoolsAddressFile } from './peer-transport.js';
 import { captureWidgetPng } from './screenshot.js';
 import { dumpCss, swapCss } from './css.js';
 import { dumpGSettings } from './gsettings.js';
@@ -77,6 +77,7 @@ export class DevtoolsService {
      */
     private readonly _exported = new Map<Gio.DBusConnection, Gio.DBusExportedObject>();
     private _peer: DevtoolsPeerServer | null = null;
+    private _addressFile: string | null = null;
     private readonly _extensions: readonly DevtoolsExtension[];
     private readonly _kinds = new Map<string, MethodKind>();
 
@@ -131,20 +132,37 @@ export class DevtoolsService {
         this._exported.clear();
         this._peer?.stop();
         this._peer = null;
+        // The published address file is a CLAIM that an app of this id is
+        // listening RIGHT NOW — the bridge ranks it above the session bus on
+        // exactly that basis. It must therefore retract in the same breath as the
+        // socket it names: `uninstallDevtools()` stops the server with no app exit
+        // involved, and `GApplication::shutdown` does not fire on Ctrl-C or
+        // SIGKILL at all, so leaving removal to shutdown alone published a dead
+        // address that outlived its socket.
+        if (this._addressFile) {
+            removeDevtoolsAddressFile(this._addressFile);
+            this._addressFile = null;
+        }
     }
 
     /**
-     * Record the peer server hosting this service, so `unexport()` closes the
-     * socket too and callers can read the address back (rather than scraping it
-     * off the app's stderr).
+     * Record the peer server hosting this service — plus the file its address was
+     * published to, if any — so `unexport()` closes the socket AND retracts the
+     * claim, and callers can read both back rather than scraping the app's stderr.
      */
-    attachPeerServer(peer: DevtoolsPeerServer): void {
+    attachPeerServer(peer: DevtoolsPeerServer, addressFile?: string | null): void {
         this._peer = peer;
+        this._addressFile = addressFile ?? null;
     }
 
     /** The peer address clients must dial, or `null` when this service is on a bus. */
     get peerAddress(): string | null {
         return this._peer?.address ?? null;
+    }
+
+    /** Where this service's peer address is published, or `null` when it is not. */
+    get addressFile(): string | null {
+        return this._addressFile;
     }
 
     // --- generic DBus methods (names match buildDevtoolsIfaceXml) ---

@@ -14,7 +14,12 @@ import {
 } from '@gjsify/devtools-protocol';
 import { DevtoolsService } from './devtools-service.js';
 import type { InstallDevtoolsOptions } from './extension.js';
-import { removeDevtoolsAddressFile, startDevtoolsPeerServer, writeDevtoolsAddressFile } from './peer-transport.js';
+import {
+    DevtoolsPeerServerError,
+    removeDevtoolsAddressFile,
+    startDevtoolsPeerServer,
+    writeDevtoolsAddressFile,
+} from './peer-transport.js';
 
 /** The variable that carries a session-bus address, if the platform has one. */
 const SESSION_BUS_ENV = 'DBUS_SESSION_BUS_ADDRESS';
@@ -139,6 +144,12 @@ export function describeMissingConnection(sessionBusAddress: string | null, busA
  * its own and publishes the address. {@link chooseDevtoolsTransport} documents
  * the precedence; `options.address` / `GJSIFY_DEVTOOLS_ADDRESS` pins it.
  *
+ * TOTAL BY CONTRACT: it never throws. Every failure — an address already in use,
+ * a stale socket that cannot be reclaimed, a malformed address — is reported on
+ * stderr with the address and the way out, and returns `null` like the disabled
+ * path. Callers wire it into `startup`/`activate` handlers whose remaining
+ * statements (`present()`, `onStartup()`) GJS would silently skip on a throw.
+ *
  * @example
  * ```ts
  * this.connect('startup', () => {
@@ -149,9 +160,49 @@ export function describeMissingConnection(sessionBusAddress: string | null, busA
 export function installDevtools(app: Gtk.Application, options: InstallDevtoolsOptions = {}): DevtoolsService | null {
     if (!(options.enabled ?? envEnabled())) return null;
     const instance = options.instance ?? envValue(DEVTOOLS_INSTANCE_ENV) ?? undefined;
-    const resolved: InstallDevtoolsOptions = { ...options, instance };
-    const service = new DevtoolsService(app, resolved);
+    const service = new DevtoolsService(app, { ...options, instance });
+    try {
+        return exportDevtools(app, service, options, instance);
+    } catch (error) {
+        // TOTALITY, and it is load-bearing. This is an OPT-IN DIAGNOSTIC that
+        // consumers call from inside a GObject handler — `@gjsify/storybook`'s
+        // `activate` (before `this._window.present()`) and `@gjsify/adwaita-app`'s
+        // `startup` (before `options.onStartup?.(this)`). GJS LOGS an exception
+        // thrown in a handler and SWALLOWS it, skipping the REST of that handler:
+        // a throw here costs the consumer its window or its entire startup hook,
+        // and is diagnosed as "my app hangs with no window". A control plane that
+        // cannot come up is a devtools problem and must never become an app
+        // problem — so fail in the LOG, with the address and the way out, and hand
+        // back `null` exactly as the disabled path does.
+        service.unexport(); // idempotent — stops a server that did come up, retracts its address file
+        console.error(
+            `[gjsify-devtools] devtools stayed OFF, the app is unaffected — ${describeInstallFailure(error)}`,
+        );
+        return null;
+    }
+}
 
+/** The failure sentence for {@link installDevtools}' log line. */
+function describeInstallFailure(error: unknown): string {
+    // A DevtoolsPeerServerError already carries the operator-facing sentence
+    // (which address, and what to do); anything else is unexpected, so it is
+    // reported verbatim rather than paraphrased into something reassuring.
+    if (error instanceof DevtoolsPeerServerError) return error.message;
+    return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * The fallible half of {@link installDevtools}, which is its only caller. Keeping
+ * every failing operation inside ONE function is what makes the wrapper's totality
+ * structural instead of a promise: a new throwing call added here is caught by
+ * construction, not by remembering to wrap it.
+ */
+function exportDevtools(
+    app: Gtk.Application,
+    service: DevtoolsService,
+    options: InstallDevtoolsOptions,
+    instance: string | undefined,
+): DevtoolsService {
     // Both getters g_return_if_fail on an UNREGISTERED application, so asking
     // before registration logs two GLib-GIO-CRITICALs and returns null anyway.
     // Reachable on purpose now: on a bus-less host installDevtools may run
@@ -193,19 +244,31 @@ export function installDevtools(app: Gtk.Application, options: InstallDevtoolsOp
         // exported object was indistinguishable from a not-installed one.
         console.log(`[gjsify-devtools] exported ${DEVTOOLS_INTERFACE} at ${objectPath} (dest ${appId})`);
     } else if (transport.kind === 'peer') {
+        // Throws a DevtoolsPeerServerError when the address cannot be listened on
+        // (in use, occupied by a non-socket, malformed). installDevtools catches it.
         const peer = startDevtoolsPeerServer(service, objectPath, transport.address ?? undefined);
-        service.attachPeerServer(peer);
         const addressFile = writeDevtoolsAddressFile(
             devtoolsAddressFilePath(GLib.get_user_runtime_dir(), appId, instance),
             peer.address,
         );
+        // The service owns both, so `unexport()` retracts the claim together with
+        // the socket it names — see DevtoolsService.unexport().
+        service.attachPeerServer(peer, addressFile);
         console.log(
             `[gjsify-devtools] exported ${DEVTOOLS_INTERFACE} at ${objectPath} ` +
                 `(peer address ${peer.address}${addressFile ? `, published to ${addressFile}` : ''})`,
         );
-        // A dead address must not stay discoverable. GApplication::shutdown is
-        // the one exit hook GJS reliably has (there is no atexit), and it fires
-        // both on quit and when the last window closes.
+        // A dead address must not stay discoverable. GApplication::shutdown is the
+        // one exit hook GJS reliably has (there is no atexit), and it fires both on
+        // quit and when the last window closes — but GApplication installs a
+        // handler for SIGTERM only, so Ctrl-C, SIGKILL and a crash all skip it, and
+        // on macOS/Windows `GLib.get_user_runtime_dir()` degrades to the user CACHE
+        // dir, where a leftover file survives reboots. Installing our own SIGINT
+        // handler is deliberately NOT the answer: it is unix-only (this transport
+        // exists for macOS and Windows), it changes an app's termination semantics
+        // from inside an opt-in diagnostic, and it still cannot cover SIGKILL. The
+        // claim is therefore VERIFIED where it is consumed — the bridge dials the
+        // published address and deletes the file when nothing answers.
         if (addressFile) app.connect('shutdown', () => removeDevtoolsAddressFile(addressFile));
     }
 

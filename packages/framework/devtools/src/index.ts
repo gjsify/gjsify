@@ -5,7 +5,12 @@ export { chooseDevtoolsTransport, installDevtools, uninstallDevtools } from './i
 export type { DevtoolsTransportChoice } from './install.js';
 export { DevtoolsService } from './devtools-service.js';
 export type { DevtoolsExtension, InstallDevtoolsOptions } from './extension.js';
-export { removeDevtoolsAddressFile, startDevtoolsPeerServer, writeDevtoolsAddressFile } from './peer-transport.js';
+export {
+    DevtoolsPeerServerError,
+    removeDevtoolsAddressFile,
+    startDevtoolsPeerServer,
+    writeDevtoolsAddressFile,
+} from './peer-transport.js';
 export type { DevtoolsPeerServer } from './peer-transport.js';
 export { captureWidgetPng } from './screenshot.js';
 export { buildVariant, variantKindFor } from './gvariant.js';
