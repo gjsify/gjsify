@@ -43,7 +43,15 @@ import {
     readTypelibMetadata,
     verifyBundleTypelibs,
 } from '../../scripts/typelib-backers.mjs';
-import { copyTreeDereferenced, findSymlinks, formatSymlinkProblems } from '../../scripts/bundle-data.mjs';
+import {
+    WIN32_WINDOWING_DATA_SETS,
+    WINDOWING_DATA_SETS,
+    copyTreeDereferenced,
+    findSymlinks,
+    formatSymlinkProblems,
+    formatWindowingDataProblems,
+    verifyWindowingData,
+} from '../../scripts/bundle-data.mjs';
 import {
     assertLicenseCoverage,
     describeBrewKegs,
@@ -568,6 +576,163 @@ test('findSymlinks reports a DANGLING link too, and an absent tree is empty', ()
     assert.equal(links.length, 1, 'a link whose target is gone is exactly the shipped failure');
     assert.match(links[0].target, /Cellar/);
     assert.deepEqual(findSymlinks(join(out, 'does-not-exist')), []);
+});
+
+// --- declared runtime data --------------------------------------------------
+// The gate that turns both builders' warn-and-continue data steps into a build failure
+// ON THE PUBLISH PATH. `dataBytes: 0` shipped in 0.27.1 precisely because a WARNING is
+// what a missing data set produced, so these cases are the rehearsal that the gate fails
+// on the bad input — one per declared set, plus the vacuous shapes.
+
+/** A complete windowing data tree, the shape both builders produce. */
+function windowingBundle({ schemas = true, icons = true, gtksource = true, iconIndex = true } = {}) {
+    const root = fixtureDir();
+    if (schemas) {
+        mkdirSync(join(root, 'share/glib-2.0/schemas'), { recursive: true });
+        writeFileSync(join(root, 'share/glib-2.0/schemas/gschemas.compiled'), 'compiled');
+    }
+    if (icons) {
+        mkdirSync(join(root, 'share/icons/Adwaita/scalable'), { recursive: true });
+        if (iconIndex) writeFileSync(join(root, 'share/icons/Adwaita/index.theme'), '[Icon Theme]');
+        writeFileSync(join(root, 'share/icons/Adwaita/scalable/open-menu-symbolic.svg'), '<svg/>');
+    }
+    if (gtksource) {
+        mkdirSync(join(root, 'share/gtksourceview-5/language-specs'), { recursive: true });
+        writeFileSync(join(root, 'share/gtksourceview-5/language-specs/language2.rng'), '<grammar/>');
+    }
+    return root;
+}
+
+const GTK_NAMESPACES = ['GLib', 'GObject', 'Gio', 'Gtk', 'Gdk', 'Adw', 'GtkSource'];
+
+test('a complete windowing bundle passes, and every set is REPORTED as applied', () => {
+    const result = verifyWindowingData({
+        bundleDir: windowingBundle(),
+        shippedNamespaces: GTK_NAMESPACES,
+    });
+    assert.deepEqual(result.problems, []);
+    assert.deepEqual(
+        result.applied.map((a) => a.id),
+        ['schemas', 'icons', 'gtksource'],
+    );
+    // Positive counts, not merely "no complaints": every applied set found real files.
+    for (const applied of result.applied) assert.ok(applied.files > 0, `${applied.id} counted no file`);
+});
+
+test('a missing declared data set FAILS — one case per set', () => {
+    for (const [absent, expected] of [
+        ['schemas', /schemas: share\/glib-2\.0\/schemas\/gschemas\.compiled is missing or empty/],
+        ['icons', /icons: nothing matches share\/icons\/\*\/index\.theme/],
+        ['gtksource', /gtksource: share\/gtksourceview-5\/ holds no non-empty file/],
+    ]) {
+        const result = verifyWindowingData({
+            bundleDir: windowingBundle({ [absent]: false }),
+            shippedNamespaces: GTK_NAMESPACES,
+        });
+        assert.ok(result.problems.length > 0, `a bundle without ${absent} must not pass`);
+        assert.match(result.problems.join('\n'), expected);
+        // The operator message must name the remedy, not just the symptom.
+        const message = formatWindowingDataProblems(result.problems, { bundleDir: 'gtk' });
+        assert.match(message, /DECLARED WINDOWING DATA IS MISSING/);
+        assert.match(message, /do NOT downgrade the step back to a warning/);
+    }
+});
+
+test('an EMPTY tree or a zero-byte file is as missing as an absent one', () => {
+    // The shape a `test -d share/icons` check passes and a consumer still cannot use:
+    // the directories exist, the bytes do not.
+    const root = windowingBundle({ schemas: false, gtksource: false });
+    mkdirSync(join(root, 'share/glib-2.0/schemas'), { recursive: true });
+    writeFileSync(join(root, 'share/glib-2.0/schemas/gschemas.compiled'), ''); // truncated
+    mkdirSync(join(root, 'share/gtksourceview-5/styles'), { recursive: true }); // empty tree
+    const result = verifyWindowingData({ bundleDir: root, shippedNamespaces: GTK_NAMESPACES });
+    assert.equal(result.problems.length, 2);
+    assert.match(result.problems.join('\n'), /gschemas\.compiled is missing or empty/);
+    assert.match(result.problems.join('\n'), /gtksourceview-5\/ holds no non-empty file/);
+});
+
+test('an icon theme with an index but NO icons fails the second half of the set', () => {
+    const root = fixtureDir('share/glib-2.0/schemas', 'share/icons/Adwaita', 'share/gtksourceview-5');
+    writeFileSync(join(root, 'share/glib-2.0/schemas/gschemas.compiled'), 'compiled');
+    writeFileSync(join(root, 'share/icons/Adwaita/index.theme'), ''); // empty index — no theme
+    writeFileSync(join(root, 'share/gtksourceview-5/language.dtd'), '<!ELEMENT x EMPTY>');
+    const result = verifyWindowingData({ bundleDir: root, shippedNamespaces: GTK_NAMESPACES });
+    assert.equal(result.problems.length, 2, 'both the index glob and the tree count must complain');
+    assert.match(result.problems.join('\n'), /nothing matches share\/icons\/\*\/index\.theme/);
+    assert.match(result.problems.join('\n'), /share\/icons\/ holds no non-empty file/);
+});
+
+test('a set is required by the NAMESPACE the bundle ships, not by a flag', () => {
+    // The display-free bundle's shape: the backer filter dropped Adw + GtkSource, so the
+    // GtkSource data set has no subject and is skipped — while the sets whose namespaces
+    // ARE shipped still apply. That is why the display-free variant needs no relaxed copy
+    // of this gate: the same rule, applied to what that bundle actually ships.
+    const result = verifyWindowingData({
+        bundleDir: windowingBundle({ gtksource: false }),
+        shippedNamespaces: ['GLib', 'GObject', 'Gio', 'Gtk', 'Gdk'],
+    });
+    assert.deepEqual(result.problems, []);
+    assert.deepEqual(
+        result.applied.map((a) => a.id),
+        ['schemas', 'icons'],
+    );
+    assert.deepEqual(result.skipped, [{ id: 'gtksource', namespace: 'GtkSource' }]);
+});
+
+test('a bundle that applies NO set at all is a failure, not a pass', () => {
+    // The vacuous shape: hand the gate a namespace list nothing matches and every check
+    // above is trivially satisfied. Same rule as verifyBundleTypelibs' "≥1 backed
+    // typelib" floor — a gate with no subject must say so.
+    const result = verifyWindowingData({
+        bundleDir: windowingBundle(),
+        shippedNamespaces: ['freetype2', 'xlib'],
+    });
+    assert.equal(result.problems.length, 1);
+    assert.match(result.problems[0], /no windowing data set applied/);
+    assert.deepEqual(result.applied, []);
+});
+
+test('win32 additionally requires the gdk-pixbuf loaders it ships', () => {
+    // The win32 builder copies the loaders + rewrites loaders.cache bundle-relative; the
+    // darwin one does not bundle them yet (tracked), so the set is win32-only and the
+    // asymmetry is in the data, not in two divergent gates.
+    const sets = [...WINDOWING_DATA_SETS, ...WIN32_WINDOWING_DATA_SETS];
+    const root = windowingBundle();
+    const withoutLoaders = verifyWindowingData({
+        bundleDir: root,
+        shippedNamespaces: [...GTK_NAMESPACES, 'GdkPixbuf'],
+        sets,
+    });
+    assert.equal(withoutLoaders.problems.length, 2, 'the cache AND the loader dir must be reported');
+    assert.match(withoutLoaders.problems.join('\n'), /loaders\.cache is missing or empty/);
+    assert.match(withoutLoaders.problems.join('\n'), /nothing matches lib\/gdk-pixbuf-2\.0\/2\.10\.0\/loaders\/\*/);
+
+    mkdirSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders'), { recursive: true });
+    writeFileSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders.cache'), '"pixbufloader-svg.dll"\n');
+    writeFileSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders/pixbufloader-svg.dll'), 'MZ');
+    const complete = verifyWindowingData({
+        bundleDir: root,
+        shippedNamespaces: [...GTK_NAMESPACES, 'GdkPixbuf'],
+        sets,
+    });
+    assert.deepEqual(complete.problems, []);
+    assert.ok(complete.applied.some((a) => a.id === 'pixbuf-loaders'));
+
+    // On darwin the same bundle passes, because that builder does not claim the loaders.
+    const darwin = verifyWindowingData({ bundleDir: windowingBundle(), shippedNamespaces: GTK_NAMESPACES });
+    assert.deepEqual(darwin.problems, []);
+});
+
+test('WINDOWING_DATA_SETS keys every set to a namespace the floor guarantees', () => {
+    // The requirement is derived from the shipped typelibs, so it can only be dodged by
+    // dropping a namespace — and these are exactly the ones typelib-backers.mjs refuses
+    // to let a --windowing bundle drop. Pinned so the two rules cannot drift apart.
+    const floor = new Set([...REQUIRED_NAMESPACES, ...WINDOWING_REQUIRED_NAMESPACES]);
+    for (const set of WINDOWING_DATA_SETS) {
+        assert.ok(floor.has(set.namespace), `${set.id} keys on ${set.namespace}, which no floor guarantees`);
+        assert.ok(set.requires.length > 0, `${set.id} declares no requirement`);
+        assert.ok(set.why && set.remedy, `${set.id} must state why it matters and how to repair it`);
+    }
 });
 
 function nativeLibraryIndexOf(names, caseInsensitive) {

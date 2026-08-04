@@ -70,7 +70,13 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { copyTreeDereferenced, findSymlinks, formatSymlinkProblems } from './bundle-data.mjs';
+import {
+    copyTreeDereferenced,
+    findSymlinks,
+    formatSymlinkProblems,
+    formatWindowingDataProblems,
+    verifyWindowingData,
+} from './bundle-data.mjs';
 import {
     assertLicenseCoverage,
     describeBrewKegs,
@@ -385,13 +391,18 @@ if (typelibPlan.dropped.length > 0) {
 // --- 4b. WINDOWING data (schemas / icons / gtksource) ---------------------
 // The runtime DATA a REAL app needs beyond the dylibs+typelibs: compiled GSettings
 // schemas (Gio.Settings — a HARD startup blocker without them), the Adwaita/hicolor
-// icon themes, and GtkSource's language-specs/styles. These are plain files (no dylib
+// icon themes, and GtkSourceView's data tree. These are plain files (no dylib
 // relocation), located at runtime via GSETTINGS_SCHEMA_DIR / XDG_DATA_DIRS (node-gi's
 // gtk-runtime.js maybeWireGtkWindowingEnv keys on the gschemas.compiled marker). Gated
 // on --windowing; the display-free bundle is byte-unchanged. NB the gdk-pixbuf image
 // LOADERS (needed to render SVG symbolic icons) are NOT bundled yet — they are dylibs
 // that need @loader_path relocation from a NESTED dir (unlike win32's plain DLL copy);
 // tracked follow-up, so symbolic icons may be blank until then.
+//
+// Each step below still WARNS when the source prefix cannot provide a set, because the
+// warning is where the cause is visible (which prefix path was missing) — but it is no
+// longer the end of the story: § 4e re-reads the finished bundle and FAILS the build for
+// every declared set that did not arrive, so a partial prefix cannot publish.
 const windowing = { schemas: false, iconThemes: [], iconFiles: 0, gtksource: false };
 if (WINDOWING) {
     const brewShare = join(brewPrefix, 'share');
@@ -422,7 +433,8 @@ if (WINDOWING) {
         );
     } else {
         console.warn(
-            `build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled (Gio.Settings will fail)`,
+            `build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled ` +
+                '(Gio.Settings will fail — § 4e will fail this build)',
         );
     }
 
@@ -454,26 +466,32 @@ if (WINDOWING) {
     console.log(
         windowing.iconThemes.length
             ? `build-gtk-runtime: icon themes ${windowing.iconThemes.join(', ')} (${windowing.iconFiles} files, dereferenced)`
-            : 'build-gtk-runtime: WARNING — no Adwaita/hicolor icon theme under share/icons',
+            : 'build-gtk-runtime: WARNING — no Adwaita/hicolor icon theme under share/icons (§ 4e will fail this build)',
     );
 
-    // 4b-c. GtkSource-5 language-specs + styles (the editor's syntax highlighting).
+    // 4b-c. GtkSourceView's data tree — the WHOLE tree, not two hand-picked subdirs.
+    // What it actually contains (measured, `gresource list` on libgtksourceview-5.0 +
+    // `ls share/gtksourceview-5`): the built-in language-specs, styles and snippets are
+    // a GRESOURCE COMPILED INTO THE LIBRARY (198 resources), so the syntax highlighting
+    // travels with the dylib and is NOT what this copies. `share/` carries the RNG/DTD
+    // schemas that validate USER-supplied .lang/.snippets files (language-specs/,
+    // styles/, snippets/) plus fonts/BuilderBlocks.ttf — 4 files on brew. The earlier
+    // version of this step copied only language-specs + styles and thereby dropped
+    // snippets/ and fonts/ silently, which is the same shape as the defect above; the
+    // tree is tiny, so the correct scope is all of it.
     const gtksourceSrc = join(brewShare, 'gtksourceview-5');
     if (existsSync(gtksourceSrc)) {
-        let copied = 0;
-        for (const sub of ['language-specs', 'styles']) {
-            const subSrc = join(gtksourceSrc, sub);
-            if (existsSync(subSrc)) {
-                copyTreeDereferenced(subSrc, join(OUT, 'share', 'gtksourceview-5', sub));
-                copied += readdirSync(subSrc).length;
-            }
-        }
-        windowing.gtksource = copied > 0;
+        const copied = copyTreeDereferenced(gtksourceSrc, join(OUT, 'share', 'gtksourceview-5'));
+        windowing.gtksource = copied.files > 0;
+        windowing.gtksourceFiles = copied.files;
         console.log(
-            `build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied} files)` : 'empty'}`,
+            `build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied.files} files)` : 'EMPTY'}`,
         );
     } else {
-        console.warn(`build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 data NOT bundled`);
+        console.warn(
+            `build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 data NOT bundled ` +
+                '(§ 4e will fail this build — `brew install gtksourceview5`)',
+        );
     }
 }
 
@@ -519,6 +537,28 @@ console.log(
         `shared_library present in lib/; ${symmetry.headerOnly.length} header-only (no library by design); ` +
         `namespaces ${requiredNamespaces.join(', ')} all present`,
 );
+
+// --- 4e. the DECLARED windowing data must BE in the finished bundle ---------
+// The data-side twin of § 4c, and the reason § 4b's steps may keep warning: a set is
+// required iff the finished bundle ships the namespace it belongs to — the namespaces
+// come from the typelib set § 4c just read off disk, not from the copy plan — so a
+// warn-and-continue prefix gap fails HERE instead of publishing a bundle whose manifest
+// advertises a runtime it does not contain. Runs only under --windowing because the
+// display-free bundle declares no data at all (see bundle-data.mjs § RULE 2).
+if (WINDOWING) {
+    const shippedNamespaces = [...symmetry.backed, ...symmetry.headerOnly].map((t) => t.namespace);
+    const data = verifyWindowingData({ bundleDir: OUT, shippedNamespaces });
+    if (data.problems.length > 0) {
+        console.error(`build-gtk-runtime: ${formatWindowingDataProblems(data.problems, { bundleDir: OUT })}`);
+        process.exit(1);
+    }
+    windowing.verified = data.applied;
+    console.log(
+        `build-gtk-runtime: windowing data verified — ${data.applied
+            .map((a) => `${a.id} (${a.files} file(s))`)
+            .join(', ')}`,
+    );
+}
 
 // --- 5. license compliance --------------------------------------------------
 // The bundle carries ~45 third-party LGPL/MPL libraries and MODIFIES them (§ 2
@@ -612,11 +652,13 @@ if (ADDON) {
 }
 
 // --- manifest + size -------------------------------------------------------
-// lstat, NOT stat: the icon themes are copied with their alias SYMLINKS intact, and
-// following them counted every alias at its target's full size — the arm64
-// --windowing manifest reported 19.4 MiB of runtime data for a share/ tree `du -sh`
-// measured as part of a 37 MiB bundle. A size the manifest reports must be the size
-// on disk.
+// lstat, NOT stat. When this was written the icon themes were copied with their alias
+// SYMLINKS intact and following them counted every alias at its target's full size — the
+// arm64 --windowing manifest reported 19.4 MiB of runtime data for a share/ tree `du -sh`
+// measured as part of a 37 MiB bundle. § 4b now dereferences, so the two agree and § 4d
+// enforces that there is no link left to follow; lstat stays because the rule it encodes
+// is the invariant, not the workaround: a size the manifest reports must be the size on
+// disk, whatever ends up under share/.
 function dirSize(dir) {
     if (!existsSync(dir)) return 0;
     let total = 0;

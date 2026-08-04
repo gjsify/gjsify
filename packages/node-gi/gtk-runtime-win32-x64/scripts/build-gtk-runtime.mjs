@@ -43,7 +43,15 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { copyTreeDereferenced, findSymlinks, formatSymlinkProblems } from '../../scripts/bundle-data.mjs';
+import {
+    WIN32_WINDOWING_DATA_SETS,
+    WINDOWING_DATA_SETS,
+    copyTreeDereferenced,
+    findSymlinks,
+    formatSymlinkProblems,
+    formatWindowingDataProblems,
+    verifyWindowingData,
+} from '../../scripts/bundle-data.mjs';
 import {
     assertLicenseCoverage,
     formatLicenseProblems,
@@ -352,10 +360,13 @@ if (typelibPlan.dropped.length > 0) {
 }
 
 // --- 4. WINDOWING data (loaders / schemas / icons / fonts) ----------------
-// Each step is independent + defensive: a missing tree/tool WARNS + continues so a
-// partial gvsbuild layout still produces the DLL+typelib bundle. The DATA marker
-// node-gi keys on is gschemas.compiled; if that step fails the loader treats the
-// bundle as display-free (no windowing env wired).
+// Each step warns where the CAUSE is visible (which prefix path was missing) and
+// continues, so one gap does not hide the others — but continuing is no longer the end
+// of the story: § 5b re-reads the finished bundle and FAILS the build for every declared
+// set that did not arrive. Warn-and-continue alone is how `"dataBytes": 0` reached npm
+// in 0.27.1. The DATA marker node-gi keys on is gschemas.compiled; a bundle without it
+// is treated as display-free by the loader, i.e. the failure is silent, which is
+// precisely why it is asserted instead of warned about.
 const windowing = { pixbufLoaders: 0, schemas: false, iconThemes: [], fontconfig: false, gtksource: false };
 if (WINDOWING) {
     // 4a. gdk-pixbuf loaders + a bundle-relative loaders.cache. The cache maps each
@@ -390,11 +401,15 @@ if (WINDOWING) {
             console.log(`build-gtk-runtime: wrote loaders.cache (${windowing.pixbufLoaders} loaders, bundle-relative)`);
         } else {
             console.warn(
-                'build-gtk-runtime: WARNING — gdk-pixbuf-query-loaders not found; loaders.cache NOT generated (SVG/PNG icons may not load)',
+                'build-gtk-runtime: WARNING — gdk-pixbuf-query-loaders not found; loaders.cache NOT generated ' +
+                    '(SVG/PNG icons would not load — § 5b will fail this build)',
             );
         }
     } else {
-        console.warn(`build-gtk-runtime: WARNING — ${gdkPixbufLoaderDir} missing; no gdk-pixbuf loaders bundled`);
+        console.warn(
+            `build-gtk-runtime: WARNING — ${gdkPixbufLoaderDir} missing; no gdk-pixbuf loaders bundled ` +
+                '(§ 5b will fail this build)',
+        );
     }
 
     // 4b. Compiled GSettings schemas (GTK/Adwaita read org.gnome.desktop.interface
@@ -423,7 +438,8 @@ if (WINDOWING) {
         );
     } else {
         console.warn(
-            `build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled (GTK settings reads will fail)`,
+            `build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled ` +
+                '(GTK settings reads would fail — § 5b will fail this build)',
         );
     }
 
@@ -449,7 +465,7 @@ if (WINDOWING) {
     console.log(
         windowing.iconThemes.length
             ? `build-gtk-runtime: icon themes ${windowing.iconThemes.join(', ')}${updateIconCache ? ' (cache refreshed)' : ' (no update-icon-cache tool — copied caches)'}`
-            : 'build-gtk-runtime: WARNING — no Adwaita/hicolor icon theme found under share/icons (symbolic icons may be blank)',
+            : 'build-gtk-runtime: WARNING — no icon theme found under share/icons (§ 5b will fail this build)',
     );
 
     // 4d. Fontconfig config + cache. GTK4-on-Windows text usually goes through the
@@ -473,32 +489,30 @@ if (WINDOWING) {
         console.log('build-gtk-runtime: no etc/fonts (pango uses the win32/DirectWrite backend) — skipping fontconfig');
     }
 
-    // 4e. GtkSource-5 runtime DATA: the syntax-highlighting language definitions
-    // (share/gtksourceview-5/language-specs/*.lang) + style schemes
-    // (share/gtksourceview-5/styles/*.xml). GtkSource's LanguageManager /
-    // StyleSchemeManager load these from XDG_DATA_DIRS/gtksourceview-5 (node-gi
-    // prepends <bundle>/share), so without them the Learn6502 editor's GtkSource.View
-    // constructs but has no built-in languages/styles. Defensive: WARN + continue if
-    // gvsbuild's layout lacks the tree (the DLL + typelib still ship, so GtkSource
-    // itself works — only the bundled highlight data is absent).
+    // 4e. GtkSourceView's data tree — the WHOLE tree, loaded from
+    // XDG_DATA_DIRS/gtksourceview-5 (node-gi prepends <bundle>/share).
+    //
+    // What it is, measured rather than assumed (`gresource list` on the library +
+    // `ls share/gtksourceview-5`): GtkSourceView 5 compiles its BUILT-IN language-specs,
+    // styles and snippets into a GResource inside the library (198 resources), so the
+    // syntax highlighting travels with the DLL and does not depend on this copy at all.
+    // `share/` carries the RNG/DTD schemas that validate USER-supplied .lang/.snippets
+    // files plus fonts/BuilderBlocks.ttf — 4 files in GTK4_Gvsbuild_2026.6.0_x64, the
+    // same shape as brew. The previous version of this step copied only language-specs +
+    // styles and so dropped snippets/ and fonts/ with no diagnostic; the tree is tiny,
+    // so all of it is the correct scope.
     const gtksourceSrc = join(PREFIX, 'share', 'gtksourceview-5');
     if (existsSync(gtksourceSrc)) {
-        const gtksourceOut = join(OUT, 'share', 'gtksourceview-5');
-        let copied = 0;
-        for (const sub of ['language-specs', 'styles']) {
-            const subSrc = join(gtksourceSrc, sub);
-            if (existsSync(subSrc)) {
-                copyTreeDereferenced(subSrc, join(gtksourceOut, sub));
-                copied += readdirSync(subSrc).length;
-            }
-        }
-        windowing.gtksource = copied > 0;
+        const copied = copyTreeDereferenced(gtksourceSrc, join(OUT, 'share', 'gtksourceview-5'));
+        windowing.gtksource = copied.files > 0;
+        windowing.gtksourceFiles = copied.files;
         console.log(
-            `build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied} language-specs/styles files)` : 'directory present but empty'}`,
+            `build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied.files} files)` : 'directory present but EMPTY'}`,
         );
     } else {
         console.warn(
-            `build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 language-specs/styles NOT bundled (the editor's built-in highlighting will be unavailable)`,
+            `build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 data NOT bundled ` +
+                '(§ 5b will fail this build — use a gvsbuild prefix that ships share/gtksourceview-5)',
         );
     }
 }
@@ -548,6 +562,32 @@ console.log(
         `shared_library present in bin/; ${symmetry.headerOnly.length} header-only (no library by design); ` +
         `namespaces ${requiredNamespaces.join(', ')} all present`,
 );
+
+// --- 5b. the DECLARED windowing data must BE in the finished bundle --------
+// The data-side twin of § 5, sharing its rule module with the darwin builder: a data set
+// is required iff the FINISHED bundle ships the namespace it belongs to (namespaces from
+// the typelib set § 5 just read off disk, not from § 4's copy plan), so § 4's warnings
+// can stay where the cause is visible while a prefix gap fails HERE. This is the win32
+// superset: WIN32_WINDOWING_DATA_SETS adds the gdk-pixbuf loaders + loaders.cache, which
+// this builder ships and the darwin one does not yet (see bundle-data.mjs).
+if (WINDOWING) {
+    const shippedNamespaces = [...symmetry.backed, ...symmetry.headerOnly].map((t) => t.namespace);
+    const data = verifyWindowingData({
+        bundleDir: OUT,
+        shippedNamespaces,
+        sets: [...WINDOWING_DATA_SETS, ...WIN32_WINDOWING_DATA_SETS],
+    });
+    if (data.problems.length > 0) {
+        console.error(`build-gtk-runtime: ${formatWindowingDataProblems(data.problems, { bundleDir: OUT })}`);
+        process.exit(1);
+    }
+    windowing.verified = data.applied;
+    console.log(
+        `build-gtk-runtime: windowing data verified — ${data.applied
+            .map((a) => `${a.id} (${a.files} file(s))`)
+            .join(', ')}`,
+    );
+}
 
 // --- 6. license compliance -------------------------------------------------
 // The bundle carries 37–41 third-party LGPL/MPL/GPL DLLs and shipped no terms at all.
@@ -600,9 +640,11 @@ console.log(
 );
 
 // --- manifest + size -------------------------------------------------------
-// lstat, NOT stat: an icon theme is copied with its alias symlinks intact and
-// following them counts every alias at its target's full size, so a stat-based total
-// reports more bytes than the bundle occupies.
+// lstat, NOT stat. § 4 dereferences every data tree and § 4f fails the build on any link
+// left under one, so on a correct build the two agree; lstat encodes the invariant rather
+// than the workaround — a size the manifest reports must be the size on disk, whatever
+// ends up under share/ (following an alias link counts it at its target's full size, and
+// that is how the darwin manifest once reported 19.4 MiB of data it did not have).
 function dirSize(dir) {
     if (!existsSync(dir)) return 0;
     let total = 0;

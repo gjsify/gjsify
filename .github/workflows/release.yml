@@ -387,8 +387,12 @@ jobs:
           echo "--- assert this is the WINDOWING superset, not the display-free variant ---"
           test -f "$B/girepository-1.0/Adw-1.typelib" || { echo "Adw-1.typelib MISSING — not the windowing bundle"; exit 1; }
           ls "$B"/lib | grep -qi adwaita || { echo "libadwaita MISSING — Adw would fail in the constructor"; exit 1; }
-          test -f "$B/share/glib-2.0/schemas/gschemas.compiled" || { echo "gschemas.compiled MISSING — Gio.Settings would fail"; exit 1; }
-          test -d "$B/share/icons" || { echo "share/icons MISSING — icon lookups would silently fail"; exit 1; }
+          # Each declared data set, asserted on BYTES rather than on a directory: a
+          # `test -d share/icons` is satisfied by a link to the build host's Homebrew
+          # Cellar, which is how 0.2 MiB of links once passed for a 22 MB icon theme.
+          test -s "$B/share/glib-2.0/schemas/gschemas.compiled" || { echo "gschemas.compiled MISSING/EMPTY — Gio.Settings would fail"; exit 1; }
+          ls "$B"/share/icons/*/index.theme >/dev/null 2>&1 || { echo "no icon theme with an index.theme — icon lookups would silently fail"; exit 1; }
+          test -n "$(find "$B/share/gtksourceview-5" -type f -size +0 2>/dev/null | head -1)" || { echo "share/gtksourceview-5 MISSING/EMPTY — the bundle ships the GtkSource namespace"; exit 1; }
           echo "--- assert the third-party terms ship with the binaries ---"
           test -s "$B/THIRD-PARTY-NOTICES.md" || { echo "THIRD-PARTY-NOTICES.md MISSING or empty"; exit 1; }
           test -d "$B/licenses" || { echo "licenses/ MISSING — relocated LGPL binaries with no terms attached"; exit 1; }
@@ -409,7 +413,15 @@ jobs:
               console.error(`manifest records no verified typelib symmetry / no license texts: ${JSON.stringify({ typelibSymmetry: m.typelibSymmetry, licenses: m.licenses })}`);
               process.exit(1);
             }
-            console.log(`bundle target ${m.platform} matches the runner; windowing superset, ${m.typelibSymmetry.backed} backed typelibs, ${m.licenses.texts} license texts`);
+            // The builder now FAILS on a missing declared data set instead of warning,
+            // and records which sets it verified; require that record, so a bundle built
+            // by an older builder (or with the gate bypassed) cannot publish.
+            const verified = m.windowingData?.verified ?? [];
+            if (!verified.length || verified.some((v) => !(v.files > 0))) {
+              console.error(`manifest records no verified windowing data sets: ${JSON.stringify(m.windowingData)}`);
+              process.exit(1);
+            }
+            console.log(`bundle target ${m.platform} matches the runner; windowing superset, ${m.typelibSymmetry.backed} backed typelibs, ${m.licenses.texts} license texts, data sets ${verified.map((v) => v.id).join('+')}`);
           '
           echo "clean — bundle populated, portable, complete + license-covered"
 
@@ -547,8 +559,18 @@ jobs:
             exit 1
           }
           Write-Host "--- assert this is the WINDOWING superset, not the display-free variant ---"
-          foreach ($p in @("girepository-1.0/Adw-1.typelib", "bin/adwaita-1-0.dll", "girepository-1.0/GtkSource-5.typelib", "share/glib-2.0/schemas/gschemas.compiled", "share/icons")) {
+          foreach ($p in @("girepository-1.0/Adw-1.typelib", "bin/adwaita-1-0.dll", "girepository-1.0/GtkSource-5.typelib", "bin/gtksourceview-5-0.dll", "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache")) {
             if (-not (Test-Path "$B/$p")) { Write-Host "$p MISSING - not the windowing bundle"; exit 1 }
+          }
+          # The data sets, asserted on BYTES: a directory that exists and is empty is the
+          # same missing signal as an absent one (and is what shipped in 0.27.1).
+          foreach ($t in @("share/glib-2.0/schemas", "share/icons", "share/gtksourceview-5")) {
+            if (-not (Get-ChildItem "$B/$t" -Recurse -File -ErrorAction SilentlyContinue | Where-Object Length -gt 0 | Select-Object -First 1)) {
+              Write-Host "$t holds no non-empty file - declared runtime data is missing"; exit 1
+            }
+          }
+          if (-not (Get-ChildItem "$B/share/icons" -Filter index.theme -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            Write-Host "no icon theme with an index.theme - icon lookups would silently fail"; exit 1
           }
           Write-Host "--- assert the third-party terms ship with the binaries ---"
           if (-not (Test-Path "$B/THIRD-PARTY-NOTICES.md")) { Write-Host "THIRD-PARTY-NOTICES.md MISSING"; exit 1 }
@@ -563,7 +585,12 @@ jobs:
               console.error(`manifest records no verified typelib symmetry / no license texts: ${JSON.stringify({ typelibSymmetry: m.typelibSymmetry, licenses: m.licenses })}`);
               process.exit(1);
             }
-            console.log(`windowing superset, ${m.typelibSymmetry.backed} backed typelibs, ${m.licenses.texts} license texts`);
+            const verified = m.windowingData?.verified ?? [];
+            if (!verified.length || verified.some((v) => !(v.files > 0))) {
+              console.error(`manifest records no verified windowing data sets: ${JSON.stringify(m.windowingData)}`);
+              process.exit(1);
+            }
+            console.log(`windowing superset, ${m.typelibSymmetry.backed} backed typelibs, ${m.licenses.texts} license texts, data sets ${verified.map((v) => v.id).join('+')}`);
           '
           Write-Host "bundle populated, complete + license-covered"
 
