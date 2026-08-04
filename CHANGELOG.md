@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.27.1](https://github.com/gjsify/gjsify/compare/v0.27.0...v0.27.1) (2026-08-04)
+
+### Features
+
+* node-free tsc emit and a tarball check ([#970](https://github.com/gjsify/gjsify/issues/970)) ([afd131b](https://github.com/gjsify/gjsify/commit/afd131bf432b16fb8331a7d0c1e45b48141a9110)), closes [#655](https://github.com/gjsify/gjsify/issues/655)
+
+### Bug Fixes
+
+* make WebGL render on darwin, not just load ([#969](https://github.com/gjsify/gjsify/issues/969)) ([137c9fa](https://github.com/gjsify/gjsify/commit/137c9fa2f2f4fce87052298c16e0693910feaa61)), closes [#version](https://github.com/gjsify/gjsify/issues/version) [#913](https://github.com/gjsify/gjsify/issues/913) [#970](https://github.com/gjsify/gjsify/issues/970) [#970](https://github.com/gjsify/gjsify/issues/970)
+* **node-gi:** accept GTypes in signal param_types ([#971](https://github.com/gjsify/gjsify/issues/971)) ([ec36fc3](https://github.com/gjsify/gjsify/commit/ec36fc3f6b8f83dc8f30da7076120937f1c5a5df)), closes [#47](https://github.com/gjsify/gjsify/issues/47)
+* **node-gi:** make the system GTK loadable on darwin ([#973](https://github.com/gjsify/gjsify/issues/973)) ([6016422](https://github.com/gjsify/gjsify/commit/601642272f90b5e5fbb23e3a238f283969e7f300)), closes [#920](https://github.com/gjsify/gjsify/issues/920)
+* **prebuilds:** render the matrix from artifacts ([#967](https://github.com/gjsify/gjsify/issues/967)) ([513c52f](https://github.com/gjsify/gjsify/commit/513c52f8d2a6ad77ec5b3d012b8a33aa586e8141)), closes [#960](https://github.com/gjsify/gjsify/issues/960) [#966](https://github.com/gjsify/gjsify/issues/966)
+
+### Documentation
+
+* **node-gi:** root-cause musl lazy-load hiding ([#972](https://github.com/gjsify/gjsify/issues/972)) ([f3a070d](https://github.com/gjsify/gjsify/commit/f3a070d52e71f4f0b9cbc330258cf747708bb7f6)), closes [#971](https://github.com/gjsify/gjsify/issues/971) [pre-#955](https://github.com/gjsify/pre-/issues/955) [#963](https://github.com/gjsify/gjsify/issues/963) [Post-#955](https://github.com/gjsify/Post-/issues/955)
+
+### Continuous Integration
+
+* stage prebuilds through the shared stager ([#968](https://github.com/gjsify/gjsify/issues/968)) ([f7b9c46](https://github.com/gjsify/gjsify/commit/f7b9c46d902046ffcbd9ba064b8e72a4017b75b1)), closes [#960](https://github.com/gjsify/gjsify/issues/960) [#960](https://github.com/gjsify/gjsify/issues/960) [#960](https://github.com/gjsify/gjsify/issues/960) [#832](https://github.com/gjsify/gjsify/issues/832)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([a032066](https://github.com/gjsify/gjsify/commit/a0320664911e6e0beb4827ade93d8ccb04b8e3c5))
+
 ## [0.27.0](https://github.com/gjsify/gjsify/compare/v0.26.1...v0.27.0) (2026-08-03)
 
 ### Features
