@@ -171,9 +171,11 @@ export default async () => {
             // when an index is selected for a connected device (W3C Gamepad,
             // § Extensions to the `Navigator` Interface + § Selecting an unused
             // gamepad index). A fresh manager has selected no index, so the
-            // conformant answer is `[]` — Firefox and WebKit both answer that; the
-            // pre-filled 4-slot array this used to assert is Chrome's shape, and it
-            // made `getGamepads().length` report four ports that do not exist.
+            // conformant answer is `[]`. Measured on the same page and machine with
+            // no controller attached: Firefox `[]` (length 0), Chromium
+            // `[null,null,null,null]` (length 4) — so the 4-slot array this used to
+            // assert is Chrome's shape, and it made `getGamepads().length` report
+            // four ports that do not exist. See `GamepadManager.getGamepads()`.
             const manager = new GamepadManager();
             expect(manager.getGamepads()).toStrictEqual([]);
         });

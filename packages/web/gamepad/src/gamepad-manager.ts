@@ -301,10 +301,19 @@ export class GamepadManager {
      * the `Navigator` Interface + § Selecting an unused gamepad index); step 6 of
      * `getGamepads()` starts from an empty list and step 7 copies `[[gamepads]]`
      * into it. So on a host where nothing has ever connected the conformant answer
-     * is `[]`, and that is what this returns. The pre-filled four-slot array this
-     * used to return is Chrome's shape, not the spec's — Firefox and WebKit both
-     * answer `[]` — and hard-coding it made `getGamepads().length` report four
-     * non-existent ports.
+     * is `[]`, and that is what this returns.
+     *
+     * The pre-filled four-slot array this used to return is CHROME's shape, not
+     * the spec's, and the difference is measured rather than assumed — same page
+     * (`about:blank`), same machine, no controller attached:
+     *
+     *     firefox  → {"length":0,"json":"[]"}
+     *     chromium → {"length":4,"json":"[null,null,null,null]"}
+     *
+     * WebKit agrees with Firefox by construction:
+     * `NavigatorGamepad::gamepads()` does `if (m_gamepads.isEmpty()) return
+     * m_gamepads;` (`Source/WebCore/Modules/gamepad/NavigatorGamepad.cpp`).
+     * Hard-coding four made `getGamepads().length` report four non-existent ports.
      *
      * ## On a host with NO gamepad backend it stays a list — do NOT make it throw
      *

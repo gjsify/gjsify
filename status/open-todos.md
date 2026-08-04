@@ -522,8 +522,11 @@ with no backend gets `[]` — the W3C steps only ever return a list (their one t
 `"gamepad"` permission-policy `SecurityError`), and a browser on a driverless machine answers
 identically: WebKit compiles `EmptyGamepadProvider::platformGamepads()` returning a static empty
 vector. Throwing would break `navigator.getGamepads().length`. The pre-filled four-slot array this
-package used to return was Chrome's shape, not the spec's (Firefox and WebKit both answer `[]`), and
-it made `length` report four ports that do not exist; it is gone.
+package used to return was CHROME's shape, and that is measured rather than assumed — one machine,
+`about:blank`, no controller attached: Firefox `[]` (length 0) vs. Chromium `[null,null,null,null]`
+(length 4). WebKit agrees with Firefox in source: `NavigatorGamepad::gamepads()` returns
+`m_gamepads` unchanged when it `isEmpty()`. The four slots made `length` report four ports that do
+not exist; they are gone.
 
 The suite is runnable on a host with NO Manette typelib, and that is checked by running it there:
 `bwrap --ro-bind / / --ro-bind <copy-of-girepository-1.0-minus-Manette> /usr/lib64/girepository-1.0
