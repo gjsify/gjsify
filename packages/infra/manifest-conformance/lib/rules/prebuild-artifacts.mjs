@@ -79,6 +79,16 @@
  * hand-written key there would be a field the generator has to learn and then
  * keep forever, for a gap whose whole point is to disappear.
  *
+ * The cost of that choice, stated rather than discovered: a ledger the CALLER
+ * injects is invisible to a portable run in someone else's tree, so while an
+ * entry stands, a consumer-side check over the published tarball of that target
+ * would report the gap the ledger defers. Accepted, because those tarballs
+ * already ship without the `.gir` today (this rule did not change what is
+ * published, only what is noticed), because the deferral is transient by
+ * construction, and because no such consumer entry point exists yet. Should
+ * `gjsify manifest-check` ship while an entry is still open, that is the moment
+ * to move the deferral into the manifest — not before.
+ *
  * The ESCAPE HATCH for the OS axis itself is `gjsify.platformsUncommitted`: a target → reason map for
  * a platform that is genuinely declared and genuinely built by CI, but whose
  * artifact this repo does not commit (today `@gjsify/napi`'s darwin-arm64,
