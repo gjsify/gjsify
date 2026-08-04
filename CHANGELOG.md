@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.28.0](https://github.com/gjsify/gjsify/compare/v0.27.1...v0.28.0) (2026-08-04)
+
+### Features
+
+* **ci:** fail a .gir deferral that cannot arrive ([8d0d628](https://github.com/gjsify/gjsify/commit/8d0d628aaa7c79647450d6b954566dc16ac280f7))
+* **devtools:** reach the control plane without a bus ([cf408a2](https://github.com/gjsify/gjsify/commit/cf408a2ed3c62227df2357fe58cf253e67e34ead))
+
+### Bug Fixes
+
+* **ci:** keep the step summary out of the verdict ([5b6a051](https://github.com/gjsify/gjsify/commit/5b6a051df3fad7e2bf83b4385770ad6962e4dfb8))
+* **ci:** make the .gir clearer idempotent ([cd5f346](https://github.com/gjsify/gjsify/commit/cd5f346655545694118111303faec1676939a617))
+* **ci:** publish scratch paths from a step ([ff4960c](https://github.com/gjsify/gjsify/commit/ff4960ca26bcb2c3505e32c69a030b177f67d7de))
+* **ci:** report every state the closure finds ([7851457](https://github.com/gjsify/gjsify/commit/785145791ff943684d3b6c439b11307643291012))
+* **ci:** snapshot only what the run changed ([8c06ae8](https://github.com/gjsify/gjsify/commit/8c06ae8d0176ec7d9b344acdd582124f6cc59133))
+* **ci:** stop rebasing over prebuild binaries ([20538bc](https://github.com/gjsify/gjsify/commit/20538bcc060d704ae19a49d523fc2432c785b9ac))
+* **ci:** treat an unanswered probe as unknown ([e2aae95](https://github.com/gjsify/gjsify/commit/e2aae95f34619082ac59749e37ce18233793b209))
+* dereference the data copy for real ([45b2bdf](https://github.com/gjsify/gjsify/commit/45b2bdfb9317ece548b9ca6a5e89f0c10a65cfa6))
+* **devtools:** keep install total, verify the address ([8f9c774](https://github.com/gjsify/gjsify/commit/8f9c774c5b987f8f0bc3fb89e9bd0667a8d0dc39))
+* fail the build on missing windowing data ([b8b0215](https://github.com/gjsify/gjsify/commit/b8b02151dd64b5b15d7768fd7786fdb35ffda90a))
+* gate changelog links on naming their target ([#975](https://github.com/gjsify/gjsify/issues/975)) ([c548435](https://github.com/gjsify/gjsify/commit/c548435c3629b333e678e23d9eb328dff9190fef)), closes [#970](https://github.com/gjsify/gjsify/issues/970) [#955](https://github.com/gjsify/gjsify/issues/955) [#809](https://github.com/gjsify/gjsify/issues/809)
+* make the GTK runtime bundles self-contained ([fdb96da](https://github.com/gjsify/gjsify/commit/fdb96da632e7094727872b6351a0f0c9294668d4))
+* ship the windowing data, not links to it ([65a3c5f](https://github.com/gjsify/gjsify/commit/65a3c5f24d36c45ac688feee8efebf6f18ff07ad))
+
+### Documentation
+
+* **ci:** drop a branch classify() never returns ([b666d0a](https://github.com/gjsify/gjsify/commit/b666d0ad2d21d27308bc56e7b357521a05c0b4eb))
+* **ci:** state the closure gate's real assertions ([2c44b1b](https://github.com/gjsify/gjsify/commit/2c44b1b4959174fcddcfb5cb8d8fcb7e78ab3b85))
+* correct the darwin directory count ([0ffb743](https://github.com/gjsify/gjsify/commit/0ffb743c0db2b3275adaa939e236bda79df70c38))
+* name the copy that actually dereferences ([08deb8f](https://github.com/gjsify/gjsify/commit/08deb8f514041fa246d8af053a4ad5b8c547c2e4))
+* record the gate-fixture class as recurring ([a719183](https://github.com/gjsify/gjsify/commit/a71918301301bf59adcd7ad25dc5ece732d3a307))
+* record the snapshot scoping in AGENTS.md ([93ec430](https://github.com/gjsify/gjsify/commit/93ec43054c798ee9da702857da07dabd37b4b1f3))
+* state the ledger's consumer-side blind spot ([f79b6d3](https://github.com/gjsify/gjsify/commit/f79b6d35d0e453977b44561d1c8e8af7b8cabb7d))
+
+### Code Refactoring
+
+* **ci:** count only edges actually resolved ([8a05f44](https://github.com/gjsify/gjsify/commit/8a05f443ab564c9a669286345921c3a7fba5c61b))
+
+### Continuous Integration
+
+* exercise the darwin bundle that actually ships ([553d93e](https://github.com/gjsify/gjsify/commit/553d93e5ba3d16217303fc970b2d9d15fd484207))
+* order the publish sweep, verify the closure ([b53b5cf](https://github.com/gjsify/gjsify/commit/b53b5cf7d68fc8f7562b5e1411e8d423f37db21a))
+
+### Maintenance
+
+* **cli:** take CI's rebuilt cli bundle ([80c579a](https://github.com/gjsify/gjsify/commit/80c579ae1976d2f24306786c0fff865d914cddf5))
+* update native prebuilds [skip ci] ([839c758](https://github.com/gjsify/gjsify/commit/839c75848443333e2c239786a10ce1975c93aa48))
+
+### Tests
+
+* **ci:** pin --topological to its own sweep ([675ef75](https://github.com/gjsify/gjsify/commit/675ef75516d6abae11cd8219f631df1da59e174e))
+* **ci:** seed the .gir ledger gate from a fixture ([80a30d0](https://github.com/gjsify/gjsify/commit/80a30d0b6655a0ad889f1ce38d25e9b144825910))
+* **e2e:** make the propagation case count-driven ([bec15dd](https://github.com/gjsify/gjsify/commit/bec15dd9215ebc16d6850723c8e3a226fb151a0a))
+
 ## [0.27.1](https://github.com/gjsify/gjsify/compare/v0.27.0...v0.27.1) (2026-08-04)
 
 ### Features

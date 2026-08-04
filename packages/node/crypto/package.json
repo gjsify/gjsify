@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/crypto",
-    "version": "0.27.1",
+    "version": "0.28.0",
     "description": "Node.js crypto module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
