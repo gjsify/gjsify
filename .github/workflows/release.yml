@@ -1341,3 +1341,65 @@ jobs:
         run: |
           PATH="$PWD/node_modules/.bin:$PATH" gjsify publish packages/napi/napi \
             --tolerate-republish --tag latest --access public
+
+  # The LAST word on a release: is what npm now serves internally consistent?
+  #
+  # Every publish job above is fail-fast, and that is correct — but a publish
+  # sweep has no transaction. An abort mid-sweep leaves a PREFIX of the tree
+  # live, and pack time has already rewritten every `workspace:*` to the exact
+  # released version, so a bridge that landed before its platform children pins
+  # siblings that do not exist. npm skips an unresolvable `optionalDependency` in
+  # SILENCE (a platform mismatch is not an error, and neither is a missing
+  # version), so that install SUCCEEDS and hands the consumer the new JS bridge
+  # with no typelib and no dylib behind it — strictly worse than the previous
+  # version's error state, and until this job nothing looked.
+  #
+  # Prevention lives in the sweep's ORDER (`npm:publish` runs `gjsify foreach
+  # --topological`, whose graph counts `optionalDependencies`, so any prefix is
+  # resolvable; `publish-napi` has published children-first by hand since ADR
+  # 0017). This job is the DETECTION half. Detection alone would only shorten
+  # the window, which is why the two shipped together.
+  #
+  # `needs` every publishing job, so the check sees the whole release including
+  # the three that run after the ubuntu sweep. `!cancelled()` rather than a plain
+  # dependency: when a publish job FAILS is exactly when the state of npm is
+  # worth reporting, and the re-run is then a deliberate act rather than a guess.
+  # `--tolerate-republish` makes that re-run the recovery path — it no-ops for
+  # every package that already landed and publishes the rest.
+  #
+  # No install, no build: the script reads manifests + the registry with plain
+  # Node, so it cannot be staled by the committed CLI bundle and it still runs
+  # when the release that would have installed the tree is what failed.
+  verify-release-closure:
+    name: Verify the published dependency closure
+    needs:
+      - publish
+      - publish-gtk-runtime-darwin
+      - publish-gtk-runtime-win32-x64
+      - publish-node-gi
+      - publish-napi
+    if: ${{ !cancelled() && (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '26.x'
+
+      # Asserts POSITIVE facts, not merely the absence of findings: at least one
+      # package LIVE at the released version; the tree DECLARING at least one
+      # release-pinned intra-repo edge (a manifest property, so it stays true
+      # after any refactor of the enumeration); on a complete release at least
+      # one edge actually EXAMINED; and every examined edge resolving. An empty
+      # result FAILS — a check that verified nothing must not report a pass. See
+      # the script header for what it deliberately does NOT fail on, and why.
+      - name: Assert every pinned dependency of every published package resolves
+        run: node scripts/verify-published-closure.mjs

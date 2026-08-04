@@ -1,0 +1,568 @@
+// E2E for `scripts/verify-published-closure.mjs` — the post-release assertion
+// that what npm now serves is internally consistent.
+//
+// The guard's whole reason for existing is that a partial publish sweep can be
+// WORSE than no publish: pack time rewrites `workspace:*` to the exact released
+// version, and npm skips an unresolvable `optionalDependency` in silence, so a
+// bridge published before its platform children installs cleanly with no binary
+// behind it. This suite drives the script against a LOCAL fake registry so both
+// halves are exercised for real: the finding, and — the part that matters more —
+// the refusal to report success when the check examined nothing.
+//
+// The fake registry is a plain http server serving abbreviated packuments
+// (`{name, versions}`), which is exactly what the script asks npm for. Its
+// contents are a mutable per-case map, so "published" and "never published" are
+// the same code path with different data.
+
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+import { fileURLToPath } from 'node:url';
+
+const SCRIPT = fileURLToPath(new URL('../../../scripts/verify-published-closure.mjs', import.meta.url));
+const VERSION = '1.2.3';
+
+function runScript(args, { timeoutMs = 30_000, env: extraEnv } = {}) {
+    // GITHUB_STEP_SUMMARY is stripped unless a case sets it deliberately. A
+    // suite must not append to the enclosing job's summary — and inheriting it
+    // is how the real defect surfaced: under the ci-fedora container that file
+    // belongs to the runner user, the child EACCES'd on it, and four fixtures
+    // that had verified their closure perfectly went red on a reporting write.
+    //
+    // GITHUB_ACTIONS goes the same way, for the same reason one level up: under
+    // it the script emits `::error::` / `::warning::` workflow commands, so the
+    // NEGATIVE cases below — every one of which is a pass when it fails — would
+    // decorate the enclosing job with a dozen red annotations about fixtures.
+    // Stripping it also makes the message prefixes deterministic locally and in
+    // CI. The one case that asserts the annotation sets it deliberately.
+    const env = { ...process.env, ...extraEnv };
+    if (!extraEnv || !('GITHUB_STEP_SUMMARY' in extraEnv)) delete env.GITHUB_STEP_SUMMARY;
+    if (!extraEnv || !('GITHUB_ACTIONS' in extraEnv)) delete env.GITHUB_ACTIONS;
+    return new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [SCRIPT, ...args], { stdio: ['ignore', 'pipe', 'pipe'], env });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.setEncoding('utf-8');
+        child.stderr.setEncoding('utf-8');
+        child.stdout.on('data', (c) => {
+            stdout += c;
+        });
+        child.stderr.on('data', (c) => {
+            stderr += c;
+        });
+        const kill = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
+        child.on('close', (code) => {
+            clearTimeout(kill);
+            resolve({ status: code, stdout, stderr, out: stdout + stderr });
+        });
+        child.on('error', (e) => {
+            clearTimeout(kill);
+            reject(e);
+        });
+    });
+}
+
+/**
+ * Write a fixture monorepo.
+ *
+ * @param root Directory to write into.
+ * @param pkgs `{ name, version?, private?, deps?, optionalDeps? }[]`
+ */
+function writeTree(root, pkgs) {
+    writeFileSync(
+        join(root, 'package.json'),
+        `${JSON.stringify({ name: 'closure-fixture', version: VERSION, private: true, workspaces: ['packages/*'] }, null, 2)}\n`,
+    );
+    for (const p of pkgs) {
+        const dir = join(root, 'packages', p.name.replace(/^@[^/]+\//, ''));
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(
+            join(dir, 'package.json'),
+            `${JSON.stringify(
+                {
+                    name: p.name,
+                    version: p.version ?? VERSION,
+                    ...(p.private ? { private: true } : {}),
+                    ...(p.deps ? { dependencies: p.deps } : {}),
+                    ...(p.optionalDeps ? { optionalDependencies: p.optionalDeps } : {}),
+                },
+                null,
+                2,
+            )}\n`,
+        );
+    }
+}
+
+describe('verify-published-closure (post-release registry assertion)', { timeout: 120_000 }, () => {
+    let server, registryUrl, tmp;
+    /** name → string[] of published versions. Missing name = 404. */
+    let published = new Map();
+    /** name → number of packument requests served (for the retry case). */
+    let hits = new Map();
+    /** Names the registry answers 5xx for — "we do not know", not "absent". */
+    let broken = new Set();
+    /**
+     * name → the request number from which the version becomes visible. Models
+     * CDN propagation by REQUEST COUNT rather than by a timer: a wall-clock
+     * fixture would race child-process startup on a loaded runner and flake in
+     * both directions (revealing too early → no retry to assert; too late →
+     * attempts exhausted).
+     */
+    let revealAfter = new Map();
+
+    before(async () => {
+        tmp = mkdtempSync(join(tmpdir(), 'gjsify-e2e-closure-'));
+        server = createServer((req, res) => {
+            const name = decodeURIComponent((req.url ?? '/').replace(/^\//, '').split('?')[0]);
+            hits.set(name, (hits.get(name) ?? 0) + 1);
+            if (broken.has(name)) {
+                res.writeHead(503, { 'content-type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Service Unavailable' }));
+                return;
+            }
+            const hidden = revealAfter.has(name) && hits.get(name) < revealAfter.get(name);
+            const versions = hidden ? undefined : published.get(name);
+            if (!versions) {
+                res.writeHead(404, { 'content-type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Not found' }));
+                return;
+            }
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(
+                JSON.stringify({ name, versions: Object.fromEntries(versions.map((v) => [v, { name, version: v }])) }),
+            );
+        });
+        await new Promise((r) => server.listen(0, '127.0.0.1', r));
+        registryUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        if (server) await new Promise((r) => server.close(r));
+        if (tmp) rmSync(tmp, { recursive: true, force: true });
+    });
+
+    const fixture = (label, pkgs) => {
+        const root = join(tmp, label);
+        mkdirSync(root, { recursive: true });
+        writeTree(root, pkgs);
+        return root;
+    };
+
+    // A bridge + two platform children (`workspace:*`, i.e. exact-pinned at pack
+    // time) + an ordinary library dep — the shape of every split native bridge.
+    const splitBridge = [
+        { name: '@fix/util' },
+        {
+            name: '@fix/bridge',
+            deps: { '@fix/util': 'workspace:^' },
+            optionalDeps: { '@fix/bridge-linux-x64': 'workspace:*', '@fix/bridge-darwin-arm64': 'workspace:*' },
+        },
+        { name: '@fix/bridge-linux-x64' },
+        { name: '@fix/bridge-darwin-arm64' },
+    ];
+
+    it('a COMPLETE release passes and reports positive counts', async () => {
+        const root = fixture('complete', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.equal(r.status, 0, `expected a clean pass:\n${r.out}`);
+        assert.match(r.stdout, /live on the registry at 1\.2\.3:\s+4/);
+        // 2 optionalDependencies + 1 dependencies = 3 pinned edges examined.
+        assert.match(
+            r.stdout,
+            /release-pinned intra-repo edges examined:\s+3 \(2 optionalDependencies, 1 dependencies\)/,
+        );
+        assert.match(r.stdout, /Every one of 3 release-pinned dependency edge\(s\)/);
+    });
+
+    it('an unwritable step summary cannot change the verdict', async () => {
+        // The report is a courtesy; `problems` is the verdict. The write happens
+        // AFTER the closure is computed and BEFORE the exit, so a throw there
+        // turned "every edge resolves" into exit 1 — a reporting side-channel
+        // fabricating a finding, which is the same class of defect as everything
+        // else this guard exists to remove. Both directions are pinned: a clean
+        // tree must still exit 0, and the missing summary must be SAID.
+        const root = fixture('summary-unwritable', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1'], {
+            // A directory that does not exist → ENOENT on append, deterministically
+            // and without needing a permission-restricted path.
+            env: { GITHUB_STEP_SUMMARY: join(tmp, 'no-such-dir', 'summary.md') },
+        });
+        assert.equal(r.status, 0, `a failed summary write must not change the verdict:\n${r.out}`);
+        assert.match(r.out, /WARNING: could not write the GitHub step summary/);
+        assert.match(r.out, /The verdict below is unaffected/);
+        assert.match(r.stdout, /Every one of 3 release-pinned dependency edge\(s\)/);
+    });
+
+    it('the step summary IS written when the path is usable', async () => {
+        const root = fixture('summary-ok', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        const summary = join(root, 'summary.md');
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1'], {
+            env: { GITHUB_STEP_SUMMARY: summary },
+        });
+        assert.equal(r.status, 0, `expected a clean pass:\n${r.out}`);
+        // Tolerating a write failure must not become tolerating never writing.
+        const written = readFileSync(summary, 'utf8');
+        assert.match(written, /## Published dependency closure/);
+        assert.match(written, /\| Pinned edges examined \| 3 \|/);
+        // The verdict in words, so the table cannot be misread by someone who
+        // does not know which of those counts is supposed to be zero.
+        assert.match(written, /\| Verdict \| \*\*OK\*\* — all 3 examined edge\(s\) resolve \|/);
+        assert.doesNotMatch(r.out, /WARNING: could not write/);
+    });
+
+    it('"nothing was examined" reaches the SUMMARY, not just stdout', async () => {
+        // THE REGRESSION THIS CASE EXISTS FOR. With ordering plus fail-fast, "a
+        // prefix published, no live pinned parent" is the TYPICAL abort — so this
+        // is what a human reads in the release UI during the most likely partial
+        // release. The honest sentence used to go to stdout ONLY: the rendered
+        // summary said `Pinned edges examined | 0` / `Unresolvable edges | 0`
+        // with no alert, under a green check, which is a missing signal reading
+        // as a pass — the exact class this whole guard exists to remove,
+        // recurring inside the guard. Any state the script thinks is worth
+        // saying must be visible in the artifact a human actually opens.
+        const root = fixture('prefix-summary', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        const summary = join(root, 'summary.md');
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1'], {
+            // GITHUB_ACTIONS on purpose: the annotation is the one channel that
+            // survives an unwritable summary, and it renders NEXT TO the green
+            // check rather than behind it.
+            env: { GITHUB_STEP_SUMMARY: summary, GITHUB_ACTIONS: 'true' },
+        });
+        assert.equal(r.status, 0, `an aborted-but-ordered sweep must stay green:\n${r.out}`);
+        const written = readFileSync(summary, 'utf8');
+        assert.match(written, /> \[!WARNING\]\n> NO edge was examined/);
+        assert.match(written, /\| Verdict \| \*\*NOTHING VERIFIED\*\* — no edge was examined/);
+        // The alert must be ABOVE the table: a reader who stops at the first
+        // numbers has already been told.
+        assert.ok(
+            written.indexOf('[!WARNING]') < written.indexOf('| Fact | Value |'),
+            `the alert must precede the table:\n${written}`,
+        );
+        assert.doesNotMatch(written, /Every one of/);
+        assert.match(r.stdout, /::warning title=Release closure::NO edge was examined/);
+    });
+
+    it('a bridge published WITHOUT one platform child FAILS and names it', async () => {
+        // The measured hazard: parent live, exact-pinned optional child absent.
+        // npm would install this in silence.
+        const root = fixture('missing-child', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.notEqual(r.status, 0, `a dangling optionalDependency must fail:\n${r.out}`);
+        assert.match(
+            r.out,
+            /UNRESOLVABLE: @fix\/bridge@1\.2\.3 → optionalDependencies\.@fix\/bridge-darwin-arm64@1\.2\.3/,
+        );
+        assert.match(r.out, /skips an unresolvable optionalDependency in SILENCE/);
+        assert.match(r.out, /--tolerate-republish/);
+        // The intact sibling must NOT be reported — a guard that names everything
+        // names nothing.
+        assert.doesNotMatch(r.out, /UNRESOLVABLE: .*bridge-linux-x64/);
+    });
+
+    it('a missing package with NO published dependent is not a violation', async () => {
+        // Prevention's promise: any PREFIX of a dependency-ordered sweep is
+        // resolvable. Children landed, the bridge did not — nothing on npm points
+        // at anything absent, so this must stay green or the guard would red-line
+        // every legitimately aborted sweep.
+        const root = fixture('prefix', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.equal(r.status, 0, `an aborted-but-ordered sweep must stay green:\n${r.out}`);
+        assert.match(r.stdout, /absent at 1\.2\.3 \(1\): @fix\/bridge/);
+        // …and it must not READ as a verified closure: nothing was examined.
+        assert.match(r.stdout, /NO edge was examined/);
+        assert.doesNotMatch(r.stdout, /Every one of/);
+    });
+
+    it('a release that published NOTHING fails instead of passing empty', async () => {
+        // The whole lesson: zero verified packages is zero evidence. An exit 0
+        // here would read as "the closure is fine".
+        const root = fixture('nothing', splitBridge);
+        published = new Map([['@fix/util', ['0.0.1']]]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.notEqual(r.status, 0, `an empty result must not exit 0:\n${r.out}`);
+        assert.match(r.out, /this release published\s+NOTHING/);
+        assert.match(r.out, /must not report success/);
+    });
+
+    it('a tree that declares NO pinned edge fails, however green the registry', async () => {
+        // The edge enumeration is the load-bearing half, and its emptiness is a
+        // property of the MANIFESTS — so it stays a failure even when every
+        // package published perfectly. If a refactor ever stops the enumeration
+        // seeing the platform-sibling edges, every future release would otherwise
+        // pass on an empty set and look checked.
+        const root = fixture('no-edges', [{ name: '@fix/alone' }, { name: '@fix/lonely' }]);
+        published = new Map([
+            ['@fix/alone', [VERSION]],
+            ['@fix/lonely', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.notEqual(r.status, 0, `no subject matter must not exit 0:\n${r.out}`);
+        assert.match(r.out, /declares NO release-pinned intra-repo dependency at all/);
+        // …and ONLY that. The examination-filter assertion also fired here, since
+        // 0 declared edges and 0 examined satisfied it — announcing "those three
+        // facts cannot all be true" about the one arrangement in which they can,
+        // and sending the next reader after a bug that does not exist. A guard
+        // whose second sentence is false costs the attention its first one asked
+        // for.
+        assert.doesNotMatch(r.out, /the examination filter is broken/);
+        assert.equal(r.stderr.match(/^ERROR: /gm)?.length, 1, `exactly one problem should be reported here:\n${r.out}`);
+    });
+
+    it('an UNANSWERED probe is "unknown", never reported as missing', async () => {
+        // A 5xx/timeout on one platform package must not be laundered into a
+        // fabricated "never published" verdict on a release that is intact. The
+        // three probe states are distinct: live, confirmed-absent (404), unknown.
+        // The job still fails — no evidence is not a pass — but for the right
+        // reason, and without naming a package that may be perfectly fine.
+        const root = fixture('probe-error', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        broken = new Set(['@fix/bridge-darwin-arm64']);
+        try {
+            const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+            assert.notEqual(r.status, 0, `an unanswered probe is not evidence of a pass:\n${r.out}`);
+            assert.match(r.out, /probe failed: @fix\/bridge-darwin-arm64 — Error: 503/);
+            assert.match(r.out, /never produced an answer/);
+            // The bug this case pins: `!isLive(target)` would have called it a
+            // dangling optionalDependency.
+            assert.doesNotMatch(r.out, /UNRESOLVABLE/);
+            assert.doesNotMatch(r.out, /absent at 1\.2\.3/);
+        } finally {
+            broken = new Set();
+        }
+    });
+
+    it('a spec shape it cannot decide FAILS rather than skipping quietly', async () => {
+        const root = fixture('unclassified', [
+            { name: '@fix/util' },
+            { name: '@fix/app', deps: { '@fix/util': '>=0.0.1 <9' } },
+        ]);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/app', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.notEqual(r.status, 0, `an undecidable spec must not be a silent skip:\n${r.out}`);
+        assert.match(r.out, /UNDECIDABLE EDGE: @fix\/app@1\.2\.3 → dependencies\.@fix\/util = ">=0\.0\.1 <9"/);
+        assert.match(r.out, /not the release version 1\.2\.3/);
+    });
+
+    // ── the enumeration may drop EXACTLY ONE shape ───────────────────────────
+    // A target that is not a package of this repository at all. Everything else
+    // in-repo is decided, and an undecidable edge FAILS with the target named.
+    // The two cases below are the shapes a `!candidateByName.has(to)` skip used
+    // to swallow — measured, both exiting 0 on "Every one of 1 release-pinned
+    // dependency edge(s) across 2 published package(s) resolves". Each fixture
+    // carries a LEGITIMATE pinned edge (`@fix/util`) alongside the bad one, so
+    // the tree-declares-no-edge assertion cannot be what fails and mask the
+    // finding — that is precisely how the drop stayed invisible.
+
+    it('an in-repo target left on a DIFFERENT version fails, and is named', async () => {
+        // In-repo version skew behind a LITERAL exact pin — how `@gjsify/napi`
+        // spells its two platform edges, so this is the shape most at risk. The
+        // parent pins the release version of a sibling whose own manifest is a
+        // patch behind, so nothing will ever publish that sibling at the pinned
+        // version. Decided from the MANIFESTS, with no probe involved: it fails
+        // the same way on a complete release, a partial one, and a dry tree.
+        const root = fixture('version-skew', [
+            { name: '@fix/util' },
+            {
+                name: '@fix/napi',
+                deps: { '@fix/util': 'workspace:^' },
+                optionalDeps: { '@fix/napi-darwin-arm64': VERSION },
+            },
+            { name: '@fix/napi-darwin-arm64', version: '1.2.2' },
+        ]);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/napi', [VERSION]],
+            ['@fix/napi-darwin-arm64', ['1.2.2']],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.notEqual(r.status, 0, `a pin at a version nothing will publish must fail:\n${r.out}`);
+        assert.match(
+            r.out,
+            /UNDECIDABLE EDGE: @fix\/napi@1\.2\.3 → optionalDependencies\.@fix\/napi-darwin-arm64 = "1\.2\.3"/,
+        );
+        assert.match(r.out, /own manifest is at 1\.2\.2/);
+        // It must not read as a verified closure just because the OTHER edge did.
+        assert.doesNotMatch(r.out, /Every one of/);
+    });
+
+    it('a published package pinning a `private` sibling fails, and is named', async () => {
+        // `resolveWorkspaceProtocol` rewrites `workspace:^` to the target's
+        // version whether or not the target is publishable, so this pin is dead
+        // on arrival — npm resolves the NAME against the public registry, where
+        // it is either absent or somebody else's package. This shape had NO
+        // mitigation anywhere else in the repo.
+        const root = fixture('private-target', [
+            { name: '@fix/util' },
+            { name: '@fix/secret', private: true },
+            { name: '@fix/app', deps: { '@fix/util': 'workspace:^', '@fix/secret': 'workspace:^' } },
+        ]);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/app', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.notEqual(r.status, 0, `a pin on a package no release publishes must fail:\n${r.out}`);
+        assert.match(r.out, /UNDECIDABLE EDGE: @fix\/app@1\.2\.3 → dependencies\.@fix\/secret = "workspace:\^"/);
+        assert.match(r.out, /the target is a `private` package/);
+        assert.doesNotMatch(r.out, /Every one of/);
+    });
+
+    it('an edge into a package outside this repo is the one legitimate drop', async () => {
+        // The counterweight to the two cases above: widening the enumeration must
+        // not turn every external dependency into a finding. `left-pad` is not
+        // this release's to publish or pin, so it is the registry's problem.
+        const root = fixture('external', [
+            { name: '@fix/util' },
+            { name: '@fix/app', deps: { '@fix/util': 'workspace:^', 'left-pad': '^1.3.0' } },
+        ]);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/app', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.equal(r.status, 0, `an external dependency must not be a finding:\n${r.out}`);
+        assert.doesNotMatch(r.out, /left-pad/);
+        assert.match(r.stdout, /Every one of 1 release-pinned dependency edge\(s\)/);
+    });
+
+    it('a registry that has not propagated yet is retried, not failed', async () => {
+        // npm's CDN can answer with a packument minted before the publish. A false
+        // red at release time costs a manual re-run of a workflow that did its job,
+        // so absence is re-queried before it becomes a verdict.
+        const root = fixture('propagation', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        hits = new Map();
+        // Published, but the registry hides it until the SECOND request for that
+        // name — so round 1 must 404 and round 2 must find it, deterministically.
+        revealAfter = new Map([['@fix/bridge-darwin-arm64', 2]]);
+        try {
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '4',
+                '--retry-delay-ms',
+                '50',
+            ]);
+            assert.equal(r.status, 0, `a late-propagating version must pass on a later round:\n${r.out}`);
+            assert.match(r.stdout, /round 2\/4 — re-querying 1 unresolved name\(s\)/);
+            // Only the ABSENT name is re-queried; a present version never becomes
+            // absent, so re-asking for it would be wasted round trips.
+            assert.equal(hits.get('@fix/bridge'), 1, 'a package already found live must not be re-queried');
+            assert.equal(hits.get('@fix/bridge-darwin-arm64'), 2, 'the absent name must be re-queried exactly once');
+        } finally {
+            revealAfter = new Map();
+        }
+    });
+
+    it('private packages are out of scope entirely', async () => {
+        const root = fixture('private', [
+            { name: '@fix/util' },
+            { name: '@fix/secret', private: true, optionalDeps: { '@fix/util': 'workspace:*' } },
+            { name: '@fix/app', deps: { '@fix/util': 'workspace:^' } },
+        ]);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/app', [VERSION]],
+        ]);
+        const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.equal(r.status, 0, `a private package is never published, so it has no closure:\n${r.out}`);
+        assert.match(r.stdout, /candidate packages \(non-private, on the train\): 2/);
+    });
+
+    // ── the PREVENTION half, asserted where it can regress ──────────────────
+    // Detection is post-hoc: it can only report a window that already opened.
+    // The sweep's dependency-ordered publish is what keeps the window shut, and
+    // it is one flag in one script — so assert the flag is still there. Without
+    // this, dropping it would be invisible until a release aborted in exactly
+    // the wrong place.
+    it('the npm:publish sweep publishes in dependency order', () => {
+        const rootManifest = JSON.parse(
+            readFileSync(fileURLToPath(new URL('../../../package.json', import.meta.url)), 'utf8'),
+        );
+        const script = rootManifest.scripts['npm:publish'];
+        assert.ok(script, 'root package.json must declare npm:publish');
+
+        // The flag has to belong to `gjsify foreach`, NOT to the command it
+        // execs. Matching it anywhere in the segment also accepted
+        // `--exec -- gjsify publish --topological`, where `gjsify publish` has no
+        // such flag and the sweep is UNORDERED — the assertion would have been
+        // green over the exact hazard it exists to pin. So split each segment at
+        // its `--exec`: group 1 is foreach's own argv, group 2 the execed
+        // command. `[^&|]` keeps a segment from spilling across a `&&`.
+        const SWEEP = /gjsify foreach\b((?:(?!--exec\b)[^&|])*)--exec\b([^&|]*)/g;
+        const ORDER_FLAG = /(?:^|\s)(?:--topological\b|-[a-zA-Z]*t[a-zA-Z]*\b)/; // --topological | -t | a cluster like -vt
+        const sweeps = [...script.matchAll(SWEEP)].filter(([, , execed]) => /\bgjsify publish\b/.test(execed));
+        // Not "no sweep, nothing to check": an assertion that cannot locate its
+        // subject has verified nothing, and passing there is the failure mode
+        // this whole PR is about. If the publish sweep is respelled, this test
+        // gets updated deliberately.
+        assert.ok(
+            sweeps.length > 0,
+            'this test could not find a `gjsify foreach … --exec … gjsify publish …` sweep in npm:publish, so it ' +
+                `verified NOTHING about publish order. Update it to match the new shape. Got: ${script}`,
+        );
+        for (const [, foreachArgv] of sweeps) {
+            assert.match(
+                foreachArgv,
+                ORDER_FLAG,
+                'the `gjsify foreach` publish sweep must carry --topological in its OWN arguments: the graph counts ' +
+                    'optionalDependencies, so every platform child precedes its bridge and any prefix of an aborted ' +
+                    'sweep is still a resolvable tree. Unordered, a fail-fast abort can publish a bridge pinning ' +
+                    `siblings that do not exist. Got: ${script}`,
+            );
+        }
+    });
+});
