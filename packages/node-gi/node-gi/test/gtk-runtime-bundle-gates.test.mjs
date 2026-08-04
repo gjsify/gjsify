@@ -21,7 +21,16 @@
 // typelib is NOT the fix — that would break Pango, and with it Gdk/Gsk/Gtk.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+    cpSync,
+    existsSync,
+    lstatSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    symlinkSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -34,7 +43,7 @@ import {
     readTypelibMetadata,
     verifyBundleTypelibs,
 } from '../../scripts/typelib-backers.mjs';
-import { findSymlinks, formatSymlinkProblems } from '../../scripts/bundle-data.mjs';
+import { copyTreeDereferenced, findSymlinks, formatSymlinkProblems } from '../../scripts/bundle-data.mjs';
 import {
     assertLicenseCoverage,
     describeBrewKegs,
@@ -512,6 +521,44 @@ test('a data tree copied WITHOUT dereference is caught as non-portable', () => {
     const good = fixtureDir('share/icons/Adwaita/scalable');
     writeFileSync(join(good, 'share', 'icons', 'Adwaita', 'scalable', 'icon.svg'), '<svg/>');
     assert.deepEqual(findSymlinks(join(good, 'share')), []);
+});
+
+test("cpSync's `dereference: true` does NOT dereference nested links — the trap", () => {
+    // This is the measured reason the first fix attempt failed in CI: the flag governs
+    // only the stat of the path handed to cpSync, so `share/icons/Adwaita/**` came out
+    // as 859 links into the Cellar even WITH dereference:true. Pinned as a test because
+    // the flag's name says otherwise and the next reader will reach for it again.
+    const outside = fixtureDir('theme');
+    writeFileSync(join(outside, 'theme', 'icon.svg'), '<svg/>');
+    const src = fixtureDir('tree/sub');
+    writeFileSync(join(src, 'tree', 'sub', 'plain.svg'), '<svg/>');
+    symlinkSync(join(outside, 'theme', 'icon.svg'), join(src, 'tree', 'sub', 'alias.svg'));
+
+    const viaCpSync = join(fixtureDir(), 'out');
+    cpSync(join(src, 'tree'), viaCpSync, { recursive: true, dereference: true });
+    assert.equal(findSymlinks(viaCpSync).length, 1, 'cpSync leaves the nested link a link');
+
+    const viaWalk = join(fixtureDir(), 'out');
+    const stats = copyTreeDereferenced(join(src, 'tree'), viaWalk);
+    assert.deepEqual(findSymlinks(viaWalk), [], 'copyTreeDereferenced leaves no link behind');
+    assert.equal(stats.files, 2);
+    assert.equal(stats.dereferenced, 1);
+    assert.deepEqual(stats.dangling, []);
+    assert.ok(!lstatSync(join(viaWalk, 'sub', 'alias.svg')).isSymbolicLink());
+});
+
+test('copyTreeDereferenced skips a dangling source link and reports it', () => {
+    // A broken alias in someone else's icon theme must not fail the build, and must not
+    // be shipped as a link that resolves nowhere either.
+    const src = fixtureDir('tree');
+    writeFileSync(join(src, 'tree', 'real.svg'), '<svg/>');
+    symlinkSync('/nonexistent/gone.svg', join(src, 'tree', 'broken.svg'));
+    const out = join(fixtureDir(), 'out');
+    const stats = copyTreeDereferenced(join(src, 'tree'), out);
+    assert.equal(stats.files, 1);
+    assert.equal(stats.dangling.length, 1);
+    assert.deepEqual(findSymlinks(out), [], 'nothing unresolvable was copied');
+    assert.deepEqual(readdirSync(out), ['real.svg']);
 });
 
 test('findSymlinks reports a DANGLING link too, and an absent tree is empty', () => {

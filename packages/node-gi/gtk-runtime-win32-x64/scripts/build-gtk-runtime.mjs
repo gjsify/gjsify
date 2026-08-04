@@ -40,10 +40,10 @@
 // back" and for "the terms of what it ships travel with it", because two copies of a
 // gate are two gates that drift.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findSymlinks, formatSymlinkProblems } from '../../scripts/bundle-data.mjs';
+import { copyTreeDereferenced, findSymlinks, formatSymlinkProblems } from '../../scripts/bundle-data.mjs';
 import {
     assertLicenseCoverage,
     formatLicenseProblems,
@@ -436,7 +436,7 @@ if (WINDOWING) {
         const themeSrc = join(PREFIX, 'share', 'icons', theme);
         if (!existsSync(themeSrc)) continue;
         const themeOut = join(OUT, 'share', 'icons', theme);
-        cpSync(themeSrc, themeOut, { recursive: true, dereference: true });
+        copyTreeDereferenced(themeSrc, themeOut);
         if (updateIconCache) {
             try {
                 sh(updateIconCache, ['-q', '-t', '-f', themeOut]);
@@ -458,7 +458,7 @@ if (WINDOWING) {
     const fontsSrc = join(PREFIX, 'etc', 'fonts');
     if (existsSync(fontsSrc)) {
         const fontsOut = join(OUT, 'etc', 'fonts');
-        cpSync(fontsSrc, fontsOut, { recursive: true, dereference: true });
+        copyTreeDereferenced(fontsSrc, fontsOut);
         const fcCache = findTool('fc-cache.exe', 'FC_CACHE');
         if (fcCache) {
             try {
@@ -488,7 +488,7 @@ if (WINDOWING) {
         for (const sub of ['language-specs', 'styles']) {
             const subSrc = join(gtksourceSrc, sub);
             if (existsSync(subSrc)) {
-                cpSync(subSrc, join(gtksourceOut, sub), { recursive: true, dereference: true });
+                copyTreeDereferenced(subSrc, join(gtksourceOut, sub));
                 copied += readdirSync(subSrc).length;
             }
         }
@@ -505,11 +505,11 @@ if (WINDOWING) {
 
 // --- 4f. the runtime DATA must be real files, not links into this machine ----
 // gvsbuild's prefix is an extracted zip of real files, so nothing here is expected to
-// trip — unlike darwin, where Homebrew's prefix is a symlink farm and `cpSync`'s
-// default (dereference: false) reproduced the farm instead of the files (measured:
-// 0.2 MiB of links where the icon theme is 22 MB, PR #977). The check runs here too
-// because "the source prefix has no links" is an assumption about someone else's
-// packaging, not a fact this builder controls.
+// trip — unlike darwin, where Homebrew's prefix is a symlink farm (measured: 859 links
+// under share/icons/Adwaita, 0.2 MiB of links where the theme is 22 MB of files, PR
+// #977), which is why the data steps above copy with copyTreeDereferenced() rather
+// than cpSync. The check runs here too because "the source prefix has no links" is an
+// assumption about someone else's packaging, not a fact this builder controls.
 if (WINDOWING) {
     const links = [
         ...findSymlinks(join(OUT, 'share')),

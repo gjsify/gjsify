@@ -70,7 +70,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findSymlinks, formatSymlinkProblems } from './bundle-data.mjs';
+import { copyTreeDereferenced, findSymlinks, formatSymlinkProblems } from './bundle-data.mjs';
 import {
     assertLicenseCoverage,
     describeBrewKegs,
@@ -392,7 +392,7 @@ if (typelibPlan.dropped.length > 0) {
 // LOADERS (needed to render SVG symbolic icons) are NOT bundled yet — they are dylibs
 // that need @loader_path relocation from a NESTED dir (unlike win32's plain DLL copy);
 // tracked follow-up, so symbolic icons may be blank until then.
-const windowing = { schemas: false, iconThemes: [], gtksource: false };
+const windowing = { schemas: false, iconThemes: [], iconFiles: 0, gtksource: false };
 if (WINDOWING) {
     const brewShare = join(brewPrefix, 'share');
     const findTool = (leaf) => {
@@ -432,10 +432,18 @@ if (WINDOWING) {
     for (const theme of ['Adwaita', 'hicolor']) {
         const themeSrc = join(brewShare, 'icons', theme);
         if (!existsSync(themeSrc)) continue;
-        // dereference: Homebrew links a keg's tree into its prefix, so the DEFAULT
-        // (dereference: false) copies share/icons/<theme> as a LINK into the Cellar —
-        // measured: 0.2 MiB of links where the theme is 22 MB of files (§ 4d).
-        cpSync(themeSrc, join(OUT, 'share', 'icons', theme), { recursive: true, dereference: true });
+        // NOT cpSync: Homebrew links a keg's tree into its prefix, and `cpSync`'s
+        // `dereference: true` only governs the top-level path, so every nested link
+        // stayed a link into the Cellar (measured: 859 of them under Adwaita, i.e.
+        // 0.2 MiB of links where the theme is 22 MB of files). § 4d gates the result.
+        const copied = copyTreeDereferenced(themeSrc, join(OUT, 'share', 'icons', theme));
+        windowing.iconFiles += copied.files;
+        if (copied.dangling.length > 0) {
+            console.warn(
+                `build-gtk-runtime: WARNING — ${copied.dangling.length} dangling link(s) in ${themeSrc} skipped ` +
+                    `(they resolve nowhere, so they cannot be bundled): ${copied.dangling.slice(0, 5).join(', ')}`,
+            );
+        }
         try {
             execFileSync(updateIconCache, ['-q', '-t', '-f', join(OUT, 'share', 'icons', theme)]);
         } catch {
@@ -445,7 +453,7 @@ if (WINDOWING) {
     }
     console.log(
         windowing.iconThemes.length
-            ? `build-gtk-runtime: icon themes ${windowing.iconThemes.join(', ')}`
+            ? `build-gtk-runtime: icon themes ${windowing.iconThemes.join(', ')} (${windowing.iconFiles} files, dereferenced)`
             : 'build-gtk-runtime: WARNING — no Adwaita/hicolor icon theme under share/icons',
     );
 
@@ -456,7 +464,7 @@ if (WINDOWING) {
         for (const sub of ['language-specs', 'styles']) {
             const subSrc = join(gtksourceSrc, sub);
             if (existsSync(subSrc)) {
-                cpSync(subSrc, join(OUT, 'share', 'gtksourceview-5', sub), { recursive: true, dereference: true });
+                copyTreeDereferenced(subSrc, join(OUT, 'share', 'gtksourceview-5', sub));
                 copied += readdirSync(subSrc).length;
             }
         }
