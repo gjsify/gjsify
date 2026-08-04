@@ -27,7 +27,16 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -65,7 +74,21 @@ const realPrebuild = (pillar, bridge, target) =>
 
 /** A real, correctly-linked linux-x64 prebuild to copy from. */
 const REAL_X64 = realPrebuild('node', 'terminal-native', 'linux-x64');
-const REAL_X64_FILES = ['libgjsifyterminal.so', 'GjsifyTerminal-1.0.typelib'];
+/**
+ * The COMPLETE artifact set a committed directory owes: library, typelib and the
+ * `.gir` the typelib was compiled from. All three, because "well-shaped" is what
+ * every fixture below that expects a PASS has to be — and the third one is the
+ * newest requirement, added after ten of the sixty committed directories turned
+ * out to have only the first two.
+ */
+const REAL_X64_FILES = ['libgjsifyterminal.so', 'GjsifyTerminal-1.0.typelib', 'GjsifyTerminal-1.0.gir'];
+/**
+ * The same set MINUS the `.gir`: the exact shape ten committed directories have,
+ * and the input every `.gir` assertion below is driven from. DERIVED rather than
+ * spelled out a fourth time — the two lists must differ in exactly one file, and
+ * two hand-written lists are two chances to be wrong about which.
+ */
+const REAL_X64_NO_GIR = REAL_X64_FILES.filter((f) => !f.endsWith('.gir'));
 /** A real arm64 one — the wrong-machine fixture, from this x64 host's view. */
 const REAL_ARM64 = realPrebuild('node', 'terminal-native', 'linux-arm64');
 /**
@@ -204,6 +227,517 @@ describe('prebuild invariant — half 1: a declared platform must have a body', 
         // so this repo owes no committed body for its declared targets.
         assert.deepEqual(failuresFor(pkg({ declared: ['linux-x64', 'win32-x64'], namesPrebuildDir: false })), []);
     });
+
+    it('FAILS on a directory with a library + typelib but no `.gir`', () => {
+        // The blind spot this closes. `.gir` presence was asserted in exactly one
+        // place — a shell loop in `prebuilds.yml`'s macOS job — so it held for the
+        // 16 darwin directories and for none of the other 44. Ten committed linux
+        // directories carried only the library and the typelib for their whole
+        // life, and every check in the tree was green: this one asked
+        // for "a `.so` plus a `.typelib`", `prebuild-libc` reads ELF, and
+        // `audit-runtimes`' declaration invariants compare declarations to each
+        // other. Asserted HERE, so it holds for every target from any host.
+        const problems = failuresFor(
+            pkg({
+                declared: ['linux-x64'],
+                stage: { 'linux-x64': REAL_X64_NO_GIR },
+            }),
+        );
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /holds no `\.gir`/);
+        // The message must say what a missing `.gir` does and does NOT cost, or the
+        // next reader treats a tooling gap as a broken runtime (or the reverse).
+        assert.match(problems[0], /Nothing LOADS a `\.gir`/);
+        assert.match(problems[0], /ts-for-gir/);
+        // And it must name both ways out — restage, or record the gap.
+        assert.match(problems[0], /prebuild-gir-gaps\.mjs/);
+    });
+
+    it('does NOT reach the `.gir` check when the library or typelib is missing', () => {
+        // Ordering, asserted: a directory with nothing in it should report the ONE
+        // thing a consumer needs first, not a pile. A `.gir` complaint next to
+        // "holds no `.so`" is noise that hides the real answer.
+        const problems = failuresFor(pkg({ declared: ['linux-x64'], stage: { 'linux-x64': [] } }));
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /holds no `\.so`/);
+    });
+});
+
+describe('prebuild invariant — the missing-`.gir` ledger is honest, not a mute button', () => {
+    const WHY = 'staged by a pre-stager `cp` list that omitted it; the next rebuild lands it';
+
+    it('accepts a deferred directory with a reason, and SAYS so on every run', () => {
+        const { failures, notes, stats } = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': REAL_X64_NO_GIR } })],
+            { girGaps: { '@gjsify/fixture': WHY } },
+        );
+        assert.deepEqual(failures, []);
+        assert.equal(stats.girDeferred, 1);
+        assert.ok(
+            notes.some((n) => n.includes('@gjsify/fixture') && n.includes(WHY)),
+            notes.join('\n'),
+        );
+    });
+
+    it('REJECTS a ledger entry with no reason', () => {
+        const problems = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': REAL_X64_NO_GIR } })],
+            { girGaps: { '@gjsify/fixture': '  ' } },
+        ).failures;
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /with no reason/);
+    });
+
+    it('reports the entry as UNUSED once the `.gir` is there, so the rule can retire it', () => {
+        // The self-retiring half. This function is also driven against single rows,
+        // so it reports what it CONSUMED and the rule — the only caller that sees
+        // every package — turns an unmatched entry into the failure. Asserting the
+        // consumption set here is what makes that split checkable from both ends.
+        const { failures, girGapsUsed } = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': REAL_X64_FILES } })],
+            { girGaps: { '@gjsify/fixture': WHY } },
+        );
+        assert.deepEqual(failures, []);
+        assert.equal(girGapsUsed.has('@gjsify/fixture'), false);
+    });
+
+    it('the RULE fails on a ledger entry nothing matched — the half only it can see', async () => {
+        // `auditPrebuildArtifacts` cannot decide this: it is handed one row at a
+        // time by these fixtures, so an unmatched key there would mean nothing. The
+        // rule is the caller with the whole population, which is why the stale-entry
+        // check lives in it — and why it needs its own test rather than riding on
+        // the function's.
+        const { prebuildArtifactsRule } = await import(
+            `file://${join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'rules', 'prebuild-artifacts.mjs')}`
+        );
+        const root = scratch();
+        mkdirSync(join(root, 'prebuilds', 'linux-x64'), { recursive: true });
+        for (const f of REAL_X64_FILES) copyFileSync(join(REAL_X64, f), join(root, 'prebuilds', 'linux-x64', f));
+        const result = await prebuildArtifactsRule.run({
+            // One well-shaped package, so the ledger entry is the only thing that
+            // can fail.
+            allPackages: [
+                {
+                    dir: root,
+                    rel: 'packages/fixture',
+                    manifest: { name: '@gjsify/fixture' },
+                    gjsify: { prebuilds: 'prebuilds', platforms: ['linux-x64'], tier: 3 },
+                },
+            ],
+            options: { prebuildGirGaps: { '@gjsify/gone': 'a reason nothing in the tree needs any more' } },
+        });
+        assert.equal(result.failures.length, 1, result.failures.join('\n'));
+        assert.match(result.failures[0], /@gjsify\/gone/);
+        assert.match(result.failures[0], /tells the next reader something false/);
+    });
+
+    it('does not let a ledger entry excuse a MISSING typelib or library', () => {
+        // The scope of the deferral is one file. A ledger entry must not become a
+        // general "this directory is exempt" switch, which is the shape every
+        // escape hatch in this repo is written to avoid.
+        const problems = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': ['libgjsifyterminal.so'] } })],
+            { girGaps: { '@gjsify/fixture': WHY } },
+        ).failures;
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /holds no `\.typelib`/);
+    });
+});
+
+// ── The ledger's LIFECYCLE, on fixtures only ────────────────────────────────
+//
+// WHY NOT A COPY OF THE REAL LEDGER — read this before "simplifying" it back.
+//
+// It was one, and it was a BLOCKER. The test copied
+// `scripts/manifest-conformance/prebuild-gir-gaps.mjs` out of the checkout and
+// asserted `before.length >= 2` — while the whole purpose of
+// `scripts/clear-satisfied-gir-gaps.mjs` is to reduce that file to
+// `PREBUILD_GIR_GAPS = {}`. This suite runs inside
+// `.github/prebuild-toolchain/gate-pushed-tree.sh`, which sits AFTER the staging
+// script ran the clearer and BEFORE the push. So the first `main` run that landed
+// the ten `.gir` files would have cleared all ten entries, failed this test on the
+// ledger it had just correctly emptied, and discarded every downloaded binary at
+// the gate. The channel would have stayed dead in exactly the way it is dead
+// today, with a different error message — and the ledger's own proof ("the files
+// must arrive THROUGH the fixed channel") could never have happened. Rehearsed
+// both ways: with the ledger emptied the old test failed on the `>= 2`
+// assertion, and with the file deleted (the documented human cleanup) it threw
+// ENOENT at `copyFileSync`.
+//
+// That is the SAME shape as the incident `gate-pushed-tree.sh`'s own header cites
+// as the reason it exists: `tests/e2e/platform-exemption-clearing` seeded its
+// fixture from a manifest the bot then cleared, and `main` was red for every open
+// PR for hours. A gate whose fixture reads the state the gated job mutates is not
+// a gate.
+//
+// So the subject here is a SYNTHETIC ledger, and the four states the real one
+// passes through each get their own test: entries present, partially cleared,
+// EMPTY, and the file ABSENT. The coupling to the real file is kept where it is
+// safe to keep — a read-only assertion that its shape is one the clearer can
+// edit, which holds for any number of entries including none.
+describe('prebuild invariant — the missing-`.gir` ledger drains without going quiet', () => {
+    const REASON = 'staged by a pre-stager `cp` list that omitted it; the next rebuild lands it';
+    const LEDGER_REL = join('scripts', 'manifest-conformance', 'prebuild-gir-gaps.mjs');
+    const COMPLETE = ['libx.so', 'X-0.1.typelib', 'X-0.1.gir'];
+    const NO_GIR = ['libx.so', 'X-0.1.typelib'];
+
+    const clearer = () => import(`file://${join(MONOREPO_ROOT, 'scripts', 'clear-satisfied-gir-gaps.mjs')}`);
+
+    /**
+     * A synthetic monorepo root with its own ledger and its own per-target
+     * packages.
+     *
+     * The ledger TEXT reproduces the real one's load-bearing shape rather than
+     * being copied from it: a doc comment, an exported shared reason, and one
+     * `    '<key>': <reason>,` line per entry. That is the shape the clearing
+     * script's line surgery depends on, and the shape assertion at the bottom of
+     * this suite is what keeps the real file conforming to it — the two halves
+     * together give the coupling a copy used to give, without importing the
+     * mutable state.
+     *
+     * @param {Array<{name: string, files: string[]}>} entries ledger entries, each
+     *   with the file set its committed directory holds
+     * @param {object} [opts]
+     * @param {string[]} [opts.unlisted] packages present in the tree with an
+     *   INCOMPLETE directory and NO ledger entry — the gap nothing excuses
+     * @returns {{root: string, ledgerPath: string}}
+     */
+    function ledgerFixture(entries, { unlisted = [] } = {}) {
+        const root = scratch();
+        const ledgerPath = join(root, LEDGER_REL);
+        mkdirSync(dirname(ledgerPath), { recursive: true });
+        const lines = [
+            '/** A synthetic ledger. See tests/e2e/prebuild-declaration-invariant/run.mjs. */',
+            '',
+            "export const WHY = ['staged by a pre-stager `cp` list that omitted it;', 'the next rebuild lands it'].join(",
+            "    ' ',",
+            ');',
+            '',
+            '/** @type {Record<string, string>} */',
+            'export const PREBUILD_GIR_GAPS = {',
+            ...entries.map((e) => `    '${e.name}': WHY,`),
+            '};',
+            '',
+        ];
+        writeFileSync(ledgerPath, lines.join('\n'));
+
+        for (const { name, files } of [...entries, ...unlisted.map((name) => ({ name, files: NO_GIR }))]) {
+            // One target per package, named in the manifest — the clearing script
+            // reads `gjsify.platforms`/`gjsify.prebuilds` rather than parsing the
+            // target back out of the package NAME, so a fixture has to declare it.
+            const target = 'linux-x64';
+            const dir = join(root, 'packages', 'fixture', name.replace(/^@[^/]+\//, ''));
+            mkdirSync(join(dir, 'prebuilds', target), { recursive: true });
+            writeFileSync(
+                join(dir, 'package.json'),
+                JSON.stringify({ name, gjsify: { prebuilds: 'prebuilds', platforms: [target], tier: 3 } }, null, 4),
+            );
+            for (const f of files) writeFileSync(join(dir, 'prebuilds', target, f), '');
+        }
+        return { root, ledgerPath };
+    }
+
+    /** The keys a ledger file exports right now, read through the module system. */
+    const keysOf = async (ledgerPath) =>
+        Object.keys((await import(`file://${ledgerPath}?t=${Date.now()}${Math.random()}`)).PREBUILD_GIR_GAPS ?? {});
+
+    it('STATE 1 — entries present: clears the one whose `.gir` landed, keeps the one still missing', async () => {
+        const { clearSatisfiedGirGaps } = await clearer();
+        const { root, ledgerPath } = ledgerFixture([
+            { name: '@fixture/landed-linux-x64', files: COMPLETE },
+            { name: '@fixture/waiting-linux-x64', files: NO_GIR },
+        ]);
+
+        const { cleared, paths } = await clearSatisfiedGirGaps(root);
+        assert.deepEqual(cleared, ['@fixture/landed-linux-x64'], 'only the entry whose `.gir` landed may be cleared');
+        // The caller stages exactly what was written — a `git add` glob in a job
+        // that pushes to `main` would sweep in whatever else was dirty.
+        assert.deepEqual(paths, ['scripts/manifest-conformance/prebuild-gir-gaps.mjs']);
+        assert.deepEqual(
+            await keysOf(ledgerPath),
+            ['@fixture/waiting-linux-x64'],
+            'an entry whose file did NOT arrive still describes reality',
+        );
+        // Line surgery, not a regenerated file: everything that is not the removed
+        // entry must come through byte-identical, or the prose that makes a ledger
+        // acceptable at all is at the mercy of a generator.
+        const text = readFileSync(ledgerPath, 'utf8');
+        assert.match(text, /^\/\*\* A synthetic ledger\./);
+        assert.equal(text.includes('@fixture/landed-linux-x64'), false);
+    });
+
+    it('STATE 2 — partially cleared: a second pass clears the rest and is idempotent after', async () => {
+        const { clearSatisfiedGirGaps } = await clearer();
+        // The state the real ledger is in between two `prebuilds.yml` runs: one
+        // entry already gone, one still open. Its `.gir` then arrives.
+        const { root, ledgerPath } = ledgerFixture([{ name: '@fixture/waiting-linux-x64', files: COMPLETE }]);
+
+        const first = await clearSatisfiedGirGaps(root);
+        assert.deepEqual(first.cleared, ['@fixture/waiting-linux-x64']);
+        assert.deepEqual(await keysOf(ledgerPath), [], 'the last entry leaves an EMPTY ledger, not a deleted file');
+
+        // Running twice in one job is not hypothetical: the staging script is
+        // called once per push attempt, so attempt 2 re-runs the clearer over the
+        // tree attempt 1 already cleared.
+        const before = readFileSync(ledgerPath, 'utf8');
+        const second = await clearSatisfiedGirGaps(root);
+        assert.deepEqual(second, { cleared: [], paths: [] });
+        assert.equal(readFileSync(ledgerPath, 'utf8'), before, 'a no-op pass must not rewrite the file');
+    });
+
+    it('STATE 2b — the emptied ledger is still a loadable module in the shape `oxfmt` accepts', async () => {
+        const { clearSatisfiedGirGaps } = await clearer();
+        const { root, ledgerPath } = ledgerFixture([{ name: '@fixture/waiting-linux-x64', files: COMPLETE }]);
+        await clearSatisfiedGirGaps(root);
+        const text = readFileSync(ledgerPath, 'utf8');
+        // `{\n};` is what deleting the last entry LINE leaves behind, and
+        // `oxfmt --check` rejects it — main.yml gates on that repo-wide, and this
+        // file is written by a bot pushing under `[skip ci]`, where nothing runs to
+        // say so. Asserted as TEXT rather than by shelling out to `oxfmt`: this
+        // suite runs on the gate's runner, which has no `node_modules`.
+        assert.match(text, /export const PREBUILD_GIR_GAPS = \{\};/);
+        assert.equal(/PREBUILD_GIR_GAPS = \{\s*\n\s*\};/.test(text), false);
+        // Still a module `scripts/audit-runtimes.mjs` can import — it does so at
+        // top level, so a bot that left this file unparseable would break the
+        // audit itself rather than one rule.
+        assert.deepEqual(await keysOf(ledgerPath), []);
+        // And the exported reason survives with no entry referencing it, which is
+        // why it is `export`ed rather than module-private: an unused module-private
+        // const is an `oxlint` error on that same unwatched commit.
+        const mod = await import(`file://${ledgerPath}?used=${Date.now()}`);
+        assert.equal(typeof mod.WHY, 'string');
+    });
+
+    it('STATE 3 — an EMPTY ledger is a no-op, and does NOT make the rule permissive', async () => {
+        const { clearSatisfiedGirGaps } = await clearer();
+        // Empty is the state the real ledger reaches the moment the channel works,
+        // and the state the old version of this test could not survive.
+        const { root, ledgerPath } = ledgerFixture([], { unlisted: ['@fixture/newgap-linux-x64'] });
+        assert.deepEqual(await keysOf(ledgerPath), []);
+        assert.deepEqual(await clearSatisfiedGirGaps(root), { cleared: [], paths: [] });
+
+        // THE anti-loosening assertion. A drained ledger must leave the rule fully
+        // armed: the fix for the blocker above is a hermetic fixture, NOT a weaker
+        // bound, so the property is asserted rather than assumed. With no entries,
+        // a directory missing its `.gir` is a plain failure again.
+        const problems = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': REAL_X64_NO_GIR } })],
+            { girGaps: await keysOf(ledgerPath).then((keys) => Object.fromEntries(keys.map((k) => [k, REASON]))) },
+        ).failures;
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /holds no `\.gir`/);
+    });
+
+    it('STATE 4 — an ABSENT ledger is a no-op, not a crash (the documented human cleanup)', async () => {
+        const { clearSatisfiedGirGaps } = await clearer();
+        // When the last entry goes, a HUMAN deletes the file and its import in a
+        // reviewed commit — the bot may not, because `scripts/audit-runtimes.mjs`
+        // imports it at top level. Between that commit and the next
+        // `commit-prebuilds` run the clearer therefore runs against a tree with no
+        // ledger, and it must simply do nothing.
+        const { root } = ledgerFixture([]);
+        rmSync(join(root, LEDGER_REL));
+        assert.deepEqual(await clearSatisfiedGirGaps(root), { cleared: [], paths: [] });
+    });
+
+    it('never ABSORBS a new gap: an entry for one package does not excuse another', async () => {
+        // The second half of "an entry is cleared by the job that lands its file":
+        // clearing must not be a general amnesty. Two packages, one with an entry
+        // and one without, both missing their `.gir`.
+        const { clearSatisfiedGirGaps } = await clearer();
+        const { root, ledgerPath } = ledgerFixture([{ name: '@fixture/waiting-linux-x64', files: NO_GIR }], {
+            unlisted: ['@fixture/newgap-linux-x64'],
+        });
+        await clearSatisfiedGirGaps(root);
+        // The clearer only ever REMOVES. The surviving key set is what it was, and
+        // the unlisted package was never learned about — a clearer that ADDED the
+        // gap it found would turn the ledger into the mute button it is written not
+        // to be.
+        assert.deepEqual(await keysOf(ledgerPath), ['@fixture/waiting-linux-x64']);
+
+        // And the rule side of the same property: an entry naming one package does
+        // not excuse a DIFFERENT package's missing `.gir`.
+        const problems = auditPrebuildArtifacts(
+            [pkg({ declared: ['linux-x64'], stage: { 'linux-x64': REAL_X64_NO_GIR } })],
+            {
+                girGaps: { '@gjsify/somebody-else': REASON },
+            },
+        ).failures;
+        assert.equal(problems.length, 1);
+        assert.match(problems[0], /holds no `\.gir`/);
+    });
+
+    // ── The two reads of the REAL file, and the ONLY two ────────────────────
+    //
+    // Both are state-agnostic in the full sense: they hold for ten entries, for
+    // one, for none, and for a ledger that has been DELETED. The last case is not
+    // theoretical — it is the documented end of this ledger's life, and a test
+    // that only survives the file's existence would recreate the trap above one
+    // step later, on the reviewed commit that retires it.
+    const realLedger = join(MONOREPO_ROOT, LEDGER_REL);
+
+    /** Every `.mjs` in the tree that statically imports the ledger. */
+    function ledgerImporters() {
+        const found = [];
+        const walk = (dir) => {
+            for (const entry of readdirSync(dir, { withFileTypes: true })) {
+                if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+                const abs = join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(abs);
+                } else if (entry.name.endsWith('.mjs') && abs !== realLedger) {
+                    if (/from '[^']*prebuild-gir-gaps\.mjs'/.test(readFileSync(abs, 'utf8'))) {
+                        found.push(abs.slice(MONOREPO_ROOT.length + 1).replaceAll('\\', '/'));
+                    }
+                }
+            }
+        };
+        walk(join(MONOREPO_ROOT, 'scripts'));
+        walk(join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance'));
+        return found;
+    }
+
+    it('the REAL ledger, in whatever state it is in, is a shape the clearer can edit', async () => {
+        const { entryKeyOnLine } = await clearer();
+        if (!existsSync(realLedger)) {
+            // RETIRED. Nothing to conform, and the honest complement is the thing
+            // worth asserting instead: no code is left importing it.
+            assert.deepEqual(ledgerImporters(), []);
+            return;
+        }
+        const { PREBUILD_GIR_GAPS } = await import(`file://${realLedger}`);
+        const text = readFileSync(realLedger, 'utf8');
+        const onLines = text.split('\n').map(entryKeyOnLine).filter(Boolean);
+        const exported = Object.keys(PREBUILD_GIR_GAPS);
+        assert.deepEqual(
+            onLines.slice().sort(),
+            exported.slice().sort(),
+            'every exported entry must occupy exactly one line the clearing script can delete — it edits this file by LINE, ' +
+                'and a shape it cannot edit would leave a self-contradictory entry in a tree pushed under `[skip ci]`',
+        );
+        // No count is asserted, in either direction. That was the blocker: the
+        // deferral's whole purpose is to reach zero, and the gate that runs after
+        // the clearer must be able to observe zero.
+        if (exported.length === 0) {
+            // The drained state the clearer produces and a human then retires.
+            // Asserted because a `{\n};` here fails `oxfmt --check` on every PR.
+            assert.match(text, /export const PREBUILD_GIR_GAPS = \{\};/);
+        }
+    });
+
+    it('every importer of the real ledger is named in its own removal instruction', () => {
+        // The mechanism behind STATE 4 rather than trust in it. The ledger tells a
+        // human to delete the file "and its import" once the last entry goes; a
+        // second importer that appears without that sentence being updated makes
+        // the cleanup commit break a script nobody was thinking about. Rehearsed:
+        // with the ledger moved away, `scripts/audit-runtimes.mjs`' top-level
+        // import makes this whole suite fail to LOAD — zero tests run, which is at
+        // least loud, but the point is not to get there.
+        const importers = ledgerImporters();
+        if (!existsSync(realLedger)) {
+            assert.deepEqual(importers, [], 'the ledger is gone; nothing may still import it');
+            return;
+        }
+        const ledgerText = readFileSync(realLedger, 'utf8');
+        assert.ok(importers.length > 0, 'expected at least `scripts/audit-runtimes.mjs` to import the ledger');
+        for (const importer of importers) {
+            assert.ok(
+                ledgerText.includes(importer),
+                `${importer} imports the ledger with a static \`import\`, but the ledger's own "delete this file by hand" ` +
+                    'instruction does not name it. A cleanup commit that follows that instruction would break it.',
+            );
+        }
+    });
+});
+
+describe('prebuild invariant — a deferred `.gir` must have somewhere to arrive from', () => {
+    // The half the ledger could not see, and the one two reviewers named: if the
+    // `.gir` files never arrive, the ledger never empties, every check keeps
+    // passing, and a deferral the tree calls TRANSIENT is permanent. The ledger's
+    // reason promises "the next `prebuilds.yml` run that rebuilds this target lands
+    // the file", so that promise is checked against the workflow — an entry for a
+    // target no leg builds can never clear, and now says so.
+    //
+    // Driven as a PURE function over synthetic rows and a synthetic coverage map:
+    // this must hold for a ledger of any size, including the empty one the clearing
+    // script produces, so nothing here reads the real ledger.
+    const WHY = 'the next rebuild lands it';
+    const arrival = () =>
+        import(`file://${join(MONOREPO_ROOT, 'scripts', 'manifest-conformance', 'rules', 'platforms-ci.mjs')}`);
+    const row = (name, target) => ({ name, path: `packages/fixture/${name}`, declared: [target] });
+
+    it('PASSES, and says which leg will end it, when `prebuilds.yml` builds the target', async () => {
+        const { auditGirGapArrival } = await arrival();
+        const { failures, notes } = auditGirGapArrival(
+            [row('@fixture/bridge-linux-ppc64', 'linux-ppc64')],
+            new Map([['@fixture/bridge-linux-ppc64', new Set(['linux-ppc64'])]]),
+            { '@fixture/bridge-linux-ppc64': WHY },
+        );
+        assert.deepEqual(failures, []);
+        assert.equal(notes.length, 1);
+        assert.match(notes[0], /builds linux-ppc64/);
+    });
+
+    it('FAILS when no job builds the deferred target — the PERMANENT deferral', async () => {
+        const { auditGirGapArrival } = await arrival();
+        const { failures } = auditGirGapArrival(
+            [row('@fixture/bridge-linux-ppc64', 'linux-ppc64'), row('@fixture/other-linux-x64', 'linux-x64')],
+            // The parser understood the workflow — it credited the sibling — and
+            // found no leg for the deferred one. That is an answer, not a blind spot.
+            new Map([['@fixture/other-linux-x64', new Set(['linux-x64'])]]),
+            { '@fixture/bridge-linux-ppc64': WHY },
+        );
+        assert.equal(failures.length, 1, failures.join('\n'));
+        assert.match(failures[0], /no job in `prebuilds\.yml` builds this package for linux-ppc64/);
+        assert.match(failures[0], /PERMANENT/);
+    });
+
+    it('FAILS when a leg exists but not for the target the entry defers', async () => {
+        // The near miss: `webgl` builds linux-x64, the ledger defers linux-riscv64.
+        // A package-level "is it built at all" test would pass this.
+        const { auditGirGapArrival } = await arrival();
+        const { failures } = auditGirGapArrival(
+            [row('@fixture/bridge-linux-riscv64', 'linux-riscv64')],
+            new Map([['@fixture/bridge-linux-riscv64', new Set(['linux-x64'])]]),
+            { '@fixture/bridge-linux-riscv64': WHY },
+        );
+        assert.equal(failures.length, 1);
+        assert.match(failures[0], /it builds linux-x64/);
+    });
+
+    it('is ADVISORY when the workflow parser recognised nothing at all', async () => {
+        // The parser is a lightweight structural read of a YAML file, so it can be
+        // defeated by a job shape it does not know. Turning THAT into a failure
+        // would redden `main` for every open PR over a defect in this rule — the
+        // exact incident the surrounding gate exists to prevent. So an empty map is
+        // reported as unverified.
+        const { auditGirGapArrival } = await arrival();
+        const { failures, notes } = auditGirGapArrival([row('@fixture/bridge-linux-ppc64', 'linux-ppc64')], new Map(), {
+            '@fixture/bridge-linux-ppc64': WHY,
+        });
+        assert.deepEqual(failures, []);
+        assert.equal(notes.length, 1);
+        assert.match(notes[0], /could not be checked/);
+    });
+
+    it('says NOTHING when the ledger is empty — the state the clearing script produces', async () => {
+        const { auditGirGapArrival } = await arrival();
+        assert.deepEqual(auditGirGapArrival([row('@fixture/bridge-linux-x64', 'linux-x64')], new Map(), {}), {
+            failures: [],
+            notes: [],
+        });
+    });
+
+    it('leaves an entry naming an unknown package to the rule that owns that', async () => {
+        // `prebuild-artifacts` already fails a ledger key nothing matched. Guessing
+        // at what a stale name meant, from a rule with no view of the artifact,
+        // would double-report one defect and describe it worse.
+        const { auditGirGapArrival } = await arrival();
+        const { failures } = auditGirGapArrival([], new Map([['@fixture/live-linux-x64', new Set(['linux-x64'])]]), {
+            '@fixture/gone-linux-x64': WHY,
+        });
+        assert.deepEqual(failures, []);
+    });
 });
 
 describe('prebuild invariant — half 2: a body that exists must be loadable', () => {
@@ -224,7 +758,12 @@ describe('prebuild invariant — half 2: a body that exists must be loadable', (
         // The typelib records `libgjsifyterminal.so`; stage a DIFFERENTLY
         // named real library instead, exactly as a `meson.build` rename that
         // the staging step follows but the typelib does not would produce.
-        const row = pkg({ declared: ['linux-x64'], stage: { 'linux-x64': ['GjsifyTerminal-1.0.typelib'] } });
+        // The `.gir` is staged so the renamed library is the ONLY defect and the
+        // single-problem assertion below still means what it says.
+        const row = pkg({
+            declared: ['linux-x64'],
+            stage: { 'linux-x64': ['GjsifyTerminal-1.0.typelib', 'GjsifyTerminal-1.0.gir'] },
+        });
         copyFileSync(join(REAL_X64, 'libgjsifyterminal.so'), join(row.prebuildDir, 'linux-x64', 'libgjsifyrenamed.so'));
         const problems = failuresFor(row);
         assert.equal(problems.length, 1);

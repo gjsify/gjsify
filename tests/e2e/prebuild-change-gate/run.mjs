@@ -32,6 +32,13 @@ const script = fileURLToPath(new URL('../../../.github/prebuild-toolchain/change
 const workflow = fileURLToPath(new URL('../../../.github/workflows/prebuilds.yml', import.meta.url));
 const emulated = fileURLToPath(new URL('../../../.github/prebuild-toolchain/emulated-build.sh', import.meta.url));
 const muslScript = fileURLToPath(new URL('../../../.github/prebuild-toolchain/musl-build.sh', import.meta.url));
+// The two scripts `commit-prebuilds` runs. They hold shell that used to be inline
+// in the job, and they are in the hand-staging scan set below for exactly that
+// reason: moving shell out of the YAML must not move it out from under the ban.
+const syncAndStage = fileURLToPath(new URL('../../../.github/prebuild-toolchain/sync-and-stage.sh', import.meta.url));
+const gatePushedTree = fileURLToPath(
+    new URL('../../../.github/prebuild-toolchain/gate-pushed-tree.sh', import.meta.url),
+);
 
 // A scratch dir this suite owns, for the per-run GITHUB_OUTPUT files below.
 const scratch = mkdtempSync(join(tmpdir(), 'prebuild-gate-out-'));
@@ -498,7 +505,7 @@ describe('prebuild change gate — staging goes through the shared stager', () =
         { label: 'New-Item …prebuilds…', re: /New-Item[^\n]*prebuilds/i },
     ];
 
-    for (const file of [workflow, emulated, muslScript]) {
+    for (const file of [workflow, emulated, muslScript, syncAndStage, gatePushedTree]) {
         it(`no step in ${file.split('/').pop()} stages a prebuild by hand`, () => {
             const text = readFileSync(file, 'utf8');
             // `.sh` files are one body; `.yml` splits into steps. Either way the
@@ -675,6 +682,184 @@ describe('prebuild change gate — macOS steps stay bash-3.2 clean', () => {
         // The scan must have found the macOS jobs at all — a shape change that made
         // the runner unrecognisable would otherwise turn this into a silent pass.
         assert.ok(macosJobs >= 2, `expected the macOS jobs to be recognised, saw ${macosJobs}`);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// `commit-prebuilds` never merges a binary, and never pushes an ungated tree.
+//
+// MEASURED: prebuilds.yml run 30864276535 (push, head f7b9c46d9) failed in
+// "Commit prebuilds to repo". Its bot commit ba5ca42 was 26 files / 26848
+// insertions; then `git pull --rebase origin main` said
+//
+//     warning: Cannot merge binary files: …/darwin-x64/libgjsifytls.dylib
+//     CONFLICT (content): Merge conflict in …libgjsifytls.dylib
+//     error: could not apply ba5ca42… chore: update native prebuilds [skip ci]
+//
+// and nothing was pushed. That is DETERMINISTIC, not a race between runs: Mach-O
+// output is not byte-reproducible, so every run rewrites all 16 committed darwin
+// dylibs, and git has no merge driver for a binary file. Measured across two
+// consecutive bot commits (7f4e81291 → a03206649): all 16 changed, every one at
+// an identical size, and on darwin-x64 every differing byte is the `LC_UUID`
+// payload or an `N_OSO` debug-map stab's object-file mtime — zero bytes of code.
+//
+// The repair is ordering: sync onto `origin/main` BEFORE staging, so no rebase
+// exists to conflict. These assertions hold the shape that repair depends on,
+// because "the steps are in the right order" is otherwise a property of a file
+// nothing reads back.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('prebuild change gate — commit-prebuilds never rebases, never pushes an ungated tree', () => {
+    /** The `commit-prebuilds` job text, and the ordered names of its steps. */
+    function commitJob() {
+        const text = readFileSync(workflow, 'utf8');
+        const jobs = text
+            .slice(text.search(/^jobs:\s*$/m))
+            .split(/^ {2}(?=[a-z0-9-]+:\s*$)/m)
+            .slice(1);
+        const job = jobs.find((j) => j.startsWith('commit-prebuilds:'));
+        assert.ok(job, 'commit-prebuilds job not found — this suite no longer understands the workflow');
+        const steps = job
+            .split(/^ {6}- (?=name:|uses:|run:)/m)
+            .slice(1)
+            .map((raw) => ({
+                name: (/^name:\s*(.+)$/m.exec(raw)?.[1] ?? '(unnamed)').trim(),
+                body: raw
+                    .split('\n')
+                    .filter((l) => !/^\s*#/.test(l))
+                    .join('\n'),
+            }));
+        assert.ok(steps.length > 20, `expected the download steps plus the commit path, saw ${steps.length}`);
+        return { job, steps };
+    }
+
+    it('no step in the job rebases or pulls', () => {
+        // The whole defect in one line. A `git pull`/`git rebase` anywhere in this
+        // job is a request for git to merge whatever the run downloaded, and 16 of
+        // those files are unmergeable by construction on every single run.
+        const { steps } = commitJob();
+        for (const step of steps) {
+            assert.ok(
+                !/\bgit\s+(pull|rebase)\b/.test(step.body),
+                `step "${step.name}" runs git pull/rebase. This job commits BINARIES: git has no merge driver for ` +
+                    'them, Mach-O output is not byte-reproducible, so a replay onto a moved `main` conflicts on the ' +
+                    'first dylib on every run (run 30864276535). Sync with fetch + `reset --hard` BEFORE staging ' +
+                    'instead — see .github/prebuild-toolchain/sync-and-stage.sh.',
+            );
+        }
+    });
+
+    it('the sync script fetches and resets BEFORE it stages anything', () => {
+        // Ordering inside the script, which is where it now lives. Asserted on
+        // POSITION rather than presence: both halves being in the file is exactly
+        // the state the old job was in, and it was the order that was wrong.
+        const src = readFileSync(syncAndStage, 'utf8').replace(/^\s*#.*$/gm, '');
+        const reset = src.search(/git reset .*--hard/);
+        const firstAdd = src.search(/git add\b/);
+        assert.ok(reset > 0, 'sync-and-stage.sh must reset the worktree onto origin/main');
+        assert.ok(firstAdd > 0, 'sync-and-stage.sh must stage the artifacts');
+        assert.ok(
+            reset < firstAdd,
+            'sync-and-stage.sh stages before it syncs. The artifacts must be re-applied over a tree that is ' +
+                'ALREADY origin/main; staging first is what forced the rebase this job used to fail on.',
+        );
+        // And the snapshot has to be re-applied after the reset, or the reset simply
+        // discards the downloads and the job commits main's own bytes.
+        const restore = src.search(/tar -xf/);
+        assert.ok(
+            restore > reset && restore < firstAdd,
+            'the snapshot must be restored between the reset and the staging',
+        );
+    });
+
+    it('the gate step sits between the commit and the push, and the push checks its stamp', () => {
+        const { steps } = commitJob();
+        const names = steps.map((s) => s.name);
+        const commit = names.indexOf('Commit prebuilds');
+        const gate = names.indexOf('Gate the tree being pushed');
+        const push = names.indexOf('Push');
+        assert.ok(commit >= 0 && gate >= 0 && push >= 0, `missing one of the commit-path steps: ${names.slice(-6)}`);
+        assert.ok(commit < gate && gate < push, `step order is ${names.slice(commit, push + 1).join(' -> ')}`);
+        // Position is the readable form; the STAMP is the enforced one. The gate
+        // writes the tree hash it audited and the push refuses anything else, so a
+        // future step that mutates the tree between them — which is precisely what
+        // the old `git pull --rebase` did — cannot go unnoticed again.
+        const gateBody = steps[gate].body;
+        assert.match(gateBody, /gate-pushed-tree\.sh/, 'the gate step must run the gate script');
+        assert.match(
+            readFileSync(gatePushedTree, 'utf8'),
+            /git rev-parse 'HEAD\^\{tree\}' > "\$PREBUILD_GATED_TREE"/,
+            'the gate script must stamp the tree it audited',
+        );
+        const pushBody = steps[push].body;
+        assert.match(pushBody, /\$PREBUILD_GATED_TREE/, 'the push step must read the gated-tree stamp');
+        assert.match(
+            pushBody,
+            /HEAD\^\{tree\}/,
+            'the push step must compare HEAD’s tree against the stamp, or the stamp certifies nothing',
+        );
+    });
+
+    it('the push RE-STAGES on retry and re-gates before every further push', () => {
+        // A retry of the push ALONE would push a tree built on a stale base — the
+        // same defect as the old rebase, one layer out. And a re-staged tree that
+        // the gate never read is the `[skip ci]` hole reopened, since nothing else
+        // runs on this commit.
+        const { steps } = commitJob();
+        const push = steps.find((s) => s.name === 'Push');
+        assert.ok(push, 'no Push step');
+        assert.match(push.body, /sync-and-stage\.sh/, 'the retry must re-sync and re-stage, not just re-push');
+        assert.match(push.body, /gate-pushed-tree\.sh/, 'the retry must re-gate the tree it re-staged');
+        assert.match(push.body, /while \[ "\$attempt" -le "\$attempts" \]/, 'the retry must be BOUNDED');
+    });
+
+    it('no job-level `env:` reads a context that only exists inside steps', () => {
+        // MEASURED, on this PR: `PREBUILD_SNAPSHOT: ${{ runner.temp }}/…` in
+        // `jobs.commit-prebuilds.env` made GitHub refuse to load the whole file —
+        // the `runner` context exists only in steps. The cost is the interesting
+        // part: an unloadable workflow is raised as a run with "This run likely
+        // failed because of a workflow file issue", attached to whatever event it
+        // could not filter (here a `push` on a branch this workflow's push trigger
+        // does not cover), and it is NOT a PR check. `gh pr checks` showed green.
+        // That is the standing hazard `status/open-todos.md` records, and a file
+        // that cannot be parsed cannot check itself — so the check lives here.
+        //
+        // Scoped to job-level `env:` because that is where the mistake is
+        // available: step-level `env:` may read `runner` freely, and so may `run:`.
+        const text = readFileSync(workflow, 'utf8');
+        const jobs = text
+            .slice(text.search(/^jobs:\s*$/m))
+            .split(/^ {2}(?=[a-z0-9-]+:\s*$)/m)
+            .slice(1);
+        let scanned = 0;
+        for (const job of jobs) {
+            const name = /^([a-z0-9-]+):/.exec(job)?.[1] ?? '(unnamed)';
+            // A four-space `env:` is the job's own; a step's is indented deeper.
+            const block = /^ {4}env:\n((?: {6}\S[^\n]*\n)+)/m.exec(job);
+            if (!block) continue;
+            scanned++;
+            const bad = /\$\{\{\s*(runner|steps)\./.exec(block[1]);
+            assert.ok(
+                !bad,
+                `job "${name}" reads \`${bad?.[1]}\` in its job-level \`env:\`. That context does not exist ` +
+                    'there, and GitHub then refuses to load the ENTIRE workflow — surfaced as a bare "workflow ' +
+                    'file issue" run that is not a PR check, so the PR reads green. Publish the value from a ' +
+                    'step instead (`echo "K=$RUNNER_TEMP/…" >> "$GITHUB_ENV"`).',
+            );
+        }
+        // The scan must find something, or a shape change turns it into a pass.
+        assert.ok(scanned >= 1, 'no job-level `env:` block was recognised — the parser no longer understands the file');
+    });
+
+    it('both commit-path scripts parse and are the files the job names', () => {
+        for (const script of [syncAndStage, gatePushedTree]) {
+            assert.ok(existsSync(script), `${script} is missing`);
+            assert.equal(spawnSync('bash', ['-n', script]).status, 0, `${script} must parse under bash`);
+        }
+        // `runs-on: ubuntu-latest`, so bash 5 builtins are fine here — the 3.2 ban
+        // is scoped to the macOS jobs. Asserted so a future reader does not "fix"
+        // the process substitution these use.
+        const { job } = commitJob();
+        assert.match(job, /runs-on: ubuntu-latest/);
     });
 });
 

@@ -276,6 +276,77 @@ export async function parseCiPlatforms(
 }
 
 /**
+ * Is every DEFERRED missing `.gir` actually on its way?
+ *
+ * The missing-`.gir` ledger (`scripts/manifest-conformance/prebuild-gir-gaps.mjs`)
+ * excuses a committed directory that holds no `.gir`, on one stated promise: "the
+ * next `prebuilds.yml` run that rebuilds this target lands the file". That promise
+ * has two ways to be false, and the ledger could not see either of them.
+ *
+ *   1. The build stops emitting the `.gir`. Caught at the moment of truth by
+ *      `scripts/stage-prebuild.mjs`, which refuses to stage a `.typelib` with no
+ *      `.gir` beside it — in the build leg, with the build log in front of whoever
+ *      reads it.
+ *   2. NOTHING EVER REBUILDS THE TARGET. That is this function. A deferral for a
+ *      target no CI leg produces cannot clear, ever: the ledger entry keeps
+ *      passing, the audit keeps printing its reason, and a gap the tree describes
+ *      as transient is permanent with nothing anywhere saying so. Which is the
+ *      failure class the ledger was introduced to replace, one level up.
+ *
+ * So a deferral must name a package `prebuilds.yml` BUILDS, for the target whose
+ * directory is short a file. That is checkable from the workflow this file already
+ * parses, which is why it lives in the repo-scoped rule rather than in the portable
+ * `prebuild-artifacts` one: a consumer's CI is not this one.
+ *
+ * ADVISORY WHEN THE PARSER IS BLIND, deliberately: if the coverage map is empty,
+ * the workflow shape (not the ledger) is what this could not read, and turning a
+ * parser gap into a red `main` for every open PR is the incident this whole gate
+ * exists to stop. An empty map therefore yields a note, never a failure — while a
+ * map that credits OTHER packages and not this one is a real answer.
+ *
+ * @param {Array<object>} nativePkgs rows from `collectNativePackages()`
+ * @param {Map<string, Set<string>>} prebuildCi coverage parsed from `prebuilds.yml`
+ * @param {Record<string, string>} [girGaps] the ledger, `ctx.options.prebuildGirGaps`
+ * @returns {{failures: string[], notes: string[]}}
+ */
+export function auditGirGapArrival(nativePkgs, prebuildCi, girGaps = {}) {
+    /** @type {string[]} */ const failures = [];
+    /** @type {string[]} */ const notes = [];
+    const deferred = Object.keys(girGaps);
+    if (deferred.length === 0) return { failures, notes };
+    if (prebuildCi.size === 0) {
+        notes.push(
+            `${deferred.length} missing-\`.gir\` deferral(s) could not be checked for an arrival path — no package in ` +
+                "`prebuilds.yml` was recognised by the workflow parser at all, so the silence is this rule's, not CI's.",
+        );
+        return { failures, notes };
+    }
+    const byName = new Map(nativePkgs.map((p) => [p.name, p]));
+    for (const name of deferred) {
+        const pkg = byName.get(name);
+        // An entry naming a package this tree does not audit is already a failure
+        // in `prebuild-artifacts` (nothing matched it). Reporting it twice, from a
+        // rule that would have to guess what was meant, adds noise and no signal.
+        if (!pkg) continue;
+        const built = prebuildCi.get(name) ?? new Set();
+        const orphaned = (pkg.declared ?? []).filter((target) => !built.has(target));
+        if (orphaned.length === 0) {
+            notes.push(`${name}: \`prebuilds.yml\` builds ${[...built].sort().join(', ')} — a run restages it.`);
+            continue;
+        }
+        failures.push(
+            `${name} (${pkg.path}) is deferred in the missing-\`.gir\` ledger, whose reason promises the next ` +
+                `\`prebuilds.yml\` run lands the file — but no job in \`prebuilds.yml\` builds this package for ` +
+                `${orphaned.join(', ')}${built.size > 0 ? ` (it builds ${[...built].sort().join(', ')})` : ''}. ` +
+                'Nothing can ever clear this entry, so the deferral is PERMANENT and the ledger says otherwise. ' +
+                'Either give the target a build leg, or commit the `.gir` and delete the entry — a deferral is only ' +
+                'honest while something is on its way to ending it.',
+        );
+    }
+    return { failures, notes };
+}
+
+/**
  * Keep promise, artifact and CI in sync. Returns human-readable failure lines
  * (empty = ok) plus the per-package rows the reporters render.
  */
@@ -647,9 +718,13 @@ export async function platformRows(ctx) {
     // its way to being committed", and collapsing three different questions into
     // one map is what let a promise pass for a delivery twice. Each pass is a
     // regex sweep over one already-read workflow file — microseconds, no install.
-    failures.push(
-        ...auditReleaseCoverage(nativePkgs, await coverage(['release.yml']), await coverage(['prebuilds.yml'])),
-    );
+    const prebuildCi = await coverage(['prebuilds.yml']);
+    failures.push(...auditReleaseCoverage(nativePkgs, await coverage(['release.yml']), prebuildCi));
+    // A THIRD question over the same map: not "does CI build what is promised" but
+    // "can the thing a deferral is waiting for ever arrive". Same pass, so it costs
+    // nothing beyond the comparison.
+    const arrival = auditGirGapArrival(nativePkgs, prebuildCi, ctx.options?.prebuildGirGaps ?? {});
+    failures.push(...arrival.failures);
     // BEFORE the `matrixRows` filter, which is the whole ordering constraint: the
     // artifact state of a split bridge lives on the children the filter removes,
     // so crediting afterwards would find nothing to credit and every declared,
@@ -659,6 +734,9 @@ export async function platformRows(ctx) {
     return {
         failures,
         rows: credited,
+        // The positive half of the arrival check, so a passing run SAYS which
+        // deferrals have a leg that will end them rather than only going quiet.
+        girArrivalNotes: arrival.notes,
         // How many declared targets ship ONLY from a release job, so the summary
         // states what was checked rather than implying the whole tree was.
         releaseOnly: nativePkgs.reduce((n, pkg) => n + releaseOnlyTargets(pkg).length, 0),
@@ -681,17 +759,22 @@ export const platformsCiRule = defineRule({
     description:
         'declared `<os>-<arch>` targets, committed prebuild dirs and the CI matrix that builds them agree — and a target this repo commits nothing for is produced by `release.yml`, which is the only job that can ship it',
     async run(ctx) {
-        const { failures, rows, matrixRows, releaseOnly } = await platformRows(ctx);
+        const { failures, rows, matrixRows, releaseOnly, girArrivalNotes } = await platformRows(ctx);
         const unverified = rows.filter((r) => !r.ci).length;
         return {
             failures,
-            stats: { packages: rows.length, unverified, releaseOnly },
+            stats: { packages: rows.length, unverified, releaseOnly, girDeferralsWithLeg: girArrivalNotes.length },
             rows: matrixRows,
-            summary:
+            summary: [
                 `platform audit: OK. ${rows.length} native package(s) declare \`gjsify.platforms\`; ` +
-                'committed prebuilds and CI-produced targets agree with every declaration' +
-                `${releaseOnly > 0 ? `; ${releaseOnly} target(s) that ship only from a release job have a release.yml leg` : ''}` +
-                `${unverified > 0 ? ` (${unverified} package(s) had no CI job the parser recognised — reported, not enforced)` : ''}.`,
+                    'committed prebuilds and CI-produced targets agree with every declaration' +
+                    `${releaseOnly > 0 ? `; ${releaseOnly} target(s) that ship only from a release job have a release.yml leg` : ''}` +
+                    `${unverified > 0 ? ` (${unverified} package(s) had no CI job the parser recognised — reported, not enforced)` : ''}.`,
+                // Printed, not merely counted: a deferral is acceptable only while
+                // something is on its way to ending it, so the run that tolerates
+                // one should name the leg that will.
+                ...girArrivalNotes.map((n) => `  · ${n}`),
+            ].join('\n'),
         };
     },
 });
