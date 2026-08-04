@@ -474,21 +474,6 @@ Host diagnosis is repeatable: `gjsify run packages/framework/webgl/scripts/probe
 pattern; exits non-zero when the GLArea does not realize). It needs a display, which is why it is a
 script and not a spec — no CI runner here has one.
 
-### The darwin `--windowing` GUI proof runs on Apple silicon only
-
-`node-gi.yml`'s `macos-gtk-windowing-runtime` → `macos-gtk-windowing` pair is arm64-only, while the
-display-free `macos-gtk-runtime` → `macos-gtk-batteries-included` pair is a two-arch matrix. So
-`@gjsify/gtk-runtime-darwin-x64` is proven to satisfy `gi://` with no Homebrew (that job never
-installs GTK, so a green leg IS the conformance) but a real `Adw.ApplicationWindow` realizing and
-rendering off its bundle is not exercised on Intel.
-
-Sharper since `release.yml` publishes the `--windowing` superset on BOTH arches: the Intel windowing
-bundle is now BUILT and gated on every release (typelib symmetry, `Adw-1` beside libadwaita,
-`gschemas.compiled`, `share/icons`, license coverage) — it is only the ON-SCREEN render that no
-Intel leg performs. Held back deliberately: two more scarce macOS legs per node-gi PR. Matrixing is
-mechanical (the builder is already arch-agnostic; only the two jobs' `arch` matrices and artifact
-names change).
-
 ### The darwin `--windowing` bundle ships icon themes but no gdk-pixbuf image loaders
 
 `build-gtk-runtime-darwin.mjs` § 4b copies `share/icons/{Adwaita,hicolor}` (dereferenced, and § 4d
@@ -504,6 +489,13 @@ macOS while the theme is present, i.e. the failure looks like a theming bug rath
 decoder. `Rsvg-2.0.typelib` is correctly DROPPED from the bundle by the symmetry rule (nothing
 shipped depends on it and librsvg is absent) — that is orthogonal: the pixbuf loader is loaded
 through gdk-pixbuf's module system, not through the typelib.
+
+The gap is NOT papered over by the data gate: `WIN32_WINDOWING_DATA_SETS`
+(`packages/node-gi/scripts/bundle-data.mjs`) requires `loaders.cache` + a non-empty loader dir for
+the win32 bundle, which ships them, and the darwin builder deliberately does not declare that set —
+"assert what you ship" — so the gate stays honest instead of green-by-omission. Closing this means
+adding the loaders to the darwin builder AND moving the set out of the win32-only list in the same
+change, at which point the assertion covers both.
 
 ### `@gjsify/gamepad` silently degrades to "no gamepads" on every platform without libmanette
 
