@@ -35,7 +35,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -218,11 +218,20 @@ describe('stage-prebuild: staging', () => {
         // — still runs, which is why the leg routes through this script at all
         // instead of a `cp`.
         const other = process.platform === 'linux' ? 'darwin-arm64' : 'linux-x64';
-        const dir = splitBridgeFixture([other], ['libfoo.so', 'Foo-1.0.typelib']);
+        // All THREE files, because that is what a build that emits a typelib emits:
+        // `g-ir-compiler` compiles the typelib from a `.gir` in the same directory.
+        // This fixture used to carry only the first two and therefore described a
+        // build that cannot happen — which the stager now refuses outright, so the
+        // fixture had to become honest rather than the check indulgent.
+        const dir = splitBridgeFixture([other], ['libfoo.so', 'Foo-1.0.typelib', 'Foo-1.0.gir']);
         const dest = mkdtempSync(join(tmpdir(), 'gjsify-stage-dest-'));
         try {
             runStager(dir, '--allow-undeclared', '--dest', dest);
-            assert.deepEqual(readdirSync(join(dest, HOST_TARGET)).sort(), ['Foo-1.0.typelib', 'libfoo.so']);
+            assert.deepEqual(readdirSync(join(dest, HOST_TARGET)).sort(), [
+                'Foo-1.0.gir',
+                'Foo-1.0.typelib',
+                'libfoo.so',
+            ]);
             // And nothing inside the package — the directory `files` does not
             // ship and no conformance rule can see is exactly what must not appear.
             assert.ok(!readdirSync(dir).includes('prebuilds'), 'must not stage into the bridge');
@@ -321,6 +330,47 @@ describe('stage-prebuild: staging', () => {
         const dir = fixture([HOST_TARGET, 'linux-x64', 'darwin-arm64'], ['meson-logs.txt']);
         try {
             assert.throws(() => runStager(dir), /none of/i);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('REFUSES a `.typelib` with no `.gir` beside it', () => {
+        // The positive assertion that keeps a DEFERRED missing `.gir` transient.
+        //
+        // `scripts/manifest-conformance/prebuild-gir-gaps.mjs` defers ten committed
+        // directories that hold a library and a typelib and no `.gir`, on the
+        // stated promise that "the next `prebuilds.yml` run that rebuilds this
+        // target lands the file" — and every one of those targets stages through
+        // this script, which matches by extension. The promise is therefore only
+        // falsifiable HERE: if the build stops emitting the `.gir`, the stager would
+        // otherwise copy two of three files, the deferral would never clear, the
+        // ledger would keep passing, and a deferral the tree calls transient would
+        // be permanent with nothing saying so.
+        //
+        // `g-ir-compiler` takes the `.gir` as INPUT and every meson build here runs
+        // it on a path in this same build directory, so a `.typelib` here is proof
+        // a `.gir` was here. Its absence is a build defect, and this is the moment
+        // a human is looking at the build log.
+        const dir = fixture([HOST_TARGET, 'linux-x64'], ['libfoo.so', 'Foo-1.0.typelib']);
+        try {
+            assert.throws(() => runStager(dir), /holds a `\.typelib` but no `\.gir`/);
+            // And it refuses BEFORE writing anything: a half-staged directory that
+            // a later step uploads is the failure mode, not the message.
+            assert.equal(existsSync(join(dir, 'prebuilds', HOST_TARGET)), false);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('stages a library with no typelib at all — the rule is not "always demand a .gir"', () => {
+        // The complement, so the check above cannot quietly become a requirement
+        // that every native package produce GI metadata. A napi-style `.node`/`.so`
+        // with no typelib has no `.gir` to owe.
+        const dir = fixture([HOST_TARGET, 'linux-x64'], ['libfoo.so']);
+        try {
+            runStager(dir);
+            assert.deepEqual(readdirSync(join(dir, 'prebuilds', HOST_TARGET)).sort(), ['libfoo.so']);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

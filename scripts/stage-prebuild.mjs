@@ -272,6 +272,47 @@ function main() {
         process.exit(1);
     }
 
+    // A `.typelib` WITHOUT the `.gir` it was compiled from is a broken build, and
+    // this is the one place that can say so while a human is looking at the build
+    // log.
+    //
+    // It is not a taste rule. `g-ir-compiler` takes a `.gir` as its INPUT, and
+    // every meson build here invokes it on a path inside this same build
+    // directory — so a `.typelib` in `build/` is proof that a `.gir` was in
+    // `build/` when it was produced. If it is not there now, either the build
+    // stopped emitting it or something removed it, and both are defects of the
+    // build rather than of the staging.
+    //
+    // WHY IT IS ENFORCED HERE, and not only on the committed tree:
+    // `prebuild-artifacts` fails a committed directory with no `.gir`, and ten
+    // directories are DEFERRED from that failure with the promise that "the next
+    // `prebuilds.yml` run that rebuilds this target lands the file". That promise
+    // is only falsifiable at this exact moment. Without this check, a build that
+    // silently stopped producing a `.gir` would stage two of three files, the
+    // deferral would never clear, the ledger would keep passing, and a deferral
+    // the tree calls TRANSIENT would be permanent with nothing anywhere saying so.
+    // Which is the failure class the ledger itself exists to replace.
+    //
+    // Deliberately NOT consulting the ledger: an entry claims the next rebuild
+    // lands the file, so the rebuild is precisely where the claim must be checked,
+    // not excused. Verified safe for every leg that runs today — all 60 committed
+    // directories hold a `.typelib`, and the 50 that were staged by this script
+    // hold a `.gir` as well; the ten that do not are exactly the pre-stager `cp`
+    // lists this replaced.
+    if (artifacts.some((f) => f.endsWith('.typelib')) && !artifacts.some((f) => f.endsWith('.gir'))) {
+        console.error(
+            `[stage-prebuild] ${pkg.name}: ${buildDirName}/ holds a \`.typelib\` but no \`.gir\`\n` +
+                `  (found: ${artifacts.sort().join(', ')}).\n` +
+                '  `g-ir-compiler` compiles the typelib FROM a `.gir` in this directory, so one was here.\n' +
+                '  Staging the pair without it is how ten committed prebuild directories ended up\n' +
+                '  missing theirs — invisibly, because nothing loads a `.gir` and everything that\n' +
+                '  regenerates types from the shipped artifact needs it. Refusing here rather than\n' +
+                '  shipping an incomplete set: check the `vala_gir:`/`gnome.generate_gir()` output\n' +
+                '  name in meson.build, and whether anything cleans it before this step runs.',
+        );
+        process.exit(1);
+    }
+
     if (scratch && destArg !== null) {
         console.error(
             '[stage-prebuild] `--scratch` and `--dest` are mutually exclusive — `--scratch` IS a destination\n' +

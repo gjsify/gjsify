@@ -41,12 +41,37 @@
  * package that maps 1:1 to a single prebuild directory. It re-imports this module
  * afterwards and asserts the surviving key set, so a shape it cannot edit fails
  * loudly rather than silently clearing nothing.
+ * `tests/e2e/prebuild-declaration-invariant` asserts that this file still HAS that
+ * shape, for any number of entries including none — never that it has entries. A
+ * check with a lower bound on this ledger would fail on the very run that emptied
+ * it, which is the run it exists to permit.
+ *
+ * WHY THE DEFERRAL CANNOT QUIETLY BECOME PERMANENT
+ *
+ * The reason below promises that the next `prebuilds.yml` run to rebuild the target
+ * lands the file. A promise nothing checks is how a transient gap turns into a
+ * permanent one, so all three links are asserted somewhere:
+ *
+ *   · the file EXISTS to be staged — `g-ir-compiler` compiles the `.typelib` from a
+ *     `.gir` in the same build directory, so a committed typelib is itself proof
+ *     that the `.gir` was produced; and both bridges' `meson.build` ask for one
+ *     (`vala_gir:`), while `webgl`'s two darwin directories ship theirs;
+ *   · the STAGER lands it — `scripts/stage-prebuild.mjs` matches by extension, and
+ *     it now REFUSES to stage a `.typelib` with no `.gir` beside it, so a build
+ *     that stopped producing one fails the leg that produced it instead of shipping
+ *     two of three files;
+ *   · a run REACHES the target — the repo-scoped `platforms-ci` rule fails an entry
+ *     whose package `prebuilds.yml` does not build for the deferred target, and
+ *     prints the leg that will restage each of the others on every run.
  *
  * When the last entry goes, the clearing script leaves `PREBUILD_GIR_GAPS = {}`
  * behind rather than deleting this file — a bot pushing under `[skip ci]` must not
  * be removing modules that `scripts/audit-runtimes.mjs` imports. An empty ledger
  * is a corpse by this repo's own rule, so DELETE THIS FILE and its import in that
  * script, by hand, in a reviewed commit. The record of the gap is that commit.
+ * That importer list is CHECKED, not trusted: the e2e suite finds every `.mjs` that
+ * statically imports this module and fails if this paragraph does not name it, so
+ * the cleanup commit cannot break an importer nobody remembered.
  *
  * SEVERITY, stated because a deferral that overstates its cost gets ignored and
  * one that understates it gets forgotten: a missing `.gir` is NOT runtime
