@@ -272,6 +272,11 @@ export function _diagnoseGiLoadError(error: unknown, namespace: string = GI_NAME
 }
 
 async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<GamepadBackend> {
+    // The specifier is a LITERAL and not built from `GI_NAMESPACE`: every plugin
+    // that claims `gi://*` (`gjsGiNodePlugin`, `gjsImportsEmptyPlugin`, the
+    // `--app gjs` externals predicate) matches on the resolved specifier at build
+    // time, so a template literal would leave the import unclaimed on all four
+    // targets. `GI_NAMESPACE` is for the wordings, which are runtime data.
     const importer = options.importer ?? (() => import('gi://Manette') as Promise<{ default: typeof Manette }>);
 
     let module: typeof Manette;
