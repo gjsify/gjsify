@@ -105,15 +105,4 @@ export const PRE_STAGER_CP = [
 ].join(' ');
 
 /** @type {Record<string, string>} */
-export const PREBUILD_GIR_GAPS = {
-    '@gjsify/webgl-linux-x64': PRE_STAGER_CP,
-    '@gjsify/webgl-linux-arm64': PRE_STAGER_CP,
-    '@gjsify/webgl-linux-ppc64': PRE_STAGER_CP,
-    '@gjsify/webgl-linux-s390x': PRE_STAGER_CP,
-    '@gjsify/webgl-linux-riscv64': PRE_STAGER_CP,
-    '@gjsify/webrtc-native-linux-x64': PRE_STAGER_CP,
-    '@gjsify/webrtc-native-linux-arm64': PRE_STAGER_CP,
-    '@gjsify/webrtc-native-linux-ppc64': PRE_STAGER_CP,
-    '@gjsify/webrtc-native-linux-s390x': PRE_STAGER_CP,
-    '@gjsify/webrtc-native-linux-riscv64': PRE_STAGER_CP,
-};
+export const PREBUILD_GIR_GAPS = {};
