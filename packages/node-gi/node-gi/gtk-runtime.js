@@ -11,6 +11,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { pathCovers, splitSearchPath, systemGiLibraryDirs } from './system-gi.js';
 
 // NB: node:child_process is intentionally NOT imported at module top level. It is
 // pulled in lazily (via `require` below) ONLY on the darwin re-exec path — importing
@@ -63,19 +64,36 @@ export function resolveGtkRuntimeBundle() {
 }
 
 /**
- * Make the bundled GTK runtime genuinely env-free by RE-EXECING this process once
- * with `DYLD_FALLBACK_LIBRARY_PATH` (+ `GI_TYPELIB_PATH`) pointed at the bundle.
+ * Make GTK genuinely env-free on macOS by RE-EXECING this process once with
+ * `DYLD_FALLBACK_LIBRARY_PATH` pointing at the dylibs a typelib names by bare
+ * leaf — the BUNDLED runtime when one ships, otherwise the HOST's system GI stack
+ * (`systemGiLibraryDirs()`; Homebrew at either prefix, MacPorts, custom).
  *
  * Why a re-exec and not just `process.env` mutation: on macOS, dyld captures
  * `DYLD_FALLBACK_LIBRARY_PATH` at PROCESS LAUNCH, so setting it from JS never
- * affects the running dyld. It is load-bearing beyond the addon's own link
- * closure: GObject-Introspection resolves a type's `get_type()` (e.g. for
- * `registerClass` subclassing) — and the Pango/Gdk/Graphene backers — via
+ * affects the running dyld. Measured on macOS 15.7.8 / Node 24.18.1 — mutating
+ * `process.env` before the first `requireGi('Gtk','4.0')` reproduces the failure
+ * verbatim. It is load-bearing beyond the addon's own link closure:
+ * GObject-Introspection resolves a type's `get_type()` (e.g. for `registerClass`
+ * subclassing) — and the Pango/Gdk/Graphene/GdkPixbuf backers — via
  * `g_module_open(<leaf soname>)`, and dyld will NOT satisfy a bare-leaf dlopen
- * from an `@loader_path`-loaded image. Re-launching with the fallback set (exactly
- * what the Homebrew-based CI leg does) resolves every such leaf lookup from the
- * bundle. Guarded by a sentinel env var so it fires AT MOST ONCE; a no-op unless
- * darwin + a bundle is present + the fallback does not already cover it.
+ * from an `@loader_path`-loaded image, nor from a prefix absent from its default
+ * fallback path. Re-launching with the fallback set (exactly what the
+ * Homebrew-based CI legs export by hand) resolves every such leaf lookup.
+ *
+ * ONE re-exec path for both sources, on purpose. The BUNDLE still wins whenever
+ * one is installed and its behaviour here is byte-unchanged (its libDir alone,
+ * plus the bundle's `GI_TYPELIB_PATH`) — #920 reverted making a bundle a
+ * dependency of this package precisely because an installed bundle silently beats
+ * the GTK the addon was built against, so the system branch is reached ONLY when
+ * `resolveGtkRuntimeBundle()` finds nothing and it never touches typelib
+ * resolution (the host's typelibs are already found; only the loader is blind).
+ *
+ * Sentinel-guarded so it fires AT MOST ONCE, and skipped entirely when the
+ * launching environment already covers the directories — so a CI job or a
+ * launcher that exported the variable pays nothing, and the re-exec'd child never
+ * re-execs again. A host with no GI stack under any probed or pkg-config-reported
+ * prefix yields no directories and is left byte-unchanged.
  *
  * MUST be called at module top-level BEFORE the native addon (and thus its GTK
  * dependency closure) is dlopen'd — the re-exec then loads everything correctly.
@@ -90,23 +108,45 @@ export function maybeReexecForGtkRuntime() {
     // their DYLD path for non-addon-linked backers is a documented follow-up), so the
     // darwin path can never spawn a malformed re-exec under a non-Node runtime.
     if (typeof globalThis.Bun !== 'undefined' || typeof globalThis.Deno !== 'undefined') return;
+    // GJS host mode (@gjsify/napi loads this addon inside gjs): the process is
+    // `gjs`, so process.execPath/execArgv describe an interpreter that cannot be
+    // re-launched with a Node argv — and `createRequire` there is
+    // @gjsify/module's polyfill, which rejects synchronous BUILTIN loads, so even
+    // REACHING the child_process require below would throw during module init.
+    // Nothing needs the repair anyway: gjs itself resolves these leaves (its
+    // binary carries the rpath this whole module exists to compensate for).
+    // Same probe index.js uses for RUNTIME — as with the Bun/Deno pair above, the
+    // check has to live here too because this runs before that const is defined.
+    if (typeof globalThis.imports !== 'undefined' && typeof globalThis.print === 'function') return;
     if (process.env[REEXEC_SENTINEL]) return; // already re-exec'd — the child path
+
+    // A bundle, when installed, is the whole answer and stays the ONLY entry (see
+    // the #920 note above). Without one, the host's own GI libdirs are the answer.
     const bundle = resolveGtkRuntimeBundle();
-    if (!bundle) return; // strict no-op when no bundle is present
+    const libDirs = bundle ? [bundle.libDir] : systemGiLibraryDirs();
+    if (libDirs.length === 0) return; // no bundle and no host GI stack — nothing to point at
 
     const curDyld = process.env.DYLD_FALLBACK_LIBRARY_PATH ?? '';
-    if (curDyld.split(':').filter(Boolean).includes(bundle.libDir)) return; // already covered
+    const curDyldDirs = splitSearchPath(curDyld);
+    if (pathCovers(libDirs, curDyldDirs)) return; // the launch env already covers it
 
-    // Lazily load node:child_process ONLY here (darwin + bundle present + not yet
-    // covered) — see the top-of-file note; keeps it out of non-darwin module graphs.
+    // Lazily load node:child_process ONLY here (darwin + something to point at +
+    // not yet covered) — see the top-of-file note; keeps it out of non-darwin
+    // module graphs.
     const { spawnSync } = require('node:child_process');
     const curTypelib = process.env.GI_TYPELIB_PATH ?? '';
     const env = {
         ...process.env,
         [REEXEC_SENTINEL]: '1',
-        DYLD_FALLBACK_LIBRARY_PATH: curDyld ? `${bundle.libDir}:${curDyld}` : `${bundle.libDir}:/usr/lib`,
-        GI_TYPELIB_PATH: curTypelib ? `${bundle.typelibDir}:${curTypelib}` : bundle.typelibDir,
+        // Our dirs first, then whatever the host asked for — falling back to
+        // dyld's own default tail so setting the variable never REMOVES /usr/lib.
+        DYLD_FALLBACK_LIBRARY_PATH: [...libDirs, ...(curDyldDirs.length > 0 ? curDyldDirs : ['/usr/lib'])].join(':'),
     };
+    // Only a bundle relocates typelibs; a host GI stack's are already on GI's own
+    // search path, so the system branch deliberately leaves GI_TYPELIB_PATH alone.
+    if (bundle) {
+        env.GI_TYPELIB_PATH = curTypelib ? `${bundle.typelibDir}:${curTypelib}` : bundle.typelibDir;
+    }
     // Reproduce this exact invocation (node flags + argv) with the augmented env.
     const res = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], {
         stdio: 'inherit',

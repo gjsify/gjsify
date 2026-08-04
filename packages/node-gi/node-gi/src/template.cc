@@ -6,10 +6,9 @@
 namespace nodegi {
 
 // Resolve the GTK template API once (C++11 function-local static init is
-// thread-safe; node-gi calls these only on the main thread). dlopen with
-// RTLD_NOLOAD first — requireGi('Gtk','4.0') already dlopened libgtk-4 via the
-// typelib, so this just bumps the refcount; fall back to a plain dlopen so a
-// caller that never required Gtk through the typelib still resolves the symbols.
+// thread-safe; node-gi calls these only on the main thread). How the library
+// handle is obtained — and why the leaf name has to be per-OS — is documented at
+// the dlopen below.
 const GtkTemplateApi* GetGtkTemplateApi() {
   static GtkTemplateApi api = {};
   static bool initialised = false;
@@ -22,8 +21,27 @@ const GtkTemplateApi* GetGtkTemplateApi() {
   // callers warn + no-op / throw a clear "template API unavailable" error.
   return &api;
 #else
-  void* lib = dlopen("libgtk-4.so.1", RTLD_LAZY | RTLD_NOLOAD);
-  if (lib == nullptr) lib = dlopen("libgtk-4.so.1", RTLD_LAZY);
+  // The library's LEAF NAME IS PER-OS, and hardcoding the ELF soname made the
+  // whole composite-template API unavailable on macOS: `libgtk-4.so.1` does not
+  // exist there, so every `registerClass({ Template })` widget failed with
+  // "the libgtk-4 template API is unavailable" on a host with GTK 4 correctly
+  // installed. Invisible until v0.27.0 shipped the first darwin-x64 addon.
+  //
+  // Candidates are the leaf names GTK 4 actually installs, newest ABI first.
+#ifdef __APPLE__
+  static const char* const kGtkLeaves[] = {"libgtk-4.1.dylib", "libgtk-4.dylib"};
+#else
+  static const char* const kGtkLeaves[] = {"libgtk-4.so.1", "libgtk-4.so"};
+#endif
+  void* lib = nullptr;
+  for (const char* leaf : kGtkLeaves) {
+    // RTLD_NOLOAD first — requireGi('Gtk','4.0') already dlopened libgtk-4 via the
+    // typelib, so this only bumps the refcount; the plain dlopen behind it serves a
+    // caller that never required Gtk through the typelib.
+    lib = dlopen(leaf, RTLD_LAZY | RTLD_NOLOAD);
+    if (lib == nullptr) lib = dlopen(leaf, RTLD_LAZY);
+    if (lib != nullptr) break;
+  }
   if (lib == nullptr) return &api;  // api.ok stays false → callers warn + no-op
   api.set_template = reinterpret_cast<decltype(api.set_template)>(
       dlsym(lib, "gtk_widget_class_set_template"));

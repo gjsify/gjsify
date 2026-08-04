@@ -44,6 +44,8 @@
     "gi.d.ts",
     "gtk-runtime.js",
     "gtk-runtime.d.ts",
+    "system-gi.js",
+    "system-gi.d.ts",
     "globals.js",
     "globals.d.ts",
     "system.js",
