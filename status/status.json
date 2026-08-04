@@ -179,7 +179,7 @@
     },
     "@gjsify/gamepad": {
       "status": "full",
-      "note": "Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected), GamepadHapticActuator (dual-rumble). Manette→W3C standard-layout button mapping (17 buttons incl. triggers-as-buttons), 4 stick axes + trigger axes→button values. Lazy Manette.Monitor init, graceful degradation without libmanette."
+      "note": "Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected), GamepadHapticActuator (dual-rumble). Manette→W3C standard-layout button mapping (17 buttons incl. triggers-as-buttons), 4 stick axes + trigger axes→button values. getGamepads() returns the spec's `[[gamepads]]`: the EMPTY list until a device connects, never pre-filled slots. Lazy Manette.Monitor init, and a missing backend is OBSERVABLE rather than \"graceful\" — a quiet hasGamepadBackend() capability query plus ONE diagnostic emitted by the first manager init, with absent (no Manette typelib; no @gjsify/node-gi on the node target; gi:// stubbed by design on the browser/NativeScript builds) split from fault (shared library that will not dlopen, version/ABI skew), and a third report for a monitor that fails to start after the backend loaded. No backend at all on macOS/Windows — see Open TODOs."
     },
     "@gjsify/gtk-runtime-darwin-arm64": {
       "status": "full",

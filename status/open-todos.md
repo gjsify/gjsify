@@ -365,6 +365,7 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 - **`@gjsify/web-globals` declares `node: "polyfill"` but re-exports `@gjsify/webaudio`** (`node: "none"`, hard-bound: `gi://Gst?version=1.0` + a top-level `Gst.init(null)`) from `src/index.ts` and `src/register.ts`. A `--app node` bundle therefore hard-requires the external `@gjsify/node-gi` at module load. Fix by downgrading the slot to `partial` or adding a `src/node.ts` platform entry. Reported on every `audit-runtimes --check` run.
 - **The ten `browser:"partial"` slots are RESOLVED as partial — the residual work is per-package, not a slot sweep.** All ten were audited against the `platform-entry-parity` gate; none is promotable, because in every case a NAMED export is unavailable on the browser platform itself (the blocking export per package is recorded in each package's status entry / AGENTS.md row). Parity is necessary but not sufficient — it passes `sqlite`, whose `DatabaseSync` throws from its constructor; treat a green parity gate as permission to look, not a mandate to promote. Still open, per package: **`fs`** — close the 34-export gap over the in-memory `Volume` (does NOT unblock promotion while `FSWatcher` is a never-firing stub); **`sqlite`** — add a `./browser-worker` subpath declared `polyfill` backed by OPFS `createSyncAccessHandle`, leaving `./browser` at `partial`; **`ws`** — the only one of the ten without a `src/test.browser.mts` (its browser entry is 93 LOC; a small spec asserting the `WebSocketServer` ENOTSUP shape + CJS-compat statics closes it); **`crypto`** — only 2 of its 25 root modules have a platform dependency (`GLib.Checksum` in `src/hash.ts`, the `imports.gi` fallback in `src/random.ts`); replacing those makes the ROOT browser-clean with full synchronous Node semantics — the one path that would actually earn `polyfill` — and retires the 1,774-LOC `src/browser/` duplicate.
 - **The `native` runtime slot means two different things, and the NativeScript bridge packages use the wrong one.** The routing rule reads `native` as "the RUNTIME provides this API — resolve to `<pkg>/globals`", but `packages/nativescript-bridge/*` declare `nativescript: "native"` in the sense "this package IS the native implementation". None of them ships a `globals.mjs`, so all five resolve to `@gjsify/empty` with a warn-once on ANY `--app nativescript` build that imports them BY NAME — a shipping bug, not a latent one. It also blocks `ALIASES_NODE_FOR_NATIVESCRIPT` from being composed through `withDerivedSlotRouting`. Fix by settling the vocabulary (either a new slot value for "this package is the runtime-native impl", or re-declaring the five as `polyfill`) — an ADR-sized decision because it changes a published `package.json#gjsify.runtimes` contract and `scripts/audit-runtimes.mjs`. Compose the NS table in the same change.
+- **38 `native` slots ship a `globals.mjs` NARROWER than their root entry — 314 export names that are a `MISSING_EXPORT` waiting for a consumer.** A `native` slot routes the package ROOT to `@gjsify/<X>/globals`, exactly as `polyfill` + a declared subpath routes it to `src/<target>.ts`, so the `platform-entry-parity` invariant applies verbatim — and nothing checked it: the `globals-broken` probe only validates the `export … from '<spec>'` SOURCES a `globals.mjs` names, so every hand-written `export const X = globalThis.X` file passed it vacuously. Found when a `--app browser` build of `@gjsify/gamepad`'s OWN README example died with `"hasGamepadBackend" is not exported by "packages/web/gamepad/globals.mjs"`. `audit-runtimes --check` now REPORTS the whole set every run (`globals-entry-parity`, check 5 in `auditReachability`); making it fatal is a separate, cross-cutting change (AGENTS.md exception (c)) because the tree cannot pass it today. Two shapes hide in the 314, and only one is a re-export away: names the RUNTIME provides (`@gjsify/assert`'s `strictEqual` from `node:assert`, `@gjsify/webcrypto`'s `Crypto`) versus names it does not (`@gjsify/gamepad`'s Manette→W3C mapping tables) — no `globals.mjs` in the tree imports its own package body, so the second shape needs a platform entry, i.e. a slot decision, not a line in `globals.mjs`.
 - **Rolldown 1.1.4 emits the `keepNames` helper AFTER its first use.** With `output.keepNames = true` (gjsify's default whenever `minify` is on) a minified bundle can contain `__name(fn, 'x')` at byte ~200 while the helper declaration appears ~9 kB later; `var` hoisting makes the early call `TypeError: __name is not a function`. Reproduced on `--app node` with the `@gjsify/module` node-gi test bundle (the `\0gjsify-gi-node:*` virtual module is ordered first); `--minify false` runs. Upstream (`refs/rolldown`, pinned `v1.1.4` in lockstep with `@gjsify/rolldown-native`) — needs a minimal reproducer filed, or a chunk-prelude workaround if the pin cannot move.
 
 ### `--app node` genuine-GJS-source detection is narrower than the reverse bridge it gates
@@ -502,14 +503,37 @@ change, at which point the assertion covers both.
 The observability half is closed. `packages/web/gamepad/src/backend.ts` is now the one place the
 package decides whether a backend exists: `hasGamepadBackend()` (barrel-exported, answerable with no
 monitor and no connected device, the `isSecureRandomSource()`/`hasNativeSab()`/`hasOcspSupport()`
-pattern), a one-time stderr line naming what to install, and a SPLIT classification — an absent
-`Manette` typelib is the quiet expected path, and every other load failure (library that will not
-`dlopen`, version/ABI skew, `@gjsify/node-gi` not installed on the node target) is a `console.error`
-carrying the original error. `getGamepads()` deliberately still answers the
-conformant all-null list and MUST NOT be made to throw: the W3C steps only ever return a list (their
-one throw is the `"gamepad"` permission-policy `SecurityError`), and a browser on a driverless
-machine answers identically — WebKit compiles `EmptyGamepadProvider::platformGamepads()` returning a
-static empty vector. Throwing would break `navigator.getGamepads().length`.
+pattern) and a SPLIT classification. The QUERY is silent and the diagnostic is emitted by the USE —
+`GamepadManager._init()`, once per process — mirroring `isSecureRandomSource()` (pure) vs.
+`fillRandomBytes()` (warns) in `@gjsify/webcrypto/random`; the recommended usage is to CALL the
+predicate, so it must not cost a stderr line on every macOS/Windows start. Three outcomes, three
+voices: **absent** = no `Manette` typelib, or no `@gjsify/node-gi` in a `--app node` process (a
+supported configuration, so a warn naming what to install — not a fault), or `gi://` stubbed by
+design on the `--app browser`/`--app nativescript` builds (nothing to install ⇒ SILENT, and on those
+targets the runtime's own `navigator.getGamepads` is the implementation anyway); **fault** = a
+library that will not `dlopen`, a version or ABI skew (`console.error` carrying the original);
+**monitor fault** = everything past the probe (`new Monitor()`, the device walk, `connect()`) failing
+on a host whose backend loaded fine — a sandbox without udev / `/dev/input` — which gets its own
+report rather than being labelled a failed load.
+
+`getGamepads()` answers the spec's `[[gamepads]]` and MUST NOT be made to throw: the list "is
+initially the empty list" and grows only when an index is selected for a connected device, so a host
+with no backend gets `[]` — the W3C steps only ever return a list (their one throw is the
+`"gamepad"` permission-policy `SecurityError`), and a browser on a driverless machine answers
+identically: WebKit compiles `EmptyGamepadProvider::platformGamepads()` returning a static empty
+vector. Throwing would break `navigator.getGamepads().length`. The pre-filled four-slot array this
+package used to return was Chrome's shape, not the spec's (Firefox and WebKit both answer `[]`), and
+it made `length` report four ports that do not exist; it is gone.
+
+The suite is runnable on a host with NO Manette typelib, and that is checked by running it there:
+`bwrap --ro-bind / / --ro-bind <copy-of-girepository-1.0-minus-Manette> /usr/lib64/girepository-1.0
+gjs -m test.gjs.mjs` → `138 completed`, identical to the same bundle on this machine WITH libmanette,
+with the one-time "No gamepad backend on this host" line on stderr only in the first case. Keeping
+that true is a constraint on the test bundle, not just on the source: `register.spec.ts` must not
+reference `globalThis.GamepadEvent` / `globalThis.navigator`, because `--globals auto` reads those as
+free globals and injects the GTK/GNOME-backed register set, which announces `gi://Gdk, gi://GdkPixbuf,
+gi://Manette, gi://Pango, gi://PangoCairo at load`. Wiring an ad-hoc Manette-less CI leg is NOT
+proposed here — the general answer is the per-namespace availability contract below.
 
 Still measured, still true: no GTK-runtime bundle carries the Manette typelib or libmanette, so on
 macOS and Windows that import has never succeeded. Deliberately NOT fixed by seeding libmanette into
@@ -536,10 +560,18 @@ shipping two paths. WebKit's `Source/WebCore/platform/gamepad/` holds `cocoa/`
 `Dualshock3HIDGamepad` / `StadiaHIDGamepad` / `LogitechGamepad` / `GenericHIDGamepad`), combined by
 `mac/MultiGamepadProvider.mm` — which calls `HIDGamepadProvider::ignoreGameControllerFrameworkDevices()`
 and gates GCF on `GameControllerGamepadProvider::willHandleVendorAndProduct()`, a hardcoded
-vendor/product allow-list. The reason is in the source: *"we use GameController framework for some
-controllers, but it's much too aggressive in handling devices it shouldn't. So we check
-Vendor/Product against an explicit allow-list to determine if we should let GCF handle the device.
-(We have the opposite check in HIDGamepadProvider, as well)"*. SDL ships both paths too —
+vendor/product allow-list. The comment that explains the allow-list is narrower than "GCF is too
+aggressive" in general — verbatim, and note its first three words
+(`cocoa/GameControllerGamepadProvider.mm:104`, inside
+`#if HAVE(MULTIGAMEPADPROVIDER_SUPPORT) && !HAVE(GCCONTROLLER_HID_DEVICE_CHECK)`): *"On macOS 10.15,
+we use GameController framework for some controllers, but it's much too aggressive in handling devices
+it shouldn't. So we check Vendor/Product against an explicit allow-list to determine if we should let
+GCF handle the device. (We have the opposite check in HIDGamepadProvider, as well)"*. So the
+allow-list is the fallback for builds without the newer HID-device check, not a standing verdict on
+GCF. The conclusion — a darwin backend needs BOTH paths — does not rest on that comment: it rests on
+`mac/MultiGamepadProvider.mm` existing and driving both providers
+(`HIDGamepadProvider::singleton().ignoreGameControllerFrameworkDevices()`), and on the per-device HID
+classes next to it. SDL ships both paths too —
 `src/joystick/apple/SDL_mfijoystick.m` (GameController/MFi) and
 `src/joystick/darwin/SDL_iokitjoystick.c` (IOKit HID).
 

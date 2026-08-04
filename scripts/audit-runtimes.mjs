@@ -855,6 +855,15 @@ async function runProbes(rows) {
 //                           `partial` silently means "crashes at first use"
 //                           instead of "degrades at call time". FATAL. Full
 //                           rationale at `auditCuratedAliasRouting`.
+//   5. `globals-entry-parity`
+//                         — the `native` mirror of check 3: a `native` slot
+//                           routes the package ROOT to `@gjsify/<X>/globals`, so
+//                           `globals.mjs` must carry every VALUE export of the
+//                           root entry or the routed bundle dies with
+//                           MISSING_EXPORT. REPORTED, not fatal — 38 packages
+//                           / 314 export names are narrower today. Rationale,
+//                           and which part of the gap a `globals.mjs` cannot
+//                           close at all: `nativeGlobalsGap`.
 //
 // Unrouted-but-exported platform entries (today: the ten `partial` packages)
 // are listed as an informational line on every run. Check 3 gates the
@@ -969,6 +978,8 @@ async function auditReachability(meta) {
     const failures = [];
     const warnings = [];
     const unrouted = [];
+    /** @type {Map<string, {name:string, targets:string[], missing:string[]}>} */
+    const globalsGaps = new Map();
     let checked = 0;
 
     for (const rec of [...meta.values()].sort((a, b) => a.rel.localeCompare(b.rel))) {
@@ -977,6 +988,16 @@ async function auditReachability(meta) {
 
         for (const target of REACH_TARGETS) {
             const slot = rec.runtimes[target];
+            // Check 5 — the `native` mirror of `platform-entry-parity`.
+            if (slot === 'native') {
+                const missing = await nativeGlobalsGap(rec, srcDir);
+                if (missing !== null) {
+                    const seen = globalsGaps.get(rec.name);
+                    if (seen) seen.targets.push(target);
+                    else globalsGaps.set(rec.name, { name: rec.name, targets: [target], missing });
+                }
+                continue;
+            }
             if (slot !== 'polyfill' && slot !== 'partial') continue;
 
             const entryFile = join(srcDir, `${target}.ts`);
@@ -1056,7 +1077,44 @@ async function auditReachability(meta) {
             else warnings.push(`${line} (gjs-only-reach, ${why})`);
         }
     }
-    return { failures, warnings, unrouted, aliasFailures, checked };
+    return { failures, warnings, unrouted, aliasFailures, checked, globalsGaps: [...globalsGaps.values()] };
+}
+
+/**
+ * Check 5 — `globals-entry-parity`: the `native` mirror of `platform-entry-parity`.
+ *
+ * A `native` slot routes the package ROOT to `@gjsify/<X>/globals` (§ Slot
+ * routing), exactly as `polyfill` + a declared subpath routes it to
+ * `src/<target>.ts`. So the same invariant applies for the same reason: a name
+ * the root entry exports and `globals.mjs` does not is a `MISSING_EXPORT` the
+ * moment a consumer imports it on that target. It went unnoticed until a build of
+ * `@gjsify/gamepad`'s OWN README example died with
+ * `"hasGamepadBackend" is not exported by "packages/web/gamepad/globals.mjs"`,
+ * because `probeGlobalsExports` (the `globals-broken` probe) only validates the
+ * `export … from '<spec>'` SOURCES a `globals.mjs` names — a file that re-exports
+ * nothing, like every hand-written `export const X = globalThis.X` one, passes it
+ * vacuously.
+ *
+ * REPORTED, not fatal — measured 2026-08-04 by this very check: 38 packages, 314
+ * export names, i.e. nearly every `native` slot in the tree. Making it fatal is a
+ * cross-cutting rewrite of all 314 (AGENTS.md exception (c): Plan + user confirm +
+ * split PRs), and part of the gap is not closable in a
+ * `globals.mjs` at ALL: no `globals.mjs` in the tree imports its own package body,
+ * so a name with no runtime-native source needs a platform entry rather than a
+ * re-export. Tracked in `status/open-todos.md`.
+ *
+ * @returns {Promise<string[]|null>} the missing value exports, or `null` when the
+ *          slot does not route here / there is nothing to compare.
+ */
+async function nativeGlobalsGap(rec, srcDir) {
+    if (!rec.exportKeys.has('./globals')) return null;
+    const globalsFile = join(rec.pkgDir, 'globals.mjs');
+    const rootEntry = join(srcDir, 'index.ts');
+    if (!existsSync(globalsFile) || !existsSync(rootEntry)) return null;
+    const rootExports = await collectValueExports(rootEntry);
+    const globalsExports = await collectValueExports(globalsFile);
+    const missing = [...rootExports].filter((e) => !globalsExports.has(e)).sort();
+    return missing.length > 0 ? missing : null;
 }
 
 // ─── Curated-alias routing (the `partial`-slot crash gap) ───────────────────
@@ -1135,6 +1193,20 @@ function renderReachabilityNotes(reach) {
             '  These are the promotion path from `partial` to `polyfill`: reach export parity with the root entry, flip the slot to `polyfill`, and ADR-0014 routing picks the entry up automatically (the `platform-entry-parity` check gates it).',
         );
         for (const line of reach.unrouted) console.error(`  · ${line}`);
+    }
+    if ((reach.globalsGaps ?? []).length > 0) {
+        const names = reach.globalsGaps.reduce((n, g) => n + g.missing.length, 0);
+        console.error(
+            `\nreachability notes — ${reach.globalsGaps.length} \`native\` slot package(s) whose globals.mjs is NARROWER than the root entry (${names} export(s); globals-entry-parity, reported not enforced):`,
+        );
+        console.error(
+            '  A `native` slot routes the package ROOT to `@gjsify/<X>/globals`, so each name below is a MISSING_EXPORT the moment a consumer imports it on that target — the invariant `platform-entry-parity` already enforces for `polyfill`. See `nativeGlobalsGap` for why this is reported rather than fatal, and which part of the gap a `globals.mjs` cannot close at all.',
+        );
+        for (const g of reach.globalsGaps) {
+            const shown = g.missing.slice(0, 12).join(', ');
+            const rest = g.missing.length > 12 ? ` … (+${g.missing.length - 12})` : '';
+            console.error(`  · ${g.name} (${g.targets.join(', ')}) — ${g.missing.length}: ${shown}${rest}`);
+        }
     }
 }
 
