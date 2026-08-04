@@ -5,7 +5,7 @@
 
 import GLib from '@girs/glib-2.0';
 import { z } from 'zod';
-import type { DevtoolsToolProfile, McpToolContext } from '../profile.js';
+import type { DevtoolsProfileOptions, DevtoolsToolProfile, McpToolContext } from '../profile.js';
 
 const strv = (value: string) => GLib.Variant.new_string(value);
 
@@ -91,11 +91,12 @@ export function registerStorybookTools(ctx: McpToolContext): void {
 }
 
 /** A ready-made profile for a storybook app: generic tools + the story tools. */
-export function storybookProfile(busNameBase: string): DevtoolsToolProfile {
+export function storybookProfile(busNameBase: string, options: DevtoolsProfileOptions = {}): DevtoolsToolProfile {
     return {
         name: 'gjsify-storybook-devtools',
         version: '0.8.0',
         busNameBase,
+        address: options.address,
         registerTools: registerStorybookTools,
     };
 }

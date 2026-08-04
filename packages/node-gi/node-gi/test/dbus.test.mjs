@@ -7,7 +7,10 @@
 // its golden result AND the output of the SAME scenario under `gjs -m`
 // (../dbus/gjs-harness.js) — the byte-for-byte gjs cross-check. Requires a session
 // bus; wrap the invocation in `dbus-run-session` for isolation:
-//   dbus-run-session -- node --test --expose-gc test/dbus.test.mjs   (npm run test:dbus)
+//   dbus-run-session --config-file=test/session.conf -- \
+//     node --test --expose-gc test/dbus.test.mjs                    (npm run test:dbus)
+// The --config-file is not optional decoration: dbus-run-session's default config
+// cannot start on macOS (see test/session.conf).
 // When no session bus is reachable (the default `npm test` in a headless CI
 // container), every case self-skips — it never fails for lack of a bus.
 //
@@ -30,6 +33,10 @@ import { runExportScenario, EXPORT_EXPECTED } from '../dbus/export-scenario.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HARNESS = join(HERE, '..', 'dbus', 'gjs-harness.js');
+// A private-bus config whose <listen> is a plain unix socket. dbus-run-session's
+// DEFAULT config is unusable on macOS, where Homebrew's dbus listens on launchd
+// and the daemon exits with "DBUS_LAUNCHD_SESSION_BUS_SOCKET is empty".
+const SESSION_CONF = join(HERE, 'session.conf');
 const HEX32 = /^[0-9a-f]{32}$/;
 
 const PROXY_XML = `<node><interface name="org.freedesktop.DBus">
@@ -82,7 +89,7 @@ test('DBus client round-trip matches the golden result', { skip: busSkip }, () =
 
 test('the same round-trip under `gjs -m` is byte-identical (gold standard)', { skip: gjsSkip }, () => {
     // Give gjs its own private bus so it never races the node run's names.
-    const r = spawnSync('dbus-run-session', ['--', 'gjs', '-m', HARNESS], {
+    const r = spawnSync('dbus-run-session', [`--config-file=${SESSION_CONF}`, '--', 'gjs', '-m', HARNESS], {
         encoding: 'utf8',
         timeout: 60000,
     });

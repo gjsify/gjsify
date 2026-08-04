@@ -28,6 +28,15 @@ export interface InstallDevtoolsOptions {
     enabled?: boolean;
     /** Per-instance label (multi-instance side-by-side). Default: the `GJSIFY_DEVTOOLS_INSTANCE` env var. */
     instance?: string;
+    /**
+     * D-Bus address to LISTEN on for the bus-less peer-to-peer transport
+     * (`unix:tmpdir=/tmp`, `unix:path=/tmp/app.sock`, `nonce-tcp:host=127.0.0.1`).
+     * Takes precedence over the session bus. Default: the
+     * `GJSIFY_DEVTOOLS_ADDRESS` env var; with neither, the session bus is used
+     * when it answers and a socket is auto-picked when it does not — the full
+     * precedence table lives on `chooseDevtoolsTransport`.
+     */
+    address?: string;
     /** App-specific extensions. */
     extend?: readonly DevtoolsExtension[];
     /**

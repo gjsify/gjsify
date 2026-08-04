@@ -33,6 +33,12 @@ export interface McpToolContext {
     readonly dbusError: (error: unknown, instance?: string) => ToolResult;
 }
 
+/** Extra knobs every built-in profile factory accepts. */
+export interface DevtoolsProfileOptions {
+    /** Peer address to dial instead of the session bus. See {@link DevtoolsToolProfile.address}. */
+    readonly address?: string;
+}
+
 /** Describes an MCP bridge for a specific app (or the generic default). */
 export interface DevtoolsToolProfile {
     /** MCP server name. */
@@ -41,6 +47,13 @@ export interface DevtoolsToolProfile {
     readonly version: string;
     /** The app's base DBus name, e.g. `"org.example.App"`. */
     readonly busNameBase: string;
+    /**
+     * Peer address to dial instead of the session bus (`unix:path=…`,
+     * `nonce-tcp:host=…,port=…,noncefile=…`). Omit for the normal precedence:
+     * `GJSIFY_DEVTOOLS_ADDRESS` → the address file the app publishes → the
+     * session bus (`chooseClientTransport`).
+     */
+    readonly address?: string;
     /** Which generic tools to register. Default: `'all'`. */
     readonly genericTools?: GenericToolName[] | 'all';
     /**

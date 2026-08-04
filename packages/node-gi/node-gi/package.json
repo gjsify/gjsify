@@ -88,7 +88,7 @@
     "test": "NODE_GI_NATIVE=build node --test",
     "test:node": "NODE_GI_NATIVE=build node --test",
     "test:gc": "NODE_GI_NATIVE=build node --test --expose-gc",
-    "test:dbus": "dbus-run-session -- env NODE_GI_NATIVE=build node --test --expose-gc test/dbus.test.mjs test/dbus-async.test.mjs",
+    "test:dbus": "dbus-run-session --config-file=test/session.conf -- env NODE_GI_NATIVE=build node --test --expose-gc test/dbus.test.mjs test/dbus-async.test.mjs",
     "test:bun": "node scripts/cross-runtime.mjs bun",
     "test:conformance": "node scripts/conformance.mjs",
     "test:conformance:gjs-napi": "node scripts/conformance.mjs --runtimes=gjs-napi",

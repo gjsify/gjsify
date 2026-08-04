@@ -17,14 +17,14 @@ import { fail, ok } from './tool-result.js';
  * JSON-RPC stdout stream stays clean.
  */
 export async function runDevtoolsMcp(profile: DevtoolsToolProfile): Promise<void> {
-    const client = new DbusDevtoolsClient(profile.busNameBase);
+    const client = new DbusDevtoolsClient(profile.busNameBase, { address: profile.address });
     const server = new McpServer({ name: profile.name, version: profile.version });
     const ctx: McpToolContext = {
         server,
         client,
         ok,
         fail,
-        dbusError: (error, instance) => dbusError(error, client.resolve(instance)),
+        dbusError: (error, instance) => dbusError(error, client.resolve(instance), client.describeTarget(instance)),
     };
 
     registerGenericTools(ctx, profile.genericTools ?? 'all');
@@ -46,7 +46,11 @@ export async function runDevtoolsMcp(profile: DevtoolsToolProfile): Promise<void
     // loop under GJS — the read loop never gets pumped. Same structure as the
     // map-editor bridge: connect fire-and-forget, loop.run() on the sync stack.
     server.connect(transport).then(
-        () => console.error(`[gjsify-devtools-mcp] ${profile.name} on stdio (DBus base: ${profile.busNameBase})`),
+        () =>
+            console.error(
+                `[gjsify-devtools-mcp] ${profile.name} on stdio (DBus base: ${profile.busNameBase}, ` +
+                    `via ${client.describeTarget()})`,
+            ),
         (error: unknown) => {
             console.error('[gjsify-devtools-mcp] failed to connect:', error);
             loop.quit();

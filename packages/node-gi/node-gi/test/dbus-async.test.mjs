@@ -18,7 +18,8 @@
 //
 // Needs a session bus like dbus.test.mjs; self-skips without one (never fails
 // for lack of a bus):
-//   dbus-run-session -- node --test test/dbus-async.test.mjs   (npm run test:dbus)
+//   dbus-run-session --config-file=test/session.conf -- \
+//     node --test test/dbus-async.test.mjs                     (npm run test:dbus)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers';

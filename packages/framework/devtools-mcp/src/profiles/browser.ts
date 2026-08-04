@@ -7,7 +7,7 @@
 import GLib from '@girs/glib-2.0';
 import { z } from 'zod';
 
-import type { DevtoolsToolProfile, McpToolContext } from '../profile.js';
+import type { DevtoolsProfileOptions, DevtoolsToolProfile, McpToolContext } from '../profile.js';
 import { image } from '../tool-result.js';
 
 const strv = (value: string): GLib.Variant => GLib.Variant.new_string(value);
@@ -455,11 +455,12 @@ export function registerBrowserTools(ctx: McpToolContext): void {
 }
 
 /** Tool profile for a @gjsify/devtools-browser app. */
-export function browserProfile(busNameBase: string): DevtoolsToolProfile {
+export function browserProfile(busNameBase: string, options: DevtoolsProfileOptions = {}): DevtoolsToolProfile {
     return {
         name: 'gjsify-browser-devtools',
         version: '0.10.0',
         busNameBase,
+        address: options.address,
         registerTools: registerBrowserTools,
     };
 }

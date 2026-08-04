@@ -13,7 +13,7 @@
 import GLib from '@girs/glib-2.0';
 import { z } from 'zod';
 
-import type { DevtoolsToolProfile, McpToolContext } from '../profile.js';
+import type { DevtoolsProfileOptions, DevtoolsToolProfile, McpToolContext } from '../profile.js';
 
 // `@gjsify/devtools-cdp` is an OPTIONAL PEER (Tier 3, experimental) loaded lazily
 // in `loadDevtoolsCdp()`. It is kept OUT of the static import graph entirely — not
@@ -272,11 +272,12 @@ export async function registerCdpTools(ctx: McpToolContext): Promise<void> {
 }
 
 /** Tool profile for a @gjsify/devtools-cdp-enabled app. */
-export function cdpProfile(busNameBase: string): DevtoolsToolProfile {
+export function cdpProfile(busNameBase: string, options: DevtoolsProfileOptions = {}): DevtoolsToolProfile {
     return {
         name: 'gjsify-cdp-devtools',
         version: '0.11.0',
         busNameBase,
+        address: options.address,
         registerTools: registerCdpTools,
     };
 }
