@@ -4,6 +4,7 @@
 // Reimplemented for GJS using libmanette (gi://Manette)
 
 import type Manette from '@girs/manette-0.2';
+import { loadGamepadBackend, reportGamepadBackendFault } from './backend.js';
 import { GamepadButton } from './gamepad-button.js';
 import { Gamepad } from './gamepad.js';
 import { GamepadEvent } from './gamepad-event.js';
@@ -50,18 +51,34 @@ export class GamepadManager {
         if (this._initialized) return;
         if (this._initPromise) return;
 
-        this._initPromise = this._init();
+        // `_init()` is deliberately NOT awaited — `getGamepads()` is synchronous
+        // per the W3C polling contract — so a rejection here would surface as an
+        // UNHANDLED rejection: unattributable on GJS and, under Node's default
+        // `--unhandled-rejections=throw`, a process kill. Everything past the
+        // backend probe (`new Monitor()`, `iterate()`, `connect()`) can throw a
+        // GError, and before this handler existed each one was a permanently
+        // silent "no gamepads" plus an unhandled rejection.
+        this._initPromise = this._init().catch((error: unknown) => {
+            reportGamepadBackendFault(error);
+            // Mark done rather than leaving `_initialized` false with a live
+            // `_initPromise`: the retry gate would block re-entry anyway, so say
+            // so explicitly instead of relying on that side effect.
+            this._initialized = true;
+        });
     }
 
     private async _init(): Promise<void> {
-        try {
-            const mod = await import('gi://Manette');
-            this._ManetteModule = mod.default;
-        } catch {
-            // libmanette not available — getGamepads() will return empty array
+        const backend = await loadGamepadBackend();
+        if (backend.module === null) {
+            // No usable backend on this host. `getGamepads()` keeps answering
+            // the W3C shape (see its doc comment for why that is correct, not a
+            // silent failure); `loadGamepadBackend()` has already said WHY on
+            // stderr, once, and `hasGamepadBackend()` is the machine-readable
+            // form. Nothing to add per manager instance.
             this._initialized = true;
             return;
         }
+        this._ManetteModule = backend.module;
 
         const monitor = new this._ManetteModule.Monitor();
         this._monitor = monitor;
@@ -266,6 +283,25 @@ export class GamepadManager {
     /**
      * Returns a snapshot array matching the W3C `navigator.getGamepads()` contract.
      * Each non-null entry is a frozen Gamepad object with current state.
+     *
+     * ## On a host with NO gamepad backend this returns all-null — do NOT make it throw
+     *
+     * The W3C Gamepad API has no state for "this platform has no gamepad
+     * subsystem". `getGamepads()`'s steps (§ Extensions to the `Navigator`
+     * Interface) only ever *return a list*; the single `throw` in them is a
+     * `SecurityError` for the `"gamepad"` permission policy, and every other
+     * negative case — no `Document`, no user gesture, nothing connected — is
+     * spelled "return an empty list". A real browser on a machine with no
+     * gamepad driver does exactly that, structurally: WebKit compiles an
+     * `EmptyGamepadProvider` (`Source/WebCore/platform/gamepad/`) whose
+     * `platformGamepads()` returns a static empty vector on every port with no
+     * backend.
+     *
+     * So throwing here would be LESS conformant, not more: it would break every
+     * page that does `navigator.getGamepads().length`, which is the canonical
+     * poll. The reason behind an empty answer is exposed NEXT TO the conformant
+     * surface instead — {@link hasGamepadBackend} plus the one-time stderr
+     * diagnostic from the backend probe.
      */
     getGamepads(): (Gamepad | null)[] {
         this._ensureInit();

@@ -6,5 +6,10 @@
 import { run } from '@gjsify/unit';
 
 import testSuiteGamepad from './gamepad.spec.js';
+import testSuiteRegister from './register.spec.js';
+// LAST on purpose: the backend suite injects fake `gi://Manette` modules into the
+// shared probe cache. It hands the cache back at the end, but ordering it after
+// the suites that read the real host keeps that independent of its own cleanup.
+import testSuiteBackend from './backend.spec.js';
 
-run({ testSuiteGamepad });
+run({ testSuiteGamepad, testSuiteRegister, testSuiteBackend });
