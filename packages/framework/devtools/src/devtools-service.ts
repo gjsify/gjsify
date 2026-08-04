@@ -15,6 +15,7 @@ import {
 import { activateAction, changeActionState, describeActions } from './actions.js';
 import { buildDevtoolsIfaceXml } from './devtools-iface.js';
 import type { DevtoolsExtension, InstallDevtoolsOptions } from './extension.js';
+import type { DevtoolsPeerServer } from './peer-transport.js';
 import { captureWidgetPng } from './screenshot.js';
 import { dumpCss, swapCss } from './css.js';
 import { dumpGSettings } from './gsettings.js';
@@ -65,7 +66,17 @@ async function captureWidgetWhenRenderable(widget: Gtk.Widget, tries = 12, gapMs
  * it survives window recreation.
  */
 export class DevtoolsService {
-    private _exported: Gio.DBusExportedObject | null = null;
+    /**
+     * One `Gio.DBusExportedObject` PER CONNECTION. The session bus is a single
+     * shared pipe, but the peer transport (`peer-transport.ts`) hands out one
+     * `Gio.DBusConnection` per client with no shared object registry — a
+     * single-slot field would export the interface to the FIRST peer only, and
+     * every later client would see `UnknownMethod` for all 26 methods. Keyed by
+     * connection, so `export()` stays idempotent PER connection while serving
+     * any number of them.
+     */
+    private readonly _exported = new Map<Gio.DBusConnection, Gio.DBusExportedObject>();
+    private _peer: DevtoolsPeerServer | null = null;
     private readonly _extensions: readonly DevtoolsExtension[];
     private readonly _kinds = new Map<string, MethodKind>();
 
@@ -93,19 +104,47 @@ export class DevtoolsService {
         }
     }
 
-    /** Export the interface at `objectPath` on `connection`. Idempotent. */
+    /**
+     * Export the interface at `objectPath` on `connection`. Idempotent per
+     * connection; accepts ANY `Gio.DBusConnection` — the app's session-bus
+     * connection or a peer connection from a `Gio.DBusServer`.
+     */
     export(connection: Gio.DBusConnection, objectPath: string): void {
-        if (this._exported) return;
+        if (this._exported.has(connection)) return;
         const xml = buildDevtoolsIfaceXml(this._extensions.flatMap((e) => e.methodsXml ?? []));
         const exported = Gio.DBusExportedObject.wrapJSObject(xml, this);
         exported.export(connection, objectPath);
-        this._exported = exported;
+        this._exported.set(connection, exported);
     }
 
-    /** Tear the interface down. Idempotent. */
-    unexport(): void {
-        this._exported?.unexport();
-        this._exported = null;
+    /**
+     * Tear the interface down — on `connection` only, or (default) everywhere,
+     * including a peer server attached via {@link attachPeerServer}. Idempotent.
+     */
+    unexport(connection?: Gio.DBusConnection): void {
+        if (connection) {
+            this._exported.get(connection)?.unexport();
+            this._exported.delete(connection);
+            return;
+        }
+        for (const exported of this._exported.values()) exported.unexport();
+        this._exported.clear();
+        this._peer?.stop();
+        this._peer = null;
+    }
+
+    /**
+     * Record the peer server hosting this service, so `unexport()` closes the
+     * socket too and callers can read the address back (rather than scraping it
+     * off the app's stderr).
+     */
+    attachPeerServer(peer: DevtoolsPeerServer): void {
+        this._peer = peer;
+    }
+
+    /** The peer address clients must dial, or `null` when this service is on a bus. */
+    get peerAddress(): string | null {
+        return this._peer?.address ?? null;
     }
 
     // --- generic DBus methods (names match buildDevtoolsIfaceXml) ---

@@ -1,9 +1,12 @@
 // @gjsify/devtools — in-app DBus devtools control plane (GTK/GJS).
 // Pure named exports; opt-in via installDevtools() (no global side effects).
 
-export { installDevtools, uninstallDevtools } from './install.js';
+export { chooseDevtoolsTransport, installDevtools, uninstallDevtools } from './install.js';
+export type { DevtoolsTransportChoice } from './install.js';
 export { DevtoolsService } from './devtools-service.js';
 export type { DevtoolsExtension, InstallDevtoolsOptions } from './extension.js';
+export { removeDevtoolsAddressFile, startDevtoolsPeerServer, writeDevtoolsAddressFile } from './peer-transport.js';
+export type { DevtoolsPeerServer } from './peer-transport.js';
 export { captureWidgetPng } from './screenshot.js';
 export { buildVariant, variantKindFor } from './gvariant.js';
 export type { VariantKind } from './gvariant.js';

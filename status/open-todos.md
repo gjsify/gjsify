@@ -523,6 +523,47 @@ Adoption is opportunistic, not a rewrite — wire each consumer onto the shell p
 
 `@gjsify/devtools` exports `org.gjsify.Devtools` correctly in every app config (verified rigorously, guarded by `tests/e2e/devtools-export`), and the css-as-string bare-`@import` gap that blocked the maker's rebuild under the global GJS CLI is fixed at the core (native `bundle()` path resolves + inlines bare-specifier `@import`s via `cssBundleResolver`; unresolvable imports fail loudly; `tests/e2e/css-as-string-bare-import`). Residual (map-editor repo, not gjsify): the committed `apps/maker-gjs/org.pixelrpg.maker` bundle predates the `installDevtools(this)` call — rebuild + recommit it. `installDevtools` logs `[gjsify-devtools] exported …` so "did devtools come up?" is answerable from the app's stderr.
 
+### `Screenshot`'s `scope` in-arg is DEAD — a caller asking for a widget silently gets the active window
+
+The wire method takes one (`<arg type="s" direction="in" name="scope"/>`,
+`packages/framework/devtools/src/devtools-iface.ts:11`) and the handler ignores
+it: `ScreenshotAsync(_params, invocation)`
+(`packages/framework/devtools/src/devtools-service.ts:151`) always calls
+`_captureActiveWindowPng()` (`:171`), which resolves
+`this._app.get_active_window()` and nothing else. The generic MCP tool passes
+`scope ?? 'window'` (`packages/framework/devtools-mcp/src/generic-tools.ts:62`),
+so every caller today happens to ask for the active window and the gap stays
+invisible — but `'toplevel:1'` or `'toplevel:0/child:2'` returns the active
+window's pixels: a WRONG ANSWER, not an error.
+
+Both halves of the fix already exist: `_resolveRootWidget`
+(`devtools-service.ts:289`) already maps `''`/`'window'`/`'active'` AND any
+widget path, and `captureWidgetPng(widget)` (`screenshot.ts:18`) captures any
+widget — `_captureActiveWindowPng` is the one path that goes through neither. The
+warm-up retry (`captureWidgetWhenRenderable`) is widget-generic too. Deliberately
+not fixed alongside the bus-less transport: it changes what an EXISTING argument
+MEANS, so it wants its own regression test per scope shape (active window, a
+non-active toplevel, a child widget, and an unresolvable path → error rather than
+a silent fallback).
+
+### `SetProperty` and `EmitSignal` are classified in the contract but exist on no wire
+
+`GENERIC_METHODS` declares both with a `mutating` kind
+(`packages/framework/devtools-protocol/src/methods.ts:32` and `:35`) — which is
+what the pause guard consults — but `GENERIC_METHODS_XML`
+(`packages/framework/devtools/src/devtools-iface.ts:7-65`) carries no `<method>`
+fragment for either, `DevtoolsService` implements neither, and
+`GenericToolName` / `registerGenericTools`
+(`packages/framework/devtools-mcp/src/profile.ts`, `src/generic-tools.ts`) expose
+no tool. A caller reads the contract, sees the name and its kind, and gets
+`UnknownMethod` from the app: a classification with nothing behind it — the shape
+the manifest-conformance rules exist to prevent one level up. Fix is either to
+implement both on the GTK adapter (`SetProperty` wants the already-exported
+`buildVariant`/`variantKindFor` plus a writable-property check; `EmitSignal`
+wants a signal-name + args marshaller) or to drop them from `GENERIC_METHODS`
+until one adapter has them. Out of scope with the transport work: both are
+widget-state MUTATORS, a different surface entirely.
+
 ### Architecture backlog — ADRs 0001–0008
 
 Decisions in [docs/adr/](../docs/adr/README.md), prioritized backlog in [docs/reports/2026-07-01-architecture-review.md](../docs/reports/2026-07-01-architecture-review.md). Remaining open work (resolved sub-items are recorded in the commits/CHANGELOG that closed them):

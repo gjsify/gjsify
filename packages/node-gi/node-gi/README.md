@@ -721,7 +721,10 @@ property get/set through `org.freedesktop.DBus.Properties`, a throwing method
 returning a DBus error, `emit_signal`, `emit_property_changed` updating a
 proxy's cached property, and unexport — runs byte-identical to gjs
 (`dbus/export-scenario.mjs`, cross-checked against `gjs -m` under
-`dbus-run-session` by `npm run test:dbus`). Lifetime: the registration ref+sinks
+`dbus-run-session` by `npm run test:dbus`, which passes
+`--config-file=test/session.conf` — a plain `unix:tmpdir=/tmp` bus, because
+dbus-run-session's DEFAULT config cannot start on macOS, where Homebrew's dbus
+listens on launchd). Lifetime: the registration ref+sinks
 its closures, so the service object lives exactly as long as the registration
 (surviving GC with no JS references) and becomes collectable after
 `unexport()` — guarded by the `--expose-gc` leg of the dbus suite. A method

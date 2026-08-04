@@ -43,6 +43,59 @@ gdbus call --session -d org.example.App -o /org/example/App/devtools \
   -m org.gjsify.Devtools.Screenshot 'window'   # PNG bytes as a GVariant `ay`
 ```
 
+## No session bus? (macOS, Windows)
+
+**The capture is already OS-agnostic — only the transport ever needed a bus.** `captureWidgetPng` is pure GTK4/GSK, in-process (`widget.get_native().get_renderer()` → `Gtk.WidgetPaintable` → `Gsk.Renderer.render_texture` → `texture.save_to_png_bytes()`): no `grim`, no `gnome-screenshot`, no xdg portal, no GStreamer, no OS branch. It is CI-proven on darwin-arm64.
+
+What macOS and Windows lack is the **session bus**. So `installDevtools` speaks GDBus **peer-to-peer** when there is none: it stands up a `Gio.DBusServer` on a socket and exports the same `org.gjsify.Devtools` interface — every method, same object path — on each incoming connection.
+
+### The recipe (one env var, no daemon)
+
+```bash
+# the app
+GJSIFY_DEVTOOLS=1 GJSIFY_DEVTOOLS_ADDRESS=unix:path=/tmp/myapp-devtools.sock gjs -m dist/app.js
+# the bridge
+GJSIFY_DEVTOOLS_ADDRESS=unix:path=/tmp/myapp-devtools.sock gjsify debug --bus-name org.example.App
+#   …or equivalently:  gjsify debug --bus-name org.example.App --address unix:path=/tmp/myapp-devtools.sock
+```
+
+Setting nothing at all also works: with no usable bus the app picks a socket itself, logs the address and **publishes** it to `<runtime-dir>/gjsify-devtools/<app-id>[.<instance>].address` (removed on `shutdown`) — the bus-less analogue of `DBUS_SESSION_BUS_ADDRESS`. The bridge reads that file, so `gjsify debug` needs no configuration either.
+
+### Transport precedence
+
+| explicit address (`options.address` / `GJSIFY_DEVTOOLS_ADDRESS`) | app holds a bus connection | session bus answers | transport |
+|---|---|---|---|
+| set   | any | any | peer server at that address |
+| unset | yes | any | the session bus — **Linux is unchanged** |
+| unset | no  | no  | peer server at an auto-picked socket (address logged + published) |
+| unset | no  | yes | none: the bus works, so the diagnosis is a too-early call — call `installDevtools` from `startup` |
+
+Auto-picking rather than failing is deliberate: `GJSIFY_DEVTOOLS=1` asks for a control plane, and answering it with a service that is constructed but never exported is exactly the silent absence this transport removes. The bridge mirrors the order: `--address` → env var → published address file → session bus.
+
+### The `dbus-run-session` trap
+
+The fallback everyone reaches for first — an external session bus — **does not work on macOS as spelled everywhere else**. Homebrew's dbus listens on launchd, so `dbus-run-session` dies with `DBUS_LAUNCHD_SESSION_BUS_SOCKET is empty`. A hand-started private bus does work:
+
+```bash
+dbus-daemon --session --nofork --address=unix:path=/tmp/devtools-bus.sock &
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/devtools-bus.sock
+# …or hand dbus-run-session a config file whose <listen> is a plain socket:
+dbus-run-session --config-file=session.conf -- <command>   # <listen>unix:tmpdir=/tmp</listen>
+```
+
+Prefer the peer transport; the above is only for tooling that must have a bus NAME.
+
+### Two macOS gotchas that are not about devtools
+
+- **`DYLD_*` must be exported by the shell that `exec`s `gjs`.** SIP strips those variables through a `nohup`/`sh` wrapper, so a prebuild's sibling library silently fails to load.
+- **Cold start can take a very long time.** Measured on a GPU-less QEMU VM: 94 s before the control plane answered its first call (1 s warm). Anything that waits on the app must **poll `GetStatus`**, never sleep a fixed time.
+
+### Address forms
+
+`unix:path=…` / `unix:tmpdir=…` (POSIX; `unix:tmpdir` is the auto-picked default — GDBus generates a unique socket name, so there is no stale-socket collision) and `nonce-tcp:host=127.0.0.1` (the portable form; GLib implements no unix-socket transport on win32). Both measured working under gjs 1.88.1.
+
+Access control follows the address FAMILY, not the platform: a unix socket authenticates with `EXTERNAL` and the server requires the peer's uid to equal ours; TCP carries no peer credentials — that same flag rejects every client there — so the nonce file, readable only by the current user, is the secret.
+
 ## Generic methods (out of the box)
 
 `GetStatus`, `Screenshot` (GSK widget snapshot PNG), `ListActions` / `ActivateAction` / `ChangeActionState` (GAction bridge), `PresentWindow`, `ResizeWindow`, plus full introspection: `ListToplevels`, `DumpTree`, `GetProperty` (by index path), `GetFocused`, `DumpGSettings`, `DumpCss` / `SwapCss` (live CSS hot-swap).
@@ -69,8 +122,9 @@ installDevtools(this, { extend: [myExtension] });
 ## Exports
 
 - `installDevtools(app, options)` → returns a `DevtoolsService` (or `null` when the env gate is off); `uninstallDevtools(service)` — opt-in lifecycle.
-- `DevtoolsService` — the exported service object `installDevtools` returns and `uninstallDevtools` accepts.
+- `DevtoolsService` — the exported service object `installDevtools` returns and `uninstallDevtools` accepts; `service.peerAddress` is the address clients dial in bus-less mode (`null` on a bus).
 - `DevtoolsExtension`, `InstallDevtoolsOptions` — the extension + options types.
+- `startDevtoolsPeerServer(service, objectPath, address?)` → `DevtoolsPeerServer` — the bus-less transport by hand; `chooseDevtoolsTransport(input)` — the precedence table above as a pure function; `writeDevtoolsAddressFile` / `removeDevtoolsAddressFile` — publish/retract a peer address.
 - `captureWidgetPng` (GSK screenshot), `buildVariant` / `variantKindFor` / `VariantKind` (GVariant), `activateAction` / `changeActionState` / `describeActions` (GAction bridge).
 - widget-tree helpers (`dumpTree`, `getWidgetProperty`, `listToplevels`, `resolveWidgetPath`, …), `dumpCss` / `swapCss` / `removeCss`, `dumpGSettings`, `buildDevtoolsIfaceXml`.
 - the re-exported `@gjsify/devtools-protocol` contract.

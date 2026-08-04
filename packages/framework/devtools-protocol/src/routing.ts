@@ -42,3 +42,53 @@ export function resolveBusAddress(base: string, label?: string): BusAddress {
     }
     return { busName: `${base}.${seg}`, objectPath: `${basePath}/${seg}/devtools`, instance: seg };
 }
+
+// --- environment contract -------------------------------------------------
+// Named HERE, in the contract both sides import, so the in-app adapter and the
+// MCP bridge cannot disagree about a variable name. They previously lived as
+// string literals inside `@gjsify/devtools`, which was harmless while only the
+// app side read them — `GJSIFY_DEVTOOLS_ADDRESS` is read by BOTH.
+
+/** Env var enabling the control plane at all (any value except ``, `0`, `false`). */
+export const DEVTOOLS_ENABLE_ENV = 'GJSIFY_DEVTOOLS';
+/** Env var carrying the per-instance label for side-by-side apps. */
+export const DEVTOOLS_INSTANCE_ENV = 'GJSIFY_DEVTOOLS_INSTANCE';
+/**
+ * Env var carrying a D-Bus address for the BUS-LESS peer-to-peer transport.
+ * On the app side it is the address to LISTEN on (`unix:tmpdir=/tmp`,
+ * `unix:path=…`, `nonce-tcp:host=127.0.0.1`); on the bridge side it is the
+ * address to DIAL. It exists because macOS and Windows have no session bus.
+ */
+export const DEVTOOLS_ADDRESS_ENV = 'GJSIFY_DEVTOOLS_ADDRESS';
+
+/** Whether a value read from {@link DEVTOOLS_ENABLE_ENV} turns devtools on. */
+export function isDevtoolsEnabledValue(value: string | null | undefined): boolean {
+    if (value == null) return false;
+    const t = value.toLowerCase();
+    return t !== '' && t !== '0' && t !== 'false';
+}
+
+/** Directory (under the user's runtime dir) holding the per-app peer-address files. */
+export const DEVTOOLS_ADDRESS_DIR = 'gjsify-devtools';
+
+/**
+ * Path of the file an app on the peer transport writes its concrete CLIENT
+ * address into, so a bridge can find it with no environment at all. This is the
+ * bus-less analogue of `DBUS_SESSION_BUS_ADDRESS`: a peer socket has no
+ * well-known name to look up, so the address itself has to be discoverable.
+ *
+ * `runtimeDir` is passed IN rather than probed, keeping this package free of
+ * platform imports (both sides pass `GLib.get_user_runtime_dir()`).
+ *
+ * The name derives from the SAME bus name {@link resolveBusAddress} derives, so
+ * an instance label routes both transports identically:
+ * - `(dir, "org.example.App")` → `<dir>/gjsify-devtools/org.example.App.address`
+ * - `(dir, "org.example.App", "host")` → `<dir>/gjsify-devtools/org.example.App.host.address`
+ *
+ * Forward slashes unconditionally: GLib/GIO accept them as separators on win32
+ * too, and a per-platform separator would need a platform probe in a pure module.
+ */
+export function devtoolsAddressFilePath(runtimeDir: string, base: string, label?: string): string {
+    const { busName } = resolveBusAddress(base, label);
+    return `${runtimeDir}/${DEVTOOLS_ADDRESS_DIR}/${busName}.address`;
+}

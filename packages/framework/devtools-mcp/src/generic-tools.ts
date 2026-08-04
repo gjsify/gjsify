@@ -371,7 +371,9 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
         server.registerTool(
             'list_instances',
             {
-                description: 'List devtools-enabled app instances on the session bus (default + labelled).',
+                description:
+                    'List reachable devtools-enabled app instances — every default/labelled bus name on the ' +
+                    'session bus, or (on the bus-less peer transport) the single app this bridge is dialling.',
                 inputSchema: z.object({}),
             },
             async () => {

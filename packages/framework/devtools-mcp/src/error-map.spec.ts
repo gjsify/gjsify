@@ -20,6 +20,16 @@ export default async () => {
             expect(text(r)).toContain('org.example.App');
         });
 
+        await it('names the peer address instead of "session bus" in peer mode', async () => {
+            const r = dbusError(
+                new Error('GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: ...'),
+                resolved,
+                'peer address unix:path=/tmp/app.sock (from env)',
+            );
+            expect(text(r)).toContain('unix:path=/tmp/app.sock');
+            expect(text(r)).not.toContain('session bus');
+        });
+
         await it('surfaces a typed devtools rejection from a GDBus remote error', async () => {
             const r = dbusError(
                 new Error(
