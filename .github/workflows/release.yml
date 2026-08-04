@@ -323,9 +323,13 @@ jobs:
 
       # Build-time closure SOURCE only — these libraries are collected + relocated
       # INTO the self-contained bundle, they are NOT a runtime dep of the tarball.
-      # Verbatim from .github/workflows/node-gi.yml -> macos-gtk-runtime.
-      - name: Install GTK4 + GObject-Introspection (Homebrew, build-time closure source)
-        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+      # Verbatim from .github/workflows/node-gi.yml -> macos-gtk-windowing-runtime
+      # (NOT the display-free macos-gtk-runtime): gtksourceview5 backs the GtkSource-5
+      # typelib and adwaita-icon-theme supplies share/icons, both of which the
+      # --windowing bundle below needs — and now asserts, so a missing formula fails
+      # the build instead of quietly shipping a bundle without Adwaita.
+      - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
+        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
 
       # Node 24 runs build-gtk-runtime-darwin.mjs (node:child_process/fs) and the publish.
       # No `registry-url` here — setting it makes actions/setup-node inject a
@@ -338,23 +342,34 @@ jobs:
           node-version: '24'
 
       # Populate the gitignored gtk/ bundle so `files: ["gtk"]` ships it (the packer
-      # expands a plain-dir entry recursively). Only --out is needed: the PACKAGE
-      # requires just gtk/{lib,girepository-1.0,manifest.json} (index.js isPresent =
-      # lib/ && girepository-1.0/). The --addon/--stage relocation is node-gi's OWN
-      # prebuilds concern (node-gi.yml), NOT part of this tarball — so no node-gyp
-      # addon build here.
-      - name: Build the GTK runtime bundle (populate gtk/)
+      # expands a plain-dir entry recursively). The --addon/--stage relocation is
+      # node-gi's OWN prebuilds concern (node-gi.yml), NOT part of this tarball — so no
+      # node-gyp addon build here.
+      #
+      # --windowing, i.e. the SUPERSET, because this is the bundle that gets PUBLISHED.
+      # Up to and including 0.27.1 this step built the display-free variant, and the
+      # tarball measurably showed it: `"windowing": false`, `"dataBytes": 0`, no
+      # `share/` at all, and — because the brew typelib dir was copied wholesale —
+      # `Adw-1.typelib` WITHOUT libadwaita, so `new Adw.Application()` died with
+      # "Failed to load shared library 'libadwaita-1.0.dylib'" and every
+      # GSettings-backed API and icon lookup silently misbehaved. The display-free
+      # variant is the CONFORMANCE bundle (its closure is exactly what the display-free
+      # conformance loads) and node-gi.yml keeps building it; a consumer installing
+      # "batteries-included GTK" wants the complete runtime.
+      - name: Build the GTK runtime bundle (--windowing superset, populate gtk/)
         run: |
           node packages/node-gi/scripts/build-gtk-runtime-darwin.mjs \
+            --windowing \
             --out packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk
 
-      # Gate the publish on a genuinely populated, portable bundle. The build step is
-      # already the hard gate on relocation (the script fails on any surviving
-      # reference into the brew prefix); this re-asserts it visibly with a DERIVED
-      # prefix — `/opt/homebrew` hardcoded is vacuously absent on the Intel leg, where
-      # the prefix is /usr/local — plus the two dirs index.js's isPresent check needs,
-      # plus that the bundle's own derived target stamp matches this leg.
-      - name: Verify bundle (relocation clean + layout present)
+      # Gate the publish on a genuinely populated, portable, COMPLETE bundle. The build
+      # step is already the hard gate on relocation (it fails on any surviving reference
+      # into the brew prefix), on typelib/library symmetry and on license coverage; this
+      # re-asserts the properties of the ARTIFACT — with a DERIVED prefix, because
+      # `/opt/homebrew` hardcoded is vacuously absent on the Intel leg, where the prefix
+      # is /usr/local — plus the two dirs index.js's isPresent check needs, plus that the
+      # bundle's own derived target stamp matches this leg.
+      - name: Verify bundle (relocation clean + windowing data + licenses + layout)
         env:
           TAG: darwin-${{ matrix.arch }}
         run: |
@@ -369,6 +384,18 @@ jobs:
           if [ ! -d "$B/lib" ] || [ ! -d "$B/girepository-1.0" ]; then
             echo "BUNDLE INCOMPLETE: gtk/lib + gtk/girepository-1.0 are required (index.js isPresent)"; exit 1
           fi
+          echo "--- assert this is the WINDOWING superset, not the display-free variant ---"
+          test -f "$B/girepository-1.0/Adw-1.typelib" || { echo "Adw-1.typelib MISSING — not the windowing bundle"; exit 1; }
+          ls "$B"/lib | grep -qi adwaita || { echo "libadwaita MISSING — Adw would fail in the constructor"; exit 1; }
+          # Each declared data set, asserted on BYTES rather than on a directory: a
+          # `test -d share/icons` is satisfied by a link to the build host's Homebrew
+          # Cellar, which is how 0.2 MiB of links once passed for a 22 MB icon theme.
+          test -s "$B/share/glib-2.0/schemas/gschemas.compiled" || { echo "gschemas.compiled MISSING/EMPTY — Gio.Settings would fail"; exit 1; }
+          ls "$B"/share/icons/*/index.theme >/dev/null 2>&1 || { echo "no icon theme with an index.theme — icon lookups would silently fail"; exit 1; }
+          test -n "$(find "$B/share/gtksourceview-5" -type f -size +0 2>/dev/null | head -1)" || { echo "share/gtksourceview-5 MISSING/EMPTY — the bundle ships the GtkSource namespace"; exit 1; }
+          echo "--- assert the third-party terms ship with the binaries ---"
+          test -s "$B/THIRD-PARTY-NOTICES.md" || { echo "THIRD-PARTY-NOTICES.md MISSING or empty"; exit 1; }
+          test -d "$B/licenses" || { echo "licenses/ MISSING — relocated LGPL binaries with no terms attached"; exit 1; }
           node -e '
             const m = require(`./packages/node-gi/gtk-runtime-${process.env.TAG}/gtk/manifest.json`);
             const want = `darwin-${process.arch}`;
@@ -376,9 +403,27 @@ jobs:
               console.error(`bundle manifest says ${m.platform}, this runner is ${want}`);
               process.exit(1);
             }
-            console.log(`bundle target ${m.platform} matches the runner`);
+            // The manifest is what a consumer holding only the tarball can read, so the
+            // release gates on IT, not on the build log that produced it.
+            if (m.windowing !== true || !(m.dataBytes > 0)) {
+              console.error(`published bundle must be the windowing superset with runtime data: windowing=${m.windowing} dataBytes=${m.dataBytes}`);
+              process.exit(1);
+            }
+            if (!(m.typelibSymmetry?.backed > 0) || !(m.licenses?.texts > 0)) {
+              console.error(`manifest records no verified typelib symmetry / no license texts: ${JSON.stringify({ typelibSymmetry: m.typelibSymmetry, licenses: m.licenses })}`);
+              process.exit(1);
+            }
+            // The builder now FAILS on a missing declared data set instead of warning,
+            // and records which sets it verified; require that record, so a bundle built
+            // by an older builder (or with the gate bypassed) cannot publish.
+            const verified = m.windowingData?.verified ?? [];
+            if (!verified.length || verified.some((v) => !(v.files > 0))) {
+              console.error(`manifest records no verified windowing data sets: ${JSON.stringify(m.windowingData)}`);
+              process.exit(1);
+            }
+            console.log(`bundle target ${m.platform} matches the runner; windowing superset, ${m.typelibSymmetry.backed} backed typelibs, ${m.licenses.texts} license texts, data sets ${verified.map((v) => v.id).join('+')}`);
           '
-          echo "clean — bundle populated + portable"
+          echo "clean — bundle populated, portable, complete + license-covered"
 
       # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
       # publish. The committed cli.gjs.mjs bundle would need gjs + @gjsify/rolldown-
@@ -480,18 +525,29 @@ jobs:
           tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
           Remove-Item gtk4.zip
 
-      # Populate the gitignored gtk/ bundle so `files: ["gtk"]` ships it. Only --out +
-      # --prefix are needed (no addon relocation on Windows).
-      - name: Build the GTK runtime bundle (populate gtk/)
+      # Populate the gitignored gtk/ bundle so `files: ["gtk"]` ships it. No addon
+      # relocation on Windows.
+      #
+      # --windowing, i.e. the SUPERSET, because this is the bundle that gets PUBLISHED —
+      # the same correction the darwin leg above documents. Up to and including 0.27.1
+      # this step built the display-free variant, and the tarball showed it:
+      # `"windowing": false`, `"dataBytes": 0`, no gdk-pixbuf loaders, no GSettings
+      # schemas, no icon themes, and `GtkSource-5.typelib` WITHOUT a gtksourceview DLL.
+      # gvsbuild's single prefix already carries everything the superset needs, so this
+      # costs only bundle size (~36 MiB, dominated by the ANGLE GL DLLs) — and nothing
+      # depends on these packages, they are installed on purpose.
+      - name: Build the GTK runtime bundle (--windowing superset, populate gtk/)
         shell: pwsh
         run: |
           node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
+            --windowing `
             --out packages/node-gi/gtk-runtime-win32-x64/gtk `
             --prefix $env:GTK_PREFIX
 
-      # Gate the publish on a populated bundle: assert the two dirs index.js's
-      # isPresent check requires actually exist.
-      - name: Verify bundle (layout present)
+      # Gate the publish on the properties of the ARTIFACT. The build step already hard-
+      # fails on typelib/library symmetry and license coverage; this asserts what a
+      # consumer will find in the tarball.
+      - name: Verify bundle (windowing data + licenses + layout present)
         shell: pwsh
         run: |
           $B = "packages/node-gi/gtk-runtime-win32-x64/gtk"
@@ -502,7 +558,41 @@ jobs:
             Write-Host "BUNDLE INCOMPLETE: gtk/bin + gtk/girepository-1.0 are required (index.js isPresent)"
             exit 1
           }
-          Write-Host "bundle populated"
+          Write-Host "--- assert this is the WINDOWING superset, not the display-free variant ---"
+          foreach ($p in @("girepository-1.0/Adw-1.typelib", "bin/adwaita-1-0.dll", "girepository-1.0/GtkSource-5.typelib", "bin/gtksourceview-5-0.dll", "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache")) {
+            if (-not (Test-Path "$B/$p")) { Write-Host "$p MISSING - not the windowing bundle"; exit 1 }
+          }
+          # The data sets, asserted on BYTES: a directory that exists and is empty is the
+          # same missing signal as an absent one (and is what shipped in 0.27.1).
+          foreach ($t in @("share/glib-2.0/schemas", "share/icons", "share/gtksourceview-5")) {
+            if (-not (Get-ChildItem "$B/$t" -Recurse -File -ErrorAction SilentlyContinue | Where-Object Length -gt 0 | Select-Object -First 1)) {
+              Write-Host "$t holds no non-empty file - declared runtime data is missing"; exit 1
+            }
+          }
+          if (-not (Get-ChildItem "$B/share/icons" -Filter index.theme -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            Write-Host "no icon theme with an index.theme - icon lookups would silently fail"; exit 1
+          }
+          Write-Host "--- assert the third-party terms ship with the binaries ---"
+          if (-not (Test-Path "$B/THIRD-PARTY-NOTICES.md")) { Write-Host "THIRD-PARTY-NOTICES.md MISSING"; exit 1 }
+          if (-not (Test-Path "$B/licenses")) { Write-Host "licenses/ MISSING - LGPL DLLs with no terms attached"; exit 1 }
+          node -e '
+            const m = require("./packages/node-gi/gtk-runtime-win32-x64/gtk/manifest.json");
+            if (m.windowing !== true || !(m.dataBytes > 0)) {
+              console.error(`published bundle must be the windowing superset with runtime data: windowing=${m.windowing} dataBytes=${m.dataBytes}`);
+              process.exit(1);
+            }
+            if (!(m.typelibSymmetry?.backed > 0) || !(m.licenses?.texts > 0)) {
+              console.error(`manifest records no verified typelib symmetry / no license texts: ${JSON.stringify({ typelibSymmetry: m.typelibSymmetry, licenses: m.licenses })}`);
+              process.exit(1);
+            }
+            const verified = m.windowingData?.verified ?? [];
+            if (!verified.length || verified.some((v) => !(v.files > 0))) {
+              console.error(`manifest records no verified windowing data sets: ${JSON.stringify(m.windowingData)}`);
+              process.exit(1);
+            }
+            console.log(`windowing superset, ${m.typelibSymmetry.backed} backed typelibs, ${m.licenses.texts} license texts, data sets ${verified.map((v) => v.id).join('+')}`);
+          '
+          Write-Host "bundle populated, complete + license-covered"
 
       # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
       # publish. This package has NO workspace deps, so a standalone pack needs no

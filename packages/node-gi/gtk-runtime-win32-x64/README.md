@@ -8,16 +8,25 @@ the host — the Windows sibling of `@gjsify/gtk-runtime-darwin-arm64`.
 Platform-gated (`os: ["win32"]`, `cpu: ["x64"]`), tier 3 (experimental). On any
 other platform npm skips it and `@gjsify/node-gi` falls back to a system/gvsbuild
 GTK. The heavy `gtk/` payload is **not committed** — it is built on a Windows CI
-runner (`scripts/build-gtk-runtime.mjs`) and shipped via the package tarball /
-staged into node-gi's `prebuilds/win32-x64/gtk/`.
+runner (`scripts/build-gtk-runtime.mjs` in the gjsify repo) and shipped via the
+package tarball / staged into node-gi's `prebuilds/win32-x64/gtk/`.
+
+The tarball does **not** carry the builder (it imports shared rules from
+`packages/node-gi/scripts/`, which only exist in the repo); `gtk/manifest.json`
+records the script's repo path under `builder` so a consumer holding only the tarball
+can find the recipe that produced its bytes — the same convention the darwin
+siblings use.
 
 ## Layout
 
 ```
 gtk/
-  bin/                 GTK/GLib/cairo/pango/graphene/gdk-pixbuf DLLs (+ deps)
-  girepository-1.0/    typelibs (GLib/GObject/Gio/cairo/Pango/Graphene/Gdk/…)
-  manifest.json        counts + sizes + DLL list
+  bin/                     GTK/GLib/cairo/pango/graphene/gdk-pixbuf DLLs (+ deps)
+  girepository-1.0/        typelibs — ONLY those this bundle can back (see below)
+  lib/ share/ etc/         --windowing only: pixbuf loaders, schemas, icons, fontconfig
+  licenses/                license texts recovered from the gvsbuild prefix
+  THIRD-PARTY-NOTICES.md   what is bundled, under which terms, and that it is unmodified
+  manifest.json            counts + sizes + DLL list + symmetry/license proof
 ```
 
 Note the native code lives in **`gtk/bin`** (DLLs), not `gtk/lib` — on Windows the
@@ -42,7 +51,24 @@ not shipped):
    job.** There is **no** `install_name_tool`/`@rpath`/`codesign` step: Windows
    resolves a DLL's imports by **search path** at `LoadLibrary` time, so a directory
    of DLLs is portable the moment it exists — no per-file rewriting, no re-signing.
-3. **Typelibs** — copy the typelib set into `gtk/girepository-1.0`.
+3. **Typelibs** — copy into `gtk/girepository-1.0` **only the typelibs this bundle
+   can back**. GI resolves a namespace's symbols with `g_module_open(<shared_library>)`
+   out of the typelib's own header, so a typelib whose DLL is absent yields a namespace
+   that resolves, advertises its classes and then dies in the constructor with
+   `Failed to load shared library '…'`. Measured on the published 0.27.1 tarball: 3 of
+   37 typelibs were in that state (`Adw-1`, `GtkSource-5`, `Rsvg-2.0`). The rule reads
+   the mapping out of each typelib (never a name table — gvsbuild records
+   `adwaita-1-0.dll` where brew records `libadwaita-1.0.dylib`), refuses to drop a
+   typelib that a kept one DEPENDS on (that is a build failure naming the missing DLL,
+   because `gi_repository_require` loads dependencies first), and re-verifies the
+   finished bundle off disk against a floor of namespaces that must be present. Shared
+   with the darwin builder: [`../scripts/typelib-backers.mjs`](../scripts/typelib-backers.mjs).
+4. **Licenses** — copy the license corpus the gvsbuild prefix documents
+   (`share/doc/<project>/COPYING|LICENSE`, `share/licenses/<project>/*`) into
+   `gtk/licenses/` and write `gtk/THIRD-PARTY-NOTICES.md`, which lists every bundled
+   DLL and states that the DLLs are byte-identical copies (no relocation on Windows).
+   Per-DLL attribution is deliberately NOT invented: the prefix is one flat build tree,
+   so the whole corpus ships and the notice says the mapping is not recoverable.
 
 Contrast with macOS, where dyld bakes each dylib's dependency install-names, so the
 darwin bundle must rewrite every reference to `@loader_path/<leaf>` and ad-hoc
@@ -90,7 +116,8 @@ both sufficient and the simplest mechanism.
 `build-gtk-runtime.mjs` builds one of two supersets into the same `gtk/` dir:
 
 - **Default (display-free)** — the DLL closure + typelibs the display-free
-  conformance needs. `manifest.windowing === false`. Unchanged.
+  conformance needs. `manifest.windowing === false`. This is the CONFORMANCE variant
+  `node-gi.yml` builds.
 - **`--windowing` (superset)** — everything above **plus** the runtime DATA a real
   GTK window needs on Windows, so a `Adw.ApplicationWindow` realizes + renders with
   no gvsbuild/system GTK:
@@ -118,6 +145,11 @@ both sufficient and the simplest mechanism.
   `glib-compile-schemas`, `gtk4-update-icon-cache`, `fc-cache`) in `<prefix>/bin`.
   Each data step is defensive — a missing tree/tool WARNs and continues (the DLL +
   typelib bundle is always produced).
+
+  **This is the variant that gets PUBLISHED** (since 0.27.2). Up to and including
+  0.27.1 `release.yml` built the display-free variant, so the tarball on npm had
+  `"windowing": false`, `"dataBytes": 0`, no pixbuf loaders, no compiled schemas, no
+  icon themes — and `GtkSource-5.typelib` with no gtksourceview DLL behind it.
 
 ### How node-gi wires the windowing data
 

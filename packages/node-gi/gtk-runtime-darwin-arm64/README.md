@@ -23,9 +23,12 @@ ships a copy of the script; `gtk/manifest.json` records its repo path under
 
 ```
 gtk/
-  lib/                 relocated dylibs (@loader_path-linked, ad-hoc re-signed)
-  girepository-1.0/    typelibs (GLib/GObject/Gio/cairo/Pango/Graphene/Gdk/…)
-  manifest.json        counts + sizes + dylib list
+  lib/                     relocated dylibs (@loader_path-linked, ad-hoc re-signed)
+  girepository-1.0/        typelibs — ONLY those this bundle can back (see below)
+  share/                   --windowing only: GSettings schemas, icon themes, GtkSource data
+  licenses/                license texts of the bundled libraries, per component
+  THIRD-PARTY-NOTICES.md   what is bundled, under which terms, and how it was modified
+  manifest.json            counts + sizes + dylib list + symmetry/license proof
 ```
 
 ## How it is built (the relocation, the crux)
@@ -50,8 +53,17 @@ build-time Homebrew GTK stack (the closure *source*, not shipped):
    runner (prefix `/usr/local`), so a hardcoded grep would have passed while proving
    nothing. OS-provided libraries the bundle deliberately leaves alone are reported,
    never failed.
-4. **Typelibs** — copy the typelib set into `gtk/girepository-1.0`.
-5. **Addon (optional, `--addon`)** — relocate a *copy* of the node-gi addon
+4. **Typelibs** — copy into `gtk/girepository-1.0` **only the typelibs this bundle
+   can back**, and then prove it. Details in
+   [Typelib symmetry](#typelib-symmetry--a-typelib-without-its-library-is-worse-than-none)
+   below; the rule lives in
+   [`../scripts/typelib-backers.mjs`](../scripts/typelib-backers.mjs) and is shared
+   with the win32 builder.
+5. **Licenses** — attribute every bundled dylib to the Homebrew keg it came from
+   (`…/Cellar/<formula>/<version>/`), read that keg's own license terms, and write
+   `gtk/licenses/` + `gtk/THIRD-PARTY-NOTICES.md` including the statement that the
+   binaries were relocated and re-signed. An unattributable dylib fails the build.
+6. **Addon (optional, `--addon`)** — relocate a *copy* of the node-gi addon
    (`node_gi.node`): rewrite its Homebrew-prefix refs to `@rpath/<leaf>` and add
    `@loader_path/gtk/lib` as an rpath, so the addon loads the **bundled**
    `libgirepository` with no Homebrew. This is the env-free path, and it gets the
@@ -97,11 +109,14 @@ by the main (ubuntu) release publish. A dedicated macOS job in
 1. On `release: published` it checks out the tag (the version `@release-it/bumper`
    already bumped in this package's `package.json`, in lockstep with the train).
 2. `brew install`s the GTK/GI stack as the build-time closure **source**.
-3. Runs `../scripts/build-gtk-runtime-darwin.mjs --out gtk` to populate `gtk/`
-   (relocated dylibs + typelibs + `manifest.json`) — the script itself fails on a
-   surviving Homebrew-prefix reference — then asserts that `gtk/lib` +
-   `gtk/girepository-1.0` exist (the two dirs [`index.js`](./index.js)'s `isPresent`
-   gate checks).
+3. Runs `../scripts/build-gtk-runtime-darwin.mjs --windowing --out gtk` to populate
+   `gtk/` (relocated dylibs + backed typelibs + runtime data + licenses +
+   `manifest.json`). The script itself fails on a surviving Homebrew-prefix reference,
+   on an unbacked typelib and on an unattributable dylib; the job then asserts what the
+   ARTIFACT must contain: `gtk/lib` + `gtk/girepository-1.0` (the two dirs
+   [`index.js`](./index.js)'s `isPresent` gate checks), `Adw-1.typelib` beside a
+   libadwaita dylib, `gschemas.compiled`, `share/icons`, `THIRD-PARTY-NOTICES.md`, and
+   a manifest that says `windowing: true` with non-zero `dataBytes`.
 4. OIDC-publishes **only this package** (Trusted Publisher configured for
    `release.yml`), so `files: ["gtk"]` ships the whole bundle recursively (the
    gjsify packer expands a plain-directory `files` entry). Consumers then see
@@ -122,13 +137,52 @@ resolves DLLs by search path), and
 [`@gjsify/gtk-runtime-darwin-x64`](../gtk-runtime-darwin-x64) is a second leg of
 *this* job, since it shares this package's builder outright.
 
-## Scope & what a full windowing bundle still needs
+## Typelib symmetry — a typelib without its library is worse than none
 
-This bundle targets the **display-free conformance closure only**. The full
-GTK windowing/display stack additionally needs: the Quartz GDK backend, the
-`gdk-pixbuf` `loaders.cache` + loader modules, compiled GSettings schemas
-(`glib-compile-schemas`), the Adwaita icon theme + `icon-theme.cache`, and
-Fontconfig cache/config — none of which are collected here.
+GObject-Introspection resolves a namespace's symbols with
+`g_module_open(<shared_library>)`, where `shared_library` is a field in the typelib's
+own header. So a bundle that ships a typelib whose library it does not carry produces
+a namespace that **resolves**, advertises its classes, and then dies in the
+constructor with `Failed to load shared library '…'`. Measured on the published
+0.27.1 darwin tarballs: 6 of 38 typelibs were in that state, `Adw-1` among them.
+
+The builder therefore ships **exactly the typelibs it can back**:
+
+- the typelib→library mapping is read from each typelib's header, never from a table
+  (brew records `libadwaita-1.0.dylib`, gvsbuild records `adwaita-1-0.dll` — a table
+  would have to track both);
+- an unbacked typelib is dropped — **unless a typelib we keep depends on it**, which
+  is a hard build failure naming the missing library. `Pango-1.0` depends on
+  `HarfBuzz-0.0`, so dropping HarfBuzz would break Pango, Gdk, Gsk and Gtk; the
+  repair is to bundle `libharfbuzz-gobject`, which the base seeds now do;
+- the finished bundle is re-read off disk and must satisfy the rule again, must
+  contain at least one library-backed typelib, and must contain every namespace the
+  package promises (plus `Adw` + `GtkSource` for `--windowing`) — so a filter that
+  quietly removed everything cannot pass.
+
+`manifest.json` records the outcome under `typelibSymmetry` (backed / header-only
+counts, and every dropped namespace with the library it wanted).
+
+## Scope — what the published bundle contains, and what is still missing
+
+Since 0.27.2 the **published** tarball is the `--windowing` superset: the relocated
+dylib closure *plus* compiled GSettings schemas (`gschemas.compiled` — a hard startup
+blocker for `Gio.Settings` without it), the Adwaita + hicolor icon themes, and
+GtkSource's language-specs/styles. The display-free default remains the
+**conformance** variant `node-gi.yml` builds, whose closure is exactly what the
+display-free conformance loads.
+
+The data is copied with `dereference: true` and the build FAILS on any symlink under
+`share/`: Homebrew links a keg's tree into its prefix, so the default copy reproduced
+the link farm — `share/icons/Adwaita` was a link into `…/Cellar/adwaita-icon-theme/…`,
+0.2 MiB of links where the theme is 22 MB of files, and `npm pack` would have shipped
+the dangling link.
+
+Still not collected: the `gdk-pixbuf` loader modules + `loaders.cache` (they are
+dylibs needing `@loader_path` relocation from a nested dir, unlike win32's flat DLL
+copy), so SVG symbolic icons can render blank; and Fontconfig config/cache, which
+macOS text rendering does not need (Pango uses the CoreText backend). Both are
+tracked in `status/open-todos.md`.
 
 **Env-free mechanism (macOS):** because dyld captures
 `DYLD_FALLBACK_LIBRARY_PATH` only at launch, node-gi re-execs once with it set (see

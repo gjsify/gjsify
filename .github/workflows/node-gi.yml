@@ -1065,12 +1065,19 @@ jobs:
   #     Gdk/Graphene→struct-construct) resolve from the bundle. Runs the whole
   #     scripts/cross-runtime.mjs node subset.
   #
-  # A MATRIX, one leg per macOS arch, mirroring macos-gtk-runtime. THIS is the
-  # conformance for @gjsify/gtk-runtime-darwin-x64: the job never brew-installs GTK,
-  # so a green x64 leg IS the proof that the Intel bundle self-satisfies — there is
-  # no other GTK on the host to fall back to. (`needs:` cannot be scoped to a single
-  # matrix leg in GitHub Actions, so each batteries leg waits for BOTH build legs;
-  # that costs latency, never correctness.)
+  # A MATRIX, one leg per macOS arch, mirroring macos-gtk-runtime. The job never
+  # brew-installs GTK, so a green leg IS the proof that the display-free bundle
+  # self-satisfies — there is no other GTK on the host to fall back to. (`needs:` cannot
+  # be scoped to a single matrix leg in GitHub Actions, so each batteries leg waits for
+  # BOTH build legs; that costs latency, never correctness.)
+  #
+  # WHICH ARTIFACT THIS IS, because it is NOT the one npm publishes: the DISPLAY-FREE
+  # bundle. `release.yml` ships the `--windowing` superset, so this job is the
+  # MINIMAL-CLOSURE check — evidence that the backer-drop filter left a closure the
+  # conformance still passes on, and that bundle is what node-gi's own prebuilds stage.
+  # The same conformance against the SHIPPED shape runs in macos-gtk-windowing (both
+  # arches), and THAT one is authoritative for what a consumer installs. Before this pair
+  # was split that way, every conformance leg tested an artifact nobody receives.
   macos-gtk-batteries-included:
     name: macOS batteries-included conformance (no brew GTK / darwin-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -1189,21 +1196,34 @@ jobs:
   # `new Adw.Application()` fails on it with "Failed to load shared library
   # 'libadwaita-1.0.dylib'". This variant passes `--windowing` so the shared darwin
   # builder seeds libadwaita into the relocated closure. Mirrors windows-gtk-windowing-runtime;
-  # feeds the macos-gtk-windowing GUI proof below.
+  # feeds macos-gtk-windowing below, which runs BOTH the batteries-included conformance
+  # and the GUI proof on it — this is the artifact `release.yml` publishes.
   #
-  # DELIBERATELY arm64-ONLY, unlike the display-free pair above. The windowing pair
-  # is a GUI RENDER proof, not the batteries-included conformance: it costs two more
-  # scarce macOS legs per node-gi PR, and the darwin --windowing bundle has a KNOWN
-  # gap (the gdk-pixbuf image LOADERS are not bundled yet, so symbolic icons can be
-  # blank) that a second arch would duplicate rather than close. The Intel bundle's
-  # own claim — "gi:// works with no Homebrew" — is fully covered by
-  # macos-gtk-batteries-included's x64 leg, which never installs GTK. Extending the
-  # windowing pair to x64 is tracked in status/open-todos.md.
+  # A MATRIX over BOTH macOS arches, and that is not a cost decision but a coverage
+  # one: `release.yml` publishes the `--windowing` SUPERSET for darwin-x64 AND
+  # darwin-arm64, so the bundle an Intel Mac installs is EXACTLY what this pair builds.
+  # It was arm64-only, which left the shipped x64 artifact built by the release and
+  # exercised by nothing — the missing-signal shape this whole change exists to remove.
+  # The display-free pair's x64 leg does NOT cover it: it consumes a different artifact
+  # (no libadwaita, no libgtksourceview, no data tree), so a defect in the superset's
+  # extra closure or its data is invisible there. The one KNOWN gap is shared by both
+  # arches and unaffected by the matrix: the gdk-pixbuf image LOADERS are not bundled on
+  # darwin yet (status/open-todos.md), so an SVG symbolic icon can render blank.
+  # `macos-15-intel` is the Intel runner label, the same one macos-gtk-runtime's x64 leg
+  # already uses with this formula list.
   macos-gtk-windowing-runtime:
-    name: macOS windowing GTK runtime bundle (build + relocate / macos-latest arm64)
-    runs-on: macos-latest
+    name: macOS windowing GTK runtime bundle (build + relocate / darwin-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: macos
-    timeout-minutes: 30
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
     env:
       HOMEBREW_NO_AUTO_UPDATE: '1'
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
@@ -1222,33 +1242,42 @@ jobs:
       - name: Download node-gi addon prebuild (from the macos job)
         uses: actions/download-artifact@v4
         with:
-          name: node-gi-prebuild-darwin-arm64
+          name: node-gi-prebuild-darwin-${{ matrix.arch }}
           path: addon
 
       # --windowing adds libadwaita + libgtksourceview (+ their otool deps) to the
-      # relocated closure.
+      # relocated closure, and the runtime data tree. The builder derives its own target
+      # from the running Node and cross-checks --out against the destination package's
+      # os/cpu, so an Intel leg cannot populate the arm64 package.
       - name: Build + relocate the WINDOWING GTK runtime bundle
         run: |
           node packages/node-gi/scripts/build-gtk-runtime-darwin.mjs \
             --windowing \
-            --out packages/node-gi/gtk-runtime-darwin-arm64/gtk \
+            --out packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk \
             --addon "$PWD/addon/node_gi.node" \
-            --stage packages/node-gi/node-gi/prebuilds/darwin-arm64
+            --stage packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}
 
-      - name: Report bundle + assert libadwaita + GtkSource are present
+      # The builder is already the hard gate on all of this (typelib/library symmetry,
+      # the no-symlink rule, and — new — every DECLARED windowing data set, which now
+      # FAILS the build instead of warning). These lines are the log-visible echo of the
+      # claim on the ARTIFACT, and they assert bytes rather than directories: a
+      # `test -d share/icons` passes on a link to the build host's Cellar, which is how
+      # 0.2 MiB of links once looked like a 22 MB icon theme.
+      - name: Report bundle + assert libadwaita + GtkSource + the data tree are present
         run: |
-          cat packages/node-gi/gtk-runtime-darwin-arm64/gtk/manifest.json
-          echo "--- bundle size ---"; du -sh packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          B=packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk
+          cat "$B/manifest.json"
+          echo "--- bundle size ---"; du -sh "$B"
           echo "--- assert libadwaita relocated into the bundle ---"
-          ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib | grep -i adwaita || { echo "libadwaita MISSING from the windowing bundle"; exit 1; }
+          ls "$B"/lib | grep -i adwaita || { echo "libadwaita MISSING from the windowing bundle"; exit 1; }
           echo "--- assert libgtksourceview dylib + GtkSource-5 typelib are bundled ---"
-          ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib | grep -i gtksourceview || { echo "libgtksourceview MISSING from the windowing bundle"; exit 1; }
-          ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/girepository-1.0 | grep -i 'GtkSource-5.typelib' || { echo "GtkSource-5.typelib MISSING from the windowing bundle"; exit 1; }
-          echo "--- assert WINDOWING DATA: compiled GSettings schemas (Gio.Settings) + GtkSource language-specs ---"
-          B=packages/node-gi/gtk-runtime-darwin-arm64/gtk
-          test -f "$B/share/glib-2.0/schemas/gschemas.compiled" || { echo "gschemas.compiled MISSING — Gio.Settings would fail on macOS"; exit 1; }
-          test -d "$B/share/gtksourceview-5/language-specs" || { echo "GtkSource-5 language-specs MISSING from the windowing bundle"; exit 1; }
-          echo "--- icon themes present (Adwaita/hicolor) ---"; ls "$B/share/icons" 2>/dev/null || echo "(no icon themes — symbolic icons may be blank)"
+          ls "$B"/lib | grep -i gtksourceview || { echo "libgtksourceview MISSING from the windowing bundle"; exit 1; }
+          ls "$B"/girepository-1.0 | grep -i 'GtkSource-5.typelib' || { echo "GtkSource-5.typelib MISSING from the windowing bundle"; exit 1; }
+          echo "--- assert WINDOWING DATA: schemas + an icon theme + GtkSource's data tree ---"
+          test -s "$B/share/glib-2.0/schemas/gschemas.compiled" || { echo "gschemas.compiled MISSING/EMPTY — Gio.Settings would fail on macOS"; exit 1; }
+          ls "$B"/share/icons/*/index.theme >/dev/null 2>&1 || { echo "no icon theme with an index.theme — icon lookups fail silently"; exit 1; }
+          test -n "$(find "$B/share/gtksourceview-5" -type f -size +0 2>/dev/null | head -1)" || { echo "GtkSource-5 data tree MISSING/EMPTY"; exit 1; }
+          echo "--- icon themes + data size ---"; ls "$B/share/icons"; du -sh "$B/share"
           # Prefix-DERIVED, not the literal /opt/homebrew — see macos-gtk-runtime's
           # note: the literal is vacuously absent on an Intel host.
           BREW_PREFIX="$(brew --prefix)"
@@ -1261,33 +1290,58 @@ jobs:
       - name: Upload windowing GTK runtime bundle
         uses: actions/upload-artifact@v4
         with:
-          name: gtk-runtime-darwin-arm64-windowing
-          path: packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          name: gtk-runtime-darwin-${{ matrix.arch }}-windowing
+          path: packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk
+          # error, not the default warn: an empty upload here would hand the consumer
+          # job a downloadable-but-empty artifact and fail four steps later as an
+          # inscrutable dlopen error.
+          if-no-files-found: error
 
       - name: Upload relocated node-gi addon (windowing)
         uses: actions/upload-artifact@v4
         with:
-          name: node-gi-addon-relocated-darwin-arm64-windowing
-          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node
+          name: node-gi-addon-relocated-darwin-${{ matrix.arch }}-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/node_gi.node
+          if-no-files-found: error
 
-  # macOS GUI proof — the darwin counterpart of windows-gtk-windowing. macOS had
-  # build + display-free conformance + the batteries-included bundle, but no
-  # ON-SCREEN render proof; this closes that gap so the cross-platform story is
-  # symmetric. Runs the SAME render-to-texture GUI tests the Windows windowing job
-  # runs (windowing + windowing-interactive + widgets), on the batteries-included
-  # darwin-arm64 bundle as the ONLY GTK. The tests treat darwin like win32 (implicit
-  # display — no DISPLAY needed; the GdkMacos backend supplies it), so a real
-  # Adw.ApplicationWindow realizes + renders via the GSK renderer and a
-  # WidgetPaintable snapshot rasterises to a PNG — headless, no visible desktop,
-  # exactly as on Windows. GSK_RENDERER=cairo forces software rendering (no GPU
-  # guarantee on the runner). node-gi's DYLD_FALLBACK re-exec (gtk-runtime.js) makes
-  # the bundle authoritative env-free; NODE_GI_NATIVE=prebuild loads the relocated
-  # addon. Same clean-host discipline as macos-gtk-batteries-included: no brew GTK.
+  # macOS proof ON THE SHAPE THAT SHIPS — the darwin counterpart of
+  # windows-gtk-windowing, and a MATRIX over both arches for the same reason its build
+  # job is one: `release.yml` publishes this variant for darwin-x64 and darwin-arm64.
+  #
+  # It carries TWO claims, and the split matters:
+  #   • the CONFORMANCE (`check-batteries.mjs` + the full display-free subset) on the
+  #     PUBLISHED bundle. This is the authoritative one for the npm packages:
+  #     macos-gtk-batteries-included runs the same conformance against the DISPLAY-FREE
+  #     bundle, which is a different artifact (no libadwaita, no libgtksourceview, no
+  #     data tree, two typelibs fewer), so a green run there proved the shipped bundle
+  #     nothing. Both now run: this job is authoritative for "what a consumer installs
+  #     works", the display-free pair is the MINIMAL-CLOSURE check (the drop filter left
+  #     a closure the conformance still passes on, and that bundle is what node-gi's own
+  #     prebuilds stage).
+  #   • the GUI RENDER proof (windowing + windowing-interactive + widgets) — the same
+  #     render-to-texture tests the Windows windowing job runs. The tests treat darwin
+  #     like win32 (implicit display — no DISPLAY needed; the GdkMacos backend supplies
+  #     it), so a real Adw.ApplicationWindow realizes + renders via the GSK renderer and
+  #     a WidgetPaintable snapshot rasterises to a PNG — headless, no visible desktop.
+  #     GSK_RENDERER=cairo forces software rendering (no GPU guarantee on the runner).
+  #
+  # node-gi's DYLD_FALLBACK re-exec (gtk-runtime.js) makes the bundle authoritative
+  # env-free; NODE_GI_NATIVE=prebuild loads the relocated addon. Same clean-host
+  # discipline as macos-gtk-batteries-included: no brew GTK, so the bundle is the only
+  # GTK on the machine.
   macos-gtk-windowing:
-    name: macOS windowing proof (no brew GTK / macos-latest arm64)
-    runs-on: macos-latest
+    name: macOS windowing proof (no brew GTK / darwin-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: macos-gtk-windowing-runtime
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
     steps:
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -1308,29 +1362,67 @@ jobs:
           echo "clean host — the GTK toolkit was never brew-installed in this job"
 
       # Stage the WINDOWING bundle + relocated addon in the sibling layout node-gi's
-      # loader expects (prebuilds/darwin-arm64/{node_gi.node, gtk/}); the addon's
+      # loader expects (prebuilds/darwin-<arch>/{node_gi.node, gtk/}); the addon's
       # @rpath is @loader_path/gtk/lib. From macos-gtk-windowing-runtime (libadwaita
       # included), NOT the display-free macos-gtk-runtime bundle.
       - name: Download WINDOWING GTK runtime bundle
         uses: actions/download-artifact@v4
         with:
-          name: gtk-runtime-darwin-arm64-windowing
-          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/gtk
+          name: gtk-runtime-darwin-${{ matrix.arch }}-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/gtk
 
       - name: Download relocated node-gi addon (windowing)
         uses: actions/download-artifact@v4
         with:
-          name: node-gi-addon-relocated-darwin-arm64-windowing
-          path: packages/node-gi/node-gi/prebuilds/darwin-arm64
+          name: node-gi-addon-relocated-darwin-${{ matrix.arch }}-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}
 
       - name: Verify staged layout
         working-directory: packages/node-gi/node-gi
+        env:
+          TAG: darwin-${{ matrix.arch }}
         run: |
-          ls -la prebuilds/darwin-arm64
-          echo "--- dylibs ---"; ls prebuilds/darwin-arm64/gtk/lib | head
-          echo "--- typelibs ---"; ls prebuilds/darwin-arm64/gtk/girepository-1.0 | head
+          ls -la "prebuilds/$TAG"
+          echo "--- dylibs ---"; ls "prebuilds/$TAG/gtk/lib" | head
+          echo "--- typelibs ---"; ls "prebuilds/$TAG/gtk/girepository-1.0" | head
+          # Two arches × two variants now share this artifact namespace, so assert the
+          # bundle's OWN derived stamp is this leg's and that it is the published shape.
+          # A name mixup would otherwise run the arm64 closure on Intel and surface four
+          # steps later as an inscrutable dlopen error.
+          node -e '
+            const m = require(`./prebuilds/${process.env.TAG}/gtk/manifest.json`);
+            const want = `darwin-${process.arch}`;
+            if (m.platform !== want) {
+              console.error(`bundle manifest says ${m.platform}, this runner is ${want}`);
+              process.exit(1);
+            }
+            if (m.windowing !== true || !(m.dataBytes > 0)) {
+              console.error(`not the published shape: windowing=${m.windowing} dataBytes=${m.dataBytes}`);
+              process.exit(1);
+            }
+            console.log(`${m.platform} windowing superset, ${m.dataBytes} bytes of runtime data`);
+          '
 
-      # The windowing proof: a real Adw.ApplicationWindow realizes + renders a
+      # Claim 1a — the same fast probe macos-gtk-batteries-included runs, here against
+      # the PUBLISHED bundle: one clean process, NO library-lookup env, reproducing the
+      # leaf-soname g_module_open paths (registerClass subclassing + Pango/Graphene/Gdk
+      # get_type). A failure is unambiguous and isolated from the test runner.
+      - name: Batteries-included probe on the PUBLISHED bundle — env-free (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/check-batteries.mjs
+
+      # Claim 1b — the full display-free conformance subset on the PUBLISHED bundle. No
+      # CORE/FULL split is needed: cross-runtime.mjs re-execs itself once with the
+      # bundle's DYLD fallback, which covers the non-addon-linked backers too.
+      - name: Conformance subset on the PUBLISHED bundle — env-free (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/cross-runtime.mjs node
+
+      # Claim 2 — the GUI proof: a real Adw.ApplicationWindow realizes + renders a
       # surface via the GSK renderer, reacts to a Gio action + Gtk.Button::clicked
       # (interactive, headless), and widgets.test.mjs rasterises an Adwaita
       # widget-breadth surface to a GSK PNG — all on the batteries-included bundle.
@@ -1576,6 +1668,10 @@ jobs:
   # loads, and Windows re-reads that path at each LoadLibrary — so the addon's own
   # DLL imports AND the runtime g_module_open of Pango/Gdk/Graphene both resolve
   # from the bundle in a single, env-free run.
+  #
+  # As on macOS, this consumes the DISPLAY-FREE bundle — not the `--windowing` superset
+  # `release.yml` publishes. It is the minimal-closure check; the same conformance on the
+  # SHIPPED shape runs in windows-gtk-windowing and is authoritative for the tarball.
   windows-batteries-included:
     name: Windows batteries-included conformance (no gvsbuild / windows-latest x64)
     runs-on: windows-latest
@@ -1804,12 +1900,43 @@ jobs:
       - name: Verify staged layout
         shell: pwsh
         run: |
+          $B = "packages/node-gi/node-gi/prebuilds/win32-x64/gtk"
           Get-ChildItem packages/node-gi/node-gi/prebuilds/win32-x64
           Write-Host "--- windowing data ---"
-          Test-Path packages/node-gi/node-gi/prebuilds/win32-x64/gtk/share/glib-2.0/schemas/gschemas.compiled
-          Test-Path packages/node-gi/node-gi/prebuilds/win32-x64/gtk/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+          foreach ($p in @("share/glib-2.0/schemas/gschemas.compiled", "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache")) {
+            if (-not (Test-Path "$B/$p")) { Write-Host "$p MISSING from the staged bundle"; exit 1 }
+          }
+          # This is the PUBLISHED shape, so assert the manifest says so rather than
+          # trusting the artifact name (release.yml gates the tarball on the same field).
+          node -e '
+            const m = require("./packages/node-gi/node-gi/prebuilds/win32-x64/gtk/manifest.json");
+            if (m.windowing !== true || !(m.dataBytes > 0)) {
+              console.error(`not the published shape: windowing=${m.windowing} dataBytes=${m.dataBytes}`);
+              process.exit(1);
+            }
+            console.log(`win32-x64 windowing superset, ${m.dataBytes} bytes of runtime data`);
+          '
 
-      # The windowing proof: a real Adw.ApplicationWindow realizes + renders a surface
+      # Claim 1 — the CONFORMANCE on the PUBLISHED bundle, which nothing ran before this
+      # change: windows-batteries-included runs the same two steps against the
+      # DISPLAY-FREE bundle (a different artifact — no adwaita/gtksourceview DLL, no data
+      # tree), so it proved the shipped one nothing. This job is authoritative for "what
+      # a consumer installs works"; that job stays the minimal-closure check. One
+      # PATH-prepend covers both the addon's DLL imports and the runtime g_module_open,
+      # so no CORE/FULL split is needed here either.
+      - name: Batteries-included probe on the PUBLISHED bundle — no gvsbuild GTK (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/check-batteries.mjs
+
+      - name: Conformance subset on the PUBLISHED bundle — no gvsbuild GTK (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/cross-runtime.mjs node
+
+      # Claim 2 — the windowing proof: a real Adw.ApplicationWindow realizes + renders a surface
       # via the GSK renderer, AND responds to input (a Gio action + a Gtk.Button::clicked
       # drive the counter — the interactive proof runs headless, no visible desktop
       # needed, same as the render-to-texture screenshot); widgets.test.mjs adds the
