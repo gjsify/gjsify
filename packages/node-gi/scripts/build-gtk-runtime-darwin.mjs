@@ -70,6 +70,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findSymlinks, formatSymlinkProblems } from './bundle-data.mjs';
 import {
     assertLicenseCoverage,
     describeBrewKegs,
@@ -431,7 +432,10 @@ if (WINDOWING) {
     for (const theme of ['Adwaita', 'hicolor']) {
         const themeSrc = join(brewShare, 'icons', theme);
         if (!existsSync(themeSrc)) continue;
-        cpSync(themeSrc, join(OUT, 'share', 'icons', theme), { recursive: true });
+        // dereference: Homebrew links a keg's tree into its prefix, so the DEFAULT
+        // (dereference: false) copies share/icons/<theme> as a LINK into the Cellar —
+        // measured: 0.2 MiB of links where the theme is 22 MB of files (§ 4d).
+        cpSync(themeSrc, join(OUT, 'share', 'icons', theme), { recursive: true, dereference: true });
         try {
             execFileSync(updateIconCache, ['-q', '-t', '-f', join(OUT, 'share', 'icons', theme)]);
         } catch {
@@ -452,7 +456,7 @@ if (WINDOWING) {
         for (const sub of ['language-specs', 'styles']) {
             const subSrc = join(gtksourceSrc, sub);
             if (existsSync(subSrc)) {
-                cpSync(subSrc, join(OUT, 'share', 'gtksourceview-5', sub), { recursive: true });
+                cpSync(subSrc, join(OUT, 'share', 'gtksourceview-5', sub), { recursive: true, dereference: true });
                 copied += readdirSync(subSrc).length;
             }
         }
@@ -463,6 +467,22 @@ if (WINDOWING) {
     } else {
         console.warn(`build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 data NOT bundled`);
     }
+}
+
+// --- 4d. the runtime DATA must be real files, not links into this machine ----
+// Only meaningful under --windowing (the display-free bundle writes no data tree),
+// and only darwin needs it in practice — Homebrew's prefix is a symlink farm, while
+// gvsbuild's is an extracted zip of real files. The check runs on both anyway: it is
+// cheap, and "the source prefix has no links" is an assumption about someone else's
+// packaging, not a fact we control.
+if (WINDOWING) {
+    const dataRoot = join(OUT, 'share');
+    const links = findSymlinks(dataRoot);
+    if (links.length > 0) {
+        console.error(`build-gtk-runtime: ${formatSymlinkProblems(links, { root: dataRoot })}`);
+        process.exit(1);
+    }
+    console.log('build-gtk-runtime: windowing data is self-contained — 0 symlinks under share/');
 }
 
 // --- 4c. verify the typelib/library symmetry of the FINISHED bundle ---------

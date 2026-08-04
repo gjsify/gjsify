@@ -21,7 +21,7 @@
 // typelib is NOT the fix — that would break Pango, and with it Gdk/Gsk/Gtk.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -34,6 +34,7 @@ import {
     readTypelibMetadata,
     verifyBundleTypelibs,
 } from '../../scripts/typelib-backers.mjs';
+import { findSymlinks, formatSymlinkProblems } from '../../scripts/bundle-data.mjs';
 import {
     assertLicenseCoverage,
     describeBrewKegs,
@@ -485,6 +486,41 @@ test('a prefix-attributed notice says so instead of implying a per-binary mappin
     assert.match(notice, /not recoverable/);
     assert.match(notice, /None\. The libraries are byte-identical copies/);
     assert.ok(notice.includes('gtk-4-1.dll'));
+});
+
+// --- runtime data portability -----------------------------------------------
+
+test('a data tree copied WITHOUT dereference is caught as non-portable', () => {
+    // The measured shape (PR #977 CI): Homebrew links a keg's tree into its prefix,
+    // `cpSync` defaults to dereference:false, so `share/icons/Adwaita` was copied as a
+    // LINK into the Cellar — 0.2 MiB of links where the theme is 22 MB of files. It
+    // survived because `actions/upload-artifact` FOLLOWS symlinks (so the artifact
+    // looked complete) while `npm pack` does not, and because the old size came from
+    // `statSync`, which follows too.
+    const src = fixtureDir('theme/scalable');
+    writeFileSync(join(src, 'theme', 'scalable', 'icon.svg'), '<svg/>');
+    const out = fixtureDir('share/icons');
+
+    // What the default copy produced: a link pointing outside the bundle.
+    symlinkSync(join(src, 'theme'), join(out, 'share', 'icons', 'Adwaita'));
+    const links = findSymlinks(join(out, 'share'));
+    assert.equal(links.length, 1);
+    assert.equal(links[0].path, 'icons/Adwaita');
+    assert.match(formatSymlinkProblems(links, { root: out }), /dereference: true/);
+
+    // What a dereferencing copy produces: real files, nothing to report.
+    const good = fixtureDir('share/icons/Adwaita/scalable');
+    writeFileSync(join(good, 'share', 'icons', 'Adwaita', 'scalable', 'icon.svg'), '<svg/>');
+    assert.deepEqual(findSymlinks(join(good, 'share')), []);
+});
+
+test('findSymlinks reports a DANGLING link too, and an absent tree is empty', () => {
+    const out = fixtureDir('share');
+    symlinkSync('/nonexistent/Cellar/adwaita-icon-theme/48/share/icons/Adwaita', join(out, 'share', 'Adwaita'));
+    const links = findSymlinks(join(out, 'share'));
+    assert.equal(links.length, 1, 'a link whose target is gone is exactly the shipped failure');
+    assert.match(links[0].target, /Cellar/);
+    assert.deepEqual(findSymlinks(join(out, 'does-not-exist')), []);
 });
 
 function nativeLibraryIndexOf(names, caseInsensitive) {

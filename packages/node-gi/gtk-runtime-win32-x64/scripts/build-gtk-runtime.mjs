@@ -43,6 +43,7 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findSymlinks, formatSymlinkProblems } from '../../scripts/bundle-data.mjs';
 import {
     assertLicenseCoverage,
     formatLicenseProblems,
@@ -435,7 +436,7 @@ if (WINDOWING) {
         const themeSrc = join(PREFIX, 'share', 'icons', theme);
         if (!existsSync(themeSrc)) continue;
         const themeOut = join(OUT, 'share', 'icons', theme);
-        cpSync(themeSrc, themeOut, { recursive: true });
+        cpSync(themeSrc, themeOut, { recursive: true, dereference: true });
         if (updateIconCache) {
             try {
                 sh(updateIconCache, ['-q', '-t', '-f', themeOut]);
@@ -457,7 +458,7 @@ if (WINDOWING) {
     const fontsSrc = join(PREFIX, 'etc', 'fonts');
     if (existsSync(fontsSrc)) {
         const fontsOut = join(OUT, 'etc', 'fonts');
-        cpSync(fontsSrc, fontsOut, { recursive: true });
+        cpSync(fontsSrc, fontsOut, { recursive: true, dereference: true });
         const fcCache = findTool('fc-cache.exe', 'FC_CACHE');
         if (fcCache) {
             try {
@@ -487,7 +488,7 @@ if (WINDOWING) {
         for (const sub of ['language-specs', 'styles']) {
             const subSrc = join(gtksourceSrc, sub);
             if (existsSync(subSrc)) {
-                cpSync(subSrc, join(gtksourceOut, sub), { recursive: true });
+                cpSync(subSrc, join(gtksourceOut, sub), { recursive: true, dereference: true });
                 copied += readdirSync(subSrc).length;
             }
         }
@@ -500,6 +501,26 @@ if (WINDOWING) {
             `build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 language-specs/styles NOT bundled (the editor's built-in highlighting will be unavailable)`,
         );
     }
+}
+
+// --- 4f. the runtime DATA must be real files, not links into this machine ----
+// gvsbuild's prefix is an extracted zip of real files, so nothing here is expected to
+// trip — unlike darwin, where Homebrew's prefix is a symlink farm and `cpSync`'s
+// default (dereference: false) reproduced the farm instead of the files (measured:
+// 0.2 MiB of links where the icon theme is 22 MB, PR #977). The check runs here too
+// because "the source prefix has no links" is an assumption about someone else's
+// packaging, not a fact this builder controls.
+if (WINDOWING) {
+    const links = [
+        ...findSymlinks(join(OUT, 'share')),
+        ...findSymlinks(join(OUT, 'lib')),
+        ...findSymlinks(join(OUT, 'etc')),
+    ];
+    if (links.length > 0) {
+        console.error(`build-gtk-runtime: ${formatSymlinkProblems(links, { root: OUT })}`);
+        process.exit(1);
+    }
+    console.log('build-gtk-runtime: windowing data is self-contained - 0 symlinks under share/, lib/, etc/');
 }
 
 // --- 5. verify the typelib/library symmetry of the FINISHED bundle ---------

@@ -172,6 +172,12 @@ GtkSource's language-specs/styles. The display-free default remains the
 **conformance** variant `node-gi.yml` builds, whose closure is exactly what the
 display-free conformance loads.
 
+The data is copied with `dereference: true` and the build FAILS on any symlink under
+`share/`: Homebrew links a keg's tree into its prefix, so the default copy reproduced
+the link farm — `share/icons/Adwaita` was a link into `…/Cellar/adwaita-icon-theme/…`,
+0.2 MiB of links where the theme is 22 MB of files, and `npm pack` would have shipped
+the dangling link.
+
 Still not collected: the `gdk-pixbuf` loader modules + `loaders.cache` (they are
 dylibs needing `@loader_path` relocation from a nested dir, unlike win32's flat DLL
 copy), so SVG symbolic icons can render blank; and Fontconfig config/cache, which

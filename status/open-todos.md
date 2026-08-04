@@ -491,8 +491,9 @@ names change).
 
 ### The darwin `--windowing` bundle ships icon themes but no gdk-pixbuf image loaders
 
-`build-gtk-runtime-darwin.mjs` § 4b copies `share/icons/{Adwaita,hicolor}` and refreshes their
-caches, but not the gdk-pixbuf loader MODULES + `loaders.cache` — unlike the win32 builder, which
+`build-gtk-runtime-darwin.mjs` § 4b copies `share/icons/{Adwaita,hicolor}` (dereferenced, and § 4d
+fails the build on any symlink left under the data tree) and refreshes their caches, but not the
+gdk-pixbuf loader MODULES + `loaders.cache` — unlike the win32 builder, which
 copies them from `lib/gdk-pixbuf-2.0/2.10.0/loaders` and rewrites the cache bundle-relative. The
 loaders are dylibs living in a NESTED dir, so they need their own `@loader_path` relocation pass
 (the flat `lib/` walk does not reach them) plus `librsvg` in the closure, which is why they were
