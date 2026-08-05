@@ -172,7 +172,21 @@ function flushSummary() {
     // A FENCED block, not a bullet list: the entries are markdown link syntax, and
     // a summary that renders them turns a report about broken links into a page of
     // clickable broken links (and eats `*`/`_` in link text). Verbatim is the point.
-    appendFileSync(file, `### ${LABEL}\n\n\`\`\`\n${summaryLines.join('\n')}\n\`\`\`\n\n`);
+    try {
+        appendFileSync(file, `### ${LABEL}\n\n\`\`\`\n${summaryLines.join('\n')}\n\`\`\`\n\n`);
+    } catch (err) {
+        // An unwritable sink must not decide whether a release happens. Measured, not
+        // hypothetical: main.yml runs the e2e suites as `testuser` via `su`, and the
+        // runner's `_runner_file_commands/step_summary_*` is root-owned, so the append
+        // raises EACCES — which, uncaught here, took the whole `--release-notes` run
+        // down and would abort a cut because its LOG destination was unavailable.
+        // Degrading loses the record on a successful cut (release-it swallows stderr
+        // into `log.verbose`), and that is the right way round: stdout is the release
+        // body, so the one sink that cannot be borrowed for a diagnostic is the one
+        // that would corrupt the artefact.
+        console.error(`${LABEL}: cannot write $GITHUB_STEP_SUMMARY (${err.code ?? err.message}); reporting here:`);
+        for (const line of summaryLines) console.error(`  · ${line}`);
+    }
 }
 
 /**

@@ -21,7 +21,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -81,12 +81,29 @@ function fixture({ prose = null, stale = false, tagged = true } = {}) {
     return dir;
 }
 
-function run(dir, version = '0.28.0') {
+/**
+ * `GITHUB_STEP_SUMMARY` is always set explicitly, never inherited.
+ *
+ * Not hygiene — the ambient one is a TRAP here. main.yml runs the e2e suites as
+ * `testuser` via `su`, and the runner's `_runner_file_commands/step_summary_*` file
+ * is root-owned, so an inherited path made every append raise EACCES and took the
+ * whole run down. Pointing it into the fixture also turns the accident into an
+ * assertion: the step summary is the ONLY channel an advisory here can use (stdout
+ * is the release body, stderr is swallowed by release-it on success), so the tests
+ * read it rather than trusting that claim.
+ */
+function run(dir, version = '0.28.0', summary = join(dir, 'step-summary.md')) {
     const r = spawnSync(process.execPath, [SCRIPT, '--release-notes', version], {
         cwd: dir,
         encoding: 'utf8',
+        env: { ...process.env, GITHUB_STEP_SUMMARY: summary },
     });
-    return { status: r.status, body: r.stdout, err: r.stderr };
+    return {
+        status: r.status,
+        body: r.stdout,
+        err: r.stderr,
+        summary: existsSync(summary) ? readFileSync(summary, 'utf8') : null,
+    };
 }
 
 const SECTION_BODY = SECTION.slice(SECTION.indexOf('## [0.28.0]')).trim();
@@ -95,10 +112,12 @@ describe('release notes preamble', () => {
     it('publishes the section alone when there is no preamble file', () => {
         const dir = fixture();
         try {
-            const { status, body, err } = run(dir);
+            const { status, body, err, summary } = run(dir);
             assert.equal(status, 0, err);
             assert.equal(body.trim(), SECTION_BODY);
             assert.match(err, /NO PREAMBLE — no preamble at/);
+            // The advisory's only real channel — a cut's stderr is swallowed.
+            assert.match(summary ?? '', /NO PREAMBLE — no preamble at/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -121,12 +140,31 @@ describe('release notes preamble', () => {
     it('publishes prose written during this cycle, with the section verbatim below it', () => {
         const dir = fixture({ prose: '## What changed\n\nThe bundles ship their libraries now.\n' });
         try {
-            const { status, body, err } = run(dir);
+            const { status, body, err, summary } = run(dir);
             assert.equal(status, 0, err);
             assert.match(body, /^## What changed/);
             assert.ok(body.includes('\n\n---\n\n'), 'separator between preamble and generated section');
             assert.ok(body.includes(SECTION_BODY), 'the generated section survives verbatim');
             assert.match(err, /preamble = docs\/release-notes\/next\.md \(\d+ chars\)/);
+            assert.match(summary ?? '', /preamble = docs\/release-notes\/next\.md \(\d+ chars\)/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('still emits the body when the step summary cannot be written', () => {
+        // An unwritable SINK must not decide whether a release happens. This is the
+        // shape that failed the first CI run of this suite: EACCES on the runner's
+        // root-owned summary file aborted a run whose body was perfectly good.
+        const dir = fixture({ prose: '## Fine\n\nProse.\n' });
+        try {
+            const { status, body, err, summary } = run(dir, '0.28.0', join(dir, 'missing-dir', 'summary.md'));
+            assert.equal(status, 0, err);
+            assert.ok(body.includes(SECTION_BODY), 'the body still reaches stdout');
+            assert.equal(summary, null);
+            assert.match(err, /cannot write \$GITHUB_STEP_SUMMARY/);
+            // Degraded, not dropped: the lines it could not file go to stderr.
+            assert.match(err, /preamble = docs\/release-notes\/next\.md/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
