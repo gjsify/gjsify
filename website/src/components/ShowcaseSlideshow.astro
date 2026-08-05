@@ -8,12 +8,12 @@ import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/action
 import DemoArrow from '../assets/demo-arrow.svg?raw';
 import DemoArrowTerminal from '../assets/demo-arrow-terminal.svg?raw';
 
-// The runtimes a showcase can be launched on. Each slide declares the set its
-// showcase is VERIFIED to run on (`package.json#gjsify.example.runtimes`), so
-// the command tabs are HONEST — a slide only shows a runtime tab when that
-// showcase genuinely runs on it. `bunx @gjsify/cli@latest showcase <name>`
-// errors for a showcase that doesn't declare `bun`, so we must not advertise a
-// tab for it.
+// The runtimes a showcase can be launched on. A slide shows a runtime tab only
+// when that showcase genuinely runs there, because the CLI enforces it:
+// `bunx @gjsify/cli@latest showcase <name>` errors for a showcase that does not
+// declare `bun`, so an advertised tab that does not work is a documented command
+// that fails. The set is read from each showcase's own manifest — see
+// `declaredRuntimes` below for why it is derived rather than listed per slide.
 type Runtime = 'gjs' | 'node' | 'bun' | 'deno';
 
 // Runtime → the CommandTabs tab id it renders as.
@@ -38,9 +38,46 @@ const RUNTIME_INVOCATION: Record<Runtime, string> = {
   deno: 'deno run -A npm:@gjsify/cli@latest',
 };
 
-// Build the command-tab list for a slide from its VERIFIED runtimes and the CLI
-// sub-command that launches it (`showcase <name>`, or `storybook` for the
-// storybook slide). Preserves the runtime order so tabs read gjs · node · bun · deno.
+// The runtimes a showcase is verified on, READ FROM ITS OWN MANIFEST rather than
+// restated here. The comment above already said a slide's set mirrors
+// `package.json#gjsify.example.runtimes`; a hand-copied mirror is a second truth,
+// and it drifted: the adwaita-storybook slide offered node/bun/deno tabs against a
+// manifest declaring `["gjs"]`, so following the page produced
+// `"adwaita-storybook" does not support --runtime node`. Derived, that cannot recur
+// — and the build FAILS on a showcase with no declaration instead of quietly
+// advertising four tabs, because an absent declaration means "unconstrained" to the
+// CLI and that is precisely what must not be guessed on a public page.
+//
+// Resolved by the BUNDLER at build time, never by the filesystem at render time.
+// `import.meta.url` cannot express this: after bundling, the frontmatter lives in
+// `website/dist/.prerender/chunks/`, so walking three levels up from it lands in
+// `website/` — the first attempt failed the docs build with `ENOENT` on
+// `website/showcases/node/express-webserver/package.json`. `import.meta.glob` resolves
+// its specifier relative to THIS source file at build time, which is exactly the
+// relationship being stated, and leaves no path arithmetic to get wrong.
+const SHOWCASE_MANIFESTS = import.meta.glob<{ gjsify?: { example?: { runtimes?: Runtime[] } } }>(
+  '../../../showcases/*/*/package.json',
+  { eager: true, import: 'default' },
+);
+
+function declaredRuntimes(github: string): readonly Runtime[] {
+  // Glob keys are specifiers relative to this file; match on the repo-relative tail so
+  // the slide keeps naming its showcase the same way its `github` link does.
+  const key = Object.keys(SHOWCASE_MANIFESTS).find((k) => k.endsWith(`/${github}/package.json`));
+  const declared = key ? SHOWCASE_MANIFESTS[key]?.gjsify?.example?.runtimes : undefined;
+  if (!Array.isArray(declared) || declared.length === 0) {
+    throw new Error(
+      `ShowcaseSlideshow: ${github}/package.json declares no gjsify.example.runtimes, so this page ` +
+        'cannot know which runtime tabs are honest. Declare the runtimes the showcase actually ships ' +
+        `for. Manifests found: ${Object.keys(SHOWCASE_MANIFESTS).length}`,
+    );
+  }
+  return declared as readonly Runtime[];
+}
+
+// Build the command-tab list for a slide from those runtimes and the CLI
+// sub-command that launches it. Preserves the runtime order so tabs read
+// gjs · node · bun · deno.
 //
 // `--runtime <rt>` is EXPLICIT for the non-gjs tabs, because the invocation host
 // does not decide the target: `showcase`/`storybook` default to gjs whenever gjs
@@ -75,16 +112,15 @@ interface Slide {
   github: string;
   code: string;
   /**
-   * Runtimes this showcase is VERIFIED to run on — drives which command tabs
-   * render (see `package.json#gjsify.example.runtimes`). Every showcase keeps
-   * `gjs` (the reference); node/bun/deno are declared only when the showcase
-   * genuinely runs there via the @gjsify/node-gi reverse bridge.
-   */
-  runtimes: readonly Runtime[];
-  /**
-   * CLI sub-command used to launch this showcase. Defaults to
-   * `showcase <name>`. The storybook slide overrides it to `storybook` — it is
-   * launched via `gjsify storybook`, not `gjsify showcase <name>`.
+   * CLI sub-command used to launch this showcase. Defaults to `showcase <name>`,
+   * which is what every slide wants — `name` IS the showcase id the CLI takes.
+   *
+   * Only override this for a slide that genuinely is not a showcase launch.
+   * `storybook` is NOT such a case and was the drift: `gjsify storybook`
+   * discovers `*.story.ts` in the CURRENT project, so on a machine with no
+   * stories it correctly reports "No *.story.ts files found under src" — and then
+   * prints the command this page should have shown. The curated Libadwaita
+   * browser is a showcase like any other.
    */
   launch?: string;
   annotations?: Annotation[];
@@ -108,7 +144,6 @@ const slides: Slide[] = [
     name: 'express-webserver',
     title: 'express-webserver.ts',
     github: 'showcases/node/express-webserver',
-    runtimes: ['gjs', 'node', 'bun', 'deno'],
     variant: 'terminal',
     annotations: [
       { text: 'A real Express.js\nblog, running on GJS', top: '-90px', right: '8%' },
@@ -156,8 +191,6 @@ app.listen(3000, () => {
     name: 'adwaita-storybook',
     title: 'switch-row.meta.ts',
     github: 'showcases/gtk/adwaita-storybook',
-    runtimes: ['gjs', 'node', 'bun', 'deno'],
-    launch: 'storybook',
     annotations: [
       { text: 'Create stories for your GTK widgets\njust as you would in web development', top: '-90px', right: '8%' },
     ],
@@ -180,7 +213,6 @@ export const switchRowMeta: StoryMeta = {
     name: 'three-postprocessing-pixel',
     title: 'pixel-demo.ts',
     github: 'showcases/dom/three-postprocessing-pixel',
-    runtimes: ['gjs', 'node', 'bun', 'deno'],
     annotations: [
       { text: 'This WebGL demo runs\nnatively on Linux!', top: '-90px', right: '8%' },
     ],
@@ -207,7 +239,6 @@ app.connect('activate', () => {
     name: 'three-geometry-teapot',
     title: 'teapot-demo.ts',
     github: 'showcases/dom/three-geometry-teapot',
-    runtimes: ['gjs', 'node', 'bun', 'deno'],
     annotations: [
       { text: 'Real Three.js,\npowered by GJS', top: '-90px', right: '8%' },
     ],
@@ -235,7 +266,6 @@ app.connect('activate', () => {
     name: 'excalibur-jelly-jumper',
     title: 'jelly-jumper.ts',
     github: 'showcases/dom/excalibur-jelly-jumper',
-    runtimes: ['gjs', 'node', 'bun', 'deno'],
     annotations: [
       { text: 'The web game engine\nExcalibur.js, natively\nin GJS — no WebView', top: '-90px', right: '8%' },
     ],
@@ -261,7 +291,6 @@ app.connect('activate', () => {
     name: 'canvas2d-fireworks',
     title: 'fireworks.ts',
     github: 'showcases/dom/canvas2d-fireworks',
-    runtimes: ['gjs', 'node', 'bun', 'deno'],
     annotations: [
       { text: 'Canvas 2D, drawn\nwith Cairo', top: '-90px', right: '8%' },
     ],
@@ -356,7 +385,7 @@ app.connect('activate', () => {
               <span class="slide-try-it-arrow" set:html={DemoArrowTerminal} />
             </div>
             <div class="slide-try-it focusable" tabindex="0">
-              <CommandTabs title="Terminal" commands={runtimeCommands(slide.runtimes, slide.launch ?? `showcase ${slide.name}`)} />
+              <CommandTabs title="Terminal" commands={runtimeCommands(declaredRuntimes(slide.github), slide.launch ?? `showcase ${slide.name}`)} />
             </div>
           </div>
         </div>
