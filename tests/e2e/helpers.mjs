@@ -1,7 +1,7 @@
 // Shared E2E test helpers for @gjsify CLI/plugin workflows.
 
 import { execFileSync, execSync } from 'node:child_process';
-import { writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -11,6 +11,42 @@ export const MONOREPO_ROOT = join(__dirname, '..', '..');
 
 /** The `<os>-<arch>` target this host resolves — the ONE spelling, unmapped. */
 export const HOST_TARGET = `${process.platform}-${process.arch}`;
+
+const LOCKFILE_WRITER = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'src', 'utils', 'install-backend-native.ts');
+
+/**
+ * The `lockfileVersion` a FRESH resolve writes — READ FROM THE WRITER, never
+ * restated here.
+ *
+ * Four suites hardcoded `3` and each carried its own rationale string ("v3
+ * (path-keyed + platform fields)", "valid v3 JSON (no torn writes)"). Bumping the
+ * format to 4 turned all four red at once and, worse, made those rationales
+ * wrong: the version is not the point of any of those tests, it is a
+ * precondition they assert in passing. Same failure shape `prebuildDir()` above
+ * exists for — a fact repeated per call site gets swept by hand, and one copy
+ * gets missed.
+ *
+ * Derived, so the next bump needs no sweep at all: a version the writer records
+ * and the suites read cannot disagree. The e2e suites pack THIS workspace, so the
+ * source read here is the same code under test. A parse failure THROWS — a helper
+ * that silently guessed a version would turn every one of these preconditions
+ * into a test that cannot fail.
+ *
+ * Deliberately NOT for fixtures: a suite that writes an OLD lockfile on purpose
+ * (backwards-compat, torn-write recovery) keeps its literal, because that number
+ * is the input being tested, not the current format.
+ */
+export const LOCKFILE_VERSION = (() => {
+    const src = readFileSync(LOCKFILE_WRITER, 'utf-8');
+    const match = src.match(/^const LOCKFILE_VERSION = (\d+);$/m);
+    if (!match) {
+        throw new Error(
+            `[e2e helpers] could not read LOCKFILE_VERSION from ${LOCKFILE_WRITER}. ` +
+                `The declaration moved or changed shape — update this reader; do NOT hardcode the version.`,
+        );
+    }
+    return Number(match[1]);
+})();
 
 /**
  * The directory holding a bridge's committed prebuild for one target.

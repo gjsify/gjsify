@@ -29,6 +29,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { LOCKFILE_VERSION } from '../helpers.mjs';
 
 // ----- tar helpers (ustar v0 with arbitrary file entries) -----
 const BLOCK = 512;
@@ -387,7 +388,7 @@ describe('gjsify install — nested-node_modules version conflict (Phase D.7b)',
         const lockPath = join(projectDir, 'gjsify-lock.json');
         assert.ok(existsSync(lockPath), 'gjsify-lock.json missing');
         const lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
-        assert.equal(lock.lockfileVersion, 3, 'lockfile must be v3 (path-keyed + platform fields)');
+        assert.equal(lock.lockfileVersion, LOCKFILE_VERSION, 'lockfile must be the version the writer records');
 
         // Both readable placements are present — one at the root, one nested.
         // Whichever consumer the BFS reached first wins the root slot; the

@@ -37,6 +37,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { LOCKFILE_VERSION } from '../helpers.mjs';
 
 // ----- tar helpers (ustar v0, same pattern as install-workspace-source-safety) -----
 const BLOCK = 512;
@@ -278,7 +279,7 @@ describe('gjsify install — concurrent installs (per-prefix lock + atomic share
             assert.equal(installedVersion(dir, 'beta'), '1.2.3', 'transitive dep must materialize');
             assert.equal(installedVersion(dir, 'gamma'), '1.0.0', '~1.0.0 must pick 1.0.0, not 1.5.0');
             const lock = JSON.parse(readFileSync(join(dir, 'gjsify-lock.json'), 'utf-8'));
-            assert.equal(lock.lockfileVersion, 3, 'lockfile must be valid v3 JSON (no torn writes)');
+            assert.equal(lock.lockfileVersion, LOCKFILE_VERSION, 'lockfile must be the version the writer records');
             assertNoLeftoverLock(dir);
         }
     });

@@ -114,6 +114,25 @@ export default async () => {
             expect('test').not.toEqual('test2');
             expect(obj).not.toEqual(obj2);
         });
+
+        // Read through `toThrow`, which is how the matchers' own specs inspect a
+        // failure here — a hand-rolled try/catch would skip its
+        // `forgetThrownAssertion` and the absorbed error would be reported as a
+        // lost assertion (the phantom-failure mode documented in
+        // callback-assertion.spec.ts).
+        await it('names toStrictEqual when the values are structurally equal', async () => {
+            // The trap the hint exists for: `toEqual` compares objects by
+            // REFERENCE, so a Jest-shaped `toEqual([...])` fails while printing
+            // two identical-looking lines, which reads as a framework bug.
+            expect(() => expect([['real', '^2']]).toEqual([['real', '^2']])).toThrow('structurally equal');
+            expect(() => expect([['real', '^2']]).toEqual([['real', '^2']])).toThrow('toStrictEqual');
+        });
+
+        await it('stays silent when the values genuinely differ', async () => {
+            // The hint is appended LAST, so a message that still ends at the
+            // type suffix carries none — asserting absence positively.
+            expect(() => expect([1]).toEqual([2])).toThrow(/\(object\)$/);
+        });
     });
 
     await describe('expect::toMatch', async () => {

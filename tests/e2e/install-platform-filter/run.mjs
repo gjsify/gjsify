@@ -39,6 +39,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { LOCKFILE_VERSION } from '../helpers.mjs';
 
 // ----- tar helpers (ustar v0) — same shape as install-lock-preserve/run.mjs ---
 const BLOCK = 512;
@@ -273,7 +274,12 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
 
         const lock = lockOf(dir);
-        assert.equal(lock.lockfileVersion, 3, 'platform fields need lockfile v3');
+        // v3 introduced the platform fields this suite is about; v4 adds the per-entry
+        // `optionalDependencies` map, without which the optionality fixpoint cannot see
+        // WHICH of an entry's edges are optional and a name declared in both blocks
+        // comes out required. A fresh resolve therefore always writes the current
+        // version — asserting the older one here would pin the format, not the fields.
+        assert.equal(lock.lockfileVersion, LOCKFILE_VERSION, 'lockfile must be the version the writer records');
 
         // RESOLVED for every platform: all four packages are pinned, with their
         // declarations recorded, so this file installs correctly on any host.

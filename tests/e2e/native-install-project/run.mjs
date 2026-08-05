@@ -17,6 +17,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { LOCKFILE_VERSION } from '../helpers.mjs';
 
 // ----- tar helpers (ustar v0 with a single package.json entry) -----
 const BLOCK = 512;
@@ -249,7 +250,7 @@ describe('gjsify install <pkg> — project-local native (Phase D.1)', { timeout:
         // `node_modules/` entries (introduced for version-conflict resolution)
         // coexist with hoisted root entries in the same map. v3 since the
         // platform filter added the per-entry `os`/`cpu`/`libc` + `optional`.
-        assert.equal(lock.lockfileVersion, 3);
+        assert.equal(lock.lockfileVersion, LOCKFILE_VERSION, 'lockfile must be the version the writer records');
         const topEntry = lock.packages['node_modules/top-pkg'];
         assert.ok(topEntry, 'lockfile must pin top-pkg at node_modules/top-pkg');
         assert.match(topEntry.integrity, /^sha512-/);

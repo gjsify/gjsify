@@ -16,6 +16,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { LOCKFILE_VERSION } from '../helpers.mjs';
 
 // Build a minimal ustar tar archive in memory containing a single
 // `package/package.json` whose contents are `pkgJson` (object).
@@ -247,7 +248,7 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
             // and `optional` fields. This pins what the CLI WRITES; a v2 file is
             // still READ (READABLE_LOCKFILE_VERSIONS) precisely so upgrading the
             // CLI does not discard everyone's pins and re-resolve the tree.
-            assert.equal(lock.lockfileVersion, 3);
+            assert.equal(lock.lockfileVersion, LOCKFILE_VERSION, 'lockfile must be the version the writer records');
             assert.deepEqual(lock.requested, ['root@^0.1.0']);
             for (const name of ['root', 'middle', 'leaf']) {
                 const entry = lock.packages[`node_modules/${name}`];
