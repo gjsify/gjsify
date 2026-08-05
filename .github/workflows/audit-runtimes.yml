@@ -141,6 +141,57 @@ jobs:
       - name: Check the tracked lockfile carries current platform data
         run: node scripts/check-lockfile-current.mjs
 
+      # A workflow file GitHub REFUSES TO LOAD reports the pull request as GREEN.
+      #
+      # GitHub creates a run with zero jobs for it, hence zero check runs, so there
+      # is nothing red to see — the only visible trace is a run oddly named after
+      # the file path instead of the workflow name. MEASURED: moving nine jobs onto
+      # the baked CI image deleted a single-line `run:` and left a step carrying
+      # only a `name:`. GitHub rejected the whole file, six node-gi jobs silently
+      # did not run, and the PR reported 24 GREEN CHECKS. It was caught by a human
+      # asking why the expected job names were missing, not by any signal.
+      #
+      # This job is the right home for the same reason the checks above are: it
+      # runs on every pull request with no install and no build, so it can see
+      # what the broken workflow cannot report about itself.
+      #
+      # WHY actionlint AND NOT OUR OWN CHECKER. A hand-rolled YAML outline scanner
+      # was written for exactly this and produced 17 FALSE POSITIVES on
+      # `prebuilds.yml` and `release.yml`, both of which GitHub loads fine — and a
+      # check that cries wolf is worse than no check. Node ships no YAML parser, so
+      # the alternatives were a real parser plus schema logic of our own (the same
+      # drift risk, better hidden) or the purpose-built tool. actionlint validates
+      # the workflow schema, `needs:` references, runner labels and `${{ }}`
+      # expressions — a superset of the load-blocking class.
+      #
+      # Pinned + checksummed: this downloads a binary into a job that reads this
+      # repository's workflows, so "latest" is not acceptable and neither is an
+      # unverified tarball. Bump both values together.
+      #
+      # `-shellcheck=` and `-pyflakes=` are DELIBERATELY empty. Both are
+      # preinstalled on the ubuntu image, both answer a different question (shell
+      # and Python style inside `run:` bodies), and the volume they would add here
+      # is UNMEASURED — turning them on is how this step would acquire the false
+      # positives that killed its predecessor. With them off the whole repository
+      # is clean at 0 findings, which is why this gates rather than warns.
+      # Widening to shellcheck is a separate, measured change.
+      - name: Check GitHub can load every workflow file
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
+          tmp="$(mktemp -d)"
+          curl -sSfL -o "$tmp/$tarball" "$url"
+          echo "${ACTIONLINT_SHA256}  $tmp/$tarball" | sha256sum -c -
+          tar xzf "$tmp/$tarball" -C "$tmp" actionlint
+          "$tmp/actionlint" -version
+          # No file arguments: actionlint discovers `.github/workflows/**` itself,
+          # so a newly added workflow is covered without editing this step.
+          "$tmp/actionlint" -shellcheck= -pyflakes=
+
       - name: Check for resurrected prose (advisory)
         continue-on-error: true
         env:
@@ -181,9 +232,11 @@ jobs:
   # which silently detaches any branch-protection rule that requires the current
   # name. A second job adds the signal without touching the required one.
   #
-  # WHAT IT DELIBERATELY OMITS: the resurrected-prose step. It is advisory, it
-  # needs a deepened fetch and POSIX shell syntax, and running an
-  # OS-independent text diff twice buys nothing.
+  # WHAT IT DELIBERATELY OMITS: the resurrected-prose step and the actionlint
+  # workflow-load gate. The first is advisory, needs a deepened fetch and POSIX
+  # shell syntax, and running an OS-independent text diff twice buys nothing. The
+  # second is the same argument plus a concrete one — actionlint reads YAML, its
+  # verdict cannot depend on the host, and the pinned tarball is `linux_amd64`.
   check-windows:
     name: Manifest checks (Windows)
     runs-on: windows-latest
