@@ -17,19 +17,53 @@
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..', '..', '..');
-const HOOK_SOURCE = join(REPO_ROOT, '.githooks', 'pre-commit');
 const INSTALL_SCRIPT = join(REPO_ROOT, 'scripts', 'install-git-hooks.mjs');
+
+/**
+ * EVERY hook `install-git-hooks.mjs` expects — READ FROM THE INSTALLER, never
+ * restated here.
+ *
+ * The installer treats a missing member of its `EXPECTED_HOOKS` as a hard error
+ * ("the workspace tree is incomplete", `process.exit(1)`), so a fixture that lays
+ * down only `pre-commit` breaks the install test the moment the hook SET grows.
+ * That is what adding `post-rewrite` did: this suite went red in CI while BOTH
+ * hook suites passed in isolation, because the coupling is between the
+ * installer's expectations and this fixture — not between the hooks. The
+ * installer's own comment says "Add new hooks here", and nothing told the fixture.
+ *
+ * Derived, so the next hook needs no edit in this file. A parse failure THROWS: a
+ * reader that silently fell back to `['pre-commit']` would restore exactly the
+ * drift it exists to prevent.
+ */
+const EXPECTED_HOOKS = (() => {
+    const src = readFileSync(INSTALL_SCRIPT, 'utf-8');
+    const block = src.match(/EXPECTED_HOOKS\s*=\s*\[([^\]]*)\]/);
+    if (!block) {
+        throw new Error(
+            `[git-hooks-cli-bundle-staleness] could not read EXPECTED_HOOKS from ${INSTALL_SCRIPT}. ` +
+                `The declaration moved or changed shape — update this reader; do NOT hardcode the hook list.`,
+        );
+    }
+    const names = [...block[1].matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1]);
+    if (!names.length) {
+        throw new Error(`[git-hooks-cli-bundle-staleness] EXPECTED_HOOKS parsed to an empty list`);
+    }
+    return names;
+})();
 
 /**
  * Lay down the minimum repository skeleton the hook walks:
  *   - `.git` (real, via `git init`)
- *   - `.githooks/pre-commit` (copied from the actual workspace hook under test)
+ *   - `.githooks/*` — every hook in the installer's EXPECTED_HOOKS, copied from
+ *     the real workspace hooks (`pre-commit` is the one under test here; the rest
+ *     are present because the install test runs the real installer, which refuses
+ *     an incomplete hooks dir)
  *   - `packages/infra/cli/src/index.ts` + `dist/cli.gjs.mjs`
  *   - `packages/infra/tsc/src/index.ts` + `dist/tsc.gjs.mjs`
  *   - `node_modules/.bin/gjsify` — synthetic stub recording its argv to a log
@@ -46,10 +80,24 @@ function setupSyntheticRepo(parent) {
     execFileSync('git', ['-C', root, 'config', 'user.name', 'test']);
     execFileSync('git', ['-C', root, 'config', 'commit.gpgsign', 'false']);
 
-    // Workspace tree the hook expects.
+    // Workspace tree the hook expects. ALL expected hooks are laid down, not just
+    // `pre-commit`: the install test below runs the real installer, which refuses
+    // an incomplete `.githooks/`. Copying the real hooks rather than writing stubs
+    // keeps the fixture honest — and is safe for the other tests here, which only
+    // ever `git commit` (a `post-rewrite` hook fires on rebase / --amend, neither
+    // of which this suite performs).
     mkdirSync(join(root, '.githooks'), { recursive: true });
-    cpSync(HOOK_SOURCE, join(root, '.githooks', 'pre-commit'));
-    chmodSync(join(root, '.githooks', 'pre-commit'), 0o755);
+    for (const hook of EXPECTED_HOOKS) {
+        const source = join(REPO_ROOT, '.githooks', hook);
+        if (!existsSync(source)) {
+            throw new Error(
+                `[git-hooks-cli-bundle-staleness] install-git-hooks.mjs expects ${hook} but ` +
+                    `${source} does not exist — the workspace tree really is incomplete.`,
+            );
+        }
+        cpSync(source, join(root, '.githooks', hook));
+        chmodSync(join(root, '.githooks', hook), 0o755);
+    }
     execFileSync('git', ['-C', root, 'config', 'core.hooksPath', '.githooks']);
 
     mkdirSync(join(root, 'packages', 'infra', 'cli', 'src'), { recursive: true });
