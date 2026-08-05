@@ -29,7 +29,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const HOOKS_DIR_RELATIVE = '.githooks';
 const HOOKS_DIR_ABS = resolve(ROOT, HOOKS_DIR_RELATIVE);
-const PRE_COMMIT_PATH = resolve(HOOKS_DIR_ABS, 'pre-commit');
+
+// Enumerated, not globbed: a hook that silently fails to ship is exactly the
+// class this repo keeps getting bitten by, so the expected set is declared and
+// a missing member is a hard error below. Add new hooks here.
+const EXPECTED_HOOKS = ['pre-commit', 'post-rewrite'];
 
 const args = new Set(process.argv.slice(2));
 const QUIET = args.has('--quiet') || args.has('-q');
@@ -97,8 +101,12 @@ if (!existsSync(HOOKS_DIR_ABS) || !statSync(HOOKS_DIR_ABS).isDirectory()) {
     process.exit(1);
 }
 
-if (!existsSync(PRE_COMMIT_PATH)) {
-    warn(`expected hook ${PRE_COMMIT_PATH} not found — the workspace tree is incomplete.`);
+const missingHooks = EXPECTED_HOOKS.filter((h) => !existsSync(resolve(HOOKS_DIR_ABS, h)));
+if (missingHooks.length > 0) {
+    warn(
+        `expected hook(s) ${missingHooks.map((h) => `${HOOKS_DIR_RELATIVE}/${h}`).join(', ')} not found — ` +
+            'the workspace tree is incomplete.',
+    );
     process.exit(1);
 }
 
@@ -119,5 +127,5 @@ if (current === HOOKS_DIR_RELATIVE) {
     log(`core.hooksPath = ${HOOKS_DIR_RELATIVE} (was ${current ?? 'unset / .git/hooks'})`);
 }
 
-log(`active hooks: pre-commit`);
+log(`active hooks: ${EXPECTED_HOOKS.join(', ')}`);
 log(`bypass with: 'git commit --no-verify' or SKIP_GJSIFY_HOOKS=1`);

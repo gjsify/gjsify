@@ -326,6 +326,21 @@ What is MEASURED, and what is not:
   the upstream bytes and re-run the triple. Worth weighing against the second
   direction below — if CI were the only producer, neither this nor the staleness
   case above could arise.
+- **The silent half now emits a signal — but a warning is not a verification.**
+  `.githooks/post-rewrite` fires after `rebase` / `commit --amend`, the two
+  rewrites `pre-commit` structurally cannot see (a rebase stages nothing;
+  `--amend` with nothing newly staged presents an empty staged set), and warns
+  REBASED-UNDER when the new base moved closure source under a committed bundle.
+  So "no conflict, no signal at all" becomes "no conflict, but you were told at
+  the moment it happened". What it does NOT do, and must not be read as doing:
+  it never compares bytes, never rebuilds, and cannot tell a text-merged
+  artifact that happens to match a rebuild from one that does not — the
+  coincidence described above is invisible to it exactly as it is to git. When
+  the workspace closure oracle is unreachable it falls back to `pre-commit`'s
+  four-path prefix scan and says so, because an under-approximating scan that
+  stayed quiet would read as "all clear". **This entry therefore stays open**:
+  the standing repair is still to take CI's `rebuilt-bundles` bytes and re-run
+  the triple. The hook only removes the part where nobody knew to.
 
 AGENTS.md § Committed-artifact freshness already says `--with-dependencies` pins
 the INPUTS so that "a mismatch means staleness"; the run above is that sentence

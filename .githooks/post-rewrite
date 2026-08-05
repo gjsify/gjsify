@@ -1,0 +1,514 @@
+#!/usr/bin/env bash
+# gjsify post-rewrite hook — WARN when a history rewrite may have staled a
+# committed GJS bundle. It NEVER rebuilds and NEVER fails the rewrite.
+#
+# Why this exists — the seam `pre-commit` structurally cannot cover
+# ------------------------------------------------------------------
+# `packages/infra/cli/dist/{cli,affected}.gjs.mjs` and
+# `packages/infra/tsc/dist/tsc.gjs.mjs` are COMMITTED build outputs that inline
+# the whole workspace-dep closure of their package. The invariant is "the
+# committed bytes reproduce from the sources at HEAD"
+# (`scripts/verify-committed-bundles.mjs`), and a REBASE breaks it without
+# touching a single line of your diff: the replayed tree now contains the new
+# base's source changes, while the bundle you committed was built against the
+# OLD base.
+#
+# Measured, PR #897: the only conflicting file WAS
+# `packages/infra/cli/dist/cli.gjs.mjs` — a derived artifact — so it was
+# resolved by taking one side and rebuilding. The rebased tree carried `main`'s
+# changes, and the committed artifact no longer matched its source. The committed
+# bytes were `f5f9e5b…` while two independent rebuilds both produced `ec745bdb…`,
+# and the real difference was `gi://GioUnix?version=2.0` going from a bare
+# side-effect import to a default import — a genuine module-graph change, not
+# minifier noise.
+#
+# THE DIAGNOSIS THAT MATTERS: this repo has a history of SUSPECTED local
+# non-reproducibility, and reading a real staleness as "my machine cannot
+# reproduce bundles" is how a bad artifact gets committed. So REBUILD TWICE. Two
+# independent rebuilds that AGREE with each other and DISAGREE with the committed
+# file mean the committed file is stale. Two rebuilds that disagree with EACH
+# OTHER mean the tree/host is not reproducing, and the committed bytes are not
+# the thing to change. That test is printed in the warning below, because getting
+# it backwards is worse than the staleness itself.
+#
+# Nothing local saw it. `tsc`, `gjsify lint`, `gjsify format --check`,
+# `audit-runtimes --check` and all 1597 unit tests were green, because NONE of
+# them executes the emitted GJS bundle. The PR was fully green (30 SUCCESS /
+# 7 SKIPPED) on the pre-rebase head. `verify-committed-bundles.mjs` is the only
+# thing that sees it, it costs ~9 minutes, and in CI it runs only in
+# `main.yml`'s build job — i.e. AFTER the push.
+#
+# `.githooks/pre-commit` cannot help: it triggers on STAGED paths, and a rebase
+# stages nothing — it replays commits. `post-rewrite` fires after `git rebase`
+# and `git commit --amend`, which is exactly the missing seam.
+#
+# What it does NOT do: rebuild. A 9-minute rebuild inside a git hook gets
+# bypassed and is then relied upon anyway. This hook prints the command and
+# lets the human decide.
+#
+# What it detects
+# ---------------
+# Two shapes, both derived from the rewritten range. They are mutually exclusive
+# per artifact, so each file list is classified at most once:
+#
+#   REBASED-UNDER (the #897 case) — this branch commits a change to a committed
+#     bundle, AND the rewrite moved the base under it in a way that reaches that
+#     bundle's own workspace. Whatever you built before the rewrite was built
+#     against the old base, so it is stale by construction.
+#
+#   NOT-REBUILT — this branch changes source inside the bundle's workspace
+#     closure but does NOT commit the bundle. (`pre-commit` catches this only for
+#     its four hard-coded paths; see the closure note below.)
+#
+# What it deliberately does NOT detect — read before trusting a silent hook
+# ------------------------------------------------------------------------
+#   * Whether a bundle is ACTUALLY stale. That is only answerable by rebuilding
+#     and byte-comparing (~9 min). This hook answers the strictly cheaper "could
+#     this rewrite have staled it", and errs towards warning.
+#   * Non-source inputs: `refs/**` submodule movement, an npm-side dependency the
+#     bundle inlines, host toolchain drift. Those stale a bundle with an EMPTY
+#     git diff, so no diff-based hook can ever see them.
+#   * `packages/infra/tsc/lib/lib*.d.ts` — also tracked, version-locked build
+#     output, deliberately NOT in this hook's artifact set. Their real input is
+#     the npm `typescript` version, not a tracked source file, so a rewrite can
+#     only stale them by moving `TYPESCRIPT_VERSION` in
+#     `packages/infra/tsc/src/` — which already trips `dist/tsc.gjs.mjs` through
+#     the same `@gjsify/tsc` edge. Including them would add no detection power
+#     and would print 108 file names per warning.
+#   * A rewrite git does not report (a no-op rebase emits no pairs), and a
+#     rewritten ROOT commit (no parent, so no base to diff against).
+#
+# The closure oracle — NOT `pre-commit`'s four-path heuristic
+# -----------------------------------------------------------
+# AGENTS.md is explicit that `pre-commit`'s trigger list is "a four-path
+# heuristic while the bundle inlines the whole workspace-dep closure". Inheriting
+# that under-approximation here would reproduce the very miss this hook exists
+# for, so it asks the maintained closure oracle instead: the committed affected
+# classifier (`packages/infra/cli/dist/affected.gjs.mjs`, `--format=globs`),
+# whose reverse-dep walk answers "does a change to these files reach
+# `@gjsify/cli`". Measured ~0.25 s, and it needs only `gjs` — no `node_modules` —
+# so it also answers in the bare worktree where `pre-commit` warns-and-skips (the
+# #821 case). It discriminates: `packages/node/fs/src/**` reaches `@gjsify/cli`,
+# `packages/dom/canvas2d-core/src/**` does not, `website/**` is ignored entirely.
+#
+# The classifier answers a CI question, not the inlining question, so it is only
+# asked about paths that can actually reach a bundle — see the inlinability
+# prefilter below, which is what stops the most ordinary branches (a new npm
+# script, a new test, a CI edit) from expanding to every workspace and firing.
+#
+# Two honest caveats remain, both restated in the printed message:
+#   * Even prefiltered it OVER-approximates "inlined": it walks all dependency
+#     edges, and the global triggers it still sees (the lockfile, a bundler-plugin
+#     change, `packages/infra/cli/**`) expand to every workspace. Those are real
+#     staleness causes, so the direction is right — a false positive costs one
+#     command, a false negative costs a red CI run after the push.
+#   * The classifier is itself one of the committed bundles, so a stale
+#     classifier is answering this question. Its dependency DATA is read from the
+#     working tree, which is what matters here, but the bundled code may lag.
+#     A heuristic, not the invariant. CI is the invariant.
+#
+# With no classifier reachable at all the hook falls back to a path-prefix scan
+# and SAYS SO, so the weaker answer is never mistaken for the strong one.
+#
+# Bypass
+# ------
+#   SKIP_GJSIFY_HOOKS=1 git rebase …
+#
+# Install
+# -------
+#   node scripts/install-git-hooks.mjs   # sets core.hooksPath=.githooks
+#   gjsify install                       # also installs the hook
+#
+# Tests: tests/e2e/git-hooks-post-rewrite-bundle-guard/
+
+# NO `set -e` — unlike `pre-commit`, this hook must never turn a finished rebase
+# into a failure. Git ignores a post-rewrite exit status, but we do not rely on
+# that: every fallible step is guarded and the script ends in `exit 0`.
+#
+# No `declare -A` / no `mapfile` either: hooks run on the developer's machine and
+# macOS still ships bash 3.2. Lookups go through small temp files instead.
+
+# --- Bypass --------------------------------------------------------------
+
+if [ "${SKIP_GJSIFY_HOOKS:-0}" = "1" ]; then
+    exit 0
+fi
+
+MODE="${1:-unknown}"
+
+# --- Read the rewritten range -------------------------------------------
+#
+# stdin is one `<old-sha> <new-sha>` pair per rewritten commit. Verified
+# empirically for both modes: `rebase` emits them in replay order (oldest first)
+# with the last new-sha == HEAD; `amend` emits exactly one pair.
+#
+# We keep the FIRST pair and derive both bases from it rather than trusting the
+# last line to be the tip: `<first-new-sha>^` is the base the commits were
+# replayed ONTO, `<first-old-sha>^` is the base they came FROM, and the diff
+# between those two is exactly "what moved under me". HEAD is read directly.
+#
+# stdin is drained fully either way, so git never sees a short read.
+
+FIRST_OLD=""
+FIRST_NEW=""
+while read -r rw_old rw_new _rest; do
+    [ -n "$rw_old" ] || continue
+    if [ -z "$FIRST_OLD" ]; then
+        FIRST_OLD="$rw_old"
+        FIRST_NEW="$rw_new"
+    fi
+done
+
+# No pairs = nothing was rewritten (a no-op rebase). Nothing to say.
+if [ -z "$FIRST_NEW" ]; then
+    exit 0
+fi
+
+# --- Repo root -----------------------------------------------------------
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$REPO_ROOT" ] || [ ! -d "$REPO_ROOT" ]; then
+    exit 0
+fi
+cd "$REPO_ROOT" || exit 0
+
+# Only ever speak inside the gjsify workspace itself. `core.hooksPath` is
+# repo-local so this is belt-and-braces, but a hooks dir CAN be inherited from a
+# global config, and a stray warning about bundles in an unrelated repo is worse
+# than silence.
+if [ ! -f scripts/verify-committed-bundles.mjs ]; then
+    exit 0
+fi
+
+# --- Derive the two bases ------------------------------------------------
+
+NEW_BASE="$(git rev-parse --verify --quiet "${FIRST_NEW}^" 2>/dev/null)"
+OLD_BASE="$(git rev-parse --verify --quiet "${FIRST_OLD}^" 2>/dev/null)"
+
+# A rewritten ROOT commit has no parent: no base to diff against and no cheap
+# substitute for one. Skip rather than guess.
+if [ -z "$NEW_BASE" ]; then
+    exit 0
+fi
+
+HOOK_TMP="$(mktemp -d 2>/dev/null)"
+if [ -z "$HOOK_TMP" ]; then
+    exit 0
+fi
+trap 'rm -rf "$HOOK_TMP"' EXIT
+
+ARTIFACTS="$HOOK_TMP/artifacts"
+BRANCH_FILES="$HOOK_TMP/branch"
+BASE_FILES="$HOOK_TMP/base"
+
+# --- The committed-bundle set (DERIVED, not a second hard-coded list) -----
+#
+# Same discovery rule as `scripts/verify-committed-bundles.mjs`: a tracked path
+# ending in `.gjs.mjs` with a `dist/` path component — which is what excludes
+# `docs/poc/tla-microtask-draining.gjs.mjs`, a hand-written sample. Deriving it
+# means a bundle added later is covered without anyone remembering this file.
+
+git ls-tree -r --name-only HEAD 2>/dev/null |
+    grep -E '(^|/)dist/.*\.gjs\.mjs$' > "$ARTIFACTS" 2>/dev/null
+
+if [ ! -s "$ARTIFACTS" ]; then
+    exit 0
+fi
+
+# --- The two diffs -------------------------------------------------------
+#
+# BRANCH = what these commits contribute on top of the base they landed on.
+# BASE   = what the rewrite moved under them. Empty for a plain `--amend`, whose
+#          parent does not change — which is why an amend can only ever trip
+#          NOT-REBUILT, never REBASED-UNDER.
+
+git diff --name-only "$NEW_BASE" HEAD > "$BRANCH_FILES" 2>/dev/null || : > "$BRANCH_FILES"
+if [ -n "$OLD_BASE" ] && [ "$OLD_BASE" != "$NEW_BASE" ]; then
+    git diff --name-only "$OLD_BASE" "$NEW_BASE" > "$BASE_FILES" 2>/dev/null || : > "$BASE_FILES"
+else
+    : > "$BASE_FILES"
+fi
+
+# A rewrite that changes nothing at all (pure message/author edit on top of an
+# unmoved base) cannot stale anything.
+if [ ! -s "$BRANCH_FILES" ] && [ ! -s "$BASE_FILES" ]; then
+    exit 0
+fi
+
+# --- Inlinability prefilter ----------------------------------------------
+#
+# The closure oracle answers a CI question ("must main.yml run everything"), not
+# the inlining question, and its GLOBAL_TRIGGERS table is where the two part
+# ways: root `package.json` is a global trigger, and `scripts/**` + `tests/**`
+# reach `global` through the conservative "unmatched files" path. None of the
+# three is ever inlined into a `*.gjs.mjs`, but each expands to EVERY workspace,
+# so handing them to the classifier raw makes the hook fire on the most ordinary
+# branches there are — adding an npm script, adding a test, editing CI. That is
+# the "always cries wolf" failure mode, and it was not hypothetical: this hook's
+# OWN first rebase tripped it on all three bundles.
+#
+# So only paths that can actually reach a bundle are classified. An ALLOW-list,
+# because it is short enough to defend line by line, where the complement is an
+# open-ended list that silently rots:
+#
+#   packages/**          the workspace sources whose `lib/esm` the bundle inlines
+#                        (the classifier's own IGNORE handles `*.md`, node-gi and
+#                        napi inside it; its TEST_ONLY rule handles spec files)
+#   gjsify-lock.json     pins the npm halves the bundle inlines. This is also what
+#                        keeps dropping root `package.json` honest: a devDep bump
+#                        that changes bundler/runtime output re-locks, and the
+#                        lockfile is kept
+#   tsconfig*.json       root compiler options; they change the emitted `lib/esm`
+#                        that gets inlined
+#
+# Everything else — `.github/**`, `.githooks/**`, `scripts/**`, `tests/**`,
+# `docs/**`, `website/**`, `examples/**`, `showcases/**`, `flatpak/**`, `refs/**`,
+# `*.md`, root `package.json`, `meson.build`, `install.mjs` — is dev/CI/publish
+# machinery that no bundle contains.
+#
+# After the filter, every remaining global trigger (`packages/infra/cli/**`,
+# `packages/infra/workspace/**`, the bundler plugins, `resolve-npm/**`, the
+# lockfile, root tsconfig) is a REAL staleness cause, so accepting `global` at
+# face value is then correct rather than lucky.
+
+INLINABLE='^(packages/|gjsify-lock\.json$|tsconfig[^/]*\.json$)'
+BRANCH_INLINABLE="$HOOK_TMP/branch-inlinable"
+BASE_INLINABLE="$HOOK_TMP/base-inlinable"
+grep -E "$INLINABLE" "$BRANCH_FILES" > "$BRANCH_INLINABLE" 2>/dev/null || : > "$BRANCH_INLINABLE"
+grep -E "$INLINABLE" "$BASE_FILES" > "$BASE_INLINABLE" 2>/dev/null || : > "$BASE_INLINABLE"
+
+# Nothing inlinable moved anywhere: no bundle can have gone stale, and the
+# classifier never even boots. This is the common case (docs / CI / test-only
+# branches), so it is also what keeps the hook cheap.
+if [ ! -s "$BRANCH_INLINABLE" ] && [ ! -s "$BASE_INLINABLE" ]; then
+    exit 0
+fi
+
+# --- Which bundles does this branch itself commit? ------------------------
+#
+# `grep -Fxf` needs a blank-line-free pattern file: one empty pattern matches
+# EVERY line, which would mark all bundles as touched. `$ARTIFACTS` comes from
+# `git ls-tree` filtered by `grep -E`, so it cannot contain a blank line.
+
+TOUCHED="$HOOK_TMP/touched"
+grep -Fxf "$ARTIFACTS" "$BRANCH_FILES" > "$TOUCHED" 2>/dev/null || : > "$TOUCHED"
+
+# --- Owning workspace of each bundle -------------------------------------
+#
+# Walk up to the nearest directory with a `package.json`. `dist/` never contains
+# one, so this lands on the package root. Resolved once per bundle (there are
+# three) into a `<path><TAB><owner>` table.
+
+owner_of() {
+    _dir="$(dirname "$1")"
+    while [ -n "$_dir" ] && [ "$_dir" != "." ] && [ "$_dir" != "/" ]; do
+        if [ -f "$_dir/package.json" ]; then
+            # First `"name"` key. package.json convention puts it at the top and
+            # a nested `"name"` (inside `exports`/`bin`/`repository`) can only
+            # appear later, so `head -1` is well defined here.
+            sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+                "$_dir/package.json" 2>/dev/null | head -1
+            return 0
+        fi
+        _dir="$(dirname "$_dir")"
+    done
+    return 1
+}
+
+OWNERS="$HOOK_TMP/owners"
+: > "$OWNERS"
+while IFS= read -r artifact; do
+    [ -n "$artifact" ] || continue
+    printf '%s\t%s\n' "$artifact" "$(owner_of "$artifact")" >> "$OWNERS"
+done < "$ARTIFACTS"
+
+# --- Closure oracle ------------------------------------------------------
+#
+# Resolution ladder, best answer first. The committed classifier bundle wins: it
+# is Soup-free (~0.25 s) and needs no `node_modules`.
+
+ORACLE=""
+ORACLE_KIND="fallback"
+if command -v gjs >/dev/null 2>&1 && [ -f "$REPO_ROOT/packages/infra/cli/dist/affected.gjs.mjs" ]; then
+    ORACLE="gjs -m $REPO_ROOT/packages/infra/cli/dist/affected.gjs.mjs"
+    ORACLE_KIND="classifier"
+elif [ -x "$REPO_ROOT/node_modules/.bin/gjsify" ]; then
+    ORACLE="$REPO_ROOT/node_modules/.bin/gjsify affected"
+    ORACLE_KIND="cli"
+elif command -v gjsify >/dev/null 2>&1; then
+    ORACLE="gjsify affected"
+    ORACLE_KIND="cli"
+fi
+
+# Path-prefix fallback: `pre-commit`'s trigger list plus the `@gjsify/tsc` paths.
+# Deliberately the WEAKER answer — it under-approximates the closure, and the
+# message says so whenever it produced the verdict.
+FALLBACK_CLI='^packages/infra/(cli/(src/|package\.json)|resolve-npm/lib/|rolldown-plugin-gjsify/src/)'
+FALLBACK_TSC='^packages/infra/tsc/(src/|package\.json)'
+
+# Affected workspace names for a file list, one per line, into $2.
+classify_into() {
+    _list="$1"
+    _out="$2"
+    : > "$_out"
+    [ -s "$_list" ] || return 0
+    if [ "$ORACLE_KIND" = "fallback" ]; then
+        # Emit bundle OWNERS so the membership test below is identical in both
+        # modes. A tsc source change also stales the CLI bundle (the CLI closure
+        # contains @gjsify/tsc), which is why both names are emitted.
+        if grep -qE "$FALLBACK_CLI" "$_list" 2>/dev/null; then
+            echo '@gjsify/cli' >> "$_out"
+        fi
+        if grep -qE "$FALLBACK_TSC" "$_list" 2>/dev/null; then
+            printf '%s\n%s\n' '@gjsify/tsc' '@gjsify/cli' >> "$_out"
+        fi
+        return 0
+    fi
+    # shellcheck disable=SC2086 # ORACLE is a deliberately word-split command
+    $ORACLE --changed-from-stdin --format=globs < "$_list" > "$_out" 2>/dev/null || : > "$_out"
+    return 0
+}
+
+# Classify each list AT MOST once, and only when a verdict actually needs it.
+# Assignments must happen in THIS shell — doing it lazily inside a `$(…)` helper
+# would run in a subshell and silently lose the memo, re-running the classifier
+# once per bundle.
+CLS_BASE="$HOOK_TMP/cls-base"
+CLS_BRANCH="$HOOK_TMP/cls-branch"
+: > "$CLS_BASE"
+: > "$CLS_BRANCH"
+
+# REBASED-UNDER is only reachable when the branch commits a bundle AND the base
+# moved; NOT-REBUILT only when some bundle is left untouched. Both classify the
+# PREFILTERED lists — see the inlinability note above.
+if [ -s "$TOUCHED" ] && [ -s "$BASE_INLINABLE" ]; then
+    classify_into "$BASE_INLINABLE" "$CLS_BASE"
+fi
+if [ "$(wc -l < "$TOUCHED" 2>/dev/null || echo 0)" -lt "$(wc -l < "$ARTIFACTS")" ]; then
+    classify_into "$BRANCH_INLINABLE" "$CLS_BRANCH"
+fi
+
+# Is $2's owning workspace in the classified set $1? An unresolvable owner counts
+# as affected whenever ANYTHING is affected — conservative on purpose, since the
+# alternative is silence about a bundle we could not map.
+owner_affected() {
+    if [ -z "$2" ]; then
+        [ -s "$1" ]
+        return $?
+    fi
+    grep -qxF "$2" "$1" 2>/dev/null
+}
+
+# --- Verdict per bundle --------------------------------------------------
+
+REBASED_UNDER=""
+NOT_REBUILT=""
+
+while IFS=$'\t' read -r artifact owner; do
+    [ -n "$artifact" ] || continue
+    if grep -qxF "$artifact" "$TOUCHED" 2>/dev/null; then
+        # The branch commits this bundle. It is stale iff the rewrite pulled in
+        # changes reaching its workspace — the #897 shape.
+        if owner_affected "$CLS_BASE" "$owner"; then
+            REBASED_UNDER="${REBASED_UNDER}${artifact}
+"
+        fi
+    else
+        # The branch does not commit this bundle, so it had better not need to.
+        if owner_affected "$CLS_BRANCH" "$owner"; then
+            NOT_REBUILT="${NOT_REBUILT}${artifact}
+"
+        fi
+    fi
+done < "$OWNERS"
+
+if [ -z "$REBASED_UNDER" ] && [ -z "$NOT_REBUILT" ]; then
+    exit 0
+fi
+
+# --- Warn ----------------------------------------------------------------
+#
+# Loud, actionable, and honest about being a suspicion rather than a verdict.
+# Everything goes to stderr: a rebase's stdout is already busy, and this must not
+# end up swallowed by a pager.
+
+print_list() {
+    printf '%s' "$1" | while IFS= read -r a; do
+        [ -n "$a" ] && echo "    - $a"
+    done
+}
+
+{
+    echo ''
+    echo '=============================================================================='
+    echo '  gjsify post-rewrite WARNING — a committed GJS bundle may now be STALE'
+    echo '=============================================================================='
+    echo "  A 'git ${MODE}' just rewrote history. Committed bundles inline the whole"
+    echo '  workspace-dep closure of their package, so a rewrite can stale them without'
+    echo '  changing one line of your own diff (measured: PR #897).'
+    echo ''
+
+    if [ -n "$REBASED_UNDER" ]; then
+        echo '  REBASED-UNDER — this branch commits these bundles, and the new base moved'
+        echo '  source they inline. Whatever you built before the rewrite was built against'
+        echo '  the OLD base:'
+        print_list "$REBASED_UNDER"
+        echo ''
+    fi
+
+    if [ -n "$NOT_REBUILT" ]; then
+        echo '  NOT-REBUILT — this branch changes source these bundles inline, but does not'
+        echo '  commit the bundles:'
+        print_list "$NOT_REBUILT"
+        echo ''
+    fi
+
+    echo '  This hook does NOT rebuild (a ~9 min rebuild inside a git hook gets bypassed'
+    echo '  and then relied upon anyway) and it has NOT verified staleness. To settle it:'
+    echo ''
+    echo '      node scripts/verify-committed-bundles.mjs           # ~9 min, authoritative'
+    echo '      node scripts/verify-committed-bundles.mjs --list    # just the artifact set'
+    echo ''
+    echo '  It rebuilds every committed artifact, byte-compares against'
+    echo "  'git show HEAD:<path>', and prints the exact refresh recipe for whatever is"
+    echo '  stale — which is why no recipe is duplicated in this hook. If you already know'
+    echo "  it is stale, '--rebuild' leaves the rebuilt bytes in the tree to commit."
+    echo ''
+    echo '  If it reports a mismatch, REBUILD TWICE before concluding anything. Two'
+    echo '  rebuilds that AGREE with each other and DISAGREE with the committed file mean'
+    echo '  the committed file is stale — commit the rebuild. Two rebuilds that disagree'
+    echo '  with EACH OTHER mean this tree/host is not reproducing, and the committed'
+    echo '  bytes are NOT the thing to change. This repo has a history of suspected local'
+    echo '  non-reproducibility, and the wrong diagnosis commits a bad artifact.'
+    echo ''
+
+    case "$ORACLE_KIND" in
+        classifier)
+            echo '  How this was decided: the committed affected classifier'
+            echo '  (packages/infra/cli/dist/affected.gjs.mjs) walked the reverse-dep graph.'
+            echo '  It OVER-approximates "inlined" — all dependency edges, and a global'
+            echo '  trigger expands to every workspace — and the classifier bundle can itself'
+            echo '  be stale. So this is a suspicion; CI is the exhaustive check.'
+            ;;
+        cli)
+            echo "  How this was decided: 'gjsify affected' walked the reverse-dep graph. It"
+            echo '  OVER-approximates "inlined" — all dependency edges, and a global trigger'
+            echo '  expands to every workspace — so this is a suspicion, not a verdict.'
+            ;;
+        fallback)
+            echo '  How this was decided: NO closure oracle was reachable (no gjs + committed'
+            echo '  classifier, no gjsify CLI), so this fell back to a PATH-PREFIX scan over'
+            echo "  the pre-commit hook's trigger list. That list UNDER-approximates the"
+            echo '  closure — four paths, while the bundle inlines every workspace dep — so'
+            echo '  silence from this hook would have meant nothing. Run "gjsify install" in'
+            echo '  this tree to get the real closure answer.'
+            ;;
+    esac
+
+    echo ''
+    echo '  Bypass this hook entirely with SKIP_GJSIFY_HOOKS=1.'
+    echo '=============================================================================='
+    echo ''
+} >&2
+
+exit 0
