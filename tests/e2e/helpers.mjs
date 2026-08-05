@@ -1,18 +1,18 @@
 // Shared E2E test helpers for @gjsify CLI/plugin workflows.
 
 import { execFileSync, execSync } from 'node:child_process';
-import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
+
+import { readLockfileVersion } from '../../scripts/check-lockfile-current.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const MONOREPO_ROOT = join(__dirname, '..', '..');
 
 /** The `<os>-<arch>` target this host resolves — the ONE spelling, unmapped. */
 export const HOST_TARGET = `${process.platform}-${process.arch}`;
-
-const LOCKFILE_WRITER = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'src', 'utils', 'install-backend-native.ts');
 
 /**
  * The `lockfileVersion` a FRESH resolve writes — READ FROM THE WRITER, never
@@ -32,21 +32,16 @@ const LOCKFILE_WRITER = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'src', '
  * that silently guessed a version would turn every one of these preconditions
  * into a test that cannot fail.
  *
+ * The reader itself lives in `scripts/check-lockfile-current.mjs`, which asserts
+ * the TRACKED lockfile carries current data and needs the same number. Two
+ * readers of one declaration is the very duplication this constant exists to
+ * prevent, so this imports rather than re-implements.
+ *
  * Deliberately NOT for fixtures: a suite that writes an OLD lockfile on purpose
  * (backwards-compat, torn-write recovery) keeps its literal, because that number
  * is the input being tested, not the current format.
  */
-export const LOCKFILE_VERSION = (() => {
-    const src = readFileSync(LOCKFILE_WRITER, 'utf-8');
-    const match = src.match(/^const LOCKFILE_VERSION = (\d+);$/m);
-    if (!match) {
-        throw new Error(
-            `[e2e helpers] could not read LOCKFILE_VERSION from ${LOCKFILE_WRITER}. ` +
-                `The declaration moved or changed shape — update this reader; do NOT hardcode the version.`,
-        );
-    }
-    return Number(match[1]);
-})();
+export const LOCKFILE_VERSION = readLockfileVersion();
 
 /**
  * The directory holding a bridge's committed prebuild for one target.
