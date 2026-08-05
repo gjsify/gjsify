@@ -32,6 +32,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LOCKFILE_VERSION } from '../helpers.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 /** The committed GJS bundle — what a user runs, and what the defect shipped in. */
@@ -166,7 +167,7 @@ describe('gjsify install — optionalDependencies overriding dependencies', { ti
         // RESOLVED for every platform, INSTALLED for one: all eight siblings stay
         // pinned so the file is portable, each flagged optional.
         const lock = lockOf(dir);
-        assert.equal(lock.lockfileVersion, 4, 'edge kinds need lockfile v4');
+        assert.equal(lock.lockfileVersion, LOCKFILE_VERSION, 'lockfile must be the version the writer records');
         assert.equal(lock.packages[`node_modules/${FOREIGN}`].optional, true);
         assert.equal(lock.packages[`node_modules/${MATCHING}`].optional, true);
         assert.equal(lock.packages[`node_modules/${PARENT}`].optional, undefined, 'the parent is required');
@@ -212,7 +213,7 @@ describe('gjsify install — optionalDependencies overriding dependencies', { ti
 
         const r = await runInstall(dir, ['install', ...LINUX, '--verbose'], baseEnv);
         assert.equal(r.status, 0, `a pre-v4 lockfile must be upgraded, not obeyed: ${r.stderr.slice(-4000)}`);
-        assert.equal(lockOf(dir).lockfileVersion, 4);
+        assert.equal(lockOf(dir).lockfileVersion, LOCKFILE_VERSION, 'lockfile must be the version the writer records');
         assert.ok(installed(dir, MATCHING));
         assert.equal(installed(dir, FOREIGN), false);
         // Version-preserving: the upgrade resolve must not bump anything.
