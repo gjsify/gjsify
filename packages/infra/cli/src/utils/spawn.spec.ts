@@ -244,6 +244,46 @@ export default async () => {
         });
     });
 
+    // The two options `runLifecycleScript` needs. It was the one spawn in the CLI
+    // that bypassed this helper — a raw async `node:child_process.spawn` — because
+    // neither existed here. Under GJS that armed `ensureMainLoop()` with nothing to
+    // tear it down, and `gjsify pack` on a package with a `prepack` parked at 0% CPU
+    // after writing its tarball (#1010).
+    await describe('spawnToCompletion — shell + inherit-stderr', async () => {
+        await it('runs a command LINE through the shell', async () => {
+            // `&&` is the observable: it is shell syntax, not argv.
+            const r = await spawnToCompletion(
+                `${JSON.stringify(process.execPath)} -e "process.exit(0)" && exit 3`,
+                [],
+                {
+                    completion: 'return',
+                    shell: true,
+                },
+            );
+            expect(r.code).toBe(3);
+        });
+
+        await it('reports a shell command that fails', async () => {
+            const r = await spawnToCompletion(`${JSON.stringify(process.execPath)} -e "process.exit(4)"`, [], {
+                completion: 'return',
+                shell: true,
+            });
+            expect(r.code).toBe(4);
+        });
+
+        await it('accepts inherit-stderr without disturbing the exit code', async () => {
+            // Where the bytes LAND is an fd-level property this harness cannot
+            // observe from inside the parent; the e2e that packs with `--json`
+            // covers that. What is asserted here is that the mode is wired
+            // through both paths rather than silently dropped.
+            const r = await spawnToCompletion(...node("process.stdout.write('chatter'); process.exit(0)"), {
+                completion: 'return',
+                stdio: 'inherit-stderr',
+            });
+            expect(r.code).toBe(0);
+        });
+    });
+
     await describe('describeExit', async () => {
         await it('names the exit code on a normal exit', async () => {
             expect(describeExit({ code: 2, signal: null })).toBe('code 2');
