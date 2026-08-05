@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-dom-adwaita-widgets-nativescript",
-    "version": "0.28.0",
+    "version": "0.29.0",
     "description": "Native Adwaita widgets on NativeScript-Android — a real NS app rendering Libadwaita-styled components (@gjsify/adwaita-nativescript), MCP-drivable via @gjsify/devtools-nativescript over the V8 CDP inspector. Built on the @nativescript/vite 8 (Vite 8 / Rolldown / HMR) line.",
     "private": true,
     "main": "app/app.ts",

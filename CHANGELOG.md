@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.29.0](https://github.com/gjsify/gjsify/compare/v0.28.0...v0.29.0) (2026-08-05)
+
+### Features
+
+* **cli:** compare @girs types against installed libs ([#981](https://github.com/gjsify/gjsify/issues/981)) ([5517968](https://github.com/gjsify/gjsify/commit/551796821689d8fbe35c2c04a0f96f4b9314d86d))
+* **cli:** format writes by default ([#990](https://github.com/gjsify/gjsify/issues/990)) ([40e6893](https://github.com/gjsify/gjsify/commit/40e6893349225fb10f8ae948b537f59a3891b498))
+* **conformance:** require a showcase to name its runtimes ([#986](https://github.com/gjsify/gjsify/issues/986)) ([65ba97e](https://github.com/gjsify/gjsify/commit/65ba97e80577ba549799df1c74c470aba4fcf153))
+* **release:** publish prose above the changelog ([#985](https://github.com/gjsify/gjsify/issues/985)) ([69a98cc](https://github.com/gjsify/gjsify/commit/69a98ccdfadf482db7458dde8a85addcaef4582c))
+
+### Bug Fixes
+
+* **cli:** find the host's GI dylibs on macOS ([#987](https://github.com/gjsify/gjsify/issues/987)) ([a2e6563](https://github.com/gjsify/gjsify/commit/a2e6563bc90a7956f2d51286a0a2ff6e4f6c3bce))
+* **cli:** treat both-block deps as optional ([#988](https://github.com/gjsify/gjsify/issues/988)) ([1804d66](https://github.com/gjsify/gjsify/commit/1804d66245ab66f40ba55b78e80ba450da2bd58a))
+* **gamepad:** make a missing backend observable ([#979](https://github.com/gjsify/gjsify/issues/979)) ([3a65fd6](https://github.com/gjsify/gjsify/commit/3a65fd69ec7c65b9b2dd1e2065164008f26a0cd2))
+* gate GTK bundles from a script, not node -e ([#980](https://github.com/gjsify/gjsify/issues/980)) ([9cd433f](https://github.com/gjsify/gjsify/commit/9cd433f1e2d1e6793dd8a809888984d9accac61d))
+* **node-gi:** bundle darwin gdk-pixbuf loaders ([#983](https://github.com/gjsify/gjsify/issues/983)) ([63fd313](https://github.com/gjsify/gjsify/commit/63fd3135d7579940347db8e5d4e301203817217e))
+* **showcases:** ship the src the exports declare ([#993](https://github.com/gjsify/gjsify/issues/993)) ([0a1c7bb](https://github.com/gjsify/gjsify/commit/0a1c7bb3e9dbd4a7e4ae4877b367470a66f254ec))
+* **website:** launch the storybook slide as a showcase ([#982](https://github.com/gjsify/gjsify/issues/982)) ([a8c1746](https://github.com/gjsify/gjsify/commit/a8c1746dc87aabe95b0d225329bcc810b74951a2))
+
+### Documentation
+
+* **adr:** declare the OS axis as a checked claim ([#989](https://github.com/gjsify/gjsify/issues/989)) ([388ab65](https://github.com/gjsify/gjsify/commit/388ab6587372c100c4a6918d88d3b842c7853ae5))
+
+### Build System
+
+* **deps:** regenerate the lockfile at v4 ([#991](https://github.com/gjsify/gjsify/issues/991)) ([bf2c599](https://github.com/gjsify/gjsify/commit/bf2c5995bc9ee8b428771e2c64a2b374c1024cef)), closes [#988](https://github.com/gjsify/gjsify/issues/988) [#13](https://github.com/gjsify/gjsify/issues/13) [#13](https://github.com/gjsify/gjsify/issues/13)
+
+### Continuous Integration
+
+* make every e2e suite run or say why not ([#984](https://github.com/gjsify/gjsify/issues/984)) ([070db06](https://github.com/gjsify/gjsify/commit/070db065b217d34468a55158f992ba03d4225d0d))
+* warn when a rewrite stales a GJS bundle ([#992](https://github.com/gjsify/gjsify/issues/992)) ([93c4f43](https://github.com/gjsify/gjsify/commit/93c4f43f59313b73efeda7b99e669aa2ebaeb959))
+
 ## [0.28.0](https://github.com/gjsify/gjsify/compare/v0.27.1...v0.28.0) (2026-08-04)
 
 ### Features
