@@ -114,8 +114,24 @@ export interface SpawnToCompletionOptions {
      * `'inherit'` (default) forwards the parent's stdio. `'pipe'` gives the
      * caller `child.stdout` / `child.stderr` via {@link onSpawn} — only
      * meaningful together with `completion: 'exit'` (see {@link onSpawn}).
+     *
+     * `'inherit-stderr'` inherits, but routes the child's **stdout to the
+     * parent's stderr**. For a parent whose own stdout is a machine-readable
+     * stream: `gjsify pack --json` emits JSON there, and a lifecycle script's
+     * log lines interleaved into it make the result unparseable for every
+     * caller that pipes it into `JSON.parse`.
      */
-    stdio?: 'inherit' | 'pipe';
+    stdio?: 'inherit' | 'pipe' | 'inherit-stderr';
+    /**
+     * Run `cmd` through the platform shell, so `&&`, `|` and env-var
+     * references work. `cmd` is then a whole command LINE and `args` must be
+     * empty — that is npm/yarn script semantics.
+     *
+     * Skips the win32 command rewrite by design, per this file's own rule:
+     * Node routes a `shell: true` spawn through `%COMSPEC%`, which finds
+     * `.cmd` shims on its own, so rewriting the string would corrupt it.
+     */
+    shell?: boolean;
     /**
      * Invoked synchronously with the live `ChildProcess` right after a
      * successful async spawn — the seam for kill-tracking registries and for
@@ -212,32 +228,50 @@ export function spawnToCompletion(
 ): Promise<SpawnCompletion> {
     const env = resolveEnv(opts);
 
+    // A shell invocation is a command LINE, not an argv, so the win32 rewrite
+    // must not touch it — see `SpawnToCompletionOptions.shell`.
+    const invocation = opts.shell
+        ? { cmd, args: [...args], windowsVerbatimArguments: false }
+        : forWin32(cmd, args, env);
+
     if (mustBlock(opts)) {
         // `'inherit'` is NOT forwarded through `@gjsify/child_process`'s GJS
         // spawnSync path (it drives a private main context via
         // `communicateWithTimeout`), so the child's diagnostics would be
         // silently dropped. Capture them and re-emit after the child exits.
         // stdin stays inherited so an interactive child still reads the tty.
-        const win = forWin32(cmd, args, env);
-        const r = spawnSync(win.cmd, win.args, {
+        const r = spawnSync(invocation.cmd, invocation.args, {
             stdio: ['inherit', 'pipe', 'pipe'],
             cwd: opts.cwd,
             env,
+            shell: opts.shell,
             maxBuffer: opts.maxBuffer ?? DEFAULT_MAX_BUFFER,
-            windowsVerbatimArguments: win.windowsVerbatimArguments,
+            windowsVerbatimArguments: invocation.windowsVerbatimArguments,
         });
         if (r.error) return Promise.reject(mapSpawnError(r.error as NodeJS.ErrnoException, opts));
-        if (r.stdout && r.stdout.length > 0) process.stdout.write(r.stdout);
+        // The captured stdout goes to the parent's STDERR under
+        // `'inherit-stderr'` — same destination the streaming path routes it to,
+        // so the two agree on where a lifecycle script's chatter lands.
+        const out = opts.stdio === 'inherit-stderr' ? process.stderr : process.stdout;
+        if (r.stdout && r.stdout.length > 0) out.write(r.stdout);
         if (r.stderr && r.stderr.length > 0) process.stderr.write(r.stderr);
         return Promise.resolve({ code: r.status, signal: r.signal ?? null });
     }
 
     return new Promise<SpawnCompletion>((resolvePromise, reject) => {
-        const win = forWin32(cmd, args, env);
+        const win = invocation;
         const spawnOpts: SpawnOptions = {
             cwd: opts.cwd,
-            stdio: opts.stdio === 'pipe' ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+            // Numeric fds route the child's matching stream to that fd, so
+            // `['inherit', 2, 2]` is stdin inherited, stdout AND stderr → fd 2.
+            stdio:
+                opts.stdio === 'pipe'
+                    ? ['ignore', 'pipe', 'pipe']
+                    : opts.stdio === 'inherit-stderr'
+                      ? ['inherit', 2, 2]
+                      : 'inherit',
         };
+        if (opts.shell) spawnOpts.shell = true;
         if (env) spawnOpts.env = env;
         if (win.windowsVerbatimArguments) spawnOpts.windowsVerbatimArguments = true;
         const child = spawn(win.cmd, win.args, spawnOpts);

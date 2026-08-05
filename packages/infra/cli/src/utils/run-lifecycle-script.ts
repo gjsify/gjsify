@@ -7,8 +7,28 @@
 // behaves like `yarn run` / `npm run`. That's wrong for the embedded use
 // case where pack/publish needs the lifecycle script to finish, then keep
 // running its own logic. This helper resolves to a Promise that settles
-// when the child exits — no process.exit, no GLib-mainloop intermingling
-// from `ensureMainLoop`.
+// when the child exits.
+//
+// ## Not calling `process.exit()` is what ARMED the hang, not what avoided it
+//
+// This header used to end "no process.exit, no GLib-mainloop intermingling
+// from `ensureMainLoop`". The second half was exactly backwards, and it is why
+// nobody looked here for #1010.
+//
+// `@gjsify/child_process`'s async `spawn()` calls `ensureMainLoop()`
+// unconditionally — the caller has no say. That arms a GJS main-loop hook whose
+// blocking `g_main_loop_run()` only `process.exit()` tears down. So a helper
+// that spawns asynchronously and deliberately does NOT exit leaves the loop
+// armed forever: `gjsify pack` on a package with a `prepack` wrote its tarball,
+// printed its complete JSON, and then parked at 0% CPU until killed at 5m30s.
+// A package with no lifecycle script exited in under a second, and the same
+// pack under Node exited in 0.68s.
+//
+// `utils/spawn.ts` already owns that contract and makes every call site DECLARE
+// which side of it they are on. This helper was the one spawn in the CLI that
+// bypassed it — the seventh of the "six near-identical wrappers" that file was
+// written to consolidate. It now goes through it with `completion: 'return'`,
+// which is what "settle, then keep running our own logic" means.
 //
 // Matches yarn / npm script semantics:
 //   - `shell: true` so `&&` / `|` / env-var refs work
@@ -17,8 +37,8 @@
 //     env vars set
 //   - FORCE_COLOR=1 default unless caller overrides
 
-import { spawn } from 'node:child_process';
 import { delimiter, join } from 'node:path';
+import { describeExit, spawnToCompletion } from './spawn.js';
 import { findWorkspaceRoot } from './workspace-root.js';
 
 export interface RunLifecycleScriptOptions {
@@ -79,29 +99,27 @@ export async function runLifecycleScript(
         ...opts.env,
     };
 
-    // `'inherit-stderr'` is our extension on top of node's stdio modes —
-    // child stdin inherits, child stdout → parent's stderr (fd 2), child
-    // stderr → parent's stderr. Used by `gjsify pack --json` so the
-    // prepack's log lines don't get interleaved with the JSON we emit on
-    // parent stdout. `spawn`'s `stdio` accepts numeric fds in array form
-    // and routes the child's matching stream to that fd.
-    const stdioConfig = opts.stdio === 'inherit-stderr' ? (['inherit', 2, 2] as const) : (opts.stdio ?? 'inherit');
+    // `'ignore'` has no `spawnToCompletion` equivalent and no call site in the
+    // tree; folding it onto `'inherit'` would silently start printing where a
+    // caller asked for silence, so it is rejected rather than approximated.
+    if (opts.stdio === 'ignore') {
+        throw new Error('gjsify lifecycle-script: stdio "ignore" is not supported — see utils/spawn.ts');
+    }
 
-    await new Promise<void>((resolveOk, reject) => {
-        const child = spawn(literal, [], {
-            cwd: wsDir,
-            env: env as Record<string, string>,
-            stdio: stdioConfig as Parameters<typeof spawn>[2]['stdio'],
-            shell: true,
-        });
-        child.on('close', (code) => {
-            if (code === 0) resolveOk();
-            else {
-                reject(new Error(`gjsify lifecycle-script: "${name}" in ${wsDir} exited with code ${code}`));
-            }
-        });
-        child.on('error', reject);
+    const result = await spawnToCompletion(literal, [], {
+        // The whole point of this helper: pack/publish waits for the script and
+        // then keeps running. Under GJS that is the blocking path, which is what
+        // keeps the armed main loop from outliving us — see the header.
+        completion: 'return',
+        cwd: wsDir,
+        env: env as NodeJS.ProcessEnv,
+        shell: true,
+        stdio: opts.stdio === 'inherit-stderr' ? 'inherit-stderr' : opts.stdio === 'pipe' ? 'pipe' : 'inherit',
     });
+
+    if (result.code !== 0) {
+        throw new Error(`gjsify lifecycle-script: "${name}" in ${wsDir} exited with ${describeExit(result)}`);
+    }
 
     return true;
 }
