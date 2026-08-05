@@ -30,6 +30,7 @@
 import { readdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { readPackageJson } from './pkg-json.js';
+import { splitSearchPath, systemGiLibraryDirs, type SystemGiOptions } from './system-gi.js';
 
 export interface NativePackage {
     /** npm package name, e.g. "@gjsify/webgl" */
@@ -78,8 +79,15 @@ export interface NativeEnv {
     GI_TYPELIB_PATH: string;
     /** ELF loader (Linux and other ELF platforms). */
     LD_LIBRARY_PATH?: string;
-    /** Mach-O loader (macOS). `dyld` ignores `LD_LIBRARY_PATH` entirely. */
+    /** Mach-O loader (macOS), OVERRIDING resolution by leaf. `dyld` ignores `LD_LIBRARY_PATH` entirely. */
     DYLD_LIBRARY_PATH?: string;
+    /**
+     * Mach-O loader (macOS), consulted only AFTER the normal search fails. This
+     * is where the HOST's GI libdirs go — never `DYLD_LIBRARY_PATH`, which would
+     * shadow correctly-resolved libraries process-wide. See
+     * {@link buildNativeEnv}.
+     */
+    DYLD_FALLBACK_LIBRARY_PATH?: string;
     [key: string]: string | undefined;
 }
 
@@ -656,6 +664,19 @@ export function libraryPathVar(platform: string): { name: string; separator: str
 }
 
 /**
+ * dyld's *fallback* search path — consulted only AFTER the normal search
+ * (rpath / absolute name / dyld cache) has failed.
+ *
+ * Deliberately NOT part of {@link libraryPathVar}, which answers a different
+ * question: that one names the variable that OVERRIDES resolution for every
+ * dylib in the process (the right home for a prebuild we ship and want used),
+ * this one names the variable that fills in what nothing else could find (the
+ * right home for the host's own libdirs). Mixing the two roles is the mistake
+ * `buildNativeEnv` documents at length.
+ */
+const DYLD_FALLBACK_VAR = 'DYLD_FALLBACK_LIBRARY_PATH';
+
+/**
  * Build the typelib + shared-library search-path environment for the detected
  * native packages. Prepends the new paths to any existing values.
  *
@@ -666,10 +687,49 @@ export function libraryPathVar(platform: string): { name: string; separator: str
  * (a stock Windows env block uses `Path`) — Windows env names are
  * case-insensitive, but a plain JS object is not, and `{...process.env,
  * PATH: …}` would hand a child process two competing entries.
+ *
+ * ── DARWIN ALSO GETS THE *HOST'S* GI LIBDIRS ─────────────────────────────────
+ *
+ * Everything above is about the prebuilds gjsify itself ships. On macOS there is
+ * a second, independent gap that has nothing to do with gjsify: a typelib names
+ * its library by BARE LEAF (`libgtk-4.1.dylib`), and dyld carries neither
+ * `/usr/local/lib` nor `/opt/homebrew/lib` in its default fallback path.
+ * Homebrew's `gjs` has an rpath into GLIB's keg only, so it resolves no other
+ * keg's leaves — measured: bare `gjs -c "imports.gi.Gtk; Gtk.init()"`, no gjsify
+ * in the process, dies on that dlopen (full trace in `utils/system-gi.ts`). This
+ * is the ONE place `gjsify run`, `showcase`, `storybook`, `tsc` and `info` all
+ * pass through, so it is where the child's launch env is repaired.
+ *
+ * Two properties are load-bearing:
+ *
+ *   1. **`DYLD_FALLBACK_LIBRARY_PATH`, never `DYLD_LIBRARY_PATH`.** The override
+ *      variable wins by LEAF for every dylib in the process, including ones the
+ *      host already resolved correctly — pointing it at a whole system libdir is
+ *      how you replace a linked-against library with a same-named different one.
+ *      The fallback is consulted only after the normal search fails, which is
+ *      exactly the "nothing else found it" case. Consequence, and it is the
+ *      intended precedence: gjsify's own prebuilds keep priority through the
+ *      override variable, the system stack fills in behind it.
+ *   2. **Our dirs go FIRST, an inherited fallback is kept BEHIND them, and
+ *      `/usr/lib` is appended when there is none.** Setting the variable
+ *      REPLACES dyld's own default fallback list, so writing only our dirs would
+ *      silently remove `/usr/lib` from the search — a host that exported the
+ *      variable itself already carries whatever tail it wants. Same composition
+ *      as node-gi's re-exec.
+ *
+ * Emitted even when `packages` is empty: the gap is in the host's loader, not in
+ * a gjsify prebuild, so a plain `gjsify run script.gjs.js` that touches GTK needs
+ * it just as much. Empty off darwin — `ld.so`'s configured cache already resolves
+ * these leaves on Linux, and Windows re-reads `PATH` per `LoadLibrary`.
  */
 export function buildNativeEnv(
     packages: NativePackage[],
-    opts: { platform?: string; env?: Record<string, string | undefined> } = {},
+    opts: {
+        platform?: string;
+        env?: Record<string, string | undefined>;
+        /** Injectable for tests — the darwin branch is asserted from Linux. */
+        systemGiDirs?: (opts: SystemGiOptions) => string[];
+    } = {},
 ): NativeEnv {
     const platform = opts.platform ?? process.platform;
     const env = opts.env ?? process.env;
@@ -694,5 +754,15 @@ export function buildNativeEnv(
         GI_TYPELIB_PATH: prepend(env['GI_TYPELIB_PATH'], giSeparator),
     };
     out[libVarKey] = prepend(env[libVarKey], libSeparator);
+
+    // The host's own GI libdirs — see the block comment above. `systemGiLibraryDirs`
+    // is itself `[]` off darwin, so this is a no-op elsewhere without a second
+    // platform test; the variable is only WRITTEN when there is something to put in
+    // it, so a Mac with no GI stack installed is left byte-unchanged.
+    const systemDirs = (opts.systemGiDirs ?? systemGiLibraryDirs)({ platform, env });
+    if (systemDirs.length > 0) {
+        const inherited = splitSearchPath(env[DYLD_FALLBACK_VAR]);
+        out[DYLD_FALLBACK_VAR] = [...systemDirs, ...(inherited.length > 0 ? inherited : ['/usr/lib'])].join(':');
+    }
     return out;
 }

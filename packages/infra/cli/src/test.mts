@@ -24,6 +24,7 @@ import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import installLockSuite from './utils/install-lock.spec.js';
 import installBackendNativeWarnSuite from './utils/install-backend-native-warn.spec.js';
 import detectNativePackagesSuite from './utils/detect-native-packages.spec.js';
+import systemGiSuite from './utils/system-gi.spec.js';
 import platformCheckSuite from './utils/platform-check.spec.js';
 import binShimSuite from './utils/bin-shim.spec.js';
 import binShimRuntimeOrderSuite from './bin-shim-runtime-order.spec.js';
@@ -190,6 +191,7 @@ run(
         installLockSuite,
         installBackendNativeWarnSuite,
         detectNativePackagesSuite,
+        systemGiSuite,
         platformCheckSuite,
         binShimSuite,
         binShimRuntimeOrderSuite,

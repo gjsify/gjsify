@@ -354,6 +354,32 @@ function shQuote(s: string): string {
  * script chain: the self-relative `@loader_path` rpath that
  * `check-prebuild-loader-path.mjs` enforces is what actually has to carry it.
  *
+ * NOT EXTENDED WITH THE HOST'S GI LIBDIRS — a decision, not an oversight.
+ * `buildNativeEnv()` now puts `systemGiLibraryDirs()` on the gjs CHILD's
+ * `DYLD_FALLBACK_LIBRARY_PATH`, which repairs every command that goes through this
+ * CLI. A launcher that `exec`s a GJS bundle DIRECTLY — `gjsify install -g` on a
+ * package whose `gjsify.bin` is a GTK app — has no CLI in the loop and still
+ * carries the gap.
+ *
+ * The MECHANISM would work, and that was measured on the macOS 15.7.8 VM rather
+ * than assumed. It is a finer point than the caveat above: what SIP strips is an
+ * INHERITED `DYLD_*` at the `/bin/sh` exec, so a value this preamble exports
+ * ITSELF survives the following `exec gjs` (an unprotected Homebrew binary) and
+ * `Gtk.init()` then succeeds. What is missing is a shape worth having:
+ *
+ *   - BAKING `systemGiLibraryDirs()` in at write time reintroduces precisely the
+ *     snapshot this function exists to remove — a launcher is routinely written
+ *     BEFORE `brew install gtk4`, and would bake nothing while saying nothing.
+ *   - RE-DERIVING it in shell means a THIRD copy of a rule that already has two,
+ *     pinned in agreement by `system-gi.spec.ts` — and shell can express only one
+ *     of its three sources (the probed prefixes; `pkg-config` would be a spawn on
+ *     every launch), so that copy would be knowingly partial, in the one language
+ *     nothing here type-checks.
+ *
+ * So the gap is recorded in `status/open-todos.md` with the measurement attached
+ * instead of being closed by a mechanism that drifts. Closing it properly means
+ * teaching such a launcher to defer to the CLI, not to re-derive.
+ *
  * @param scanRoot Directory whose `node_modules` is globbed at launch time.
  * @param bakedDirs Prebuild dirs found at write time; entries outside `scanRoot`
  *   are embedded (entries inside it are dropped — the scan finds them).

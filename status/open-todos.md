@@ -64,6 +64,64 @@ window server" is an assumption this PR has no way to measure; getting it wrong
 turns five clean skips into five red legs on an unrelated PR. Do it as its own
 change, where a red macOS leg means what it says.
 
+### `systemGiLibraryDirs()` lives in two places, pinned by a test rather than shared
+
+The darwin bare-leaf `dlopen` gap is one rule with two consumers now:
+`@gjsify/node-gi` re-execs itself with the host's GI libdirs on
+`DYLD_FALLBACK_LIBRARY_PATH`, and `@gjsify/cli`'s `buildNativeEnv()` puts the same
+dirs on the gjs CHILD's copy of that variable (Homebrew's `gjs` has an rpath into
+GLIB's keg alone, so a plain `gjs -c "imports.gi.Gtk; Gtk.init()"` reproduced the
+failure with no gjsify in the process — the trace is in
+`packages/infra/cli/src/utils/system-gi.ts`).
+
+The CLI cannot IMPORT node-gi's copy: ADR 0005 Decision 2 forbids a Tier-1 package
+taking a `dependencies`/`optionalDependencies` edge on `@gjsify/node-gi`, and the
+audit (`scripts/manifest-conformance/rules/tier.mjs`) names it explicitly. So the
+module is a **pinned mirror**: `packages/infra/cli/src/utils/system-gi.spec.ts`
+imports node-gi's `system-gi.js` by relative path (legal in a spec — it is bundled
+only into `dist/test.node.mjs`, never into the published `lib/`, so no dependency
+edge exists) and asserts both implementations return identical arrays over a table
+of ten injected host shapes. That is the repo's own sanctioned shape for a
+deliberate duplicate, the same one `impliedExampleNodeEntry()` uses against the
+CLI's `resolveNodeEntry()`.
+
+What is still owed is the lift to ONE home — a small shared package both may
+depend on (`@gjsify/system-gi`, Tier 1, no GI and no addon, so nothing about ADR
+0005 is weakened by it). Not done here because a NEW npm name is the expensive
+path in this repo: a manual first publish plus the Trusted Publisher bootstrap,
+and the `@gjsify/tls-native` incident showed a half-bootstrapped name stalling
+60+ packages. Do it on the next release cut that already has that ceremony open,
+delete both copies and the agreement suite in the same change.
+
+### A globally installed GJS launcher still cannot load a system GTK on macOS
+
+`buildNativeEnv()` repairs the loader path for everything that runs THROUGH the
+CLI (`gjsify run`, `showcase`, `storybook`, `tsc`, `info`). A launcher written by
+`gjsify install -g` for a package whose `gjsify.bin` is itself a GTK app `exec`s
+the bundle directly, with no CLI in the loop, and therefore still hits the
+bare-leaf `dlopen` on macOS.
+
+**The mechanism is measured, not assumed** — and it is a finer point than
+`buildNativeEnvPreamble`'s existing MACOS CAVEAT implies. SIP strips an INHERITED
+`DYLD_*` at the `/bin/sh` exec (confirmed again:
+`DYLD_FALLBACK_LIBRARY_PATH=/usr/local/lib /bin/sh -c 'echo $DYLD_FALLBACK_LIBRARY_PATH'`
+prints nothing), but a value the preamble exports ITSELF survives the following
+`exec gjs`, because Homebrew's `gjs` is unprotected: a hand-written `/bin/sh`
+script whose body is `DYLD_FALLBACK_LIBRARY_PATH=/usr/local/lib:/usr/lib; export
+DYLD_FALLBACK_LIBRARY_PATH; exec gjs -c '…imports.gi.Gtk; Gtk.init(); print("GTK
+OK")'` prints `GTK OK` on the macOS 15.7.8 VM when invoked under
+`env -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_LIBRARY_PATH -u GI_TYPELIB_PATH`.
+
+So the preamble COULD carry it, and was deliberately left alone anyway, because
+neither available shape is right: baking `systemGiLibraryDirs()` in at write time
+reintroduces exactly the snapshot that function exists to remove (a launcher is
+routinely written before `brew install gtk4`), and re-deriving it in shell is a
+third copy of a two-copy rule — expressible for only one of its three sources, in
+the one language nothing here type-checks. The right fix is to make such a
+launcher defer to the CLI rather than re-derive; that is a launcher-shape change
+and belongs in its own PR, ideally the one that lifts `system-gi` to a shared
+package (above).
+
 ### Six published showcases declare `exports` subpaths their tarball does not contain
 
 Found by `scripts/verify-tarball-outputs.mjs` on its first run — `--scope
