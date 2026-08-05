@@ -42,6 +42,17 @@
 // `hostTarget()` beside it and the CLI's `resolvePrebuildDirName()` — so the
 // darwin branch is unit-testable from a Linux host and the host values are read
 // only at the outermost call site, as defaults.
+//
+// MIRRORED, DELIBERATELY, in `packages/infra/cli/src/utils/system-gi.ts`. The
+// same loader gap breaks a `gjs` child too (Homebrew's `gjs` has an rpath into
+// GLIB's keg only, so it resolves no other keg's leaves — measured, trace in that
+// file), and `gjsify run/showcase/storybook` must repair it in the env it hands
+// the child. The CLI cannot IMPORT this module: ADR 0005 Decision 2 forbids a
+// Tier-1 package taking a dependency edge on `@gjsify/node-gi`. So the port is
+// pinned by an agreement test — `packages/infra/cli/src/utils/system-gi.spec.ts`
+// imports THIS file by relative path and asserts both implementations return
+// identical arrays for a table of injected inputs. Change one, change both; the
+// eventual lift to a shared package is tracked in `status/open-todos.md`.
 import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, join } from 'node:path';

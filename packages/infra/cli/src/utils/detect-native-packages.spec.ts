@@ -12,9 +12,11 @@
 // its branch is ever executed.
 //
 // What is NOT covered here (and cannot be, off-host): whether `dyld` actually
-// honours the `DYLD_LIBRARY_PATH` we emit, whether Windows' `LoadLibrary` picks
-// the DLL up off `PATH`, and whether a musl host's dynamic loader accepts a
-// `-musl` prebuild. Those are CI-only, on the real OS.
+// honours the `DYLD_LIBRARY_PATH` / `DYLD_FALLBACK_LIBRARY_PATH` we emit, whether
+// Windows' `LoadLibrary` picks the DLL up off `PATH`, and whether a musl host's
+// dynamic loader accepts a `-musl` prebuild. Those are CI-only, on the real OS —
+// the fallback half was measured by hand on the macOS 15.7.8 x86_64 test VM (see
+// the `buildNativeEnv` rows near the bottom of this file).
 
 import { describe, it, expect } from '@gjsify/unit';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -396,10 +398,20 @@ export default async () => {
             { name: '@gjsify/http2-native', prebuildsDir: '/p/http2/prebuilds/X' },
         ];
 
+        // The HOST's GI libdirs are a third injected fact, for the same reason
+        // `platform` and `libc` are: the real derivation probes the running
+        // filesystem, so leaving it live would make the darwin rows below answer
+        // differently on a Linux CI box, a Mac, and a Mac without GTK. Its own
+        // branches are covered in `system-gi.spec.ts`; what these rows pin is what
+        // `buildNativeEnv` DOES with the answer.
+        const noSystemGi = () => [];
+        const brewX64 = () => ['/usr/local/lib'];
+
         await it('emits LD_LIBRARY_PATH on Linux and preserves the inherited value', async () => {
             const env = buildNativeEnv(pkgs, {
                 platform: 'linux',
                 env: { LD_LIBRARY_PATH: '/usr/local/lib', GI_TYPELIB_PATH: '/usr/lib/girepository-1.0' },
+                systemGiDirs: noSystemGi,
             });
             expect(env.LD_LIBRARY_PATH).toBe('/p/tls/prebuilds/X:/p/http2/prebuilds/X:/usr/local/lib');
             expect(env.GI_TYPELIB_PATH).toBe('/p/tls/prebuilds/X:/p/http2/prebuilds/X:/usr/lib/girepository-1.0');
@@ -407,7 +419,7 @@ export default async () => {
         });
 
         await it('emits DYLD_LIBRARY_PATH — and no LD_LIBRARY_PATH — on darwin', async () => {
-            const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {} });
+            const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: noSystemGi });
             expect(env.DYLD_LIBRARY_PATH).toBe('/p/tls/prebuilds/X:/p/http2/prebuilds/X');
             // A dead LD_LIBRARY_PATH is exactly what shipped before: emitted,
             // ignored by dyld, and the prebuild never loaded.
@@ -418,6 +430,7 @@ export default async () => {
             const env = buildNativeEnv(pkgs, {
                 platform: 'win32',
                 env: { PATH: 'C:\\Windows\\System32' },
+                systemGiDirs: noSystemGi,
             });
             expect(env.PATH).toBe('/p/tls/prebuilds/X;/p/http2/prebuilds/X;C:\\Windows\\System32');
             // GLib's G_SEARCHPATH_SEPARATOR is `;` on Windows too.
@@ -428,15 +441,110 @@ export default async () => {
             // A stock Windows env block spells it `Path`. A plain JS object is
             // case-sensitive, so writing `PATH` alongside it would hand a child
             // process two competing entries.
-            const env = buildNativeEnv(pkgs, { platform: 'win32', env: { Path: 'C:\\Windows' } });
+            const env = buildNativeEnv(pkgs, {
+                platform: 'win32',
+                env: { Path: 'C:\\Windows' },
+                systemGiDirs: noSystemGi,
+            });
             expect(env.Path).toBe('/p/tls/prebuilds/X;/p/http2/prebuilds/X;C:\\Windows');
             expect(env.PATH).toBeUndefined();
         });
 
         await it('omits an empty inherited value instead of a trailing separator', async () => {
-            const env = buildNativeEnv([pkgs[0]!], { platform: 'linux', env: {} });
+            const env = buildNativeEnv([pkgs[0]!], {
+                platform: 'linux',
+                env: {},
+                systemGiDirs: noSystemGi,
+            });
             expect(env.LD_LIBRARY_PATH).toBe('/p/tls/prebuilds/X');
             expect(env.GI_TYPELIB_PATH).toBe('/p/tls/prebuilds/X');
+        });
+
+        // -------------------------------------------------------------------
+        // The host's own GI libdirs (darwin only)
+        // -------------------------------------------------------------------
+        //
+        // Measured on the macOS 15.7.8 x86_64 VM: bare
+        // `gjs -c "imports.gi.Gtk; Gtk.init()"` — no gjsify in the process at all
+        // — dies in `g_module_open('libgtk-4.1.dylib')` because Homebrew's `gjs`
+        // has an rpath into GLIB's keg only and dyld's default fallback path holds
+        // neither `/usr/local/lib` nor `/opt/homebrew/lib`. So `gjsify showcase
+        // <anything GTK> --runtime gjs` was broken on macOS while `--runtime node`
+        // worked on the same host, because node-gi already repaired it for Node
+        // and nothing did for gjs. Full trace in `utils/system-gi.ts`.
+
+        await it('puts the host GI libdirs on DYLD_FALLBACK_LIBRARY_PATH on darwin', async () => {
+            const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: brewX64 });
+            // `/usr/lib` is APPENDED, not decoration: setting the variable REPLACES
+            // dyld's own default fallback list, so emitting only our dir would
+            // silently remove /usr/lib from the search.
+            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/usr/lib');
+        });
+
+        await it('keeps DYLD_LIBRARY_PATH carrying ONLY the prebuild dirs', async () => {
+            // The override variable wins by LEAF for every dylib in the process,
+            // including ones the host resolved correctly. A system libdir there
+            // would shadow the very libraries a prebuild links against — which is
+            // why the two variables have different jobs and the system dirs are
+            // never mixed into this one.
+            const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: brewX64 });
+            expect(env.DYLD_LIBRARY_PATH).toBe('/p/tls/prebuilds/X:/p/http2/prebuilds/X');
+            // And GI finds the host's typelibs on its own search path already —
+            // only the loader was blind, so the typelib variable is untouched.
+            expect(env.GI_TYPELIB_PATH).toBe('/p/tls/prebuilds/X:/p/http2/prebuilds/X');
+        });
+
+        await it('PREPENDS to an existing DYLD_FALLBACK_LIBRARY_PATH rather than replacing it', async () => {
+            // A CI job or launcher that already exported the variable must not lose
+            // it — and its entries must stay BEHIND ours, so a host that pointed at
+            // a specific stack does not out-rank the prefix we just verified.
+            const env = buildNativeEnv(pkgs, {
+                platform: 'darwin',
+                env: { DYLD_FALLBACK_LIBRARY_PATH: '/opt/ci/lib:/usr/lib' },
+                systemGiDirs: brewX64,
+            });
+            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/opt/ci/lib:/usr/lib');
+            // The inherited value already carries /usr/lib, so it is not added twice.
+            expect(env.DYLD_FALLBACK_LIBRARY_PATH?.split(':').filter((d) => d === '/usr/lib').length).toBe(1);
+        });
+
+        await it('emits it with NO native packages at all — the gap is the host loader', async () => {
+            // The defect has nothing to do with gjsify prebuilds: a plain
+            // `gjsify run script.gjs.js` that touches GTK hits it too. If this row
+            // ever needs `packages` to be non-empty, the fix has been narrowed to
+            // the wrong thing.
+            const env = buildNativeEnv([], { platform: 'darwin', env: {}, systemGiDirs: brewX64 });
+            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/usr/lib');
+        });
+
+        await it('leaves the variable ALONE off darwin', async () => {
+            // `systemGiLibraryDirs()` is itself `[]` on every other platform (ld.so's
+            // configured cache on Linux; `LoadLibrary` re-reading PATH on Windows),
+            // so nothing here needs a second platform test. Asserted with a stub that
+            // WOULD answer, to prove the emptiness is not just the stub agreeing.
+            for (const platform of ['linux', 'win32']) {
+                const env = buildNativeEnv(pkgs, { platform, env: {}, systemGiDirs: noSystemGi });
+                expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBeUndefined();
+            }
+        });
+
+        await it('leaves a Mac with no GI stack byte-unchanged', async () => {
+            // No bundle, no Homebrew, no MacPorts, no pkg-config: there is nothing to
+            // point at, and writing an empty variable would REPLACE dyld's default
+            // fallback list with nothing — strictly worse than not writing it.
+            const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: noSystemGi });
+            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBeUndefined();
+        });
+
+        await it('uses the real derivation by default — no injection, no darwin, no variable', async () => {
+            // The default parameter is what production takes; the rows above would
+            // all still pass if it were wired to the stub and nothing else. This one
+            // exercises the live `systemGiLibraryDirs` and holds on any host: the
+            // function's own platform gate returns `[]` for `linux`/`win32`.
+            for (const platform of ['linux', 'win32']) {
+                const env = buildNativeEnv(pkgs, { platform, env: {} });
+                expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBeUndefined();
+            }
         });
     });
 

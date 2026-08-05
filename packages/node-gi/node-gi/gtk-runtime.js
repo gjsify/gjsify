@@ -113,8 +113,15 @@ export function maybeReexecForGtkRuntime() {
     // re-launched with a Node argv — and `createRequire` there is
     // @gjsify/module's polyfill, which rejects synchronous BUILTIN loads, so even
     // REACHING the child_process require below would throw during module init.
-    // Nothing needs the repair anyway: gjs itself resolves these leaves (its
-    // binary carries the rpath this whole module exists to compensate for).
+    // The re-exec is therefore IMPOSSIBLE here, not merely unnecessary — and the
+    // gap is real: gjs's own rpath covers the GLIB-family leaves it links against,
+    // but MEASURED on the macOS 15.7.8 VM that rpath points at glib's keg ALONE
+    // (`…/opt/glib/lib`), so a bare-leaf `libgtk-4.1.dylib` fails under plain gjs
+    // exactly as it did under node. Repairing it belongs to whoever LAUNCHES the
+    // gjs process, one hop earlier: `buildNativeEnv()` in `@gjsify/cli` puts
+    // `systemGiLibraryDirs()` on the child's `DYLD_FALLBACK_LIBRARY_PATH` (its
+    // `system-gi.ts` is the pinned mirror of this module's `system-gi.js`). A gjs
+    // launched by hand keeps the gap — tracked in `status/open-todos.md`.
     // Same probe index.js uses for RUNTIME — as with the Bun/Deno pair above, the
     // check has to live here too because this runs before that const is defined.
     if (typeof globalThis.imports !== 'undefined' && typeof globalThis.print === 'function') return;
