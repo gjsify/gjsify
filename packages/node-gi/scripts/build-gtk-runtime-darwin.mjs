@@ -38,11 +38,15 @@
 //      invalidates the code signature and dyld refuses an unsigned/mis-signed
 //      dylib. On Intel the signature is not enforced, but re-signing keeps ONE
 //      code path.
-//   3. VERIFIES the relocation (see verifyRelocation) — the assertion is
-//      brew-prefix-DERIVED, because the prefix is /opt/homebrew on Apple silicon
-//      and /usr/local on Intel: a hardcoded `/opt/homebrew` grep passes vacuously
-//      on an Intel runner and would have proven nothing about the arch this script
-//      exists to add.
+//   2b. (--windowing) Copies the gdk-pixbuf image LOADERS into their nested
+//      lib/gdk-pixbuf-2.0/2.10.0/loaders/ and relocates them the same way, but with a
+//      `@loader_path/../../..` dep prefix, then regenerates a bundle-relative
+//      loaders.cache. They are the DECODERS for the icon theme § 4b ships.
+//   3. VERIFIES the relocation of everything § 2 and § 2b produced (see
+//      verifyRelocation) — the assertion is brew-prefix-DERIVED, because the prefix
+//      is /opt/homebrew on Apple silicon and /usr/local on Intel: a hardcoded
+//      `/opt/homebrew` grep passes vacuously on an Intel runner and would have
+//      proven nothing about the arch this script exists to add.
 //   4. Copies the typelib set into <out>/girepository-1.0 — but ONLY the typelibs
 //      whose backing library the closure above actually bundled, and then ASSERTS
 //      that symmetry over the finished bundle (see § 4/6 and typelib-backers.mjs).
@@ -194,8 +198,9 @@ const SEED_PATTERNS = [
 // the app-gnome node-gi port. This is what the macOS GTK-GUI proof
 // (macos-gtk-windowing) needs; the recursive otool walk pulls each seed's transitive
 // deps + relocates them like any other seed. Mirrors the win32 --windowing superset
-// (WINDOWING_SEED_PATTERNS there), and its runtime DATA is § 4b below (schemas, icon
-// themes, GtkSource language-specs/styles).
+// (WINDOWING_SEED_PATTERNS there), and its runtime DATA is § 2b (the gdk-pixbuf image
+// loaders — native code, hence the early section) + § 4b (schemas, icon themes,
+// GtkSource language-specs/styles).
 //
 // WHICH VARIANT SHIPS: since 0.27.2 release.yml publishes the --windowing SUPERSET,
 // because that is the complete runtime a consumer of "batteries-included GTK" wants;
@@ -207,7 +212,20 @@ const SEED_PATTERNS = [
 // different: whichever seeds are in play, the bundle ships exactly the typelibs it
 // can back.
 const WINDOWING = process.argv.includes('--windowing');
-const WINDOWING_SEED_PATTERNS = [/^libadwaita-1\..*\.dylib$/, /^libgtksourceview-5\..*\.dylib$/];
+const WINDOWING_SEED_PATTERNS = [
+    /^libadwaita-1\..*\.dylib$/,
+    /^libgtksourceview-5\..*\.dylib$/,
+    // librsvg, which backs the SVG gdk-pixbuf loader § 2b bundles — the decoder for the
+    // 715 symbolic SVGs of the Adwaita theme § 4b already ships. It needs its OWN seed
+    // because nothing in the closure LINKS it (measured: neither libgtk-4 nor libadwaita
+    // has an otool ref to it; it is a formula-level dep of gtk4/libadwaita/gtksourceview5/
+    // adwaita-icon-theme, and gdk-pixbuf reaches it through g_module_open, not a link).
+    // Seeding it is also what stops `Rsvg-2.0.typelib` being DROPPED by § 4's symmetry
+    // rule: that drop was CORRECT while the library was absent, and it is the visible
+    // trace of the missing decoder — a bundle that ships the icons but nothing to
+    // rasterize them.
+    /^librsvg-2\.\d+\.dylib$/,
+];
 
 function isSystemPath(p) {
     return p.startsWith('/usr/lib/') || p.startsWith('/System/');
@@ -284,13 +302,25 @@ for (const [leaf, src] of bundled) {
 }
 
 const bundledLeaves = new Set(bundled.keys());
-function relocate(libPath, { id } = {}) {
-    // Own id (dylibs only).
+// depPrefix = where the BUNDLED dependencies live, seen from the image being rewritten.
+// It is a parameter and not the hardcoded `@loader_path` it used to be, because
+// @loader_path is the DEPENDENT's own directory: correct for the flat lib/ walk, wrong
+// for anything nested. A gdk-pixbuf loader (§ 2b) sits at
+// lib/gdk-pixbuf-2.0/2.10.0/loaders/, three levels below lib/, so its refs must climb
+// back — the default keeps every existing call meaning exactly what it did.
+function relocate(libPath, { id, depPrefix = '@loader_path' } = {}) {
+    // Own id — a no-op on a Mach-O BUNDLE that carries no LC_ID_DYLIB (ten of the
+    // thirteen pixbuf loaders), and load-bearing on the ones that do: librsvg's loader
+    // ids itself as an absolute keg path, which § 3 rejects as a build-host leak.
     if (id) execFileSync('install_name_tool', ['-id', `@loader_path/${basename(libPath)}`, libPath]);
-    // Rewrite every dependency that points at a library WE bundle → @loader_path.
+    // Rewrite every dependency that points at a library WE bundle → the bundle's lib/.
+    // `-change` matches the old string VERBATIM, so this also catches the `@rpath/…`
+    // form (librsvg's loader references `@rpath/librsvg-2.2.dylib`): basename() finds
+    // the leaf in the bundled set and the result no longer depends on whatever LC_RPATH
+    // the upstream build happened to bake in.
     for (const dep of otoolDeps(libPath)) {
         if (bundledLeaves.has(basename(dep))) {
-            execFileSync('install_name_tool', ['-change', dep, `@loader_path/${basename(dep)}`, libPath]);
+            execFileSync('install_name_tool', ['-change', dep, `${depPrefix}/${basename(dep)}`, libPath]);
         }
     }
     // Ad-hoc re-sign — install_name_tool invalidated the signature (arm64 hard req).
@@ -301,6 +331,136 @@ for (const leaf of bundledLeaves) {
     relocate(join(libOut, leaf), { id: true });
 }
 console.log(`build-gtk-runtime: relocated + re-signed ${bundledLeaves.size} dylibs → @loader_path`);
+
+/** A build tool from the source prefix, falling back to PATH. Used by § 2b and § 4b. */
+const findTool = (leaf) => {
+    const inBrew = join(brewPrefix, 'bin', leaf);
+    return existsSync(inBrew) ? inBrew : leaf;
+};
+
+// --- 2b. WINDOWING: the gdk-pixbuf image LOADERS ---------------------------
+// The decoders. Without them gdk-pixbuf decodes NOTHING and every SVG in the icon theme
+// § 4b ships fails to load with no diagnostic at all — measured on a real macOS x64 host
+// against the published @gjsify/gtk-runtime-darwin-x64@0.28.0:
+// `GdkPixbuf.Pixbuf.new_from_file()` on that bundle's OWN
+// share/icons/Adwaita/symbolic/actions/open-menu-symbolic.svg returned NULL, i.e. 22 MB
+// of icon theme (715 SVGs) with no decoder for a single one of them. It looks like a
+// theming bug and is a missing module.
+//
+// This lives HERE and not with the other windowing data in § 4b because it is NATIVE
+// CODE, not plain files: the loaders are Mach-O images in a NESTED dir (unlike win32's
+// § 4a, which just copies DLLs — Windows resolves those by search path), so they need
+// the same copy → relocate → re-sign pass as § 2 with a ../../.. dep prefix, and § 3
+// then VERIFIES them. That verification is the point: a ref this pass misses would load
+// fine on the build host and resolve nothing on a machine without Homebrew.
+const pixbufLoaderImages = []; // absolute paths in the bundle, for § 3
+const pixbufLoaderSources = new Map(); // leaf -> keg realpath, for § 5's attribution
+if (WINDOWING) {
+    const loadersSrc = join(brewLib, 'gdk-pixbuf-2.0', '2.10.0', 'loaders');
+    const loadersOut = join(OUT, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders');
+    if (existsSync(loadersSrc)) {
+        mkdirSync(loadersOut, { recursive: true });
+        for (const f of readdirSync(loadersSrc)) {
+            const src = join(loadersSrc, f);
+            const dest = join(loadersOut, f);
+            // copyFileSync DEREFERENCES, which is required and not incidental: brew links
+            // the svg loader in from librsvg's keg (twice — as .so AND .dylib, which is
+            // why `Pixbuf.get_formats()` lists `svg` twice: the prefix registers both and
+            // this ships what the prefix has), and a link into the Cellar is worthless in
+            // a tarball. The realpath is also what § 5 attributes the binary through.
+            copyFileSync(src, dest);
+            pixbufLoaderImages.push(dest);
+            try {
+                pixbufLoaderSources.set(f, realpathSync(src));
+            } catch {
+                pixbufLoaderSources.set(f, src); // not a link — the path IS the source
+            }
+        }
+        for (const image of pixbufLoaderImages) {
+            relocate(image, { id: true, depPrefix: '@loader_path/../../..' });
+        }
+        // The cache maps each decoder to its mime types/extensions/signature, and its
+        // module paths are what gdk-pixbuf hands to g_module_open. Run the query tool
+        // over the BUNDLE's own copies, so the cache describes the modules that ship,
+        // then rewrite the absolute build paths it emits.
+        //
+        // REWRITTEN TO `@loader_path/…`, NOT to the bare leaf win32 § 4a uses. Measured on
+        // macOS 15.7.8 with Homebrew's gdk-pixbuf 2.44.7, all four shapes, on a bundle
+        // whose addon and dylibs come from the SAME tree: a bare leaf FAILS —
+        // `dlopen("libpixbufloader_svg.so")` walks dyld's own paths and never looks in the
+        // loaders dir, so the SVG icon still does not decode. The reason is not the cache
+        // but the library: `GDK_PIXBUF_MODULEDIR` does not appear in that dylib's strings
+        // at all — brew builds gdk-pixbuf NON-relocatable, so it honours only
+        // `GDK_PIXBUF_MODULE_FILE` (the cache path) and passes each module path through
+        // verbatim. gvsbuild's win32 build IS relocatable, which is why the leaf form
+        // works there and does not transfer here.
+        // dlopen DOES expand `@loader_path`, against the directory of the image that calls
+        // it — libgmodule/libgdk_pixbuf, i.e. `<bundle>/lib` — so `@loader_path/` + the
+        // path from lib/ to the module is install-location independent WITHOUT any env at
+        // all. That matters beyond tidiness: it also holds for a consumer that wires
+        // `GDK_PIXBUF_MODULE_FILE` itself, and under Bun/Deno, where node-gi deliberately
+        // skips the darwin re-exec (so nothing would put this dir on a search path).
+        const MODULE_PREFIX = '@loader_path/gdk-pixbuf-2.0/2.10.0/loaders/';
+        const queryTool = findTool('gdk-pixbuf-query-loaders');
+        let cache = '';
+        try {
+            cache = sh(queryTool, pixbufLoaderImages);
+        } catch (error) {
+            // The tool exits non-zero when a single module will not dlopen, but still
+            // prints the ones that did — keep them (same tolerance as win32 § 4a).
+            cache = typeof error?.stdout === 'string' ? error.stdout : '';
+        }
+        const rel = cache
+            // A module header line is a quoted absolute path; re-anchor it at the bundle.
+            .replace(/^"(.*\/)?([^"/]+\.(?:so|dylib))"\s*$/gim, `"${MODULE_PREFIX}$2"`)
+            // And its `# LoaderDir = <prefix>` header when it stamps one. Measured: it
+            // does NOT for an explicit path list (only when it scans its own default
+            // dir), so this is belt-and-braces — the line is inert (gdk-pixbuf ignores
+            // `#`), but it would be a build-host path inside a file whose entire claim
+            // is that the bundle carries none.
+            .replace(/^# LoaderDir = .*$/gim, '# LoaderDir = <bundle>/lib/gdk-pixbuf-2.0/2.10.0/loaders');
+        writeFileSync(join(OUT, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders.cache'), rel);
+        // § 3's rule for the one shipped file that is NOT a Mach-O image: a module path the
+        // consumer cannot resolve. Asserted in the builder — the single place both
+        // workflows go through — and anchored on the MODULE SUFFIX, because a cache also
+        // contains quoted signature lines and XPM's is literally `"/*" "" 50`; a naive
+        // `^"/` test reads that as an absolute path and fails a correct bundle (it did).
+        const moduleLines = rel
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => /^"[^"]+\.(?:so|dylib)"$/.test(line));
+        const unresolvable = moduleLines.filter((line) => !line.startsWith('"@loader_path/'));
+        if (unresolvable.length > 0) {
+            console.error(
+                `build-gtk-runtime: LOADER CACHE IS NOT PORTABLE — ${unresolvable.length} of ${moduleLines.length} ` +
+                    `module path(s) in lib/gdk-pixbuf-2.0/2.10.0/loaders.cache are not @loader_path-relative:\n  ` +
+                    `${unresolvable.join('\n  ')}\n` +
+                    'gdk-pixbuf hands these to g_module_open VERBATIM (brew builds it non-relocatable, so ' +
+                    'GDK_PIXBUF_MODULEDIR is never consulted), so an absolute build path resolves on this machine ' +
+                    'only and a bare leaf resolves nowhere at all — the icons would silently fail to decode in ' +
+                    'the consumer. Repair the rewrite above; do NOT relax this check.',
+            );
+            process.exit(1);
+        }
+        if (moduleLines.length === 0) {
+            console.warn(
+                `build-gtk-runtime: WARNING — ${queryTool} described no module; loaders.cache is EMPTY ` +
+                    '(§ 4e will fail this build)',
+            );
+        } else {
+            console.log(
+                `build-gtk-runtime: gdk-pixbuf loaders — ${pixbufLoaderImages.length} module(s) relocated ` +
+                    `(@loader_path/../../..), loaders.cache describes ${moduleLines.length} as ` +
+                    `${MODULE_PREFIX}<leaf>`,
+            );
+        }
+    } else {
+        console.warn(
+            `build-gtk-runtime: WARNING — ${loadersSrc} missing; no gdk-pixbuf loaders bundled ` +
+                '(SVG/PNG icons would not decode — § 4e will fail this build)',
+        );
+    }
+}
 
 // --- 3. verify the relocation ---------------------------------------------
 // A leftover absolute reference to a library we DID bundle is the whole failure
@@ -342,7 +502,11 @@ function verifyRelocation(paths) {
     }
     console.log(`build-gtk-runtime: relocation verified — ${paths.length} image(s), 0 refs outside the bundle`);
 }
-verifyRelocation([...bundledLeaves].map((leaf) => join(libOut, leaf)));
+// The nested pixbuf loaders (§ 2b) go through the SAME gate as the flat dylibs: their
+// relocation is the harder one (a ../../.. prefix, plus an `@rpath` ref and an absolute
+// LC_ID_DYLIB on librsvg's module), so leaving them out would ship exactly the class of
+// bug this function exists to catch.
+verifyRelocation([...[...bundledLeaves].map((leaf) => join(libOut, leaf)), ...pixbufLoaderImages]);
 
 // --- 4. typelibs — only the ones this bundle can actually BACK --------------
 // The brew typelib dir is shared by every installed formula, so copying it wholesale
@@ -394,22 +558,23 @@ if (typelibPlan.dropped.length > 0) {
 // icon themes, and GtkSourceView's data tree. These are plain files (no dylib
 // relocation), located at runtime via GSETTINGS_SCHEMA_DIR / XDG_DATA_DIRS (node-gi's
 // gtk-runtime.js maybeWireGtkWindowingEnv keys on the gschemas.compiled marker). Gated
-// on --windowing; the display-free bundle is byte-unchanged. NB the gdk-pixbuf image
-// LOADERS (needed to render SVG symbolic icons) are NOT bundled yet — they are dylibs
-// that need @loader_path relocation from a NESTED dir (unlike win32's plain DLL copy);
-// tracked follow-up, so symbolic icons may be blank until then.
+// on --windowing; the display-free bundle is byte-unchanged. The FOURTH declared set —
+// the gdk-pixbuf image loaders that decode those icons — is § 2b, because it is native
+// code that has to be relocated and verified with the dylibs.
 //
 // Each step below still WARNS when the source prefix cannot provide a set, because the
 // warning is where the cause is visible (which prefix path was missing) — but it is no
 // longer the end of the story: § 4e re-reads the finished bundle and FAILS the build for
 // every declared set that did not arrive, so a partial prefix cannot publish.
-const windowing = { schemas: false, iconThemes: [], iconFiles: 0, gtksource: false };
+const windowing = {
+    pixbufLoaders: pixbufLoaderImages.length, // § 2b
+    schemas: false,
+    iconThemes: [],
+    iconFiles: 0,
+    gtksource: false,
+};
 if (WINDOWING) {
     const brewShare = join(brewPrefix, 'share');
-    const findTool = (leaf) => {
-        const inBrew = join(brewPrefix, 'bin', leaf);
-        return existsSync(inBrew) ? inBrew : leaf; // fall back to PATH
-    };
 
     // 4b-a. Compiled GSettings schemas + (re)compile gschemas.compiled — also the
     // windowing-data marker node-gi's loader detects.
@@ -561,8 +726,8 @@ if (WINDOWING) {
 }
 
 // --- 5. license compliance --------------------------------------------------
-// The bundle carries ~45 third-party LGPL/MPL libraries and MODIFIES them (§ 2
-// rewrites install names, then re-signs). Attribution is derived from where each
+// The bundle carries ~45 third-party LGPL/MPL libraries and MODIFIES them (§ 2 and § 2b
+// rewrite install names, then re-sign). Attribution is derived from where each
 // dylib actually came from: a Homebrew library realpath always runs through
 // …/Cellar/<formula>/<version>/, and Homebrew stores the formula inside the keg
 // (.brew/<formula>.rb), so the license terms come from the build prefix itself
@@ -574,14 +739,21 @@ const brewInfoLicense = (formula) => {
         return null; // no API cache / unknown formula — reported by the coverage gate
     }
 };
+// EVERY binary the tarball carries, not just the flat closure: § 2b's pixbuf loaders are
+// third-party LGPL modules too, so "the terms travel with the binaries" is only true if
+// the per-binary table names them. They attribute through the same derivation as every
+// dylib — their realpath runs through …/Cellar/{gdk-pixbuf,librsvg}/<version>/… .
+const shippedBinaries = new Map([...bundled, ...pixbufLoaderSources]);
 const { components: licenseComponents, unattributed } = describeBrewKegs({
-    files: bundled,
+    files: shippedBinaries,
     fallbackLicense: brewInfoLicense,
 });
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
 const MODIFICATIONS = [
-    '`install_name_tool -id` / `-change`: every install name and every reference to a sibling in this bundle ' +
-        'rewritten to `@loader_path/<leaf>` (references to /usr/lib and /System are untouched).',
+    '`install_name_tool -id` / `-change`: every install name and every reference to another library in this bundle ' +
+        'rewritten to `@loader_path/<leaf>` — `@loader_path/../../../<leaf>` for the gdk-pixbuf loader modules ' +
+        'under `lib/gdk-pixbuf-2.0/`, which sit three levels below `lib/` (references to /usr/lib and /System are ' +
+        'untouched).',
     '`codesign --force --sign -`: ad-hoc re-signature, because `install_name_tool` invalidates the original one ' +
         'and dyld refuses a mis-signed dylib on Apple silicon.',
 ];
@@ -594,14 +766,14 @@ writeFileSync(
         windowing: WINDOWING,
         modifications: MODIFICATIONS,
         components: licenseComponents,
-        binaries: [...bundledLeaves],
+        binaries: [...shippedBinaries.keys()],
         attribution: 'per-binary',
         payloadDir: 'licenses',
     }),
 );
 const licenseProblems = assertLicenseCoverage({
     components: licenseComponents,
-    binaries: [...bundledLeaves],
+    binaries: [...shippedBinaries.keys()],
     unattributed,
     attribution: 'per-binary',
     textCount: licensePayload.files.length,
@@ -612,7 +784,7 @@ if (licenseProblems.length > 0) {
 }
 console.log(
     `build-gtk-runtime: licenses — ${licenseComponents.length} component(s) attributing all ` +
-        `${bundledLeaves.size} dylib(s), ${licensePayload.files.length} license text(s) ` +
+        `${shippedBinaries.size} binary/ies, ${licensePayload.files.length} license text(s) ` +
         `(${(licensePayload.bytes / 1024).toFixed(0)} KiB) → licenses/, notice → THIRD-PARTY-NOTICES.md`,
 );
 

@@ -219,6 +219,15 @@ export function maybeWireGtkWindowingEnv() {
     };
     setIfUnset('GSETTINGS_SCHEMA_DIR', schemaDir);
 
+    // MODULE_FILE is the load-bearing one on BOTH platforms — it is the cache, and the
+    // cache is what names the modules. MODULEDIR only resolves a RELATIVE module path in
+    // that cache, and only where gdk-pixbuf was built relocatable: measured on macOS with
+    // Homebrew's gdk-pixbuf 2.44.7, the string `GDK_PIXBUF_MODULEDIR` is not in the dylib
+    // at all, so the darwin bundle's cache instead names each module `@loader_path/…`
+    // (relative to the image that dlopens it, i.e. the bundle's lib/) and resolves with no
+    // env beyond this file. gvsbuild's win32 build IS relocatable, so MODULEDIR is what
+    // its bare-leaf cache needs — hence both are set, and neither platform depends on the
+    // other's mechanism.
     const loaderCache = join(bundle.dir, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders.cache');
     if (existsSync(loaderCache)) {
         setIfUnset('GDK_PIXBUF_MODULEDIR', join(bundle.dir, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders'));

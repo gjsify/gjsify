@@ -44,7 +44,6 @@ import {
     verifyBundleTypelibs,
 } from '../../scripts/typelib-backers.mjs';
 import {
-    WIN32_WINDOWING_DATA_SETS,
     WINDOWING_DATA_SETS,
     copyTreeDereferenced,
     findSymlinks,
@@ -585,7 +584,7 @@ test('findSymlinks reports a DANGLING link too, and an absent tree is empty', ()
 // on the bad input — one per declared set, plus the vacuous shapes.
 
 /** A complete windowing data tree, the shape both builders produce. */
-function windowingBundle({ schemas = true, icons = true, gtksource = true, iconIndex = true } = {}) {
+function windowingBundle({ schemas = true, icons = true, gtksource = true, iconIndex = true, loaders = true } = {}) {
     const root = fixtureDir();
     if (schemas) {
         mkdirSync(join(root, 'share/glib-2.0/schemas'), { recursive: true });
@@ -600,10 +599,26 @@ function windowingBundle({ schemas = true, icons = true, gtksource = true, iconI
         mkdirSync(join(root, 'share/gtksourceview-5/language-specs'), { recursive: true });
         writeFileSync(join(root, 'share/gtksourceview-5/language-specs/language2.rng'), '<grammar/>');
     }
+    if (loaders) writePixbufLoaders(root);
     return root;
 }
 
-const GTK_NAMESPACES = ['GLib', 'GObject', 'Gio', 'Gtk', 'Gdk', 'Adw', 'GtkSource'];
+/**
+ * The gdk-pixbuf loader payload BOTH builders ship (darwin's since
+ * build-gtk-runtime-darwin.mjs § 2b). The module leaf differs per platform — brew names
+ * it `libpixbufloader_svg.so`, gvsbuild `pixbufloader-svg.dll` — and the set requires a
+ * non-empty cache plus at least one module, never an extension.
+ */
+function writePixbufLoaders(root, { module = 'libpixbufloader_svg.so' } = {}) {
+    mkdirSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders'), { recursive: true });
+    writeFileSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders.cache'), `"${module}"\n`);
+    writeFileSync(join(root, `lib/gdk-pixbuf-2.0/2.10.0/loaders/${module}`), 'module');
+}
+
+// What a real --windowing bundle ships. `GdkPixbuf` is listed because it is in
+// REQUIRED_NAMESPACES, i.e. EVERY bundle carries it — so the loader set always has a
+// subject and can never be skipped into silence on either platform.
+const GTK_NAMESPACES = ['GLib', 'GObject', 'Gio', 'GdkPixbuf', 'Gtk', 'Gdk', 'Adw', 'GtkSource'];
 
 test('a complete windowing bundle passes, and every set is REPORTED as applied', () => {
     const result = verifyWindowingData({
@@ -613,7 +628,7 @@ test('a complete windowing bundle passes, and every set is REPORTED as applied',
     assert.deepEqual(result.problems, []);
     assert.deepEqual(
         result.applied.map((a) => a.id),
-        ['schemas', 'icons', 'gtksource'],
+        ['schemas', 'icons', 'pixbuf-loaders', 'gtksource'],
     );
     // Positive counts, not merely "no complaints": every applied set found real files.
     for (const applied of result.applied) assert.ok(applied.files > 0, `${applied.id} counted no file`);
@@ -624,6 +639,7 @@ test('a missing declared data set FAILS — one case per set', () => {
         ['schemas', /schemas: share\/glib-2\.0\/schemas\/gschemas\.compiled is missing or empty/],
         ['icons', /icons: nothing matches share\/icons\/\*\/index\.theme/],
         ['gtksource', /gtksource: share\/gtksourceview-5\/ holds no non-empty file/],
+        ['loaders', /pixbuf-loaders: lib\/gdk-pixbuf-2\.0\/2\.10\.0\/loaders\.cache is missing or empty/],
     ]) {
         const result = verifyWindowingData({
             bundleDir: windowingBundle({ [absent]: false }),
@@ -656,6 +672,7 @@ test('an icon theme with an index but NO icons fails the second half of the set'
     writeFileSync(join(root, 'share/glib-2.0/schemas/gschemas.compiled'), 'compiled');
     writeFileSync(join(root, 'share/icons/Adwaita/index.theme'), ''); // empty index — no theme
     writeFileSync(join(root, 'share/gtksourceview-5/language.dtd'), '<!ELEMENT x EMPTY>');
+    writePixbufLoaders(root); // present, so the count below is about the ICONS set alone
     const result = verifyWindowingData({ bundleDir: root, shippedNamespaces: GTK_NAMESPACES });
     assert.equal(result.problems.length, 2, 'both the index glob and the tree count must complain');
     assert.match(result.problems.join('\n'), /nothing matches share\/icons\/\*\/index\.theme/);
@@ -663,12 +680,14 @@ test('an icon theme with an index but NO icons fails the second half of the set'
 });
 
 test('a set is required by the NAMESPACE the bundle ships, not by a flag', () => {
-    // The display-free bundle's shape: the backer filter dropped Adw + GtkSource, so the
-    // GtkSource data set has no subject and is skipped — while the sets whose namespaces
-    // ARE shipped still apply. That is why the display-free variant needs no relaxed copy
-    // of this gate: the same rule, applied to what that bundle actually ships.
+    // Two sets with no subject: the backer filter dropped Adw + GtkSource (the display-free
+    // bundle's shape), and this namespace list also omits GdkPixbuf — so both the GtkSource
+    // tree and the pixbuf loaders are SKIPPED, while the sets whose namespaces ARE shipped
+    // still apply. That is why the display-free variant needs no relaxed copy of this gate:
+    // the same rule, applied to what a bundle actually ships. (A real display-free bundle
+    // does ship GdkPixbuf — it declares no data at all, so the gate is never run for it.)
     const result = verifyWindowingData({
-        bundleDir: windowingBundle({ gtksource: false }),
+        bundleDir: windowingBundle({ gtksource: false, loaders: false }),
         shippedNamespaces: ['GLib', 'GObject', 'Gio', 'Gtk', 'Gdk'],
     });
     assert.deepEqual(result.problems, []);
@@ -676,7 +695,10 @@ test('a set is required by the NAMESPACE the bundle ships, not by a flag', () =>
         result.applied.map((a) => a.id),
         ['schemas', 'icons'],
     );
-    assert.deepEqual(result.skipped, [{ id: 'gtksource', namespace: 'GtkSource' }]);
+    assert.deepEqual(result.skipped, [
+        { id: 'pixbuf-loaders', namespace: 'GdkPixbuf' },
+        { id: 'gtksource', namespace: 'GtkSource' },
+    ]);
 });
 
 test('a bundle that applies NO set at all is a failure, not a pass', () => {
@@ -692,38 +714,36 @@ test('a bundle that applies NO set at all is a failure, not a pass', () => {
     assert.deepEqual(result.applied, []);
 });
 
-test('win32 additionally requires the gdk-pixbuf loaders it ships', () => {
-    // The win32 builder copies the loaders + rewrites loaders.cache bundle-relative; the
-    // darwin one does not bundle them yet (tracked), so the set is win32-only and the
-    // asymmetry is in the data, not in two divergent gates.
-    const sets = [...WINDOWING_DATA_SETS, ...WIN32_WINDOWING_DATA_SETS];
-    const root = windowingBundle();
+test('BOTH bundles require the gdk-pixbuf loaders they ship', () => {
+    // THE PREMISE CHANGED, so this test was rewritten rather than adjusted. It used to
+    // assert that the loader set was win32-ONLY and that "on darwin the same bundle
+    // passes, because that builder does not claim the loaders" — true while the darwin
+    // builder bundled none. Measured consequence of that asymmetry on a real macOS x64
+    // host against the published @gjsify/gtk-runtime-darwin-x64@0.28.0:
+    // Pixbuf.new_from_file() on the bundle's OWN symbolic icon returned NULL, i.e. 715
+    // SVGs and no decoder. build-gtk-runtime-darwin.mjs § 2b ships them now, so the set
+    // is in the ONE list and the same absence fails for EITHER platform — no `sets`
+    // override, which is exactly what both builders pass.
     const withoutLoaders = verifyWindowingData({
-        bundleDir: root,
-        shippedNamespaces: [...GTK_NAMESPACES, 'GdkPixbuf'],
-        sets,
+        bundleDir: windowingBundle({ loaders: false }),
+        shippedNamespaces: GTK_NAMESPACES,
     });
     assert.equal(withoutLoaders.problems.length, 2, 'the cache AND the loader dir must be reported');
     assert.match(withoutLoaders.problems.join('\n'), /loaders\.cache is missing or empty/);
     assert.match(withoutLoaders.problems.join('\n'), /nothing matches lib\/gdk-pixbuf-2\.0\/2\.10\.0\/loaders\/\*/);
 
-    mkdirSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders'), { recursive: true });
-    writeFileSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders.cache'), '"pixbufloader-svg.dll"\n');
-    writeFileSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders/pixbufloader-svg.dll'), 'MZ');
-    const complete = verifyWindowingData({
-        bundleDir: root,
-        shippedNamespaces: [...GTK_NAMESPACES, 'GdkPixbuf'],
-        sets,
-    });
-    assert.deepEqual(complete.problems, []);
-    assert.ok(complete.applied.some((a) => a.id === 'pixbuf-loaders'));
-
-    // On darwin the same bundle passes, because that builder does not claim the loaders.
-    const darwin = verifyWindowingData({ bundleDir: windowingBundle(), shippedNamespaces: GTK_NAMESPACES });
-    assert.deepEqual(darwin.problems, []);
+    // Either platform's module naming satisfies it: the requirement is a cache plus at
+    // least one module, never a file extension (brew ships `.so`/`.dylib`, gvsbuild `.dll`).
+    for (const module of ['libpixbufloader_svg.so', 'pixbufloader-svg.dll']) {
+        const root = windowingBundle({ loaders: false });
+        writePixbufLoaders(root, { module });
+        const complete = verifyWindowingData({ bundleDir: root, shippedNamespaces: GTK_NAMESPACES });
+        assert.deepEqual(complete.problems, [], `${module} must satisfy the set`);
+        assert.ok(complete.applied.some((a) => a.id === 'pixbuf-loaders'));
+    }
 });
 
-test('WINDOWING_DATA_SETS keys every set to a namespace the floor guarantees', () => {
+test('WINDOWING_DATA_SETS keys every set to a namespace the floor guarantees', async () => {
     // The requirement is derived from the shipped typelibs, so it can only be dodged by
     // dropping a namespace — and these are exactly the ones typelib-backers.mjs refuses
     // to let a --windowing bundle drop. Pinned so the two rules cannot drift apart.
@@ -733,6 +753,20 @@ test('WINDOWING_DATA_SETS keys every set to a namespace the floor guarantees', (
         assert.ok(set.requires.length > 0, `${set.id} declares no requirement`);
         assert.ok(set.why && set.remedy, `${set.id} must state why it matters and how to repair it`);
     }
+    // And there is exactly ONE list. A per-platform sibling array is how the loader gap
+    // stayed invisible: the set existed, both builders imported the module, and only one
+    // of them was asserted against it. Keeping this list platform-independent means a
+    // builder cannot opt out of a set by not merging it in.
+    const module = await import('../../scripts/bundle-data.mjs');
+    assert.deepEqual(
+        Object.keys(module).filter((name) => name.endsWith('_DATA_SETS')),
+        ['WINDOWING_DATA_SETS'],
+        'a platform-specific data-set list is a gate one builder can silently skip',
+    );
+    assert.ok(
+        WINDOWING_DATA_SETS.some((set) => set.id === 'pixbuf-loaders'),
+        'the pixbuf loaders are shipped by both builders and belong in the shared list',
+    );
 });
 
 function nativeLibraryIndexOf(names, caseInsensitive) {

@@ -1206,9 +1206,12 @@ jobs:
   # exercised by nothing — the missing-signal shape this whole change exists to remove.
   # The display-free pair's x64 leg does NOT cover it: it consumes a different artifact
   # (no libadwaita, no libgtksourceview, no data tree), so a defect in the superset's
-  # extra closure or its data is invisible there. The one KNOWN gap is shared by both
-  # arches and unaffected by the matrix: the gdk-pixbuf image LOADERS are not bundled on
-  # darwin yet (status/open-todos.md), so an SVG symbolic icon can render blank.
+  # extra closure or its data is invisible there. The gdk-pixbuf image LOADERS were the
+  # last KNOWN gap here, shared by both arches: the bundle shipped 715 Adwaita SVGs with
+  # no decoder for any of them, so `Pixbuf.new_from_file()` on its OWN icon returned NULL
+  # on the published darwin-x64 0.28.0. The builder bundles + relocates them (§ 2b) and
+  # its data gate requires them on BOTH platforms now; the step below is the
+  # artifact-level echo of that claim.
   # `macos-15-intel` is the Intel runner label, the same one macos-gtk-runtime's x64 leg
   # already uses with this formula list.
   macos-gtk-windowing-runtime:
@@ -1278,12 +1281,31 @@ jobs:
           ls "$B"/share/icons/*/index.theme >/dev/null 2>&1 || { echo "no icon theme with an index.theme — icon lookups fail silently"; exit 1; }
           test -n "$(find "$B/share/gtksourceview-5" -type f -size +0 2>/dev/null | head -1)" || { echo "GtkSource-5 data tree MISSING/EMPTY"; exit 1; }
           echo "--- icon themes + data size ---"; ls "$B/share/icons"; du -sh "$B/share"
+          # The DECODERS for those icons. An icon theme without them is bytes nothing in
+          # the bundle can read, and the failure is a NULL pixbuf with no diagnostic.
+          echo "--- assert the gdk-pixbuf loaders + their cache ---"
+          test -s "$B/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" || { echo "loaders.cache MISSING/EMPTY — no image decodes"; exit 1; }
+          test -n "$(find "$B/lib/gdk-pixbuf-2.0/2.10.0/loaders" -type f -size +0 2>/dev/null | head -1)" || { echo "no gdk-pixbuf loader modules bundled"; exit 1; }
+          # Anchored on the MODULE SUFFIX, not on a leading `"/`: a cache also holds quoted
+          # SIGNATURE lines and XPM's is literally `"/*" "" 50`, which a naive absolute-path
+          # test reads as a path. brew's gdk-pixbuf is non-relocatable (no
+          # GDK_PIXBUF_MODULEDIR support at all — measured), so it passes these to
+          # g_module_open verbatim: an absolute path resolves on the runner only, and a bare
+          # leaf resolves nowhere. `@loader_path` is what dyld expands against the bundle's
+          # own lib/. The builder fails on this too; this is the echo on the ARTIFACT.
+          if grep -qE '^"/[^"]*\.(so|dylib)"$' "$B/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"; then
+            echo "loaders.cache carries ABSOLUTE module paths — it would resolve on the build host only"; exit 1
+          fi
+          grep -qE '^"@loader_path/[^"]*\.(so|dylib)"$' "$B/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" || { echo "loaders.cache module paths are not @loader_path-relative — dlopen would not find them off the build host"; exit 1; }
+          echo "loaders: $(find "$B/lib/gdk-pixbuf-2.0/2.10.0/loaders" -type f | wc -l | tr -d ' ') module(s), cache @loader_path-relative"
           # Prefix-DERIVED, not the literal /opt/homebrew — see macos-gtk-runtime's
-          # note: the literal is vacuously absent on an Intel host.
+          # note: the literal is vacuously absent on an Intel host. The loaders are
+          # INCLUDED: they are relocated with a ../../.. prefix, a harder rewrite than
+          # the flat lib/ one, and a `lib/*.dylib` glob does not reach their nested dir.
           BREW_PREFIX="$(brew --prefix)"
           echo "--- assert NO $BREW_PREFIX refs remain ---"
-          if otool -L "$B"/lib/*.dylib | grep -F "$BREW_PREFIX"; then
-            echo "RELOCATION FAILED: bundled dylibs still reference $BREW_PREFIX"; exit 1
+          if otool -L "$B"/lib/*.dylib "$B"/lib/gdk-pixbuf-2.0/2.10.0/loaders/* | grep -F "$BREW_PREFIX"; then
+            echo "RELOCATION FAILED: bundled images still reference $BREW_PREFIX"; exit 1
           fi
           echo "clean — no Homebrew references"
 
