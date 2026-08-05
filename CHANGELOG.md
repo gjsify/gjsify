@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.30.0](https://github.com/gjsify/gjsify/compare/v0.29.0...v0.30.0) (2026-08-05)
+
+### Features
+
+* **oxlint-plugin-gjsify:** require an anchor on deferral markers ([88bd597](https://github.com/gjsify/gjsify/commit/88bd597e53ed653d8d1dc1a085133d2b199bff98))
+
+### Bug Fixes
+
+* **cli:** declare the prebuilds' load-time libraries ([#994](https://github.com/gjsify/gjsify/issues/994)) ([fcf7487](https://github.com/gjsify/gjsify/commit/fcf7487b5b1082149f5247fc34c7b96ce7b6fb46))
+* **cli:** dispatch the bin shim at run time ([#1007](https://github.com/gjsify/gjsify/issues/1007)) ([b0db134](https://github.com/gjsify/gjsify/commit/b0db13403f7984da952866fc9f57082291033381))
+* **cli:** route lifecycle scripts through the spawn contract ([#1011](https://github.com/gjsify/gjsify/issues/1011)) ([fb881d0](https://github.com/gjsify/gjsify/commit/fb881d0dbb9037776a9db1fbf508859d23226098))
+
+### Documentation
+
+* **adr:** record ts-for-gir's library shape ([#1006](https://github.com/gjsify/gjsify/issues/1006)) ([a6bef50](https://github.com/gjsify/gjsify/commit/a6bef50ca394b5d2182a35962645a1d453062015)), closes [#998](https://github.com/gjsify/gjsify/issues/998) [#910](https://github.com/gjsify/gjsify/issues/910) [#920](https://github.com/gjsify/gjsify/issues/920)
+* **release:** write the v0.30.0 preamble ([#1013](https://github.com/gjsify/gjsify/issues/1013)) ([6154580](https://github.com/gjsify/gjsify/commit/615458092b7db9d4757e19f6049d2e535d7017a4))
+* split AGENTS.md into per-subtree files ([c23c4ae](https://github.com/gjsify/gjsify/commit/c23c4ae02b65a5bc38da1152732c822634217904))
+
+### Continuous Integration
+
+* close the release-asset 404 window and gate unloadable workflows ([#1000](https://github.com/gjsify/gjsify/issues/1000)) ([694b50c](https://github.com/gjsify/gjsify/commit/694b50c6194640fd60b9fd7047b250702b1c3b56)), closes [#994](https://github.com/gjsify/gjsify/issues/994)
+* gate the glibc floor where a PR can see it ([#1009](https://github.com/gjsify/gjsify/issues/1009)) ([ad43017](https://github.com/gjsify/gjsify/commit/ad430173c8b99b963a9a120a8479c9b70f194675)), closes [#897](https://github.com/gjsify/gjsify/issues/897) [#924](https://github.com/gjsify/gjsify/issues/924) [#1004](https://github.com/gjsify/gjsify/issues/1004)
+
 ## [0.29.0](https://github.com/gjsify/gjsify/compare/v0.28.0...v0.29.0) (2026-08-05)
 
 ### Features
