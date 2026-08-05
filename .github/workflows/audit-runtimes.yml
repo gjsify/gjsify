@@ -125,6 +125,14 @@ jobs:
       - name: Check inline workflow scripts are not self-truncating
         run: node scripts/check-workflow-inline-scripts.mjs
 
+      # An e2e suite on disk that no script names runs NOWHERE. 12 of 112 were in that
+      # state, eleven of them by oversight — including the one written to cover the
+      # release gate that let v0.28.0 publish half its packages, whose PR body claimed it
+      # WAS the pre-release coverage. `e2e-shard.mjs` parses the script rather than
+      # globbing, correctly; what was missing is a record of which omissions are meant.
+      - name: Check every e2e suite runs or says why not
+        run: node scripts/check-e2e-suite-coverage.mjs
+
       - name: Check for resurrected prose (advisory)
         continue-on-error: true
         env:
@@ -217,3 +225,11 @@ jobs:
       # a release. Incident + scope in the script header.
       - name: Check inline workflow scripts are not self-truncating
         run: node scripts/check-workflow-inline-scripts.mjs
+
+      # An e2e suite on disk that no script names runs NOWHERE. 12 of 112 were in that
+      # state, eleven of them by oversight — including the one written to cover the
+      # release gate that let v0.28.0 publish half its packages, whose PR body claimed it
+      # WAS the pre-release coverage. `e2e-shard.mjs` parses the script rather than
+      # globbing, correctly; what was missing is a record of which omissions are meant.
+      - name: Check every e2e suite runs or says why not
+        run: node scripts/check-e2e-suite-coverage.mjs

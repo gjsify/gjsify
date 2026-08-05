@@ -69,6 +69,13 @@ const SKIP =
     !existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')) ||
     !existsSync(join(WS_MODULES, '@gjsify')) ||
     !existsSync(join(WS_MODULES, 'rolldown')) ||
+    // The package the fixture BUNDLES, not merely one it resolves. Every gate above
+    // asks whether the toolchain is present; none asked whether the thing under test is
+    // BUILT, so on a tree with `node_modules` but no `packages/framework/devtools/lib`
+    // the suite ran and died inside rolldown with
+    // `gjsify-unresolved-workspace-import: NotFound("@gjsify/devtools")` — an
+    // environment fact reported as a failed assertion about DBus.
+    !existsSync(join(REPO_ROOT, 'packages', 'framework', 'devtools', 'lib')) ||
     !hasAdw();
 
 // A bash driver run INSIDE a fresh `dbus-run-session` (its own bus → no stale
