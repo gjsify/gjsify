@@ -228,6 +228,59 @@ export function inspectDeclaredOutputs(ctx) {
             missing.push({ field, value, path: relative(ctx.root, abs), kind });
         }
 
+        // A package with a `gjsify.main` is launchable by `gjsify showcase`, and the CLI
+        // decides which runtimes it will accept from `gjsify.example.runtimes`. An ABSENT
+        // declaration does not mean "gjs only" — `utils/runtimes.ts` treats it as
+        // UNCONSTRAINED, so the CLI will happily try any requested runtime. That is the
+        // inverse of every other declaration in this manifest, and it makes the question
+        // "does this showcase run everywhere?" unanswerable: silence and "yes" look
+        // identical.
+        //
+        // ZERO findings today, deliberately: all nine packages declaring `gjsify.main`
+        // were surveyed, and the eight PUBLISHED ones each declare their runtimes. The
+        // ninth (`@gjsify/example-gtk-node-gi-window`) is `private` and not a CLI
+        // dependency, so `gjsify showcase` cannot resolve it by name and it has nothing
+        // to declare — which is why the private carve-out above is load-bearing here
+        // rather than merely inherited.
+        //
+        // So this is a guard, not a repair. It earns its place because the loophole is
+        // real for the published ones: add a showcase, forget the declaration, and
+        // `--runtime bun` is ACCEPTED and then dies in a bundle that was never built —
+        // the same ending as `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0`, which
+        // declared four runtimes whose bundle its `build` never produced. That failure
+        // has a check (`impliedExampleNodeEntry` below); its mirror image, declaring
+        // nothing at all, did not.
+        //
+        // It lives in THIS rule rather than a new one because `gjsify.example` is already
+        // claimed here and `impliedExampleNodeEntry` already reasons about exactly this
+        // `gjsify.main` ↔ `gjsify.example` pair.
+        //
+        // In practice it fires under `verify-package-outputs.mjs --scope examples`, since
+        // the default scope excludes `@gjsify/example-*` by name and inverting that
+        // carve-out is what the examples scope exists for. Nothing else declares
+        // `gjsify.main`, so the check is inert in the other scopes rather than partial.
+        // Gated on `!private` EXPLICITLY, not inherited from the caller's
+        // `includePrivate`: the declaration is required because the CLI resolves a
+        // showcase BY NAME, which needs it published. A private workspace showcase is
+        // launched by path and has nothing to declare, so `--include-private` must not
+        // turn it into a finding — the message would then assert `gjsify showcase can
+        // launch it` about a package that it cannot.
+        if (
+            !pkg.private &&
+            typeof pkg.manifest.gjsify?.main === 'string' &&
+            !Array.isArray(pkg.manifest.gjsify?.example?.runtimes)
+        ) {
+            missing.push({
+                field: 'gjsify.example.runtimes',
+                value: '(not declared)',
+                path:
+                    `declares gjsify.main (${pkg.manifest.gjsify.main}) so \`gjsify showcase\` can launch it, but names ` +
+                    'no runtimes. An absent list reads as UNCONSTRAINED to the CLI, not as gjs-only — declare the ' +
+                    'runtimes this showcase actually ships bundles for.',
+                kind: 'declaration',
+            });
+        }
+
         // The one promise made without naming a path — see `impliedExampleNodeEntry`.
         const implied = impliedExampleNodeEntry(pkg.manifest);
         if (implied && !implied.candidates.some((c) => existsSync(resolve(pkg.dir, c)))) {
