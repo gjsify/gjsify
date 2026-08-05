@@ -133,6 +133,14 @@ jobs:
       - name: Check every e2e suite runs or says why not
         run: node scripts/check-e2e-suite-coverage.mjs
 
+      # ADR 0017 sat on disk, load-bearing and ABSENT from the index table, because
+      # nothing compared the directory to it. The mirror-image cost landed the same day:
+      # an agent reading a pre-fix checkout filed an issue asserting 0018 did not exist,
+      # hours after it had. The Status column is a second copy of each ADR's own line, so
+      # this compares those too — promoting Proposed → Accepted touches two files.
+      - name: Check the ADR index lists every ADR
+        run: node scripts/check-adr-index.mjs
+
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
       # fields the filter reads. That is how this repo installed every platform's
@@ -294,6 +302,14 @@ jobs:
       # globbing, correctly; what was missing is a record of which omissions are meant.
       - name: Check every e2e suite runs or says why not
         run: node scripts/check-e2e-suite-coverage.mjs
+
+      # ADR 0017 sat on disk, load-bearing and ABSENT from the index table, because
+      # nothing compared the directory to it. The mirror-image cost landed the same day:
+      # an agent reading a pre-fix checkout filed an issue asserting 0018 did not exist,
+      # hours after it had. The Status column is a second copy of each ADR's own line, so
+      # this compares those too — promoting Proposed → Accepted touches two files.
+      - name: Check the ADR index lists every ADR
+        run: node scripts/check-adr-index.mjs
 
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
