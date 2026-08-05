@@ -433,6 +433,24 @@ export const print =
  * which would mask the real assertion result, so matchers route operands
  * through this instead of interpolating them directly.
  */
+/**
+ * Are two values deeply equal? Used ONLY to enrich a `toEqual` failure message
+ * with the "you probably meant `toStrictEqual`" hint — never to decide a verdict.
+ *
+ * The try/catch is this function's API, not defensive padding: `deepStrictEqual`
+ * signals inequality by throwing, so catching IS reading its answer. It is the
+ * same oracle `toStrictEqual` uses, so the hint cannot recommend a matcher that
+ * would then fail.
+ */
+function isStructurallyEqual(actual: unknown, expected: unknown): boolean {
+    try {
+        nodeAssert.deepStrictEqual(actual, expected);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export function formatValue(value: unknown): string {
     switch (typeof value) {
         case 'symbol':
@@ -584,11 +602,25 @@ class MatcherFactory {
     }
 
     toEqual(expectedValue: unknown) {
+        // `==` on two objects compares REFERENCES, so this matcher can only ever
+        // pass for primitives — while its name is the one every Jest/Vitest
+        // author reaches for to compare structure. The failure it produces then
+        // prints two IDENTICAL-looking lines ("Expected: [["real","^2"]] /
+        // Actual: [["real","^2"]]") and reads like a framework bug, which is
+        // exactly how it cost a CI round on #988. Detect that shape and name the
+        // right matcher instead of leaving the author to re-read `==`.
+        const success = this.actualValue == expectedValue;
+        let hint = '';
+        if (!success && isStructurallyEqual(this.actualValue, expectedValue)) {
+            hint =
+                `\n      The two values are structurally equal but are not the same reference.` +
+                `\n      \`toEqual\` compares with \`==\` — use \`toStrictEqual\` for deep equality.`;
+        }
         this.triggerResult(
-            this.actualValue == expectedValue,
+            success,
             `      Expected values to match using ==\n` +
                 `      Expected: ${formatValue(expectedValue)} (${typeof expectedValue})\n` +
-                `      Actual: ${formatValue(this.actualValue)} (${typeof this.actualValue})`,
+                `      Actual: ${formatValue(this.actualValue)} (${typeof this.actualValue})${hint}`,
         );
     }
 
