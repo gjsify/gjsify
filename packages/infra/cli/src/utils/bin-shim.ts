@@ -270,27 +270,71 @@ export function buildLauncherShims(opts: {
      * path the prebuilds have to be reachable through.
      */
     prependEnv?: Readonly<Record<string, string>>;
+    /**
+     * Second interpreter + script to run when the primary interpreter is not on
+     * `PATH`. The batch/PowerShell counterpart of {@link buildShLauncher}'s
+     * `nodeFallbackAbs` — a Windows host with no `gjs` is the majority case, and
+     * the `.cmd`/`.ps1` members are the ones cmd.exe and pwsh actually reach.
+     */
+    fallback?: { interpreter: string; interpreterArgs?: readonly string[]; target: string };
 }): { cmd: string; ps1: string } {
-    const { interpreter, interpreterArgs = [], target, prependEnv = {} } = opts;
+    const { interpreter, interpreterArgs = [], target, prependEnv = {}, fallback } = opts;
     const winTarget = target.split('/').join('\\');
     const argv = interpreterArgs.length > 0 ? `${interpreterArgs.join(' ')} ` : '';
     const entries = Object.entries(prependEnv);
+    const fbTarget = fallback === undefined ? '' : fallback.target.split('/').join('\\');
+    const fbArgv =
+        fallback?.interpreterArgs !== undefined && fallback.interpreterArgs.length > 0
+            ? `${fallback.interpreterArgs.join(' ')} `
+            : '';
 
     let cmd = CMD_HEAD;
     for (const [key, value] of entries) cmd += `@SET "${key}=${value};%${key}%"\r\n`;
-    cmd += `${interpreter} ${argv}"${winTarget}" %*\r\n`;
+    if (fallback === undefined) {
+        cmd += `${interpreter} ${argv}"${winTarget}" %*\r\n`;
+    } else {
+        // `where` is the batch equivalent of `command -v`; it writes to stdout,
+        // so both streams are silenced. ERRORLEVEL is read via IF/ELSE rather
+        // than `&&`/`||` chaining, which would swallow the child's own exit code.
+        cmd +=
+            `@where ${interpreter} >NUL 2>NUL\r\n` +
+            `@IF %ERRORLEVEL% EQU 0 (\r\n` +
+            `  ${interpreter} ${argv}"${winTarget}" %*\r\n` +
+            `) ELSE (\r\n` +
+            `  ${fallback.interpreter} ${fbArgv}"${fbTarget}" %*\r\n` +
+            `)\r\n`;
+    }
 
     let ps1 = '#!/usr/bin/env pwsh\n';
     for (const [key, value] of entries) ps1 += `$env:${key} = "${value};" + $env:${key}\n`;
     const ps1Args = interpreterArgs.map((a) => `"${a}" `).join('');
-    ps1 +=
-        '# Support pipeline input\n' +
-        'if ($MyInvocation.ExpectingInput) {\n' +
-        `  $input | & "${interpreter}" ${ps1Args}"${winTarget}" $args\n` +
-        '} else {\n' +
-        `  & "${interpreter}" ${ps1Args}"${winTarget}" $args\n` +
-        '}\n' +
-        'exit $LASTEXITCODE\n';
+    if (fallback === undefined) {
+        ps1 +=
+            '# Support pipeline input\n' +
+            'if ($MyInvocation.ExpectingInput) {\n' +
+            `  $input | & "${interpreter}" ${ps1Args}"${winTarget}" $args\n` +
+            '} else {\n' +
+            `  & "${interpreter}" ${ps1Args}"${winTarget}" $args\n` +
+            '}\n';
+    } else {
+        // Bind the three parts once, then call once — the alternative (a full
+        // if/else around two near-identical invocation blocks, each of which
+        // already branches on pipeline input) is four copies of the same call.
+        const psList = (a: readonly string[]): string =>
+            a.length === 0 ? '@()' : `@(${a.map((x) => `"${x}"`).join(', ')})`;
+        ps1 +=
+            `$exe = "${interpreter}"; $exeArgs = ${psList(interpreterArgs)}; $script = "${winTarget}"\n` +
+            `if (-not (Get-Command "${interpreter}" -ErrorAction SilentlyContinue)) {\n` +
+            `  $exe = "${fallback.interpreter}"; $exeArgs = ${psList(fallback.interpreterArgs ?? [])}; $script = "${fbTarget}"\n` +
+            '}\n' +
+            '# Support pipeline input\n' +
+            'if ($MyInvocation.ExpectingInput) {\n' +
+            '  $input | & $exe @exeArgs $script $args\n' +
+            '} else {\n' +
+            '  & $exe @exeArgs $script $args\n' +
+            '}\n';
+    }
+    ps1 += 'exit $LASTEXITCODE\n';
 
     return { cmd, ps1 };
 }
@@ -501,15 +545,41 @@ export function normalizeBinMap(pkgName: string, bin: string | Record<string, st
  *
  * `isGjsBin` lets the caller keep plain-Node packages on the plain symlink path
  * — this must not change how `lodash`'s bin is linked.
+ *
+ * WHY THE npm MAP COMES BACK TOO
+ *
+ * The reasoning above is sound and INCOMPLETE: it was written from the Node-less
+ * GJS host and is blind to the mirror case. `@gjsify/cli` declares BOTH fields,
+ * so a host with no `gjs` — macOS and Windows, the two active port targets —
+ * got `exec gjs -m <bundle>`, which is exit 127, while a working Node entry sat
+ * beside it in the same package. `cli-cross-platform.yml` recorded that on both
+ * OSes for three consecutive releases (v0.27.1, v0.28.0, v0.29.0); it is
+ * advisory, so it stayed red. The install even KNEW: its own post-install check
+ * printed `Missing required system dependencies: ✗ GJS` and then wrote a
+ * gjs-only launcher anyway.
+ *
+ * So `nodeFallback` carries the npm map alongside, and the LAUNCHER decides per
+ * invocation. Deliberately not an install-time host probe: an install-time
+ * decision is a SNAPSHOT, and this repo has already paid for that exact mistake
+ * once — `buildNativeEnvPreamble` used to bake the install-time prebuild scan,
+ * so a package installed later was invisible and v0.24.1 shipped a launcher with
+ * no preamble at all. A host probe here fails the same way in reverse: install
+ * without gjs, install gjs afterwards, shim still points at Node forever.
  */
 export function pickBinMap(
     pkgName: string,
     pkgJson: { bin?: string | Record<string, string>; gjsify?: { bin?: string | Record<string, string> } },
-): { map: Map<string, string>; isGjsBin: boolean } | null {
+): { map: Map<string, string>; isGjsBin: boolean; nodeFallback: Map<string, string> | null } | null {
     const gjsifyBin = pkgJson.gjsify?.bin;
-    if (gjsifyBin !== undefined) return { map: normalizeBinMap(pkgName, gjsifyBin), isGjsBin: true };
     const npmBin = pkgJson.bin;
-    if (npmBin !== undefined) return { map: normalizeBinMap(pkgName, npmBin), isGjsBin: false };
+    if (gjsifyBin !== undefined) {
+        return {
+            map: normalizeBinMap(pkgName, gjsifyBin),
+            isGjsBin: true,
+            nodeFallback: npmBin === undefined ? null : normalizeBinMap(pkgName, npmBin),
+        };
+    }
+    if (npmBin !== undefined) return { map: normalizeBinMap(pkgName, npmBin), isGjsBin: false, nodeFallback: null };
     return null;
 }
 
@@ -526,9 +596,28 @@ export function pickBinMap(
  * because not every published bundle carries a `#!/usr/bin/env -S gjs -m` line,
  * and direct-exec'ing a shebang-less `.mjs` falls through to `/bin/sh`, which
  * then parses JavaScript as shell.
+ *
+ * `nodeFallbackAbs` makes the runtime choice per INVOCATION rather than per
+ * install — see {@link pickBinMap} for why a host probe at install time is the
+ * wrong shape. `gjs` stays first: that is today's behaviour on a host carrying
+ * both, and which runtime wins is a separate decision from making the shim
+ * runnable at all.
  */
-export function buildShLauncher(targetAbs: string, opts: { envPreamble?: string; isGjsBundle: boolean }): string {
+export function buildShLauncher(
+    targetAbs: string,
+    opts: { envPreamble?: string; isGjsBundle: boolean; nodeFallbackAbs?: string },
+): string {
     const preamble = opts.isGjsBundle ? (opts.envPreamble ?? '') : '';
+    if (opts.isGjsBundle && opts.nodeFallbackAbs !== undefined) {
+        // The preamble only ever configures the GI search path, so it stays
+        // inside the gjs branch — exporting it around a Node exec would be
+        // inert at best and misleading to anyone reading the shim.
+        return (
+            `#!/bin/sh\nif command -v gjs >/dev/null 2>&1; then\n${preamble}` +
+            `exec gjs -m ${shQuote(targetAbs)} "$@"\nfi\n` +
+            `exec node ${shQuote(opts.nodeFallbackAbs)} "$@"\n`
+        );
+    }
     const exec = opts.isGjsBundle ? `exec gjs -m ${shQuote(targetAbs)} "$@"` : `exec ${shQuote(targetAbs)} "$@"`;
     return `#!/bin/sh\n${preamble}${exec}\n`;
 }

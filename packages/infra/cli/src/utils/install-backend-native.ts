@@ -2129,8 +2129,16 @@ export function writeBinEntry(opts: {
      * typelib while the runtime boots, before the first line runs.
      */
     gjs?: { envPreamble: string; prebuildDirs: readonly string[] };
+    /**
+     * The package's npm `bin` target, when it declares one ALONGSIDE
+     * `gjsify.bin`. The launcher then picks a runtime per invocation instead of
+     * hard-coding `gjs` — see {@link pickBinMap}. Absent for a package that
+     * declares only one of the two, which is every package but `@gjsify/cli`
+     * today.
+     */
+    nodeFallbackAbs?: string;
 }): void {
-    const { binDir, binName, targetAbs, gjs } = opts;
+    const { binDir, binName, targetAbs, gjs, nodeFallbackAbs } = opts;
     const platform = opts.platform ?? process.platform;
     const linkPath = path.join(binDir, binName);
 
@@ -2139,7 +2147,10 @@ export function writeBinEntry(opts: {
         // Replace the whole sibling set: a previous install may have written a
         // plain symlink (or npm's three-file shim) under this very name.
         for (const stale of [linkPath, `${linkPath}.cmd`, `${linkPath}.ps1`]) rmWithRetry(stale);
-        fs.writeFileSync(linkPath, buildShLauncher(targetAbs, { envPreamble: gjs.envPreamble, isGjsBundle: isBundle }));
+        fs.writeFileSync(
+            linkPath,
+            buildShLauncher(targetAbs, { envPreamble: gjs.envPreamble, isGjsBundle: isBundle, nodeFallbackAbs }),
+        );
         try {
             fs.chmodSync(linkPath, 0o755);
         } catch {
@@ -2157,6 +2168,7 @@ export function writeBinEntry(opts: {
                 interpreterArgs: ['-m'],
                 target: targetAbs,
                 prependEnv,
+                fallback: nodeFallbackAbs === undefined ? undefined : { interpreter: 'node', target: nodeFallbackAbs },
             });
             fs.writeFileSync(`${linkPath}.cmd`, shims.cmd);
             fs.writeFileSync(`${linkPath}.ps1`, shims.ps1);
@@ -2234,11 +2246,16 @@ async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Pro
             } catch {
                 /* best effort */
             }
+            // Only a fallback that EXISTS is worth writing: a launcher naming a
+            // missing Node entry would trade exit 127 for a different exit 127.
+            const fallbackRel = picked.nodeFallback?.get(binName);
+            const fallbackAbs = fallbackRel === undefined ? undefined : path.join(pkgDir, fallbackRel);
             writeBinEntry({
                 binDir,
                 binName,
                 targetAbs,
                 gjs: picked.isGjsBin ? gjsEnvForPrefix() : undefined,
+                nodeFallbackAbs: fallbackAbs !== undefined && fs.existsSync(fallbackAbs) ? fallbackAbs : undefined,
             });
             created++;
         }
