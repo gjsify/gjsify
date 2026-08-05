@@ -702,6 +702,25 @@ jobs:
           path: packages/infra/rolldown-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
+      # THE MEASUREMENT `commit-prebuilds` RUNS POST-MERGE, MOVED ONTO THE PR.
+      #
+      # `prebuilds.yml`'s base image decides which glibc the published binaries link
+      # against, so bumping it rewrites `gjsify.glibcRequires` for every consumer
+      # without touching a line of source. #897 bumped it 43 -> 44 in a hygiene sweep;
+      # glibc 2.43 re-versions the float maths lightningcss calls, the measured floor
+      # went 2.39 -> 2.43, and `main` was red for three consecutive `commit-prebuilds`
+      # runs (#924). The gate worked and named both numbers -- it just fired POST-MERGE,
+      # because `commit-prebuilds` is main-only, so the PR that caused it was green.
+      #
+      # It measures THIS LEG'S OUTPUT, not the committed copies: `stage-prebuild.mjs
+      # --scratch` wrote `<bridge>/prebuilds/<target>/`, which is empty in git, while
+      # the committed binaries live in the platform packages. Pointing plain
+      # `audit-runtimes --check` here would grade the OLD bytes -- and pass while doing
+      # it, since a missing target directory is a stat and not a failure there.
+      # `nodejs` is already installed above for `stage-prebuild.mjs`.
+      - name: Gate on the glibc floor of what this leg just built
+        run: node scripts/check-staged-prebuild-libc.mjs
+
   # ----------------------------------------------------------------
   # QEMU-emulated builds — ppc64, s390x, riscv64
   #
@@ -927,6 +946,25 @@ jobs:
           name: terminal-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/terminal-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
+
+      # THE MEASUREMENT `commit-prebuilds` RUNS POST-MERGE, MOVED ONTO THE PR.
+      #
+      # `prebuilds.yml`'s base image decides which glibc the published binaries link
+      # against, so bumping it rewrites `gjsify.glibcRequires` for every consumer
+      # without touching a line of source. #897 bumped it 43 -> 44 in a hygiene sweep;
+      # glibc 2.43 re-versions the float maths lightningcss calls, the measured floor
+      # went 2.39 -> 2.43, and `main` was red for three consecutive `commit-prebuilds`
+      # runs (#924). The gate worked and named both numbers -- it just fired POST-MERGE,
+      # because `commit-prebuilds` is main-only, so the PR that caused it was green.
+      #
+      # It measures THIS LEG'S OUTPUT, not the committed copies: `stage-prebuild.mjs
+      # --scratch` wrote `<bridge>/prebuilds/<target>/`, which is empty in git, while
+      # the committed binaries live in the platform packages. Pointing plain
+      # `audit-runtimes --check` here would grade the OLD bytes -- and pass while doing
+      # it, since a missing target directory is a stat and not a failure there.
+      # `nodejs` is already installed above for `stage-prebuild.mjs`.
+      - name: Gate on the glibc floor of what this leg just built
+        run: node scripts/check-staged-prebuild-libc.mjs
 
   # ----------------------------------------------------------------
   # macOS — prebuilds/darwin-arm64 (Apple silicon) + prebuilds/darwin-x64 (Intel)
