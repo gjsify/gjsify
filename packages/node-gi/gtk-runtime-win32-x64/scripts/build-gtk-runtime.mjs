@@ -44,8 +44,6 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, wr
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-    WIN32_WINDOWING_DATA_SETS,
-    WINDOWING_DATA_SETS,
     copyTreeDereferenced,
     findSymlinks,
     formatSymlinkProblems,
@@ -567,16 +565,13 @@ console.log(
 // The data-side twin of § 5, sharing its rule module with the darwin builder: a data set
 // is required iff the FINISHED bundle ships the namespace it belongs to (namespaces from
 // the typelib set § 5 just read off disk, not from § 4's copy plan), so § 4's warnings
-// can stay where the cause is visible while a prefix gap fails HERE. This is the win32
-// superset: WIN32_WINDOWING_DATA_SETS adds the gdk-pixbuf loaders + loaders.cache, which
-// this builder ships and the darwin one does not yet (see bundle-data.mjs).
+// can stay where the cause is visible while a prefix gap fails HERE. The set list is the
+// SAME one the darwin builder asserts — it used to be that list plus a win32-only sibling
+// for the gdk-pixbuf loaders, which only win32 shipped; the darwin builder ships them now,
+// so there is one list and this call passes no `sets` override at all.
 if (WINDOWING) {
     const shippedNamespaces = [...symmetry.backed, ...symmetry.headerOnly].map((t) => t.namespace);
-    const data = verifyWindowingData({
-        bundleDir: OUT,
-        shippedNamespaces,
-        sets: [...WINDOWING_DATA_SETS, ...WIN32_WINDOWING_DATA_SETS],
-    });
+    const data = verifyWindowingData({ bundleDir: OUT, shippedNamespaces });
     if (data.problems.length > 0) {
         console.error(`build-gtk-runtime: ${formatWindowingDataProblems(data.problems, { bundleDir: OUT })}`);
         process.exit(1);

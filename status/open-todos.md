@@ -475,29 +475,6 @@ Host diagnosis is repeatable: `gjsify run packages/framework/webgl/scripts/probe
 pattern; exits non-zero when the GLArea does not realize). It needs a display, which is why it is a
 script and not a spec — no CI runner here has one.
 
-### The darwin `--windowing` bundle ships icon themes but no gdk-pixbuf image loaders
-
-`build-gtk-runtime-darwin.mjs` § 4b copies `share/icons/{Adwaita,hicolor}` (dereferenced, and § 4d
-fails the build on any symlink left under the data tree) and refreshes their caches, but not the
-gdk-pixbuf loader MODULES + `loaders.cache` — unlike the win32 builder, which
-copies them from `lib/gdk-pixbuf-2.0/2.10.0/loaders` and rewrites the cache bundle-relative. The
-loaders are dylibs living in a NESTED dir, so they need their own `@loader_path` relocation pass
-(the flat `lib/` walk does not reach them) plus `librsvg` in the closure, which is why they were
-deferred.
-
-Consequence, now that this variant is what gets PUBLISHED: an SVG symbolic icon can render blank on
-macOS while the theme is present, i.e. the failure looks like a theming bug rather than a missing
-decoder. `Rsvg-2.0.typelib` is correctly DROPPED from the bundle by the symmetry rule (nothing
-shipped depends on it and librsvg is absent) — that is orthogonal: the pixbuf loader is loaded
-through gdk-pixbuf's module system, not through the typelib.
-
-The gap is NOT papered over by the data gate: `WIN32_WINDOWING_DATA_SETS`
-(`packages/node-gi/scripts/bundle-data.mjs`) requires `loaders.cache` + a non-empty loader dir for
-the win32 bundle, which ships them, and the darwin builder deliberately does not declare that set —
-"assert what you ship" — so the gate stays honest instead of green-by-omission. Closing this means
-adding the loaders to the darwin builder AND moving the set out of the win32-only list in the same
-change, at which point the assertion covers both.
-
 ### `@gjsify/gamepad` on a platform without libmanette — OBSERVABILITY DONE, backend still missing
 
 The observability half is closed. `packages/web/gamepad/src/backend.ts` is now the one place the

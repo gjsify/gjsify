@@ -163,7 +163,13 @@ export function formatSymlinkProblems(links, { root }) {
  * Only sets whose absence is SILENT belong here. `etc/fonts` deliberately does not: a
  * gvsbuild prefix without it means pango uses the win32/DirectWrite backend, which is
  * the normal configuration rather than a defect, and the builder logs "skipping" not a
- * warning. The gdk-pixbuf loaders are win32-only for the honest reason (below).
+ * warning.
+ *
+ * The list is now PLATFORM-INDEPENDENT: the gdk-pixbuf loaders used to live in a
+ * win32-only sibling array because the darwin builder did not bundle them, and "assert
+ * what you ship" kept the gate honest instead of green-by-omission. That builder ships
+ * them as of `build-gtk-runtime-darwin.mjs` § 2b, so the exception is gone — one list,
+ * both builders, no asymmetry to remember.
  */
 export const WINDOWING_DATA_SETS = [
     {
@@ -187,6 +193,22 @@ export const WINDOWING_DATA_SETS = [
         remedy: "brew install adwaita-icon-theme (darwin) / ship the prefix's share/icons (win32)",
     },
     {
+        // Directly after `icons`, because it is that set's DECODER: an icon theme without
+        // the loaders is 22 MB of files nothing in the bundle can read. Measured against
+        // the published @gjsify/gtk-runtime-darwin-x64@0.28.0 on a macOS x64 host:
+        // `GdkPixbuf.Pixbuf.new_from_file()` on that bundle's own
+        // share/icons/Adwaita/symbolic/actions/open-menu-symbolic.svg returned NULL.
+        id: 'pixbuf-loaders',
+        namespace: 'GdkPixbuf',
+        what: 'the gdk-pixbuf image loaders + their cache',
+        why: 'without loaders.cache gdk-pixbuf decodes nothing, so PNG/SVG icons fail to load with no diagnostic — the failure reads as a theming bug rather than a missing decoder',
+        requires: [
+            { file: 'lib/gdk-pixbuf-2.0/2.10.0/loaders.cache' },
+            { glob: 'lib/gdk-pixbuf-2.0/2.10.0/loaders/*' },
+        ],
+        remedy: 'check the prefix ships lib/gdk-pixbuf-2.0/2.10.0/loaders and that gdk-pixbuf-query-loaders was found; the SVG decoder comes from librsvg, which on darwin must also be a seed of the dylib closure',
+    },
+    {
         id: 'gtksource',
         namespace: 'GtkSource',
         what: "GtkSourceView's data tree (share/gtksourceview-5)",
@@ -200,27 +222,6 @@ export const WINDOWING_DATA_SETS = [
         why: 'a bundle that advertises the GtkSource namespace must carry its data tree; a consumer .lang or .snippets file fails to validate without the RNG/DTD schemas',
         requires: [{ tree: 'share/gtksourceview-5' }],
         remedy: 'brew install gtksourceview5 (darwin) / use a gvsbuild prefix that ships share/gtksourceview-5 (win32)',
-    },
-];
-
-/**
- * win32-ONLY, and not because darwin does not need it: the darwin builder does not
- * bundle the gdk-pixbuf image loaders yet (they are dylibs in a NESTED dir and need
- * their own @loader_path pass, tracked in status/open-todos.md), so requiring them
- * there would assert something that builder does not do. The rule is "assert what you
- * ship" — the gap stays written down where it is, not hidden behind a green gate.
- */
-export const WIN32_WINDOWING_DATA_SETS = [
-    {
-        id: 'pixbuf-loaders',
-        namespace: 'GdkPixbuf',
-        what: 'the gdk-pixbuf image loaders + their cache',
-        why: 'without loaders.cache gdk-pixbuf decodes nothing, so PNG/SVG icons fail to load with no diagnostic',
-        requires: [
-            { file: 'lib/gdk-pixbuf-2.0/2.10.0/loaders.cache' },
-            { glob: 'lib/gdk-pixbuf-2.0/2.10.0/loaders/*' },
-        ],
-        remedy: 'check the prefix ships lib/gdk-pixbuf-2.0/2.10.0/loaders and that gdk-pixbuf-query-loaders was found',
     },
 ];
 
