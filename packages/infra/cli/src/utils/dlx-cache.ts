@@ -172,7 +172,7 @@ export function symlinkSwap(cacheDir: string, prepareDir: string, opts: { juncti
 
 /** Clean up `<cacheDir>/<oldPrepareDir>` siblings older than `maxAgeMinutes`. */
 export function cleanupStalePrepareDirs(cacheDir: string, _maxAgeMinutes: number = DEFAULT_TTL_MIN): void {
-    // Out of scope for Phase 1 — pnpm has the same TODO. Leaving a stub so
+    // TODO(open-todos: 10 small API gaps): out of scope for Phase 1 — pnpm has the same stub. Kept so
     // call sites already exist when we do implement it.
     void cacheDir;
 }

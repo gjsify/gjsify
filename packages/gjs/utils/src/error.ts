@@ -39,6 +39,6 @@ export const initErrorV8Methods = (ErrorConstructor: typeof Error) => {
         };
     }
 
-    // TODO Error.stackTraceLimit()
-    // TODO Error.prepareStackTrace()
+    // TODO(open-todos: 10 small API gaps): Error.stackTraceLimit()
+    // TODO(open-todos: 10 small API gaps): Error.prepareStackTrace()
 };

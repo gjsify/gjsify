@@ -85,7 +85,18 @@
         // failure AND "Found 0 story file(s)" AND exited 0). Flags a statement
         // containing a bare exit when another statement follows it in the same
         // list; tail-position exits are fine. Repair: `return process.exit(…)`.
-        "gjsify/deferred-process-exit": "error"
+        "gjsify/deferred-process-exit": "error",
+        // A deferral marker must name where it is tracked. A bare `// TODO` has
+        // no owner and no retirement path: nothing fails when the work lands and
+        // nothing fails when it is abandoned. Measured at v0.29.0 — 37 of 42
+        // markers in source carried no reference at all, one of them on a test
+        // documented as broken. Anchors accepted: `#123` (issue/PR),
+        // `open-todos` (the `status/` ledger the `status-data` conformance rule
+        // already validates every PR), or the `// fixed upstream in gjsify: …`
+        // shim note. This is the one deferral shape in the repo that lacked the
+        // mandatory-reason + self-retirement pattern `it.failing`,
+        // `unchecked-fields.mjs` and `platformsUncommitted` all carry.
+        "gjsify/todo-needs-anchor": "error"
     },
     "overrides": [
         {

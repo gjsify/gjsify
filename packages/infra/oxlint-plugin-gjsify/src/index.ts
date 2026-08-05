@@ -12,6 +12,7 @@
 
 import { deferredProcessExitRule } from './deferred-process-exit.ts';
 import { registerClassOrderRule } from './register-class-order.ts';
+import { todoNeedsAnchorRule } from './todo-needs-anchor.ts';
 import type { Plugin } from './types.ts';
 
 const plugin: Plugin = {
@@ -21,6 +22,7 @@ const plugin: Plugin = {
     rules: {
         'deferred-process-exit': deferredProcessExitRule,
         'register-class-order': registerClassOrderRule,
+        'todo-needs-anchor': todoNeedsAnchorRule,
     },
 };
 

@@ -7,22 +7,22 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.
 ## Where the rules live — nearest AGENTS.md wins
 
 This file holds what is true across the whole repo. Everything scoped to one subtree lives in
-THAT subtree's AGENTS.md, which is authoritative there — do not restate its rules here, a second
-copy is a second truth that drifts. **Read this file, then the one for what you are touching.**
+THAT subtree's AGENTS.md and is authoritative there — never restate it here, a second copy is a
+second truth that drifts. **Read this file, then the one for what you are touching.**
 
 | Working on | Read |
 |---|---|
-| `packages/node/*` — Node API pillar, CJS-ESM interop | [packages/node/AGENTS.md](packages/node/AGENTS.md) |
-| `packages/web/*` — Web API pillar | [packages/web/AGENTS.md](packages/web/AGENTS.md) |
-| `packages/dom/*` — DOM pillar | [packages/dom/AGENTS.md](packages/dom/AGENTS.md) |
-| `packages/framework/*` — storybook, devtools, bridges, ADR 0012 registration | [packages/framework/AGENTS.md](packages/framework/AGENTS.md) |
-| the CLI + the committed bootstrap bundles | [packages/infra/cli/AGENTS.md](packages/infra/cli/AGENTS.md) |
-| the build (`--app <target>`, platform plugins) | [packages/infra/rolldown-plugin-gjsify/AGENTS.md](packages/infra/rolldown-plugin-gjsify/AGENTS.md) |
-| slot routing (`@gjsify/<X>` → platform entry) | [packages/infra/resolve-npm/AGENTS.md](packages/infra/resolve-npm/AGENTS.md) |
-| `packages/node-gi` — axis 5, `gi://` on Node/Bun/Deno | [packages/node-gi/AGENTS.md](packages/node-gi/AGENTS.md) |
-| `packages/napi` — N-API host in GJS | [packages/napi/AGENTS.md](packages/napi/AGENTS.md) |
-| `packages/nativescript-bridge` | [packages/nativescript-bridge/AGENTS.md](packages/nativescript-bridge/AGENTS.md) |
-| writing or running tests | [tests/AGENTS.md](tests/AGENTS.md) |
+| `packages/node/*` — Node API pillar, CJS-ESM interop | [packages/node](packages/node/AGENTS.md) |
+| `packages/web/*` — Web API pillar | [packages/web](packages/web/AGENTS.md) |
+| `packages/dom/*` — DOM pillar | [packages/dom](packages/dom/AGENTS.md) |
+| `packages/framework/*` — storybook, devtools, bridges, ADR 0012 registration | [packages/framework](packages/framework/AGENTS.md) |
+| the CLI + the committed bootstrap bundles | [packages/infra/cli](packages/infra/cli/AGENTS.md) |
+| the build (`--app <target>`, platform plugins) | [packages/infra/rolldown-plugin-gjsify](packages/infra/rolldown-plugin-gjsify/AGENTS.md) |
+| slot routing (`@gjsify/<X>` → platform entry) | [packages/infra/resolve-npm](packages/infra/resolve-npm/AGENTS.md) |
+| `packages/node-gi` — axis 5, `gi://` on Node/Bun/Deno | [packages/node-gi](packages/node-gi/AGENTS.md) |
+| `packages/napi` — N-API host in GJS | [packages/napi](packages/napi/AGENTS.md) |
+| `packages/nativescript-bridge` | [packages/nativescript-bridge](packages/nativescript-bridge/AGENTS.md) |
+| writing or running tests | [tests/](tests/AGENTS.md) |
 
 Reference material — read on demand, not loaded every session:
 
@@ -79,10 +79,10 @@ can we implement it there?"* — never *"where can we monkey-patch it in?"*. The
 each with the incident that produced it, are [docs/code-anti-patterns.md](docs/code-anti-patterns.md):
 
 |**reading globals**: `import { X } from '@gjsify/<pkg>'`, not `(globalThis as any).X` — six documented exceptions, all in register/bootstrap code
-|**the legacy `imports.*` object is NOT an API** — it is the GJS host, absent on the node target, and a bare `imports.gi.X` is a `ReferenceError` thrown at the CALL, so the package tests green and the failure surfaces in a consumer. Portable spellings exist for every use (`gi://Ns`, `import system from 'system'`, `TextDecoder`). Enforced by `no-restricted-globals` in `.oxlintrc.json` and by `node-bundle-guard.ts`
+|**the legacy `imports.*` object is NOT an API** — it is the GJS host, absent on the node target, and a bare `imports.gi.X` is a `ReferenceError` thrown at the CALL, so the package tests green and the failure surfaces in a consumer. Portable spellings exist for every use (`gi://Ns`, `import system from 'system'`, `TextDecoder`). Enforced by `no-restricted-globals` and `node-bundle-guard.ts`
 |**patching classes you own**: put the method on the class, not on `globalThis.X.method=…` in a register module
 |**"no module to import from"**: check again — the workspace almost certainly exports it
-|**pure-JS → native swap**: keep the pure-JS path and lift it into a `/core` subpath; the other runtimes still need it. A `/core` SUBPATH is the default over a new `-core` PACKAGE — a new published name needs the manual first-publish bootstrap ([docs/publishing.md](docs/publishing.md))
+|**pure-JS → native swap**: keep the pure-JS path and lift it into a `/core` subpath; the other runtimes still need it. A `/core` subpath beats a new `-core` package — a new published name needs the manual first-publish bootstrap ([docs/publishing.md](docs/publishing.md))
 
 ## Code anti-patterns — measured
 
@@ -97,6 +97,7 @@ are in [docs/code-anti-patterns.md](docs/code-anti-patterns.md) — read them be
 |**shelling out where an API exists** — pass an argv array (`Gio.Subprocess`), never an interpolated command line
 |**monolithic entry points** — `index.ts` = barrel re-exports only
 |**toolkit imports in shared code** — declare `gjsify.headless` so CI holds the claim instead of relying on discipline
+|**a deferral marker that names nothing** — a `TODO`/`FIXME`/`HACK`/`XXX` opening a comment line must anchor to `#123`, a forge issue URL, `open-todos` (the `status/` ledger) or `fixed upstream in …`; better still, fix it in the PR that exposed it. A bare marker has no owner and no retirement. Enforced at `error` by `gjsify/todo-needs-anchor`
 
 ## Package convention
 
@@ -112,7 +113,7 @@ later package. Procedure: [docs/publishing.md](docs/publishing.md).
 
 `@gjsify/unit` (describe/it/expect, Node + GJS). Run: `gjsify workspace @gjsify/<pkg> run test[:node|:gjs]`;
 e2e `node --test tests/e2e/<name>/run.mjs`. Full rules — the seven numbered conventions, browser
-tests, integration tests — are [tests/AGENTS.md](tests/AGENTS.md). The three that get broken most:
+tests, integration tests — are [tests/](tests/AGENTS.md). The three that get broken most:
 
 |**never weaken a test** to make it pass — fix the impl. When the blocker genuinely is not ours, the sanctioned tool is `it.failing(name, fn, reason[, {when}])`, never `it.skip` and never an `if (platform)` guard: it RUNS the test and fails the day it starts passing, so it retires itself
 |**Node tests prove the TEST is correct; GJS tests prove OUR impl.** Both must pass
@@ -156,18 +157,18 @@ pin + root `overrides` scoping — the reasoning and the two CI breaks behind it
 
 ## Cross-runtime tracks
 
-The active axis-5/axis-6 engineering tracks. Concepts + slot model: § Runtime & platform model. Axis 5 → [packages/node-gi/AGENTS.md](packages/node-gi/AGENTS.md) ·
-N-API host → [packages/napi/AGENTS.md](packages/napi/AGENTS.md) ·
-NativeScript → [packages/nativescript-bridge/AGENTS.md](packages/nativescript-bridge/AGENTS.md) ·
+The active axis-5/axis-6 engineering tracks. Concepts + slot model: § Runtime & platform model. Axis 5 → [packages/node-gi](packages/node-gi/AGENTS.md) ·
+N-API host → [packages/napi](packages/napi/AGENTS.md) ·
+NativeScript → [packages/nativescript-bridge](packages/nativescript-bridge/AGENTS.md) ·
 axis 6 bundled toolchains → [docs/bundled-toolchains.md](docs/bundled-toolchains.md).
 
 ## Writing agent context files
 
 **Budget first — an agent context file is loaded on EVERY turn, so its size is a permanent tax.**
 Root AGENTS.md ≤ 20 KB, any nested one ≤ 20 KB, and no single file over 32 KiB: that is
-`project_doc_max_bytes`, the point where Codex silently truncates the tail with no warning in the
-TUI. This file was 277 KB (~81k tokens, 6.5× that limit) before it was split; it got there one
-defensible paragraph at a time, so the budget is the mechanism, not the intention.
+`project_doc_max_bytes`, where Codex silently truncates the tail with no warning. This file was
+277 KB before it was split, reached one defensible paragraph at a time — the budget is the
+mechanism, not the intention.
 
 **Where content goes.** A rule that is true repo-wide → this file. A rule scoped to one subtree →
 that subtree's AGENTS.md, which is authoritative there. The INCIDENT behind a rule, a lookup
@@ -177,7 +178,6 @@ a screen is the signal to move its detail out and leave the rule plus one link, 
 **Never compress away the INCIDENT that justifies a rule** — a rule without its reason gets
 "simplified" back into the bug. Moving it one hop into `docs/` preserves it; deleting it does not.
 
-Style: pipe-delimited | single-line directives | strip prose | abbreviated keys
-(req,opt,str,int,bool,len,min,max,def) | flatten with brace expansion | "Prefer retrieval-led
-reasoning" preamble. Preserve actionable info + structural boundaries | keep non-obvious code
-examples | never compress error messages or edge-case docs.
+Style: pipe-delimited | single-line directives | strip prose | abbreviated keys | "Prefer
+retrieval-led reasoning" preamble | keep non-obvious code examples | never compress error
+messages or edge-case docs.

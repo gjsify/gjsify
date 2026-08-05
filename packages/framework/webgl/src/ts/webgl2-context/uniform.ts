@@ -114,7 +114,7 @@ const uniformMethods: UniformMethods & ThisType<WebGL2RenderingContext> = {
     ): void {
         if (!location) return;
         const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
-        // TODO: update @girs/gwebgl-0.1 types to accept Uint32Array; cast until then
+        // TODO(open-todos: 10 small API gaps): update @girs/gwebgl-0.1 types to accept Uint32Array; cast until then
         this._native2.uniform1uiv((location as WebGLUniformLocation)._, arr.length, arr as unknown as number[]);
     },
 
@@ -166,7 +166,7 @@ const uniformMethods: UniformMethods & ThisType<WebGL2RenderingContext> = {
     ): void {
         if (!location) return;
         const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
-        // TODO: update @girs/gwebgl-0.1 types to accept Float32Array; cast until then
+        // TODO(open-todos: 10 small API gaps): update @girs/gwebgl-0.1 types to accept Float32Array; cast until then
         this._native2.uniformMatrix2x3fv((location as WebGLUniformLocation)._, transpose, arr as unknown as number[]);
     },
 

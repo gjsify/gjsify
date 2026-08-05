@@ -12,7 +12,7 @@ const _sleep = (ms: number) => {
 
 export default async () => {
     await describe('logSignals', async () => {
-        // TODO: Fix this test
+        // TODO(open-todos: 12 test sites are parked): fix this test, or declare it with `it.failing` so it retires itself.
         // await it("should emit an uncaughtException event on a top level throw", async () => {
         //     const onUnhandledRejection = spy((_self, _data: StructuredLogData, _promiseData) => {});
         //     const signalHandlerId = logSignals.connect("unhandledRejection", onUnhandledRejection);

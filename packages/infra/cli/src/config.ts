@@ -251,7 +251,7 @@ export class Config {
 
         tsConfig.reflection ||= cliArgs.reflection;
 
-        // TODO replace with `cliArgs.logLevel`
+        // TODO(open-todos: 10 small API gaps): replace with `cliArgs.logLevel`
         configData.verbose = cliArgs.verbose || false;
         configData.exclude = cliArgs.exclude || [];
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;

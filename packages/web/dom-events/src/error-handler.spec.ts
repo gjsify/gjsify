@@ -5,7 +5,7 @@ import process from 'node:process';
 
 export const ErrorHandlerTest = async () => {
     await describe('The default error handler', async () => {
-        // TODO: FIXME
+        // TODO(open-todos: 12 test sites are parked): gated to `on([])`, which no runtime can match — the reason is at the "active behaviour" describe below. `it.failing` would retire itself.
         await on([], async () => {
             await it('should dispatch an ErrorEvent if a listener threw an error', async () => {
                 const _originalConsoleError = console.error;
@@ -26,7 +26,7 @@ export const ErrorHandlerTest = async () => {
                 }
 
                 assert.strictEqual(f.calls.length, 1, 'f should be called.');
-                // TODO: fails on Deno
+                // TODO(open-todos: 12 test sites are parked): the two assertions below fail on Deno — `it.failing(…, { when: isDeno })` would run them and self-retire.
                 // assert.strictEqual(f.calls[0].arguments[0], error.message)
                 // assert.strictEqual(f.calls[0].arguments[4], error)
                 assert.strictEqual(consoleError.calls.length, 1, 'console.error should be called.');
@@ -34,7 +34,7 @@ export const ErrorHandlerTest = async () => {
             });
         });
 
-        // TODO: FIXME
+        // TODO(open-todos: 12 test sites are parked): gated to `on([])`, which no runtime can match — the reason is at the "active behaviour" describe below. `it.failing` would retire itself.
         await on([], async () => {
             await it('should emit an uncaughtException event if a listener threw an error', async () => {
                 const onUncaughtException = spy((_event) => {});

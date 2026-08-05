@@ -394,7 +394,7 @@ export const EventTargetTest = async () => {
 
             assert.strictEqual(f1.calls.length, 1, 'f1 should be called');
             assert.strictEqual(f2.calls.length, 1, 'f2 should be called');
-            // TODO: Fixme
+            // TODO(open-todos: 12 test sites are parked): the f3 assertion below is commented out, so nothing counts it.
             // assert.strictEqual(f3.calls.length, 1, "f3 should be called")
         });
 
@@ -413,7 +413,7 @@ export const EventTargetTest = async () => {
 
             assert.strictEqual(f1.calls.length, 1, 'f1 should be called');
             assert.strictEqual(f2.calls.length, 1, 'f2 should be called');
-            // TODO: Fixme
+            // TODO(open-todos: 12 test sites are parked): the f3 assertion below is commented out, so nothing counts it.
             // assert.strictEqual(f3.calls.length, 1, "f3 should be called")
         });
 

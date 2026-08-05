@@ -1403,3 +1403,70 @@ could land honestly, but the entry says so: the right repair is a precondition i
 own SKIP gate — it already carries nine of them — so it skips where an Adwaita GApplication
 cannot complete startup and keeps running where it can. Removing the ledger entry in the same
 change is what `check-e2e-suite-coverage.mjs` will then require.
+
+### 12 test sites are parked behind a bare marker, where `it.failing` would retire itself
+
+Found by `gjsify/todo-needs-anchor` on its first run. The suites are not broken —
+each of these is a deliberate parking whose REASON is recorded somewhere. What is
+missing is the retirement: nothing fails on the day the parked behaviour starts
+working, so the parking outlives the gap it was written for.
+
+Three shapes, in increasing order of how well they are already documented:
+
+`packages/web/dom-events/src/error-handler.spec.ts` gates two `describe` blocks
+to `await on([], …)`. `runtimeMatch([])` runs `[].find(…)` → `undefined` →
+`matched: false`, so the callback is never invoked and the run counts it as
+IGNORED — a permanent skip that no runtime can ever satisfy. This one IS
+explained, 50 lines below at the `listener exception reporting (active
+behaviour)` block: the parked specs exercise W3C `window.onerror` /
+`process.uncaughtException` dispatch we have not implemented, and the two active
+specs pin what we do ship. The reason is good; the distance between the marker
+and the reason is the defect, and `on([])` is `it.skip` wearing another name —
+AGENTS.md § Testing already says which of the three neighbours applies.
+
+Commented-out assertions with a bare marker as the only trace:
+`event-target.spec.ts:397,416` (`f3 should be called`, twice) and
+`abort-controller.spec.ts:31,63` (the `[object AbortController]` stringification
+and the `for…in` key enumeration). An assertion deleted by comment is invisible
+to every count the suite reports.
+
+Markers with no statement at all — `abort-controller.spec.ts:82,126` and
+`packages/gjs/utils/src/log.spec.ts:15` (`// TODO: Fix this test`), plus
+`tests/integration/worker-stress/src/cross-process-port-transfer.gjs.spec.ts:5`,
+whose `// TODO.` opens a sentence that then describes what the file verifies.
+
+WHAT TO DO, per site: if the behaviour is genuinely unimplemented, `it.failing(name,
+fn, reason[, {when}])` — it RUNS the test, tolerates the declared failure, and
+fails the run the day it passes. If the assertion was commented out because it
+was wrong, delete it. If it was commented out because it flakes, that is a
+different entry. Only `error-handler.spec.ts:53` needs nothing: it cites
+https://gitlab.gnome.org/GNOME/gjs/-/issues/523 for the object-identity gap,
+which is an upstream defect tracked better than a local number could.
+
+Each site is anchored to this entry for now, which satisfies the lint rule and
+leaves the work visible. That is the weaker half of the pair — the rule prevents
+NEW untracked markers; converting these to `it.failing` is what makes them
+self-retiring.
+
+### 10 small API gaps are declared only in a source comment
+
+Also from `todo-needs-anchor`'s first run. None is a defect — each is a known
+edge the implementation does not cover yet, written down at the call site and
+tracked nowhere, so none of them can be prioritised against anything else.
+
+| Site | Gap |
+|---|---|
+| `packages/gjs/utils/src/error.ts:42,43` | `Error.stackTraceLimit` / `Error.prepareStackTrace` unimplemented |
+| `packages/gjs/utils/src/fs.ts:17` | path argument does not accept `Buffer` or `URL` |
+| `packages/gjs/unit/src/index.ts:993` | `on(runtime, version)` takes no wildcard (`16.x.x`) |
+| `packages/gjs/unit/src/index.ts:1008` | no `Browser` runtime in the matcher, though `tests/browser/` exists |
+| `packages/gjs/unit/src/index.ts:1347` | only part of `node:assert` is wrapped |
+| `packages/infra/cli/src/config.ts:254` | log level read from the wrong source, wants `cliArgs.logLevel` |
+| `packages/infra/cli/src/utils/dlx-cache.ts:175` | `cleanupStalePrepareDirs` is a stub that ignores its TTL |
+| `packages/node/fs/src/browser/stream.ts:225` | `FSWatcher` is a stub; the in-memory volume is single-process |
+| `packages/node/querystring/src/error.ts:3` | node-error classes duplicated per package instead of shared |
+| `packages/framework/webgl/…/uniform.ts:117,169` | `@girs/gwebgl-0.1` types reject `Uint32Array`/`Float32Array`, worked around by a cast |
+
+The two `uniform.ts` casts and the `webtorrent-augment.d.ts` DefinitelyTyped note
+are the only ones whose repair is in ANOTHER repo (ts-for-gir and
+DefinitelyTyped); the rest are ordinary in-tree work.

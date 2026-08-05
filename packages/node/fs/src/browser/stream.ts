@@ -222,7 +222,7 @@ export function createWriteStream(path: string | URL, opts?: WriteOpts): WriteSt
 }
 
 // ───────────── FSWatcher (stub) ──────────────────────────────────────────────
-// True file watching is a TODO — the in-memory volume is single-process so a
+// TODO(open-todos: 10 small API gaps): true file watching is unimplemented. The volume is single-process, so a
 // future iteration could thread mutator events through here. For now consumers
 // get an `EventBus` that exposes `.close()` and never fires — preserves the
 // shape so importer code doesn't have to special-case browsers.

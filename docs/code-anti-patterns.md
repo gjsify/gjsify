@@ -28,3 +28,58 @@ Recurring shapes LLM-written code gets wrong (cf. GNOME reviewers' list, 2026-07
 |**shelling out where an API exists.** A spawned command line is an injection surface and a quoting-bug factory. Standing in-repo counter-example (fix at next touch, never copy): `@gjsify/fs`'s GJS `linkSync`/`link` run ``GLib.spawn_command_line_sync(`ln ${existing} ${new}`)`` — unquoted interpolation, so a path with a space or shell metachar breaks or injects (`packages/node/fs/src/{sync,callback}.ts`). When a subprocess IS the job, pass an argv array (`Gio.Subprocess`), never an interpolated command line.
 |**monolithic entry points.** `index.ts` = barrel re-exports only; commands/views/features are modules composed by a thin entry. A class owning bootstrap AND business logic AND IO is three classes.
 |**toolkit imports in shared code.** A shared/core module importing UI libraries is the layering bug `gjsify.headless` machine-checks (§ Runtime & platform model — the `canvas2d-core` `gi://Gdk` incident). Don't rely on discipline; declare the headless claim so CI holds it.
+
+## A deferral marker that names nothing
+
+`// TODO` with no reference is the one deferral shape in this repo that carried
+neither a mandatory reason nor a retirement path. Everywhere else the pattern
+holds and is machine-checked:
+
+| Shape | Reason | Retires itself when |
+|---|---|---|
+| `it.failing(name, fn, reason)` | mandatory | the test starts passing |
+| `unchecked-fields.mjs` | mandatory, printed every run | a conformance rule claims the field |
+| `gjsify.platformsUncommitted` | mandatory, printed every run | the prebuild directory appears |
+| `// fixed upstream in gjsify: …` | one line | the consumer bumps the version |
+| `// TODO` | **none** | **never** |
+
+Measured at v0.29.0, before the rule existed: 42 markers in source, 5 with a
+reference and 37 without. Among them `// TODO: Fix this test`, a test documented
+as broken that nothing would ever report; two `describe` blocks in
+`error-handler.spec.ts` gated to `on([])`, which `runtimeMatch` can never satisfy
+(`[].find(…)` is `undefined`), so they count as IGNORED forever; and four
+commented-out assertions whose only trace was the marker above them.
+
+**The rule.** A marker that OPENS a comment line must carry an anchor:
+
+- `#123` — a GitHub issue or PR, for work needing discussion or somebody else
+- a forge issue URL — an UPSTREAM defect. `error-handler.spec.ts` cites
+  `gitlab.gnome.org/GNOME/gjs/-/issues/523`, which is better tracked than any
+  local number; a rule that flagged it would teach people to delete the most
+  useful reference in the file
+- `open-todos` — an entry in `status/open-todos.md`, which the `status-data`
+  conformance rule already validates on every PR and which rejects resolved-TODO
+  corpses, so the ledger cannot rot
+- `fixed upstream in …` — the temporary consumer-side shim note
+
+Preferred over all four: fix it in the PR that exposed it (§ Governance,
+`root-cause`). The anchor is for what genuinely outlives the PR.
+
+**Enforced by** `gjsify/todo-needs-anchor` (`packages/infra/oxlint-plugin-gjsify/`),
+at `error`. Two deliberate scope decisions, both measured rather than assumed:
+
+- It reads the COMMENT STREAM (`sourceCode.getAllComments()`), not the source
+  text, so a marker inside a string literal is not a finding. A text scan cannot
+  tell the two apart — the same distinction `gjs-bundle-guard.ts` documents for
+  `node:` specifiers.
+- The marker must OPEN its line. Prose *about* markers is not a marker, and
+  without this the rule cannot document itself: on the first run 5 of 31 findings
+  were sentences discussing TODOs, three of them inside the rule's own source and
+  one in the `status-data` rule that validates the ledger. The cost is a
+  mid-sentence deferral going unseen; two existed (`dlx-cache.ts`,
+  `fs/browser/stream.ts`) and were rewritten to open their line instead of
+  loosening the rule.
+
+Escape hatch is the ordinary `// oxlint-disable-next-line gjsify/todo-needs-anchor -- <why>`,
+and `.oxlintrc.json` already fails on a disable directive that suppresses
+nothing, so a stale exemption cannot sit quietly either.
