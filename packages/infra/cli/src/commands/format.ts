@@ -11,6 +11,15 @@
 // toolchain handled is intentionally DROPPED in the oxc migration — no other
 // formatter is wired up for those file types.
 //
+// A BARE `gjsify format` WRITES. `--check` is the read-only CI mode and
+// `--no-write` the read-only local one; there is no flagless report mode.
+// This is what every other formatter in the ecosystem does with its bare
+// invocation (oxfmt itself, `cargo fmt`, `gofmt -w`-less `go fmt`), it is what
+// the sibling `gjsify fix` already did, and the previous report-only default
+// silently did nothing in a loop: `gjsify format` was run repeatedly against
+// two unformatted files while `--check` kept flagging them, because the
+// command that looks like the fix was the diagnosis.
+//
 // `--init` writes recommended `.oxlintrc.json` + `.oxfmtrc.json` templates
 // tuned for GJS/GNOME projects (4-space, single-quote, printWidth 120,
 // trailing-comma all, semicolons always, arrow parens always).
@@ -49,9 +58,9 @@ export const formatCommand: Command<unknown, FormatOptions> = {
                 array: true,
             })
             .option('write', {
-                description: 'Modify files in place (default: report drift without writing).',
+                description: 'Modify files in place (default: true). Pass --no-write to report drift instead.',
                 type: 'boolean',
-                default: false,
+                default: true,
             })
             .option('check', {
                 description:
@@ -94,12 +103,12 @@ export const formatCommand: Command<unknown, FormatOptions> = {
         const oxfmtArgs: string[] = [];
         if (args.check) {
             oxfmtArgs.push('--check');
-        } else if (args.write) {
-            oxfmtArgs.push('--write');
-        } else {
-            // No flag: report drift without modifying files. oxfmt's bare
-            // default is `--write`, so be explicit with `--list-different`.
+        } else if (args.write === false) {
+            // `--no-write` — report drift without modifying files. oxfmt's own
+            // bare default is `--write` too, so this branch must be explicit.
             oxfmtArgs.push('--list-different');
+        } else {
+            oxfmtArgs.push('--write');
         }
 
         const configPath = (args.configPath as string | undefined) ?? findOxfmtConfig(cwd) ?? undefined;
@@ -134,5 +143,5 @@ function handleInit({ cwd, force }: { cwd: string; force: boolean }): void {
 
     writeOne('.oxlintrc.json', loadOxlintTemplate());
     writeOne('.oxfmtrc.json', loadOxfmtTemplate());
-    console.log('[gjsify format] Run `gjsify format --write .` to apply the formatter to the project.');
+    console.log('[gjsify format] Run `gjsify format` to apply the formatter to the project.');
 }
