@@ -253,9 +253,10 @@ on both runtimes and aggregates the result (`--runtime gjs|node` to scope,
 **Testing philosophy:** every test runs on both Node.js and GJS — Node validates
 that the *test* is correct, GJS validates that the *implementation* is. Node is
 therefore needed to develop the polyfills, but never to consume them. The full
-contributor guide (conventions, package layout, the tree-shakeable-globals rules,
-the `refs/` reference submodules) is in [AGENTS.md](AGENTS.md); cross-cutting
-decisions are recorded as [ADRs](docs/adr/).
+contributor guide starts at [AGENTS.md](AGENTS.md), which holds the repo-wide rules
+and routes to a per-subtree `AGENTS.md` (`packages/*/`, `tests/`) plus reference
+material under [docs/](docs/) — read the root, then the one for what you are
+touching. Cross-cutting decisions are recorded as [ADRs](docs/adr/).
 
 ## Target environment
 
