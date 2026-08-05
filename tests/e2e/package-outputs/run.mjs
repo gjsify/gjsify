@@ -103,6 +103,75 @@ describe('verify-package-outputs — declared entry points must exist (#67)', ()
         assert.match(out, /All declared entry points exist/);
     });
 
+    // A launchable showcase that declares NO runtimes. `gjsify showcase` resolves a
+    // showcase by name and reads `gjsify.example.runtimes` to decide which runtimes it
+    // will accept — and `utils/runtimes.ts` treats an ABSENT list as UNCONSTRAINED, not
+    // as gjs-only. So silence and "runs everywhere" are indistinguishable, and
+    // `--runtime bun` is accepted for a package that never built a bun bundle. That is
+    // the mirror image of the jelly-jumper@0.23.0 failure (four runtimes declared, none
+    // built), which `impliedExampleNodeEntry` already covers from the other side.
+    it('FAILS when a launchable showcase declares no runtimes at all', () => {
+        const root = makeRoot('no-runtimes');
+        addPackage(
+            root,
+            'a',
+            {
+                name: '@gjsify/example-dom-thing',
+                version: '1.0.0',
+                gjsify: { main: 'dist/gjs.js' },
+            },
+            { 'dist/gjs.js': '// bundle\n' },
+        );
+        // `--scope examples` because that is the sweep showcases are checked by: the
+        // default (core) scope excludes `@gjsify/example-*` by name, and inverting that
+        // carve-out is exactly what the examples scope is for.
+        const { status, out } = runGuard(root, ['--scope', 'examples']);
+        assert.equal(status, 1, out);
+        assert.match(out, /gjsify\.example\.runtimes/);
+        assert.match(out, /names\s+no runtimes|UNCONSTRAINED/);
+    });
+
+    it('passes once that showcase declares them', () => {
+        const root = makeRoot('has-runtimes');
+        addPackage(
+            root,
+            'a',
+            {
+                name: '@gjsify/example-dom-thing',
+                version: '1.0.0',
+                gjsify: { main: 'dist/gjs.js', example: { runtimes: ['gjs'] } },
+            },
+            { 'dist/gjs.js': '// bundle\n' },
+        );
+        const { status, out } = runGuard(root, ['--scope', 'examples']);
+        assert.equal(status, 0, out);
+    });
+
+    // A PRIVATE showcase is launched by path, never resolved by name, so it has nothing
+    // to declare — and the check is gated on `!private` explicitly rather than relying on
+    // the caller, so `--include-private` (which exists for the tarball/examples sweeps)
+    // cannot turn it into a finding whose message would claim `gjsify showcase can launch
+    // it` about a package that it cannot. `@gjsify/example-gtk-node-gi-window` is exactly
+    // this shape in the real tree.
+    it('does NOT flag a private showcase, even with --include-private', () => {
+        const root = makeRoot('private-showcase');
+        addPackage(
+            root,
+            'a',
+            {
+                name: '@gjsify/example-gtk-thing',
+                version: '1.0.0',
+                private: true,
+                gjsify: { main: 'dist/app.gjs.mjs' },
+            },
+            { 'dist/app.gjs.mjs': '// bundle\n' },
+        );
+        const bare = runGuard(root, ['--scope', 'examples']);
+        assert.equal(bare.status, 0, bare.out);
+        const withPrivate = runGuard(root, ['--scope', 'examples', '--include-private']);
+        assert.doesNotMatch(withPrivate.out, /gjsify\.example\.runtimes/);
+    });
+
     it('FAILS when the declaration tree is missing, naming the field and the path', () => {
         const root = makeRoot('no-types');
         addPackage(
