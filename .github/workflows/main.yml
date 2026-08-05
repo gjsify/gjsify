@@ -425,6 +425,20 @@ jobs:
       - name: Verify declared entry points are in the tarball
         run: su testuser -c 'node scripts/verify-tarball-outputs.mjs'
 
+      # The SHOWCASES, as a separate scope. Held back until now for one honest
+      # reason recorded in `status/open-todos.md`: it red-lined on a real finding
+      # — 13 declared entry points across 6 of the 8 published showcases, every
+      # one present on disk and absent from the tarball because `files` was
+      # `["dist"]` while the export names `./src/…`. Wiring it while it failed
+      # would only have blocked main; the finding is fixed now (those six ship
+      # `src`, matching what `adwaita-storybook` already did), so the scope can
+      # hold the line instead of documenting a hole. It matters beyond cosmetics:
+      # AGENTS.md documents `require.resolve('@gjsify/example-dom-<name>/assets/
+      # <file>')` as the RUNTIME asset path, and the website imports `./browser`
+      # from every one of them — published, each was a dangling pointer.
+      - name: Verify declared entry points are in the tarball (showcases)
+        run: su testuser -c 'node scripts/verify-tarball-outputs.mjs --scope examples'
+
       # THE build-output cache's only writer. `gjsify-setup` deliberately only
       # RESTORES, because `actions/cache`'s automatic post-job save fires in
       # every job that uses the action — and `deploy-docs.yml`, which builds the

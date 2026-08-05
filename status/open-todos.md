@@ -122,38 +122,6 @@ launcher defer to the CLI rather than re-derive; that is a launcher-shape change
 and belongs in its own PR, ideally the one that lifts `system-gi` to a shared
 package (above).
 
-### Six published showcases declare `exports` subpaths their tarball does not contain
-
-Found by `scripts/verify-tarball-outputs.mjs` on its first run — `--scope
-examples`, 13 declared entry points across 6 of the 8 published showcases, every
-one present on disk and absent from the tarball because `files` is `["dist"]`
-while the export names `./src/…`:
-
-- `example-dom-canvas2d-fireworks` — `./browser`
-- `example-dom-excalibur-jelly-jumper` — `./browser`, `./assets/*`
-- `example-dom-minimalist-browser` — `./browser`, `./browser-demo`
-- `example-dom-three-geometry-teapot` — `./browser`, `./three-demo`, `./assets/*`
-- `example-dom-three-postprocessing-pixel` — `./browser`, `./three-demo`, `./assets/*`
-- `example-dom-webrtc-loopback` — `./browser`, `./loopback-demo`
-
-Invisible until now for the same reason the cold-clone finding was misread: the
-website resolves `@gjsify/example-dom-<name>/browser` through the workspace
-symlink, where `src/` is on disk. Published, each is a dangling pointer — and
-`./assets/*` is worse than cosmetic, because AGENTS.md documents
-`require.resolve('@gjsify/example-dom-<name>/assets/<file>')` as the RUNTIME
-asset path.
-
-Deliberately NOT fixed in the PR that found it, because both repairs are
-publishing-policy decisions rather than drive-bys. (a) Add `src` to `files`:
-makes the declaration true, and costs up to 3.9 MB per tarball
-(`excalibur-jelly-jumper`'s `src/`; `three-geometry-teapot/src/assets` alone is
-1.3 MB) to ship TypeScript no published consumer compiles. (b) Delete the
-subpaths: cheaper, but it also removes them inside the workspace — an `exports`
-map gates subpath access, so the website's imports break with them. Pick (a) for
-`./assets/*` at minimum. `--scope examples` is what closes it: the core scope is
-wired into `main.yml` and green, the examples scope is not wired precisely
-because it would red-line `main` on this finding.
-
 ### `@gjsify/child_process` on Windows — 86 of 145 specs fail once the module can load at all
 
 The specs took `TMP_DIR` from a literal `/tmp` and `realpathSync`'d it at MODULE

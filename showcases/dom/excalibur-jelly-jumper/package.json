@@ -5,7 +5,8 @@
     "main": "dist/gjs.js",
     "type": "module",
     "files": [
-        "dist"
+        "dist",
+        "src"
     ],
     "exports": {
         "./browser": "./src/browser/browser.ts",
