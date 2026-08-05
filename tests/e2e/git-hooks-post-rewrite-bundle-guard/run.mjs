@@ -52,16 +52,27 @@ const REAL_CLASSIFIER = join(REPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'aff
  * affected workspace names, one per line — the `--format=globs` contract.
  *
  * The mapping reproduces what the REAL committed classifier answers (measured;
- * re-asserted by the last test in this file):
+ * re-asserted by the real-classifier test at the end of this file):
  *   packages/node/fs/**            → @gjsify/cli IS affected  (fs is in the CLI closure)
  *   packages/infra/tsc/src/**      → @gjsify/tsc AND @gjsify/cli
  *   packages/dom/canvas2d-core/**  → a closure that does NOT contain @gjsify/cli
  *   docs/**.md, website/**         → ignored-only, empty output
+ *   root package.json, gjsify-lock.json, scripts/**, tests/**, .github/**
+ *                                  → `global` → EVERY workspace, including both
+ *                                    bundle owners. Modelled deliberately: it is
+ *                                    what makes the prefilter test meaningful. If
+ *                                    the hook ever stopped filtering those paths
+ *                                    out, the stub would hand back @gjsify/cli
+ *                                    and the silence assertion would fail.
  */
 const GJS_STUB = `#!/usr/bin/env bash
 # Fake gjs. Argv shape: gjs -m <bundle> --changed-from-stdin --format=globs
 files="$(cat)"
 out=""
+if echo "$files" | grep -qE '^(package\\.json$|gjsify-lock\\.json$|scripts/|tests/|\\.github/)'; then
+    # global=true → the real classifier emits every workspace name.
+    out="$out@gjsify/cli\\n@gjsify/tsc\\n@gjsify/workspace\\n@gjsify/fs\\n"
+fi
 if echo "$files" | grep -qE '^packages/(node/fs|infra/cli/src|infra/resolve-npm)/'; then
     out="$out@gjsify/cli\\n"
 fi
@@ -342,6 +353,54 @@ describe('git post-rewrite hook — committed-bundle staleness after a rewrite',
         );
     });
 
+    it('stays silent for a branch of only root package.json / scripts / tests / CI', () => {
+        // THE regression test for the wolf-cry. Every one of these paths drives
+        // the real classifier to `global`, which expands to every workspace and
+        // therefore to both bundle owners — and none of them is ever inlined into
+        // a `*.gjs.mjs`. This hook's OWN first rebase fired on all three bundles
+        // for exactly this reason, so the inlinability prefilter exists.
+        //
+        // The stub models the `global` expansion, so if the prefilter regresses
+        // this test fails rather than quietly passing.
+        const { root, stubBin } = setupRepo(parent);
+
+        commitChange(root, 'main: touch @gjsify/fs', {
+            'packages/node/fs/src/index.ts': 'export const fs = 2;\n',
+        });
+
+        checkout(root, 'feat');
+        commitChange(root, 'feat: add a script, a test and a CI tweak', {
+            'package.json': `${JSON.stringify({ name: 'gjsify', scripts: { 'test:new': 'node x' } }, null, 4)}\n`,
+            'scripts/install-git-hooks.mjs': '// installer v2\n',
+            'tests/e2e/some-suite/run.mjs': '// suite\n',
+            '.github/workflows/main.yml': 'name: ci\n',
+        });
+
+        const out = rebase(root, stubBin, 'main');
+        assert.doesNotMatch(
+            out,
+            /a committed GJS bundle may now be STALE/,
+            `the inlinability prefilter regressed — non-inlined paths reached the classifier:\n${out}`,
+        );
+    });
+
+    it('still fires when the lockfile moves under a committed bundle', () => {
+        // The flip side of dropping root `package.json`: a devDependency bump that
+        // can change bundler/runtime output re-locks, and `gjsify-lock.json` IS
+        // kept by the prefilter. Without this, dropping root package.json would
+        // open a real hole.
+        const { root, stubBin } = setupRepo(parent);
+
+        commitChange(root, 'main: bump a dep', { 'gjsify-lock.json': '{ "v": 2 }\n' });
+
+        checkout(root, 'feat');
+        commitChange(root, 'feat: rebuild cli bundles', cliRebuilt());
+
+        const out = rebase(root, stubBin, 'main');
+        assert.match(out, /a committed GJS bundle may now be STALE/, `expected a warning, got:\n${out}`);
+        assert.match(out, /REBASED-UNDER/);
+    });
+
     it('an --amend that only rewords is silent (no tree change, no moved base)', () => {
         const { root, stubBin } = setupRepo(parent);
         checkout(root, 'feat');
@@ -502,6 +561,18 @@ describe('git post-rewrite hook — committed-bundle staleness after a rewrite',
             classify(['packages/infra/tsc/src/index.ts']).includes('@gjsify/tsc'),
             'a @gjsify/tsc source change no longer reaches @gjsify/tsc',
         );
+
+        // And the reason the inlinability prefilter has to exist: these paths are
+        // never inlined into a bundle, yet the classifier expands each to every
+        // workspace because they are CI global triggers. If this assertion ever
+        // flips, the prefilter's justification changes and the comment in the hook
+        // should be revisited — it is not free to drop paths from the oracle.
+        for (const notInlined of ['package.json', 'scripts/install-git-hooks.mjs', 'tests/e2e/foo/run.mjs']) {
+            assert.ok(
+                classify([notInlined]).includes('@gjsify/cli'),
+                `${notInlined} no longer expands to @gjsify/cli — re-check why the hook filters it out`,
+            );
+        }
     });
 
     it('is wired: enumerated by install-git-hooks.mjs and registered in test:e2e', () => {

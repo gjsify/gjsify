@@ -91,11 +91,17 @@
 # #821 case). It discriminates: `packages/node/fs/src/**` reaches `@gjsify/cli`,
 # `packages/dom/canvas2d-core/src/**` does not, `website/**` is ignored entirely.
 #
-# Two honest caveats about that oracle, both restated in the printed message:
-#   * It OVER-approximates "inlined": it walks all dependency edges, and a global
-#     trigger (root `package.json`, the lockfile, a bundler-plugin change) expands
-#     to every workspace. A false positive costs one command; a false negative
-#     costs a red CI run after the push — so this is the right direction.
+# The classifier answers a CI question, not the inlining question, so it is only
+# asked about paths that can actually reach a bundle — see the inlinability
+# prefilter below, which is what stops the most ordinary branches (a new npm
+# script, a new test, a CI edit) from expanding to every workspace and firing.
+#
+# Two honest caveats remain, both restated in the printed message:
+#   * Even prefiltered it OVER-approximates "inlined": it walks all dependency
+#     edges, and the global triggers it still sees (the lockfile, a bundler-plugin
+#     change, `packages/infra/cli/**`) expand to every workspace. Those are real
+#     staleness causes, so the direction is right — a false positive costs one
+#     command, a false negative costs a red CI run after the push.
 #   * The classifier is itself one of the committed bundles, so a stale
 #     classifier is answering this question. Its dependency DATA is read from the
 #     working tree, which is what matters here, but the bundled code may lag.
@@ -229,6 +235,55 @@ if [ ! -s "$BRANCH_FILES" ] && [ ! -s "$BASE_FILES" ]; then
     exit 0
 fi
 
+# --- Inlinability prefilter ----------------------------------------------
+#
+# The closure oracle answers a CI question ("must main.yml run everything"), not
+# the inlining question, and its GLOBAL_TRIGGERS table is where the two part
+# ways: root `package.json` is a global trigger, and `scripts/**` + `tests/**`
+# reach `global` through the conservative "unmatched files" path. None of the
+# three is ever inlined into a `*.gjs.mjs`, but each expands to EVERY workspace,
+# so handing them to the classifier raw makes the hook fire on the most ordinary
+# branches there are — adding an npm script, adding a test, editing CI. That is
+# the "always cries wolf" failure mode, and it was not hypothetical: this hook's
+# OWN first rebase tripped it on all three bundles.
+#
+# So only paths that can actually reach a bundle are classified. An ALLOW-list,
+# because it is short enough to defend line by line, where the complement is an
+# open-ended list that silently rots:
+#
+#   packages/**          the workspace sources whose `lib/esm` the bundle inlines
+#                        (the classifier's own IGNORE handles `*.md`, node-gi and
+#                        napi inside it; its TEST_ONLY rule handles spec files)
+#   gjsify-lock.json     pins the npm halves the bundle inlines. This is also what
+#                        keeps dropping root `package.json` honest: a devDep bump
+#                        that changes bundler/runtime output re-locks, and the
+#                        lockfile is kept
+#   tsconfig*.json       root compiler options; they change the emitted `lib/esm`
+#                        that gets inlined
+#
+# Everything else — `.github/**`, `.githooks/**`, `scripts/**`, `tests/**`,
+# `docs/**`, `website/**`, `examples/**`, `showcases/**`, `flatpak/**`, `refs/**`,
+# `*.md`, root `package.json`, `meson.build`, `install.mjs` — is dev/CI/publish
+# machinery that no bundle contains.
+#
+# After the filter, every remaining global trigger (`packages/infra/cli/**`,
+# `packages/infra/workspace/**`, the bundler plugins, `resolve-npm/**`, the
+# lockfile, root tsconfig) is a REAL staleness cause, so accepting `global` at
+# face value is then correct rather than lucky.
+
+INLINABLE='^(packages/|gjsify-lock\.json$|tsconfig[^/]*\.json$)'
+BRANCH_INLINABLE="$HOOK_TMP/branch-inlinable"
+BASE_INLINABLE="$HOOK_TMP/base-inlinable"
+grep -E "$INLINABLE" "$BRANCH_FILES" > "$BRANCH_INLINABLE" 2>/dev/null || : > "$BRANCH_INLINABLE"
+grep -E "$INLINABLE" "$BASE_FILES" > "$BASE_INLINABLE" 2>/dev/null || : > "$BASE_INLINABLE"
+
+# Nothing inlinable moved anywhere: no bundle can have gone stale, and the
+# classifier never even boots. This is the common case (docs / CI / test-only
+# branches), so it is also what keeps the hook cheap.
+if [ ! -s "$BRANCH_INLINABLE" ] && [ ! -s "$BASE_INLINABLE" ]; then
+    exit 0
+fi
+
 # --- Which bundles does this branch itself commit? ------------------------
 #
 # `grep -Fxf` needs a blank-line-free pattern file: one empty pattern matches
@@ -324,12 +379,13 @@ CLS_BRANCH="$HOOK_TMP/cls-branch"
 : > "$CLS_BRANCH"
 
 # REBASED-UNDER is only reachable when the branch commits a bundle AND the base
-# moved; NOT-REBUILT only when some bundle is left untouched.
-if [ -s "$TOUCHED" ] && [ -s "$BASE_FILES" ]; then
-    classify_into "$BASE_FILES" "$CLS_BASE"
+# moved; NOT-REBUILT only when some bundle is left untouched. Both classify the
+# PREFILTERED lists — see the inlinability note above.
+if [ -s "$TOUCHED" ] && [ -s "$BASE_INLINABLE" ]; then
+    classify_into "$BASE_INLINABLE" "$CLS_BASE"
 fi
 if [ "$(wc -l < "$TOUCHED" 2>/dev/null || echo 0)" -lt "$(wc -l < "$ARTIFACTS")" ]; then
-    classify_into "$BRANCH_FILES" "$CLS_BRANCH"
+    classify_into "$BRANCH_INLINABLE" "$CLS_BRANCH"
 fi
 
 # Is $2's owning workspace in the classified set $1? An unresolvable owner counts
