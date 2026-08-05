@@ -83,19 +83,41 @@
 // The mode re-asserts the whole file AND the slice, so a divergence cannot be
 // introduced by a later write either.
 //
+// A GENERATED SECTION IS NOT AN EXPLANATION, which is why the body can carry a
+// hand-written PREAMBLE above it (`--prose`, default `docs/release-notes/next.md`).
+// A list of conventional-commit subjects tells a reader what changed and never why
+// it mattered; v0.28.0's own notes are the case in point — "make the GTK runtime
+// bundles self-contained" names the fix and not the three silent defects it
+// repaired. The preamble is prose committed during the cycle, so it is in the tree
+// the cut reads and lands in the release commit like the infile.
+//
+// It is an INPUT TO THE SAME ORACLE, not a second one: the preamble is swept by
+// the very detector this file exists for, because a hand-written paragraph is
+// exactly where a plausible-looking fabricated link gets typed, and a second
+// unchecked producer of the published body would reopen the hole 0.27.1 shipped.
+// A missing preamble is ADVISORY — deliberately, so prose is never the reason a
+// release cannot be cut — but a STALE one is fatal-by-omission instead: it counts
+// only if git says it changed since the last tag, so the previous release's text
+// cannot silently reappear under a new version. That inverts the risk the advisory
+// creates: nothing to say costs a warning, saying the wrong thing is impossible.
+//
 // Usage: node scripts/check-changelog-references.mjs [--write] [--self-test]
 //                                                    [--infile <path>] [--json]
+//                                                    [--prose <path>]
 //                                                    [--release-notes <version>]
 //   (default)     assert; exit 1 listing every finding
 //   --write       repair in place, then assert
 //   --self-test   run only the fixture matrix
 //   --infile      changelog to read (default CHANGELOG.md)
+//   --prose       preamble to publish above the section
+//                 (default docs/release-notes/next.md; only read with
+//                 --release-notes, so the assert path stays about the infile)
 //   --release-notes <version>
-//                 assert, then print the top section to STDOUT as the GitHub
-//                 release body. Every diagnostic goes to stderr so stdout is
-//                 exactly the body. Any failure exits 1, which rejects
-//                 `GitRelease.beforeRelease()` and aborts the cut before the
-//                 commit, the tag and the release exist.
+//                 assert, then print the preamble (if any) and the top section to
+//                 STDOUT as the GitHub release body. Every diagnostic goes to
+//                 stderr so stdout is exactly the body. Any failure exits 1, which
+//                 rejects `GitRelease.beforeRelease()` and aborts the cut before
+//                 the commit, the tag and the release exist.
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
@@ -108,6 +130,11 @@ const flag = (name, fallback) => {
 const has = (name) => argv.includes(name);
 
 const INFILE = flag('--infile', 'CHANGELOG.md');
+/**
+ * Cwd-relative like `--infile`, so a fixture directory can exercise the whole
+ * composition — staleness oracle included — without cutting a release.
+ */
+const PROSE = flag('--prose', 'docs/release-notes/next.md');
 const WRITE = has('--write');
 const SELF_TEST_ONLY = has('--self-test');
 const JSON_OUT = has('--json');
@@ -145,7 +172,21 @@ function flushSummary() {
     // A FENCED block, not a bullet list: the entries are markdown link syntax, and
     // a summary that renders them turns a report about broken links into a page of
     // clickable broken links (and eats `*`/`_` in link text). Verbatim is the point.
-    appendFileSync(file, `### ${LABEL}\n\n\`\`\`\n${summaryLines.join('\n')}\n\`\`\`\n\n`);
+    try {
+        appendFileSync(file, `### ${LABEL}\n\n\`\`\`\n${summaryLines.join('\n')}\n\`\`\`\n\n`);
+    } catch (err) {
+        // An unwritable sink must not decide whether a release happens. Measured, not
+        // hypothetical: main.yml runs the e2e suites as `testuser` via `su`, and the
+        // runner's `_runner_file_commands/step_summary_*` is root-owned, so the append
+        // raises EACCES — which, uncaught here, took the whole `--release-notes` run
+        // down and would abort a cut because its LOG destination was unavailable.
+        // Degrading loses the record on a successful cut (release-it swallows stderr
+        // into `log.verbose`), and that is the right way round: stdout is the release
+        // body, so the one sink that cannot be borrowed for a diagnostic is the one
+        // that would corrupt the artefact.
+        console.error(`${LABEL}: cannot write $GITHUB_STEP_SUMMARY (${err.code ?? err.message}); reporting here:`);
+        for (const line of summaryLines) console.error(`  · ${line}`);
+    }
 }
 
 /**
@@ -359,6 +400,104 @@ function extractTopSection(text, expected) {
     return { errors, version, line: start + 1, body };
 }
 
+/** Between preamble and section, so the generated part is visibly generated. */
+const PREAMBLE_SEPARATOR = '\n\n---\n\n';
+
+/**
+ * The tag of the PREVIOUS release, or null in a repo that has none.
+ *
+ * Sound only because of WHEN this runs: `--release-notes` is `github:beforeRelease`,
+ * which precedes `Git.release()` and therefore the new tag (see the header). So the
+ * most recent tag is the last release, and "the file changed since it" means "this
+ * prose was written during the cycle being cut". No version bookkeeping in the
+ * file, nothing to reset by hand, and no way to name a version that is not shipping.
+ *
+ * A tagless repo yields null and the staleness question does not arise — every
+ * commit is "since the last release". That is the first-release case, not a defect.
+ */
+function lastReleaseTag() {
+    try {
+        const tag = execFileSync('git', ['describe', '--tags', '--abbrev=0'], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        return tag || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * The prose preamble, or `null` with the reason it does not count.
+ *
+ * Three ways it does not count, and each is a WARNING rather than a failure so a
+ * cut is never blocked on prose:
+ *   · absent       — the path does not exist
+ *   · empty        — nothing but whitespace and HTML comments, i.e. the reset
+ *                    template. "Present but says nothing" must not publish a bare
+ *                    separator above the section.
+ *   · unchanged    — no commit touched it since `tag`. This is the one that matters:
+ *                    with a missing preamble merely advisory, the residual risk is
+ *                    the PREVIOUS release's text reappearing under a new version,
+ *                    which is a confidently wrong body rather than an absent one.
+ *                    Git is the oracle because it cannot be forgotten, unlike a
+ *                    version marker in the file.
+ *
+ * Errors (returned separately, they DO fail the cut) are about a preamble that
+ * exists and is wrong, never about one that is missing.
+ */
+function readPreamble(path, tag) {
+    let raw;
+    try {
+        raw = readFileSync(path, 'utf8');
+    } catch {
+        return { text: null, reason: `no preamble at ${path}` };
+    }
+
+    // HTML comments carry the template's instructions; they are not prose, and a
+    // file holding only them is the post-release reset state.
+    const text = raw.replace(/<!--[\s\S]*?-->/g, '').trim();
+    if (!text) {
+        return { text: null, reason: `${path} has no prose (only whitespace/comments)` };
+    }
+
+    if (tag) {
+        let touched;
+        try {
+            touched = execFileSync('git', ['log', '-1', '--format=%H', `${tag}..HEAD`, '--', path], {
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],
+            }).trim();
+        } catch {
+            // An unreadable history cannot license publishing text that may belong to
+            // the last release. Refusing to include it degrades to "no preamble",
+            // which is the safe direction and is reported.
+            return { text: null, reason: `cannot ask git whether ${path} changed since ${tag} — not publishing it` };
+        }
+        if (!touched) {
+            return {
+                text: null,
+                reason: `${path} is unchanged since ${tag} — it belongs to that release, not this one`,
+            };
+        }
+    }
+
+    const errors = [];
+    // A version heading would render as a second release section and make "the top
+    // section" ambiguous to a reader comparing the body against the file. Reported by
+    // the offending LINE, not a line number: comments are stripped before this, so any
+    // index here counts lines in the stripped text and would point at the wrong line
+    // of the file the author has open.
+    const heading = text.split('\n').find((l) => VERSION_HEADING.test(l));
+    if (heading !== undefined) {
+        errors.push(
+            `${path} has a version heading (${JSON.stringify(heading.trim())}) — ` +
+                `the preamble goes ABOVE the section, not beside it`,
+        );
+    }
+    return { text, errors, reason: null };
+}
+
 // ---------------------------------------------------------------------------
 // Fixture matrix — one entry per artefact shape MEASURED in this changelog.
 // Runs before every check so the detector cannot pass by having stopped
@@ -542,6 +681,8 @@ lines.forEach((line, i) => {
 // in the same process — not re-read, not re-generated, not repaired again. That
 // is the whole point: the notes cannot carry a link the file does not.
 let section = null;
+let body = null;
+let preamble = null;
 if (RELEASE_NOTES !== null) {
     section = extractTopSection(lines.join('\n'), RELEASE_NOTES);
     structural.push(...section.errors);
@@ -555,12 +696,44 @@ if (RELEASE_NOTES !== null) {
             structural.push(`the ${section.version} section would publish ${f.link} — ${f.why}`);
         }
     }
+
+    // The preamble is held to the SAME standard as the file, by the same detector in
+    // the same process. Skipping it would leave the published body with one checked
+    // producer and one unchecked one — and the unchecked one is the hand-written half.
+    preamble = readPreamble(PROSE, lastReleaseTag());
+    structural.push(...(preamble.errors ?? []));
+    if (preamble.text) {
+        for (const f of findLineFindings(preamble.text, opts)) {
+            structural.push(`${PROSE} would publish ${f.link} — ${f.why}`);
+        }
+    }
+
+    if (section.body !== undefined) {
+        body = preamble.text ? `${preamble.text}${PREAMBLE_SEPARATOR}${section.body}` : section.body;
+        // The invariant the preamble must not cost: the generated section still
+        // appears in the published body VERBATIM. It held by construction before
+        // there was anything to concatenate; now it is asserted.
+        if (!body.includes(section.body)) {
+            structural.push(`the composed body does not contain the ${section.version} section verbatim`);
+        }
+        // `extractTopSection` capped the section alone; the cap applies to what is
+        // actually posted, and a preamble is the only way to exceed it without the
+        // section itself growing.
+        if (body.length > MAX_BODY) {
+            structural.push(
+                `composed body is ${body.length} chars (preamble ${preamble.text?.length ?? 0} + section ` +
+                    `${section.body.length}) — GitHub truncates at ${MAX_BODY}`,
+            );
+        }
+    }
 }
 
 if (JSON_OUT) {
     // One payload per stdout, always: with --release-notes the body rides INSIDE
     // the JSON rather than being appended after it.
-    console.log(JSON.stringify({ infile: INFILE, slug, repairs, structural, findings, section }, null, 2));
+    console.log(
+        JSON.stringify({ infile: INFILE, slug, repairs, structural, findings, section, preamble, body }, null, 2),
+    );
 } else if (structural.length) {
     console.error(`${LABEL}: ${INFILE} did not satisfy the structural assertions:`);
     for (const s of structural) console.error(`  · ${s}`);
@@ -590,8 +763,21 @@ if (structural.length || findings.length) {
 }
 
 if (section && !JSON_OUT) {
-    note(`${LABEL}: release notes = ${INFILE}:${section.line} § ${section.version} (${section.body.length} chars).`);
-    summaryLines.push(`release notes = ${INFILE}:${section.line} § ${section.version} (${section.body.length} chars)`);
-    process.stdout.write(`${section.body}\n`);
+    // THE STEP SUMMARY IS THE ONLY CHANNEL A NON-FATAL WORD CAN USE HERE. stdout is
+    // the release body, so a `::warning::` annotation would be PUBLISHED rather than
+    // rendered — the one place in this repo where that pattern is unavailable. And
+    // stderr is swallowed into release-it's `log.verbose` on a successful run (see
+    // `flushSummary`). So an advisory that only printed would reach nobody, which is
+    // the missing-signal shape this file exists to remove.
+    if (preamble.text) {
+        note(`${LABEL}: preamble = ${PROSE} (${preamble.text.length} chars), published above the section.`);
+        summaryLines.push(`preamble = ${PROSE} (${preamble.text.length} chars)`);
+    } else {
+        note(`${LABEL}: NO PREAMBLE — ${preamble.reason}. Body is the changelog section only.`);
+        summaryLines.push(`NO PREAMBLE — ${preamble.reason}; body is the changelog section only`);
+    }
+    note(`${LABEL}: release notes = ${INFILE}:${section.line} § ${section.version} (${body.length} chars).`);
+    summaryLines.push(`release notes = ${INFILE}:${section.line} § ${section.version} (${body.length} chars)`);
+    process.stdout.write(`${body}\n`);
 }
 flushSummary();
