@@ -158,6 +158,36 @@ describe('CLI gjsify format/lint/fix E2E (oxc native-spawn)', { timeout: 10 * 60
         assert.match(out, /const x = \{ a: 1, b: 2 \};/);
     });
 
+    // The DEFAULT is the contract, not the flag: a bare `gjsify format` used to
+    // report drift and write nothing, so the command that looks like the fix was
+    // the diagnosis. `--write` above and this test assert the same effect on
+    // purpose — the explicit flag must keep working as an alias for the default.
+    it('format writes in place with NO flag (default)', () => {
+        writeFileSync(join(projectDir, 'bare.ts'), 'const bare={a:1,b:2};\n');
+
+        execFileSync('npx', ['gjsify', 'format', 'bare.ts'], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 60 * 1000,
+        });
+
+        assert.match(readFileSync(join(projectDir, 'bare.ts'), 'utf-8'), /const bare = \{ a: 1, b: 2 \};/);
+    });
+
+    it('format --no-write reports drift and leaves the file untouched', () => {
+        const source = 'const nowrite={a:1};\n';
+        writeFileSync(join(projectDir, 'nowrite.ts'), source);
+
+        const res = spawnSync('npx', ['gjsify', 'format', '--no-write', 'nowrite.ts'], {
+            cwd: projectDir,
+            encoding: 'utf-8',
+            timeout: 60 * 1000,
+        });
+
+        assert.equal(readFileSync(join(projectDir, 'nowrite.ts'), 'utf-8'), source, '--no-write must not write');
+        assert.match(`${res.stdout}${res.stderr}`, /nowrite\.ts/, 'expected the drifting file to be listed');
+    });
+
     it('format --check exits non-zero on drift (CI semantic)', () => {
         writeFileSync(join(projectDir, 'unformatted.ts'), 'const y={x:1};\n');
 

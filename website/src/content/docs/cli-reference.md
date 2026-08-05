@@ -1211,22 +1211,22 @@ Format JS/TS source files via [oxfmt](https://oxc.rs/docs/guide/usage/formatter)
 
 ```bash
 gjsify format --init             # write recommended .oxlintrc.json + .oxfmtrc.json
-gjsify format --write src/       # apply formatter in place
-gjsify format --check src/       # CI mode — exit non-zero on drift
-gjsify format src/               # report drift without writing (list-different)
+gjsify format src/               # apply formatter in place (the default)
+gjsify format --check src/       # CI mode — exit non-zero on drift, writes nothing
+gjsify format --no-write src/    # report drift without writing (list-different)
 ```
 
 | Option | Default | Description |
 |---|---|---|
 | `[paths..]` | `.` | Files/directories to format. |
-| `--write` | `false` | Apply changes in place. |
+| `--write` | `true` | Apply changes in place. Pass `--no-write` to report drift instead. |
 | `--check` | `false` | CI-mode: report drift + stats, exit non-zero (does not write). |
 | `--config-path <path>` | walks up | Path to an `.oxfmtrc.json`. Default: nearest `.oxfmtrc.json` from cwd or workspace root. |
 | `--init` | `false` | Write recommended `.oxlintrc.json` + `.oxfmtrc.json` into cwd (skips existing unless `--force`). |
 | `--force` | `false` | Used with `--init` to overwrite existing config files. |
 | `--verbose` | `false` | Echo the resolved oxfmt launcher + args before spawning. |
 
-With no `--write`/`--check`, `gjsify format` reports drift via oxfmt's `--list-different` without modifying files.
+**A bare `gjsify format` writes.** There is no flagless report mode: `--check` is the read-only CI mode (exit non-zero on drift) and `--no-write` the read-only local one (oxfmt's `--list-different`). This matches oxfmt's own bare default, `cargo fmt`, and the sibling `gjsify fix`.
 
 **Workspace-aware resolution** — when run from inside a sub-workspace, GJSify walks up to the workspace root to find `node_modules/oxfmt/bin/oxfmt`. A single `.oxfmtrc.json` at the workspace root applies everywhere oxfmt discovers it.
 
