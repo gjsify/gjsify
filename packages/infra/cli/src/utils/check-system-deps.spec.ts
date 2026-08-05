@@ -12,7 +12,7 @@
 // and the maintainer's host exercises exactly the two it happens to have.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { checkTypeSkew } from './check-system-deps.js';
+import { checkTypeSkew, OPTIONAL_DEPS, PACKAGE_DEPS } from './check-system-deps.js';
 
 /** Build readers from two plain maps, so a case reads as data. */
 function readers(declared: Record<string, string>, installed: Record<string, string>) {
@@ -23,6 +23,45 @@ function readers(declared: Record<string, string>, installed: Record<string, str
 }
 
 export default async () => {
+    // The declaration invariant, not a restatement of the table. A package's dep
+    // list is a list of IDS; an id with no OPTIONAL_DEPS entry is not an error at
+    // runtime — `runOptionalChecks` simply has nothing to look up, so the dependency
+    // is silently never checked. That is how @gjsify/rolldown-native's json-glib
+    // could be missing entirely: nothing forced the two tables to agree.
+    await describe('dependency declarations', async () => {
+        await it('every id a package names exists in OPTIONAL_DEPS', async () => {
+            // `gwebgl` is deliberately absent: it is an npm package, checked by
+            // `checkGwebgl` rather than pkg-config, and mapped here only so that its
+            // presence in a project's dep tree triggers that check.
+            const NPM_HANDLED = new Set(['gwebgl']);
+            const unknown: string[] = [];
+            for (const [pkg, ids] of Object.entries(PACKAGE_DEPS)) {
+                for (const id of ids) {
+                    if (NPM_HANDLED.has(id)) continue;
+                    if (!OPTIONAL_DEPS[id]) unknown.push(`${pkg} -> ${id}`);
+                }
+            }
+            expect(unknown.join(', ')).toBe('');
+        });
+
+        await it('every OPTIONAL_DEPS entry carries a pkg-config name', async () => {
+            const bad = Object.entries(OPTIONAL_DEPS)
+                .filter(([, dep]) => !dep.pkgName)
+                .map(([id]) => id);
+            expect(bad.join(', ')).toBe('');
+        });
+
+        await it('the bundler engine declares its load-time library', async () => {
+            // Measured on fedora:43 with a consumer baseline (gjs + libsoup3 only):
+            // libjson-glib-1.0.so.0 does not resolve, libgjsifyrolldown.so therefore
+            // does not load, and construction dies with "Unsupported type void,
+            // deriving from fundamental void" while install said "System dependencies
+            // OK." Without this declaration `gjsify build` is unusable and unexplained.
+            expect(PACKAGE_DEPS['@gjsify/rolldown-native']?.includes('json-glib')).toBe(true);
+            expect(OPTIONAL_DEPS['json-glib']?.pkgName).toBe('json-glib-1.0');
+        });
+    });
+
     await describe('checkTypeSkew', async () => {
         await it('reports the measured GTK skew as ahead', async () => {
             const found = checkTypeSkew('/p', readers({ '@girs/gtk-4.0': '4.23.0' }, { gtk4: '4.22.4' }));
