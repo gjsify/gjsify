@@ -509,19 +509,36 @@ function isWorkspaceRoot(cwd: string): boolean {
  * incompatible `os`/`cpu`/`libc` skips an OPTIONAL dependency and fails a
  * REQUIRED one (see `NativeInstallOptions.optionalSpecs`).
  *
- * REQUIRED WINS. In a workspace, the same package can be a plain dependency of
- * one member and an optionalDependency of another; if anything is not allowed to
- * be missing, the whole install is not allowed to silently miss it. Subtracting
- * rather than "last block seen" also makes the answer independent of manifest
- * iteration order.
+ * REQUIRED WINS ACROSS MANIFESTS, OPTIONAL WINS WITHIN ONE — and the two halves
+ * are different rules for different reasons, so neither is a special case of the
+ * other:
+ *   - Across manifests: in a workspace the same package can be a plain dependency
+ *     of one member and an optionalDependency of another. Those are two real
+ *     edges; if one of them is not allowed to be missing, the install is not
+ *     allowed to silently miss it. Subtracting rather than "last block seen" also
+ *     makes the answer independent of manifest iteration order.
+ *   - Within one manifest: a name in BOTH blocks is OPTIONAL, because npm says so
+ *     ("entries in optionalDependencies will override entries of the same name in
+ *     dependencies") — there is only ONE edge and the optional block names its
+ *     kind. Treating it as required is the root-edge twin of the transitive defect
+ *     `requiredDepEntries` fixes: `optionalDependencies: { fsevents }` alongside a
+ *     `dependencies: { fsevents }` line would fail every Linux install with
+ *     EBADPLATFORM over a package npm never installs there.
  */
-function optionalDependencyNames(manifests: readonly PackageJson[]): Set<string> {
+export function optionalDependencyNames(manifests: readonly PackageJson[]): Set<string> {
     const optional = new Set<string>();
     const required = new Set<string>();
     for (const manifest of manifests) {
-        for (const name of Object.keys(manifest.optionalDependencies ?? {})) optional.add(name);
+        const optionalHere = new Set(Object.keys(manifest.optionalDependencies ?? {}));
+        for (const name of optionalHere) optional.add(name);
         for (const kind of ['dependencies', 'devDependencies'] as const) {
-            for (const name of Object.keys(manifest[kind] ?? {})) required.add(name);
+            for (const name of Object.keys(manifest[kind] ?? {})) {
+                // Overridden by THIS manifest's own optional block — not a
+                // required edge, so it must not veto another manifest's optional
+                // declaration either.
+                if (optionalHere.has(name)) continue;
+                required.add(name);
+            }
         }
     }
     for (const name of required) optional.delete(name);

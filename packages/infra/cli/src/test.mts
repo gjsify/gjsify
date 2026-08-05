@@ -23,6 +23,7 @@ import dlxCacheSuite from './utils/dlx-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import installLockSuite from './utils/install-lock.spec.js';
 import installBackendNativeWarnSuite from './utils/install-backend-native-warn.spec.js';
+import installOptionalEdgesSuite from './utils/install-optional-edges.spec.js';
 import detectNativePackagesSuite from './utils/detect-native-packages.spec.js';
 import systemGiSuite from './utils/system-gi.spec.js';
 import platformCheckSuite from './utils/platform-check.spec.js';
@@ -190,6 +191,7 @@ run(
         installCacheFsSuite,
         installLockSuite,
         installBackendNativeWarnSuite,
+        installOptionalEdgesSuite,
         detectNativePackagesSuite,
         systemGiSuite,
         platformCheckSuite,

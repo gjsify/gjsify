@@ -22,9 +22,9 @@
 // reported. So the DECLARATIONS are locked and the VERDICT is recomputed per
 // host at install time (see applyPlatformFilter).
 //
-// TWO INVARIANTS MAKE THAT CLAIM TRUE, and both are structural rather than
-// documented, because the first draft of this feature broke both while reading
-// as if it did not:
+// THREE INVARIANTS MAKE THAT CLAIM TRUE, and each is structural rather than
+// documented, because the first draft of this feature broke the first two while
+// reading as if it did not — and shipped without the third:
 //
 //   1. THE RESOLVE IS TARGET-BLIND. `resolveDeps` is not given the platform
 //      target at all — it cannot be, so it cannot record a target-dependent
@@ -47,6 +47,31 @@
 //      fixpoint for the same reason (refs/npm-cli/workspaces/arborist/lib/
 //      calc-dep-flags.js: "If a node is changed, we add to the queue and
 //      continue until no more changes").
+//   3. OPTIONALITY BELONGS TO THE EDGE, NOT TO THE BLOCK THE NAME WAS READ FROM.
+//      A name listed in BOTH `dependencies` and `optionalDependencies` is
+//      OPTIONAL: "entries in optionalDependencies will override entries of the
+//      same name in dependencies" (npm's package.json docs), which is why every
+//      walk over a node's dep edges here goes through {@link requiredDepEntries}
+//      instead of `Object.keys(node.dependencies)`. `@parcel/rust@2.16.4` is why
+//      it is written down: it declares all eight of its per-platform napi
+//      packages in both blocks, so a `dependencies`-only walk made
+//      `@parcel/rust-darwin-x64` REQUIRED and every Linux install of any tree
+//      containing parcel died with EBADPLATFORM — while `npm install` on the same
+//      manifest exits 0, installs
+//      `@parcel/rust-linux-x64-gnu`, and records the other seven as
+//      `"optional": true` in its own lockfile. The rule was already applied to
+//      swallowed resolve failures (`assertRequiredEdgesResolved`: "optionality
+//      lives on the edge, not on its endpoints") and missing from the two walks
+//      that decide fatal-vs-inert, which is the worst place to have half of it.
+//      It costs a lockfile field (`optionalDependencies` per entry, v4): without
+//      it the fresh-resolve path and the lockfile path would disagree about the
+//      same tree, which is the split invariant 2 exists to close.
+//      WHY THE DEFECT LOOKED LIKE IT DID NOT EXIST: the same napi shape is
+//      overwhelmingly published in ONE block — measured on the latest of `oxlint`,
+//      `esbuild` and `rollup`, all three list their per-platform bindings in
+//      `optionalDependencies` only (zero overlap), so they installed correctly
+//      throughout and every mock corpus reaches for that shape too. The block a
+//      publisher chooses is not a property this installer may assume.
 //
 // Out of scope (still deferred): peerDependencies validation,
 // lifecycle scripts, git/file specs.
@@ -114,7 +139,13 @@ interface ParsedSpec {
     range: string;
 }
 
-interface ResolvedNode {
+/**
+ * One placed package in the resolved tree. Exported as a TYPE only: it is the
+ * graph shape {@link computeOptionalFlags} and {@link applyPlatformFilter} take,
+ * so a spec can inject a tree by hand instead of driving a whole install to reach
+ * them. Nothing outside this module constructs one for real.
+ */
+export interface ResolvedNode {
     /** Package name (e.g. `@gjsify/cli`, `lodash`). */
     name: string;
     version: string;
@@ -175,9 +206,12 @@ const LOCKFILE_NAME = 'gjsify-lock.json';
 /**
  * v3 adds the per-entry platform declaration (`os`/`cpu`/`libc`) plus
  * `optional`, which together let a foreign-platform package be recorded without
- * being installed. v2 lockfiles are still READ (see {@link readLockfile}).
+ * being installed. v4 adds the per-entry `optionalDependencies` map, without
+ * which the optionality fixpoint cannot see WHICH of an entry's edges are
+ * optional and a name declared in both blocks comes out required (header note,
+ * invariant 3). Older lockfiles are still READ (see {@link readLockfile}).
  */
-const LOCKFILE_VERSION = 3;
+const LOCKFILE_VERSION = 4;
 /**
  * Lockfile versions this CLI can read. A v2 lockfile is a valid pin set that
  * simply predates the platform fields; rejecting it (the old
@@ -185,14 +219,40 @@ const LOCKFILE_VERSION = 3;
  * the following fresh resolve bump every `^`-range to the newest in-range
  * version — the exact silent churn lockfile preservation exists to prevent, on
  * every user's first install after upgrading the CLI.
+ *
+ * READING an older file is not the same as TRUSTING it for everything: only the
+ * current version short-circuits the resolve (see the branch below), so a v2/v3
+ * file seeds version preservation and is then rewritten. `--immutable` is the one
+ * path that must consume what it was handed verbatim, so there — and only there —
+ * a pre-v4 file keeps its pre-v4 edge fidelity: a both-blocks optional dep is
+ * judged required, exactly as before this fix. That is a strictly unchanged
+ * outcome rather than a new failure, and one plain `gjsify install` upgrades the
+ * file. Failing `--immutable` on an old-but-readable lockfile instead would break
+ * every CI whose committed file predates this CLI, including this repo's own
+ * (still v2).
  */
-const READABLE_LOCKFILE_VERSIONS = new Set([2, LOCKFILE_VERSION]);
+const READABLE_LOCKFILE_VERSIONS = new Set([2, 3, LOCKFILE_VERSION]);
 
 interface LockfileEntry {
     version: string;
     resolved: string;
     integrity?: string;
     dependencies?: Record<string, string>;
+    /**
+     * The entry's `optionalDependencies`, as published, omitted when empty. Same
+     * field name and meaning as in npm's `package-lock.json` v3 entries.
+     *
+     * PERSISTED BECAUSE THE FIXPOINT NEEDS IT (header note, invariant 3): which
+     * of an entry's edges are optional is a property of the published manifest,
+     * not of the host, and {@link computeOptionalFlags} runs on the lockfile path
+     * too. Recording only `dependencies` left that path unable to tell an
+     * optional edge from a required one, so a name declared in both blocks — the
+     * `@parcel/rust` shape — came out required and its foreign-platform siblings
+     * turned an install that npm thins into an EBADPLATFORM. Storing the
+     * DECLARATION and recomputing the verdict is the same split the `os`/`cpu`/
+     * `libc` fields are here for.
+     */
+    optionalDependencies?: Record<string, string>;
     bin?: string | Record<string, string>;
     /**
      * Platform declaration, omitted when the package declares none (the vast
@@ -336,11 +396,18 @@ async function installPackagesNativeLocked(
     } else {
         // A resolve has to run (new/changed/removed dep, or no lockfile yet).
         //
-        // A pre-v3 lockfile lands here too, even when it matches the request:
-        // its entries carry no platform declarations, so consuming it verbatim
-        // would keep installing the foreign-platform tree forever with nothing
-        // on disk to recompute the verdict from. One resolve — version-
-        // preserving, per the seeding below, so nothing bumps — upgrades it.
+        // A pre-v4 lockfile lands here too, even when it matches the request,
+        // because each bump added something the verdict is recomputed FROM and a
+        // file that lacks it cannot be consumed verbatim: pre-v3 entries carry no
+        // platform declaration (so the foreign-platform tree would keep installing
+        // forever), pre-v4 entries carry no `optionalDependencies` map (so a name
+        // declared in both blocks looks required and its incompatible siblings
+        // fail the install — the `@parcel/rust` shape, header note invariant 3).
+        // One resolve — version-preserving, per the seeding below, so nothing
+        // bumps — upgrades the file. That matters beyond tidiness here: the
+        // lockfile is written BEFORE the platform filter runs, so the failing
+        // install left a v3 file behind that would otherwise reproduce its own
+        // EBADPLATFORM on every later run without ever resolving again.
         //
         // Unless --refresh-lockfile was passed, seed it with the versions
         // already pinned in the existing lockfile so unchanged deps keep their
@@ -911,7 +978,13 @@ async function resolveDeps(
                 });
 
                 if (!skipDeps) {
-                    for (const [depName, depRange] of Object.entries(node.dependencies)) {
+                    // REQUIRED edges only — a name this package also lists in
+                    // `optionalDependencies` is queued by the loop below instead,
+                    // once, as optional (header note, invariant 3). Queuing it here
+                    // as well would place it with a `required: true` forward guess,
+                    // making a resolve failure fatal and (via the fixpoint) its
+                    // incompatible platform siblings fatal too.
+                    for (const [depName, depRange] of requiredDepEntries(node)) {
                         queue.push({
                             from: installPath,
                             name: depName,
@@ -1039,15 +1112,50 @@ function requiredTopLevelNames(specs: string[], optionalSpecs?: Set<string>): Se
 }
 
 /**
+ * A node's REQUIRED dependency edges: its `dependencies`, minus every name its
+ * `optionalDependencies` also lists. The one place that decides what kind an edge
+ * is — both the resolve walk and the optionality fixpoint read it, so the two
+ * cannot drift.
+ *
+ * THE SUBTRACTION IS npm's RULE, not a policy of ours: "entries in
+ * optionalDependencies will override entries of the same name in dependencies, so
+ * it's usually best to only put in one place" (npm's package.json docs). Measured
+ * on `@parcel/rust@2.16.4`, which lists all eight per-platform napi packages in
+ * both blocks: `npm install` exits 0, installs `@parcel/rust-linux-x64-gnu` only,
+ * and writes `"optional": true` for all eight in its `package-lock.json`.
+ *
+ * WHY IT IS NOT MERELY A DEDUP: the kind decides what an incompatible
+ * `os`/`cpu`/`libc` MEANS (`applyPlatformFilter` — fatal vs. inert) and whether a
+ * failed resolve is tolerated. Reading `dependencies` alone therefore does not
+ * just visit a name twice, it promotes a foreign-platform binary to a required
+ * dependency and fails installs npm completes.
+ *
+ * The inverse direction is deliberately NOT symmetric: a name in
+ * `optionalDependencies` alone is optional (no `dependencies` entry to override),
+ * which is what {@link resolveDeps}'s second queue loop covers.
+ */
+export function requiredDepEntries(
+    node: Pick<ResolvedNode, 'dependencies' | 'optionalDependencies'>,
+): [string, string][] {
+    const entries: [string, string][] = [];
+    for (const [name, range] of Object.entries(node.dependencies)) {
+        if (name in node.optionalDependencies) continue;
+        entries.push([name, range]);
+    }
+    return entries;
+}
+
+/**
  * Recompute every node's `optional` flag as a FIXPOINT over the placed graph.
  * The only writer of the final flag; whatever the nodes arrive carrying is an
  * input nothing checked (a BFS forward guess on the resolve path, a value read
  * back out of a file on the lockfile path) and is overwritten unconditionally.
  *
  * DEFINITION: a node is REQUIRED iff it is reachable from `requiredNames`
- * through `dependencies` edges alone; every other node is optional. Optionality
- * is therefore INHERITED — a plain dependency OF an optional package is still
- * optional — which is what npm's `optionalSet` computes.
+ * through REQUIRED edges alone ({@link requiredDepEntries} — `dependencies` minus
+ * the names `optionalDependencies` overrides); every other node is optional.
+ * Optionality is therefore INHERITED — a plain dependency OF an optional package
+ * is still optional — which is what npm's `optionalSet` computes.
  *
  * WHY A FIXPOINT AND NOT A ONE-SHOT PROMOTION AT THE REUSE SITE (the reviewed
  * defect): the walk queues a node's own dep edges at the moment it is placed,
@@ -1062,23 +1170,29 @@ function requiredTopLevelNames(specs: string[], optionalSpecs?: Set<string>): Se
  * refs/npm-cli/workspaces/arborist/lib/calc-dep-flags.js: "If a node is changed,
  * we add to the queue and continue until no more changes."
  *
- * PATH-INDEPENDENCE IS THE OTHER REQUIREMENT, and it is why the walk reads
- * `dependencies` ONLY. A lockfile entry records `dependencies` and nothing else
- * (an `optionalDependencies` map is not persisted), so consulting
- * `node.optionalDependencies` here would make the fresh-resolve path and the
- * lockfile path compute different flags for the same tree — precisely the split
- * this pass exists to close. The cost is one npm quirk we do not reproduce: a
- * publisher listing the same name in BOTH blocks means "optional" to npm, and
- * comes out required here. That shape is vanishingly rare in practice (the
- * platform-binary packages this feature is about — rollup, lightningcss,
- * esbuild, fsevents — all list their optional deps in one block only), and
- * erring toward REQUIRED errs toward the loud failure, not the silent one.
+ * PATH-INDEPENDENCE IS THE OTHER REQUIREMENT, and it is why the lockfile carries
+ * an `optionalDependencies` map per entry (v4). The walk USED to read
+ * `dependencies` only, for exactly that reason — a lockfile entry recorded nothing
+ * else, so consulting `node.optionalDependencies` would have made the two paths
+ * compute different flags for the same tree. The premise was fixable and the
+ * consequence was not: a publisher listing the same name in BOTH blocks means
+ * "optional" to npm, came out REQUIRED here, and the shape is not rare — it is
+ * `@parcel/rust@2.16.4` (all eight per-platform napi packages in both blocks), so
+ * every Linux install of any tree containing parcel failed with EBADPLATFORM on
+ * `@parcel/rust-darwin-x64` while `npm install` thinned the same tree and exited
+ * 0. "Erring toward REQUIRED errs toward the loud failure" is true and was the
+ * wrong trade: the loud failure was not a real one, and no `--force` lifts it
+ * (nor should it). So the declaration is persisted and both paths subtract it.
+ * Reading a pre-v4 lockfile leaves the map empty, which reproduces the old
+ * behaviour for that file alone — see READABLE_LOCKFILE_VERSIONS.
  *
  * Runs before `writeLockfile` so the persisted flag is the final one, and before
  * `applyPlatformFilter` so the fatal-vs-inert decision reads it rather than the
- * guess.
+ * guess. Exported so the unit spec can drive it with INJECTED graphs: the whole
+ * fatal-vs-inert question is decided by these two functions in composition, and
+ * that is worth pinning without a registry.
  */
-function computeOptionalFlags(nodes: ResolvedNode[], requiredNames: Set<string>, log: Logger): void {
+export function computeOptionalFlags(nodes: ResolvedNode[], requiredNames: Set<string>, log: Logger): void {
     const byPath = new Map<string, ResolvedNode>();
     for (const node of nodes) byPath.set(node.installPath, node);
 
@@ -1104,7 +1218,7 @@ function computeOptionalFlags(nodes: ResolvedNode[], requiredNames: Set<string>,
         if (installPath === undefined) break;
         const node = byPath.get(installPath);
         if (!node) continue;
-        for (const depName of Object.keys(node.dependencies)) {
+        for (const [depName] of requiredDepEntries(node)) {
             // Resolve the edge the way the REQUESTER will at runtime — through
             // the ancestor `node_modules` chain — so a nested copy is credited
             // to the requester that nested it and the hoisted one is not
@@ -1176,8 +1290,14 @@ function assertRequiredEdgesResolved(nodes: ResolvedNode[], skippedEdges: Set<st
         if (requester.optional) continue;
         // A REQUIRED package's own optionalDependency stays optional whatever
         // the package's flag says: optionality lives on the edge, not on its
-        // endpoints. This branch is what keeps a darwin-only `fsevents` under a
-        // required `chokidar` from failing every Linux install.
+        // endpoints (header note, invariant 3 — the same rule
+        // {@link requiredDepEntries} applies to the two graph walks). This branch
+        // is what keeps a darwin-only `fsevents` under a required `chokidar` from
+        // failing every Linux install.
+        //
+        // Membership, not `requiredDepEntries`: the failed edge may name something
+        // no longer in `dependencies` at all, and what is being asked here is
+        // whether the requester declared THIS name optional.
         //
         // Safe on both paths because `skippedEdges` is only ever non-empty on
         // the fresh-resolve path, where `optionalDependencies` is populated; the
@@ -1429,6 +1549,12 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
             resolved: node.tarballUrl,
             integrity: node.integrity,
             dependencies: Object.keys(node.dependencies).length > 0 ? node.dependencies : undefined,
+            // The EDGE KINDS, for the same reason the platform declaration is
+            // here: `computeOptionalFlags` runs on the lockfile path too and
+            // cannot recompute what the file does not carry (v4, header note
+            // invariant 3). Omitted when empty, which is most packages.
+            optionalDependencies:
+                Object.keys(node.optionalDependencies).length > 0 ? node.optionalDependencies : undefined,
             bin: node.bin,
             // The DECLARATION, never the verdict: `inert` is per-host and
             // deliberately absent from the file (a lockfile that recorded which
@@ -1500,7 +1626,12 @@ function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
             integrity: entry.integrity,
             installPath,
             dependencies: entry.dependencies ?? {},
-            optionalDependencies: {},
+            // Empty for a pre-v4 entry, which is why such a file never
+            // short-circuits the resolve: with no edge kinds recorded, a name the
+            // publisher put in both blocks reads as required here (the pre-fix
+            // behaviour). `--immutable` is the one path that consumes it anyway —
+            // see READABLE_LOCKFILE_VERSIONS.
+            optionalDependencies: entry.optionalDependencies ?? {},
             bin: entry.bin,
             // Rebuilt from the recorded declaration so `applyPlatformFilter`
             // reaches the SAME verdict on this path as on the fresh-resolve
