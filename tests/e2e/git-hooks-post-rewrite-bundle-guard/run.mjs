@@ -48,6 +48,44 @@ const HOOK_SOURCE = join(REPO_ROOT, '.githooks', 'post-rewrite');
 const REAL_CLASSIFIER = join(REPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'affected.gjs.mjs');
 
 /**
+ * Wall-clock ceiling for every child this suite spawns.
+ *
+ * Not defensive padding — a bound is the only thing that turns a runaway child
+ * into a test failure instead of a machine failure. A `spawnSync` without
+ * `timeout` waits forever, and a child that spawns children while it waits takes
+ * the host with it: this suite did exactly that (the `hookEnv` note below carries
+ * the measurement), and because the runner never returned there was no test
+ * result to read either — the first three attempts reported only 'test failed'
+ * after 158 s, which is what a hang looks like from the outside.
+ *
+ * Generous on purpose: the slowest legitimate child here is a real `git rebase`
+ * over a fixture repo, well under a second. Anything near this ceiling is broken,
+ * not slow.
+ */
+const SPAWN_TIMEOUT_MS = 30_000;
+
+/**
+ * Fail with the REAL reason when a child did not run to completion.
+ *
+ * Without this, a timed-out or un-spawnable child reaches the assertions as
+ * `status: null` and `stdout: ''`, so the suite reports "expected a warning, got:
+ * (empty)" — a content mismatch for what is actually a hang or an ENOENT. The
+ * diagnostic that costs half an hour is the one that describes the wrong failure
+ * confidently.
+ */
+function assertSpawnCompleted(result, what) {
+    if (result.error) {
+        assert.fail(
+            `${what}: child did not complete — ${result.error.code ?? result.error.message}. ` +
+                `A timeout here means the child hung (see SPAWN_TIMEOUT_MS); it is not an assertion about output.`,
+        );
+    }
+    if (result.signal) {
+        assert.fail(`${what}: child was killed by ${result.signal} (not an output mismatch).`);
+    }
+}
+
+/**
  * Stub classifier. Reads a newline-separated file list on stdin and prints the
  * affected workspace names, one per line — the `--format=globs` contract.
  *
@@ -198,7 +236,9 @@ function rebase(root, stubBin, onto, envOverrides = {}) {
     const r = spawnSync('git', ['-C', root, 'rebase', onto], {
         encoding: 'utf-8',
         env: { ...process.env, PATH: `${stubBin}:${process.env.PATH}`, ...envOverrides },
+        timeout: SPAWN_TIMEOUT_MS,
     });
+    assertSpawnCompleted(r, `git rebase onto ${onto}`);
     assert.equal(r.status, 0, `rebase failed (the hook must never break it): ${r.stderr}`);
     return `${r.stdout}${r.stderr}`;
 }
@@ -213,7 +253,9 @@ function amend(root, stubBin, message, changes = {}) {
     const r = spawnSync('git', ['-C', root, 'commit', '-q', '--amend', '--no-verify', '-m', message], {
         encoding: 'utf-8',
         env: { ...process.env, PATH: `${stubBin}:${process.env.PATH}` },
+        timeout: SPAWN_TIMEOUT_MS,
     });
+    assertSpawnCompleted(r, 'git commit --amend');
     assert.equal(r.status, 0, `amend failed: ${r.stderr}`);
     return `${r.stdout}${r.stderr}`;
 }
@@ -483,7 +525,9 @@ describe('git post-rewrite hook — committed-bundle staleness after a rewrite',
         const reb = spawnSync('git', ['-C', root, 'rebase', 'main'], {
             encoding: 'utf-8',
             env: { ...process.env, SKIP_GJSIFY_HOOKS: '1' },
+            timeout: SPAWN_TIMEOUT_MS,
         });
+        assertSpawnCompleted(reb, 'git rebase (hooks off)');
         assert.equal(reb.status, 0, `rebase failed: ${reb.stderr}`);
         const newTip = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf-8' }).trim();
 
@@ -495,15 +539,33 @@ describe('git post-rewrite hook — committed-bundle staleness after a rewrite',
             assert.ok(found, `test prerequisite missing from PATH: ${tool}`);
             symlinkSync(found, join(sanitized, tool));
         }
+        // ONE environment, shared by the probe and the run it gates. A probe
+        // executed under a DIFFERENT environment than the invocation it is a
+        // precondition for proves nothing about that invocation — and the
+        // divergence here was not cosmetic. The probe originally passed
+        // `{ PATH: sanitized }` while the hook run below passed
+        // `{ PATH: sanitized, HOME: root }`, and a bash spawned with the
+        // environment reduced to PATH alone does not come back: it spawns
+        // processes without bound. Measured on a linux-x64 workstation — ONE 3
+        // second call left 12794 `bash` processes, and a suite run reached 4329
+        // of them holding 78.7 GB before the kernel resolved the global OOM by
+        // killing unrelated desktop processes. With HOME present the identical
+        // call returns instantly. Never spawn from this suite with a hand-built
+        // env that is not this one.
+        const hookEnv = { PATH: sanitized, HOME: root };
+
         // Probe with the SYMLINKED bash and an absolute path: a bare `sh` would
         // not be resolvable under the sanitized PATH, and spawn failing silently
         // yields `stdout === undefined` rather than a verdict.
         const sanitizedBash = join(sanitized, 'bash');
+        const probe = spawnSync(sanitizedBash, ['-c', 'command -v gjs; command -v gjsify'], {
+            encoding: 'utf-8',
+            env: hookEnv,
+            timeout: SPAWN_TIMEOUT_MS,
+        });
+        assertSpawnCompleted(probe, 'sanitized-PATH probe');
         assert.equal(
-            spawnSync(sanitizedBash, ['-c', 'command -v gjs; command -v gjsify'], {
-                encoding: 'utf-8',
-                env: { PATH: sanitized },
-            }).stdout.trim(),
+            probe.stdout.trim(),
             '',
             'sanitized PATH still exposes gjs/gjsify — the fallback branch would not be reached',
         );
@@ -512,8 +574,10 @@ describe('git post-rewrite hook — committed-bundle staleness after a rewrite',
             cwd: root,
             input: `${oldTip} ${newTip}\n`,
             encoding: 'utf-8',
-            env: { PATH: sanitized, HOME: root },
+            env: hookEnv,
+            timeout: SPAWN_TIMEOUT_MS,
         });
+        assertSpawnCompleted(r, 'hook under sanitized PATH');
         assert.equal(r.status, 0, `hook exited non-zero: ${r.stderr}`);
         const out = `${r.stdout}${r.stderr}`;
         assert.match(out, /a committed GJS bundle may now be STALE/, `expected a warning, got:\n${out}`);
@@ -543,7 +607,9 @@ describe('git post-rewrite hook — committed-bundle staleness after a rewrite',
                 cwd: REPO_ROOT,
                 input: `${files.join('\n')}\n`,
                 encoding: 'utf-8',
+                timeout: SPAWN_TIMEOUT_MS,
             });
+            assertSpawnCompleted(r, 'real committed classifier');
             assert.equal(r.status, 0, `classifier failed: ${r.stderr}`);
             return r.stdout.split('\n').filter(Boolean);
         };
