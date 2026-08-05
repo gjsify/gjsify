@@ -133,6 +133,14 @@ jobs:
       - name: Check every e2e suite runs or says why not
         run: node scripts/check-e2e-suite-coverage.mjs
 
+      # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
+      # versions on purpose, so every install still succeeds — just without the platform
+      # fields the filter reads. That is how this repo installed every platform's
+      # prebuilds (4935 MB where 1268 MB is usable, 183 unusable packages) for as long as
+      # the filter had shipped, with e2e coverage proving the filter itself worked.
+      - name: Check the tracked lockfile carries current platform data
+        run: node scripts/check-lockfile-current.mjs
+
       - name: Check for resurrected prose (advisory)
         continue-on-error: true
         env:
@@ -233,3 +241,11 @@ jobs:
       # globbing, correctly; what was missing is a record of which omissions are meant.
       - name: Check every e2e suite runs or says why not
         run: node scripts/check-e2e-suite-coverage.mjs
+
+      # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
+      # versions on purpose, so every install still succeeds — just without the platform
+      # fields the filter reads. That is how this repo installed every platform's
+      # prebuilds (4935 MB where 1268 MB is usable, 183 unusable packages) for as long as
+      # the filter had shipped, with e2e coverage proving the filter itself worked.
+      - name: Check the tracked lockfile carries current platform data
+        run: node scripts/check-lockfile-current.mjs

@@ -99,18 +99,31 @@ the installer reads a file whose FORMAT this repo evolves:
 | | `LOCKFILE_VERSION` | on an unknown version |
 |---|---|---|
 | `v0.26.1` (last release) | `2` | `if (parsed.lockfileVersion !== LOCKFILE_VERSION) return null;` |
-| `main` | `3` | `READABLE_LOCKFILE_VERSIONS = new Set([2, 3])` |
+| `main` | `4` | `READABLE_LOCKFILE_VERSIONS = new Set([2, 3, LOCKFILE_VERSION])` |
 
-The tracked `gjsify-lock.json` is still `"lockfileVersion": 2`, so this has not
-fired yet. The first plain (non-`--immutable`) `gjsify install` anyone runs
-rewrites it to v3 — and from that commit on, a v0.26.1 installer reports
-`--immutable requires gjsify-lock.json … none found` for a file that plainly
-exists. That kills the fresh clone, every container job (`gjsify-setup` boots the
-bundle before anything is installed), `release.yml` and `release-cut.yml`
-simultaneously, and there is no release cuttable to repair it. Backwards
-compatibility was added in the right direction (new CLI reads old lockfiles); a
-previous-release installer needs the other direction, which no amount of care can
-retrofit into an already-published artifact.
+**This has now fired, on purpose.** The tracked `gjsify-lock.json` was
+`"lockfileVersion": 2` when this ADR was written, which is why the paragraph
+below was future tense. It is v4 as of the platform-filter migration: a v2 entry
+carries no `os`/`cpu`/`optional`, so the platform filter had nothing to filter on
+and every checkout installed every platform's prebuilds (measured: 4935 MB → 1268
+MB, 183 foreign-platform packages → 0). The format had to move for the data to
+exist at all.
+
+So a v0.26.1 installer now reports `--immutable requires gjsify-lock.json … none
+found` for a file that plainly exists. Backwards compatibility was added in the
+right direction (new CLI reads old lockfiles); a previous-release installer needs
+the other direction, which no amount of care can retrofit into an
+already-published artifact.
+
+What keeps that from killing the fresh clone, the container jobs (`gjsify-setup`
+boots the bundle before anything is installed), `release.yml` and
+`release-cut.yml` is precisely this ADR's rule, already in force: **all nine
+`install` invocations in CI run `gjs -m packages/infra/cli/dist/cli.gjs.mjs
+install --immutable`** — the same-commit bundle, whose reader set includes its
+own version. Nothing in this repo installs with a *published* gjsify. The wedge
+is no longer a hypothetical to design around; it is a live constraint that the
+same-commit rule absorbs, and the cost of ever revisiting "let the previous
+release do the install" is now immediate rather than deferred.
 
 **So a minimal, version-free `bootstrap/bootstrap.gjs.mjs`, built from the SAME
 commit, stays tracked** — `install` + `run` + integrity, measured at ~500 KB
