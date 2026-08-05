@@ -238,10 +238,20 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
             // then tries to parse JavaScript as shell. Plain Node scripts
             // with shebangs (lib/index.js) keep the direct-exec path.
             const isGjsBundle = isGjsBundlePath(targetAbs);
+            // A global install extracts the WHOLE package, so when it declares
+            // an npm `bin` beside its `gjsify.bin` that entry is on disk here
+            // too and the launcher can fall back to it on a host without `gjs`
+            // — the same fix as the project-local backend. Guarded on existence
+            // rather than assumed: naming a missing Node entry would only trade
+            // one exit 127 for another. See `pickBinMap`.
+            const fallbackRel = picked.nodeFallback?.get(binName);
+            const fallbackCandidate = fallbackRel === undefined ? undefined : path.join(pkgDir, fallbackRel);
+            const nodeFallbackAbs =
+                fallbackCandidate !== undefined && fs.existsSync(fallbackCandidate) ? fallbackCandidate : undefined;
             // Only GJS bundles need the GI typelib search path. Plain Node
             // scripts ignore GI_TYPELIB_PATH, so skipping the preamble there
             // keeps the launcher minimal.
-            fs.writeFileSync(linkPath, buildShLauncher(targetAbs, { envPreamble, isGjsBundle }));
+            fs.writeFileSync(linkPath, buildShLauncher(targetAbs, { envPreamble, isGjsBundle, nodeFallbackAbs }));
             fs.chmodSync(linkPath, 0o755);
             // Windows runs neither an extension-less file nor a `#!` line, so
             // the `sh` launcher above is only reachable from git-bash/MSYS/WSL.
@@ -265,6 +275,10 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
                           interpreterArgs: ['-m'],
                           target: targetAbs,
                           prependEnv,
+                          fallback:
+                              nodeFallbackAbs === undefined
+                                  ? undefined
+                                  : { interpreter: 'node', target: nodeFallbackAbs },
                       })
                     : buildLauncherShims({
                           interpreter: shebang?.prog || 'node',

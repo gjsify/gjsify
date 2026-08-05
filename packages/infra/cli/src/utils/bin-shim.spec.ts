@@ -141,6 +141,50 @@ export default async () => {
             expect(cmd.includes('@SET')).toBe(false);
             expect(ps1.includes('$env:')).toBe(false);
         });
+
+        // Windows is the majority no-`gjs` host, and these two members are the ones
+        // cmd.exe and pwsh actually reach — the extension-less `sh` member only ever
+        // runs under git-bash/MSYS/WSL.
+        await it('falls back to a second interpreter when the first is absent', async () => {
+            const { cmd, ps1 } = buildLauncherShims({
+                interpreter: 'gjs',
+                interpreterArgs: ['-m'],
+                target: 'C:\\g\\dist\\cli.gjs.mjs',
+                fallback: { interpreter: 'node', target: 'C:\\g\\lib\\index.js' },
+            });
+            expect(cmd).toContain('@where gjs >NUL 2>NUL');
+            expect(cmd).toContain('gjs -m "C:\\g\\dist\\cli.gjs.mjs" %*');
+            expect(cmd).toContain('node "C:\\g\\lib\\index.js" %*');
+            // IF/ELSE on ERRORLEVEL, not `&&`/`||` chaining — the latter swallows
+            // the child's own exit code, which callers key on.
+            expect(cmd).toContain('@IF %ERRORLEVEL% EQU 0 (');
+            expect(ps1).toContain('Get-Command "gjs" -ErrorAction SilentlyContinue');
+            expect(ps1).toContain('$exe = "gjs"; $exeArgs = @("-m"); $script = "C:\\g\\dist\\cli.gjs.mjs"');
+            expect(ps1).toContain('$exe = "node"; $exeArgs = @(); $script = "C:\\g\\lib\\index.js"');
+            expect(ps1).toContain('exit $LASTEXITCODE');
+        });
+
+        await it('keeps the single-interpreter shape when no fallback is given', async () => {
+            const { cmd, ps1 } = buildLauncherShims({
+                interpreter: 'gjs',
+                interpreterArgs: ['-m'],
+                target: 'C:\\g\\dist\\cli.gjs.mjs',
+            });
+            expect(cmd.includes('@where')).toBe(false);
+            expect(ps1.includes('Get-Command')).toBe(false);
+        });
+
+        await it('still prepends the search paths in the fallback shape', async () => {
+            const { cmd, ps1 } = buildLauncherShims({
+                interpreter: 'gjs',
+                interpreterArgs: ['-m'],
+                target: 'C:\\g\\dist\\cli.gjs.mjs',
+                prependEnv: { PATH: 'C:\\p\\a' },
+                fallback: { interpreter: 'node', target: 'C:\\g\\lib\\index.js' },
+            });
+            expect(cmd).toContain('@SET "PATH=C:\\p\\a;%PATH%"');
+            expect(ps1).toContain('$env:PATH = "C:\\p\\a;" + $env:PATH');
+        });
     });
 
     // The `sh` preamble every GJS launcher carries so `imports.gi.X` resolves
@@ -345,6 +389,29 @@ export default async () => {
             expect(pickBinMap('plain', {})).toBeNull();
         });
 
+        // The regression: `@gjsify/cli` declares BOTH, and the npm map used to be
+        // discarded — so a host without `gjs` got `exec gjs -m …` = exit 127 while a
+        // working Node entry sat in the same package. Red on macOS AND Windows for
+        // v0.27.1, v0.28.0 and v0.29.0.
+        await it('carries the npm map alongside when a package declares both', async () => {
+            const picked = pickBinMap('@gjsify/cli', {
+                bin: { gjsify: 'lib/index.js' },
+                gjsify: { bin: { gjsify: 'dist/cli.gjs.mjs' } },
+            });
+            expect(picked?.map.get('gjsify')).toBe('dist/cli.gjs.mjs');
+            expect(picked?.nodeFallback?.get('gjsify')).toBe('lib/index.js');
+        });
+
+        await it('has no fallback when only `gjsify.bin` is declared', async () => {
+            const picked = pickBinMap('@gjsify/only-gjs', { gjsify: { bin: { tool: 'dist/t.gjs.mjs' } } });
+            expect(picked?.isGjsBin).toBe(true);
+            expect(picked?.nodeFallback).toBeNull();
+        });
+
+        await it('has no fallback when only the npm `bin` is declared', async () => {
+            expect(pickBinMap('lodash', { bin: { lodash: 'bin/lodash.js' } })?.nodeFallback).toBeNull();
+        });
+
         await it('expands the string shorthand against the unscoped name', async () => {
             expect(normalizeBinMap('@scope/tool', 'bin/run.js').get('tool')).toBe('bin/run.js');
         });
@@ -368,6 +435,34 @@ export default async () => {
 
         await it('quotes a path containing a single quote', async () => {
             expect(buildShLauncher("/o'brien/x.mjs", { isGjsBundle: true })).toContain(`'/o'\\''brien/x.mjs'`);
+        });
+
+        await it('dispatches at run time when a Node fallback is given', async () => {
+            const sh = buildShLauncher('/opt/p/dist/cli.gjs.mjs', {
+                envPreamble: 'export GI_TYPELIB_PATH=/x\n',
+                isGjsBundle: true,
+                nodeFallbackAbs: '/opt/p/lib/index.js',
+            });
+            expect(sh).toContain('command -v gjs');
+            expect(sh).toContain(`exec gjs -m '/opt/p/dist/cli.gjs.mjs' "$@"`);
+            expect(sh).toContain(`exec node '/opt/p/lib/index.js' "$@"`);
+            // gjs stays FIRST — which runtime wins on a host carrying both is a
+            // separate decision from making the shim runnable at all.
+            expect(sh.indexOf('exec gjs')).toBeLessThan(sh.indexOf('exec node'));
+            // The preamble configures the GI search path only, so it belongs in
+            // the gjs branch; around a Node exec it would be inert and misleading.
+            expect(sh.indexOf('GI_TYPELIB_PATH')).toBeGreaterThan(sh.indexOf('command -v gjs'));
+        });
+
+        await it('emits no fallback branch when none is given', async () => {
+            const sh = buildShLauncher('/opt/p/dist/cli.gjs.mjs', { isGjsBundle: true });
+            expect(sh).not.toContain('command -v gjs');
+            expect(sh).not.toContain('exec node');
+        });
+
+        await it('quotes the fallback path too', async () => {
+            const sh = buildShLauncher('/a/x.gjs.mjs', { isGjsBundle: true, nodeFallbackAbs: "/o'brien/i.js" });
+            expect(sh).toContain(`'/o'\\''brien/i.js'`);
         });
 
         await it('classifies bundle paths by extension', async () => {
