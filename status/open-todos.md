@@ -1329,3 +1329,36 @@ Two ways out, and they are not equivalent:
    typelibs with no `.gir` at all. Bringing them into scope is the follow-up; it
    also unlocks generating types from the shipped artifact, which is the only
    route to types that cannot be skewed rather than merely checked.
+
+### `devtools-export` loses its DBus name in the containerised runner
+
+`tests/e2e/devtools-export/` had never run in CI. Listing it in `test:e2e` (PR #984) gave it a
+first run, which failed — and the measurement points at the environment rather than at
+`@gjsify/devtools`:
+
+```
+APP_ON_BUS=yes            the fixture DID own org.example.reprotest
+INSTALL_RETURNED=null     installDevtools returned null
+EXPORT_LOG=no             the "exported org.gjsify.Devtools" line never printed
+GETSTATUS  -> GDBus.Error:...ServiceUnknown: The name org.example.reprotest
+                          was not provided by any .service files
+```
+
+with, in between, `dbus-daemon` activating `org.freedesktop.portal.Desktop` on the fixture's
+request and `xdg-desktop-portal` then failing on `Document portal fuse mount point unknown`.
+So the app owned its name, lost it, and devtools never installed. The same suite passes on a
+normal desktop session.
+
+WHAT IS NOT KNOWN: why the name goes away. Candidates worth separating before touching any
+code — the app exiting early (a GApplication with no window and `HANDLES_COMMAND_LINE` can
+return from `run()` sooner than the driver's 20 s polling window suggests), the portal
+activation churn interfering with name ownership, or `installDevtools` genuinely getting no
+`app.get_dbus_connection()` at `startup` in that environment. The driver already captures the
+app's own log (`APP_LOG_BEGIN`/`APP_LOG_END`); the CI run printed the KEY=value block but the
+app log itself is the next thing to read.
+
+THE FIX IS NOT A LEDGER ENTRY. It is currently in `scripts/e2e-unlisted-suites.mjs` so #984
+could land honestly, but the entry says so: the right repair is a precondition in the suite's
+own SKIP gate — it already carries nine of them — so it skips where an Adwaita GApplication
+cannot complete startup and keeps running where it can. Removing the ledger entry in the same
+change is what `check-e2e-suite-coverage.mjs` will then require.

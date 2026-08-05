@@ -25,6 +25,19 @@
 
 /** @type {Record<string, string>} */
 export const E2E_UNLISTED_SUITES = {
+    'devtools-export': [
+        'Needs a session-bus environment in which an Adwaita GApplication completes startup and',
+        'KEEPS its well-known name. The containerised runner does not provide one. This suite had',
+        'never run in CI before being listed, and its first run there measured: `APP_ON_BUS=yes`',
+        '(the app DID own org.example.reprotest), then `INSTALL_RETURNED=null` and `EXPORT_LOG=no`',
+        '(devtools never installed), then `ServiceUnknown` for every later call — with',
+        '`org.freedesktop.portal.Desktop` activating in between and `xdg-desktop-portal` failing on',
+        '"Document portal fuse mount point unknown". It passes on a normal desktop session.',
+        'WHY the name is lost in the container is NOT yet understood, so this entry records a',
+        'measured environmental dependency together with an OPEN QUESTION — it is not a settled',
+        'exemption, and the right fix is a precondition in the suite’s own SKIP gate so it skips',
+        'there and still runs where it can. Tracked in status/open-todos.md.',
+    ].join(' '),
     'terminal-native': [
         'Needs its own `gjsify run build` first: the suite drives a probe binary that only',
         'exists after the terminal-native prebuild is staged, and `test:e2e` does not build',
