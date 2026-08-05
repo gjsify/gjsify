@@ -7,9 +7,6 @@ import CommandTabs from './CommandTabs.astro';
 import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/actions';
 import DemoArrow from '../assets/demo-arrow.svg?raw';
 import DemoArrowTerminal from '../assets/demo-arrow-terminal.svg?raw';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 // The runtimes a showcase can be launched on. A slide shows a runtime tab only
 // when that showcase genuinely runs there, because the CLI enforces it:
@@ -50,14 +47,29 @@ const RUNTIME_INVOCATION: Record<Runtime, string> = {
 // — and the build FAILS on a showcase with no declaration instead of quietly
 // advertising four tabs, because an absent declaration means "unconstrained" to the
 // CLI and that is precisely what must not be guessed on a public page.
+//
+// Resolved by the BUNDLER at build time, never by the filesystem at render time.
+// `import.meta.url` cannot express this: after bundling, the frontmatter lives in
+// `website/dist/.prerender/chunks/`, so walking three levels up from it lands in
+// `website/` — the first attempt failed the docs build with `ENOENT` on
+// `website/showcases/node/express-webserver/package.json`. `import.meta.glob` resolves
+// its specifier relative to THIS source file at build time, which is exactly the
+// relationship being stated, and leaves no path arithmetic to get wrong.
+const SHOWCASE_MANIFESTS = import.meta.glob<{ gjsify?: { example?: { runtimes?: Runtime[] } } }>(
+  '../../../showcases/*/*/package.json',
+  { eager: true, import: 'default' },
+);
+
 function declaredRuntimes(github: string): readonly Runtime[] {
-  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-  const manifestPath = join(repoRoot, github, 'package.json');
-  const declared = JSON.parse(readFileSync(manifestPath, 'utf8'))?.gjsify?.example?.runtimes;
+  // Glob keys are specifiers relative to this file; match on the repo-relative tail so
+  // the slide keeps naming its showcase the same way its `github` link does.
+  const key = Object.keys(SHOWCASE_MANIFESTS).find((k) => k.endsWith(`/${github}/package.json`));
+  const declared = key ? SHOWCASE_MANIFESTS[key]?.gjsify?.example?.runtimes : undefined;
   if (!Array.isArray(declared) || declared.length === 0) {
     throw new Error(
       `ShowcaseSlideshow: ${github}/package.json declares no gjsify.example.runtimes, so this page ` +
-        'cannot know which runtime tabs are honest. Declare the runtimes the showcase actually ships for.',
+        'cannot know which runtime tabs are honest. Declare the runtimes the showcase actually ships ' +
+        `for. Manifests found: ${Object.keys(SHOWCASE_MANIFESTS).length}`,
     );
   }
   return declared as readonly Runtime[];
