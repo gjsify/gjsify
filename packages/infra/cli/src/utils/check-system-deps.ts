@@ -150,8 +150,8 @@ interface OptionalDep {
     pkgName: string;
 }
 
-/** Optional system deps keyed by their DepCheck id. */
-const OPTIONAL_DEPS: Record<string, OptionalDep> = {
+/** Optional system deps keyed by their DepCheck id. Exported for the spec's declaration invariant. */
+export const OPTIONAL_DEPS: Record<string, OptionalDep> = {
     manette: { id: 'manette', name: 'libmanette', pkgName: 'manette-0.2' },
     gstreamer: { id: 'gstreamer', name: 'GStreamer', pkgName: 'gstreamer-1.0' },
     'gst-app': { id: 'gst-app', name: 'GStreamer App', pkgName: 'gstreamer-app-1.0' },
@@ -168,6 +168,21 @@ const OPTIONAL_DEPS: Record<string, OptionalDep> = {
     // `Run-time dependency X found: NO` error mid-build.
     gnutls: { id: 'gnutls', name: 'GnuTLS', pkgName: 'gnutls' },
     nghttp2: { id: 'nghttp2', name: 'libnghttp2', pkgName: 'libnghttp2' },
+    // RUNTIME deps of the shipped prebuilds, not build-time ones — the distinction
+    // the two entries above make does not hold for these. Measured on fedora:43
+    // provisioned like a CONSUMER (gjs + libsoup3 only), `ldd` over every committed
+    // linux-x64 prebuild: three sonames do not resolve, and each makes its typelib
+    // UNLOADABLE, which surfaces as `Unsupported type void, deriving from
+    // fundamental void` at first construction — a message that names nothing.
+    //   @gjsify/rolldown-native  libjson-glib-1.0.so.0
+    //   @gjsify/webgl            libepoxy.so.0            (gdk-pixbuf already listed)
+    //   @gjsify/webrtc-native    libgstwebrtc-1.0.so.0    (gstreamer already listed)
+    // json-glib is the severe one: rolldown-native IS the GJS bundler engine, so a
+    // host without it cannot `gjsify build` at all, while `gjsify install` printed
+    // "System dependencies OK." — a check passing for the wrong reason.
+    'json-glib': { id: 'json-glib', name: 'JSON-GLib', pkgName: 'json-glib-1.0' },
+    epoxy: { id: 'epoxy', name: 'libepoxy', pkgName: 'epoxy' },
+    'gst-webrtc': { id: 'gst-webrtc', name: 'GStreamer WebRTC', pkgName: 'gstreamer-webrtc-1.0' },
 };
 
 /**
@@ -176,8 +191,11 @@ const OPTIONAL_DEPS: Record<string, OptionalDep> = {
  * available trio GLib/GObject/Gio).
  *
  * Used to compute the set of optional deps to check for a given project.
+ *
+ * Exported for the spec's declaration invariant: every id named here must exist in
+ * OPTIONAL_DEPS, or the dep is silently never checked.
  */
-const PACKAGE_DEPS: Record<string, string[]> = {
+export const PACKAGE_DEPS: Record<string, string[]> = {
     '@gjsify/gamepad': ['manette'],
     '@gjsify/webaudio': ['gstreamer', 'gst-app'],
     '@gjsify/iframe': ['webkitgtk'],
@@ -188,13 +206,17 @@ const PACKAGE_DEPS: Record<string, string[]> = {
     // as a special-case checkNpmPackage rather than checkPkgConfig in
     // runOptionalChecks. Mapping it here so its presence in the project's
     // dep tree triggers the check.
-    '@gjsify/webgl': ['gwebgl'],
+    '@gjsify/webgl': ['gwebgl', 'gdk-pixbuf', 'epoxy'],
     // Native Vala bridges with `dependency('gnutls')` / `dependency('libnghttp2')`
     // in their meson.build. Optional because the shipped prebuild covers the
     // common-arch user path; only contributors rebuilding from source hit the
     // build-time dep.
     '@gjsify/tls-native': ['gnutls'],
     '@gjsify/http2-native': ['nghttp2'],
+    // Unlike the two above, these are LOAD-time: the prebuild is dynamically linked
+    // and GIRepository cannot open its backing library without them.
+    '@gjsify/rolldown-native': ['json-glib'],
+    '@gjsify/webrtc-native': ['gstreamer', 'gst-webrtc'],
     // @gjsify/event-bridge only needs gtk4/gdk which are already in the
     // required set, so it doesn't need an optional entry.
 };
@@ -479,6 +501,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         cairo: 'libcairo2-dev',
         gnutls: 'libgnutls28-dev',
         nghttp2: 'libnghttp2-dev',
+        'json-glib': 'libjson-glib-dev',
+        epoxy: 'libepoxy-dev',
     },
     dnf: {
         gjs: 'gjs',
@@ -502,6 +526,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         cairo: 'cairo-devel',
         gnutls: 'gnutls-devel',
         nghttp2: 'libnghttp2-devel',
+        'json-glib': 'json-glib-devel',
+        epoxy: 'libepoxy-devel',
     },
     pacman: {
         gjs: 'gjs',
@@ -525,6 +551,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         cairo: 'cairo',
         gnutls: 'gnutls',
         nghttp2: 'libnghttp2',
+        'json-glib': 'json-glib',
+        epoxy: 'libepoxy',
     },
     zypper: {
         gjs: 'gjs',
@@ -548,6 +576,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         cairo: 'cairo-devel',
         gnutls: 'libgnutls-devel',
         nghttp2: 'libnghttp2-devel',
+        'json-glib': 'json-glib-devel',
+        epoxy: 'libepoxy-devel',
     },
     apk: {
         gjs: 'gjs',
@@ -571,6 +601,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         cairo: 'cairo-dev',
         gnutls: 'gnutls-dev',
         nghttp2: 'nghttp2-dev',
+        'json-glib': 'json-glib-dev',
+        epoxy: 'libepoxy-dev',
     },
     // macOS. Names verified against homebrew/core rather than inferred from the
     // Linux rows — the mapping is NOT mechanical: Homebrew ships no `-dev`/`-devel`
@@ -614,6 +646,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         cairo: 'cairo',
         gnutls: 'gnutls',
         nghttp2: 'nghttp2',
+        'json-glib': 'json-glib',
+        epoxy: 'libepoxy',
     },
     unknown: {},
 };
