@@ -341,6 +341,22 @@ What is MEASURED, and what is not:
   stayed quiet would read as "all clear". **This entry therefore stays open**:
   the standing repair is still to take CI's `rebuilt-bundles` bytes and re-run
   the triple. The hook only removes the part where nobody knew to.
+- **2026-08-05 — a RELEASE restales every open PR's bundle, and the mismatch it
+  produces looks nothing like the drift above.** PR #994 was red on the verify
+  step with the two files at the SAME size (6612297 B) and differing in exactly
+  **one byte**: the committed bundle read `gjsify-install/0.28.0` where the
+  rebuild emits `0.29.0`. `buildHeaders()` (`utils/publish-headers.ts`) bakes the
+  CLI version into the install backend's `user-agent`, the branch's bundle was
+  built before `chore: release v0.29.0`, and the branch then sat on top of it.
+  Nothing about that PR touched the baked value. So this cause is neither
+  non-determinism nor a stale closure — it is the release train, it fires on
+  EVERY open PR whose bundle predates a cut, and the author sees an unexplained
+  byte mismatch in a file they did not meaningfully change. The one-byte,
+  same-size signature is worth recognising on sight: check the baked version
+  before reaching for the `$N` explanation. It is also the sharpest argument for
+  the second direction below — ADR 0002 measures 43 of the 250 commits on this
+  artifact as `chore: release`, and an untracked bundle cannot be restaled by a
+  version bump at all.
 
 AGENTS.md § Committed-artifact freshness already says `--with-dependencies` pins
 the INPUTS so that "a mismatch means staleness"; the run above is that sentence
@@ -1115,40 +1131,6 @@ that always runs (or move them into `audit-runtimes.yml`, which already runs on
 every PR with no paths filter — but that job deliberately performs no install, and
 both tools are devDeps, so it would need one). Pick deliberately; either way the
 claim "lint is clean" stops depending on which paths a PR happened to touch.
-
-### A workflow GitHub refuses to load reports the PR as GREEN
-
-When GitHub rejects a workflow file it creates a run with ZERO jobs, hence zero
-check runs — so the pull request shows green while the workflow never ran. The
-only visible trace is a run oddly named after the file path instead of the
-workflow name.
-
-Measured: moving nine jobs onto the baked CI image deleted a single-line `run:`
-and left a step carrying only a `name:`. GitHub refused the whole file, six
-node-gi jobs silently did not run, and the PR reported **24 green checks**. It
-was caught by asking why the expected job names were missing, not by any signal.
-
-Measured AGAIN on 2026-08-04, with a different cause and the same silence:
-`PREBUILD_SNAPSHOT: ${{ runner.temp }}/…` in `jobs.commit-prebuilds.env` — the
-`runner` context does not exist outside steps. GitHub refused the file and raised
-run 30890615702 as a `push`-event run on a topic branch that `prebuilds.yml`'s
-`push` trigger does not even cover (a file it cannot parse never gets its triggers
-evaluated), while `gh pr checks` reported only passes. So the class has now cost
-two incidents, and the second one was a CONTEXT error rather than a shape error —
-whatever gate is chosen must evaluate expression scope, not just outline shape.
-`tests/e2e/prebuild-change-gate` now fails a `runner`/`steps` reference in any
-job-level `env:` block, which covers that one mistake in that one file; it is a
-point fix, not the general gate this entry is about.
-
-Another workflow CAN see what the broken one cannot report — `audit-runtimes.yml`
-already runs pure-Node repo checks on every PR with no install — so the gate has
-an obvious home. The trap is the checker itself: a hand-rolled YAML outline
-scanner written for this produced 17 false positives on `prebuilds.yml` and
-`release.yml`, both of which GitHub loads fine, and a check that cries wolf is
-worse than none. Node ships no YAML parser, so the real options are `actionlint`
-(purpose-built, one Go binary, catches far more) or python3 + PyYAML, which the
-ubuntu runners already have and which gave the correct answer — exactly one
-offending step — when used ad hoc. Pick one deliberately; do not hand-roll.
 
 ### `needsWebgl` in `showcases.json` is declared, parsed, and read by nobody
 

@@ -161,11 +161,22 @@ jobs:
       # `curl ... | gjs -m -` line, no npm/Node required. The bundle was
       # rebuilt above by `gjsify run build` (executes build:gjs-bundle).
       #
-      # Asset upload fires on the original `release` event and on manual
-      # reruns that target a specific tag — the second path is the fix for
-      # the v0.4.15 incident (release-event run failed, the manual reruns
-      # that followed silently skipped the upload because the original
-      # gate was hard-pinned to `event_name == 'release'`).
+      # THIS IS NO LONGER THE PRIMARY UPLOAD — `release-cut.yml` now ships these
+      # three files immediately after it creates the release, and asserts the
+      # documented URLs resolve before it dispatches this workflow. It has to:
+      # this phase runs after the ~130-package serial npm publish, and the gap
+      # between "release published" and "assets present" was a MEASURED two-hour
+      # window in which `releases/latest/download/install.mjs` 404'd — breaking
+      # the documented install path and all of ts-for-gir's CI. See the comment
+      # at that step for the full incident.
+      #
+      # It stays because it is the RECOVERY path, and re-uploading identical
+      # bytes is a no-op: asset upload fires on the original `release` event and
+      # on manual reruns that target a specific tag — the second path is the fix
+      # for the v0.4.15 incident (release-event run failed, the manual reruns
+      # that followed silently skipped the upload because the original gate was
+      # hard-pinned to `event_name == 'release'`). A cut that dies between
+      # creating the release and uploading still has one way to land the assets.
       - name: Generate cli.gjs.mjs.sha256
         if: ${{ (github.event_name == 'release' || inputs.release_tag != '') && inputs.verify_only != true }}
         run: |

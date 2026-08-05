@@ -242,6 +242,95 @@ jobs:
           echo "release-it $*"
           PATH="$PWD/node_modules/.bin:$PATH" npx release-it "$@"
 
+      # THE ASSETS SHIP HERE, NOT IN release.yml — and the ordering is the whole
+      # point.
+      #
+      # release-it above creates the GitHub release as PUBLISHED
+      # (`github.release: true`, `preRelease: false`), and `releases/latest`
+      # starts pointing at it immediately. `release.yml` used to be the only
+      # uploader, in its Phase F, AFTER the ~130-package serial npm publish. So
+      # between those two moments there was a live release with zero assets that
+      # `releases/latest/download/...` already resolved to. MEASURED on the
+      # v0.29.0 cut: over TWO HOURS, `install.mjs` and `cli.gjs.mjs` both HTTP
+      # 404 the whole time.
+      #
+      # That URL is not incidental — it is THE documented Node-free install path
+      # (README.md, website/src/content/docs/guides/install.md), and every job in
+      # `gjsify/ts-for-gir`'s CI bootstraps through it. So for the length of each
+      # publish, a fresh consumer install and that repo's entire CI failed with
+      # `curl: (22) 404`. It cost an investigation once already: a container probe
+      # bootstrapping that way failed, and the failure first read as a
+      # GJS-version problem.
+      #
+      # This job is the only one that HAS the bytes before anything is public.
+      # Both are same-commit artifacts of the release commit itself:
+      # `install.mjs` is tracked at the root, and `dist/cli.gjs.mjs` was rebuilt
+      # AT THE NEW VERSION by the `after:bump` hook — `--rebuild` implies
+      # `--keep`, so what is on disk here is what the tag carries. Uploading from
+      # release.yml could only ever re-derive that.
+      - name: Generate cli.gjs.mjs.sha256
+        if: ${{ !inputs.dry_run }}
+        id: assets
+        run: |
+          set -euo pipefail
+          cd packages/infra/cli/dist
+          sha256sum cli.gjs.mjs | awk '{print $1}' > cli.gjs.mjs.sha256
+          cat cli.gjs.mjs.sha256
+          cd - >/dev/null
+          # The tag release-it just created. The dispatch step below re-derives
+          # this the same way; both read the tag rather than recomputing a
+          # version, so neither can disagree with what was actually pushed.
+          echo "tag=$(git describe --tags --abbrev=0)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload installer + bootstrap bundle to the release
+        if: ${{ !inputs.dry_run }}
+        uses: softprops/action-gh-release@v3
+        with:
+          # Same invocation shape as release.yml's Phase F (tag_name + files, no
+          # `body`): targeting an EXISTING release uploads the assets onto it and
+          # leaves the release notes release-it computed alone.
+          tag_name: ${{ steps.assets.outputs.tag }}
+          files: |
+            install.mjs
+            packages/infra/cli/dist/cli.gjs.mjs
+            packages/infra/cli/dist/cli.gjs.mjs.sha256
+
+      # A check that cannot fail is decoration, so this one gates — and it gates
+      # BEFORE the publish dispatch on purpose. The two failure modes are not
+      # symmetric: stopping here leaves a cut release with npm not yet published,
+      # which the dispatch comment below already describes as recoverable by
+      # hand; letting it through would publish into exactly the 404 window this
+      # step exists to close. Retried because the object store needs a moment to
+      # serve a just-uploaded asset, and a redirect-following HEAD on a cold CDN
+      # path is the one part of this that can be slow without being wrong.
+      - name: Assert the documented install URLs resolve
+        if: ${{ !inputs.dry_run }}
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.assets.outputs.tag }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/$REPO/releases"
+          fail=0
+          for url in "$base/latest/download/install.mjs" \
+                     "$base/latest/download/cli.gjs.mjs" \
+                     "$base/download/$TAG/install.mjs" \
+                     "$base/download/$TAG/cli.gjs.mjs"; do
+            code=""
+            for attempt in 1 2 3 4 5 6; do
+              code="$(curl -sILo /dev/null -w '%{http_code}' "$url" || echo 000)"
+              [ "$code" = "200" ] && break
+              sleep 10
+            done
+            if [ "$code" = "200" ]; then
+              echo "ok   $code  $url"
+            else
+              echo "::error::$url returned $code — the documented install path is broken for this release."
+              fail=1
+            fi
+          done
+          [ "$fail" = "0" ]
+
       # The cut creates a GitHub release, and release.yml listens for
       # `release: [published]` — but a release created by a workflow using the
       # repository's GITHUB_TOKEN does NOT trigger other workflows. That is
