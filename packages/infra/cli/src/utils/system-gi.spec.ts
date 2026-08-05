@@ -180,12 +180,7 @@ export default async () => {
                 ]),
                 searchDirs: () => ['/opt/gnome/lib/pkgconfig'],
             });
-            expect(dirs).toStrictEqual([
-                '/opt/mystack/lib',
-                '/opt/second/lib',
-                '/opt/gnome/lib',
-                '/usr/local/lib',
-            ]);
+            expect(dirs).toStrictEqual(['/opt/mystack/lib', '/opt/second/lib', '/opt/gnome/lib', '/usr/local/lib']);
         });
 
         await it('deduplicates, and never yields the filesystem root', async () => {
