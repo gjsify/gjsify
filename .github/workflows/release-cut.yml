@@ -114,10 +114,13 @@ jobs:
         with:
           node-version: '26.x'
 
-      # Node-free install via the committed GJS bundle — verbatim from
-      # release.yml's publish job.
+      # Node-free install via the PUBLISHED gjsify (ADR 0002) — verbatim from
+      # release.yml's publish job. See .github/actions/gjsify-setup for why
+      # `latest` and not a pin.
       - name: Install dependencies (gjsify install --immutable)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
 
       # `verify-committed-bundles.mjs` (the after:bump hook) resolves each
       # workspace dep's `lib/esm` — it must run AFTER a workspace build, which is

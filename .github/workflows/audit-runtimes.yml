@@ -149,6 +149,26 @@ jobs:
       - name: Check the tracked lockfile carries current platform data
         run: node scripts/check-lockfile-current.mjs
 
+      # The READER must ship one release BEFORE the WRITER.
+      #
+      # A host with only gjs bootstraps a fresh clone through `install.mjs` → the
+      # newest PUBLISHED cli.gjs.mjs → `gjsify install --immutable` against this
+      # repo's lockfile — and once the CLI bundle is untracked (ADR 0002) that is
+      # what CI does too. Raise LOCKFILE_VERSION before a release ships a CLI
+      # that READS it and that path is dead for the whole window in between,
+      # failing with a complaint about a lockfile that plainly exists.
+      # `LOCKFILE_VERSION` moved twice in four releases, so this is a live
+      # ordering constraint rather than a hypothetical.
+      #
+      # It belongs in THIS job, not main.yml: build-free, no install, ~2 s, and
+      # no `paths:` filter — so it gates every PR including the ones selective CI
+      # narrows. Deliberately NOT deferred to release-cut: a PR that bumps the
+      # format would then land with no signal, and `main` would be
+      # unbootstrappable for Node-less clones until someone cut a release.
+      # Registry unreachable warns rather than passing silently.
+      - name: Check the published CLI can still read this lockfile format
+        run: node scripts/check-lockfile-reader-lead.mjs
+
       # A workflow file GitHub REFUSES TO LOAD reports the pull request as GREEN.
       #
       # GitHub creates a run with zero jobs for it, hence zero check runs, so there

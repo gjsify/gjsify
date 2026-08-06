@@ -115,11 +115,32 @@ runs:
         mkdir -p .gjsify-cache
         chown -R testuser:testuser .
 
-    # Node-free install via the committed GJS bundle. Warm node_modules cache hit
-    # → near-instant no-op; miss → re-extract the delta.
+    # Node-free install via the PUBLISHED gjsify (ADR 0002) — exactly what a
+    # developer with only gjs on their machine does, rather than a second path
+    # invented for CI. `install.mjs` fetches the release asset, hard-fails on a
+    # missing `.sha256`, verifies it and content-addresses the cache; the
+    # `--fetch-only` mode hands back that verified path so this does not grow a
+    # `curl` + `sha256sum` copy of logic that already exists here.
+    #
+    # `latest`, deliberately not a pin: pinning insures against one thing — a
+    # broken release blocking CI — which already has a one-line escape hatch
+    # (`--bootstrap-url` / GJSIFY_INSTALL_BOOTSTRAP_URL), so it can be added the
+    # moment it bites instead of carrying a pin file and a staleness check for a
+    # hypothetical. What keeps `latest` safe is the reader-lead check in
+    # `audit-runtimes.yml`: the published CLI must be able to read this repo's
+    # lockfile format.
+    #
+    # Both commands run AS testuser against the workspace-local cache, so the
+    # fetch writes where the install reads — root's `~/.cache` is not readable
+    # by testuser, and a bootstrap fetched there would be re-downloaded (or fail)
+    # at the point of use.
+    #
+    # Warm node_modules cache hit → near-instant no-op; miss → extract the delta.
     - name: Install dependencies (gjsify install --immutable)
       shell: bash
-      run: su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable"
+      run: |
+        B=$(su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m install.mjs --fetch-only")
+        su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m '$B' install --immutable"
 
     # The committed GJS bundles must execute under stock GJS AND report the
     # current version — catches a broken or stale committed bundle. Run BEFORE

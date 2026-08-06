@@ -435,12 +435,14 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: npm install --no-audit --no-fund --foreground-scripts
 
-      # Node-free workspace install via the committed CLI bundle (the supported
+      # Node-free workspace install via the published CLI (the supported
       # `gjsify install --immutable` path). Needed because @gjsify/sqlite is a
       # workspace package with `workspace:^` deps + `@girs/gda-6.0` — it cannot be
       # built standalone like the self-contained node-gi/example.
-      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+      - name: Install the gjsify workspace (published CLI, Node-free)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
 
       # A published @gjsify/cli (npm rolldown) is the BOOTSTRAP bundler: the committed
       # GJS bundle needs the absent @gjsify/rolldown-native, and the published cli
@@ -886,8 +888,10 @@ jobs:
           npm install --no-audit --no-fund --foreground-scripts
           node scripts/stage-prebuild.mjs   # Deno loads the addon only via the prebuild path
 
-      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+      - name: Install the gjsify workspace (published CLI, Node-free)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
 
       # A published @gjsify/cli (npm rolldown) is the BOOTSTRAP bundler: the committed
       # GJS bundle needs the absent @gjsify/rolldown-native, and the published cli
@@ -2015,11 +2019,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Node-free workspace install via the committed CLI bundle (the supported
+      # Node-free workspace install via the published CLI (the supported
       # `gjsify install --immutable` path). The showcase depends on workspace
       # `@gjsify/storybook` (+ deps) which must be present + built.
-      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+      - name: Install the gjsify workspace (published CLI, Node-free)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
 
       # A published @gjsify/cli (npm rolldown) is the BOOTSTRAP bundler: the committed
       # GJS bundle needs the absent @gjsify/rolldown-native, and the published cli
