@@ -1,6 +1,6 @@
 # ADR 0018 — The OS axis is a declared, checked claim; three platforms are the target
 
-- **Status:** Proposed (2026-08-05)
+- **Status:** Accepted (2026-08-06) — superseding Proposed (2026-08-05)
 - **Scope:** `package.json#gjsify.os` (new), `gjsify.platforms` (unchanged), `@gjsify/manifest-conformance` (new `os-axis` rule), AGENTS.md § Runtime & platform model + § Strategy ("Opportunistic, not driven"), CI leg coverage per OS
 
 ## Context
@@ -129,6 +129,39 @@ which a bundle of unloadable binaries passes.
 4. Update AGENTS.md § Strategy: "Opportunistic, not driven" describes the
    RUNTIME axis and must not be read as covering the OS axis, which is now
    driven.
+
+## Amendments made on acceptance
+
+Two narrowings the implementation forced, both recorded because the ADR's own
+measurement would otherwise read as the rule's contract:
+
+1. **The candidate set is SHIPPING source, not `src/**`.** The sixteen above were
+   counted over `src/**`, which includes `*.spec.ts`. A spec that branches on the
+   OS is claiming something about the TEST, and the sanctioned instrument there
+   is already `it.failing(name, fn, reason, { when })` — which runs the assertion,
+   tolerates the failure on one OS, and fails the day it starts passing. A
+   package-level support claim demanded because a test file knows what OS it is
+   on would sit where nothing can keep it true, and would drift from the `when`
+   predicate that actually holds. Measured on implementation: excluding test
+   sources moves `@gjsify/fs`, `@gjsify/node-globals` and `@gjsify/web-globals`
+   out of the set — each a package whose OS knowledge lives entirely in specs.
+   The candidate set is therefore **nine**, not ten.
+
+2. **Payload a package ships but did not author is skipped.**
+   `@gjsify/create-gjsify` ships `dist-templates/{cli,gtk-minimal}`, both of
+   which read `process.platform`. That is the GENERATED app's OS decision; the
+   scaffolding tool cannot answer for it.
+
+And one thing the ADR left open, decided: **the rule DETECTS an OS decision in
+any spelling rather than mandating a single helper.** `@gjsify/devtools` asks
+`GLib.DIR_SEPARATOR === 92` specifically so a GJS-only package does not pull a
+Node polyfill in to answer "which OS", and `packages/infra/cli`'s
+`platform-check.ts` documents a purity philosophy where every decision function
+takes the host triple as a PARAMETER rather than reading it ambiently. Both are
+right where they are. What the implementation DID unify is the accidental
+duplication — nine ad-hoc spellings including `const IS_WIN32 = platform ===
+'win32'` copied byte-identical into six `@gjsify/fs` spec files — behind
+`@gjsify/utils/core`'s `host-os` module.
 
 ## Do not
 
