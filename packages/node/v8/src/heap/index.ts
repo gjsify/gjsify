@@ -15,6 +15,29 @@
 //
 // Detection is capability-based rather than name-based: we ask the filesystem
 // what is actually there instead of parsing a `uname` string.
+//
+// WHY THIS IS NOT `@gjsify/utils/core`'s `readProcessMemory()`
+//
+// It is the same reading, and `host-process.ts` over there is the module that
+// answers it for `@gjsify/process` — so this looks exactly like the duplication
+// the anti-pattern rules say to lift. It was lifted, and reverted, because of a
+// second rule that wins:
+//
+//   `@gjsify/v8` declares `runtimes.node: "none"`, and `audit-runtimes --check`
+//   DERIVES that slot from the source's GJS-binding signals (`@girs/*` value
+//   import, `gi://`, a `.imports?.gi` guard). Routing the reads through
+//   `/core` — whose whole point is to be GJS-guarded rather than GJS-bound —
+//   left this package looking like pure portable TS, and the checker rightly
+//   suggested promoting the slot to `node: "native"`. That is a change to
+//   published routing (ADR 0014 sends a `native` slot to `<pkg>/globals`), not
+//   a comment, and `Detect runtime-triplet drift` is one of the three checks
+//   that block a merge.
+//
+// So the two readers stay, deliberately, and the contract they share is the one
+// thing that must not drift: both report BYTES, both return `null` rather than
+// zeros when nothing can read, and both leave `data`/`peak` at `0` off procfs.
+// Retiring this copy means first deciding what `@gjsify/v8`'s node slot should
+// be — tracked in `status/open-todos.md`.
 
 import GLib from '@girs/glib-2.0';
 

@@ -81,52 +81,15 @@ function unsupported(name: string): never {
 
 // ─── Real, platform-independent surface ───────────────────────────────────
 
-/**
- * Check whether `input` is a valid IP address. Returns 0 (no), 4 or 6.
- *
- * Pure string classification — identical answer on every runtime. The GJS root
- * entry routes this through `Gio.InetAddress`; here it is the coarse regex
- * classifier, matching what `@gjsify/dns`'s browser entry inlines.
- */
-export function isIP(input: string): 0 | 4 | 6 {
-    if (typeof input !== 'string') return 0;
-    // An IPv6 zone id (`fe80::1%eth0`) is not part of the address proper.
-    const host = input.includes('%') ? input.slice(0, input.indexOf('%')) : input;
-    const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-    if (v4) {
-        // Reject leading zeros (Node does) and out-of-range octets.
-        return v4.slice(1).every((o) => (o.length === 1 || o[0] !== '0') && Number(o) <= 255) ? 4 : 0;
-    }
-    if (host.length === 0 || !host.includes(':')) return 0;
-    // At most one `::` run, 2-8 groups of 1-4 hex digits, optional trailing
-    // IPv4-mapped tail (`::ffff:127.0.0.1`).
-    const tail = /:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
-    const head = tail ? host.slice(0, host.length - tail[1].length) : host;
-    if (tail && isIP(tail[1]) !== 4) return 0;
-    const runs = head.split('::');
-    if (runs.length > 2) return 0;
-    const groups: string[] = [];
-    for (const run of runs) {
-        for (const g of run.split(':')) {
-            if (g === '') continue;
-            if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return 0;
-            groups.push(g);
-        }
-    }
-    const want = tail ? 6 : 8;
-    if (runs.length === 2) return groups.length < want ? 6 : 0;
-    return groups.length === want ? 6 : 0;
-}
-
-/** Check whether `input` is a valid IPv4 address. */
-export function isIPv4(input: string): boolean {
-    return isIP(input) === 4;
-}
-
-/** Check whether `input` is a valid IPv6 address. */
-export function isIPv6(input: string): boolean {
-    return isIP(input) === 6;
-}
+// `isIP` / `isIPv4` / `isIPv6` come from the package's shared classifier.
+//
+// This entry documents that it imports NOTHING, so that no GJS module can leak
+// into a browser bundle through it. `is-ip.ts` takes no imports of its own, so
+// that property is preserved by construction — and the alternative was a second
+// copy of a spec-defined function, which is exactly how the GJS entry and this
+// one came to disagree about `01.02.03.04` (see `is-ip.ts` for the measurement).
+export { isIP, isIPv4, isIPv6 } from './is-ip.js';
+import { isIP, isIPv4, isIPv6 } from './is-ip.js';
 
 // ─── Unimplementable surface ──────────────────────────────────────────────
 

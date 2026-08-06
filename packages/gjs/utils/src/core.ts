@@ -41,5 +41,6 @@ export * from './platform-names.js';
 export * from './structured-clone.js';
 
 // ── GJS-GUARDED (portable fallback off GJS) ─────────────────────────────────
+export * from './host-process.js';
 export * from './main-loop.js';
 export * from './next-tick.js';

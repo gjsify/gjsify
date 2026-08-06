@@ -259,10 +259,14 @@ rather than making a runtime-class claim:
   GJS), every e2e suite and every integration suite run on Fedora.
 - **macOS** is covered by `@gjsify/node-gi`'s own CI (build, conformance, a real
   GTK/Adwaita window, the full Adwaita storybook), by `@gjsify/napi`'s build and
-  gates, and by the native-bridge prebuild job. Since the `macos` job in
-  `main.yml`, a **named subset** of the `@gjsify/*` GJS suites also runs on
-  macOS/arm64 under Homebrew `gjs` 1.88 — see below. The rest of the suite still
-  does not.
+  gates, and by the native-bridge prebuild job. Two jobs run the `@gjsify/*`
+  suites themselves: `main.yml`'s `macos` job executes a **named subset** of
+  `--app gjs` bundles on macOS/arm64 under Homebrew `gjs` 1.88 (see below), and
+  `macos-suites.yml` runs the Node-pillar suites on **both** `test:node` and
+  `test:gjs`, on darwin-arm64 **and** darwin-x64, on `main` and nightly rather
+  than per PR (ADR 0018 § 5). macOS is the only one of the three operating
+  systems where both legs can run at all, and that is the point of running them:
+  `test:node` says the spec is right, `test:gjs` says our port is.
 - **Windows** additionally runs the Node-pillar `@gjsify/*` suites — `utils`, `path`,
   `os`, `process`, `util`, `fs`, `child_process`, `net`, `worker_threads`,
   `node-globals` and `@gjsify/cli`'s own — in `windows-suites.yml`, on `main` and
@@ -302,11 +306,47 @@ build toolchain there.
 The job runs on push-to-main and on the nightly sweep. On a pull request it is
 skipped unless the PR carries the `ci:macos` label.
 
-`@gjsify/os` is **not** in the gated set. Its `getOs()` shells out to `uname -o`,
-a GNU extension Darwin's `uname` rejects, and `@gjsify/utils`' `cli()` throws on
-any stderr output — so `src/darwin.ts` is currently unreachable on macOS. It runs
-as a non-gating probe until it adopts the same capability detection
-`@gjsify/v8` and `@gjsify/child_process` use.
+`@gjsify/os` **is** in the gated set now. It used to run as a non-gating probe;
+the reason given here — that `getOs()` shelled out to `uname -o`, a GNU
+extension Darwin's `uname` rejects — had already been fixed in the code and the
+note outlived it. What the probe was actually catching was `os.cpus()` returning
+a `times` object with no members. It now reports the documented all-zero
+contract, and the one reading macOS genuinely cannot produce is carried by an
+`it.failing(…, { when })` assertion rather than by keeping a whole package
+ungated.
+
+### What the darwin legs found
+
+The OS axis exists because a declaration nothing exercises is a guess. Measured
+on the darwin-x64 VM and on the arm64 runner, against a `main` every existing
+check called green:
+
+| package | symptom | mechanism |
+|---|---|---|
+| `@gjsify/child_process` | the whole suite: `spawnSync` returned `status: null`, `pid: 0`, empty stdout | the specs spawn `process.execPath`, and `@gjsify/process` reported the SCRIPT rather than the interpreter — so the file being spawned was the test bundle |
+| `@gjsify/process` | `pid`, `ppid` and `memoryUsage().rss` all `0` | three inline `/proc/self/*` reads with no fallback; `0` is a valid pid, so nothing could detect the wrong answer |
+| `@gjsify/os` | `cpu.times.user` `undefined` where Node guarantees a number | a getter that warned once per core and returned `{}` |
+| `@gjsify/net` | `isIP('01.02.03.04')` answered `4`; Node answers `0` | delegating to `Gio.InetAddress`, i.e. to the host's `inet_pton(3)` — BSD accepts leading zeros, glibc rejects them |
+
+Three of the four cannot fail on Linux at all, and the fourth cannot fail under
+native Node. That is the shape of hole a single-OS pipeline leaves.
+
+One macOS fact is worth stating separately because it invalidates the obvious
+fix for a dyld problem: **`DYLD_*` environment variables do not survive a shell
+boundary.** SIP strips them when a protected binary is exec'd, and `/bin/sh`
+and `/bin/bash` are protected — so `DYLD_LIBRARY_PATH=… ; some-script.sh` loses
+the value before the script's first command. Measured:
+
+```
+DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'   # prints nothing
+DYLD_LIBRARY_PATH=x node -p 'process.env.DYLD_LIBRARY_PATH' # prints x
+```
+
+This is why `@gjsify/cli` repairs the loader path on the CHILD's launch env
+(`buildNativeEnv()` → `spawn('gjs', …, { env })`), where there is no shell in
+between, rather than exporting it anywhere — and why a workflow-level export is
+a no-op. `macos-suites.yml` prints the measurement on every run so the next
+person to reach for the variable is told why it cannot work.
 
 ### The `@gjsify/*` suites on Bun and Deno
 

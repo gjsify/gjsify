@@ -2,6 +2,8 @@
 // All graceful: each function falls back to a sane default when the
 // underlying source (GLib, /proc, globalThis.process) is unavailable.
 
+import { hostPid, hostPpid } from '@gjsify/utils/core';
+
 import { getGjsGlobal } from './gjs.js';
 import { probeUname } from './uname.js';
 
@@ -64,23 +66,14 @@ export function detectVersionInfo(): VersionInfo {
 }
 
 export function detectPpid(): number {
-    if (typeof globalThis.process?.ppid === 'number') {
+    if (!onGjs() && typeof globalThis.process?.ppid === 'number') {
         return globalThis.process.ppid;
     }
-    try {
-        const GLib = getGjsGlobal().imports?.gi?.GLib;
-        if (GLib) {
-            const [, contents] = GLib.file_get_contents('/proc/self/status');
-            if (contents) {
-                const str = new TextDecoder().decode(contents);
-                const match = str.match(/PPid:\s+(\d+)/);
-                if (match) return parseInt(match[1], 10);
-            }
-        }
-    } catch {
-        /* ignore */
-    }
-    return 0;
+    // `hostPpid()` reads procfs where it exists and `ps -o ppid=` where it does
+    // not — the inline `/proc/self/status` read this used to do reported `0` on
+    // every macOS host. `0` stays the Node-shaped fallback for "no answer": the
+    // field is typed `number` and Node never leaves it undefined.
+    return hostPpid() ?? 0;
 }
 
 /**
@@ -142,22 +135,17 @@ export function detectArch(): ProcessArch {
 }
 
 export function getPid(): number {
-    if (typeof globalThis.process?.pid === 'number') {
+    // The GJS check comes FIRST for the same reason `detectPlatform()` gives:
+    // after register, `globalThis.process` IS this object, and reading `pid`
+    // off it during construction resolves against whichever object is installed
+    // at that moment. Under GJS the answer must come from the host, not from a
+    // half-built singleton.
+    if (!onGjs() && typeof globalThis.process?.pid === 'number') {
         return globalThis.process.pid;
     }
-    try {
-        const GLib = getGjsGlobal().imports?.gi?.GLib;
-        if (GLib) {
-            // GLib doesn't have a direct getpid, read from /proc/self
-            const [, contents] = GLib.file_get_contents('/proc/self/stat');
-            if (contents) {
-                const str = new TextDecoder().decode(contents);
-                const pid = parseInt(str, 10);
-                if (!isNaN(pid)) return pid;
-            }
-        }
-    } catch {
-        /* ignore */
-    }
-    return 0;
+    // `hostPid()` reads `/proc/self/stat` where procfs exists and derives the
+    // pid from a shell's `$PPID` where it does not. macOS has no procfs, so the
+    // previous inline read reported `0` — a valid pid, and therefore a wrong
+    // answer no consumer could detect.
+    return hostPid() ?? 0;
 }

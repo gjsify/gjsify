@@ -50,29 +50,36 @@ env:
   #     path          POSIX/Win32 dispatch + `getPathSeparator()`; also the
   #                   single largest pure-logic suite here (432 cases).
   #
+  #     os            `src/darwin.ts` — `sysctl` for cpu model/speed, `vm_stat`
+  #                   for free memory, `ifconfig` parsing for
+  #                   networkInterfaces. It GATES here now; it was a non-gating
+  #                   probe while `os.cpus()` returned a `times` object with no
+  #                   members on macOS. The one reading macOS genuinely cannot
+  #                   produce (per-CPU tick counters, which need Mach's
+  #                   `host_processor_info`) is an `it.failing(…, { when })`
+  #                   that fails the day a reader exists, so it is carried by
+  #                   the assertion rather than by this list.
+  #
   #   controls — pure-TS/engine-level packages that MUST behave identically on
   #   both hosts. If one of these reds while the platform-aware ones pass, the
   #   fault is the harness/toolchain, not the package:
   #     querystring, string_decoder (pure logic),
   #     buffer (Blob/atob/btoa — i.e. macOS SpiderMonkey itself).
   #
-  # NOT here yet: `@gjsify/os`. Its `getOs()` shells out to `uname -o`, a GNU
-  # extension Darwin's uname rejects; `@gjsify/utils`' `cli()` throws on any
-  # stderr output, so every `os.cpus()/totalmem()/uptime()` call would throw and
-  # `src/darwin.ts` is unreachable dead code. The fix is the capability probe
-  # `@gjsify/v8` and `@gjsify/child_process` already use (a
-  # `/System/Library/CoreServices/SystemVersion.plist` `GLib.file_test`, no uname
-  # parsing). Until that lands `os` runs as a NON-GATING probe below — move it
-  # from MACOS_PROBE_PACKAGES to MACOS_TEST_PACKAGES once it is fixed.
+  # This list stays a curated subset ON PURPOSE. The full Node-pillar sweep,
+  # on BOTH `test:node` and `test:gjs` and on both architectures, is
+  # `macos-suites.yml` — which checks out and builds, so it can run the legs
+  # this job structurally cannot. What remains here is the fast signal on every
+  # main push: platform-neutral bundles built on the Fedora leg, executed on
+  # macOS.
   MACOS_TEST_PACKAGES: >-
     packages/node/v8
     packages/node/child_process
+    packages/node/os
     packages/node/path
     packages/node/querystring
     packages/node/string_decoder
     packages/node/buffer
-  MACOS_PROBE_PACKAGES: >-
-    packages/node/os
 
   # ── Bun + Deno leg (see the `cross-runtime` job) ───────────────────────
   # Packages whose `--app node` test bundle actually exercises OUR code on a
@@ -97,7 +104,9 @@ env:
   # ── Browser leg (see the `browser` job) ────────────────────────────────
   # Playwright `--grep` regex matching the browser bundles that are KNOWN RED
   # today. They run as a NON-GATING probe so wiring the axis in does not red
-  # main, exactly like MACOS_PROBE_PACKAGES above; everything else gates. Each
+  # main; everything else gates. (`MACOS_PROBE_PACKAGES` above was the same
+  # shape and is GONE — `@gjsify/os` gates now, which is what a probe list is
+  # supposed to end as.) Each
   # entry must name a real, understood defect and must be DELETED once fixed —
   # a growing list means the axis is being routed around instead of used.
   #
@@ -642,16 +651,12 @@ jobs:
             set -e
             out=.gjsify-cache/macos-test-bundles
             rm -rf \"\$out\"
-            mkdir -p \"\$out/gate\" \"\$out/probe\"
+            mkdir -p \"\$out/gate\"
             for d in \$MACOS_TEST_PACKAGES; do
               (cd \"\$d\" && gjsify run build:test:gjs)
               cp \"\$d/test.gjs.mjs\" \"\$out/gate/\$(basename \$d).test.gjs.mjs\"
             done
-            for d in \$MACOS_PROBE_PACKAGES; do
-              (cd \"\$d\" && gjsify run build:test:gjs)
-              cp \"\$d/test.gjs.mjs\" \"\$out/probe/\$(basename \$d).test.gjs.mjs\"
-            done
-            ls -l \"\$out/gate\" \"\$out/probe\"
+            ls -l \"\$out/gate\"
           '"
 
       - name: Upload GJS test bundles for the macOS leg
@@ -1045,18 +1050,35 @@ jobs:
 
       # dyld must be able to find `libgjs.0.dylib`. GJS's own `GjsPrivate`
       # typelib — which Gio's core override loads from `_init` — records the
-      # library by BARE name, and Homebrew does not put its lib dir on the
-      # default dyld search path. Without this, merely importing `Gio` dies
-      # with "Unsupported type void, deriving from fundamental void" after a
-      # `Failed to load shared library 'libgjs.0.dylib'` warning: the typelib
-      # loads, its shared library does not, and the override then marshals a
-      # type that is no longer resolvable.
+      # library by BARE name, and Homebrew's `gjs` carries exactly one rpath,
+      # `@loader_path/../../../../opt/glib/lib`, i.e. GLIB's keg and no other.
+      # Without a repair, merely importing `Gio` can die with "Unsupported type
+      # void, deriving from fundamental void" after a `Failed to load shared
+      # library 'libgjs.0.dylib'` warning: the typelib loads, its shared library
+      # does not, and the override then marshals a type that is no longer
+      # resolvable.
       #
-      # Note this is the DYLD_ variable specifically — dyld ignores the ELF
-      # `LD_LIBRARY_PATH`, which is the same asymmetry `buildNativeEnv()`
-      # already handles for our own prebuilds.
-      - name: Put the Homebrew lib dir on the dyld search path
-        run: echo "DYLD_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
+      # This used to write `DYLD_LIBRARY_PATH=$(brew --prefix)/lib` to
+      # `$GITHUB_ENV`, WHICH CANNOT WORK. SIP strips every `DYLD_*` variable
+      # when a protected binary is exec'd, and every `run:` step is
+      # `/bin/bash -e {0}` — a protected binary. Measured on the darwin-x64 VM:
+      # `DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'` prints
+      # nothing, while the same value through Homebrew's `node` survives. The
+      # leg was green because these six bundles need only GLib/Gio/GioUnix,
+      # which gjs's own rpath happens to reach — not because the variable was
+      # doing anything. `macos-suites.yml` prints that measurement on every run.
+      #
+      # A symlink at the location the existing rpath already names needs no
+      # variable and survives every shell boundary. (`LD_LIBRARY_PATH` is not
+      # the same asymmetry: dyld ignores the ELF variable entirely, which is
+      # what `buildNativeEnv()` handles for our own prebuilds by setting
+      # `DYLD_FALLBACK_LIBRARY_PATH` on the CHILD's launch env — a hop where it
+      # is not stripped, because `gjs` is not a protected binary.)
+      - name: Make libgjs resolvable without a DYLD_ variable
+        run: |
+          prefix="$(brew --prefix)"
+          ln -sfn "$prefix/opt/gjs/lib/libgjs.0.dylib" "$prefix/opt/glib/lib/libgjs.0.dylib"
+          ls -l "$prefix/opt/glib/lib/libgjs.0.dylib"
 
       # Fail LOUDLY and early if the host is missing something the bundles
       # import, instead of letting it surface as a confusing suite failure. The
@@ -1088,26 +1110,6 @@ jobs:
           done
           exit $status
 
-      # NON-GATING probe. `@gjsify/os` cannot pass on macOS today: `getOs()`
-      # shells out to `uname -o` (a GNU extension Darwin rejects) through
-      # `@gjsify/utils`' `cli()`, which throws on any stderr output — so
-      # `src/darwin.ts` is unreachable. This step answers "is that still true?"
-      # on every run without reddening main. When the capability probe used by
-      # @gjsify/v8 / @gjsify/child_process lands in @gjsify/os, move it from
-      # MACOS_PROBE_PACKAGES to MACOS_TEST_PACKAGES and delete this step.
-      - name: Probe @gjsify/os on macOS (known gap — not a gate)
-        continue-on-error: true
-        run: |
-          status=0
-          for f in bundles/probe/*.test.gjs.mjs; do
-            echo "::group::probe $(basename "$f")"
-            gjs -m "$f" || status=1
-            echo "::endgroup::"
-          done
-          if [ "$status" != "0" ]; then
-            echo "::warning title=macOS probe::a probe suite failed — expected while the @gjsify/os uname gap is open"
-          fi
-          exit $status
 
   # ── E2E tests ───────────────────────────────────────────────────────
   # Exercises the CLI end-to-end (install, build, dlx, publish, …) in its own

@@ -6,19 +6,65 @@ import type { Server } from 'node:net';
 import { createServer, createConnection } from 'node:net';
 import { Buffer } from 'node:buffer';
 
+/**
+ * Attach the `'error'` listener a client or server socket needs to survive a
+ * peer that resets instead of closing cleanly.
+ *
+ * BSD and Linux differ here, and the difference is the kernel's, not ours:
+ * closing a socket that still holds unread inbound data sends an RST on macOS
+ * where Linux delivers a FIN. An `'error'` event with no listener is RE-THROWN
+ * by Node, so several specs below — whose subject is `close`, `end`,
+ * `localPort` or the bytes transferred, never the shutdown mechanics — failed
+ * on darwin under NATIVE Node while passing under GJS on the same host. Per
+ * this repo's testing rules that makes it a statement about the TEST.
+ *
+ * Only a reset is tolerated. Anything else is re-thrown, so this cannot grow
+ * into a blanket "ignore socket errors".
+ */
+function tolerateReset(socket: { on(event: 'error', listener: (err: NodeJS.ErrnoException) => void): unknown }): void {
+    socket.on('error', (err) => {
+        if (err.code !== 'ECONNRESET') throw err;
+    });
+}
+
+/** `reject`, but a peer RST is teardown noise rather than a failure — see {@link tolerateReset}. */
+function rejectUnlessReset(reject: (err: unknown) => void): (err: NodeJS.ErrnoException) => void {
+    return (err) => {
+        if (err.code !== 'ECONNRESET') reject(err);
+    };
+}
+
 /** Helper: create server, run test, cleanup */
 function withServer(handler: (server: Server, port: number) => Promise<void>): Promise<void> {
     return new Promise((resolve, reject) => {
         const server = createServer();
+        // Cleanup lives beside creation, and it covers the ACCEPTED sockets and
+        // not just the listener. `server.close()` alone stops new connections
+        // and leaves established ones open, so a socket from a finished spec
+        // could still emit later and the harness would attribute it to whichever
+        // spec was running — which is what two-to-four failures wandering
+        // between three specs looked like on darwin.
+        const accepted: { destroy(): void }[] = [];
+        server.on('connection', (socket) => {
+            // No spec here has "the server end does not get reset" as its
+            // subject, so tolerance is registered once, before any spec's own
+            // handler, rather than per spec.
+            tolerateReset(socket);
+            accepted.push(socket);
+        });
+        const cleanup = (): void => {
+            for (const socket of accepted) socket.destroy();
+            server.close();
+        };
         server.listen(0, '127.0.0.1', () => {
             const addr = server.address() as { port: number };
             handler(server, addr.port)
                 .then(() => {
-                    server.close();
+                    cleanup();
                     resolve();
                 })
                 .catch((err) => {
-                    server.close();
+                    cleanup();
                     reject(err);
                 });
         });
@@ -94,7 +140,7 @@ export default async () => {
                     const client = createConnection({ port, host: '127.0.0.1' });
                     client.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
                     client.on('end', () => resolve(Buffer.concat(chunks)));
-                    client.on('error', reject);
+                    client.on('error', rejectUnlessReset(reject));
                 });
                 expect(received.length).toBe(size);
             });
@@ -123,6 +169,7 @@ export default async () => {
                 server.on('connection', (socket) => socket.end('bye'));
                 const closed = await new Promise<boolean>((resolve) => {
                     const client = createConnection({ port, host: '127.0.0.1' });
+                    tolerateReset(client);
                     client.on('close', () => resolve(true));
                     client.resume(); // Consume data to allow close
                 });
@@ -221,6 +268,7 @@ export default async () => {
                         resolve(client.localPort!);
                         client.end();
                     });
+                    tolerateReset(client);
                 });
                 expect(localPort).toBeGreaterThan(0);
             });
@@ -245,7 +293,7 @@ export default async () => {
                         chunks.push(typeof data === 'string' ? data : data.toString('utf8')),
                     );
                     client.on('end', () => resolve(chunks.join('')));
-                    client.on('error', reject);
+                    client.on('error', rejectUnlessReset(reject));
                 });
                 expect(received).toBe(testStr);
             });
@@ -263,7 +311,7 @@ export default async () => {
                     const client = createConnection({ port, host: '127.0.0.1' });
                     client.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
                     client.on('end', () => resolve(Buffer.concat(chunks)));
-                    client.on('error', reject);
+                    client.on('error', rejectUnlessReset(reject));
                 });
                 expect(received.length).toBe(5);
                 expect(received[0]).toBe(0x00);

@@ -1,7 +1,8 @@
 import { describe, it, expect } from '@gjsify/unit';
+import { isDarwin } from '@gjsify/utils/core';
 import * as os from 'node:os';
 import { isAbsolute } from 'node:path';
-import { platform } from 'node:process';
+import process, { platform } from 'node:process';
 
 // Ported from refs/node/test/parallel/test-os.js
 // Original: MIT license, Node.js contributors
@@ -153,12 +154,22 @@ export default async () => {
             expect(cpus.length).toBe(os.availableParallelism());
         });
 
-        await it('cpu times should have non-zero values', async () => {
-            const cpus = os.cpus();
-            // At least one CPU should have non-zero idle time
-            const hasNonZeroIdle = cpus.some((cpu) => cpu.times.idle > 0);
-            expect(hasNonZeroIdle).toBeTruthy();
-        });
+        await it.failing(
+            'cpu times should have non-zero values',
+            async () => {
+                const cpus = os.cpus();
+                // At least one CPU should have non-zero idle time
+                const hasNonZeroIdle = cpus.some((cpu) => cpu.times.idle > 0);
+                expect(hasNonZeroIdle).toBeTruthy();
+            },
+            "macOS publishes per-CPU tick counters only through Mach's " +
+                'host_processor_info(PROCESSOR_CPU_LOAD_INFO), which GJS cannot call without a native ' +
+                'bridge; no userland tool prints the cumulative per-core totals Node returns, so ' +
+                'src/darwin.ts reports the documented all-zero contract (status/open-todos.md). ' +
+                'This runs under NATIVE Node too, where it must keep passing — the predicate is the ' +
+                'GJS-on-darwin combination, not the platform.',
+            { when: isDarwin() && typeof process.versions.gjs === 'string' },
+        );
     });
 
     // ==================== memory ====================

@@ -82,6 +82,30 @@ const sysctl = (key: string): string | null => {
     }
 };
 
+/**
+ * DEGRADED CONTRACT — per-CPU tick counters, which macOS does not expose to a
+ * shell.
+ *
+ * Linux reads them from `/proc/stat`. The macOS equivalent is Mach's
+ * `host_processor_info(PROCESSOR_CPU_LOAD_INFO)`, which is not reachable from
+ * GJS without a native bridge; nothing in userland prints it. `top(1)` and
+ * `iostat(1)` report an INSTANTANEOUS aggregate percentage, not the cumulative
+ * per-core totals Node returns, and deriving one from the other would be
+ * fabrication rather than degradation.
+ *
+ * So every field is present and `0`. The previous shape — a getter that logged
+ * `cpus.times is not supported` and returned `{}` — was worse in both
+ * directions: a consumer reading `cpu.times.user` got `undefined` where Node
+ * guarantees a number (so `+cpu.times.user` is `NaN`, silently), and the warning
+ * fired once PER CORE per call. Same trade as `@gjsify/v8`'s heap reader, which
+ * reports `0` for the figures `ps(1)` has no column for.
+ *
+ * Tracked in `status/open-todos.md`; `index.spec.ts` carries the matching
+ * `it.failing(…, { when: isDarwin() })` so the day a reader exists, the
+ * expectation retires itself.
+ */
+const NO_CPU_TIMES = Object.freeze({ user: 0, nice: 0, sys: 0, idle: 0, irq: 0 });
+
 // PORTED TO deno runtime
 export const cpus = () => {
     const cores = parseFloat(cli('sysctl -n hw.ncpu'));
@@ -95,14 +119,7 @@ export const cpus = () => {
     const speed = hz ? parseFloat(hz) / 1000 / 1000 : 0;
     const cpus = [];
     for (let i = 0; i < cores; i++) {
-        cpus.push({
-            model,
-            speed,
-            get times() {
-                console.warn('cpus.times is not supported');
-                return {};
-            },
-        });
+        cpus.push({ model, speed, times: { ...NO_CPU_TIMES } });
     }
     return cpus;
 };

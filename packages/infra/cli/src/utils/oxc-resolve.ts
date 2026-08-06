@@ -310,7 +310,7 @@ export async function shouldUseNativeOxfmt(): Promise<boolean> {
  *
  * oxlint: always spawned via its Node ESM launcher on a real Node host
  * (`nodeBinary()`: `process.execPath` under Node, PATH `node` under the GJS
- * bundle where `process.execPath` is the bundle itself) so the JS plugin host
+ * bundle where `process.execPath` is the `gjs` interpreter) so the JS plugin host
  * is available — required for the `jsPlugins`-wired `gjsify/register-class-order`
  * rule. Under GJS a `node` on PATH is required (oxlint has no native bridge
  * yet); its absence surfaces as a clear OxcNotFoundError, never a hang.
@@ -341,11 +341,10 @@ export async function runOxc(tool: OxcTool, args: string[], opts: RunOxcOptions 
 /**
  * Spawn an oxc tool via its Node ESM launcher (`node_modules/<tool>/bin/…`) on
  * a real Node host. CRITICAL: use `nodeBinary()`, not `process.execPath`
- * directly — under the committed GJS bundle `process.execPath` is the CLI
- * bundle path (`gjs`/the `.mjs`), so spawning it re-executes the CLI with the
- * launcher as its first positional (yargs prints top-level help) and the parent
- * hangs waiting on a child that never does the intended work. `nodeBinary()`
- * resolves to PATH `node` under GJS, so the launcher runs on Node as required.
+ * directly — under GJS `process.execPath` is the `gjs` interpreter, so spawning
+ * it runs the Node ESM launcher under GJS, where the plugin host does not exist.
+ * `nodeBinary()` resolves to PATH `node` under GJS, so the launcher runs on Node
+ * as required.
  *
  * `completion: 'return'`: `lint` / `format` / `fix` hand the tool's exit code
  * to `setOxcExitCode`, which deliberately does NOT terminate the process on a
