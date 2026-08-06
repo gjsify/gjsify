@@ -41,7 +41,7 @@ import { resolveNpmPackage } from './utils/resolve-npm-package.js';
 // builtins, so there is no cycle, and every one of them is already in the GJS
 // bundle via `commands/install.ts`.
 import { buildInstallCommand, detectPackageManager, missingSystemDepsFor } from './utils/check-system-deps.js';
-import { libraryPathVar } from './utils/detect-native-packages.js';
+import { activateNativePrebuilds } from './utils/gi-search-path.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 // npm `rolldown` is a Rust crate with platform-specific prebuilds; loading
@@ -77,22 +77,24 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
  * Say WHY the native engine could not be loaded, read off disk rather than
  * guessed.
  *
- * The three causes need three different fixes, and this message used to assert
- * the rarest of them ("the CLI bundle was invoked DIRECTLY … bypasses the
- * `gjsify` launcher") as the "most likely cause". On the by-far most common
- * one — a freshly cloned + freshly installed tree, where the engine's JS facade
- * has simply never been built — that reading is not merely unhelpful, it points
- * at a launcher that was in fact used correctly, so the reader goes looking for
- * an env-var problem that does not exist. `scripts/verify-committed-bundles.mjs`
- * hit exactly that and it blocked releases.
+ * The causes need different fixes, and this message used to assert the rarest
+ * of them ("the CLI bundle was invoked DIRECTLY … bypasses the `gjsify`
+ * launcher") as the "most likely cause". On the by-far most common one — a
+ * freshly cloned + freshly installed tree, where the engine's JS facade has
+ * simply never been built — that reading is not merely unhelpful, it points at
+ * a launcher that was in fact used correctly, so the reader goes looking for an
+ * env-var problem that does not exist. `scripts/verify-committed-bundles.mjs`
+ * hit exactly that and it blocked releases. ADR 0021 then removed the bypassed
+ * launcher as a CAUSE outright, so it is no longer among the candidates at all.
  *
  * NOTHING here may throw or recurse into the failure being explained. Branches 1
  * and 2 are `existsSync`-only (no import, no resolution). Branch 3 additionally
- * asks `missingSystemDepsFor()` and reads two env vars — both safe by
- * construction rather than by a catch: the former routes every probe through
- * `tryExecFile`, which returns null on any failure, and the latter is a string
- * split. Keep that property when editing: a probe that dies here replaces the
- * diagnosis with its own stack.
+ * asks `missingSystemDepsFor()` and reads the memoized `activateNativePrebuilds()`
+ * result — both safe by construction rather than by a catch: the former routes
+ * every probe through `tryExecFile`, which returns null on any failure, and the
+ * latter is an array the failing load attempt already computed. Keep that
+ * property when editing: a probe that dies here replaces the diagnosis with its
+ * own stack.
  */
 function diagnoseNativeEngine(): string {
     let pkgDir: string | null = null;
@@ -146,7 +148,15 @@ function diagnoseNativeEngine(): string {
     //
     // So both candidates are now MEASURED, cheaply and without any call that can
     // throw while explaining a failure, and the measured one is printed first.
-    const prebuildDir = path.join(pkgDir, 'prebuilds', `${process.platform ?? 'linux'}-${process.arch ?? 'x64'}`);
+    //
+    // ADR 0021 RETIRED THE THIRD CANDIDATE. "The launcher was bypassed, export
+    // these two variables yourself" is no longer a cause of failure at all:
+    // `tryLoadNative()` calls `activateNativePrebuilds()` before the engine is
+    // loaded, which puts every detected prebuild dir on girepository's typelib
+    // AND library search paths in-process. Do not reintroduce it — besides now
+    // being false, the path it printed (`<facade>/prebuilds/<target>`) had been
+    // wrong since ADR 0017 moved every artifact into a per-target SIBLING
+    // package, so it told readers to export a directory that does not exist.
     const parts: string[] = ['The JS facade is built, so this is the typelib/prebuild lookup failing.'];
 
     // (1) A declared system library that is not on this host. `missingSystemDepsFor`
@@ -169,36 +179,20 @@ function diagnoseNativeEngine(): string {
             );
     }
 
-    // (2) Is the launcher really bypassed? A pure env read, so it states a fact
-    // instead of a guess — and when the env IS correct it says so, which stops a
-    // reader from chasing an env problem that does not exist.
-    const { name: libVar } = libraryPathVar(process.platform);
-    const envCarriesPrebuild = [process.env.GI_TYPELIB_PATH, process.env[libVar]].some(
-        (v) => typeof v === 'string' && v.split(path.delimiter).includes(prebuildDir),
-    );
-    if (!envCarriesPrebuild) {
+    // (2) The remaining cause, last because it is the least actionable: no
+    // prebuild for this architecture. Read off the set `activateNativePrebuilds()`
+    // ACTUALLY put on the search paths — memoized, so this is a cached-array read
+    // that cannot throw, and unlike the old hand-composed path it names the
+    // per-target sibling package that really holds the artifact.
+    if (missing.length === 0) {
+        const engine = activateNativePrebuilds().find((p) => p.name.startsWith('@gjsify/rolldown-native'));
         parts.push(
-            `\nGI_TYPELIB_PATH / ${libVar} do NOT contain ${prebuildDir}, so the \`gjsify\` launcher was bypassed ` +
-                '(a direct `gjs -m …/cli.gjs.mjs`, or executing dist/cli.gjs.mjs). The typelib lookup happens inside ' +
-                'the GJS runtime, so those must be set BEFORE the process starts — the CLI cannot repair it from the ' +
-                'inside. Run through the `gjsify` bin instead (`node_modules/.bin/gjsify …`, or the global shim), or ' +
-                'export the env yourself:\n' +
-                `  P=${prebuildDir}\n` +
-                `  GI_TYPELIB_PATH=$P ${libVar}=$P gjs -m …/cli.gjs.mjs build …`,
-        );
-    } else {
-        parts.push(
-            `\nThe launcher env IS correct (${prebuildDir} is on GI_TYPELIB_PATH / ${libVar}), so this is not a ` +
-                'bypassed launcher — do not go looking for one.',
-        );
-    }
-
-    // (3) The remaining possibility, last because it is the least actionable.
-    if (missing.length === 0 && envCarriesPrebuild) {
-        parts.push(
-            `\nEvery declared system library resolves and the env is correct, so most likely no prebuild exists for ` +
-                `${process.platform}/${process.arch}: ${prebuildDir}` +
-                (existsSync(prebuildDir) ? ' exists but did not load.' : ' does not exist.'),
+            engine
+                ? `\nEvery declared system library resolves and ${engine.name}'s prebuild (${engine.prebuildsDir}) IS on ` +
+                      "girepository's search paths, so it is present but did not load."
+                : `\nEvery declared system library resolves, so most likely no prebuild exists for ` +
+                      `${process.platform}/${process.arch} — no @gjsify/rolldown-native prebuild directory was found ` +
+                      `walking up from ${process.cwd()}.`,
         );
     }
     parts.push('\nRunning the build under Node also works — there the npm `rolldown` crate is used instead.');
@@ -455,6 +449,14 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
     _nativeProbe = (async (): Promise<NativeRolldownSurface | null> => {
         if (!isGjs()) return null;
         try {
+            // Make the engine's prebuild resolvable to THIS process before the
+            // import that needs it. Without this the engine loads only when the
+            // `gjsify` launcher exported GI_TYPELIB_PATH + the library-path var
+            // before exec, so a direct `gjs -m …/dist/cli.gjs.mjs build …` — what
+            // several e2e suites do — died with "no usable bundler engine under
+            // GJS" on a tree where the engine was installed and loadable. ADR 0021.
+            activateNativePrebuilds();
+
             // Under GJS the ESM loader has no node_modules resolver — a bare
             // `import('@gjsify/rolldown-native')` would throw `Module not
             // found`. Resolve via createRequire (PnP+node_modules-aware) to

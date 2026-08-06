@@ -54,6 +54,7 @@ import { pathToFileURL } from 'node:url';
 import { hostLibc } from './platform-check.js';
 import { findWorkspaceRoot } from './workspace-root.js';
 import { resolveNpmPackage } from './resolve-npm-package.js';
+import { activateNativePrebuilds } from './gi-search-path.js';
 import { nodeBinary } from './run-node.js';
 import { spawnToCompletion } from './spawn.js';
 import { isGjs, gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
@@ -259,6 +260,11 @@ async function tryLoadNativeOxfmt(): Promise<NativeOxfmtSurface | null> {
     _nativeOxfmtProbe = (async (): Promise<NativeOxfmtSurface | null> => {
         if (!isGjs()) return null;
         try {
+            // Same reason as `bundler-pick.ts`'s `tryLoadNative()`: put the
+            // prebuild on girepository's own search paths so the bridge loads
+            // without the `gjsify` launcher having exported anything. ADR 0021.
+            activateNativePrebuilds();
+
             const specifier = '@gjsify/oxfmt-native';
             const resolved =
                 resolveNpmPackage(specifier, { bundleUrl: import.meta.url }) ??
