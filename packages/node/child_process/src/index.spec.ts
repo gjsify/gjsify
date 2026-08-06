@@ -3,7 +3,25 @@ import { describe, it, expect, on } from '@gjsify/unit';
 import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { SHELL_PWD, cat, echo, echoErr, exitOk, exitWith, failWith, nodeShellCmd, printEnv, printEnvTemplate, printEnvThenCat, printEnvThenPwd, pwd, seq, shellVar, sleep } from './commands.spec.js';
+import {
+    SHELL_PWD,
+    cat,
+    echo,
+    echoErr,
+    exitOk,
+    exitWith,
+    failWith,
+    printEnv,
+    printEnvTemplate,
+    printEnvThenCat,
+    printEnvThenPwd,
+    pwd,
+    seq,
+    shellCmd,
+    shellVar,
+    sleep,
+    upperFromStdin,
+} from './commands.spec.js';
 
 // A process's working directory is the RESOLVED path, so `pwd` in a child
 // spawned with `cwd: TMP_DIR` prints the symlink target, not the string that
@@ -103,7 +121,7 @@ export default async () => {
         });
 
         await it('should capture stderr', async () => {
-            const result = spawnSync(...echoErr("err"), { encoding: 'utf8' });
+            const result = spawnSync(...echoErr('err'), { encoding: 'utf8' });
             expect(result.status).toBe(0);
             expect(typeof result.stderr).toBe('string');
             expect((result.stderr as string).trim()).toBe('err');
@@ -748,7 +766,7 @@ export default async () => {
                 // `;` is not a command separator in cmd.exe, and neither shell's
                 // `echo` can be relied on to reach stderr portably — so the
                 // child does both explicitly.
-                execSync(nodeShellCmd("process.stderr.write('err_msg'); process.exit(1)"));
+                execSync(shellCmd(failWith(1, 'err_msg')));
             } catch (e) {
                 error = e;
             }
@@ -764,7 +782,7 @@ export default async () => {
 
         await it('should handle input option', async () => {
             // cmd.exe has no `cat`; the subject is `input`, not the utility.
-            const result = execSync(nodeShellCmd('process.stdin.pipe(process.stdout)'), {
+            const result = execSync(shellCmd(cat()), {
                 encoding: 'utf8',
                 input: 'piped_input',
             });
@@ -774,10 +792,7 @@ export default async () => {
         await it('should handle command with pipe', async () => {
             // The subject is the shell's PIPE, which both shells have. `tr` is
             // what neither has in common, so the right half becomes Node.
-            const result = execSync(
-                `echo hello world | ${nodeShellCmd("let s='';process.stdin.on('data',c=>s+=c).on('end',()=>process.stdout.write(s.trim().toUpperCase()))")}`,
-                { encoding: 'utf8' },
-            );
+            const result = execSync(`echo hello world | ${shellCmd(upperFromStdin())}`, { encoding: 'utf8' });
             expect((result as string).trim()).toBe('HELLO WORLD');
         });
     });
@@ -794,7 +809,7 @@ export default async () => {
             let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null =
                 null;
             try {
-                execFileSync(...failWith(3, "err"));
+                execFileSync(...failWith(3, 'err'));
             } catch (e) {
                 error = e;
             }
@@ -846,7 +861,7 @@ export default async () => {
 
         await it('spawn() stderr emits data event with subprocess stderr output', async () => {
             const output = await new Promise<string>((resolve, reject) => {
-                const proc = spawn(...echoErr("err_stream"));
+                const proc = spawn(...echoErr('err_stream'));
                 expect(proc.stderr).toBeDefined();
                 let buf = '';
                 proc.stderr!.on('data', (chunk: Buffer) => {

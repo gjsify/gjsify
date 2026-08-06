@@ -19,7 +19,21 @@ import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { NODE, SHELL_IS_CMD, UV_ENOENT, cat, echo, exitOk, nodeShellCmd, printArgv0, printEnv, printEnvTemplate, pwd, sleep } from './commands.spec.js';
+import {
+    INTERPRETER,
+    SHELL_IS_CMD,
+    UV_ENOENT,
+    cat,
+    echo,
+    emitBytes,
+    exitOk,
+    printArgv0,
+    printEnv,
+    printEnvTemplate,
+    pwd,
+    shellCmd,
+    sleep,
+} from './commands.spec.js';
 
 // See the note in `index.spec.ts`: a child's reported cwd is the RESOLVED path,
 // which differs from the literal wherever the directory is a symlink, and
@@ -38,7 +52,7 @@ export default async () => {
 
     await describe('child_process env — value coercion', async () => {
         await it('drops `undefined` values from env', async () => {
-            const result = spawnSync(...printEnvTemplate("DROP=${DROP:-missing}"), {
+            const result = spawnSync(...printEnvTemplate('DROP=${DROP:-missing}'), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', DROP: undefined as unknown as string },
             });
@@ -48,7 +62,7 @@ export default async () => {
         });
 
         await it('coerces `null` to the string "null"', async () => {
-            const result = spawnSync(...printEnvTemplate("VAL=$VAL"), {
+            const result = spawnSync(...printEnvTemplate('VAL=$VAL'), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', VAL: null as unknown as string },
             });
@@ -57,7 +71,7 @@ export default async () => {
         });
 
         await it('coerces numbers to their decimal string', async () => {
-            const result = spawnSync(...printEnvTemplate("PORT=$PORT"), {
+            const result = spawnSync(...printEnvTemplate('PORT=$PORT'), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', PORT: 8080 as unknown as string },
             });
@@ -66,7 +80,7 @@ export default async () => {
         });
 
         await it('coerces booleans to "true" / "false"', async () => {
-            const result = spawnSync(...printEnvTemplate("DEBUG=$DEBUG OFF=$OFF"), {
+            const result = spawnSync(...printEnvTemplate('DEBUG=$DEBUG OFF=$OFF'), {
                 encoding: 'utf8',
                 env: {
                     PATH: '/usr/bin:/bin',
@@ -79,7 +93,7 @@ export default async () => {
         });
 
         await it('coerces arrays via toString (comma join)', async () => {
-            const result = spawnSync(...printEnvTemplate("LIST=$LIST"), {
+            const result = spawnSync(...printEnvTemplate('LIST=$LIST'), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', LIST: [1, 2, 3] as unknown as string },
             });
@@ -94,7 +108,7 @@ export default async () => {
             const env = Object.create({ INHERITED: 'from_proto' }) as Record<string, string>;
             env.OWN = 'own_value';
             env.PATH = '/usr/bin:/bin';
-            const result = spawnSync(...printEnvTemplate("$INHERITED|$OWN"), {
+            const result = spawnSync(...printEnvTemplate('$INHERITED|$OWN'), {
                 encoding: 'utf8',
                 env,
             });
@@ -131,7 +145,7 @@ export default async () => {
                 VISIBLE: 'yes',
             };
             (env as Record<string | symbol, string>)[sym] = 'should_not_appear';
-            const result = spawnSync(...printEnvTemplate("$VISIBLE"), {
+            const result = spawnSync(...printEnvTemplate('$VISIBLE'), {
                 encoding: 'utf8',
                 env: env as Record<string, string>,
             });
@@ -217,7 +231,7 @@ export default async () => {
             expect(result.status).toBe(0);
             // Node documents argv0 as defaulting to `command`, so the child sees
             // the binary it was started from.
-            expect((result.stdout as string).trim()).toBe(NODE);
+            expect((result.stdout as string).trim()).toBe(INTERPRETER);
         });
     });
 
@@ -307,7 +321,7 @@ export default async () => {
                 // command substitution — none of the three exists under
                 // cmd.exe. The subject is `maxBuffer`, so the 100 KiB comes
                 // from Node instead.
-                exec(nodeShellCmd("process.stdout.write('.'.repeat(102400))"), { maxBuffer: Infinity }, (err, out) => {
+                exec(shellCmd(emitBytes(102400)), { maxBuffer: Infinity }, (err, out) => {
                     if (err) reject(err);
                     else resolve(out.toString());
                 });
@@ -325,7 +339,7 @@ export default async () => {
             const result = await new Promise<{
                 err: (Error & { killed?: boolean; signal?: string | null }) | null;
             }>((resolve) => {
-                exec(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 100 }, (err) => {
+                exec(shellCmd(sleep(10000)), { timeout: 100 }, (err) => {
                     resolve({ err: err as Error & { killed?: boolean; signal?: string | null } });
                 });
             });
@@ -339,7 +353,7 @@ export default async () => {
             const result = await new Promise<{
                 err: (Error & { killed?: boolean; signal?: string | null }) | null;
             }>((resolve) => {
-                exec(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 50, killSignal: 'SIGKILL' }, (err) => {
+                exec(shellCmd(sleep(10000)), { timeout: 50, killSignal: 'SIGKILL' }, (err) => {
                     resolve({ err: err as Error & { killed?: boolean; signal?: string | null } });
                 });
             });
@@ -363,7 +377,7 @@ export default async () => {
             const result = await new Promise<{
                 err: (Error & { name?: string }) | null;
             }>((resolve) => {
-                exec(nodeShellCmd('setTimeout(()=>{},10000)'), { signal: ctrl.signal }, (err) => {
+                exec(shellCmd(sleep(10000)), { signal: ctrl.signal }, (err) => {
                     resolve({ err: err as Error & { name?: string } });
                 });
                 setTimeout(() => ctrl.abort(), 50);
@@ -414,7 +428,7 @@ export default async () => {
     // SIGTERM) and the thrown error carries `signal` + `status: null` +
     // `code: 'ETIMEDOUT'`. Both wrappers previously called
     // `Gio.Subprocess.communicate()` straight through and ignored `timeout`
-    // entirely, so `execSync(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 100 })` blocked the whole
+    // entirely, so `execSync(shellCmd(sleep(10000)), { timeout: 100 })` blocked the whole
     // process for the full 10s.
 
     await describe('child_process execSync — timeout', async () => {
@@ -422,7 +436,7 @@ export default async () => {
             const start = Date.now();
             let err: (Error & { code?: string; signal?: string | null; killed?: boolean }) | null = null;
             try {
-                execSync(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 200 });
+                execSync(shellCmd(sleep(10000)), { timeout: 200 });
             } catch (e) {
                 err = e as Error & { code?: string; signal?: string | null; killed?: boolean };
             }
@@ -441,7 +455,7 @@ export default async () => {
         await it('uses the requested killSignal', async () => {
             let err: (Error & { signal?: string | null }) | null = null;
             try {
-                execSync(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 100, killSignal: 'SIGKILL' });
+                execSync(shellCmd(sleep(10000)), { timeout: 100, killSignal: 'SIGKILL' });
             } catch (e) {
                 err = e as Error & { signal?: string | null };
             }
@@ -566,7 +580,7 @@ export default async () => {
 
     await describe('child_process spawn — options validation', async () => {
         await it('throws when 2nd positional is a non-object, non-array', async () => {
-            expect(() => spawn(NODE, 'not-an-array' as unknown as string[])).toThrow();
+            expect(() => spawn(INTERPRETER, 'not-an-array' as unknown as string[])).toThrow();
         });
 
         await it('throws when options is a string', async () => {
