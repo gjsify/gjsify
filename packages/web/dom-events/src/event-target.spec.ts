@@ -394,8 +394,12 @@ export const EventTargetTest = async () => {
 
             assert.strictEqual(f1.calls.length, 1, 'f1 should be called');
             assert.strictEqual(f2.calls.length, 1, 'f2 should be called');
-            // TODO(open-todos: 12 test sites are parked): the f3 assertion below is commented out, so nothing counts it.
-            // assert.strictEqual(f3.calls.length, 1, "f3 should be called")
+            // Live again. WHATWG DOM § 2.7: a listener exception is REPORTED and
+            // dispatch continues, so f3 must run — the very property
+            // `error-handler.spec.ts` already proves in "keeps invoking later
+            // listeners after one throws". A commented assertion counted nothing
+            // while the sibling suite counted it under another name.
+            assert.strictEqual(f3.calls.length, 1, 'f3 should be called');
         });
 
         await it('should catch exceptions that are thrown from listeners and call the error handler, even if the exception was not an Error object.', async () => {
@@ -413,8 +417,12 @@ export const EventTargetTest = async () => {
 
             assert.strictEqual(f1.calls.length, 1, 'f1 should be called');
             assert.strictEqual(f2.calls.length, 1, 'f2 should be called');
-            // TODO(open-todos: 12 test sites are parked): the f3 assertion below is commented out, so nothing counts it.
-            // assert.strictEqual(f3.calls.length, 1, "f3 should be called")
+            // Live again. WHATWG DOM § 2.7: a listener exception is REPORTED and
+            // dispatch continues, so f3 must run — the very property
+            // `error-handler.spec.ts` already proves in "keeps invoking later
+            // listeners after one throws". A commented assertion counted nothing
+            // while the sibling suite counted it under another name.
+            assert.strictEqual(f3.calls.length, 1, 'f3 should be called');
         });
 
         await it('should throw a InvalidStateError if the given event is being used', async () => {

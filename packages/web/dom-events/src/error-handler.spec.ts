@@ -1,14 +1,19 @@
-import { describe, it, expect, assert, spy, on } from '@gjsify/unit';
+import { describe, it, expect, assert, spy } from '@gjsify/unit';
 
 import { Event, EventTarget } from 'dom-events';
 import process from 'node:process';
 
 export const ErrorHandlerTest = async () => {
     await describe('The default error handler', async () => {
-        // TODO(open-todos: 12 test sites are parked): gated to `on([])`, which no runtime can match — the reason is at the "active behaviour" describe below. `it.failing` would retire itself.
-        await on([], async () => {
-            await it('should dispatch an ErrorEvent if a listener threw an error', async () => {
-                const _originalConsoleError = console.error;
+        // `it.failing`, not `on([])`. The gate this replaces matched no runtime,
+        // so the spec never RAN anywhere — it was `it.skip` wearing a runtime
+        // matcher, and it could not tell anyone the day the machinery landed.
+        // `it.failing` runs it, tolerates the failure it was told to expect, and
+        // FAILS the suite as soon as it starts passing, so the marker retires
+        // itself instead of waiting to be noticed.
+        await it.failing(
+            'should dispatch an ErrorEvent if a listener threw an error',
+            async () => {
                 const f = spy((_message, _source, _lineno, _colno, _error) => {});
                 const consoleError = spy((..._: unknown[]) => {});
                 const target = new EventTarget();
@@ -26,17 +31,22 @@ export const ErrorHandlerTest = async () => {
                 }
 
                 assert.strictEqual(f.calls.length, 1, 'f should be called.');
-                // TODO(open-todos: 12 test sites are parked): the two assertions below fail on Deno — `it.failing(…, { when: isDeno })` would run them and self-retire.
-                // assert.strictEqual(f.calls[0].arguments[0], error.message)
-                // assert.strictEqual(f.calls[0].arguments[4], error)
+                // Uncommented with the conversion: the two used to be parked
+                // separately for failing on Deno, and inside a spec that is
+                // expected to fail everywhere a second marker buys nothing. If
+                // the machinery lands and these are the only thing still red,
+                // that is what the failure will say.
+                assert.strictEqual(f.calls[0].arguments[0], error.message);
+                assert.strictEqual(f.calls[0].arguments[4], error);
                 assert.strictEqual(consoleError.calls.length, 1, 'console.error should be called.');
                 assert.strictEqual(consoleError.calls[0].arguments[0], error);
-            });
-        });
+            },
+            'window.onerror dispatch is not implemented — the W3C error-reporting machinery this spec exercises is the gap the "active behaviour" describe below documents',
+        );
 
-        // TODO(open-todos: 12 test sites are parked): gated to `on([])`, which no runtime can match — the reason is at the "active behaviour" describe below. `it.failing` would retire itself.
-        await on([], async () => {
-            await it('should emit an uncaughtException event if a listener threw an error', async () => {
+        await it.failing(
+            'should emit an uncaughtException event if a listener threw an error',
+            async () => {
                 const onUncaughtException = spy((_event) => {});
                 const target = new EventTarget();
                 const error = new Error('test error');
@@ -54,12 +64,13 @@ export const ErrorHandlerTest = async () => {
                 // assert.strictEqual(onUncaughtException.calls[0].arguments[0], error)
                 expect(onUncaughtException.calls[0].arguments[0].message).toBe(error.message);
                 expect(onUncaughtException.calls[0].arguments[0].stack?.trim()).toBe(error.stack?.trim());
-            });
-        });
+            },
+            'process.uncaughtException dispatch from a listener throw is not implemented',
+        );
 
-        // The two specs above are gated to `on([])` because they
-        // exercise full W3C error-reporting machinery (window.onerror
-        // / process.uncaughtException dispatch) that we haven't yet
+        // The two specs above are `it.failing` because they exercise full W3C
+        // error-reporting machinery (window.onerror / process.uncaughtException
+        // dispatch) that we haven't yet
         // implemented. The two specs below pin the bits we DO ship:
         // delegate-via-`globalThis.reportError` and the safe-format
         // fallback. Together they are the regression markers for the

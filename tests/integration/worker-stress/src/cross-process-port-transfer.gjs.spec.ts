@@ -1,8 +1,8 @@
 // Cross-process MessagePort transfer — GJS-only integration test.
 //
-// Closes the status/open-todos.md "Medium priority — Cross-process
-// MessagePort transfer via Worker subprocess IPC (#204 follow-up)" Open
-// TODO(open-todos: 12 test sites are parked). Verifies that `Worker.postMessage(value, [port])` actually moves
+// Closes the status/open-todos.md item "Medium priority — Cross-process
+// MessagePort transfer via Worker subprocess IPC (#204 follow-up)".
+// Verifies that `Worker.postMessage(value, [port])` actually moves
 // a MessagePort across the parent ↔ child boundary via the new
 // `SubprocessPortTransport` adapter, and that messages flow in both
 // directions over the transferred channel.
