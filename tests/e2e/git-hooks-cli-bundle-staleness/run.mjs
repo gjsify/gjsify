@@ -1,10 +1,12 @@
 // E2E test for the `.githooks/pre-commit` hook that auto-rebuilds + auto-stages
-// the committed `@gjsify/{cli,tsc}` GJS bundles when their `src/` trees change.
+// `packages/infra/cli/dist/affected.gjs.mjs` when the source it is bundled from
+// changes.
 //
-// The hook is what removes the recurring foot-gun: contributors who edit
-// `packages/infra/{cli,tsc}/src/` without rebuilding the bundle would otherwise
-// land red CI runs against the bundle-freshness check in
-// `.github/workflows/main.yml`.
+// ADR 0002 untracked `cli.gjs.mjs` and `tsc.gjs.mjs`, and the hook shrank with
+// them. The one artifact left is the one whose staleness FAILS OPEN: the CI
+// `changes` job boots the classifier before any install and it gates every other
+// job, so a stale copy does not error — it classifies today's PR with an older
+// commit's tables and the run looks green while having skipped work.
 //
 // We don't run the actual `gjsify workspace ... build` chain here — that
 // requires the full installed workspace and is exercised separately by every
@@ -64,8 +66,7 @@ const EXPECTED_HOOKS = (() => {
  *     the real workspace hooks (`pre-commit` is the one under test here; the rest
  *     are present because the install test runs the real installer, which refuses
  *     an incomplete hooks dir)
- *   - `packages/infra/cli/src/index.ts` + `dist/cli.gjs.mjs`
- *   - `packages/infra/tsc/src/index.ts` + `dist/tsc.gjs.mjs`
+ *   - `packages/infra/cli/src/index.ts` + `dist/affected.gjs.mjs`
  *   - `node_modules/.bin/gjsify` — synthetic stub recording its argv to a log
  *
  * The stub is wired into PATH via `node_modules/.bin` so the hook's resolver
@@ -103,25 +104,16 @@ function setupSyntheticRepo(parent) {
     mkdirSync(join(root, 'packages', 'infra', 'cli', 'src'), { recursive: true });
     mkdirSync(join(root, 'packages', 'infra', 'cli', 'dist'), { recursive: true });
     writeFileSync(join(root, 'packages', 'infra', 'cli', 'src', 'index.ts'), `export const v = 1;\n`);
-    writeFileSync(join(root, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs'), `// initial cli bundle\n`);
     writeFileSync(join(root, 'packages', 'infra', 'cli', 'dist', 'affected.gjs.mjs'), `// initial affected bundle\n`);
 
     // The build pipeline the CLI bundle INLINES. A resolver change here is
-    // silently absent from `dist/cli.gjs.mjs` until it is rebuilt, so the hook
+    // silently absent from `dist/affected.gjs.mjs` until it is rebuilt, so the hook
     // treats it exactly like `cli/src/`.
     mkdirSync(join(root, 'packages', 'infra', 'rolldown-plugin-gjsify', 'src', 'plugins'), { recursive: true });
     writeFileSync(
         join(root, 'packages', 'infra', 'rolldown-plugin-gjsify', 'src', 'plugins', 'alias.ts'),
         `export const aliasPlugin = () => ({ name: 'gjsify-alias' });\n`,
     );
-
-    mkdirSync(join(root, 'packages', 'infra', 'tsc', 'src'), { recursive: true });
-    mkdirSync(join(root, 'packages', 'infra', 'tsc', 'dist'), { recursive: true });
-    writeFileSync(
-        join(root, 'packages', 'infra', 'tsc', 'src', 'index.ts'),
-        `export const TYPESCRIPT_VERSION = '0';\n`,
-    );
-    writeFileSync(join(root, 'packages', 'infra', 'tsc', 'dist', 'tsc.gjs.mjs'), `// initial tsc bundle\n`);
 
     // Synthetic `gjsify` stub on PATH. Records its argv to a log + REWRITES
     // the appropriate `dist/<bundle>.gjs.mjs` so we can assert the hook
@@ -132,14 +124,8 @@ function setupSyntheticRepo(parent) {
     // So $1=workspace, $2=<pkg>, $3=<script>.
     const stub = `#!/usr/bin/env bash
 echo "$@" >> "${logPath}"
-if [ "$1" = "workspace" ] && [ "$2" = "@gjsify/cli" ] && [ "$3" = "build:gjs-bundle" ]; then
-    echo "// rebuilt cli bundle $(date +%s%N)" > "${root}/packages/infra/cli/dist/cli.gjs.mjs"
-fi
 if [ "$1" = "workspace" ] && [ "$2" = "@gjsify/cli" ] && [ "$3" = "build:affected-bundle" ]; then
     echo "// rebuilt affected bundle $(date +%s%N)" > "${root}/packages/infra/cli/dist/affected.gjs.mjs"
-fi
-if [ "$1" = "workspace" ] && [ "$2" = "@gjsify/tsc" ] && [ "$3" = "build" ]; then
-    echo "// rebuilt tsc bundle $(date +%s%N)" > "${root}/packages/infra/tsc/dist/tsc.gjs.mjs"
 fi
 exit 0
 `;
@@ -172,7 +158,7 @@ function runHook(root, envOverrides = {}) {
     });
 }
 
-describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 * 1000 }, () => {
+describe('git pre-commit hook — affected.gjs.mjs staleness', { timeout: 2 * 60 * 1000 }, () => {
     let parent;
 
     before(() => {
@@ -195,9 +181,9 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
         assert.deepEqual(readLog(logPath), [], `hook should not have invoked gjsify, got: ${result.stdout}`);
     });
 
-    it('auto-rebuilds + auto-stages dist/cli.gjs.mjs when packages/infra/cli/src/ changes', () => {
+    it('auto-rebuilds + auto-stages dist/affected.gjs.mjs when packages/infra/cli/src/ changes', () => {
         const { root, logPath } = setupSyntheticRepo(parent);
-        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
+        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/affected.gjs.mjs'), 'utf-8');
 
         writeFileSync(join(root, 'packages/infra/cli/src/index.ts'), `export const v = 2;\n`);
         execFileSync('git', ['-C', root, 'add', 'packages/infra/cli/src/index.ts']);
@@ -206,13 +192,13 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
         assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
 
         const invocations = readLog(logPath);
-        // Three gjsify calls — `workspace @gjsify/cli build`, then
-        // `build:gjs-bundle` (cli.gjs.mjs), then `build:affected-bundle`
-        // (the dedicated Soup-free classifier bundle).
-        assert.equal(invocations.length, 3, `expected 3 gjsify invocations, got: ${invocations.join(' / ')}`);
+        // Two gjsify calls — `build` (the lib/ the bundle is made from), then
+        // `build:affected-bundle`. `build:gjs-bundle` left this sequence with
+        // ADR 0002: `cli.gjs.mjs` is no longer committed, so there is nothing
+        // for the hook to re-stage.
+        assert.equal(invocations.length, 2, `expected 2 gjsify invocations, got: ${invocations.join(' / ')}`);
         assert.equal(invocations[0], 'workspace @gjsify/cli build');
-        assert.equal(invocations[1], 'workspace @gjsify/cli build:gjs-bundle');
-        assert.equal(invocations[2], 'workspace @gjsify/cli build:affected-bundle');
+        assert.equal(invocations[1], 'workspace @gjsify/cli build:affected-bundle');
 
         // The rebuilt bundle must be in the just-recorded commit.
         const filesInCommit = execFileSync(
@@ -223,10 +209,6 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
             .trim()
             .split('\n');
         assert.ok(
-            filesInCommit.includes('packages/infra/cli/dist/cli.gjs.mjs'),
-            `dist/cli.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
-        );
-        assert.ok(
             filesInCommit.includes('packages/infra/cli/dist/affected.gjs.mjs'),
             `dist/affected.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
         );
@@ -235,12 +217,12 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
             `src/index.ts not in commit; saw: ${filesInCommit.join(', ')}`,
         );
 
-        const finalBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
+        const finalBundle = readFileSync(join(root, 'packages/infra/cli/dist/affected.gjs.mjs'), 'utf-8');
         assert.notEqual(finalBundle, initialBundle, 'cli bundle was not refreshed by the rebuild');
     });
 
     it('auto-rebuilds when packages/infra/rolldown-plugin-gjsify/src/ changes', () => {
-        // The committed `dist/cli.gjs.mjs` inlines the whole build pipeline, and
+        // The committed `dist/affected.gjs.mjs` inlines the whole build pipeline, and
         // `node_modules/.bin/gjsify` prefers that bundle over the workspace
         // `lib/` whenever `gjs` is on PATH. Without this trigger a resolver fix
         // (the `aliasPlugin` virtual-module scoping guard is the case that
@@ -248,7 +230,7 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
         // the old behaviour — and every e2e booting the bundle keeps exercising
         // the stale pipeline.
         const { root, logPath } = setupSyntheticRepo(parent);
-        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
+        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/affected.gjs.mjs'), 'utf-8');
 
         const pluginSrc = 'packages/infra/rolldown-plugin-gjsify/src/plugins/alias.ts';
         writeFileSync(
@@ -261,12 +243,11 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
         assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
 
         const invocations = readLog(logPath);
-        assert.deepEqual(invocations, [
-            'workspace @gjsify/cli build',
-            'workspace @gjsify/cli build:gjs-bundle',
-            'workspace @gjsify/cli build:affected-bundle',
-        ]);
+        assert.deepEqual(invocations, ['workspace @gjsify/cli build', 'workspace @gjsify/cli build:affected-bundle']);
 
+        // The rebuild is only half the property — the refreshed bundle has to be
+        // IN the commit the hook just let through, or the next checkout carries
+        // the stale bytes anyway.
         const filesInCommit = execFileSync(
             'git',
             ['-C', root, 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
@@ -275,19 +256,19 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
             .trim()
             .split('\n');
         assert.ok(
-            filesInCommit.includes('packages/infra/cli/dist/cli.gjs.mjs'),
-            `dist/cli.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
+            filesInCommit.includes('packages/infra/cli/dist/affected.gjs.mjs'),
+            `dist/affected.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
         );
         assert.notEqual(
-            readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8'),
+            readFileSync(join(root, 'packages/infra/cli/dist/affected.gjs.mjs'), 'utf-8'),
             initialBundle,
-            'cli bundle was not refreshed by the rebuild',
+            'affected bundle was not refreshed by the rebuild',
         );
     });
 
     it('skips the rebuild when SKIP_GJSIFY_HOOKS=1', () => {
         const { root, logPath } = setupSyntheticRepo(parent);
-        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
+        const initialBundle = readFileSync(join(root, 'packages/infra/cli/dist/affected.gjs.mjs'), 'utf-8');
 
         writeFileSync(join(root, 'packages/infra/cli/src/index.ts'), `export const v = 3;\n`);
         execFileSync('git', ['-C', root, 'add', 'packages/infra/cli/src/index.ts']);
@@ -296,39 +277,8 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
         assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
         assert.deepEqual(readLog(logPath), [], 'SKIP_GJSIFY_HOOKS=1 should suppress rebuild');
 
-        const finalBundle = readFileSync(join(root, 'packages/infra/cli/dist/cli.gjs.mjs'), 'utf-8');
+        const finalBundle = readFileSync(join(root, 'packages/infra/cli/dist/affected.gjs.mjs'), 'utf-8');
         assert.equal(finalBundle, initialBundle, 'cli bundle should not have been refreshed under SKIP_GJSIFY_HOOKS=1');
-    });
-
-    it('auto-rebuilds + auto-stages dist/tsc.gjs.mjs when packages/infra/tsc/src/ changes', () => {
-        const { root, logPath } = setupSyntheticRepo(parent);
-        const initialBundle = readFileSync(join(root, 'packages/infra/tsc/dist/tsc.gjs.mjs'), 'utf-8');
-
-        writeFileSync(join(root, 'packages/infra/tsc/src/index.ts'), `export const TYPESCRIPT_VERSION = '5.9.4';\n`);
-        execFileSync('git', ['-C', root, 'add', 'packages/infra/tsc/src/index.ts']);
-
-        const result = runHook(root);
-        assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
-
-        const invocations = readLog(logPath);
-        // tsc has only a single build step (no separate :gjs-bundle phase).
-        assert.equal(invocations.length, 1, `expected 1 gjsify invocation, got: ${invocations.join(' / ')}`);
-        assert.equal(invocations[0], 'workspace @gjsify/tsc build');
-
-        const filesInCommit = execFileSync(
-            'git',
-            ['-C', root, 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
-            { encoding: 'utf-8' },
-        )
-            .trim()
-            .split('\n');
-        assert.ok(
-            filesInCommit.includes('packages/infra/tsc/dist/tsc.gjs.mjs'),
-            `dist/tsc.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
-        );
-
-        const finalBundle = readFileSync(join(root, 'packages/infra/tsc/dist/tsc.gjs.mjs'), 'utf-8');
-        assert.notEqual(finalBundle, initialBundle, 'tsc bundle was not refreshed by the rebuild');
     });
 
     it('honours `git commit --no-verify` (skips the hook entirely)', () => {

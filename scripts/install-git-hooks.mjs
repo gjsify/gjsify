@@ -33,7 +33,7 @@ const HOOKS_DIR_ABS = resolve(ROOT, HOOKS_DIR_RELATIVE);
 // Enumerated, not globbed: a hook that silently fails to ship is exactly the
 // class this repo keeps getting bitten by, so the expected set is declared and
 // a missing member is a hard error below. Add new hooks here.
-const EXPECTED_HOOKS = ['pre-commit', 'post-rewrite'];
+const EXPECTED_HOOKS = ['pre-commit'];
 
 const args = new Set(process.argv.slice(2));
 const QUIET = args.has('--quiet') || args.has('-q');
