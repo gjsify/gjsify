@@ -288,7 +288,7 @@ jobs:
         run: node packages/infra/cli/lib/index.js workspace @gjsify/worker_threads run test
 
       - name: '@gjsify/node-globals'
-        run: node packages/infra/cli/lib/index.js workspace @gjsify/node run test
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/node-globals run test
 
       # The package ADR 0018 singles out: it writes `PATH` /
       # `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` per host, owns

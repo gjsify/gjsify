@@ -219,9 +219,16 @@ jobs:
       # One package per line so a failure names the package in the step title
       # rather than in the middle of a 10-package log. `test:node` only: there
       # is no gjs here, and a suite's `test` script chains `test:gjs`.
-      - name: '@gjsify/utils'
-        run: node packages\infra\cli\lib\index.js workspace @gjsify/utils run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/utils run test:node
-
+      #
+      # `@gjsify/utils` IS NOT IN THIS LIST, and that is a statement rather than
+      # an omission. It declares `runtimes.node: "none"` and ships only
+      # `build:test:gjs` / `test:gjs` — there is no Node test bundle to build,
+      # so the step this leg first shipped (`… run build:test:node`) could only
+      # ever die with `has no script "build:test:node" — did you mean
+      # "build:test:gjs"?`. A GJS-only package on a host with no GJS is not a
+      # suite this leg can run, and pretending otherwise cost the whole leg.
+      # macOS DOES cover it (`… run test`, which is `test:gjs` there), which is
+      # exactly the asymmetry the header names.
       - name: '@gjsify/path'
         run: node packages\infra\cli\lib\index.js workspace @gjsify/path run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/path run test:node
 
@@ -247,7 +254,7 @@ jobs:
         run: node packages\infra\cli\lib\index.js workspace @gjsify/worker_threads run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/worker_threads run test:node
 
       - name: '@gjsify/node-globals'
-        run: node packages\infra\cli\lib\index.js workspace @gjsify/node run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/node run test:node
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/node-globals run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/node-globals run test:node
 
       # The CLI is the package ADR 0018 singles out: it writes `PATH` /
       # `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` per host and generates the
