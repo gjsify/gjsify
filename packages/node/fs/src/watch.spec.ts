@@ -12,6 +12,40 @@ function makeTmp(): string {
     return mkdtempSync(join(tmpdir(), 'gjsify-watch-'));
 }
 
+/**
+ * Timers a test armed and must not leave running past its own temp directory.
+ *
+ * Every test here writes into its temp dir from a timer and then removes that
+ * dir when it ends, and the abort RACES the timeout by design — so "it will
+ * have fired by then" is not a property any of them can rely on. A timer that
+ * outlives its test writes into a path that no longer exists, and the ENOENT
+ * surfaces against whichever test happens to be running when it fires: on
+ * darwin a `tracked.txt` write armed by `filename in event is a string or null`
+ * failed `stops cleanly when AbortController is aborted during iteration`.
+ *
+ * Four timers were armed and never cancelled. Rather than four clears, the
+ * timer and the directory it writes into get ONE owner — {@link scheduleWrite}
+ * arms, {@link cleanup} cancels and removes, and a test cannot do the second
+ * without the first.
+ */
+const pendingWrites = new Set<ReturnType<typeof setTimeout>>();
+
+/** Schedule `write` once, `ms` from now, and remember it until it fires. */
+function scheduleWrite(write: () => void, ms: number): void {
+    const id = setTimeout(() => {
+        pendingWrites.delete(id);
+        write();
+    }, ms);
+    pendingWrites.add(id);
+}
+
+/** Cancel anything still armed, THEN remove the directory it would write into. */
+function cleanup(tmp: string): void {
+    for (const id of pendingWrites) clearTimeout(id);
+    pendingWrites.clear();
+    rmSync(tmp, { recursive: true, force: true });
+}
+
 export default async () => {
     await describe('fs.promises.watch', async () => {
         await it('yields rename event when a file is created in a directory', async () => {
@@ -20,7 +54,7 @@ export default async () => {
             let received = false;
 
             // Write the file shortly after the iterator starts waiting
-            setTimeout(() => {
+            scheduleWrite(() => {
                 writeFileSync(join(tmp, 'new-file.txt'), 'hello');
             }, 30);
 
@@ -37,7 +71,7 @@ export default async () => {
             }
 
             expect(received).toBe(true);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('yields change event when a watched file is modified', async () => {
@@ -48,7 +82,7 @@ export default async () => {
             const ac = new AbortController();
             let received = false;
 
-            setTimeout(() => {
+            scheduleWrite(() => {
                 writeFileSync(file, 'modified');
             }, 30);
 
@@ -64,7 +98,7 @@ export default async () => {
             }
 
             expect(received).toBe(true);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('filename in event is a string or null', async () => {
@@ -72,7 +106,7 @@ export default async () => {
             const ac = new AbortController();
             let filename: string | null | undefined = undefined;
 
-            setTimeout(() => {
+            scheduleWrite(() => {
                 writeFileSync(join(tmp, 'tracked.txt'), 'x');
             }, 30);
 
@@ -88,7 +122,7 @@ export default async () => {
             // filename is a string basename or null (GJS writeFileSync uses atomic writes
             // via GLib.file_set_contents which may report a temp filename — any string is valid)
             expect(typeof filename === 'string' || filename === null).toBe(true);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('stops iterating immediately when signal is pre-aborted', async () => {
@@ -106,7 +140,7 @@ export default async () => {
             }
 
             expect(count).toBe(0);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('stops cleanly when AbortController is aborted during iteration', async () => {
@@ -135,7 +169,7 @@ export default async () => {
             }
 
             expect(eventCount).toBeGreaterThan(0);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('multiple events can be collected before abort', async () => {
@@ -143,7 +177,7 @@ export default async () => {
             const ac = new AbortController();
             const events: string[] = [];
 
-            setTimeout(() => {
+            scheduleWrite(() => {
                 writeFileSync(join(tmp, 'a.txt'), '1');
                 writeFileSync(join(tmp, 'b.txt'), '2');
             }, 30);
@@ -160,7 +194,7 @@ export default async () => {
             }
 
             expect(events.length).toBeGreaterThan(0);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
     });
 };

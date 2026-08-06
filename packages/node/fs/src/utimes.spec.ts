@@ -62,19 +62,21 @@ export default async () => {
             unlinkSync(f);
         });
 
-        await it.failing('lutimesSync does not throw on a symlink', async () => {
-            const target = tmpFile('lutime-target');
-            const link = join(TMP, `gjsify-lutime-link-${process.pid}`);
-            // force:true is the non-throwing spelling of "remove a leftover
-            // from a previous run" — a real failure (EACCES) still surfaces.
-            rmSync(link, { force: true });
-            symlinkSync(target, link);
-            const mtime = new Date('2017-05-20T00:00:00Z');
-            // Just verify the call completes without throwing
-            expect(() => lutimesSync(link, mtime, mtime)).not.toThrow();
-            unlinkSync(link);
-            unlinkSync(target);
-        },
+        await it.failing(
+            'lutimesSync does not throw on a symlink',
+            async () => {
+                const target = tmpFile('lutime-target');
+                const link = join(TMP, `gjsify-lutime-link-${process.pid}`);
+                // force:true is the non-throwing spelling of "remove a leftover
+                // from a previous run" — a real failure (EACCES) still surfaces.
+                rmSync(link, { force: true });
+                symlinkSync(target, link);
+                const mtime = new Date('2017-05-20T00:00:00Z');
+                // Just verify the call completes without throwing
+                expect(() => lutimesSync(link, mtime, mtime)).not.toThrow();
+                unlinkSync(link);
+                unlinkSync(target);
+            },
             NO_SYMLINK_REASON,
             { when: !CAN_SYMLINK },
         );
@@ -92,22 +94,24 @@ export default async () => {
             unlinkSync(f);
         });
 
-        await it.failing('lchownSync does not throw (may need root to actually change)', async () => {
-            const f = tmpFile('lchown');
-            const link = join(TMP, `gjsify-lchown-link-${process.pid}`);
-            // force:true is the non-throwing spelling of "remove a leftover
-            // from a previous run" — a real failure (EACCES) still surfaces.
-            rmSync(link, { force: true });
-            symlinkSync(f, link);
-            // This will only actually change owner if running as root; just verify no throw
-            try {
-                lchownSync(link, process.getuid ? process.getuid() : 0, process.getgid ? process.getgid() : 0);
-            } catch {
-                // acceptable if kernel denies (EPERM) — just must not crash the process
-            }
-            unlinkSync(link);
-            unlinkSync(f);
-        },
+        await it.failing(
+            'lchownSync does not throw (may need root to actually change)',
+            async () => {
+                const f = tmpFile('lchown');
+                const link = join(TMP, `gjsify-lchown-link-${process.pid}`);
+                // force:true is the non-throwing spelling of "remove a leftover
+                // from a previous run" — a real failure (EACCES) still surfaces.
+                rmSync(link, { force: true });
+                symlinkSync(f, link);
+                // This will only actually change owner if running as root; just verify no throw
+                try {
+                    lchownSync(link, process.getuid ? process.getuid() : 0, process.getgid ? process.getgid() : 0);
+                } catch {
+                    // acceptable if kernel denies (EPERM) — just must not crash the process
+                }
+                unlinkSync(link);
+                unlinkSync(f);
+            },
             NO_SYMLINK_REASON,
             { when: !CAN_SYMLINK },
         );
