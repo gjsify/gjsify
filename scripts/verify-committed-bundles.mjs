@@ -245,7 +245,8 @@ function restoreDisk(snapshot, groups) {
 /**
  * Where a mismatching rebuild is kept so it can leave the machine that made it.
  * Mirrors the repo-relative path, so the whole tree can be copied over a
- * checkout verbatim (`cp -r tmp/rebuilt-bundles/. .`).
+ * checkout verbatim. (The CI upload of that directory is gone with ADR 0002 —
+ * see the failure message below for why it no longer has a subject.)
  */
 const REBUILT_DIR = join(repoRoot, 'tmp', 'rebuilt-bundles');
 const rebuiltSaved = [];
@@ -514,11 +515,14 @@ if (failures > 0) {
             `\nThe ${rebuiltSaved.length} rebuilt artifact(s) THIS run produced were kept under tmp/rebuilt-bundles/:\n` +
                 rebuiltSaved.map((p) => `  ${p}`).join('\n') +
                 (inActions
-                    ? '\n\nCI uploads them as the `rebuilt-bundles` artifact. If your machine cannot reproduce ' +
-                      'these bytes (usually a stale pre-entry-order-fix `lib/esm` or build cache — see release-cut.yml), ' +
-                      'download it and copy it over your checkout:\n' +
-                      '  gh run download <run-id> -n rebuilt-bundles -D tmp/rebuilt-bundles\n' +
-                      '  cp -r tmp/rebuilt-bundles/. . && git add -A\n'
+                    ? '\n\nRebuild locally and commit the result:\n' +
+                      '  gjsify workspace @gjsify/cli build --with-dependencies\n' +
+                      '  gjsify workspace @gjsify/cli build:affected-bundle\n' +
+                      '\nThe `rebuilt-bundles` artifact this message used to point at is GONE with ' +
+                      'ADR 0002: it existed because two developer machines measurably could not reproduce ' +
+                      'the 6.6 MB `cli.gjs.mjs`, and that file is no longer committed. What is left here is ' +
+                      '`affected.gjs.mjs` (248 KB) and the `@gjsify/tsc` libs, which reproduce on any host — ' +
+                      'a mismatch means the tree is stale, not that your machine is different.\n'
                     : '\n\nCompare them against the committed files to see what your machine builds differently.\n'),
         );
     }
