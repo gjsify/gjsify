@@ -378,6 +378,21 @@ async function runScript(script: string, extraArgs: readonly string[], cwd: stri
         process.env.npm_package_name = env.npm_package_name;
         process.env.npm_package_version = env.npm_package_version;
         if (env.FORCE_COLOR !== undefined) process.env.FORCE_COLOR = env.FORCE_COLOR;
+        // …and the working directory, for the same reason. The spawn path below
+        // passes `cwd` to `spawn()`; this path used to pass it nowhere, so a
+        // `gjsify run -w <ws> <script>` resolved the WORKSPACE and then ran the
+        // command in the CALLER's directory. Every relative path in the script
+        // — `src/app/main.ts`, `dist/…`, `tests/test.mts` — then resolved
+        // against the monorepo root.
+        //
+        // Only this branch was affected, which is why it survived: the fast path
+        // fires exactly when the script is a SINGLE `gjsify <subcommand>`, so a
+        // compound script (`a && b`) took the shell path and worked. Measured on
+        // the two consumers: bauplaner's cli scripts are all single commands and
+        // it documents the gap in its AGENTS.md, sidestepping it with
+        // `cd cli && …`; buchhaltung's one `-w` use is `build:meson`, a compound
+        // command, and it works.
+        if (cwd !== process.cwd()) process.chdir(cwd);
         // Track the failure LOCALLY rather than through `process.exitCode`.
         // Under GJS `process.exit()` is deferred (see the note below), so the
         // `process.exit(1)` that used to live in the catch returned instead of
