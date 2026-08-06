@@ -284,17 +284,40 @@ runs:
     # first would let it overwrite the artifact. Last writer wins, and the
     # artifact has to be it — it is the only source of these two files once
     # they leave git.
+    # `path: packages/infra` is NOT arbitrary. `upload-artifact` roots the
+    # archive at the LEAST COMMON ANCESTOR of the paths it was given, and the
+    # producer uploads `packages/infra/cli/dist/cli.gjs.mjs` +
+    # `packages/infra/tsc/dist/tsc.gjs.mjs` — so the archive holds
+    # `cli/dist/…` and `tsc/dist/…`, and extracting to `.` would put them at
+    # `./cli/dist/…`. (The `example-dist-fedora*` pair works with no `path:`
+    # for the same rule read the other way: `showcases/` and `examples/` are
+    # siblings at the repo root, so their LCA IS the root.)
+    #
+    # Because that coupling is invisible from either side, the next step
+    # ASSERTS the files landed rather than trusting it — add a path outside
+    # `packages/infra` to the upload and this fails loudly instead of leaving
+    # every downstream job booting a checkout that has no bundle.
     - name: Restore the GJS bootstrap bundles
       if: ${{ inputs.bootstrap-bundles == 'true' }}
       uses: actions/download-artifact@v8
       with:
         name: bootstrap-bundles-fedora${{ inputs.fedora-version }}
-        path: .
+        path: packages/infra
 
     - name: Hand the restored bundles to testuser
       if: ${{ inputs.bootstrap-bundles == 'true' }}
       shell: bash
       run: |
+        set -euo pipefail
+        for f in packages/infra/cli/dist/cli.gjs.mjs packages/infra/tsc/dist/tsc.gjs.mjs; do
+          if [ ! -f "$f" ]; then
+            echo "::error::$f missing after download-artifact. The archive is rooted at the"
+            echo "::error::least common ancestor of the producer's paths; if that moved, the"
+            echo "::error::download's \`path:\` has to move with it (.github/workflows/main.yml)."
+            find . -maxdepth 4 -name '*.gjs.mjs' -not -path './node_modules/*' | head -20
+            exit 1
+          fi
+        done
         # `download-artifact` writes as root; every later step runs as testuser.
         chown -R testuser:testuser packages/infra/cli/dist packages/infra/tsc/dist
         # The CLI bundle is exec'd through a `gjsify.bin` launcher and by the
