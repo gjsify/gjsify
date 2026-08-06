@@ -1617,11 +1617,26 @@ function reportLinkedBins(created: ReturnType<typeof linkGlobalBins>, binDir: st
  * exports its dir. `tests/e2e/global-install-engine/run.mjs:361-374` asserts
  * exactly that case.
  */
-async function ensureProjectGjsEngine(args: InstallOptions, gjsFound: boolean): Promise<void> {
-    const cwd = process.cwd();
+export interface EnsureProjectGjsEngineDeps {
+    /** Project root. Defaults to `process.cwd()`. */
+    cwd?: string;
+    /** Injected so the decision is testable without a registry — the shape
+     *  `installGjsEnginePackages` already uses for the same reason. */
+    installFn?: (prefix: string, version: string, opts: { verbose?: boolean }) => Promise<void>;
+    /** Injected so a host that HAS an engine can still exercise the missing branch. */
+    hasEngineFn?: (dir: string) => boolean;
+}
+
+export async function ensureProjectGjsEngine(
+    args: InstallOptions,
+    gjsFound: boolean,
+    deps: EnsureProjectGjsEngineDeps = {},
+): Promise<void> {
+    const cwd = deps.cwd ?? process.cwd();
+    const hasEngine = deps.hasEngineFn ?? hasBundlerEngineInstalled;
     if (!existsSync(join(cwd, 'node_modules', '@gjsify', 'cli', 'package.json'))) return;
     if (!gjsFound) return;
-    if (hasBundlerEngineInstalled(cwd)) return;
+    if (hasEngine(cwd)) return;
 
     if (args.immutable) {
         // Name the DURABLE fix, not a transient one: a frozen CI install cannot
@@ -1642,7 +1657,8 @@ async function ensureProjectGjsEngine(args: InstallOptions, gjsFound: boolean): 
             `  bundler engine (there is no npm \`rolldown\` fallback under GJS). Installing the GJS engine set at\n` +
             `  ${cliVersion}, in lockstep with the CLI.`,
     );
-    await installGjsEnginePackages(cwd, cliVersion, { verbose: args.verbose });
+    const install = deps.installFn ?? installGjsEnginePackages;
+    await install(cwd, cliVersion, { verbose: args.verbose });
 }
 
 async function runPostInstallChecks(args: InstallOptions): Promise<void> {
