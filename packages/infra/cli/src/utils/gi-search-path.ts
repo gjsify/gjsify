@@ -113,22 +113,47 @@ let activated: readonly NativePackage[] | null = null;
  */
 export function activateNativePrebuilds(): readonly NativePackage[] {
     if (activated) return activated;
+    // Memoized BEFORE the work, so every outcome — including a throw — is
+    // decided once and every later caller gets an answer instead of a repeat
+    // attempt. `diagnoseNativeEngine()` depends on exactly that: it documents
+    // that nothing it calls may throw while explaining a failure.
+    activated = [];
 
-    const repository = defaultRepository();
-    if (!repository) {
-        activated = [];
-        return activated;
+    try {
+        const repository = defaultRepository();
+        if (!repository) return activated;
+
+        const cwdPackages = detectNativePackages(process.cwd());
+        const seen = new Set(cwdPackages.map((p) => p.name));
+        const selfPackages = detectNativePackages(dirname(fileURLToPath(import.meta.url)));
+        const packages = [...cwdPackages, ...selfPackages.filter((p) => !seen.has(p.name))];
+
+        for (const pkg of packages) {
+            repository.prepend_search_path(pkg.prebuildsDir);
+            repository.prepend_library_path(pkg.prebuildsDir);
+        }
+        activated = packages;
+    } catch {
+        // TWO REAL THROW PATHS, named because a catch without one is the
+        // anti-pattern this repo measures:
+        //
+        //   1. `imports.gi.GIRepository` LOADS the namespace. GJS raises
+        //      "Requiring GIRepository, version none: Typelib file for namespace
+        //      'GIRepository' (any version) not found" when that typelib is
+        //      absent — verified by probe. It is a SEPARATE FILE from the
+        //      girepository library GJS links against, and distributions split
+        //      them (Debian ships `gir1.2-girepository-3.0` apart from
+        //      `libgirepository-2.0-0`), so a lean host can have the second
+        //      without the first.
+        //   2. The two `detectNativePackages()` walks are filesystem I/O and can
+        //      raise (EACCES on an unreadable node_modules, a dir removed
+        //      mid-walk).
+        //
+        // Both mean the same thing — no activation — and swallowing is the
+        // CORRECT handling rather than a hidden failure: the caller ends up
+        // exactly where it was before this function existed (the launcher's
+        // environment, and the unchanged diagnosis if that is absent too), so
+        // no host can be made worse by it.
     }
-
-    const cwdPackages = detectNativePackages(process.cwd());
-    const seen = new Set(cwdPackages.map((p) => p.name));
-    const selfPackages = detectNativePackages(dirname(fileURLToPath(import.meta.url)));
-    const packages = [...cwdPackages, ...selfPackages.filter((p) => !seen.has(p.name))];
-
-    for (const pkg of packages) {
-        repository.prepend_search_path(pkg.prebuildsDir);
-        repository.prepend_library_path(pkg.prebuildsDir);
-    }
-    activated = packages;
     return activated;
 }
