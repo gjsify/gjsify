@@ -67,4 +67,5 @@ export {
     hostPrebuildTarget,
 } from './rules/prebuild-libc.mjs';
 export { portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
+export { storybookRule, auditStorybook, countStoryFiles } from './rules/storybook.mjs';
 export { fieldCoverageRule, declaredGjsifyFields } from './rules/field-coverage.mjs';
