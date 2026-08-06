@@ -13,7 +13,13 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import type { DepCheck } from './check-system-deps.js';
-import { buildInstallCommand, checkTypeSkew, OPTIONAL_DEPS, PACKAGE_DEPS } from './check-system-deps.js';
+import {
+    buildInstallCommand,
+    checkTypeSkew,
+    missingSystemDepsFor,
+    OPTIONAL_DEPS,
+    PACKAGE_DEPS,
+} from './check-system-deps.js';
 
 /** Build readers from two plain maps, so a case reads as data. */
 function readers(declared: Record<string, string>, installed: Record<string, string>) {
@@ -80,6 +86,28 @@ export default async () => {
             }
             expect(silent.join(', ')).toBe('');
             expect(buildInstallCommand('unknown', missing)).toBe(null);
+        });
+
+        await it('missingSystemDepsFor answers nothing for a package it cannot know', async () => {
+            // The caller is `diagnoseNativeEngine()`, which runs while explaining
+            // ANOTHER failure — so "no declared deps" and "package not in the
+            // table" must both come back as an empty list rather than as a throw
+            // or as a fabricated finding. A probe that dies there replaces the
+            // diagnosis with its own stack.
+            expect(missingSystemDepsFor('@gjsify/not-a-real-package').length).toBe(0);
+            // `@gjsify/fs` is real and declares no optional system deps.
+            expect(missingSystemDepsFor('@gjsify/fs').length).toBe(0);
+        });
+
+        await it('missingSystemDepsFor only ever reports declared ids', async () => {
+            // Whatever this host has installed, every entry it returns must be one
+            // the package actually declared — the function must not invent a
+            // library, because its output is printed as a MEASURED cause.
+            const declared = new Set(PACKAGE_DEPS['@gjsify/rolldown-native'] ?? []);
+            const undeclared = missingSystemDepsFor('@gjsify/rolldown-native')
+                .map((d) => d.id)
+                .filter((id) => !declared.has(id));
+            expect(undeclared.join(', ')).toBe('');
         });
     });
 

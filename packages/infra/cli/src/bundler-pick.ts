@@ -36,6 +36,12 @@ import type { RolldownOutput, InputOptions, RolldownWatcher } from 'rolldown';
 import type * as Rolldown from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
 import { resolveNpmPackage } from './utils/resolve-npm-package.js';
+// Static, not dynamic: `diagnoseNativeEngine()` is synchronous and is called
+// inside a `throw` expression. Safe — check-system-deps imports only `node:`
+// builtins, so there is no cycle, and every one of them is already in the GJS
+// bundle via `commands/install.ts`.
+import { buildInstallCommand, detectPackageManager, missingSystemDepsFor } from './utils/check-system-deps.js';
+import { libraryPathVar } from './utils/detect-native-packages.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 // npm `rolldown` is a Rust crate with platform-specific prebuilds; loading
@@ -123,17 +129,75 @@ function diagnoseNativeEngine(): string {
         );
     }
 
-    return (
-        'The JS facade is built, so this is the typelib/prebuild lookup failing. Most likely the CLI bundle was ' +
-        'invoked DIRECTLY (`gjs -m …/cli.gjs.mjs`, or by executing dist/cli.gjs.mjs), which bypasses the `gjsify` ' +
-        'launcher that exports GI_TYPELIB_PATH / LD_LIBRARY_PATH for the prebuilds. The typelib lookup happens ' +
-        'inside the GJS runtime, so those must be set BEFORE the process starts — the CLI cannot repair it from ' +
-        'the inside. Run through the `gjsify` bin instead (`node_modules/.bin/gjsify …`, or the globally installed ' +
-        'shim), or export the env yourself:\n' +
-        `  P=${path.join(pkgDir, 'prebuilds', `${process.platform ?? 'linux'}-${process.arch ?? 'x64'}`)}\n` +
-        '  GI_TYPELIB_PATH=$P LD_LIBRARY_PATH=$P gjs -m …/cli.gjs.mjs build …\n' +
-        'Otherwise: no prebuild exists for this architecture. Running the build under Node also works.'
+    // Branch 3: installed AND built, so the typelib/prebuild LOOKUP failed.
+    //
+    // This branch used to assert "Most likely the CLI bundle was invoked
+    // DIRECTLY … bypasses the launcher" — repeating, one branch later, the exact
+    // mistake this function's docblock records fixing in branch 2: naming the
+    // rarest cause as the most likely one. After #994 measured `ldd` over every
+    // committed linux-x64 prebuild on a consumer-baseline host, a missing
+    // `libjson-glib-1.0.so.0` is at least as common, and it is what ts-for-gir#437
+    // actually hit — with this message on screen.
+    //
+    // So both candidates are now MEASURED, cheaply and without any call that can
+    // throw while explaining a failure, and the measured one is printed first.
+    const prebuildDir = path.join(pkgDir, 'prebuilds', `${process.platform ?? 'linux'}-${process.arch ?? 'x64'}`);
+    const parts: string[] = ['The JS facade is built, so this is the typelib/prebuild lookup failing.'];
+
+    // (1) A declared system library that is not on this host. `missingSystemDepsFor`
+    // reads the same tables `gjsify system-check` does, so the answer cannot drift
+    // from the declaration.
+    const missing = missingSystemDepsFor('@gjsify/rolldown-native');
+    if (missing.length > 0) {
+        const names = missing.map((d) => d.name).join(', ');
+        parts.push(
+            `\nMEASURED CAUSE — a system library the engine's prebuild loads is MISSING: ${names}.\n` +
+                "The prebuild is present but its typelib cannot open its backing library, which GJS reports as " +
+                '`Unsupported type void, deriving from fundamental void` — a message that names nothing. ' +
+                'This is a system package, not an npm one.',
+        );
+        const cmd = buildInstallCommand(detectPackageManager(), missing);
+        if (cmd) parts.push(`Install it:\n  ${cmd}`);
+        else
+            parts.push(
+                `Install ${names} with your system package manager (this host's manager was not recognised, so no command is suggested rather than a wrong one).`,
+            );
+    }
+
+    // (2) Is the launcher really bypassed? A pure env read, so it states a fact
+    // instead of a guess — and when the env IS correct it says so, which stops a
+    // reader from chasing an env problem that does not exist.
+    const { name: libVar } = libraryPathVar(process.platform);
+    const envCarriesPrebuild = [process.env.GI_TYPELIB_PATH, process.env[libVar]].some(
+        (v) => typeof v === 'string' && v.split(path.delimiter).includes(prebuildDir),
     );
+    if (!envCarriesPrebuild) {
+        parts.push(
+            `\nGI_TYPELIB_PATH / ${libVar} do NOT contain ${prebuildDir}, so the \`gjsify\` launcher was bypassed ` +
+                '(a direct `gjs -m …/cli.gjs.mjs`, or executing dist/cli.gjs.mjs). The typelib lookup happens inside ' +
+                'the GJS runtime, so those must be set BEFORE the process starts — the CLI cannot repair it from the ' +
+                'inside. Run through the `gjsify` bin instead (`node_modules/.bin/gjsify …`, or the global shim), or ' +
+                'export the env yourself:\n' +
+                `  P=${prebuildDir}\n` +
+                `  GI_TYPELIB_PATH=$P ${libVar}=$P gjs -m …/cli.gjs.mjs build …`,
+        );
+    } else {
+        parts.push(
+            `\nThe launcher env IS correct (${prebuildDir} is on GI_TYPELIB_PATH / ${libVar}), so this is not a ` +
+                'bypassed launcher — do not go looking for one.',
+        );
+    }
+
+    // (3) The remaining possibility, last because it is the least actionable.
+    if (missing.length === 0 && envCarriesPrebuild) {
+        parts.push(
+            `\nEvery declared system library resolves and the env is correct, so most likely no prebuild exists for ` +
+                `${process.platform}/${process.arch}: ${prebuildDir}` +
+                (existsSync(prebuildDir) ? ' exists but did not load.' : ' does not exist.'),
+        );
+    }
+    parts.push('\nRunning the build under Node also works — there the npm `rolldown` crate is used instead.');
+    return parts.join('\n');
 }
 
 /**
