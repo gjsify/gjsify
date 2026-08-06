@@ -9,8 +9,8 @@
 # This runs the PUBLISHED @gjsify/cli under Node on macos-latest + windows-latest
 # through the real user path — install → build --app node → run — to get EVIDENCE
 # of what works vs. breaks. The published CLI is used deliberately: the repo's own
-# install bootstraps via the committed cli.gjs.mjs under `gjs`, which does not exist
-# off-Linux, so "can a user on a Mac/Windows use gjsify" == the npm-installed CLI.
+# install runs under `gjs`, which does not exist off-Linux, so "can a user on a
+# Mac/Windows use gjsify" == the npm-installed CLI.
 #
 # Each substantive step is continue-on-error so ONE run maps ALL the gaps at once
 # (version? build? run? the install backend?); the final summary surfaces every

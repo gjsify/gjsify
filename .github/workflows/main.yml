@@ -363,6 +363,32 @@ jobs:
       # other three steps below, any consumer repo), and it can distinguish
       # "the filter names nothing that exists" (always a bug) from "the
       # selection narrowed to empty" (legitimate under --shard/--exclude).
+
+      # Every step below reaches the CLI through `node_modules/.bin/gjsify`,
+      # which dispatches to `packages/infra/cli/lib/index.js` (node) or
+      # `dist/cli.gjs.mjs` (gjs). Since ADR 0002 untracked the bundle, BOTH are
+      # build outputs, so on a cold build-output cache the shim exists and
+      # points at nothing. `build:infra` is what produces them, and it has to
+      # run through the published bundle because that is the only CLI this tree
+      # has yet.
+      #
+      # A PRECONDITION, not an `if:` expression — it mirrors
+      # `ensureNodeCliEntry()`'s COLD/WARM branch in
+      # `scripts/bootstrap-native-facades.mjs`, so the repo has one shape for
+      # this and not two. Its steps are mtime-skipped, so a warm tree pays
+      # almost nothing.
+      #
+      # Required on the SELECTIVE path in particular: `gjsify foreach build
+      # $INCLUDE_ARGS` never runs `build:infra`, and until the untracking the
+      # committed bundle is what quietly made that work.
+      - name: Bootstrap the build toolchain (cold trees only)
+        run: |
+          if [ -f packages/infra/cli/lib/index.js ]; then
+            echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
+          else
+            su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m '$GJSIFY_BOOTSTRAP' run build:infra"
+          fi
+
       - name: Build
         env:
           # FULL is computed as a GitHub expression (cleaner than shell logic).
@@ -467,32 +493,27 @@ jobs:
           path: ${{ steps.setup.outputs.build-cache-paths }}
           key: ${{ steps.setup.outputs.build-cache-key }}
 
-      # The committed GJS bundles must match their SOURCE, not just report the
-      # expected version string. gjsify-setup's version check runs the bundle
-      # and compares `--version` — a bundle built from OLD source passes that,
-      # which is exactly how the browser-alias fix merged with a stale
-      # `dist/cli.gjs.mjs` (fix present in `lib/index.mjs`, absent from the
-      # bundle) while CI stayed green; #825 had to rebuild it afterwards.
+      # Rebuilds the two generated things still committed — `affected.gjs.mjs`
+      # and `@gjsify/tsc`'s shipped libs — and compares them byte-for-byte
+      # against `git show HEAD:<path>`. `affected.gjs.mjs` is the one that needs
+      # it: the `changes` job boots it before any install and it gates every
+      # other job, so a stale copy does not fail, it silently gates today's PR
+      # with an older commit's tables.
       #
-      # WHY HERE, and only here:
-      #   • ONE job. The rebuild is the expensive part; doing it in test/e2e/
-      #     check too would buy nothing. `build` is the only job that already
-      #     has a built workspace, which the bundle build resolves its deps
-      #     from — so this is the cheapest place that can do it at all.
-      #   • AFTER `Build`, so the deps' `lib/` is current. It does NOT depend on
-      #     `Build` having produced the bundles: the script rebuilds every one
-      #     of them itself, because the selective path (`gjsify foreach build
-      #     $INCLUDE_ARGS`) never runs `build:gjs-bundle` at all.
-      #   • The expected bytes come from `git show HEAD:<path>`, not the working
-      #     tree — `gjsify run build` ends in `build:gjs-bundle` and rewrites
-      #     those files in place, so a working-tree comparison would compare a
-      #     fresh build against itself and pass without checking anything. That
-      #     also makes it immune to the build-output cache shadowing a tracked
-      #     artifact (the failure mode the "Re-assert committed sources" step in
-      #     gjsify-setup exists for, and which the version check — running
-      #     BEFORE that restore — structurally cannot see).
-      # The script restores the artifacts to their pre-run bytes afterwards, so
-      # the build-output cache saved below is unaffected either way.
+      # It also BUILDS `cli.gjs.mjs` + `tsc.gjs.mjs` and leaves them on disk for
+      # the artifact upload below — see the `groups` comments in the script for
+      # why built-but-ungrouped is the mechanism rather than an oversight.
+      #
+      # And it is the guard that ADR 0002's untracking STAYS: the artifact set
+      # is discovered from git and a committed bundle with no rebuild recipe is
+      # a hard error, so re-committing one reds CI.
+      #
+      # WHY HERE, and only here: ONE job. The rebuild is the expensive part, and
+      # `build` is the only job that already has a built workspace for the
+      # bundle build to resolve its deps from. AFTER `Build`, so the deps'
+      # `lib/` is current. The expected bytes come from git, NOT the working
+      # tree — `gjsify run build` rewrites those files in place, so a
+      # working-tree comparison would compare a fresh build against itself.
       - name: Verify committed bundles rebuild from source
         id: verify-bundles
         timeout-minutes: 30
@@ -507,14 +528,32 @@ jobs:
       # machine the instruction is an infinite loop and CI is the only source of
       # the bytes that satisfy the check. Uploading them costs nothing on a
       # green run (the step is skipped) and turns a dead end into a download.
-      - name: Upload the bundles CI rebuilt (on mismatch)
-        if: ${{ failure() && steps.verify-bundles.outcome == 'failure' }}
+      # The transport that replaces `git` for the two big bundles (ADR 0002).
+      # Every downstream job boots `dist/cli.gjs.mjs` (≈17 e2e suites do), and
+      # once it is untracked a checkout no longer carries it.
+      #
+      # NOT the build-output cache: its key hashes `packages/*/*/src/**/*.ts`,
+      # while `cli.gjs.mjs` inlines `packages/infra/resolve-npm/lib/*.mjs` —
+      # tracked source that is not under `src/**` and not in the key. Two
+      # revisions differing only there share a key, which is incident #821. The
+      # three cache excludes stay for exactly that reason.
+      #
+      # Unconditional on purpose: a SELECTIVE build must still publish these, or
+      # a downstream job silently gets a bundle from another revision.
+      #
+      # While the bundles are still tracked this uploads the checked-out bytes
+      # and the download below overwrites them with what they already are — a
+      # no-op that proves the transport with the old path still in place. The
+      # untracking commit makes the rebuild the producer.
+      - name: Upload the GJS bootstrap bundles
         uses: actions/upload-artifact@v7
         with:
-          name: rebuilt-bundles
-          path: tmp/rebuilt-bundles
-          if-no-files-found: ignore
-          retention-days: 7
+          name: bootstrap-bundles-fedora${{ matrix.fedora.v }}
+          path: |
+            packages/infra/cli/dist/cli.gjs.mjs
+            packages/infra/tsc/dist/tsc.gjs.mjs
+          retention-days: 1
+          if-no-files-found: error
 
       # Build examples (+ check below) only when an example/showcase is in the
       # closure, e2e will run (its lint-engines suite asserts example dist), or
@@ -712,6 +751,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
       - name: Check
         env:
           # No warm-probe here: the build cache is always warm in this job
@@ -788,6 +829,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
 
       # Full sharded sweep on global/main/schedule/empty; selective + sharded
       # otherwise. The full path inlines the root `test` script's filters so it
@@ -876,6 +919,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -1091,6 +1136,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
       # Only shard 1 runs lint-engines (the suite that asserts example dist),
       # so only it needs the artifact — skip the download on the other shards.
       - name: Download example build output
@@ -1130,6 +1177,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
       - name: Download example build output
         uses: actions/download-artifact@v8
         with:

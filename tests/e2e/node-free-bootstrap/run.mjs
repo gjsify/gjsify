@@ -40,6 +40,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -137,6 +138,41 @@ await describe('node-free bootstrap (ADR 0002)', async () => {
             assert.equal(r.status, 0, `Node-free install failed:\n${r.stdout}\n${r.stderr}`);
         } finally {
             rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+
+    await it('ships @gjsify/tsc as a RUNTIME dependency of the CLI', async () => {
+        // The fact the whole Node-free BUILD rests on, and the one a fixture
+        // cannot prove about itself.
+        //
+        // `build:infra` begins with `gjsify tsc`, which resolves
+        // `@gjsify/tsc/bundle` from two anchors (`commands/tsc.ts`): the
+        // project, then the running CLI's own location. On a Node-free host the
+        // project has no `@gjsify/tsc` and there is no npm `typescript` to fall
+        // back to, so ONLY the second anchor can answer — and it can only answer
+        // because a global `gjsify install -g @gjsify/cli` puts `@gjsify/tsc`
+        // beside the CLI. That happens for exactly one reason: the manifest
+        // declares it in `dependencies`.
+        //
+        // Demote it to devDependencies (or peer, or optional) and every Node-free
+        // host loses `gjsify tsc` while every CI leg stays green, because CI has
+        // node and takes the `typescript` fallback. `tests/e2e/install-script`
+        // covers the other half — that the install really does lay the sibling
+        // down and that the subpath resolves from there.
+        const manifest = JSON.parse(
+            await readFile(join(REPO_ROOT, 'packages', 'infra', 'cli', 'package.json'), 'utf8'),
+        );
+        assert.equal(
+            manifest.dependencies?.['@gjsify/tsc'],
+            'workspace:^',
+            '@gjsify/cli must depend on @gjsify/tsc at runtime — it is how the toolchain reaches a Node-free host',
+        );
+        for (const kind of ['devDependencies', 'peerDependencies', 'optionalDependencies']) {
+            assert.equal(
+                manifest[kind]?.['@gjsify/tsc'],
+                undefined,
+                `@gjsify/tsc must not ALSO sit in ${kind} — two declarations is where the runtime one gets dropped`,
+            );
         }
     });
 

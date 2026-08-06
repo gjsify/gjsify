@@ -88,6 +88,18 @@ That is the shape to look for. It is rarer than an incremental fix and it is
 worth stopping to look for, because the incremental fix is always available and
 always locally correct.
 
+**This example is no longer hypothetical — it was executed** (ADR 0002, second
+amendment). Both bundles are untracked and the stack above went with them:
+`post-rewrite` and its e2e, the two per-job version checks, the
+`rebuilt-bundles` recovery apparatus, and most of `pre-commit`. Roughly 2,000
+lines deleted, nothing added. Two pieces stayed, and the reason is the useful
+half of the lesson: `affected.gjs.mjs` is still committed because the `changes`
+job boots it before any install, so the shrunken hook and the rebuild-and-compare
+still have a subject — and the cache excludes stayed because the build-cache key
+cannot see one of the bundle's inputs, which was never about the artifact being
+committed. **Removing a mechanism removes its guards; it does not remove the
+guards that were only standing nearby.**
+
 ### What this does NOT license
 
 - Deleting a check because it is inconvenient, or because it has never failed.

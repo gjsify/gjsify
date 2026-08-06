@@ -83,10 +83,22 @@ jobs:
 
       # Node-free install via the PUBLISHED gjsify (ADR 0002).
       # Mirrors main.yml — see .github/actions/gjsify-setup for the rationale.
+      # `GJSIFY_BOOTSTRAP` is what the next step (and `resolve-gjsify.mjs`)
+      # falls back to: this tree is installed but not yet built, so the
+      # `node_modules/.bin` shim points at two files that do not exist yet.
       - name: Install dependencies (gjsify install --immutable)
         run: |
           B=$(gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
+          echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
+
+      - name: Bootstrap the build toolchain (cold trees only)
+        run: |
+          if [ -f packages/infra/cli/lib/index.js ]; then
+            echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
+          else
+            gjs -m "$GJSIFY_BOOTSTRAP" run build:infra
+          fi
 
       - name: Build packages
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build
@@ -1407,25 +1419,31 @@ jobs:
         with:
           node-version: '26.x'
 
-      # Phase D.7d Node-free install via the committed GJS bundle — verbatim from
+      # Node-free install via the PUBLISHED gjsify (ADR 0002) — verbatim from
       # the ubuntu `publish` job. Provides @girs/{gjs,glib-2.0,gobject-2.0},
       # @types/node and @gjsify/tsc for the type emit below, plus the workspace
       # `gjsify` bin used for the build + publish.
+      #
+      # `GJSIFY_BOOTSTRAP` is load-bearing here rather than a convenience: this
+      # job's tree is cold by design, so `resolve-gjsify.mjs` — which the next
+      # step goes through — finds no usable `node_modules/.bin` shim and no
+      # built bundle, and this is its last rung.
       - name: Install dependencies (gjsify install --immutable)
         run: |
           B=$(gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
+          echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
 
       # `build` = build:gjsify (rolldown --library -> lib/esm) + build:types
       # (gjsify tsc -> lib/types). packages/napi/napi is not a workspace, so it is
       # driven with `gjsify run` from inside the package dir rather than through
       # `gjsify workspace`/`foreach`.
-      # The workspace `gjsify` shim prefers the committed GJS bundle, and under
-      # GJS the ONLY bundler engine is @gjsify/rolldown-native — whose JS facade
-      # `lib/` is a build output, not tracked. `gjsify install` does not produce
-      # it, so without this the next step dies with "no usable bundler engine
-      # under GJS". This is the same bootstrap the root `build:infra` runs; it
-      # is mtime-skipped, so it costs nothing when the facade is already there.
+      # Under GJS the ONLY bundler engine is @gjsify/rolldown-native — whose JS
+      # facade `lib/` is a build output, not tracked. `gjsify install` does not
+      # produce it, so without this the next step dies with "no usable bundler
+      # engine under GJS". This is the same bootstrap the root `build:infra`
+      # runs; it is mtime-skipped, so it costs nothing when the facade is
+      # already there.
       #
       # This job's tree is COLD by design (checkout + install, no build), which
       # is what broke the v0.24.1 release: the bootstrap used to require the

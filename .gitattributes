@@ -27,8 +27,14 @@
 # one-time renormalisation diff, and unrelated to the byte-exactness problem
 # these paths have. Scope this to the artifacts that are actually verified.
 
-# Committed GJS bundles — `gjs -m <bundle>` entry points, rebuilt and compared
-# byte-for-byte in CI.
+# GJS bundles — `gjs -m <bundle>` entry points. ADR 0002 untracked
+# `cli.gjs.mjs` and `tsc.gjs.mjs`; `affected.gjs.mjs` is still committed and
+# still compared byte-for-byte, so the rule is still load-bearing. Kept as the
+# `*.gjs.mjs` pattern rather than narrowed to that one file: the other two are
+# still built, still packed into tarballs and still uploaded as release assets,
+# and a CRLF checkout would corrupt those the same way. The measurements above
+# are from when all three were tracked; they are the evidence for the rule, not
+# a description of what is tracked today.
 *.gjs.mjs -text
 
 # The TypeScript libs `@gjsify/tsc` ships. CI reports these as "108/108

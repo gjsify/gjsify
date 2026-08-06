@@ -17,7 +17,7 @@ Mounted at `/usr/lib/sdk/gjsify`:
 |---|---|
 | `bin/gjsify` | wrapper → `gjs -m …/dist/cli.gjs.mjs` (sets `GI_TYPELIB_PATH` + `LD_LIBRARY_PATH` itself) |
 | `bin/gjsify-tsc` | wrapper → `gjs -m …/node_modules/@gjsify/tsc/dist/tsc.gjs.mjs` (the Node-free `tsc`) |
-| `lib/gjsify/dist/cli.gjs.mjs` | the committed Node-free GJS bundle of the `@gjsify/cli` |
+| `lib/gjsify/dist/cli.gjs.mjs` | the Node-free GJS bundle of the `@gjsify/cli` — a BUILD OUTPUT since ADR 0002, so the extension must be built from a built tree |
 | `lib/gjsify/package.json` | `@gjsify/cli`'s package.json (so `gjsify --version` is correct) |
 | `lib/gjsify/shims/*.js` | the `rolldown-plugin-gjsify` build shims (`console-gjs`, `unicorn-magic`, `module-resolve`) that `gjsify build --app gjs` injects |
 | `lib/gjsify/node_modules/@gjsify/{rolldown,lightningcss}-native/` | the native-bridge JS wrappers (`@gjsify/cli` dynamic-imports these at runtime; their `gi://` typelib resolves via `GI_TYPELIB_PATH`) |

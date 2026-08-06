@@ -3,10 +3,25 @@
  * Guard: every COMMITTED generated artifact must be reproducible from the
  * sources in the SAME commit.
  *
- * The repo tracks a handful of build outputs as version-locked artifacts —
- * `packages/infra/cli/dist/{cli,affected}.gjs.mjs`, `packages/infra/tsc/dist/
- * tsc.gjs.mjs` and `@gjsify/tsc`'s shipped `lib/lib*.d.ts` — because CI and
- * downstream consumers bootstrap off them without a build step.
+ * TWO JOBS SINCE ADR 0002, and the second is why this script survived the
+ * untracking rather than going with it:
+ *
+ *   1. It still HOLDS `packages/infra/cli/dist/affected.gjs.mjs` and
+ *      `@gjsify/tsc`'s shipped `lib/lib*.d.ts`, the two generated things still
+ *      committed. `affected.gjs.mjs` is the one that needs holding: the CI
+ *      `changes` job boots it before any install and it gates every other job,
+ *      so a stale copy does not fail — it silently gates today's PR with an
+ *      older commit's tables. Fail-open staleness is the kind a rebuild check
+ *      is for.
+ *   2. It is the guard that the UNTRACKING STAYS. The artifact set is
+ *      discovered from git, and a committed bundle with no rebuild recipe is a
+ *      hard error — so re-committing `cli.gjs.mjs` reds CI instead of quietly
+ *      reinstating the class ADR 0002 removed.
+ *
+ * It also still BUILDS `cli.gjs.mjs` and `tsc.gjs.mjs`, which are no longer
+ * committed: `main.yml` uploads them as the `bootstrap-bundles-fedora<v>`
+ * artifact every downstream job restores. See the `groups` comments — being
+ * built-but-ungrouped is what leaves them on disk for that upload.
  *
  * Until now CI only checked that a bundle RUNS and REPORTS the expected
  * version string (`.github/actions/gjsify-setup/action.yml`). That is a weak
@@ -111,10 +126,17 @@ const RECIPES = [
             ['@gjsify/cli', 'build:gjs-bundle'],
             ['@gjsify/cli', 'build:affected-bundle'],
         ],
-        groups: [
-            { kind: 'file', path: 'packages/infra/cli/dist/cli.gjs.mjs' },
-            { kind: 'file', path: 'packages/infra/cli/dist/affected.gjs.mjs' },
-        ],
+        // `cli.gjs.mjs` is NOT a group any more (ADR 0002 untracked it), but
+        // `build:gjs-bundle` stays in `steps` — the step is what PRODUCES the
+        // file for `main.yml`'s `bootstrap-bundles-fedora<v>` artifact, and
+        // `build:affected-bundle` needs the same rebuilt closure anyway.
+        //
+        // That a file is built but ungrouped is load-bearing rather than
+        // sloppy: only grouped files are snapshotted and restored, so the two
+        // untracked bundles are deliberately LEFT rebuilt on disk for the
+        // upload step that follows. Adding them back to `groups` would restore
+        // the pre-run bytes and hand downstream jobs a stale bundle.
+        groups: [{ kind: 'file', path: 'packages/infra/cli/dist/affected.gjs.mjs' }],
         hint:
             'gjsify workspace @gjsify/cli build --with-dependencies && ' +
             'gjsify workspace @gjsify/cli build:gjs-bundle && ' +
@@ -132,7 +154,8 @@ const RECIPES = [
         // is exactly the v0.7.2 `TS6053` cascade.
         env: { GJSIFY_TSC_REFRESH_LIBS: '1' },
         groups: [
-            { kind: 'file', path: 'packages/infra/tsc/dist/tsc.gjs.mjs' },
+            // `tsc.gjs.mjs` left the group set with ADR 0002 — same reasoning as
+            // the CLI recipe above; the step still builds it for the artifact.
             // Mirrors `isLibFile` in packages/infra/tsc/scripts/build-bundle.mjs
             // — note the bare `lib.d.ts`, which `^lib\..*\.d\.ts$` alone misses.
             { kind: 'dir', path: 'packages/infra/tsc/lib', match: /^lib\.(.*\.)?d\.ts$/ },
@@ -222,7 +245,8 @@ function restoreDisk(snapshot, groups) {
 /**
  * Where a mismatching rebuild is kept so it can leave the machine that made it.
  * Mirrors the repo-relative path, so the whole tree can be copied over a
- * checkout verbatim (`cp -r tmp/rebuilt-bundles/. .`).
+ * checkout verbatim. (The CI upload of that directory is gone with ADR 0002 —
+ * see the failure message below for why it no longer has a subject.)
  */
 const REBUILT_DIR = join(repoRoot, 'tmp', 'rebuilt-bundles');
 const rebuiltSaved = [];
@@ -491,11 +515,14 @@ if (failures > 0) {
             `\nThe ${rebuiltSaved.length} rebuilt artifact(s) THIS run produced were kept under tmp/rebuilt-bundles/:\n` +
                 rebuiltSaved.map((p) => `  ${p}`).join('\n') +
                 (inActions
-                    ? '\n\nCI uploads them as the `rebuilt-bundles` artifact. If your machine cannot reproduce ' +
-                      'these bytes (usually a stale pre-entry-order-fix `lib/esm` or build cache — see release-cut.yml), ' +
-                      'download it and copy it over your checkout:\n' +
-                      '  gh run download <run-id> -n rebuilt-bundles -D tmp/rebuilt-bundles\n' +
-                      '  cp -r tmp/rebuilt-bundles/. . && git add -A\n'
+                    ? '\n\nRebuild locally and commit the result:\n' +
+                      '  gjsify workspace @gjsify/cli build --with-dependencies\n' +
+                      '  gjsify workspace @gjsify/cli build:affected-bundle\n' +
+                      '\nThe `rebuilt-bundles` artifact this message used to point at is GONE with ' +
+                      'ADR 0002: it existed because two developer machines measurably could not reproduce ' +
+                      'the 6.6 MB `cli.gjs.mjs`, and that file is no longer committed. What is left here is ' +
+                      '`affected.gjs.mjs` (248 KB) and the `@gjsify/tsc` libs, which reproduce on any host — ' +
+                      'a mismatch means the tree is stale, not that your machine is different.\n'
                     : '\n\nCompare them against the committed files to see what your machine builds differently.\n'),
         );
     }

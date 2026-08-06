@@ -67,7 +67,7 @@
     },
     "@gjsify/cli": {
       "status": "full",
-      "note": "The `gjsify` CLI: build (Rolldown engine, `--app gjs|node|browser|nativescript`, `--library`), run, install (native backend, lockfile, `--immutable`), dlx, foreach/workspace/run orchestration with the per-package build cache (ADR 0006), test runner, lint/format/fix (oxc), tsc, check, create-app scaffolding, showcase, storybook, debug (MCP↔devtools bridge), flatpak subcommands, publish/whoami/login/logout/trust/onboard, affected (selective-CI classifier), self-update, upgrade. Ships the committed GJS bundles `dist/cli.gjs.mjs` + `dist/affected.gjs.mjs` (freshness-gated in CI)."
+      "note": "The `gjsify` CLI: build (Rolldown engine, `--app gjs|node|browser|nativescript`, `--library`), run, install (native backend, lockfile, `--immutable`), dlx, foreach/workspace/run orchestration with the per-package build cache (ADR 0006), test runner, lint/format/fix (oxc), tsc, check, create-app scaffolding, showcase, storybook, debug (MCP↔devtools bridge), flatpak subcommands, publish/whoami/login/logout/trust/onboard, affected (selective-CI classifier), self-update, upgrade. Ships `dist/cli.gjs.mjs` as its `gjsify.bin` — a BUILD OUTPUT since ADR 0002, not a checkout artifact; CI hands it to downstream jobs as a run artifact and the release publishes it as an asset. Only `dist/affected.gjs.mjs` stays committed (the Soup-free CI classifier, byte-compared in CI)."
     },
     "@gjsify/cluster": {
       "status": "stub",
@@ -395,7 +395,7 @@
     },
     "@gjsify/tsc": {
       "status": "full",
-      "note": "Bundled-toolchain axis exemplar: upstream `typescript`'s `_tsc.js` CLI wrapped into a committed GJS bundle (`dist/tsc.gjs.mjs`, `gjsify-tsc` bin) pinned to the workspace TS invariant (`TYPESCRIPT_VERSION`). The workspace SELF-HOSTS its type-checking (`check` = `gjsify tsc --noEmit`) and `.d.ts` emit (`build:types`) on it — byte-identical to node tsc, ~1.3× at full-workspace scale. Ships the ~108 version-locked `lib*.d.ts` (committed; `pickLibSource()` keep/refresh/error logic guards against a stale or partial installed `typescript`)."
+      "note": "Bundled-toolchain axis exemplar: upstream `typescript`'s `_tsc.js` CLI wrapped into a GJS bundle (`dist/tsc.gjs.mjs`, `gjsify-tsc` bin — a build output since ADR 0002, shipped in the tarball rather than committed) pinned to the workspace TS invariant (`TYPESCRIPT_VERSION`). The workspace SELF-HOSTS its type-checking (`check` = `gjsify tsc --noEmit`) and `.d.ts` emit (`build:types`) on it — byte-identical to node tsc, ~1.3× at full-workspace scale. Ships the ~108 version-locked `lib*.d.ts` (committed; `pickLibSource()` keep/refresh/error logic guards against a stale or partial installed `typescript`)."
     },
     "@gjsify/tty": {
       "status": "full",

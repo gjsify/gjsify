@@ -109,8 +109,18 @@ jobs:
       # free on a warm build cache. Running the SAME script — rather than a
       # hand-picked subset of its steps — is the point: a subset would be a
       # third copy of the bootstrap order to keep in sync.
+      #
+      # It has to run through the PUBLISHED bundle on a cold tree: since ADR
+      # 0002 untracked `dist/cli.gjs.mjs`, the `node_modules/.bin` shim
+      # dispatches to two build outputs, and `build:infra` is what produces
+      # them. `GJSIFY_BOOTSTRAP` is exported by `gjsify-setup`.
       - name: Bootstrap the build toolchain (gjsify run build:infra)
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build:infra'
+        run: |
+          if [ -f packages/infra/cli/lib/index.js ]; then
+            su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build:infra'
+          else
+            su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m '$GJSIFY_BOOTSTRAP' run build:infra"
+          fi
 
       - name: Build documentation site
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run docs:build'

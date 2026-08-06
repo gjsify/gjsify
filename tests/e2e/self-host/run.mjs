@@ -51,10 +51,13 @@ const FIXTURES_DIR = join(__dirname, 'fixtures');
 const SIMPLE_FIXTURE = join(FIXTURES_DIR, 'simple', 'main.mjs');
 const YARGS_FIXTURE = join(MONOREPO_ROOT, 'tests', 'integration', 'yargs', 'src', 'test.mts');
 const OUT_DIR = join(__dirname, 'out');
-// The GJS-CLI under test — a SIBLING of the tracked bundle, never the tracked
-// bundle itself. Untracked: `.gitignore` re-includes exactly `cli.gjs.mjs` and
-// `affected.gjs.mjs` out of the ignored `dist/`, so any other name here is
-// ignored by construction.
+// The GJS-CLI under test — a SIBLING of the real build output, never that file
+// itself. Untracked by construction: since ADR 0002 `.gitignore` re-ignores every
+// child of `packages/infra/cli/dist/` and re-includes only `affected.gjs.mjs`, so
+// any other name here — including this one — cannot be committed by accident.
+// (Before that change the directory was un-ignored and its children were
+// untracked AND unignored, which is what made the claim in this comment false
+// for as long as it stood.)
 //
 // This used to BE `dist/cli.gjs.mjs`, which made running this suite a
 // destructive act on the working tree: the `before()` build passes no

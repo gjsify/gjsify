@@ -32,7 +32,9 @@ GJSify follows a test-driven development approach:
 Before opening a pull request, run the full validation sequence:
 
 ```bash
-gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+gjs -m install.mjs                 # published gjsify, SHA-256 verified
+gjsify install --immutable
+gjsify run build:infra             # produces the CLI the next line uses
 PATH="$PWD/node_modules/.bin:$PATH"
 gjsify run clear && gjsify run build && gjsify run check && gjsify run test
 ```
