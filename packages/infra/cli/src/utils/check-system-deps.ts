@@ -44,6 +44,39 @@ function tryExecFile(binary: string, args: string[]): string | null {
     }
 }
 
+/**
+ * True when `cmd` is on PATH. Walks `process.env.PATH` with `existsSync`
+ * instead of shelling out to `which`(1).
+ *
+ * `which` is NOT a probe you can rely on: the Fedora 43/44 minimal containers
+ * CI runs in ship without it (only the `which-2.x` rpm provides it), so a
+ * `which`-based check silently answers "missing" for EVERY command. That is
+ * exactly where this file's answer matters most — `detectPackageManager()`
+ * returning `unknown` makes `buildInstallCommand()` return null, so the
+ * distro-specific install hint for a missing system library prints nothing on
+ * the hosts that needed it. Measured twice on 2026-08-05: ts-for-gir#437 had to
+ * discover `json-glib` by hand, bauplaner#40 `libsoup3` — both in such a
+ * container, both while this file already declared the dependency.
+ *
+ * `tests/e2e/helpers.mjs`'s `hasCommand()` carries the same walk for the same
+ * reason. It stays a second copy on purpose: it is `.mjs` under `tests/` and
+ * cannot be imported from the shipped CLI.
+ */
+function isOnPath(cmd: string): boolean {
+    const pathVar = process.env.PATH;
+    if (!pathVar) return false;
+    const sep = process.platform === 'win32' ? ';' : ':';
+    for (const dir of pathVar.split(sep)) {
+        if (!dir) continue;
+        try {
+            if (existsSync(join(dir, cmd))) return true;
+        } catch {
+            // An inaccessible PATH entry is not an answer about `cmd`.
+        }
+    }
+    return false;
+}
+
 /** Check if a binary exists and optionally capture its version output. */
 function checkBinary(
     id: string,
@@ -123,8 +156,7 @@ export function detectPackageManager(): PackageManager {
     const managers: PackageManager[] =
         process.platform === 'darwin' ? ['brew'] : ['apt', 'dnf', 'pacman', 'zypper', 'apk', 'brew'];
     for (const pm of managers) {
-        const result = tryExecFile('which', [pm]);
-        if (result !== null) return pm;
+        if (isOnPath(pm)) return pm;
     }
     return 'unknown';
 }
