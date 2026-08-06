@@ -43,4 +43,8 @@ const argv = process.argv.slice(2);
 // Tolerate an optional leading `affected` token so the bundle can be invoked
 // either as `gjs -m affected.gjs.mjs --base …` or `… affected --base …`.
 const rest = argv[0] === 'affected' ? argv.slice(1) : argv;
+// The cast is only about the ARGUMENT shape: `parseArgs` returns the flags this
+// entry accepts, while the handler wants yargs' `ArgumentsCamelCase` wrapper
+// around them. It is no longer also papering over a possibly-undefined handler —
+// `affectedCommand` is a `LeafCommand`, so its handler is required by type.
 await affectedCommand.handler(parseArgs(rest) as Parameters<typeof affectedCommand.handler>[0]);

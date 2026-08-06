@@ -7,7 +7,7 @@
 //   - TTL via lstat mtime + maxAgeMinutes (default 7 days)
 
 import { createHash } from 'node:crypto';
-import { lstatSync, mkdirSync, realpathSync, renameSync, rmSync, type Stats } from 'node:fs';
+import { lstatSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, type Stats } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { dirLinksAreJunctions, linkDirSync } from './dir-link.js';
@@ -47,6 +47,13 @@ export function cacheDirFor(cacheKey: string): string {
     mkdirSync(dir, { recursive: true });
     return dir;
 }
+
+/**
+ * The exact shape {@link makePrepareDir} produces — two lowercase-hex fields.
+ * {@link cleanupStalePrepareDirs} deletes ONLY names matching this, so the
+ * two must move together.
+ */
+const PREPARE_DIR_NAME = /^[0-9a-f]+-[0-9a-f]+$/;
 
 /** A fresh prepare directory under the per-key cache, named timestamp-pid. */
 export function makePrepareDir(cacheDir: string): string {
@@ -170,11 +177,58 @@ export function symlinkSwap(cacheDir: string, prepareDir: string, opts: { juncti
     return realpathSync(linkPath);
 }
 
-/** Clean up `<cacheDir>/<oldPrepareDir>` siblings older than `maxAgeMinutes`. */
-export function cleanupStalePrepareDirs(cacheDir: string, _maxAgeMinutes: number = DEFAULT_TTL_MIN): void {
-    // TODO(open-todos: 10 small API gaps): out of scope for Phase 1 — pnpm has the same stub. Kept so
-    // call sites already exist when we do implement it.
-    void cacheDir;
+/**
+ * Remove `<cacheDir>/<oldPrepareDir>` siblings older than `maxAgeMinutes`.
+ *
+ * Every `gjsify dlx` miss creates a fresh prepare dir and swaps the `pkg` link
+ * onto it; the previous one is then unreferenced and stayed on disk forever,
+ * because this function accepted a TTL and did nothing with it. A full npm tree
+ * per miss makes that the largest thing gjsify writes to a user's cache.
+ *
+ * Three rules keep it from deleting something it should not:
+ *
+ *   1. **Only names `makePrepareDir` could have produced** (`<hex>-<hex>`). The
+ *      cache dir also holds `pkg` and, briefly, `pkg.tmp-<ts>-<pid>` links from
+ *      a concurrent swap — and a name-shape guard is what makes "delete the
+ *      rest" safe against anything a future version puts here.
+ *   2. **Never the LIVE target**, whatever its age. A long-lived cache entry
+ *      that is still current is exactly the one worth keeping, and it ages past
+ *      any TTL while being used on every run.
+ *   3. **Never throws.** This is housekeeping on a best-effort path: a losing
+ *      race (a parallel dlx removing the same dir) or a read-only cache must not
+ *      fail the command the user actually ran.
+ */
+export function cleanupStalePrepareDirs(cacheDir: string, maxAgeMinutes: number = DEFAULT_TTL_MIN): void {
+    const cutoff = Date.now() - maxAgeMinutes * ONE_MINUTE_MS;
+
+    // The live target, resolved once. An unreadable or absent `pkg` link simply
+    // means nothing is live yet — every prepare dir is then a candidate.
+    let live: string | undefined;
+    try {
+        live = realpathSync(join(cacheDir, 'pkg'));
+    } catch {
+        live = undefined;
+    }
+
+    let entries: string[];
+    try {
+        entries = readdirSync(cacheDir);
+    } catch {
+        return;
+    }
+
+    for (const name of entries) {
+        if (!PREPARE_DIR_NAME.test(name)) continue;
+        const dir = join(cacheDir, name);
+        try {
+            if (live !== undefined && realpathSync(dir) === live) continue;
+            if (lstatSync(dir).mtimeMs >= cutoff) continue;
+            rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+        } catch {
+            // Lost a race with another dlx, or the entry vanished between the
+            // readdir and the stat. Both mean "someone else handled it".
+        }
+    }
 }
 
 /** Resolve absolute path to the installed package's directory inside cache. */

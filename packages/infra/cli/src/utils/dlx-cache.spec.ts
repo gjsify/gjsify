@@ -18,11 +18,21 @@
 // behaves as assumed. What IS covered is that the swap REFRESHES on both paths.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { lutimesSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    lutimesSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    realpathSync,
+    rmSync,
+    utimesSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createCacheKey, getValidCachedPkg, symlinkSwap } from './dlx-cache.js';
+import { cleanupStalePrepareDirs, createCacheKey, getValidCachedPkg, makePrepareDir, symlinkSwap } from './dlx-cache.js';
 
 /** A cache dir plus two prepared trees, each tagged so we can tell them apart. */
 function fixture() {
@@ -115,8 +125,10 @@ export default async () => {
         });
 
         await it('leaves no `pkg.tmp-…` link behind on either path', async () => {
-            // A leaked tmp link is not inert: `cleanupStalePrepareDirs` is still a
-            // stub, so nothing else ever removes it.
+            // A leaked tmp link is not inert, and nothing else removes it:
+            // `cleanupStalePrepareDirs` deliberately skips `pkg.tmp-…` names,
+            // because a name matching a concurrent swap mid-flight is the one
+            // thing a sweeper must not touch.
             const { cacheDir, prepare, cleanup } = fixture();
             try {
                 for (const junctions of [false, true]) {
@@ -166,6 +178,81 @@ export default async () => {
             } finally {
                 cleanup();
             }
+        });
+    });
+    await describe('cleanupStalePrepareDirs', async () => {
+        /** Age a directory by rewriting its own mtime. */
+        const age = (dir: string, minutes: number) => {
+            const when = new Date(Date.now() - minutes * 60_000);
+            utimesSync(dir, when, when);
+        };
+
+        await it('removes an unreferenced prepare dir past the TTL', async () => {
+            const { cacheDir, cleanup } = fixture();
+            try {
+                const stale = makePrepareDir(cacheDir);
+                age(stale, 120);
+                cleanupStalePrepareDirs(cacheDir, 60);
+                expect(existsSync(stale)).toBe(false);
+            } finally {
+                cleanup();
+            }
+        });
+
+        await it('keeps one inside the TTL', async () => {
+            const { cacheDir, cleanup } = fixture();
+            try {
+                const fresh = makePrepareDir(cacheDir);
+                age(fresh, 10);
+                cleanupStalePrepareDirs(cacheDir, 60);
+                expect(existsSync(fresh)).toBe(true);
+            } finally {
+                cleanup();
+            }
+        });
+
+        await it('never removes the LIVE target, however old it is', async () => {
+            // The whole point of a cache hit: an entry still pointed at by `pkg`
+            // ages past any TTL precisely BECAUSE it keeps being reused. Deleting
+            // it would turn a warm cache into a guaranteed miss plus a dangling
+            // link.
+            const { cacheDir, cleanup } = fixture();
+            try {
+                const live = makePrepareDir(cacheDir);
+                symlinkSwap(cacheDir, live);
+                age(live, 60 * 24 * 400);
+                cleanupStalePrepareDirs(cacheDir, 60);
+                expect(existsSync(live)).toBe(true);
+                expect(getValidCachedPkg(cacheDir, 60 * 24 * 500)).toBe(live);
+            } finally {
+                cleanup();
+            }
+        });
+
+        await it('touches nothing whose name it did not create', async () => {
+            // The name-shape guard. `pkg` is the live link, `pkg.tmp-…` is a
+            // concurrent swap mid-flight, and `tree-a` stands for anything a
+            // future version might put in this directory — a stale-by-mtime
+            // sweep with no guard would take all three.
+            const { cacheDir, prepare, cleanup } = fixture();
+            try {
+                const foreign = prepare('tree-a');
+                const tmpLink = join(cacheDir, 'pkg.tmp-deadbeef-1');
+                mkdirSync(tmpLink, { recursive: true });
+                age(foreign, 60 * 24 * 30);
+                age(tmpLink, 60 * 24 * 30);
+                cleanupStalePrepareDirs(cacheDir, 60);
+                expect(existsSync(foreign)).toBe(true);
+                expect(existsSync(tmpLink)).toBe(true);
+            } finally {
+                cleanup();
+            }
+        });
+
+        await it('is silent on a cache dir that does not exist', async () => {
+            // Housekeeping on a best-effort path must never fail the command the
+            // user actually ran.
+            cleanupStalePrepareDirs(join(tmpdir(), 'gjsify-dlx-cache-absent-xyz'), 60);
         });
     });
 };

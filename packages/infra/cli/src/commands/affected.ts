@@ -104,7 +104,7 @@
 // idiom opens the relative file `./0` and the committed GJS classifier
 // bundle died with `ENOENT … read '0'` on every `--changed-from-stdin` run.
 
-import type { Command } from '../types/index.js';
+import type { LeafCommand } from '../types/index.js';
 import { spawnSync } from 'node:child_process';
 // STATIC import, never a lazy `require('node:fs')`. This package is ESM
 // (`"type": "module"`), so a bare `require` is a ReferenceError the moment the
@@ -135,7 +135,7 @@ interface AffectedOptions {
     cwd?: string;
 }
 
-export const affectedCommand: Command<unknown, AffectedOptions> = {
+export const affectedCommand: LeafCommand<unknown, AffectedOptions> = {
     command: 'affected',
     description:
         'Classify changed files against the workspace tree and print the set of workspaces affected (seeds + transitive dependents). Designed for CI to gate `gjsify foreach test --include …` so unrelated workspaces are not re-tested on every PR.',
@@ -267,6 +267,22 @@ const OTHER_WORKFLOW_INPUTS = [
     // other. Only the `scripts/`-side repo-scoped half is ignored, and that
     // half is precisely the half `main.yml` does not load.
     /^scripts\/manifest-conformance\//,
+    // The authored status data (ADR 0016) and the generator that renders it.
+    // Same two halves as the entry above, and both hold: `main.yml` reads
+    // NEITHER — it never runs `npm run status:generate` and never opens
+    // `status/`, which the grep for it confirms (the only hits are comments
+    // citing `open-todos.md` as a ledger) — while `audit-runtimes.yml` runs the
+    // `status-data` rule over exactly this data on EVERY pull_request with no
+    // `paths:` filter.
+    //
+    // WHAT IT COSTS TODAY: `status/*.md` already fell into `IGNORE` through the
+    // generic `/\.md$/i`, so the drift was invisible for the prose files and
+    // showed up only on `status/status.json` — which matched nothing, landed in
+    // `unmatched`, and forced a FULL CI run for a file `main.yml` cannot read.
+    // Editing one package's status prose paid for the whole matrix. Naming the
+    // directory makes the `.md` case intentional rather than incidental.
+    /^status\//,
+    /^scripts\/generate-status\.mjs$/,
 ];
 
 /** Patterns that contribute no seed and don't force a full run. */

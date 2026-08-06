@@ -95,7 +95,9 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
         // After the showcase-decoupling refactor (Phase D), the CLI no longer
         // transitively depends on @gjsify/webgl through showcase example packages.
         // `gjsify system-check` correctly skips the gwebgl check for projects that don't
-        // use @gjsify/webgl — needsWebgl is decided per-project, not per-CLI.
+        // use @gjsify/webgl — whether WebGL is needed is decided per-project, not
+        // per-CLI. (The `needsWebgl` manifest field this once named is gone: it was
+        // declared on every showcase and read by nothing — see `discover-showcases.ts`.)
         const out = execFileSync('npx', ['gjsify', 'system-check', '--json'], {
             cwd: projectDir,
             encoding: 'utf-8',

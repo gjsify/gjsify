@@ -12,5 +12,16 @@
       "strict": true,
       "skipLibCheck": true
     },
-    "files": ["src/index.ts"]
+    "files": ["src/index.ts"],
+    "comment": [
+      "`files` alone made the compile scope the import closure of ONE entry, so",
+      "every source not reachable from `src/index.ts` was never type-checked —",
+      "`src/affected-entry.ts`, the entry the committed `dist/affected.gjs.mjs`",
+      "is built from, most of all. A second entry point that nothing checks is",
+      "the shape where a type error reaches a committed bundle. `include` adds",
+      "the rest of `src/`; the sibling convention (see packages/gjs/utils) keeps",
+      "specs and the test entry out, since they are compiled by the test tasks."
+    ],
+    "include": ["src/**/*.ts", "src/**/*.mts"],
+    "exclude": ["src/test.mts", "src/**/*.spec.ts", "src/**/*.spec.mts"]
 }
