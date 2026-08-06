@@ -24,6 +24,7 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Command } from '../types/index.js';
 import { detectNativePackages, buildNativeEnv } from '../utils/detect-native-packages.js';
+import { nodeBinary } from '../utils/run-node.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 
 interface TscOptions {
@@ -131,12 +132,33 @@ export const tscCommand: Command<unknown, TscOptions> = {
             ...nativeEnv,
         };
 
-        // Run upstream `typescript` under this Node — the Node-only fallback.
+        // Run upstream `typescript` under Node — the Node fallback.
+        //
+        // `nodeBinary()`, NEVER a bare `process.execPath`: under the GJS bundle
+        // `process.execPath` is the GJS interpreter (`/proc/self/exe` →
+        // `gjs-console`), so `spawn(process.execPath, [tsc.js])` hands
+        // TypeScript's CommonJS CLI to GJS, which dies on the first `module`
+        // reference — or, where execPath resolves to a gjsify launcher instead,
+        // re-executes the CLI with the tsc entry as an unknown argument. Both
+        // were reached from a COLD tree: `@gjsify/tsc`'s `dist/tsc.gjs.mjs` is a
+        // build output, and `build:infra` builds `@gjsify/create-app` (its first
+        // `gjsify tsc` caller) long before `@gjsify/tsc` produces it, so the
+        // fallback below is the NORMAL path there, not an edge case.
+        // `run-node.ts` owns the one correct answer; every other spawn site in
+        // this CLI already routes through it.
         const runNodeTsc = (): void => {
-            const child = spawn(process.execPath, [nodeTscPath as string, ...tscArgs], { env, stdio: 'inherit' });
+            const child = spawn(nodeBinary(), [nodeTscPath as string, ...tscArgs], { env, stdio: 'inherit' });
             child.on('close', (code) => process.exit(code ?? 1));
             child.on('error', (err: NodeJS.ErrnoException) => {
-                console.error(`gjsify tsc (node typescript): ${err.message}`);
+                if (err.code === 'ENOENT') {
+                    console.error(
+                        'gjsify tsc: the @gjsify/tsc GJS bundle is unavailable and `node` is not on PATH, ' +
+                            'so upstream `typescript` cannot run either.',
+                    );
+                    console.error('  Build the bundle with: gjsify workspace @gjsify/tsc build');
+                } else {
+                    console.error(`gjsify tsc (node typescript): ${err.message}`);
+                }
                 process.exit(1);
             });
         };

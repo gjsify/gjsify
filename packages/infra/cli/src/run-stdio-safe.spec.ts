@@ -86,6 +86,7 @@ function spawnRunner(
     extraArgs: string[] = [],
 ): Promise<{ stdout: string; stderr: string; code: number }> {
     return new Promise((res) => {
+        // oxlint-disable-next-line gjsify/spawn-node-binary -- re-entering the CURRENT runtime IS the intent here: this suite is built `--app node` and run by node, bun and deno (`test:cross-runtime`), so the child has to be whichever of the three is under test. It never runs under GJS, so the wrong-interpreter hazard the rule guards cannot arise.
         const child = spawn(process.execPath, [runnerPath, bundlePath, ...extraArgs], {
             stdio: ['ignore', 'pipe', 'pipe'],
         });
