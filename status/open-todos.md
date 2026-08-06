@@ -4,6 +4,39 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `foreach build` can read a workspace package's `lib/` while another job is writing it
+
+The parallel sweep rebuilds packages that the RUNNING CLI imports at runtime, so
+a package's build can import a half-written `lib/esm`. Measured on the macOS
+leg (run 31130155911, darwin-arm64), on the first full build that leg had ever
+reached:
+
+    [gjsify foreach] start @gjsify/native-platform (49/160 done, 3 in flight)
+    [gjsify foreach] start @gjsify/npm-registry    (50/160 done, 3 in flight)
+    [@gjsify/native-platform] ERR_MODULE_NOT_FOUND
+      .../npm-registry/lib/esm/_virtual/_rolldown/runtime.js
+      imported from .../npm-registry/lib/esm/auth.js
+
+`auth.js` was already on disk and its rolldown chunk was not — a creation
+window, not a corrupt build.
+
+**Narrowed, not closed.** `build:infra` used to build `@gjsify/{semver,
+npm-registry,tar,workspace}` with `build:types`, which writes `lib/types` and
+NOT the `lib/esm` that their `exports["."].default` names — so the CLI's own
+four runtime dependencies were still absent when the sweep began creating them.
+They now get a full `build`, verified on a cold tree: all four have
+`lib/esm/index.js` AND `lib/esm/_virtual/` before the sweep starts. That is the
+same protection Linux CI gets for free from its restored `lib/` cache, which is
+why a Linux pipeline never saw this — a cold Linux worktree at the same commit
+built all 160 packages green, so the race is real but timing-dependent and
+macOS simply lost it.
+
+What is NOT fixed: a concurrent REWRITE of an existing `lib/` is still a window,
+it is just a much smaller one (every file already exists). The structural fix is
+for `foreach build` to build the CLI's own dependency closure serially before
+starting the parallel sweep, rather than relying on `build:infra` having done
+it. Do that where the scheduler lives, not in a root script.
+
 ### The macOS/Windows cold-tree bootstrap still needs a two-variable bridge in the workflow
 
 `macos-suites.yml` and `windows-suites.yml` bootstrap from the PUBLISHED CLI,
