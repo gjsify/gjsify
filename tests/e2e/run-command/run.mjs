@@ -12,7 +12,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync, chmodSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -327,6 +327,52 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
         assert.equal(byPath.status, 0, `by-path failed: ${byPath.stderr}`);
         assert.match(byPath.stdout, /hello-from-script/);
     });
+
+    // The regression this suite could not see. Both `-w` rows above go through
+    // `runCli`, which spawns `process.execPath` — i.e. NODE — so they only ever
+    // exercise the SHELL path, and the shell path always passed `cwd` to
+    // `spawn()`. The in-process fast path (GJS only, single `gjsify <subcommand>`
+    // scripts) resolved the workspace and then ran the command in the CALLER's
+    // directory, so every relative path in the script resolved against the
+    // monorepo root.
+    //
+    // Asserts on WHERE the artifact landed, not just on the exit code: a chdir
+    // bug that happens to find a same-named file at the root would otherwise
+    // pass. The entry exists ONLY inside the workspace, so pre-fix this fails to
+    // resolve it at all and post-fix it writes `<ws>/dist/chdir-probe.js`.
+    it(
+        'runs the in-process -w dispatch INSIDE the workspace (GJS)',
+        { skip: hasGjs() ? false : 'gjs not on PATH' },
+        async () => {
+            const bundle = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
+            const appDir = join(root, 'packages', 'app');
+            const pkgPath = join(appDir, 'package.json');
+            const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+            // A SINGLE `gjsify <subcommand>` — that is what selects the fast path.
+            // Relative in and out, which is the whole point.
+            // `copy`, not `build`: it is a single `gjsify <subcommand>` (so it
+            // takes the fast path), it reads and writes RELATIVE paths (so a
+            // wrong cwd is visible), and it needs no bundler engine — `runGjs`
+            // invokes `gjs -m dist/cli.gjs.mjs` directly, bypassing the launcher
+            // that exports GI_TYPELIB_PATH/LD_LIBRARY_PATH for the prebuilds, so
+            // anything needing the engine fails here for an unrelated reason.
+            pkg.scripts.chdirprobe = 'gjsify copy src/chdir-asset.txt dist/chdir-probe.txt';
+            writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+            mkdirSync(join(appDir, 'src'), { recursive: true });
+            writeFileSync(join(appDir, 'src', 'chdir-asset.txt'), 'in-workspace\n');
+
+            const r = await runGjs(bundle, ['run', 'chdirprobe', '-w', '@test/app'], { cwd: root, timeoutMs: 120_000 });
+            assert.equal(r.status, 0, `-w dispatch failed:\n${r.stdout}\n${r.stderr}`);
+            assert.ok(
+                existsSync(join(appDir, 'dist', 'chdir-probe.txt')),
+                'the copy must land in the WORKSPACE, not the caller cwd',
+            );
+            assert.ok(
+                !existsSync(join(root, 'dist', 'chdir-probe.txt')),
+                'nothing may be written at the caller cwd',
+            );
+        },
+    );
 
     it('errors clearly for an unknown -w workspace', async () => {
         const r = await runCli(cliEntry, ['run', 'hello', '-w', 'does-not-exist'], { cwd: root });
