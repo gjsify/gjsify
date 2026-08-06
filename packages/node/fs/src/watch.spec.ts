@@ -12,6 +12,28 @@ function makeTmp(): string {
     return mkdtempSync(join(tmpdir(), 'gjsify-watch-'));
 }
 
+// WHY EVERY DEFERRED WRITE BELOW IS CANCELLED IN A `finally`.
+//
+// These tests arm a timer that writes into the temp dir, then stop iterating as
+// soon as ONE event arrives and remove the dir. If the timer is still pending at
+// that point it fires into a directory that no longer exists, and the
+// `ENOENT: … open '…/gjsify-watch-XXXX/new-file.txt'` surfaces as an unhandled
+// error inside whichever test happens to be running next — so the failure is
+// reported against an innocent neighbour.
+//
+// On Linux the timer cannot outlive its test: inotify only has an event to
+// deliver BECAUSE the write happened, so the write always precedes the abort.
+// On darwin the watcher can yield before that write lands, the test finishes
+// early, and the orphan timer then throws. Measured on the macOS arm64 leg:
+// 2 of 671, and neither was in the test that owned the timer
+// (`fs.promises.watch` rename → reported against "change", abort-during-
+// iteration → reported against the abort test).
+//
+// `stops cleanly when AbortController is aborted during iteration` already had
+// this right with `clearInterval` in a `finally`; the four `setTimeout` cases
+// did not. Cancel the timer, do not make the write defensive — a write that
+// silently tolerates a missing directory would hide a real teardown bug.
+
 export default async () => {
     await describe('fs.promises.watch', async () => {
         await it('yields rename event when a file is created in a directory', async () => {
@@ -20,7 +42,7 @@ export default async () => {
             let received = false;
 
             // Write the file shortly after the iterator starts waiting
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 writeFileSync(join(tmp, 'new-file.txt'), 'hello');
             }, 30);
 
@@ -34,6 +56,8 @@ export default async () => {
             } catch (e: any) {
                 // AbortError from native Node.js is expected — our impl ends cleanly
                 if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw e;
+            } finally {
+                clearTimeout(timer);
             }
 
             expect(received).toBe(true);
@@ -48,7 +72,7 @@ export default async () => {
             const ac = new AbortController();
             let received = false;
 
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 writeFileSync(file, 'modified');
             }, 30);
 
@@ -61,6 +85,8 @@ export default async () => {
                 }
             } catch (e: any) {
                 if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw e;
+            } finally {
+                clearTimeout(timer);
             }
 
             expect(received).toBe(true);
@@ -72,7 +98,7 @@ export default async () => {
             const ac = new AbortController();
             let filename: string | null | undefined = undefined;
 
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 writeFileSync(join(tmp, 'tracked.txt'), 'x');
             }, 30);
 
@@ -83,6 +109,8 @@ export default async () => {
                 }
             } catch (e: any) {
                 if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw e;
+            } finally {
+                clearTimeout(timer);
             }
 
             // filename is a string basename or null (GJS writeFileSync uses atomic writes
@@ -143,7 +171,7 @@ export default async () => {
             const ac = new AbortController();
             const events: string[] = [];
 
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 writeFileSync(join(tmp, 'a.txt'), '1');
                 writeFileSync(join(tmp, 'b.txt'), '2');
             }, 30);
@@ -157,6 +185,8 @@ export default async () => {
                 }
             } catch (e: any) {
                 if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw e;
+            } finally {
+                clearTimeout(timer);
             }
 
             expect(events.length).toBeGreaterThan(0);
