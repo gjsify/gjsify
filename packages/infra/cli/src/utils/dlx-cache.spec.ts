@@ -32,7 +32,13 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { cleanupStalePrepareDirs, createCacheKey, getValidCachedPkg, makePrepareDir, symlinkSwap } from './dlx-cache.js';
+import {
+    cleanupStalePrepareDirs,
+    createCacheKey,
+    getValidCachedPkg,
+    makePrepareDir,
+    symlinkSwap,
+} from './dlx-cache.js';
 
 /** A cache dir plus two prepared trees, each tagged so we can tell them apart. */
 function fixture() {
