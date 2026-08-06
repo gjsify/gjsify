@@ -46,6 +46,11 @@
   "gjsify": {
     "main": "dist/index.gjs.js",
     "tier": 2,
+    "os": {
+      "linux": "supported",
+      "darwin": "supported",
+      "win32": "supported"
+    },
     "example": {
       "runtimes": [
         "gjs",

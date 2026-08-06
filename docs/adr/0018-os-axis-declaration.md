@@ -1,6 +1,6 @@
 # ADR 0018 — The OS axis is a declared, checked claim; three platforms are the target
 
-- **Status:** Proposed (2026-08-05)
+- **Status:** Accepted (2026-08-06) — superseding Proposed (2026-08-05)
 - **Scope:** `package.json#gjsify.os` (new), `gjsify.platforms` (unchanged), `@gjsify/manifest-conformance` (new `os-axis` rule), AGENTS.md § Runtime & platform model + § Strategy ("Opportunistic, not driven"), CI leg coverage per OS
 
 ## Context
@@ -129,6 +129,74 @@ which a bundle of unloadable binaries passes.
 4. Update AGENTS.md § Strategy: "Opportunistic, not driven" describes the
    RUNTIME axis and must not be read as covering the OS axis, which is now
    driven.
+
+## Amendments made on acceptance
+
+Two narrowings the implementation forced, both recorded because the ADR's own
+measurement would otherwise read as the rule's contract:
+
+1. **The candidate set is SHIPPING source, not `src/**`.** The sixteen above were
+   counted over `src/**`, which includes `*.spec.ts`. A spec that branches on the
+   OS is claiming something about the TEST, and the sanctioned instrument there
+   is already `it.failing(name, fn, reason, { when })` — which runs the assertion,
+   tolerates the failure on one OS, and fails the day it starts passing. A
+   package-level support claim demanded because a test file knows what OS it is
+   on would sit where nothing can keep it true, and would drift from the `when`
+   predicate that actually holds. Measured on implementation: excluding test
+   sources moves `@gjsify/fs`, `@gjsify/node-globals` and `@gjsify/web-globals`
+   out of the set — each a package whose OS knowledge lives entirely in specs.
+   The candidate set is therefore **nine**, not ten.
+
+2. **Payload a package ships but did not author is skipped.**
+   `@gjsify/create-gjsify` ships `dist-templates/{cli,gtk-minimal}`, both of
+   which read `process.platform`. That is the GENERATED app's OS decision; the
+   scaffolding tool cannot answer for it.
+
+And one thing the ADR left open, decided: **the rule DETECTS an OS decision in
+any spelling rather than mandating a single helper.** `@gjsify/devtools` asks
+`GLib.DIR_SEPARATOR === 92` specifically so a GJS-only package does not pull a
+Node polyfill in to answer "which OS", and `packages/infra/cli`'s
+`platform-check.ts` documents a purity philosophy where every decision function
+takes the host triple as a PARAMETER rather than reading it ambiently. Both are
+right where they are. What the implementation DID unify is the accidental
+duplication — nine ad-hoc spellings including `const IS_WIN32 = platform ===
+'win32'` copied byte-identical into six `@gjsify/fs` spec files — behind
+`@gjsify/utils/core`'s `host-os` module.
+
+## Defect 4 re-measured — `Adw.init()` does not fault where the runtime is present
+
+Recorded here because the Context table above uses it as one of the four
+motivating defects, and the ADR must not keep citing a finding its own
+implementation contradicted.
+
+#997 states the decisive test itself: *"whether this is downstream of (1) — a
+partially-loaded MSVC-ABI stack can fault at first real use rather than at load.
+If a machine WITH the redistributable does not crash, (1) is the whole story and
+this is a duplicate."*
+
+Run on the win11-gjsify VM (Windows 11 Pro 25H2, Node 24.18.1), with the
+published `@gjsify/node-gi` 0.30.0 prebuild plus
+`@gjsify/gtk-runtime-win32-x64` (78 MB), on a host where the new
+`checkMsvcRuntime()` reports the Visual C++ runtime PRESENT:
+
+```
+requireGi('GLib','2.0')  ok        GLib 2.88.1
+requireGi('Gtk','4.0')   ok        Gtk.init()  returned
+requireGi('Adw','1')     ok        Adw.init()  returned      exit 0
+```
+
+**No access violation.** So defect 4 is a duplicate of defect 2, and the two
+were one bug: the undeclared prerequisite, surfacing at first real USE rather
+than at load — exactly the failure mode the issue predicted.
+
+Precision about the session, because the original report turned on it ("only
+reproducible outside an interactive console session — which is also what a
+GitHub Windows runner is"): the probe ran **non-interactively**, with
+`process.stdout.isTTY` and `process.stdin.isTTY` both `false` and stdin on the
+null device, which is the condition that report named. It ran in the
+INTERACTIVE user session (`SESSIONNAME=Console`), so a session-0 / service
+context is still untested and is the one place the original symptom could
+survive. That is a narrower gap than the issue described, not a closed one.
 
 ## Do not
 

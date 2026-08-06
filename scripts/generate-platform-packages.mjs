@@ -96,6 +96,7 @@ import {
     osCpuForTarget,
     platformPackageDirName,
     platformPackageName,
+    posixRelative,
     prebuildOwnership,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
 
@@ -162,7 +163,7 @@ export function measureLibcFields(dir, target) {
             libc: null,
             glibcRequires: null,
             why:
-                `${relative(ROOT, dir).replaceAll('\\', '/')} holds ${measured.unreadable.length} shared librar(y|ies) ` +
+                `${posixRelative(ROOT, dir)} holds ${measured.unreadable.length} shared librar(y|ies) ` +
                 `whose ELF could not be read (${measured.unreadable.join(', ')}). No \`libc\` / \`gjsify.glibcRequires\` ` +
                 'is written from an unread file; `prebuild-artifacts` owns the underlying failure.',
         };
@@ -198,7 +199,7 @@ export function platformManifest(parent, target, measured, exemption = null) {
     // tests/e2e/platform-exemption-clearing), where closing over `ROOT` computes
     // a `../../../tmp/…` traversal. An equality-only test would then compare
     // garbage to garbage and notice nothing.
-    const repoDir = `${relative(parent.root ?? ROOT, dirname(parent.dir)).replaceAll('\\', '/')}/${dirName}`;
+    const repoDir = `${posixRelative(parent.root ?? ROOT, dirname(parent.dir))}/${dirName}`;
 
     /** @type {Record<string, unknown>} */
     const manifest = {
@@ -502,7 +503,7 @@ export function planPlatformPackages(ctx) {
             const name = platformPackageName(row.name, target);
             const dirName = platformPackageDirName(basename(row.dir ?? pkg.dir), target);
             const dir = join(dirname(pkg.dir), dirName);
-            const rel = relative(ctx.root, dir).replaceAll('\\', '/');
+            const rel = posixRelative(ctx.root, dir);
             const range = isWorkspaceMember ? 'workspace:*' : pkg.manifest.version;
             // Read the exemption from WHEREVER it currently lives, because the
             // split moves it: before, it is on the bridge; after, on the child

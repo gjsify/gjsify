@@ -105,8 +105,14 @@ export default async () => {
         await it('should enumerate env vars with Object.keys', async () => {
             const keys = Object.keys(process.env);
             expect(keys.length).toBeGreaterThan(0);
-            // PATH or HOME should be present
-            const hasCommon = keys.includes('PATH') || keys.includes('HOME') || keys.includes('USER');
+            // One of the universally-present variables must be there. Compared
+            // case-INSENSITIVELY and with the Windows spellings included:
+            // Windows environment names are case-insensitive and Node returns
+            // the case the OS stored, so the key reads `Path`, and the home and
+            // user variables are `USERPROFILE` / `USERNAME` rather than
+            // `HOME` / `USER`.
+            const upper = new Set(keys.map((k) => k.toUpperCase()));
+            const hasCommon = ['PATH', 'HOME', 'USER', 'USERPROFILE', 'USERNAME'].some((k) => upper.has(k));
             expect(hasCommon).toBe(true);
         });
     });

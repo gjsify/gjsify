@@ -3,6 +3,7 @@ import { describe, it, expect, on } from '@gjsify/unit';
 import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { SHELL_PWD, cat, echo, echoErr, exitOk, exitWith, failWith, nodeShellCmd, printEnv, printEnvTemplate, printEnvThenCat, printEnvThenPwd, pwd, seq, shellVar, sleep } from './commands.spec.js';
 
 // A process's working directory is the RESOLVED path, so `pwd` in a child
 // spawned with `cwd: TMP_DIR` prints the symlink target, not the string that
@@ -37,12 +38,12 @@ export default async () => {
         });
 
         await it('should respect cwd option', async () => {
-            const result = execSync('pwd', { encoding: 'utf8', cwd: TMP_DIR });
+            const result = execSync(SHELL_PWD, { encoding: 'utf8', cwd: TMP_DIR });
             expect((result as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
 
         await it('should respect env option', async () => {
-            const result = execSync('echo $TEST_VAR_GJSIFY', {
+            const result = execSync(`echo ${shellVar('TEST_VAR_GJSIFY')}`, {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', TEST_VAR_GJSIFY: 'test_value' },
             });
@@ -62,19 +63,19 @@ export default async () => {
 
     await describe('child_process.execFileSync', async () => {
         await it('should run a command and return output', async () => {
-            const result = execFileSync('echo', ['hello world'], { encoding: 'utf8' });
+            const result = execFileSync(...echo('hello world'), { encoding: 'utf8' });
             expect((result as string).trim()).toBe('hello world');
         });
 
         await it('should pass multiple arguments', async () => {
-            const result = execFileSync('echo', ['a', 'b', 'c'], { encoding: 'utf8' });
+            const result = execFileSync(...echo('a', 'b', 'c'), { encoding: 'utf8' });
             expect((result as string).trim()).toBe('a b c');
         });
 
         await it('should throw on non-zero exit', async () => {
             let threw = false;
             try {
-                execFileSync('false');
+                execFileSync(...exitWith(1));
             } catch {
                 threw = true;
             }
@@ -82,7 +83,7 @@ export default async () => {
         });
 
         await it('should respect cwd option', async () => {
-            const result = execFileSync('pwd', [], { encoding: 'utf8', cwd: TMP_DIR });
+            const result = execFileSync(...pwd(), { encoding: 'utf8', cwd: TMP_DIR });
             expect((result as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
     });
@@ -91,25 +92,25 @@ export default async () => {
 
     await describe('child_process.spawnSync', async () => {
         await it('should return result with status 0', async () => {
-            const result = spawnSync('echo', ['test']);
+            const result = spawnSync(...echo('test'));
             expect(result.status).toBe(0);
         });
 
         await it('should capture stdout', async () => {
-            const result = spawnSync('echo', ['hello'], { encoding: 'utf8' });
+            const result = spawnSync(...echo('hello'), { encoding: 'utf8' });
             expect(typeof result.stdout).toBe('string');
             expect((result.stdout as string).trim()).toBe('hello');
         });
 
         await it('should capture stderr', async () => {
-            const result = spawnSync('sh', ['-c', 'echo err >&2'], { encoding: 'utf8' });
+            const result = spawnSync(...echoErr("err"), { encoding: 'utf8' });
             expect(result.status).toBe(0);
             expect(typeof result.stderr).toBe('string');
             expect((result.stderr as string).trim()).toBe('err');
         });
 
         await it('should return non-zero status for failing commands', async () => {
-            const result = spawnSync('false');
+            const result = spawnSync(...exitWith(1));
             expect(result.status).not.toBe(0);
         });
 
@@ -126,13 +127,13 @@ export default async () => {
             // worker-thread child-watch first, nulling get_identifier() (the
             // documented upstream GLib limitation, issue #3981). `sleep`
             // guarantees the window; the assertion is unchanged (pid > 0).
-            const result = spawnSync('sleep', ['0.05']);
+            const result = spawnSync(...sleep(50));
             expect(typeof result.pid).toBe('number');
             expect(result.pid > 0).toBeTruthy();
         });
 
         await it('should respect cwd option', async () => {
-            const result = spawnSync('pwd', [], { encoding: 'utf8', cwd: TMP_DIR });
+            const result = spawnSync(...pwd(), { encoding: 'utf8', cwd: TMP_DIR });
             expect((result.stdout as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
     });
@@ -195,7 +196,7 @@ export default async () => {
     await describe('child_process.execFile', async () => {
         await it('should call callback with stdout', async () => {
             const result = await new Promise<string>((resolve, reject) => {
-                execFile('echo', ['hello'], { encoding: 'utf8' }, (err, stdout) => {
+                execFile(...echo('hello'), { encoding: 'utf8' }, (err, stdout) => {
                     if (err) reject(err);
                     else resolve(stdout.trim());
                 });
@@ -242,13 +243,13 @@ export default async () => {
 
     await describe('child_process edge cases', async () => {
         await it('spawnSync should handle empty stdout', async () => {
-            const result = spawnSync('true', [], { encoding: 'utf8' });
+            const result = spawnSync(...exitOk(), { encoding: 'utf8' });
             expect(result.status).toBe(0);
             expect(typeof result.stdout).toBe('string');
         });
 
         await it('spawnSync should capture env variables', async () => {
-            const result = spawnSync('sh', ['-c', 'echo $TEST_SPAWN_VAR'], {
+            const result = spawnSync(...printEnv('TEST_SPAWN_VAR'), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', TEST_SPAWN_VAR: 'spawn_test' },
             });
@@ -256,7 +257,7 @@ export default async () => {
         });
 
         await it('execFileSync should handle multiple arguments', async () => {
-            const result = execFileSync('echo', ['one', 'two', 'three'], { encoding: 'utf8' });
+            const result = execFileSync(...echo('one', 'two', 'three'), { encoding: 'utf8' });
             expect((result as string).trim()).toBe('one two three');
         });
 
@@ -272,7 +273,7 @@ export default async () => {
             // and `proc.stdout` both `null`, no error event. Fix: skip
             // entries with `undefined` value (matches Node's documented
             // semantics — undefined values are omitted, NOT stringified).
-            const child = spawn('/bin/sh', ['-c', 'echo $BAR; cat'], {
+            const child = spawn(...printEnvThenCat('BAR'), {
                 env: { FOO: undefined, BAR: 'bar-value' } as unknown as NodeJS.ProcessEnv,
                 stdio: ['pipe', 'pipe', 'inherit'],
             });
@@ -294,7 +295,7 @@ export default async () => {
             // reject `3000` / `true` with the same marshalling error as
             // `undefined` above. Guard the symmetric case so a future
             // refactor doesn't regress.
-            const child = spawn('/bin/sh', ['-c', 'echo $PORT-$FLAG'], {
+            const child = spawn(...printEnvTemplate('$PORT-$FLAG'), {
                 env: { PORT: 3000 as unknown as string, FLAG: true as unknown as string },
                 stdio: ['pipe', 'pipe', 'inherit'],
             });
@@ -338,7 +339,7 @@ export default async () => {
 
     await describe('child_process.spawnSync additional', async () => {
         await it('spawnSync with input option should pass stdin data', async () => {
-            const result = spawnSync('cat', [], {
+            const result = spawnSync(...cat(), {
                 encoding: 'utf8',
                 input: 'hello from stdin',
             });
@@ -347,7 +348,7 @@ export default async () => {
         });
 
         await it('spawnSync should handle empty output from true command', async () => {
-            const result = spawnSync('true', [], { encoding: 'utf8' });
+            const result = spawnSync(...exitOk(), { encoding: 'utf8' });
             expect(result.status).toBe(0);
             // stdout should be empty string
             expect(result.stdout as string).toBe('');
@@ -373,7 +374,7 @@ export default async () => {
 
     await describe('child_process.execFileSync additional', async () => {
         await it('execFileSync should handle env option', async () => {
-            const result = execFileSync('sh', ['-c', 'echo $MY_CUSTOM_VAR'], {
+            const result = execFileSync(...printEnv('MY_CUSTOM_VAR'), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', MY_CUSTOM_VAR: 'custom_value' },
             });
@@ -424,7 +425,7 @@ export default async () => {
             // — is a numeric pid for a *running* process, which `cat` (blocks on
             // its piped, empty stdin) makes deterministic. Ending stdin sends
             // EOF so it exits cleanly.
-            const child = spawn('cat');
+            const child = spawn(...cat());
             expect(child).toBeDefined();
             expect(typeof child.pid).toBe('number');
             expect(child.pid! > 0).toBeTruthy();
@@ -435,7 +436,7 @@ export default async () => {
 
         await it('should emit spawn event', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('echo', ['test']);
+            const child = spawn(...echo('test'));
             // Await 'spawn' directly. The previous version raced it against a
             // fixed `setTimeout(() => resolve(false), 5000)` fallback — which
             // turned a merely-late 'spawn' into a hard failure whenever a
@@ -454,7 +455,7 @@ export default async () => {
 
         await it('should emit exit event with exit code', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('echo', ['hello']);
+            const child = spawn(...echo('hello'));
             const code = await new Promise<number | null>((resolve) => {
                 child.on('exit', (exitCode) => resolve(exitCode));
             });
@@ -463,7 +464,7 @@ export default async () => {
 
         await it('should emit close event after exit', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('echo', ['hello']);
+            const child = spawn(...echo('hello'));
             const events: string[] = [];
             child.on('exit', () => events.push('exit'));
             child.on('close', () => events.push('close'));
@@ -475,7 +476,7 @@ export default async () => {
 
         await it('should emit non-zero exit code for failing command', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('false');
+            const child = spawn(...exitWith(1));
             const code = await new Promise<number | null>((resolve) => {
                 child.on('exit', (exitCode) => resolve(exitCode));
             });
@@ -503,7 +504,7 @@ export default async () => {
 
         await it('should support cwd option', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('pwd', [], { cwd: TMP_DIR });
+            const child = spawn(...pwd(), { cwd: TMP_DIR });
             const code = await new Promise<number | null>((resolve) => {
                 child.on('exit', (exitCode) => resolve(exitCode));
             });
@@ -512,7 +513,7 @@ export default async () => {
 
         await it('should support env option', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('sh', ['-c', 'echo $MY_SPAWN_VAR'], {
+            const child = spawn(...printEnv('MY_SPAWN_VAR'), {
                 env: { PATH: '/usr/bin:/bin', MY_SPAWN_VAR: 'spawn_val' },
             });
             const code = await new Promise<number | null>((resolve) => {
@@ -529,7 +530,7 @@ export default async () => {
     await describe('ChildProcess.kill', async () => {
         await it('should kill a running process', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('sleep', ['10']);
+            const child = spawn(...sleep(10000));
             expect(child.killed).toBeFalsy();
 
             const killed = child.kill();
@@ -541,7 +542,7 @@ export default async () => {
 
         await it('should kill with SIGKILL', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('sleep', ['10']);
+            const child = spawn(...sleep(10000));
 
             child.kill('SIGKILL');
             expect(child.killed).toBeTruthy();
@@ -551,7 +552,7 @@ export default async () => {
 
         await it('should set exitCode after process exits', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('echo', ['test']);
+            const child = spawn(...echo('test'));
 
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
             expect(child.exitCode).toBe(0);
@@ -566,12 +567,16 @@ export default async () => {
         await it('should handle multi-line output', async () => {
             // Testing child_process API — hardcoded safe shell command
             const result = await new Promise<string>((resolve, reject) => {
-                exec('echo line1 && echo line2', { encoding: 'utf8' }, (err, stdout) => {
+                // No spaces around `&&`: cmd.exe's `echo` prints everything up
+                // to the separator VERBATIM, so `echo line1 && …` emits a
+                // trailing space that `/bin/sh` does not.
+                exec('echo line1&&echo line2', { encoding: 'utf8' }, (err, stdout) => {
                     if (err) reject(err);
                     else resolve(stdout);
                 });
             });
-            const lines = result.trim().split('\n');
+            // cmd.exe terminates lines with CRLF, `/bin/sh` with LF.
+            const lines = result.trim().split(/\r?\n/);
             expect(lines.length).toBe(2);
             expect(lines[0]).toBe('line1');
             expect(lines[1]).toBe('line2');
@@ -603,7 +608,7 @@ export default async () => {
             // Testing child_process API — hardcoded safe env variable
             const result = await new Promise<string>((resolve, reject) => {
                 exec(
-                    'echo $EXEC_TEST_CUSTOM',
+                    `echo ${shellVar('EXEC_TEST_CUSTOM')}`,
                     {
                         encoding: 'utf8',
                         env: { PATH: '/usr/bin:/bin', EXEC_TEST_CUSTOM: 'custom_val' },
@@ -620,7 +625,7 @@ export default async () => {
         await it('exec with cwd should change working directory', async () => {
             // Testing child_process API — hardcoded safe literal
             const result = await new Promise<string>((resolve, reject) => {
-                exec('pwd', { encoding: 'utf8', cwd: TMP_DIR }, (err, stdout) => {
+                exec(SHELL_PWD, { encoding: 'utf8', cwd: TMP_DIR }, (err, stdout) => {
                     if (err) reject(err);
                     else resolve(stdout.trim());
                 });
@@ -634,7 +639,7 @@ export default async () => {
     await describe('child_process.execFile edge cases', async () => {
         await it('should pass arguments correctly', async () => {
             const result = await new Promise<string>((resolve, reject) => {
-                execFile('echo', ['arg1', 'arg2', 'arg3'], { encoding: 'utf8' }, (err, stdout) => {
+                execFile(...echo('arg1', 'arg2', 'arg3'), { encoding: 'utf8' }, (err, stdout) => {
                     if (err) reject(err);
                     else resolve(stdout.trim());
                 });
@@ -644,7 +649,7 @@ export default async () => {
 
         await it('should handle empty args', async () => {
             const result = await new Promise<string>((resolve, reject) => {
-                execFile('echo', [], { encoding: 'utf8' }, (err, stdout) => {
+                execFile(...echo(), { encoding: 'utf8' }, (err, stdout) => {
                     if (err) reject(err);
                     else resolve(stdout);
                 });
@@ -653,7 +658,7 @@ export default async () => {
         });
 
         await it('execFile should set exitCode on ChildProcess', async () => {
-            const child = execFile('echo', ['test'], { encoding: 'utf8' }, () => {});
+            const child = execFile(...echo('test'), { encoding: 'utf8' }, () => {});
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
             expect(child.exitCode).toBe(0);
         });
@@ -665,7 +670,7 @@ export default async () => {
 
     await describe('child_process.spawnSync extended', async () => {
         await it('should return output array with stdout and stderr', async () => {
-            const result = spawnSync('echo', ['out'], { encoding: 'utf8' });
+            const result = spawnSync(...echo('out'), { encoding: 'utf8' });
             expect(result.output).toBeDefined();
             expect(Array.isArray(result.output)).toBeTruthy();
             // output[0] is stdin (null), output[1] is stdout, output[2] is stderr
@@ -673,34 +678,38 @@ export default async () => {
         });
 
         await it('should handle shell option', async () => {
-            const result = spawnSync('echo', ['$((2+3))'], { encoding: 'utf8', shell: true });
+            // The subject is that `shell: true` routes the command through a
+            // shell at all. It used to be asserted with `$((2+3))`, POSIX
+            // arithmetic expansion that cmd.exe does not have — which tested the
+            // SHELL's feature set rather than the option.
+            const result = spawnSync('echo shell_ran', [], { encoding: 'utf8', shell: true });
             expect(result.status).toBe(0);
-            expect((result.stdout as string).trim()).toBe('5');
+            expect((result.stdout as string).trim()).toBe('shell_ran');
         });
 
         await it('should handle large output', async () => {
-            const result = spawnSync('seq', ['1', '1000'], { encoding: 'utf8' });
+            const result = spawnSync(...seq(1, 1000), { encoding: 'utf8' });
             expect(result.status).toBe(0);
-            const lines = (result.stdout as string).trim().split('\n');
+            const lines = (result.stdout as string).trim().split(/\r?\n/);
             expect(lines.length).toBe(1000);
             expect(lines[0]).toBe('1');
             expect(lines[999]).toBe('1000');
         });
 
         await it('should handle process that outputs nothing to stderr', async () => {
-            const result = spawnSync('echo', ['clean'], { encoding: 'utf8' });
+            const result = spawnSync(...echo('clean'), { encoding: 'utf8' });
             expect(result.status).toBe(0);
             expect(result.stderr).toBe('');
         });
 
         await it('signal should be null for normal exit', async () => {
-            const result = spawnSync('true');
+            const result = spawnSync(...exitOk());
             expect(result.signal).toBeNull();
         });
 
         await it('should handle input with special characters', async () => {
             const input = 'hello\nworld\ttab "quotes" \'single\'';
-            const result = spawnSync('cat', [], {
+            const result = spawnSync(...cat(), {
                 encoding: 'utf8',
                 input,
             });
@@ -736,7 +745,10 @@ export default async () => {
             let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null =
                 null;
             try {
-                execSync('echo err_msg >&2; exit 1');
+                // `;` is not a command separator in cmd.exe, and neither shell's
+                // `echo` can be relied on to reach stderr portably — so the
+                // child does both explicitly.
+                execSync(nodeShellCmd("process.stderr.write('err_msg'); process.exit(1)"));
             } catch (e) {
                 error = e;
             }
@@ -751,12 +763,21 @@ export default async () => {
         });
 
         await it('should handle input option', async () => {
-            const result = execSync('cat', { encoding: 'utf8', input: 'piped_input' });
+            // cmd.exe has no `cat`; the subject is `input`, not the utility.
+            const result = execSync(nodeShellCmd('process.stdin.pipe(process.stdout)'), {
+                encoding: 'utf8',
+                input: 'piped_input',
+            });
             expect((result as string).trim()).toBe('piped_input');
         });
 
         await it('should handle command with pipe', async () => {
-            const result = execSync('echo hello world | tr a-z A-Z', { encoding: 'utf8' });
+            // The subject is the shell's PIPE, which both shells have. `tr` is
+            // what neither has in common, so the right half becomes Node.
+            const result = execSync(
+                `echo hello world | ${nodeShellCmd("let s='';process.stdin.on('data',c=>s+=c).on('end',()=>process.stdout.write(s.trim().toUpperCase()))")}`,
+                { encoding: 'utf8' },
+            );
             expect((result as string).trim()).toBe('HELLO WORLD');
         });
     });
@@ -765,7 +786,7 @@ export default async () => {
 
     await describe('child_process.execFileSync extended', async () => {
         await it('should return Buffer without encoding', async () => {
-            const result = execFileSync('echo', ['raw']);
+            const result = execFileSync(...echo('raw'));
             expect(result instanceof Uint8Array).toBeTruthy();
         });
 
@@ -773,7 +794,7 @@ export default async () => {
             let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null =
                 null;
             try {
-                execFileSync('sh', ['-c', 'echo err >&2; exit 3']);
+                execFileSync(...failWith(3, "err"));
             } catch (e) {
                 error = e;
             }
@@ -782,13 +803,13 @@ export default async () => {
         });
 
         await it('should handle empty arguments', async () => {
-            const result = execFileSync('true');
+            const result = execFileSync(...exitOk());
             // true produces no output
             expect(result instanceof Uint8Array).toBeTruthy();
         });
 
         await it('should handle cwd and env together', async () => {
-            const result = execFileSync('sh', ['-c', 'echo $COMBO_VAR && pwd'], {
+            const result = execFileSync(...printEnvThenPwd('COMBO_VAR'), {
                 encoding: 'utf8',
                 cwd: TMP_DIR,
                 env: { PATH: '/usr/bin:/bin', COMBO_VAR: 'combined' },
@@ -803,14 +824,14 @@ export default async () => {
 
     await describe('child_process.spawn stdout/stderr streaming', async () => {
         await it('spawn() sets proc.stdout as a Readable', async () => {
-            const proc = spawn('echo', ['streaming_test']);
+            const proc = spawn(...echo('streaming_test'));
             expect(proc.stdout).toBeDefined();
             expect(typeof proc.stdout!.on).toBe('function');
         });
 
         await it('spawn() stdout emits data event with subprocess output', async () => {
             const output = await new Promise<string>((resolve, reject) => {
-                const proc = spawn('echo', ['hello_stream']);
+                const proc = spawn(...echo('hello_stream'));
                 expect(proc.stdout).toBeDefined();
                 let buf = '';
                 proc.stdout!.on('data', (chunk: Buffer) => {
@@ -825,7 +846,7 @@ export default async () => {
 
         await it('spawn() stderr emits data event with subprocess stderr output', async () => {
             const output = await new Promise<string>((resolve, reject) => {
-                const proc = spawn('sh', ['-c', 'echo err_stream >&2']);
+                const proc = spawn(...echoErr("err_stream"));
                 expect(proc.stderr).toBeDefined();
                 let buf = '';
                 proc.stderr!.on('data', (chunk: Buffer) => {
@@ -870,7 +891,7 @@ export default async () => {
             const ctrl = new AbortController();
             const result = await new Promise<{ code: number | null; signal: string | null; err: Error | null }>(
                 (resolve) => {
-                    const child = spawn('sleep', ['10'], { signal: ctrl.signal });
+                    const child = spawn(...sleep(10000), { signal: ctrl.signal });
                     let err: Error | null = null;
                     child.on('error', (e) => {
                         err = e as Error;
@@ -896,7 +917,7 @@ export default async () => {
                 ctrl.abort();
                 const result = await new Promise<{ code: number | null; signal: string | null; err: Error | null }>(
                     (resolve) => {
-                        const child = spawn('sleep', ['10'], { signal: ctrl.signal });
+                        const child = spawn(...sleep(10000), { signal: ctrl.signal });
                         let err: Error | null = null;
                         child.on('error', (e) => {
                             err = e as Error;
@@ -913,7 +934,7 @@ export default async () => {
         await it('signal that never aborts allows normal exit', async () => {
             const ctrl = new AbortController();
             const code = await new Promise<number | null>((resolve, reject) => {
-                const child = spawn('echo', ['hello'], { signal: ctrl.signal });
+                const child = spawn(...echo('hello'), { signal: ctrl.signal });
                 child.on('close', resolve);
                 child.on('error', reject);
                 setTimeout(() => reject(new Error('child did not close within 5 s')), 5_000);

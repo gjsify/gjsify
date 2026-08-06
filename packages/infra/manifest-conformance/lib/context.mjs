@@ -144,10 +144,48 @@ export function packagesUnder(dir, out = []) {
  * in the host spelling it read `packages\node-gi\node-gi` on Windows, so the
  * same tree produced different rule output on different platforms.
  */
+/**
+ * A path in the ONE spelling everything downstream assumes: forward slashes.
+ *
+ * `path.relative()` and `path.join()` answer in the HOST's separator, and every
+ * consumer in this tree splits on `/`, compiles the value into a regex, or
+ * compares it to an npm `workspaces` glob — all of which are forward-slash by
+ * definition. Left in the host spelling the same tree produces different output
+ * on different platforms, and it does so SILENTLY: `audit-runtimes`'
+ * `classifyAxis` read `gjs\unit` as one segment and reported five infra
+ * packages as missing a `gjsify.runtimes` declaration they must not carry,
+ * while `platforms-ci` compiled `packages\node-gi\node-gi` into a regex in
+ * which `\n` is a newline. Both were red on win32 and green on Linux for the
+ * same commit, so CI could not have caught either.
+ *
+ * `split(sep).join('/')`, NEVER `replaceAll('\\', '/')`: a backslash is a legal
+ * character in a POSIX filename, so the blunt rewrite corrupts a path there
+ * instead of normalising it.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+export function toPosixPath(path) {
+    return path.split(sep).join('/');
+}
+
+/**
+ * `path.relative(from, to)` in the forward-slash spelling — see
+ * {@link toPosixPath} for why every repo-relative path crossing a module
+ * boundary has to be in it.
+ *
+ * @param {string} from
+ * @param {string} to
+ * @returns {string}
+ */
+export function posixRelative(from, to) {
+    return toPosixPath(relative(from, to));
+}
+
 function toRecord(dir, root) {
     const manifest = readManifest(dir);
     if (!manifest) return null;
-    const rel = (relative(root, dir) || '.').split(sep).join('/');
+    const rel = toPosixPath(relative(root, dir) || '.');
     return {
         name: typeof manifest.name === 'string' ? manifest.name : rel,
         dir,

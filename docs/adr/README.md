@@ -38,7 +38,7 @@ the TODO records the *what's left*.
 | [0015](0015-headless-package-contract.md) | Headless package contract — `gjsify.headless` as a declared, machine-checked promise about the root entry | Accepted |
 | [0016](0016-status-as-data.md) | Status as data — authored status data (`status/`) + derived facts, gated by the `status-data` conformance rule; the rendered STATUS.md is generated, not committed (amended) | Accepted |
 | [0017](0017-native-package-distribution.md) | Distribution of platform-specific native builds — per-target packages behind an `optionalDependencies` bridge | Accepted |
-| [0018](0018-os-axis-declaration.md) | The OS axis is a declared, checked claim; Linux + macOS + Windows are the target | Proposed |
+| [0018](0018-os-axis-declaration.md) | The OS axis is a declared, checked claim; Linux + macOS + Windows are the target | Accepted |
 | [0019](0019-ts-for-gir-as-library.md) | ts-for-gir as a library; the `.gir` travels with the runtime package | Proposed |
 | [0020](0020-engine-as-optional-dependency.md) | The GJS engine set becomes an `optionalDependencies` edge of `@gjsify/cli` | Proposed |
 

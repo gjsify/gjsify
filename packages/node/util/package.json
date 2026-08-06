@@ -39,6 +39,9 @@
         "node",
         "util"
     ],
+    "dependencies": {
+        "@gjsify/utils": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
@@ -53,7 +56,15 @@
             "browser": "polyfill",
             "nativescript": "polyfill"
         },
-        "tier": 1
+        "tier": 1,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "win32": "`getSystemErrorName` / `getSystemErrorMap` branch `darwin ? darwin : linux`, so win32 silently receives the LINUX errno table. libuv numbers Windows differently — ENOENT is -4058 there against -2 on Linux — so both functions answer wrongly on a Windows host. Latent rather than live: the package declares `runtimes.node: \"native\"`, so a real Windows process uses Node's own implementation, and there is no GJS host on Windows to reach ours. Closing it means a third errno table."
+        }
     },
     "license": "MIT",
     "repository": {

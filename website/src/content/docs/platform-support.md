@@ -74,15 +74,15 @@ Two host settings matter, and both fail in ways that do not name themselves:
   \LongPathsEnabled` to `1` (needs elevation), and keep the checkout short —
   `C:\src\…` rather than a deep home directory. A monorepo with nested
   `node_modules` exceeds `MAX_PATH` quickly.
-- **Line endings.** Set `core.autocrlf=false` before you clone. The
-  byte-verified artifacts are safe either way — `.gitattributes` pins the
-  committed `*.gjs.mjs` bundles and `@gjsify/tsc`'s shipped libs to LF whatever
-  you configure, because otherwise `verify-committed-bundles.mjs` reports them
-  stale for files you never touched. The setting still matters for everything
-  else: 744 files in `tests/`, `showcases/`, `website/`, `templates/` and
-  `status/` are committed with CRLF, and with Git for Windows' recommended
-  `core.autocrlf=true` they all show as modified the moment you clone. Tracked
-  in `status/open-todos.md`; closing it needs a repo-wide renormalisation.
+- **Line endings.** `core.autocrlf=false` is still the setting to prefer, but a
+  default Git for Windows clone is **not** dirty: measured at `main`, a
+  `core.autocrlf=true` checkout of all 4781 tracked entries reports zero
+  modified files, and no tracked blob contains a CR byte. (An earlier note here
+  claimed 744 committed-CRLF files and a needed repo-wide renormalisation; it
+  did not reproduce — see `status/open-todos.md`.) What the setting protects is
+  the byte-verified artifacts, and `.gitattributes` already pins those to LF
+  with `-text` whatever you configure, because otherwise
+  `verify-committed-bundles.mjs` reports them stale for files you never touched.
 
 Optionally, enable **Developer Mode** so unprivileged file symlinks work. It is
 not required: `gjsify install` links workspace packages with NTFS junctions,
@@ -263,7 +263,16 @@ rather than making a runtime-class claim:
   `main.yml`, a **named subset** of the `@gjsify/*` GJS suites also runs on
   macOS/arm64 under Homebrew `gjs` 1.88 — see below. The rest of the suite still
   does not.
-- **Windows** is covered by `@gjsify/node-gi`'s CI, including a real GTK window and
+- **Windows** additionally runs the Node-pillar `@gjsify/*` suites — `utils`, `path`,
+  `os`, `process`, `util`, `fs`, `child_process`, `net`, `worker_threads`,
+  `node-globals` and `@gjsify/cli`'s own — in `windows-suites.yml`, on `main` and
+  nightly rather than per PR (ADR 0018 § 5). It runs under **cmd.exe with the
+  git-bash utilities stripped from `PATH`**, because Git for Windows supplies a real
+  `rm`/`cp`/`sh` that npm's `%COMSPEC%` scripts do not have — testing from git-bash
+  reports false greens. Note the runner is ELEVATED, so `@gjsify/fs`'s symlink specs
+  execute there; on an unprivileged host they are tolerated instead, and the leg
+  prints which of the two it measured.
+- **Windows** is also covered by `@gjsify/node-gi`'s CI, including a real GTK window and
   the storybook, using a bundled GTK runtime rather than a system install.
 
 ### The `@gjsify/*` GJS suites on macOS

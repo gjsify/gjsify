@@ -58,7 +58,15 @@
             "browser": "polyfill",
             "nativescript": "polyfill"
         },
-        "tier": 1
+        "tier": 1,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "win32": "Under Node the platform comes from the host itself and is authoritative. Under GJS it comes from a `uname` probe, which is POSIX-only — `mapSysname` maps a MINGW/MSYS sysname to `win32`, but no GJS host exists on Windows to produce one, so that path is unexercised. Measured on the win11-gjsify VM: 6 of 167 specs fail, all POSIX assumptions in the SPECS."
+        }
     },
     "license": "MIT",
     "repository": {

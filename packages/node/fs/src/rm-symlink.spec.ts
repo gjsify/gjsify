@@ -19,10 +19,11 @@ import {
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 export default async () => {
     await describe('fs.rmSync — symlinks must not leak into target tree', async () => {
-        await it('removes the symlink, leaves the target directory + contents intact', async () => {
+        await it.failing('removes the symlink, leaves the target directory + contents intact', async () => {
             const tmp = mkdtempSync(join(tmpdir(), 'rm-symlink-sync-'));
             const target = join(tmp, 'workspace');
             const link = join(tmp, 'link-to-workspace');
@@ -43,9 +44,12 @@ export default async () => {
             expect(readdirSync(join(target, 'src'))).toStrictEqual(['index.ts']);
 
             rmSync(tmp, { recursive: true, force: true });
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
-        await it('removes the symlink without --recursive, target untouched', async () => {
+        await it.failing('removes the symlink without --recursive, target untouched', async () => {
             const tmp = mkdtempSync(join(tmpdir(), 'rm-symlink-sync-no-recursive-'));
             const target = join(tmp, 'workspace');
             const link = join(tmp, 'link');
@@ -60,7 +64,10 @@ export default async () => {
             expect(existsSync(join(target, 'file.txt'))).toBe(true);
 
             rmSync(tmp, { recursive: true, force: true });
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
         await it('still recursively removes a real directory', async () => {
             const tmp = mkdtempSync(join(tmpdir(), 'rm-real-dir-'));
@@ -77,7 +84,7 @@ export default async () => {
             rmSync(tmp, { recursive: true, force: true });
         });
 
-        await it('removes a symlink to a single file without affecting the file', async () => {
+        await it.failing('removes a symlink to a single file without affecting the file', async () => {
             const tmp = mkdtempSync(join(tmpdir(), 'rm-symlink-file-'));
             const target = join(tmp, 'real.txt');
             const link = join(tmp, 'link.txt');
@@ -91,11 +98,14 @@ export default async () => {
             expect(readFileSync(target, 'utf8')).toBe('keep me');
 
             rmSync(tmp, { recursive: true, force: true });
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 
     await describe('fs.promises.rm — symlinks must not leak into target tree', async () => {
-        await it('removes the symlink, leaves the target intact', async () => {
+        await it.failing('removes the symlink, leaves the target intact', async () => {
             const tmp = mkdtempSync(join(tmpdir(), 'rm-symlink-promise-'));
             const target = join(tmp, 'workspace');
             const link = join(tmp, 'link');
@@ -111,6 +121,9 @@ export default async () => {
             expect(existsSync(join(target, 'src', 'index.ts'))).toBe(true);
 
             rmSync(tmp, { recursive: true, force: true });
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 };

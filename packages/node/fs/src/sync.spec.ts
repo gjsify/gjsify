@@ -1,4 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
+import { isWin32 } from '@gjsify/utils/core';
 import type { EventEmitter } from 'node:events';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +24,7 @@ import {
 } from 'node:fs';
 import { Buffer } from 'node:buffer';
 import { tmpdir } from 'node:os';
-import { platform } from 'node:process';
+import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 // Node on win32 returns the first created directory in EXTENDED-LENGTH form
 // (`\\?\C:\…`) from a recursive mkdir, while `join()` yields the plain form.
@@ -31,12 +32,6 @@ import { platform } from 'node:process';
 // returns the plain form on Linux. So the comparison, not the value, was the
 // POSIX-only part here.
 const plainPath = (p: string | undefined) => p?.replace(/^\\\\\?\\/, '');
-
-// Assertions below marked `it.failing(..., { when: IS_WIN32 })` describe POSIX
-// concepts win32 does not have. The marker keeps them RUNNING and keeps the
-// assertion unweakened; it tolerates the failure only here, and fails the run the
-// day it starts passing — unlike a platform guard, which would hide it forever.
-const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     await describe('fs.existsSync', async () => {
@@ -253,7 +248,9 @@ export default async () => {
             expect(typeof realpathSync).toBe('function');
         });
 
-        await it('should return the real and absolute path', () => {
+        await it.failing(
+            'should return the real and absolute path',
+            () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-rp-'));
             const target = join(dir, 'target.txt');
             const link = join(dir, 'link.txt');
@@ -266,10 +263,13 @@ export default async () => {
             // Should point to the real file, not the symlink
             expect(realSymLinkPath).toBe(realPath);
 
-            unlinkSync(link);
-            rmSync(target);
-            rmdirSync(dir);
-        });
+                unlinkSync(link);
+                rmSync(target);
+                rmdirSync(dir);
+            },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 
     await describe('fs.mkdirSync recursive', async () => {
@@ -442,7 +442,7 @@ export default async () => {
                 expect(s.isBlockDevice()).toBe(false);
             },
             "win32 has no path that stats as a character device — there is no /dev/null, and \\\\.\\NUL does not report S_IFCHR through Node's stat.",
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
     });
 

@@ -16,6 +16,7 @@ import {
 import { symlink, readlink, realpath, unlink, rmdir, lstat, writeFile, mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 export default async () => {
     await describe('fs.symlink (callback)', async () => {
@@ -26,7 +27,7 @@ export default async () => {
             }).toThrow(Error);
         });
 
-        await it('should create a symlink pointing to a file', async () => {
+        await it.failing('should create a symlink pointing to a file', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-sym-cb-'));
             const target = join(dir, 'target.txt');
             const link = join(dir, 'link.txt');
@@ -48,11 +49,14 @@ export default async () => {
             unlinkSync(link);
             unlinkSync(target);
             rmdirSync(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 
     await describe('fs.symlink (promise)', async () => {
-        await it('should create a symlink pointing to a file', async () => {
+        await it.failing('should create a symlink pointing to a file', async () => {
             const dir = await mkdtemp(join(tmpdir(), 'fs-sym-p-'));
             const target = join(dir, 'target.txt');
             const link = join(dir, 'link.txt');
@@ -66,9 +70,12 @@ export default async () => {
             await unlink(link);
             await unlink(target);
             await rmdir(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
-        await it('should throw ENOENT when symlinking to non-existent target', async () => {
+        await it.failing('should throw ENOENT when symlinking to non-existent target', async () => {
             const dir = await mkdtemp(join(tmpdir(), 'fs-sym-err-'));
             const link = join(dir, 'link.txt');
             // Creating a dangling symlink — target doesn't exist
@@ -77,9 +84,12 @@ export default async () => {
             expect(s.isSymbolicLink()).toBe(true);
             await unlink(link);
             await rmdir(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
-        await it('should throw EEXIST when symlink already exists', async () => {
+        await it.failing('should throw EEXIST when symlink already exists', async () => {
             const dir = await mkdtemp(join(tmpdir(), 'fs-sym-exist-'));
             const target = join(dir, 'target.txt');
             const link = join(dir, 'link.txt');
@@ -98,11 +108,14 @@ export default async () => {
             await unlink(link);
             await unlink(target);
             await rmdir(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 
     await describe('fs.readlink', async () => {
-        await it('should read the symlink target synchronously', async () => {
+        await it.failing('should read the symlink target synchronously', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-rl-'));
             const target = join(dir, 'target.txt');
             const link2 = join(dir, 'link2.txt');
@@ -118,9 +131,12 @@ export default async () => {
                     resolve();
                 });
             });
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
-        await it('should read the symlink target via promise', async () => {
+        await it.failing('should read the symlink target via promise', async () => {
             const dir = await mkdtemp(join(tmpdir(), 'fs-rl-p-'));
             const target = join(dir, 'target.txt');
             const link = join(dir, 'link.txt');
@@ -133,7 +149,10 @@ export default async () => {
             await unlink(link);
             await unlink(target);
             await rmdir(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
         await it('should throw ENOENT when reading non-existent symlink', async () => {
             let threw = false;
@@ -148,7 +167,7 @@ export default async () => {
     });
 
     await describe('fs.realpath', async () => {
-        await it('should resolve a symlink to real path (sync)', async () => {
+        await it.failing('should resolve a symlink to real path (sync)', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-rp-'));
             const target = join(dir, 'realfile.txt');
             const link = join(dir, 'link.txt');
@@ -167,9 +186,12 @@ export default async () => {
 
             unlinkSync(target);
             rmdirSync(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
-        await it('should resolve a symlink to real path (promise)', async () => {
+        await it.failing('should resolve a symlink to real path (promise)', async () => {
             const dir = await mkdtemp(join(tmpdir(), 'fs-rp-p-'));
             const target = join(dir, 'realfile.txt');
             const link = join(dir, 'link.txt');
@@ -183,9 +205,12 @@ export default async () => {
             await unlink(link);
             await unlink(target);
             await rmdir(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
-        await it('resolves a symlinked ANCESTOR, not just a trailing symlink', async () => {
+        await it.failing('resolves a symlinked ANCESTOR, not just a trailing symlink', async () => {
             // The gap the two cases above could not see, twice over: they assert
             // only `typeof real === 'string'` plus a non-zero length, and they
             // only ever put the symlink LAST. `realpathSync` used to query the
@@ -215,6 +240,9 @@ export default async () => {
             await rmdir(join(realDir, 'leaf'));
             await rmdir(realDir);
             await rmdir(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 };

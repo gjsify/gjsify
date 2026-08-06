@@ -33,7 +33,7 @@ export interface DepCheck {
     requiredBy?: string[];
 }
 
-export type PackageManager = 'apt' | 'dnf' | 'pacman' | 'zypper' | 'apk' | 'brew' | 'unknown';
+export type PackageManager = 'apt' | 'dnf' | 'pacman' | 'zypper' | 'apk' | 'brew' | 'winget' | 'unknown';
 
 /** Run a binary and return its stdout trimmed, or null if it fails. */
 function tryExecFile(binary: string, args: string[]): string | null {
@@ -153,12 +153,57 @@ function checkNpmPackage(
  * MacPorts or Nix host, and it is why this must never fall back to "probably brew".
  */
 export function detectPackageManager(): PackageManager {
+    // win32 has no `which`, so the loop below would return `unknown` by
+    // ACCIDENT rather than by construction — which was the pre-existing
+    // behaviour and produced the right answer for the wrong reason. `winget`
+    // ships with Windows 11 and is what a user actually has, and it is only
+    // ever consulted for the one dependency this platform has an entry for.
+    if (process.platform === 'win32') {
+        return tryExecFile('where', ['winget']) !== null ? 'winget' : 'unknown';
+    }
     const managers: PackageManager[] =
         process.platform === 'darwin' ? ['brew'] : ['apt', 'dnf', 'pacman', 'zypper', 'apk', 'brew'];
     for (const pm of managers) {
         if (isOnPath(pm)) return pm;
     }
     return 'unknown';
+}
+
+/**
+ * The Visual C++ runtime — an undeclared, undiagnosed win32 prerequisite (#997).
+ *
+ * `@gjsify/gtk-runtime-win32-x64` is built with gvsbuild, i.e. against the MSVC
+ * ABI, and its DLLs load into stock (also MSVC-ABI) Node. On a Windows host
+ * WITHOUT the Visual C++ redistributable that load fails — and nothing in the
+ * toolchain said so. The precedent for why that matters is PR #994: a missing
+ * load-time library made a typelib unloadable and the user-visible message was
+ * `Unsupported type void, deriving from fundamental void`, which names nothing
+ * a user could act on.
+ *
+ * Probed by FILE PRESENCE in the system directory rather than by asking a
+ * package database: the redistributable can arrive with Visual Studio, with
+ * another application's installer, or as part of a Windows image, and only one
+ * of those routes is visible to a package manager. What the loader actually
+ * needs is the DLL, so that is what is checked.
+ *
+ * `vcruntime140.dll` and `msvcp140.dll` are the C and C++ halves;
+ * `vcruntime140_1.dll` carries the x64 exception-handling machinery and is
+ * absent from pre-2019 redistributables, which is exactly the "installed, but
+ * too old" case that otherwise fails at first use rather than at load.
+ */
+export function checkMsvcRuntime(): DepCheck {
+    const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? 'C:\\Windows';
+    const required = ['vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll'];
+    const missing = required.filter((dll) => !existsSync(`${systemRoot}\\System32\\${dll}`));
+    return {
+        id: 'msvc-runtime',
+        name:
+            missing.length === 0
+                ? 'Microsoft Visual C++ runtime'
+                : `Microsoft Visual C++ runtime (missing ${missing.join(', ')} — the GTK bundle's DLLs are MSVC-ABI and will not load)`,
+        found: missing.length === 0,
+        severity: 'required',
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -414,6 +459,12 @@ export function runMinimalChecks(): DepCheck[] {
             (out) => out.replace(/^GJS\s+/i, '').split('\n')[0] ?? out,
         ),
     );
+
+    // The one win32 system dependency that is real and was undiagnosed (#997).
+    // Checked at INSTALL time, not just in `system-check`, because the failure
+    // it prevents is a bare `ERR_DLOPEN_FAILED` on a `.node` that is present —
+    // by then the user has no thread to pull.
+    if (process.platform === 'win32') results.push(checkMsvcRuntime());
 
     return results;
 }
@@ -720,6 +771,15 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         'json-glib': 'json-glib',
         epoxy: 'libepoxy',
     },
+    // Deliberately ONE entry. Windows is not a GJS host, so `gjs`, the
+    // pkg-config toolchain and every `-devel` library above have no winget
+    // package that would help — offering one would be a wrong answer rather
+    // than a missing one, and `buildInstallCommand` already skips any id with
+    // no mapping. The Visual C++ runtime is the one win32 system dependency
+    // that IS real, installable, and currently undiagnosed (#997).
+    winget: {
+        'msvc-runtime': 'Microsoft.VCRedist.2015+.x64',
+    },
     unknown: {},
 };
 
@@ -731,6 +791,9 @@ const PM_INSTALL_PREFIX: Record<PackageManager, string> = {
     apk: 'sudo apk add',
     // No `sudo`: Homebrew refuses to run as root and tells you so.
     brew: 'brew install',
+    // `--id` because winget's fuzzy name match is ambiguous for this package,
+    // and it is the spelling Microsoft's own docs use.
+    winget: 'winget install --id',
     unknown: '',
 };
 

@@ -57,7 +57,15 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1
+        "tier": 1,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "win32": "A `src/platform/win32.ts` exists and is written against Node's documented Windows behaviour, but NOTHING RUNS IT. The package declares `runtimes.node: \"none\"`, so `test:node` exercises native Node rather than this implementation, and `test:gjs` — the leg that would measure it — cannot run on Windows at all because there is no GJS host there. The win32 module is therefore unexercised code, not a verified port. Promote to `supported` when a leg executes it."
+        }
     },
     "license": "MIT",
     "repository": {

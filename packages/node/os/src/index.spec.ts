@@ -1,8 +1,20 @@
 import { describe, it, expect } from '@gjsify/unit';
 import * as os from 'node:os';
+import { isAbsolute } from 'node:path';
+import { platform } from 'node:process';
 
 // Ported from refs/node/test/parallel/test-os.js
 // Original: MIT license, Node.js contributors
+
+// Several assertions below used to spell a POSIX answer as though it were THE
+// answer — `startsWith('/')` for an absolute path, `'Linux'` for `type()`,
+// `'\n'` for `EOL`. That is not a weak test, it is a test of the HOST: this
+// package declares `runtimes.node: "none"`, so `test:node` runs against native
+// Node, and native Node on win32 is right to answer `\` , `Windows_NT` and
+// `\r\n`. Ten of them went red on the win11-gjsify VM against a module that was
+// behaving correctly. Each now asserts what Node documents FOR THE HOST, which
+// is a stronger assertion than the POSIX literal was on Linux.
+const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     // ==================== basic return types ====================
@@ -16,7 +28,7 @@ export default async () => {
 
         await it('homedir() should return an absolute path', async () => {
             const home = os.homedir();
-            expect(home.startsWith('/')).toBeTruthy();
+            expect(isAbsolute(home)).toBeTruthy();
         });
 
         await it('hostname() should return a non-empty string', async () => {
@@ -38,7 +50,7 @@ export default async () => {
 
         await it('tmpdir() should return an absolute path', async () => {
             const tmp = os.tmpdir();
-            expect(tmp.startsWith('/')).toBeTruthy();
+            expect(isAbsolute(tmp)).toBeTruthy();
         });
 
         await it('tmpdir() should not end in a separator', async () => {
@@ -59,9 +71,10 @@ export default async () => {
             expect(type.length > 0).toBeTruthy();
         });
 
-        await it('type() should return Linux on Linux', async () => {
-            const type = os.type();
-            expect(type).toBe('Linux');
+        await it('type() should return the host kernel name', async () => {
+            // `uname -s` on POSIX; the constant `Windows_NT` on win32.
+            const expected = IS_WIN32 ? 'Windows_NT' : platform === 'darwin' ? 'Darwin' : 'Linux';
+            expect(os.type()).toBe(expected);
         });
 
         await it('release() should return a non-empty string', async () => {
@@ -76,8 +89,10 @@ export default async () => {
             expect(platform.length > 0).toBeTruthy();
         });
 
-        await it('platform() should return linux on Linux', async () => {
-            expect(os.platform()).toBe('linux');
+        await it('platform() should agree with process.platform', async () => {
+            // Node DEFINES `os.platform()` as `process.platform`, so this holds
+            // on every host rather than only on the one that wrote it.
+            expect(os.platform()).toBe(platform);
         });
 
         await it('arch() should return a non-empty string', async () => {
@@ -105,8 +120,8 @@ export default async () => {
     // ==================== EOL ====================
 
     await describe('os: EOL', async () => {
-        await it('should be \\n on non-Windows', async () => {
-            expect(os.EOL).toBe('\n');
+        await it('should be the host line ending', async () => {
+            expect(os.EOL).toBe(IS_WIN32 ? '\r\n' : '\n');
         });
     });
 
@@ -261,8 +276,8 @@ export default async () => {
     // ==================== devNull ====================
 
     await describe('os: devNull', async () => {
-        await it('should be /dev/null on Linux', async () => {
-            expect(os.devNull).toBe('/dev/null');
+        await it('should be the host null device', async () => {
+            expect(os.devNull).toBe(IS_WIN32 ? '\\\\.\\nul' : '/dev/null');
         });
     });
 
@@ -302,20 +317,28 @@ export default async () => {
             expect(os.userInfo().homedir.length > 0).toBeTruthy();
         });
 
-        await it('should have shell as string', async () => {
-            expect(typeof os.userInfo().shell).toBe('string');
+        // The three below are Node's DOCUMENTED win32 answers, not concessions:
+        // Windows has no login shell and no POSIX uid/gid, so `userInfo()`
+        // reports `null` and `-1`. Asserting the POSIX shape was asserting the
+        // host the suite happened to run on.
+        await it('should have shell as string, or null on win32', async () => {
+            const { shell } = os.userInfo();
+            if (IS_WIN32) expect(shell).toBe(null);
+            else expect(typeof shell).toBe('string');
         });
 
-        await it('uid should be >= 0', async () => {
-            expect(os.userInfo().uid >= 0).toBeTruthy();
+        await it('uid should be >= 0, or -1 on win32', async () => {
+            const { uid } = os.userInfo();
+            expect(IS_WIN32 ? uid === -1 : uid >= 0).toBeTruthy();
         });
 
-        await it('gid should be >= 0', async () => {
-            expect(os.userInfo().gid >= 0).toBeTruthy();
+        await it('gid should be >= 0, or -1 on win32', async () => {
+            const { gid } = os.userInfo();
+            expect(IS_WIN32 ? gid === -1 : gid >= 0).toBeTruthy();
         });
 
         await it('homedir should be an absolute path', async () => {
-            expect(os.userInfo().homedir.startsWith('/')).toBeTruthy();
+            expect(isAbsolute(os.userInfo().homedir)).toBeTruthy();
         });
 
         await it('username should match current user', async () => {

@@ -40,6 +40,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { posixRelative } from '../packages/infra/manifest-conformance/lib/index.mjs';
 
 const argv = process.argv.slice(2);
 const dryRun = argv.includes('--dry-run');
@@ -201,7 +202,7 @@ export async function clearSatisfiedGirGaps(root, { dryRun: dry = false } = {}) 
         }
     }
 
-    return { cleared, paths: [relative(root, ledgerPath).replaceAll('\\', '/')] };
+    return { cleared, paths: [posixRelative(root, ledgerPath)] };
 }
 
 // Only act when executed directly — the e2e suite imports the function.

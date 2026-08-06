@@ -101,6 +101,11 @@
             "__PACKAGE_VERSION__": {
                 "field": "version"
             }
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "supported"
         }
     },
     "files": [

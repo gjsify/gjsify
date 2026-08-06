@@ -85,6 +85,11 @@
         "typescript": "^6.0.3"
     },
     "gjsify": {
-        "tier": 1
+        "tier": 1,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "supported"
+        }
     }
 }

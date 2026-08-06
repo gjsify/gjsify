@@ -83,3 +83,43 @@ at `error`. Two deliberate scope decisions, both measured rather than assumed:
 Escape hatch is the ordinary `// oxlint-disable-next-line gjsify/todo-needs-anchor -- <why>`,
 and `.oxlintrc.json` already fails on a disable directive that suppresses
 nothing, so a stale exemption cannot sit quietly either.
+
+## A repo-relative path spelled in the HOST separator
+
+**Rule: a path that crosses a module boundary is forward-slash. Produce it with
+`posixRelative()` / `toPosixPath()` from `@gjsify/manifest-conformance`, never
+with a bare `relative()` and never with `replaceAll('\', '/')`.**
+
+`path.relative()` and `path.join()` answer in `path.sep`, and essentially every
+consumer in this tree assumes `/` — it splits the value on `/`, compiles it into
+a regex, or compares it against an npm `workspaces` glob, which is forward-slash
+by npm's own definition.
+
+Two incidents, both measured, both WINDOWS-ONLY:
+
+- `audit-runtimes.mjs`'s `classifyAxis` reads the first `/`-split segment to
+  decide a package's axis. On Windows `relative()` returned `gjs\unit`, the
+  split produced ONE segment, the pillar matched nothing, and five infra
+  packages were reported as MISSING a `gjsify.runtimes` declaration they must
+  not carry.
+- `platforms-ci` compiles a package's path into a REGEX and matches it against
+  `working-directory: packages/node-gi/node-gi` lines in the workflow YAML. On
+  Windows it compiled `packages\node-gi\node-gi`, in which `\n` is a NEWLINE, so
+  `@gjsify/node-gi`'s macOS leg — which identifies itself by path alone — was
+  reported as a declared platform CI never builds.
+
+`audit-runtimes --check` was therefore RED on win32 and GREEN on Linux for the
+same commit. Nothing in CI could have caught either, because nothing in CI ran
+on Windows; `windows-suites.yml` exists now, and this is one of the classes it
+is there for.
+
+**`split(sep).join('/')`, never `replaceAll('\', '/')`.** A backslash is a legal
+character in a POSIX filename, so the blunt rewrite corrupts a path on Linux and
+macOS instead of normalising it — it trades a Windows bug for a POSIX one. Five
+sites in `scripts/` carried that spelling and now go through the helper.
+
+The helper IS the mechanism; there is deliberately no separate check watching
+for the raw call. A guard watching another mechanism is the smell the governance
+rules name, and the cost of this one would be a grep over the tree that cannot
+tell a display string (where the host separator is arguably right) from a value
+about to be split.

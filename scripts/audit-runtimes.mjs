@@ -93,25 +93,12 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 
-/**
- * A repo-relative path in the ONE spelling everything downstream assumes.
- *
- * `path.relative()` answers in the host's separator, and every consumer here
- * splits on `/` — `classifyAxis` reads the first segment to decide the axis, and
- * an axis of `infra` is what exempts a package from needing a
- * `gjsify.runtimes` declaration at all. On Windows `relative()` returned
- * `gjs\unit`, the split produced one segment, the pillar matched nothing, and
- * five infra packages were reported as MISSING a declaration they are not
- * supposed to carry. The audit was therefore red on win32 and green on Linux
- * for the same tree — the exact shape this repo's Windows work keeps finding.
- *
- * `split(sep).join('/')` rather than `replaceAll('\\', '/')`: a backslash is a
- * legal character in a POSIX filename, and rewriting it there would corrupt a
- * path instead of normalising it.
- */
-function toPosixRel(path) {
-    return path.split(sep).join('/');
-}
+// `toPosixRel` used to be defined here, byte-identical to `toRecord`'s
+// normalisation in `manifest-conformance/lib/context.mjs`. Two copies of the
+// one rule every repo-relative path in this tree depends on is exactly the
+// shape that drifted before; the definition and the incidents behind it now
+// live once, in `toPosixPath`.
+const toPosixRel = toPosixPath;
 import { fileURLToPath } from 'node:url';
 
 // The shared registry + the PORTABLE rule set. Importing the barrel registers
@@ -136,6 +123,7 @@ import {
     renderPrebuildLibcSummary,
     renderPrebuildSummary,
     runRules,
+    toPosixPath,
     selectRules,
     walkEntryGraph,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
@@ -1587,6 +1575,13 @@ const CHECK_RULES = [
     // is invisible on Linux: a script that shells out to `rm`/`cp` runs fine
     // here and cannot run at all under cmd.exe.
     'portable-scripts',
+    // ADR 0018. Reads each manifest plus the package's own shipping sources —
+    // no install, no build, no binaries — so it belongs in this job for the
+    // same reason `portable-scripts` does. It is also the one rule whose whole
+    // subject is the axis a Linux runner cannot exercise: it does not TEST any
+    // operating system, it holds the DECLARATION about all three, which is
+    // exactly the half a single-OS runner can be trusted with.
+    'os-axis',
     'storybook',
     'field-coverage',
     'status-data',
@@ -1673,6 +1668,7 @@ async function main() {
         const alias = byId.get('curated-alias-routing');
         const headless = byId.get('headless');
         const portableScripts = byId.get('portable-scripts');
+        const osAxis = byId.get('os-axis');
         const coverage = byId.get('field-coverage');
         const statusData = byId.get('status-data');
         // `platform-packages` is selected by CHECK_RULES, so its failures set the
@@ -1694,9 +1690,15 @@ async function main() {
             console.log(reachability.summary);
             console.log(headless.summary);
             console.log(portableScripts.summary);
+            console.log(osAxis.summary);
             console.log(coverage.summary);
             console.log(statusData.summary);
             console.log(platformPackages.summary);
+            // Printed on a PASSING run, not just a failing one: a claim below
+            // `supported` is a standing limitation, and the mandatory reason
+            // only does its job if somebody reads it. Same contract as
+            // `gjsify.platformsUncommitted`.
+            for (const note of osAxis.notes ?? []) console.log(`  · ${note}`);
             for (const note of coverage.notes ?? []) console.log(`  · ${note}`);
             renderReachabilityNotes(reach);
             process.exit(0);
@@ -1834,6 +1836,23 @@ async function main() {
             );
             console.error('');
         }
+        if ((osAxis.failures ?? []).length > 0) {
+            console.error(`OS-AXIS FAILURES (ADR 0018) on ${osAxis.failures.length} package(s):`);
+            for (const line of osAxis.failures) {
+                console.error(`  - ${line.split('\n').join('\n    ')}`);
+            }
+            console.error('');
+            console.error(
+                'Linux, macOS and Windows are a project goal, so a package that BRANCHES on the operating system owes a ' +
+                    'declared claim about all three. `gjsify.platforms` cannot answer this — it promises a prebuilt ' +
+                    'ARTIFACT per `<os>-<arch>` target, so a package with no native build has nothing to declare in it — ' +
+                    'and the runtime axis is blind to operating systems ON PURPOSE. That blindness is measured, not ' +
+                    'theoretical: the whole native-bridge set stayed Linux-only while the project described itself as ' +
+                    'platform-independent. Declare `gjsify.os` with all three keys; anything below `supported` states its ' +
+                    'reason in `gjsify.osNotes.<os>`, and that reason is printed on every run.',
+            );
+            console.error('');
+        }
         if ((portableScripts.failures ?? []).length > 0) {
             console.error(`UNPORTABLE PACKAGE SCRIPT(S) on ${portableScripts.failures.length} package(s):`);
             for (const line of portableScripts.failures) {
@@ -1919,6 +1938,7 @@ async function main() {
             'curated-alias-routing',
             'headless',
             'portable-scripts',
+            'os-axis',
             'field-coverage',
             'status-data',
             'platform-packages',

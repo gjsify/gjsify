@@ -80,6 +80,11 @@
                 "browser": "polyfill",
                 "nativescript": "polyfill"
             }
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "supported"
         }
     }
 }

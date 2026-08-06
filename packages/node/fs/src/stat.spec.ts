@@ -1,15 +1,9 @@
 import { describe, it, expect } from '@gjsify/unit';
+import { isWin32 } from '@gjsify/utils/core';
 import { statSync, mkdtempSync, writeFileSync, rmSync, rmdirSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { platform } from 'node:process';
-
-// Assertions below marked `it.failing(..., { when: IS_WIN32 })` describe POSIX
-// concepts win32 does not have. The marker keeps them RUNNING and keeps the
-// assertion unweakened; it tolerates the failure only here, and fails the run the
-// day it starts passing — unlike a platform guard, which would hide it forever.
-const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     await describe('fs.statSync', async () => {
@@ -52,7 +46,7 @@ export default async () => {
                 rmdirSync(dir);
             },
             '`stat.blocks` is 0 on win32 — Windows does not report an allocated block count (measured: 8 on Linux, 0 on win32 for the same file).',
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
     });
 
@@ -96,7 +90,7 @@ export default async () => {
                 rmdirSync(dir);
             },
             '`stat.blocks` is 0 on win32 — Windows does not report an allocated block count (measured: 8 on Linux, 0 on win32 for the same file).',
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
     });
 };

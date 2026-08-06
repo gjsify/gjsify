@@ -8,6 +8,7 @@ import { utimesSync, utimes, lutimesSync, lchownSync, promises } from 'node:fs';
 import { rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 const TMP = tmpdir();
 
@@ -61,7 +62,7 @@ export default async () => {
             unlinkSync(f);
         });
 
-        await it('lutimesSync does not throw on a symlink', async () => {
+        await it.failing('lutimesSync does not throw on a symlink', async () => {
             const target = tmpFile('lutime-target');
             const link = join(TMP, `gjsify-lutime-link-${process.pid}`);
             // force:true is the non-throwing spelling of "remove a leftover
@@ -73,7 +74,10 @@ export default async () => {
             expect(() => lutimesSync(link, mtime, mtime)).not.toThrow();
             unlinkSync(link);
             unlinkSync(target);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
         await it('lutimes callback completes without error', async () => {
             const f = tmpFile('lutimes-cb');
@@ -88,7 +92,7 @@ export default async () => {
             unlinkSync(f);
         });
 
-        await it('lchownSync does not throw (may need root to actually change)', async () => {
+        await it.failing('lchownSync does not throw (may need root to actually change)', async () => {
             const f = tmpFile('lchown');
             const link = join(TMP, `gjsify-lchown-link-${process.pid}`);
             // force:true is the non-throwing spelling of "remove a leftover
@@ -103,7 +107,10 @@ export default async () => {
             }
             unlinkSync(link);
             unlinkSync(f);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
 
         await it('lchmod is a no-op (does not throw)', async () => {
             const f = tmpFile('lchmod');
