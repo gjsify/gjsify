@@ -1,6 +1,6 @@
 # ADR 0002 — Minimize committed bootstrap bundles
 
-- **Status:** Accepted (2026-07-01), **amended 2026-08-02** — see [Amendment](#amendment-2026-08-02--the-previous-release-supplies-the-toolchain-never-the-installer). The direction stands; decision 2 is corrected (the full CLI arrives from a separately pinned prefix, not from the workspace lockfile) and decision 3's deletion list shrinks by two artifacts.
+- **Status:** Accepted (2026-07-01), amended 2026-08-02, **amended again 2026-08-06 — read the SECOND amendment first**: [the wedge closed itself](#amendment-2026-08-06--the-wedge-closed-itself-so-the-installer-comes-from-a-release-after-all). The direction stands and is reached. Decision 1 (a tracked minimal `bootstrap.gjs.mjs`) is **withdrawn**, and the first "Do not" of the 2026-08-02 amendment is **struck** — the installer now does come from a published release, because the lockfile-reader wedge that forbade it is closed and machine-checked. The 2026-08-02 text is kept as written: its reasoning was correct for the state it described, and the hazard shape recurs.
 - **Scope:** `packages/infra/cli/dist/*.gjs.mjs`, `packages/infra/tsc/dist/tsc.gjs.mjs` + `lib/lib*.d.ts`, `.githooks/pre-commit`
 
 ## Context
@@ -208,3 +208,137 @@ of only inside a ~20-minute rebuild.
   It moves to `release-cut.yml` (once per release, on the host where determinism
   is measured) rather than disappearing — with `prebuilds/**` unguarded, it is
   the only reproducibility oracle the repo has left.
+
+## Amendment (2026-08-06) — the wedge closed itself, so the INSTALLER comes from a release after all
+
+The direction is unchanged and the goal is reached; **decision 1 is withdrawn and
+the first "Do not" above is struck**, because the constraint both rested on no
+longer exists.
+
+### What changed
+
+The 2026-08-02 amendment was built on a wedge: a *previous release's* installer
+could not read this repo's lockfile, so the installer had to be a same-commit
+artifact in git. That is no longer true. The published `@gjsify/cli@0.30.0` reads
+`{2, 3, 4}` while this repo writes `4`, and the relation is no longer left to
+care: `scripts/check-lockfile-reader-lead.mjs` parses the published tarball's own
+source on every PR and fails when the writer would move ahead of the newest
+published reader. The ordering rule the wedge documented — bump
+`READABLE_LOCKFILE_VERSIONS`, cut a release, *then* start writing N+1 — is now
+machine-checked rather than remembered.
+
+So #1017 made all nine CI install sites do literally what a contributor with only
+gjs does:
+
+```
+gjs -m install.mjs            # published bundle, SHA-256 verified, cached
+gjsify install --immutable
+gjsify run build:infra
+```
+
+Measured before landing it: the published bundle installed this repo from a clean
+worktree — 982 packages, `--immutable` left `gjsify-lock.json` byte-identical,
+exit 0.
+
+### Decision 1 is withdrawn
+
+There is **no** `bootstrap/bootstrap.gjs.mjs`. A minimal same-commit installer was
+the answer to the wedge; with the wedge gone it is a second bootstrap path whose
+only job is to duplicate the published one, and everything that would have guarded
+it — the hard size ceiling, the derived `bootstrap.inputs.json` plus its build-free
+verifier, the pinned `.gjsify/toolchain/` prefix, the three pin checks,
+`tests/e2e/bootstrap-pin` — is machinery for a file that no longer needs to exist.
+
+**One measurement from that work is worth keeping**, because it is a durable fact
+about the gjs target rather than about the bundle that was going to be built from
+it: the gjs build sets `inlineDynamicImports`, so an *ungated* `await
+import('../cli-app.js')` pulls the whole ~40-command CLI into any entry that
+reaches it — **6,605,699 B ungated vs 495,870 B behind a build-time `--define`
+constant**. A cross-module `export const` flag was measured NOT to work in any
+`define` × `minify` combination; only a define that folds to `false` lets rolldown
+drop the import. Anyone carving a second entry out of this CLI needs that number.
+(Issue #1002 held that work; it is closed as superseded.)
+
+### Decision 2 stands, and this is the mechanism that holds it
+
+"The previous release supplies the toolchain" is correct, and it works through a
+path worth naming, because it is not obvious and it is load-bearing:
+
+`build:infra` begins with `gjsify tsc`. That command resolves `@gjsify/tsc/bundle`
+from two anchors (`packages/infra/cli/src/commands/tsc.ts`): the project, then
+**the running CLI's own location**. On a Node-free host the project has no
+`@gjsify/tsc` and there is no npm `typescript` to fall back to, so only the second
+anchor can answer — and it answers because `install.mjs` in its FULL mode runs
+`gjsify install -g @gjsify/cli`, and `@gjsify/cli` declares `@gjsify/tsc` in
+`dependencies`, so the toolchain lands beside the CLI.
+
+That matters because regenerating `tsc.gjs.mjs` from a cold clone is **circular**:
+`@gjsify/tsc`'s own `build` spawns `gjsify build --app gjs`, which under GJS needs
+`@gjsify/rolldown-native`'s JS facade, which is itself produced only after
+`@gjsify/cli` has been built. The toolchain therefore cannot be bootstrapped from
+source on such a host — it has to arrive, and the global prefix is how. Demoting
+that dependency would leave every CI leg green (CI has node and takes the
+`typescript` fallback) while every Node-free host loses the compiler;
+`tests/e2e/node-free-bootstrap` and `tests/e2e/install-script` hold the two halves.
+
+Note the distinction CI relies on: `install.mjs --fetch-only` caches a bare
+`cli-<sha>.gjs.mjs` with no `node_modules` sibling, so it supplies the CLI but not
+the toolchain. CI can use it because node is present there; the Node-free claim
+rests on the full mode, and on those two suites.
+
+### Per-artifact decisions (superseding the 2026-08-02 table)
+
+| Artifact | Decision |
+|---|---|
+| `cli/dist/cli.gjs.mjs` | **untracked** — build output at the same path, npm-tarball entry, release asset, and a CI run artifact for downstream jobs |
+| `tsc/dist/tsc.gjs.mjs` | **untracked**, same shape |
+| `bootstrap/bootstrap.gjs.mjs` | **does not exist** — decision 1 withdrawn |
+| `cli/dist/affected.gjs.mjs` | **keep tracked**, unchanged. The `changes` job boots it on plain `ubuntu-latest` before any install, and it gates every other job; its tables encode *this* commit's CI policy, so a published release's classifier would gate today's PR with last release's rules — stale, fail-open, invisible |
+| `tsc/lib/lib*.d.ts` | **keep tracked**, unchanged (one commit of churn; regeneration needs an exact pinned third-party version) |
+
+Untracking does **not** reclaim the ~135 MiB those artifacts already occupy in the
+packed store — that would need a history rewrite, which is out of scope. What it
+buys is that the growth stops: ~6.6 MB per CLI-touching commit, 272 of them so
+far, plus the entire `chore: release` sub-class (43 of the last 250 commits on
+that file existed only to move a version string the bundle bakes twice).
+
+### `latest`, with no pin — decided, not deferred
+
+CI bootstraps from `releases/latest` and there is no pin and no fallback. Until
+this change the committed bundle was the fallback; it is going away, and the
+decision is to **not** replace it.
+
+Pinning insures against exactly one failure — a broken release blocking every PR
+at once — and that failure already has a one-line escape hatch: `--bootstrap-url`
+/ `GJSIFY_INSTALL_BOOTSTRAP_URL` (`install.mjs`). Carrying a pin file plus the
+staleness check that keeps a pin honest is machinery for a hypothetical, which is
+what § simplicity in `docs/governance.md` is about.
+
+**If it bites, the fix is to add the pin — that is the intended response, not a
+re-derivation.** The trigger to watch for is a release that reds every open PR
+simultaneously with a bootstrap-stage failure. The escape hatch is what buys the
+time to add it.
+
+One related sharp edge, recorded so it is not discovered twice:
+`check-lockfile-reader-lead.mjs` **warns and exits 0** when the registry is
+unreachable. That was right while the committed bundle was the fallback. It stays,
+because a network blip must not red-line every PR — but its warning is now the
+only signal that the check did not run, so it must stay visible rather than
+scrolling past inside a setup log.
+
+### Do not (superseding the list above)
+
+- ~~Do not make the installer come from a published release.~~ **Struck.** It was
+  right while a published installer could not read this repo's lockfile; that wedge
+  is closed and machine-checked. The reasoning is kept above rather than deleted,
+  because the *shape* of the hazard — an artifact whose format this repo evolves,
+  read by a copy this repo cannot update — recurs.
+- **Do not put a toolchain pin in `gjsify-lock.json`.** It cannot hold a workspace
+  name (0 entries, measured).
+- **Do not delete `tsc/lib/lib*.d.ts`** on the grounds that they are generated.
+- **Do not drop the byte-reproducibility oracle.** With both bundles untracked,
+  "reproducible against the committed bytes" no longer has a subject for them — but
+  `scripts/verify-committed-bundles.mjs` keeps two jobs: it still holds
+  `affected.gjs.mjs`, whose staleness is silent and fail-open, and its rule that a
+  committed bundle with no rebuild recipe is a HARD ERROR is what makes a
+  re-committed `cli.gjs.mjs` fail rather than pass (verified by re-committing one).
