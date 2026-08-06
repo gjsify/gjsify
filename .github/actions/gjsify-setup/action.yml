@@ -33,6 +33,14 @@ inputs:
     description: Node version for actions/setup-node.
     required: false
     default: 26.x
+  bootstrap-bundles:
+    description: >
+      Download the `bootstrap-bundles-fedora<v>` artifact the `build` job
+      publishes, restoring `packages/infra/{cli,tsc}/dist/*.gjs.mjs`. Set it on
+      any job that BOOTS one of those bundles — since ADR 0002 untracked them, a
+      checkout no longer carries them. Requires a job that `needs: build`.
+    required: false
+    default: 'false'
 
 outputs:
   build-cache-key:
@@ -290,3 +298,26 @@ runs:
         else
           echo "Tracked build outputs match the checkout."
         fi
+
+    # ONE download block, not one per calling job. Deliberately AFTER the
+    # re-assert above: that step restores tracked paths from HEAD, so running
+    # first would let it overwrite the artifact. Last writer wins, and the
+    # artifact has to be it — it is the only source of these two files once
+    # they leave git.
+    - name: Restore the GJS bootstrap bundles
+      if: ${{ inputs.bootstrap-bundles == 'true' }}
+      uses: actions/download-artifact@v8
+      with:
+        name: bootstrap-bundles-fedora${{ inputs.fedora-version }}
+        path: .
+
+    - name: Hand the restored bundles to testuser
+      if: ${{ inputs.bootstrap-bundles == 'true' }}
+      shell: bash
+      run: |
+        # `download-artifact` writes as root; every later step runs as testuser.
+        chown -R testuser:testuser packages/infra/cli/dist packages/infra/tsc/dist
+        # The CLI bundle is exec'd through a `gjsify.bin` launcher and by the
+        # `.bin` shim's `gjs -m` — the artifact round-trip does not preserve the
+        # mode, and a non-executable bundle fails as "command not found".
+        chmod 0755 packages/infra/cli/dist/cli.gjs.mjs packages/infra/tsc/dist/tsc.gjs.mjs

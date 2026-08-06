@@ -542,6 +542,33 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # The transport that replaces `git` for the two big bundles (ADR 0002).
+      # Every downstream job boots `dist/cli.gjs.mjs` (≈17 e2e suites do), and
+      # once it is untracked a checkout no longer carries it.
+      #
+      # NOT the build-output cache: its key hashes `packages/*/*/src/**/*.ts`,
+      # while `cli.gjs.mjs` inlines `packages/infra/resolve-npm/lib/*.mjs` —
+      # tracked source that is not under `src/**` and not in the key. Two
+      # revisions differing only there share a key, which is incident #821. The
+      # three cache excludes stay for exactly that reason.
+      #
+      # Unconditional on purpose: a SELECTIVE build must still publish these, or
+      # a downstream job silently gets a bundle from another revision.
+      #
+      # While the bundles are still tracked this uploads the checked-out bytes
+      # and the download below overwrites them with what they already are — a
+      # no-op that proves the transport with the old path still in place. The
+      # untracking commit makes the rebuild the producer.
+      - name: Upload the GJS bootstrap bundles
+        uses: actions/upload-artifact@v7
+        with:
+          name: bootstrap-bundles-fedora${{ matrix.fedora.v }}
+          path: |
+            packages/infra/cli/dist/cli.gjs.mjs
+            packages/infra/tsc/dist/tsc.gjs.mjs
+          retention-days: 1
+          if-no-files-found: error
+
       # Build examples (+ check below) only when an example/showcase is in the
       # closure, e2e will run (its lint-engines suite asserts example dist), or
       # a full run. --jobs 1: native rolldown's --globals auto multi-pass is
@@ -738,6 +765,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
       - name: Check
         env:
           # No warm-probe here: the build cache is always warm in this job
@@ -814,6 +843,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
 
       # Full sharded sweep on global/main/schedule/empty; selective + sharded
       # otherwise. The full path inlines the root `test` script's filters so it
@@ -902,6 +933,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -1117,6 +1150,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
       # Only shard 1 runs lint-engines (the suite that asserts example dist),
       # so only it needs the artifact — skip the download on the other shards.
       - name: Download example build output
@@ -1156,6 +1191,8 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
       - name: Download example build output
         uses: actions/download-artifact@v8
         with:
