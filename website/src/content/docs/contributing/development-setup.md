@@ -17,7 +17,9 @@ On Fedora:
 sudo dnf install gjs gtk4-devel glib2-devel gobject-introspection-devel libsoup3-devel vala blueprint-compiler
 ```
 
-> Phase D.7d retired the yarn dependency. The monorepo bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — no yarn, no Corepack, no Node-only npm CLI needed on a fresh checkout.
+> The monorepo bootstraps from the **published** `gjsify` (ADR 0002) — no yarn, no Corepack, no Node-only npm CLI, and no committed bundle in the checkout. `install.mjs` downloads the release asset, verifies its SHA-256 and caches it by digest.
+>
+> Use the FULL `install.mjs`, not `--fetch-only`: only the full mode runs `gjsify install -g @gjsify/cli`, which puts `@gjsify/tsc` beside the CLI. On a host with no Node that global copy is the only thing `gjsify tsc` can resolve, and `build:infra` starts with a `gjsify tsc`.
 
 ## Clone and build
 
@@ -25,8 +27,14 @@ sudo dnf install gjs gtk4-devel glib2-devel gobject-introspection-devel libsoup3
 git clone https://github.com/gjsify/gjsify.git
 cd gjsify
 
-# Install dependencies via the committed GJS bundle (no yarn / Node required)
-gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+# Fetch + install the published gjsify (no yarn / Node required)
+gjs -m install.mjs
+
+# Install this checkout's dependencies with it
+gjsify install --immutable
+
+# Build the toolchain the rest of the repo is built with
+gjsify run build:infra
 
 # From here on, `gjsify` is on $PATH via node_modules/.bin
 PATH="$PWD/node_modules/.bin:$PATH"

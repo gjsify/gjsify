@@ -283,119 +283,32 @@ satisfies rather than a result it reports. The question underneath is "how old a
 distro do we support?", which is why #924's own comment notes its title no
 longer describes the state.
 
-### `cli.gjs.mjs` byte-reproducibility is not closed — main shipped a non-reproducing bundle again
+### Bundle determinism is unmeasured now that nothing is byte-compared against a commit
 
-#906 merged a committed `packages/infra/cli/dist/cli.gjs.mjs` that does not
-rebuild from its own source, and main stayed RED on `Verify committed bundles
-rebuild from source` until #913 replaced it with CI's bytes. Every PR opened in
-between inherited the failure.
+ADR 0002 untracked `cli.gjs.mjs` and `tsc.gjs.mjs`, which retires the failure this
+entry used to track — a committed bundle that does not rebuild from its own source.
+Four mechanisms produced it and all four are gone with the artifact: the
+module-order `$N` minifier drift, a stale dependency closure, a release cut
+restaling every open PR through the version baked into `buildHeaders()`'s
+user-agent, and a rebase silently 3-way-text-merging two minified bodies with no
+conflict and no size anomaly.
 
-The divergence is the module-order-derived minifier `$N` suffix drift
-`release-cut.yml` documents — at the first differing byte the committed bundle
-had `function e$1(` where a rebuild emits `function e$2(`, 338 bytes of
-accumulated suffix differences, no semantic delta. That is the class
-`globToEntryPoints`' per-glob sorting was supposed to have closed, so either the
-sorting does not cover this input or something else feeds order into the build.
+**What is left is the residual none of those explained**: whether a FULLY rebuilt
+closure still emits a different `$N` suffix assignment on a different host. It was
+observed once (a local 6595935 B variant matching neither the committed 6594685 B
+nor CI's 6594347 B, provenance never established) and never reproduced after the
+stale-closure cause was found. With the bundles untracked there is no longer a
+committed copy to compare against, so the question has to be asked a different way:
+build twice on ONE host with the build cache cleared in between, and compare. That
+is the `--determinism` mode owed to `release-cut.yml` per ADR 0002 § Do not.
 
-What is MEASURED, and what is not:
+Its honest limit, which must be stated wherever it lands: it catches a
+re-emergence of the ordering class on one host. It does NOT catch cross-host
+divergence, which is what the original symptom actually was. Closing that needs
+two hosts building the same commit, which nothing in CI does today.
 
-- **CI is not the unstable side.** The `rebuilt-bundles` artifacts from two
-  independent runs (`30709249982` on `6257afe46`, `30710590470` on a PR branch)
-  are BYTE-IDENTICAL at 6594347 B. Determinism across runs, commits and
-  container instances is established, not assumed.
-- **A local build produced a THIRD variant.** During the #913 work this
-  checkout briefly held a 6595935 B `cli.gjs.mjs` that matched neither the
-  committed 6594685 B nor CI's 6594347 B. It agreed with CI at the `e$2` site
-  and diverged later instead (`$I()`/`QI` vs `JI()`/`qI`) — the same identifier
-  shape, a different place. **Its provenance was NOT established**: nothing was
-  knowingly built, and the trigger was not found before it was discarded. Treat
-  it as a corroborating observation, not proof.
-- **2026-08-03 — one instance of this mismatch class was traced to a STALE
-  DEPENDENCY CLOSURE, and the same tree then reproduced CI byte-for-byte.** #969
-  edited `packages/infra/rolldown-plugin-gjsify/src/`, ran the two bundle
-  recipes, and shipped bundles the verify step rejected: `cli.gjs.mjs` 6605940 B
-  committed vs 6606274 B rebuilt (first difference at byte 440886),
-  `affected.gjs.mjs` 248598 B vs 248929 B (byte 230496) — ~330 B per bundle, the
-  familiar magnitude. The cause was NOT non-determinism: the recipes had run
-  WITHOUT `gjsify workspace @gjsify/cli build --with-dependencies` first, over a
-  workspace whose `lib/` trees came from an install 64 commits back, so the
-  missing bytes were other packages' CURRENT output, not the branch's own change.
-  Re-running the full command triple in the same checkout produced bundles
-  BYTE-IDENTICAL to the `rebuilt-bundles` artifact of the failing CI run —
-  sha256 `5954cf86a99fec92e3f24dbd30ce95833cac19890f2cf0e1f6b9ba73bd81bf69`
-  (`cli.gjs.mjs`, 6606274 B) and
-  `68747c73a982116185f41cec70c54f36512f070bef9fb3d950e47e99fbe7f9e2`
-  (`affected.gjs.mjs`, 248929 B) — built on **darwin-x64 (macOS 15.7.8, Node
-  24.18.1)** against CI's **Fedora 44** container. That is a cross-platform,
-  cross-toolchain reproduction of both artifacts, which is more than this entry
-  had in either direction. It also makes the 6595935 B third variant above
-  PLAUSIBLY the same stale-closure cause rather than a separate order input —
-  plausibly, not confirmed: that specific artifact was never rebuilt, and the
-  `$N`-suffix question it was cited for stays open.
-- **A rebase MERGES these artifacts silently, and "no conflict" says nothing
-  either way.** Rebasing that same branch onto a main that had itself rebuilt
-  `cli.gjs.mjs` (#970) reported NO conflict and produced a 6607054 B file
-  matching neither input (main's 6606669 B, the branch's 6606274 B): the artifact
-  is minified but newline-bearing, so git 3-way-merged the two bodies as text.
-  **Rebuilding on the merged closure then produced those exact bytes** — sha256
-  `e4bba05063d13b8005bf360cde933b08fd2eec4c9a2164eabef71a136e329cdb` — so in this
-  instance the text merge was RIGHT. It was right for a reason that a merge cannot
-  promise: the two sides had touched disjoint lines, and the union of disjoint
-  line edits happens to coincide with a rebuild of the union of the sources. Any
-  overlap in the emitted lines, or any change that shifts the minifier's
-  identifier assignment (the `$N` drift this entry is about), breaks that
-  coincidence with no conflict and no size anomaly to notice. So the operational
-  rule is unchanged and now has a measurement behind BOTH halves: a clean rebase
-  is not evidence the artifact survived, and the only way to find out is to take
-  the upstream bytes and re-run the triple. Worth weighing against the second
-  direction below — if CI were the only producer, neither this nor the staleness
-  case above could arise.
-- **The silent half now emits a signal — but a warning is not a verification.**
-  `.githooks/post-rewrite` fires after `rebase` / `commit --amend`, the two
-  rewrites `pre-commit` structurally cannot see (a rebase stages nothing;
-  `--amend` with nothing newly staged presents an empty staged set), and warns
-  REBASED-UNDER when the new base moved closure source under a committed bundle.
-  So "no conflict, no signal at all" becomes "no conflict, but you were told at
-  the moment it happened". What it does NOT do, and must not be read as doing:
-  it never compares bytes, never rebuilds, and cannot tell a text-merged
-  artifact that happens to match a rebuild from one that does not — the
-  coincidence described above is invisible to it exactly as it is to git. When
-  the workspace closure oracle is unreachable it falls back to `pre-commit`'s
-  four-path prefix scan and says so, because an under-approximating scan that
-  stayed quiet would read as "all clear". **This entry therefore stays open**:
-  the standing repair is still to take CI's `rebuilt-bundles` bytes and re-run
-  the triple. The hook only removes the part where nobody knew to.
-- **2026-08-05 — a RELEASE restales every open PR's bundle, and the mismatch it
-  produces looks nothing like the drift above.** PR #994 was red on the verify
-  step with the two files at the SAME size (6612297 B) and differing in exactly
-  **one byte**: the committed bundle read `gjsify-install/0.28.0` where the
-  rebuild emits `0.29.0`. `buildHeaders()` (`utils/publish-headers.ts`) bakes the
-  CLI version into the install backend's `user-agent`, the branch's bundle was
-  built before `chore: release v0.29.0`, and the branch then sat on top of it.
-  Nothing about that PR touched the baked value. So this cause is neither
-  non-determinism nor a stale closure — it is the release train, it fires on
-  EVERY open PR whose bundle predates a cut, and the author sees an unexplained
-  byte mismatch in a file they did not meaningfully change. The one-byte,
-  same-size signature is worth recognising on sight: check the baked version
-  before reaching for the `$N` explanation. It is also the sharpest argument for
-  the second direction below — ADR 0002 measures 43 of the 250 commits on this
-  artifact as `chore: release`, and an untracked bundle cannot be restaled by a
-  version bump at all.
-
-AGENTS.md § Committed-artifact freshness already says `--with-dependencies` pins
-the INPUTS so that "a mismatch means staleness"; the run above is that sentence
-DEMONSTRATED rather than asserted, on a host CI never touches. It argues the
-remaining open half is narrower than this entry reads: what is unexplained is
-specifically the `$N`-suffix order drift seen on a FULLY REBUILT closure, not
-"local builds diverge".
-
-So the standing repair is real but manual — take CI's `rebuilt-bundles` bytes —
-and it will be needed again. Worth closing properly, because the failure lands
-on whoever pushes NEXT rather than on whoever caused it, and it costs a full
-Fedora build to even see. Two directions, not exclusive: find the residual order
-input (a warm per-package build cache is the obvious suspect — the entry-order
-incident record notes the cache kept a raced order alive across rebuilds), or
-stop hand-committing these artifacts and have CI be the only producer.
+`affected.gjs.mjs` IS still byte-compared (`scripts/verify-committed-bundles.mjs`),
+so the guard exists — it just covers 248 KB instead of 10 MB.
 
 ### `@gjsify/http2` lazy native-dispatcher loads still use a bare `require`
 
@@ -413,7 +326,6 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 - **`gjsify manifest-check` is designed but not shipped.** The portable rules (`package-outputs`, `prebuild-artifacts`, `headless`, `field-coverage`) are already extracted into a package with a hand-written `lib/index.d.ts`, so the command is a thin wrapper over `selectRules({ scope: 'portable' })`. It was held back because it carries two costs a refactor must not smuggle in: the package has to flip from `private` to published, which needs the manual first-publish + Trusted-Publisher bootstrap BEFORE the next release train, and adding a command rebuilds `dist/{cli,affected}.gjs.mjs`, coupling the change to the committed-bundle gate. The name is settled: `manifest-check` — a sibling of `system-check` (machine has what the project needs) and distinct from `check` (types compile). Evidence it is worth doing: downstream consumers already declare `gjsify.storybook` (buchhaltung, pixel-rpg/map-editor) and `gjsify.prebuilds` (buchhaltung's ERiC package, which declares a prebuilds directory with NO `gjsify.platforms` — a hard failure in this repo, unchecked in theirs).
 - **Five `gjsify.*` declaration kinds have no rule** and are deferred with a written reason in `scripts/manifest-conformance/unchecked-fields.mjs`, printed on every audit run. All four remaining are judged unverifiable-by-construction (`defineFromPackageJson`, `flatpak`, `buildCache`, and `nativescriptPlatforms` until there is a per-platform artifact to compare against). The one entry that was a real FINDING — `gjsify.storybook` — is CLOSED: the portable `storybook` rule now resolves the declared directory the way `gjsify storybook` does and fails a path that does not exist or holds no `*.story.*`. Its ledger wording had gone stale as well: the 'empty browser, not an error' shape is the pre-#879 behaviour, when a bare `process.exit(1)` was deferred under GJS and the no-stories path fell through into the build and exited 0. That incident moved into the rule's header rather than being deleted with the entry. `gjsify.main` and `gjsify.example` left the ledger when `package-outputs` claimed them.
 - **`gjsify pack`'s own shipped-vs-declared guard is still types-only, and the same `private` flag is why.** `assertTypeDeclarationsShipped` refuses to pack a `types`/`typings` file it can see but would not ship (the #655 guard) — the right place, because it fires at the moment of packing and protects CONSUMER trees too. The superset (every declared entry point, not just the type fields) lives in `scripts/verify-tarball-outputs.mjs` instead, because it needs `declaredPaths()` from this package and a published `@gjsify/cli` cannot depend on a `private: true` one — the same blocker as `gjsify manifest-check` above, and it closes with the same npm bootstrap. Measured gap while it stands: narrow a package's `files` so only `lib/esm/register.js` is excluded and `gjsify pack` exits 0 and writes a tarball whose declared `exports["./register"].default` is absent (13 type files shipped, so the existing guard stays quiet); the script catches it. Fold the script's check INTO the packer when the package is published, and keep the script as its repo-wide sweep.
-- **The affected classifier does not know the conformance/status paths.** `scripts/audit-runtimes.mjs` is a `GLOBAL_TRIGGER`; `scripts/manifest-conformance/**`, `packages/infra/manifest-conformance/**`, `scripts/generate-status.mjs` and the authored `status/**` data are not classified (unknown paths fall back to a conservative full run). `status/*.md` is already covered by the blanket `*.md` IGNORE, but `status/status.json` is NOT — editing a package's authored status therefore forces a full CI run today, and `status/**` should join the docs-shaped IGNORE set. No coverage is lost today because `audit-runtimes.yml` carries no `paths` filter and runs on every PR, but the trigger/ignore tables and the rule locations should be brought back into agreement — an affected-classifier change rebuilds the committed `dist/affected.gjs.mjs`, so batch it with the next CLI-src touch.
 
 ### Toolchain hygiene follow-ups
 
@@ -427,9 +339,7 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 
 - **`release.yml`'s two `napi-prebuild-*` legs staged by hand — CLOSED.** Both now call `node ../../../scripts/stage-prebuild.mjs .`, so the release path gets the extension match and `checkPrebuildDir()` like every other staging site, and `tests/e2e/prebuild-change-gate` scans `release.yml` too — the exemption cannot come back. The same change added the load test those legs were missing: they ended at `cp` + `upload-artifact` while `publish-napi` checked four files with `test -f`, so nothing proved a released artifact could be opened. Landing it after a release, not beside one, was the reason it waited.
 - **Nine fixtures re-implement the prebuild-target name instead of importing it.** `resolvePrebuildDirName()` / `prebuildDirCandidates()` (`packages/infra/cli/src/utils/detect-native-packages.ts`) are pure functions and already the single source of truth for `prebuilds/<os>-<arch>/` — but every e2e that needs that directory composes the name itself, and several translated `process.arch` into the `uname -m` machine on the way. The `<os>-<arch>` unification had to fix all nine by hand, and one (`tests/e2e/self-host/run.mjs`) was missed on the first pass precisely because the composed string never appears as a literal. Export a small test helper (or let fixtures import the CLI's built `lib/utils/detect-native-packages.js` directly, the way `tests/e2e/dlx-native-prebuilds` already imports `run-gjs.js`) so the name has exactly one definition, and delete the per-fixture copies. Until that lands, any change to the target vocabulary must be swept for BOTH shapes — the literal path AND the computed one.
-- **`@gjsify/cli`'s `tsconfig.json` type-checks only what `src/index.ts` imports.** `files: ["src/index.ts"]` means `gjsify tsc --noEmit` never sees `src/affected-entry.ts` — the entry CI's `changes` job actually boots (`dist/affected.gjs.mjs` is bundled from it) — nor `src/test.mts`. A type error in either is caught only when the bundle build runs, i.e. in the pre-commit hook rather than in `check`. Widen to an `include` covering `src/**` (and confirm the emit stays `lib/**` only), or add the two entries to `files`.
 - **`gjsify install` materialises EVERY platform package, so a cold install does ~4x the necessary work — this, not a wedge, is what the 30-min budget hits.** Measured on a fresh clone (linux-x64, warm tarball cache, 2026-07-28): 1597 packages / **4.78 GB** extracted, of which **183 packages / 3.36 GB (70% of the bytes)** declare an `os`/`cpu` that EXCLUDES the host, so npm/yarn/pnpm would never place them — six `@anthropic-ai/claude-agent-sdk-*` siblings at ~230 MB each, six `@pagefind/*`, plus the `@rolldown`/`@oxlint`/`@oxfmt`/`@img/sharp`/`@deltachat` binding sets. The fix is to honour `os`/`cpu` like every other package manager, and it is a TWO-part change because `--immutable` materialises straight from `gjsify-lock.json`: record `os`/`cpu`/`libc` on lock entries at resolve time, and filter at materialisation. That is a lockfile-format change + a full `gjsify-lock.json` regeneration, so it wants its own PR + e2e; the napi-rs entry-replacement in `napi-node-addon.ts` already selects its sibling BY HOST TRIPLE, so it is unaffected. Do NOT "fix" this by raising `--timeout`: a budget that exists to bound a hang must not be tuned to accommodate one.
-- **The CLI `readStdinText` GJS branch can now collapse back to `readFileSync(0)`.** The core gap is CLOSED: `@gjsify/fs` maps the standard descriptors 0/1/2 onto the process's own Unix streams (`src/std-fd.ts`, GioUnix + a `/dev/stdin` fallback), so `readFileSync(0)` / `readSync(0, …)` / `writeSync(1|2, …)` work under GJS instead of coercing the number to the relative PATH `"0"` and throwing `ENOENT` — the shape every bundled npm package's Node stdin idiom hit. `utils/stdin.ts` therefore no longer needs its two GJS-specific readers (`imports.gi.GioUnix` + the `/dev/stdin` Gio.File fallback); both shrink to a single `readFileSync(0, 'utf-8')` for Node and GJS alike. Deferred as a SEPARATE change only because collapsing it rebuilds the committed `dist/{cli,affected}.gjs.mjs` bundles — do it in a byte-reproducible build environment alongside the next bundle rebuild, not as a source-only edit.
 
 ### CI coverage follow-ups
 
@@ -752,8 +662,14 @@ Decisions in [docs/adr/](../docs/adr/README.md), prioritized backlog in [docs/re
 - **ADR 0001 (P1)** — install non-destructive invariant: the Phase D.8 dedup pass is still open (the e2e guards, per-prefix lock, atomic writes and conflict warning have landed).
 - **ADR 0006 (P1)** — per-package build cache: **CI wiring DEFERRED** — enabling it on the `main.yml` build steps timed out the serial `Build examples` step (cold cache + per-package closure re-hashing at scale). Remaining: (a) memoize input hashes across a single `foreach` before re-enabling in CI; (b) phase 2 = source-direct workspace-consumption spike.
 - **ADR 0003 (P1)** — tiering shipped; the website still lacks a per-package tier index (the tier model is documented on the versioning page).
-- **#1002 holds the load-bearing detail this backlog does not**: ADR 0002's increment 1 exists as UNCOMMITTED work (`git stash@{0}` plus a durable copy under `~/.local/state/gjsify-adr0002/`), taken against a tree that is now far behind `main`, while `install.ts`/`run.ts`/`publish-headers.ts` keep moving under it. Highest decay risk on the board — measure whether it still applies before planning around it.
-- **ADR 0002 (P1, after 0006)** — **amended 2026-08-02**; read the amendment before implementing, the original decision 2 is unimplementable. Minimal version-free `bootstrap/bootstrap.gjs.mjs` (install+run+integrity) built from the SAME commit stays tracked; the full CLI/tsc/bundler-engine come from a pinned `.gjsify/toolchain/` prefix, NOT from `gjsify-lock.json` (it holds 0 `@gjsify/*` entries — a workspace name can never appear there). `affected.gjs.mjs` and `tsc/lib/lib*.d.ts` now STAY tracked, with reasons; only `dist/cli.gjs.mjs` + `dist/tsc.gjs.mjs` get untracked. `tests/e2e/bootstrap-install` (does not exist yet — `bootstrap-cold-tree` stops at `--print-plan`) + `tests/e2e/bootstrap-pin` are the gate BEFORE the untracking. The pre-commit hook's four-path heuristic is replaced by a derived `bootstrap.inputs.json` + build-free verifier, not merely shrunk. Byte-reproducibility moves to `release-cut.yml`, it does not disappear.
+- **ADR 0002 (P1) — DONE.** Both big bundles are untracked; CI and a fresh clone
+  bootstrap from the published gjsify. Read the **second amendment** (2026-08-06):
+  it withdraws decision 1 (no `bootstrap/bootstrap.gjs.mjs`) because the
+  lockfile-reader wedge that required a same-commit installer is closed and
+  machine-checked by `scripts/check-lockfile-reader-lead.mjs`. #1002 is closed as
+  superseded; the one measurement worth keeping from it lives in the ADR.
+  Residual: the `--determinism` mode owed to `release-cut.yml` (see the bundle
+  determinism entry above).
 - **ADR 0007 (P3, easy6502)** — superseded into the full Learn6502 app-web rewrite (own project). Foundation pieces (phone-shell trio, `<adw-source-view>`) have landed on adwaita-web; remaining: the app-web view implementations over these + the classic-tutorial removal + the learn-package HTML target.
 
 (ADRs 0004, 0005 and 0008 are fully implemented.)

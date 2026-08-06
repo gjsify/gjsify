@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.30.0, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime). Pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/` | **NativeScript bridge** `packages/nativescript-bridge/` | `packages/infra/` + `packages/gjs/` = supporting infra. Package counts, per-package status tables and metrics are DERIVED — authored status data in `status/`, rendered on demand by `npm run status:generate`, never here.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.30.0, ESM-only, GNOME libs. Bootstraps from the PUBLISHED gjsify (ADR 0002): `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. No committed bundle, no yarn, no Node-only npm CLI. `dist/{cli,tsc}.gjs.mjs` are build outputs; only `dist/affected.gjs.mjs` is tracked. Pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/` | **NativeScript bridge** `packages/nativescript-bridge/` | `packages/infra/` + `packages/gjs/` = supporting infra. Package counts, per-package status tables and metrics are DERIVED — authored status data in `status/`, rendered on demand by `npm run status:generate`, never here.
 
 ## Where the rules live — nearest AGENTS.md wins
 
@@ -16,7 +16,7 @@ second truth that drifts. **Read this file, then the one for what you are touchi
 | `packages/web/*` — Web API pillar | [packages/web](packages/web/AGENTS.md) |
 | `packages/dom/*` — DOM pillar | [packages/dom](packages/dom/AGENTS.md) |
 | `packages/framework/*` — storybook, devtools, bridges, ADR 0012 registration | [packages/framework](packages/framework/AGENTS.md) |
-| the CLI + the committed bootstrap bundles | [packages/infra/cli](packages/infra/cli/AGENTS.md) |
+| the CLI + the GJS bootstrap bundles | [packages/infra/cli](packages/infra/cli/AGENTS.md) |
 | the build (`--app <target>`, platform plugins) | [packages/infra/rolldown-plugin-gjsify](packages/infra/rolldown-plugin-gjsify/AGENTS.md) |
 | slot routing (`@gjsify/<X>` → platform entry) | [packages/infra/resolve-npm](packages/infra/resolve-npm/AGENTS.md) |
 | `packages/node-gi` — axis 5, `gi://` on Node/Bun/Deno | [packages/node-gi](packages/node-gi/AGENTS.md) |
@@ -32,7 +32,7 @@ Reference material — read on demand, not loaded every session:
 | OS-axis enforcement + portability strategy | [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md) |
 | the measured anti-patterns, with their incidents | [docs/code-anti-patterns.md](docs/code-anti-patterns.md) |
 | `/register` subpath convention | [docs/register-convention.md](docs/register-convention.md) |
-| committed artifacts: git hooks, freshness, what an exit code proves | [docs/build-artifacts.md](docs/build-artifacts.md) |
+| build artifacts: the git hook, freshness, what an exit code proves | [docs/build-artifacts.md](docs/build-artifacts.md) |
 | native extensions + prebuilds | [docs/prebuilds.md](docs/prebuilds.md) |
 | first-publish bootstrap + release closure | [docs/publishing.md](docs/publishing.md) |
 | selective CI | [docs/ci-selective.md](docs/ci-selective.md) · lint/format [docs/lint-format.md](docs/lint-format.md) |

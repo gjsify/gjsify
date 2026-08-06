@@ -1,8 +1,11 @@
 # AGENTS.md — `@gjsify/cli`
 
 > Scope: this directory. Repo-wide rules live in the [root AGENTS.md](../../../AGENTS.md) — read that first.
-> The committed `dist/*.gjs.mjs` bundles are the bootstrap path: editing `src/` without
-> rebuilding them ships a stale CLI. The invariants are
+> ADR 0002 untracked `dist/cli.gjs.mjs`; `dist/affected.gjs.mjs` is the one still
+> committed, and CI byte-compares it. The trap it leaves behind is different but not
+> gone: `node_modules/.bin/gjsify` prefers an on-disk `dist/cli.gjs.mjs` over
+> `lib/index.js`, so a stale LOCAL build output still shadows the source you just
+> edited — and nothing in CI sees that any more. `gjsify run build` is the fix.
 > [docs/build-artifacts.md](../../../docs/build-artifacts.md) — read that before touching `src/`.
 
 ## CLI — commands & install invariants
