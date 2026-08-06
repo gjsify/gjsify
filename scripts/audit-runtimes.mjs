@@ -93,25 +93,12 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 
-/**
- * A repo-relative path in the ONE spelling everything downstream assumes.
- *
- * `path.relative()` answers in the host's separator, and every consumer here
- * splits on `/` — `classifyAxis` reads the first segment to decide the axis, and
- * an axis of `infra` is what exempts a package from needing a
- * `gjsify.runtimes` declaration at all. On Windows `relative()` returned
- * `gjs\unit`, the split produced one segment, the pillar matched nothing, and
- * five infra packages were reported as MISSING a declaration they are not
- * supposed to carry. The audit was therefore red on win32 and green on Linux
- * for the same tree — the exact shape this repo's Windows work keeps finding.
- *
- * `split(sep).join('/')` rather than `replaceAll('\\', '/')`: a backslash is a
- * legal character in a POSIX filename, and rewriting it there would corrupt a
- * path instead of normalising it.
- */
-function toPosixRel(path) {
-    return path.split(sep).join('/');
-}
+// `toPosixRel` used to be defined here, byte-identical to `toRecord`'s
+// normalisation in `manifest-conformance/lib/context.mjs`. Two copies of the
+// one rule every repo-relative path in this tree depends on is exactly the
+// shape that drifted before; the definition and the incidents behind it now
+// live once, in `toPosixPath`.
+const toPosixRel = toPosixPath;
 import { fileURLToPath } from 'node:url';
 
 // The shared registry + the PORTABLE rule set. Importing the barrel registers
@@ -136,6 +123,7 @@ import {
     renderPrebuildLibcSummary,
     renderPrebuildSummary,
     runRules,
+    toPosixPath,
     selectRules,
     walkEntryGraph,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';

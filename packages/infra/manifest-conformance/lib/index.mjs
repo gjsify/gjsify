@@ -15,7 +15,7 @@
  */
 
 export { defineRule, allRules, portableRules, getRule, selectRules, runRules, claimedGjsifyFields, rulesClaimingField } from './registry.mjs';
-export { createContext, readManifest, packagesUnder } from './context.mjs';
+export { createContext, readManifest, packagesUnder, toPosixPath, posixRelative } from './context.mjs';
 export {
     checkPrebuildDir,
     readLibrary,

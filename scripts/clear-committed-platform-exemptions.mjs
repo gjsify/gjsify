@@ -65,6 +65,7 @@ import {
     generatorContext,
     planPlatformPackages,
 } from './generate-platform-packages.mjs';
+import { posixRelative } from '../packages/infra/manifest-conformance/lib/index.mjs';
 
 const argv = process.argv.slice(2);
 const dryRun = argv.includes('--dry-run');
@@ -179,7 +180,7 @@ export function clearSatisfiedExemptions(root, { dryRun: dry = false } = {}) {
         // function on the REAL monorepo root with `dryRun: true`, so unguarded
         // re-emission would rewrite live package READMEs on every test run.
         if (!dry) writeFileSync(manifest, surgical);
-        for (const path of written) paths.push(relative(root, path).replaceAll('\\', '/'));
+        for (const path of written) paths.push(posixRelative(root, path));
     }
     return { cleared, paths };
 }

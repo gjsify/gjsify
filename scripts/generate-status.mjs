@@ -74,6 +74,7 @@ import {
     isPlatformPackageManifest,
     prebuildOwnership,
 } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
+import { posixRelative } from '../packages/infra/manifest-conformance/lib/index.mjs';
 
 // ─── Authored-data model ────────────────────────────────────────────────────
 
@@ -267,7 +268,7 @@ export function collectPackageFacts(root) {
         // authoring. The bridge's own entry is the status of its artifacts; a
         // second row per target adds no judgement a human made.
         if (isPlatformPackageManifest(manifest)) continue;
-        const rel = relative(root, dir).replaceAll('\\', '/');
+        const rel = posixRelative(root, dir);
         const pillar = rel.split('/')[1];
         const gjsify = manifest.gjsify && typeof manifest.gjsify === 'object' ? manifest.gjsify : {};
         facts.push({
