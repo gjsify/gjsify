@@ -32,110 +32,122 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-Three separate bugs here share one shape: **the work finished, and then the last step
-failed silently — while something in the toolchain already knew.** The installer printed
-`Missing required system dependencies: ✗ GJS` and then wrote a launcher that runs `gjs`.
-`gjsify pack` wrote your tarball, printed its complete JSON, and then never exited. A
-prebuild's typelib loaded and its class resolved, and construction died with a message that
-named nothing.
+**Windows and macOS stop being aspirations and become checked claims.**
 
-None of the three is exotic. Each was reachable by following the documented path on a normal
-machine, and each had gone unnoticed because the failure did not look like its cause.
+Both platforms had been "supported" in the sense that nobody had measured them. When someone
+finally did, `main` — green on every existing check — was carrying **144 failing assertions on
+Windows** and a full red suite on macOS. Not one was a defect in an implementation. They were
+specs that spelled a POSIX answer as though it were *the* answer, which is precisely the failure
+mode a Linux-only pipeline cannot see: on Linux the POSIX literal cannot fail.
 
-**If you use `@gjsify/cli` on macOS or Windows, upgrade** — the shim the installer wrote for
-you never worked there. **If you publish with `gjsify pack` or `gjsify publish`**, this is the
-release where that stops hanging.
+So this release does two things that belong together. It fixes what was broken, and it closes
+the hole that hid it: the operating system is now a **declared field** (`package.json#gjsify.os`)
+that a conformance rule checks, and two new CI legs actually execute package suites on Windows
+and macOS. A claim that nothing runs is not a claim.
+
+**If you build under GJS in a project (not a global install), upgrade** — `gjsify build` could
+not work there at all, and now does. **If you contribute to this repository**, note that
+`cli.gjs.mjs` and `tsc.gjs.mjs` are no longer committed files.
 
 ---
 
-### The installed `gjsify` command did not run on macOS or Windows
+### The OS is a declared, machine-checked claim (ADR 0018)
 
-`node_modules/.bin/gjsify` was written as `exec gjs -m <bundle>`, unconditionally. On a host
-with no `gjs` — macOS and Windows, the two platforms this project has been porting to — that
-is `exec: gjs: not found` and exit 127, while a working Node entry sat beside it in the same
-package. The CLI itself was fine through `npx`; only the shim the install *wrote* was dead.
-It had been red on both platforms for three consecutive releases (#1001).
+`gjsify.os` joins `gjsify.runtimes` and `gjsify.platforms` as an axis packages declare and a rule
+enforces. Nine packages are backfilled; `field-coverage` now sees 19 kinds in scope against 15
+claimed, so the declaration cannot land without its check.
 
-The launcher now decides **per invocation**: use `gjs` when it is on `PATH`, otherwise Node.
-`gjs` still wins where both exist, so nothing changes on a Linux/GNOME machine.
-
-Deliberately not an install-time probe of what the host has. That would be a snapshot —
-install without `gjs`, install it a week later, and the shim would still point at Node
-forever. This project already paid for that once, in v0.24.1, from the other direction.
-
-### `gjsify pack` never returned on a package with a lifecycle script
-
-If your `package.json` declares `prepack` (or `prepare`, or `prepublishOnly`), `gjsify pack`
-under GJS did all of its work — tarball written, `--json` printed in full — and then parked
-at 0% CPU. Measured: five and a half minutes of wall clock for one second of CPU, until
-something killed it. The same package with no lifecycle script exited in under a second, and
-the same pack under Node took 0.68s (#1010).
-
-This sits in the publish path, so it was not only a problem for scripts calling `gjsify pack`
-— publishing a package with a `prepack` would hang the same way.
-
-The cause is worth stating because it is counter-intuitive. Running a lifecycle script means
-spawning a child process, and under GJS that starts a GLib main loop which only
-`process.exit()` tears down. The helper that runs lifecycle scripts avoids calling
-`process.exit()` on purpose — pack has to keep working afterwards — and a comment at the top
-of that file claimed this also avoided the main loop. It was the opposite: **not exiting is
-exactly what left the loop running.**
-
-### `gjsify build` could fail with a message that named nothing
-
-On a host without `json-glib`, `gjsify build` died with:
+Four claims deliberately sit below `supported`, each printing its reason on **every** run — pass
+or fail — rather than hiding behind a green tick:
 
 ```
-Error: Unsupported type void, deriving from fundamental void
+child_process win32=partial  a win32.ts exists and NOTHING RUNS IT
+os            win32=partial  same structural gap, plus spec failures
+process       win32=partial  the uname path is unreachable without a GJS host
+util          win32=partial  win32 silently gets the LINUX errno table
 ```
 
-The real cause: `@gjsify/rolldown-native`, the GJS bundler engine, links `json-glib`, and
-without it the library cannot be opened. Meanwhile `gjsify install` reported
-`System dependencies OK.` on that same machine, because `json-glib` appeared in neither of
-its dependency tables.
+An honest "partial" with a named gap is available. A silent one is not.
 
-Every committed Linux prebuild was then measured with `ldd` on a consumer-baseline container.
-Three libraries did not resolve and are now declared and checked, with install hints for six
-package managers: `json-glib` (`@gjsify/rolldown-native`), `libepoxy` (`@gjsify/webgl`) and
-`gst-webrtc` (`@gjsify/webrtc-native`). The check also gained a test holding its two tables
-against each other, since the way `json-glib` went missing was that nothing required them to
-agree.
+### Windows and macOS suites now run in CI
 
-### Two checks moved to where they can still stop a mistake
+`windows-suites.yml` runs the Node pillar on Windows, under **cmd.exe with the Git-for-Windows
+PATH entries removed** — because Git ships `chmod`, `cp`, `sed` and `which`, npm runs scripts
+through `%COMSPEC%` where none exist, and a leg using bash would faithfully reproduce a false
+green.
 
-The base image of the prebuild workflow decides which glibc version the published binaries
-require — so bumping that image silently rewrites a compatibility promise for every consumer
-without touching a line of source. Not hypothetical: a routine image bump moved the floor from
-glibc 2.39 to 2.43 and turned `main` red three times in a row (#924). A check existed and
-caught it correctly, but ran only *after* merge, so the pull request that caused it was green
-(#1004).
+`macos-suites.yml` is the stronger of the two, because macOS *has* a GJS host: both `test:node`
+and `test:gjs` run. Neither leg is a required check by design — Windows minutes bill at 2×, and
+a required check that fails to *start* blocks every PR forever. They are read, not waited on.
 
-That measurement now runs inside the build jobs themselves, against the binaries the job just
-produced rather than the ones already committed. It executed on every architecture in its own
-first run, measuring 8–10 targets per job.
+### `gjsify build` now works in a project that installs under GJS
 
-Separately, the install script the documentation points at used to 404 for over two hours
-after every release, because the asset was attached later than the page advertising it. The
-release now uploads it before anything announces it, and asserts that the documented URLs
-return 200.
+The GJS bundler engine is an optional peer of `@gjsify/cli`, correctly — a plain
+`npm install @gjsify/cli` on Node must not drag in Linux prebuilds. But nothing installed it for
+a *project*: npm skips optional peers, and the native backend does not resolve peer dependencies
+at all. Under GJS there is no npm `rolldown` fallback, so **every `gjsify build` hard-failed**,
+and the error arrived buried under ~60 lines of command help.
 
-### Also in this release
+A project install now lays the engine down when the host can run `gjs` and does not have it.
+Verified end to end against the real registry: native packages detected went 5 → 8, and
+`gjsify build index.ts` writes a 132 KB bundle where it previously had no engine to load (#1005,
+ADR 0020).
 
-- **`@gjsify/oxlint-plugin-gjsify`**: a `TODO` / `FIXME` / `HACK` comment must now name what it
-  is waiting for — an issue, a URL, or the open-work ledger. A deferral marker with no owner
-  has no retirement date, so this is an error rather than a convention.
-- **ADR 0019** records why `ts-for-gir` is becoming usable as a library, and why `.gir` files
-  travel with the runtime packages instead of the type packages. It also writes down a rejected
-  option and what it cost, so it does not get proposed again.
-- The agent-facing documentation was split into per-subtree files, so a contributor reads the
-  rules for the part of the tree they are touching rather than all of them at once.
+Two things fell out of that work and are worth naming on their own:
+
+- **A runtime error no longer prints command help.** yargs treats a rejected handler like a usage
+  error, so an accurate diagnosis scrolled out of view under a help dump that read as "bad
+  arguments". Usage errors still print help; runtime errors now print the error.
+- **The distro install hint was silently empty on exactly the hosts that needed it.** Package
+  manager detection shelled out to `which`(1), which the minimal Fedora CI containers do not
+  ship, so the hint printed nothing there. Two downstream projects had already found their
+  missing system library by hand.
+
+### The committed CLI bundles are gone (ADR 0002)
+
+`packages/infra/cli/dist/cli.gjs.mjs` and `packages/infra/tsc/dist/tsc.gjs.mjs` are no longer
+tracked — **10,197,542 B of committed artifact**, plus the apparatus that guarded their
+staleness: a `post-rewrite` hook, its e2e suite, two per-job bundle verification steps and a
+recovery procedure. CI now bootstraps from the published `@gjsify/cli` and builds them; they are
+still packed into tarballs and still shipped as release assets. Untracking is not unshipping.
+
+The cost this removes was measured, three times in three days: a release restaling every open PR
+by one byte, an `+18 B` drift on all three artifacts from a `packages/web/` commit no hook
+covered, and a five-file change that had to carry an unrelated 6.6 MB hunk and was rejected as
+stale anyway.
+
+`affected.gjs.mjs` stays committed on purpose. The CI classifier boots it before any install and
+it gates every other job, so a stale copy does not error — it silently classifies today's work
+with an older commit's rules, and the run still looks green.
+
+### Fixes
+
+- **`net.isIP()` accepted addresses Node rejects.** The GJS entry asked the host's
+  `inet_pton(3)`, and BSD accepts leading zeros in an IPv4 octet where glibc does not — so
+  `0177.0.0.1` and `127.000.000.001` classified as valid IPv4 on macOS. Leading-zero octets are
+  the classic parser-confusion vector, since `0177.0.0.1` is `127.0.0.1` to anything reading
+  octal. Both entries now share one pure classifier, and cross-checking it against Node over 34
+  inputs found two further bugs the split had hidden: `:::1` classified as IPv6, and
+  `::ffff:127.0.0.1` classified as not an IP at all.
+- **`os.networkInterfaces()` reported loopback's IPv6 address as external.** `internal` was
+  derived from the address (`=== '127.0.0.1'`) instead of the interface's `IFF_LOOPBACK` flag, so
+  `::1` came back external while `127.0.0.1` on the same interface came back internal. Two specs
+  had asserted otherwise all along; they passed only because the CI image ships no `iproute`, so
+  the primary code path never ran there (#1023).
+- **`os.cpus()` returned no `times` on macOS**, where Node guarantees numbers — `+cpu.times.user`
+  was silently `NaN` — and warned once per core per call. It now reports the documented all-zero
+  contract.
+- **`gjsify run` in a workspace did not change directory before dispatching in-process** (#1024).
 
 ### Known and open
 
-- A `gjsify install --immutable` (the CI shape) still cannot acquire the GJS bundler engine,
-  because the lockfile a frozen install consumes does not name it. It now says so, and names the
-  durable fix: declare `@gjsify/rolldown-native` so the lockfile carries it. A normal project
-  install lays it down by itself (#1005, and ADR 0020 for the shape that would retire the policy).
-- Nothing yet stops a new call site inside the CLI from bypassing the spawn/teardown contract
-  the `pack` hang came from. The contract is documented and the fix is in; the guard that would
-  make a future bypass visible is not (#1012).
+- The per-CPU tick counters `os.cpus()` reports on macOS are all zero. Mach's
+  `host_processor_info` is unreachable from GJS and no userland tool prints cumulative per-core
+  totals. The assertion is declared as an expected failure that runs and retires itself the day a
+  reader exists, rather than being skipped.
+- Nothing yet stops a new call site inside the CLI from bypassing the spawn/teardown contract the
+  `pack` hang came from. The contract is documented and the fix is in; the guard that would make
+  a future bypass visible is not (#1012).
+- `gjsify install --immutable` (the CI shape) still cannot acquire the GJS bundler engine, because
+  the lockfile a frozen install consumes does not name it. It now says so and names the durable
+  fix: declare `@gjsify/rolldown-native` so the lockfile carries it (#1005, ADR 0020).
