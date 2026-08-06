@@ -116,11 +116,20 @@ jobs:
 
       # Node-free install via the PUBLISHED gjsify (ADR 0002) — verbatim from
       # release.yml's publish job. See .github/actions/gjsify-setup for why
-      # `latest` and not a pin.
+      # `latest` and not a pin, and for why `GJSIFY_BOOTSTRAP` is exported.
       - name: Install dependencies (gjsify install --immutable)
         run: |
           B=$(gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
+          echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
+
+      - name: Bootstrap the build toolchain (cold trees only)
+        run: |
+          if [ -f packages/infra/cli/lib/index.js ]; then
+            echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
+          else
+            gjs -m "$GJSIFY_BOOTSTRAP" run build:infra
+          fi
 
       # `verify-committed-bundles.mjs` (the after:bump hook) resolves each
       # workspace dep's `lib/esm` — it must run AFTER a workspace build, which is

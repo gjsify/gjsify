@@ -363,6 +363,32 @@ jobs:
       # other three steps below, any consumer repo), and it can distinguish
       # "the filter names nothing that exists" (always a bug) from "the
       # selection narrowed to empty" (legitimate under --shard/--exclude).
+
+      # Every step below reaches the CLI through `node_modules/.bin/gjsify`,
+      # which dispatches to `packages/infra/cli/lib/index.js` (node) or
+      # `dist/cli.gjs.mjs` (gjs). Since ADR 0002 untracked the bundle, BOTH are
+      # build outputs, so on a cold build-output cache the shim exists and
+      # points at nothing. `build:infra` is what produces them, and it has to
+      # run through the published bundle because that is the only CLI this tree
+      # has yet.
+      #
+      # A PRECONDITION, not an `if:` expression — it mirrors
+      # `ensureNodeCliEntry()`'s COLD/WARM branch in
+      # `scripts/bootstrap-native-facades.mjs`, so the repo has one shape for
+      # this and not two. Its steps are mtime-skipped, so a warm tree pays
+      # almost nothing.
+      #
+      # Required on the SELECTIVE path in particular: `gjsify foreach build
+      # $INCLUDE_ARGS` never runs `build:infra`, and until the untracking the
+      # committed bundle is what quietly made that work.
+      - name: Bootstrap the build toolchain (cold trees only)
+        run: |
+          if [ -f packages/infra/cli/lib/index.js ]; then
+            echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
+          else
+            su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m '$GJSIFY_BOOTSTRAP' run build:infra"
+          fi
+
       - name: Build
         env:
           # FULL is computed as a GitHub expression (cleaner than shell logic).

@@ -51,6 +51,14 @@ outputs:
       without a second copy of it. `cache/save` requires its own `path` input
       and two literal copies WOULD drift; this output is the one source.
     value: ${{ steps.build-cache-paths.outputs.paths }}
+  bootstrap-bundle:
+    description: >
+      Path to the verified, content-addressed PUBLISHED `cli.gjs.mjs` that
+      `install.mjs --fetch-only` cached. Also exported as `GJSIFY_BOOTSTRAP`
+      for every later step in the job — a building job needs it because the
+      `node_modules/.bin` shim only works once `packages/infra/cli/lib/` or
+      `dist/cli.gjs.mjs` exists, and since ADR 0002 neither is in a checkout.
+    value: ${{ steps.install.outputs.bootstrap-bundle }}
 
 runs:
   using: composite
@@ -136,11 +144,22 @@ runs:
     # at the point of use.
     #
     # Warm node_modules cache hit → near-instant no-op; miss → extract the delta.
+    #
+    # The verified path is published as `GJSIFY_BOOTSTRAP` for the rest of the
+    # job. Since ADR 0002 untracked `dist/cli.gjs.mjs`, a tree that has been
+    # INSTALLED but not yet BUILT has no runnable `gjsify` at all — the
+    # `node_modules/.bin` shim dispatches to `dist/cli.gjs.mjs` or to
+    # `packages/infra/cli/lib/index.js` and both are build outputs. This is the
+    # one CLI such a job can reach, and `scripts/resolve-gjsify.mjs` reads the
+    # same variable as its last rung so repo scripts inherit it.
     - name: Install dependencies (gjsify install --immutable)
+      id: install
       shell: bash
       run: |
         B=$(su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m install.mjs --fetch-only")
         su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m '$B' install --immutable"
+        echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
+        echo "bootstrap-bundle=$B" >> "$GITHUB_OUTPUT"
 
     # The committed GJS bundles must execute under stock GJS AND report the
     # current version — catches a broken or stale committed bundle. Run BEFORE
