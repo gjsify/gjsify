@@ -74,15 +74,15 @@ Two host settings matter, and both fail in ways that do not name themselves:
   \LongPathsEnabled` to `1` (needs elevation), and keep the checkout short —
   `C:\src\…` rather than a deep home directory. A monorepo with nested
   `node_modules` exceeds `MAX_PATH` quickly.
-- **Line endings.** Set `core.autocrlf=false` before you clone. The
-  byte-verified artifacts are safe either way — `.gitattributes` pins the
-  committed `*.gjs.mjs` bundles and `@gjsify/tsc`'s shipped libs to LF whatever
-  you configure, because otherwise `verify-committed-bundles.mjs` reports them
-  stale for files you never touched. The setting still matters for everything
-  else: 744 files in `tests/`, `showcases/`, `website/`, `templates/` and
-  `status/` are committed with CRLF, and with Git for Windows' recommended
-  `core.autocrlf=true` they all show as modified the moment you clone. Tracked
-  in `status/open-todos.md`; closing it needs a repo-wide renormalisation.
+- **Line endings.** `core.autocrlf=false` is still the setting to prefer, but a
+  default Git for Windows clone is **not** dirty: measured at `main`, a
+  `core.autocrlf=true` checkout of all 4781 tracked entries reports zero
+  modified files, and no tracked blob contains a CR byte. (An earlier note here
+  claimed 744 committed-CRLF files and a needed repo-wide renormalisation; it
+  did not reproduce — see `status/open-todos.md`.) What the setting protects is
+  the byte-verified artifacts, and `.gitattributes` already pins those to LF
+  with `-text` whatever you configure, because otherwise
+  `verify-committed-bundles.mjs` reports them stale for files you never touched.
 
 Optionally, enable **Developer Mode** so unprivileged file symlinks work. It is
 not required: `gjsify install` links workspace packages with NTFS junctions,
