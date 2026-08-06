@@ -331,12 +331,15 @@ async function runScript(script: string, extraArgs: readonly string[], cwd: stri
     if (monorepoRoot && monorepoRoot !== cwd) {
         binDirs.push(join(monorepoRoot, 'node_modules', '.bin'));
     }
-    // Under GJS, the GJS-runnable `gjsify` shim (see `ensureGjsifyShimOnPath`)
-    // MUST shadow the workspace `node_modules/.bin/gjsify`, which is the Node
-    // entry and unusable in a node-free sandbox. So put the shim dir ahead of
-    // the `.bin` dirs in the child's PATH — otherwise a compound script like
-    // `gjsify run a && gjsify run b` resolves `gjsify` to the Node bin and
-    // fails. `GJSIFY_SHIM_DIR` is only set under GJS, so this is a no-op on Node.
+    // The self-shim (see `ensureGjsifyShimOnPath`) MUST shadow the workspace
+    // `node_modules/.bin/gjsify`, so put its dir ahead of the `.bin` dirs in the
+    // child's PATH — otherwise a compound script like `gjsify run a && gjsify
+    // run b` resolves `gjsify` to the workspace bin. Two trees need that:
+    // under GJS the bin is the Node entry and is unusable in a node-free
+    // sandbox, and under a BOOTSTRAP Node CLI (npx / global install) the bin
+    // dispatches to build outputs that a cold tree has not produced yet.
+    // `GJSIFY_SHIM_DIR` is unset whenever the tree's own CLI is the one
+    // running, which keeps that case byte-for-byte unchanged.
     if (process.env.GJSIFY_SHIM_DIR) {
         binDirs.unshift(process.env.GJSIFY_SHIM_DIR);
     }

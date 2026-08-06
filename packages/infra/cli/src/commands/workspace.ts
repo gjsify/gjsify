@@ -26,6 +26,7 @@ import { buildDependencyGraph, discoverWorkspaces, topologicalSort, type Workspa
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { usingSelfShim } from '../utils/gjsify-shim.js';
 import { suggestClosest } from '../utils/suggest.js';
 
 interface WorkspaceCmdOptions {
@@ -319,6 +320,17 @@ export function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
     // (see `ensureGjsifyShimOnPath`). This is what makes node-free multi-package
     // orchestration work in the Flatpak sandbox.
     if (isGjs()) return 'gjsify';
+    // Same answer for a BOOTSTRAP CLI on Node, for a reason one level deeper
+    // than it looks. `ensureGjsifyShimOnPath()` puts a working `gjsify` ahead of
+    // the tree's `node_modules/.bin` — but npm RE-PREPENDS `node_modules/.bin`
+    // for every lifecycle script it starts, so delegating to npm here restores
+    // the tree's not-yet-built shim one level down and undoes the repair.
+    // Measured on a cold tree: `run build:infra` cleared its first clause and
+    // then died inside `npm run build` with `Cannot find module
+    // …/packages/infra/cli/lib/index.js`. Running the script ourselves keeps the
+    // bootstrap CLI's identity all the way down — which is exactly what the GJS
+    // branch above already relies on, and why Linux CI never saw this.
+    if (usingSelfShim()) return 'gjsify';
     const ua = process.env.npm_config_user_agent ?? '';
     if (ua.startsWith('yarn/')) return 'yarn';
     if (ua.startsWith('gjsify/')) return 'gjsify';
