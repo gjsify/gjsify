@@ -459,6 +459,12 @@ export function loadStatusData(root, facts) {
     // (`open-todos: 12 test sites are parked`) and the heading is the full
     // sentence, so requiring equality would force every marker to restate a
     // whole title and drift on the first reword.
+    //
+    // COST, measured rather than asserted, because this rule advertises itself as
+    // cheap and runs on every PR with no install and no build: +0.27 s over three
+    // runs (1.06 s -> 1.33 s). It is a full source walk of five top-level trees,
+    // and the `includes('open-todos:')` fast path skips the regex but not the
+    // read. Worth it; worth knowing before something else is added to this loop.
     if (todoHeadings.length > 0) {
         const ANCHOR = /open-todos:\s*([^)\n*]+?)\s*(?:\)|$)/g;
         const SKIP = new Set(['node_modules', 'lib', 'dist', 'refs', 'prebuilds', '.git', 'build-dir', 'tmp']);
