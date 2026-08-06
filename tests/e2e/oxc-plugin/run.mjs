@@ -1,5 +1,6 @@
 // E2E for the internal oxlint JS plugin `@gjsify/oxlint-plugin-gjsify`
-// (`gjsify/register-class-order` + `gjsify/deferred-process-exit` rules).
+// (`gjsify/register-class-order`, `gjsify/deferred-process-exit` and
+// `gjsify/todo-needs-anchor` rules).
 //
 // Runs the real installed `oxlint` (via its Node launcher) against fixtures:
 //
@@ -16,6 +17,14 @@
 // same statement list; tail-position exits and `return process.exit(…)` are
 // deliberately clean. The report fixture is the exact `gjsify storybook`
 // no-stories shape that shipped (see tests/e2e/storybook-no-stories).
+//
+// `todo-needs-anchor`: a deferral marker that names nothing has no owner and
+// no retirement. At v0.29.0 the tree carried 42 such markers in source and 5
+// of them were anchored — among the other 37, a test documented as broken with
+// nothing anywhere to make anyone notice it stayed broken. The rule accepts
+// `#123`, a forge issue URL, the status ledger, or `fixed upstream in …`, and
+// it matches only the OPENING word of a comment line, so prose ABOUT a
+// deferral is deliberately not a finding.
 //
 // The plugin is loaded from its source path in this repo (oxlint `import()`s
 // the `.ts` file directly via Node type-stripping), so no tarball/install
@@ -270,5 +279,175 @@ describe('oxlint plugin gjsify/deferred-process-exit E2E', { timeout: 5 * 60 * 1
         // With reportUnusedDisableDirectives=error a directive that suppresses
         // nothing would fail the run — this asserts it is genuinely load-bearing.
         assert.equal(res.status, 0, `disabled guard fixture must pass:\n${out}`);
+    });
+});
+
+// The ledger anchor below is ASSEMBLED rather than written out, and that is not
+// style. The sibling half of this rule — the dangling-anchor check in
+// `scripts/generate-status.mjs` — walks `tests/` for the raw marker-plus-colon
+// spelling and fails when the name after it matches no `### ` heading in the
+// status ledger. A fixture anchor is exactly such a name. Spelling it literally
+// here would red-line `audit-runtimes --check` on every PR, and the failure
+// would name THIS RUNNER rather than the rule, which reads like a bug in the
+// test. `generate-status.mjs` exempts only itself, for the same reason a gate
+// that explains what it rejects has to be able to quote it.
+const LEDGER = 'open-todos';
+
+// Four bare markers, one per accepted spelling, the third inside a JSDoc block
+// so the `openingWord()` strip of a leading `*` is covered too.
+const UNANCHORED_FIXTURE = `export function first() {
+    // TODO: wire this up before the next release
+    return 1;
+}
+
+// FIXME rename this before anyone depends on it
+export const second = 2;
+
+/**
+ * HACK works around the loader ordering
+ */
+export const third = 3;
+
+// XXX revisit once the floor moves
+export const fourth = 4;
+`;
+
+// One fixture per accepted anchor form. The ledger form is the interesting one:
+// the rule only requires the ledger token to appear ANYWHERE in the comment,
+// which is why the sibling check in `generate-status.mjs` exists to hold the
+// other half — that the name actually resolves to an entry.
+const ANCHORED_FIXTURE = `// TODO(#1013): tracked as an issue
+export const first = 1;
+
+// FIXME https://github.com/gjsify/gjsify/issues/996 — a forge URL counts
+export const second = 2;
+
+// HACK(${LEDGER}: a parked behaviour): the ledger owns the reason
+export const third = 3;
+
+// XXX fixed upstream in gjs 1.90 — drop this when the floor moves
+export const fourth = 4;
+`;
+
+// THE FALSE-POSITIVE GUARD, and it carries no anchor at all on purpose: with one
+// present, a pass would be attributable to the anchor rather than to
+// `openingWord()`, and the guard would prove itself vacuously.
+const PROSE_FIXTURE = `// This function used to carry a TODO about caching.
+export const first = 1;
+
+// The TODOS list lives elsewhere, and todoCount is a variable.
+export const second = 2;
+
+// XXXL is a size, not a marker.
+export const third = 3;
+
+/**
+ * See the notes — a FIXME was removed here once.
+ */
+export const fourth = 4;
+`;
+
+// The counterpart of the JSDoc case: a marker and an anchor in two SEPARATE
+// line comments. The rule tests the anchor against the whole comment VALUE, so
+// "same comment" is the contract, and this locks it from the other side.
+const SPLIT_COMMENT_FIXTURE = `// TODO: the anchor is in the next comment, not this one
+// #1013 — which is one comment too late
+export const first = 1;
+`;
+
+const DISABLED_MARKER_FIXTURE = `// oxlint-disable-next-line gjsify/todo-needs-anchor -- fixture: proves the directive suppresses a real finding
+// TODO: deliberately unanchored
+export const first = 1;
+`;
+
+describe('oxlint plugin gjsify/todo-needs-anchor E2E', { timeout: 5 * 60 * 1000 }, () => {
+    let tmpDir;
+    let configPath;
+
+    before(() => {
+        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-oxc-plugin-todo-'));
+        configPath = join(tmpDir, '.oxlintrc.json');
+        writeFileSync(
+            configPath,
+            JSON.stringify(
+                {
+                    jsPlugins: [PLUGIN_ENTRY],
+                    options: { reportUnusedDisableDirectives: 'error' },
+                    rules: { 'gjsify/todo-needs-anchor': 'error' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+    });
+
+    after(() => {
+        rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function runOxlint(file) {
+        return spawnSync(process.execPath, [OXLINT_BIN, '--config', configPath, file], {
+            encoding: 'utf-8',
+            timeout: 60 * 1000,
+        });
+    }
+
+    // The COUNT is what makes this suite able to fail, and it is not a nicety.
+    // The rule returns `{}` — silently checking nothing — when the oxlint host
+    // does not expose `getAllComments`. A suite of only "stays silent"
+    // assertions would sail straight through that degradation, green forever
+    // over a dead rule. These counted assertions are the only thing that
+    // notices. Do not soften them to a bare `assert.match`.
+    it('reports one diagnostic per bare marker, across all four spellings', () => {
+        const file = join(tmpDir, 'unanchored.ts');
+        writeFileSync(file, UNANCHORED_FIXTURE);
+
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        const matches = out.match(/gjsify\(todo-needs-anchor\)/g) ?? [];
+        assert.equal(matches.length, 4, `expected 4 diagnostics, got ${matches.length}:\n${out}`);
+        assert.notEqual(res.status, 0, 'a finding must fail the run');
+    });
+
+    it('stays silent on every accepted anchor form', () => {
+        const file = join(tmpDir, 'anchored.ts');
+        writeFileSync(file, ANCHORED_FIXTURE);
+
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        assert.doesNotMatch(out, /todo-needs-anchor/, `unexpected diagnostic:\n${out}`);
+        assert.equal(res.status, 0, `anchored fixture must pass:\n${out}`);
+    });
+
+    it('stays silent on prose that merely mentions a marker word', () => {
+        const file = join(tmpDir, 'prose.ts');
+        writeFileSync(file, PROSE_FIXTURE);
+
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        assert.doesNotMatch(out, /todo-needs-anchor/, `prose must not be a finding:\n${out}`);
+        assert.equal(res.status, 0, `prose fixture must pass:\n${out}`);
+    });
+
+    it('does not accept an anchor sitting in the NEXT comment', () => {
+        const file = join(tmpDir, 'split.ts');
+        writeFileSync(file, SPLIT_COMMENT_FIXTURE);
+
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        const matches = out.match(/gjsify\(todo-needs-anchor\)/g) ?? [];
+        assert.equal(matches.length, 1, `expected 1 diagnostic, got ${matches.length}:\n${out}`);
+    });
+
+    it('honours a reasoned disable directive', () => {
+        const file = join(tmpDir, 'disabled.ts');
+        writeFileSync(file, DISABLED_MARKER_FIXTURE);
+
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        assert.doesNotMatch(out, /todo-needs-anchor/, `directive did not suppress:\n${out}`);
+        // With reportUnusedDisableDirectives=error a directive suppressing
+        // nothing fails the run, so this also proves the finding was real.
+        assert.equal(res.status, 0, `disabled fixture must pass:\n${out}`);
     });
 });
