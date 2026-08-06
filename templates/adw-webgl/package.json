@@ -5,10 +5,11 @@
     "type": "module",
     "private": true,
     "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
-        "build": "gjsify build src/index.ts --outfile dist/index.js",
-        "start": "gjsify run dist/index.js",
-        "dev": "gjsify build src/index.ts --outfile dist/index.js && gjsify run dist/index.js"
+        "build": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+        "start": "gjsify run dist/index.gjs.js",
+        "dev": "gjsify run build && gjsify run start"
     },
     "devDependencies": {
         "@girs/adw-1": "^4.1.0",
@@ -17,6 +18,7 @@
         "@girs/gobject-2.0": "^4.1.0",
         "@girs/gtk-4.0": "^4.1.0",
         "@gjsify/cli": "workspace:^",
+        "@gjsify/rolldown-native": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
         "@types/three": "^0.185.0",
@@ -25,5 +27,13 @@
     "dependencies": {
         "@gjsify/webgl": "workspace:^",
         "three": "0.185.1"
+    },
+    "gjsify": {
+        "main": "dist/index.gjs.js",
+        "example": {
+            "runtimes": [
+                "gjs"
+            ]
+        }
     }
 }

@@ -1,14 +1,15 @@
 {
     "name": "@gjsify/template-adw-game",
-    "description": "Adwaita game shell using Excalibur.js, WebGL → Canvas2D fallback.",
+    "description": "Adwaita game shell using Excalibur.js, WebGL \u2192 Canvas2D fallback.",
     "version": "0.1.10",
     "type": "module",
     "private": true,
     "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
-        "build": "gjsify build src/index.ts --outfile dist/index.js --globals auto,dom",
-        "start": "gjsify run dist/index.js",
-        "dev": "gjsify build src/index.ts --outfile dist/index.js --globals auto,dom && gjsify run dist/index.js"
+        "build": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js --globals auto,dom",
+        "start": "gjsify run dist/index.gjs.js",
+        "dev": "gjsify run build && gjsify run start"
     },
     "devDependencies": {
         "@girs/adw-1": "^4.1.0",
@@ -18,6 +19,7 @@
         "@girs/gtk-4.0": "^4.1.0",
         "@gjsify/canvas2d": "workspace:^",
         "@gjsify/cli": "workspace:^",
+        "@gjsify/rolldown-native": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
@@ -25,5 +27,13 @@
     "dependencies": {
         "@gjsify/webgl": "workspace:^",
         "excalibur": "0.32.0"
+    },
+    "gjsify": {
+        "main": "dist/index.gjs.js",
+        "example": {
+            "runtimes": [
+                "gjs"
+            ]
+        }
     }
 }

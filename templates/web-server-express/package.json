@@ -5,14 +5,21 @@
     "type": "module",
     "private": true,
     "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
-        "build": "gjsify build src/index.ts --outfile dist/index.js",
-        "start": "gjsify run dist/index.js",
-        "dev": "gjsify build src/index.ts --outfile dist/index.js && gjsify run dist/index.js"
+        "build": "gjsify run build:gjs && gjsify run build:node",
+        "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+        "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
+        "start": "gjsify run dist/index.gjs.js",
+        "start:node": "gjsify run dist/index.node.mjs --runtime node",
+        "start:bun": "gjsify run dist/index.node.mjs --runtime bun",
+        "start:deno": "gjsify run dist/index.node.mjs --runtime deno",
+        "dev": "gjsify run build:gjs && gjsify run start"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
+        "@gjsify/rolldown-native": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@types/express": "^5.0.6",
         "@types/node": "^25.9.2",
@@ -20,5 +27,17 @@
     },
     "dependencies": {
         "express": "^5.2.1"
+    },
+    "gjsify": {
+        "main": "dist/index.gjs.js",
+        "example": {
+            "runtimes": [
+                "gjs",
+                "node",
+                "bun",
+                "deno"
+            ],
+            "node": "dist/index.node.mjs"
+        }
     }
 }
