@@ -122,22 +122,39 @@ jobs:
           "PATH=$($kept -join ';')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "dropped $((($env:PATH -split ';') | Where-Object { $_ -match '\\Git\\' }).Count) \Git\ entr(y|ies) from PATH"
 
+      # `where X && exit 1 || echo …` reads correctly and does not WORK: cmd's
+      # internal `echo` does not reliably clear the ERRORLEVEL that a failed
+      # `where` left behind, so the step exited 1 while printing "no sh on PATH
+      # - good" — semantically passing, mechanically red. Measured on main:
+      # both utilities were absent, COMSPEC printed, exit code 1. An explicit
+      # failure branch plus a terminal `exit /b 0` leaves nothing to infer.
       - name: Prove the POSIX utilities are gone
         run: |
-          where sh && exit 1 || echo "no sh on PATH - good"
-          where rm && exit 1 || echo "no rm on PATH - good"
+          where sh >nul 2>&1 && (echo ERROR: sh is still on PATH & exit /b 1)
+          where rm >nul 2>&1 && (echo ERROR: rm is still on PATH & exit /b 1)
+          echo no sh and no rm on PATH - good
           echo COMSPEC=%COMSPEC%
+          exit /b 0
 
       # Cold tree: `node_modules/.bin/gjsify` dispatches to build outputs that do
       # not exist yet (ADR 0002 untracked both bundles), and the Linux route
       # through `gjs -m dist/cli.gjs.mjs` is unavailable here by construction.
       # The published CLI is the only CLI this tree has, which is the same
       # bootstrap `cli-cross-platform.yml` exercises from a user's side.
-      - name: Bootstrap the toolchain from the published CLI
-        run: npx --yes @gjsify/cli@latest run build:infra
+      #
+      # INSTALL BEFORE BUILD. `build:infra` compiles
+      # `@gjsify/vite-plugin-blueprint` first, whose `gjsify tsc` needs
+      # `@types/node` — a dependency, not a build output — so building on a tree
+      # with no `node_modules` dies with `TS2688: Cannot find type definition
+      # file for 'node'`. `macos-suites.yml` inherited this order from here and
+      # went red on both architectures with exactly that error; this leg had not
+      # yet reached the step to show it. `.github/actions/gjsify-setup` has
+      # always installed first, and ADR 0002 documents that order.
+      - name: Install the workspace with the published CLI
+        run: npx --yes @gjsify/cli@latest install --immutable
 
-      - name: Install the workspace
-        run: node packages\infra\cli\lib\index.js install --immutable
+      - name: Bootstrap this repo's own toolchain
+        run: npx --yes @gjsify/cli@latest run build:infra
 
       # `test:node` is only `node test.node.mjs` — it BUILDS nothing. The
       # bundle has to exist first, and a package's own build needs its

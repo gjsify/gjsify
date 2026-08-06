@@ -179,11 +179,20 @@ jobs:
       # Cold tree: ADR 0002 untracked both bundles, so `node_modules/.bin/gjsify`
       # dispatches to build outputs that do not exist yet. The published CLI is
       # the only CLI this tree has — the same bootstrap a user performs.
-      - name: Bootstrap the toolchain from the published CLI
-        run: npx --yes @gjsify/cli@latest run build:infra
+      #
+      # INSTALL BEFORE BUILD, and that order is the whole point of these two
+      # steps being separate. `build:infra` compiles `@gjsify/vite-plugin-blueprint`
+      # first, whose `gjsify tsc` needs `@types/node` — a dependency, not a build
+      # output. Building first on a tree with no `node_modules` therefore dies
+      # with `TS2688: Cannot find type definition file for 'node'`, which is what
+      # this leg did on BOTH architectures on its first real run. It is also the
+      # order `.github/actions/gjsify-setup` has always used (`install --immutable`,
+      # then build) and the one ADR 0002 documents.
+      - name: Install the workspace with the published CLI
+        run: npx --yes @gjsify/cli@latest install --immutable
 
-      - name: Install the workspace
-        run: node packages/infra/cli/lib/index.js install --immutable
+      - name: Bootstrap this repo's own toolchain
+        run: npx --yes @gjsify/cli@latest run build:infra
 
       # `test:node` and `test:gjs` both only RUN a bundle; the bundle has to
       # exist first, and a package's own build needs its workspace dependencies

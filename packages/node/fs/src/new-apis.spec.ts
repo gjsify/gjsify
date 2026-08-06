@@ -313,20 +313,22 @@ export default async () => {
     // ==================== readlinkSync ====================
 
     await describe('fs.readlinkSync', async () => {
-        await it.failing('should read symlink target', async () => {
-            const dir = mkdtempSync('fs-test-');
-            const target = join(dir, 'target.txt');
-            const link = join(dir, 'link.txt');
-            writeFileSync(target, 'data');
-            symlinkSync(target, link);
+        await it.failing(
+            'should read symlink target',
+            async () => {
+                const dir = mkdtempSync('fs-test-');
+                const target = join(dir, 'target.txt');
+                const link = join(dir, 'link.txt');
+                writeFileSync(target, 'data');
+                symlinkSync(target, link);
 
-            const result = readlinkSync(link);
-            expect(String(result)).toBe(target);
+                const result = readlinkSync(link);
+                expect(String(result)).toBe(target);
 
-            unlinkSync(link);
-            rmSync(target);
-            rmdirSync(dir);
-        },
+                unlinkSync(link);
+                rmSync(target);
+                rmdirSync(dir);
+            },
             NO_SYMLINK_REASON,
             { when: !CAN_SYMLINK },
         );

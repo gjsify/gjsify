@@ -634,6 +634,29 @@ installs, documented in node-gi's README.
 
 `@gjsify/net`'s `server.spec.ts` still reports 1-2 of 381 failing under NATIVE Node on darwin (`read ECONNRESET`), against 381 green under GJS on the same host. It was 2-4 before `withServer` took ownership of the accepted sockets and the affected specs learned to tolerate exactly `ECONNRESET`, so what is left is narrower, not closed. The mechanism is the kernel's: BSD resets a connection that is closed while unread data is buffered where Linux delivers a FIN, and an `'error'` event with no listener is re-thrown. The remaining failures wander between `close event after end` and `localPort after connect`, which is the signature of a socket outliving the spec that made it — the next thing to try is owning the CLIENT sockets' lifecycle the way the server's now is. Per this repo's testing rules a native-Node failure is a statement about the TEST, and our implementation is the one that is green.
 
+### `@gjsify/sqlite`'s GJS suite ABORTS the process, and the trigger is a GC window
+
+Not a failing assertion — `SIGABRT`. Measured on darwin-x64 / gjs 1.88.1 / libgda 6.0, running `database-sync.spec.ts` alone under the real harness:
+
+```
+DatabaseSync.prototype.close()
+GLib-GObject:ERROR:../gobject/gobject.c:6103:_weak_ref_set:
+  assertion failed: (weak_ref_data_list_find (new_wrdata, weak_ref) < 0)
+Bail out!   gjs exited with code null
+```
+
+It stayed invisible until the `/var` vs `/private/var` fix landed, because the node leg failed first and the `&&` chain never reached the gjs one.
+
+**Ruled out, each by measurement rather than by reading:** bare libgda (`Gda.Connection.new_from_string` + `open()` + `close()`, nothing of ours in the process) does not abort · leaked connections plus an explicit `system.gc()` do not abort · the same operations driven through the real `DatabaseSync` API outside the harness do not abort · a specific test is not responsible, and neither is a leaked connection from the constructor block — the constructor validates (`parsePath`, `validateOptions`) BEFORE it opens, so a throwing construction never creates one.
+
+**What the bisect says.** Keeping the first N `it()` rows of the constructor block and rebuilding: N=0 ok, **N=1 CRASH**, N=2 ok, N=3 ok, **N=11 CRASH**. Non-monotonic — the number of preceding rows perturbs *when* the collector runs relative to the libgda objects' lifetimes, and nothing more. That is the signature of a GC window in the interaction between GJS's object-wrapper machinery (toggle refs / `GWeakRef`) and libgda's objects, not of a condition in our code. It is therefore NOT fixable by editing a spec, and a fix that appeared to work by adding or removing a test row would be luck.
+
+Next step is instrumentation, not more bisecting: run under `GJS_DEBUG_ALL`/`G_DEBUG=fatal-warnings` with a breakpoint on `_weak_ref_set` to see which object is being re-registered, and whether the second registration comes from GJS's wrapper or from libgda. If it is GJS's, this joins the libgda row already in `upstream-patch-candidates.md`; if it is ours, the owner is `DatabaseSync`'s lifecycle. Until then there is no workaround to maintain, which is why this is here and not in that table.
+
+### Two packages have no darwin target at all, and their specs say so by failing
+
+`@gjsify/webrtc` dies at `Requiring GjsifyWebrtc … Typelib file for namespace 'GjsifyWebrtc' not found` and `@gjsify/sab-native`'s positive control `hasNativeSab() returns true when prebuild is loaded` cannot pass, because no `webrtc-native-darwin-*` package exists and `@gjsify/sab-native`'s `gjsify.platforms` declares `linux-*` only. Both are honest failures of a promise nobody made — the declarations are correct and the artifacts genuinely do not exist. Recorded so a macOS run's red is READ correctly: it is a missing target, not a broken port. Closing either means adding the darwin legs to `prebuilds.yml` and the targets to the manifests, at which point the same specs become the check. The sibling bridges (`http2-native`, `tls-native`, `terminal-native`, `http-soup-bridge`, `webgl`, `lightningcss-native`, `oxfmt-native`, `rolldown-native`) all already ship `*-darwin-{x64,arm64}`, so the pattern is proven — these two were simply never extended.
+
 ### `@gjsify/rolldown-native` macOS prebuild — the last step to a Node-free toolchain on macOS
 
 The Rust blocker is GONE (eventfd descriptors → portable anonymous pipes in `src/rust/src/wakeup.rs`; `cargo check --target aarch64-apple-darwin` green) and `meson.build` is darwin-ready — but no NATIVE macOS build has been promoted: run the manual-dispatch `build-prebuilds-macos-experimental` job, promote the package into the REQUIRED `build-prebuilds-macos` job, add `darwin-arm64` to `package.json#gjsify.platforms`, and commit the prebuild. Until that leg is green the docs must keep describing the Node-free toolchain as Linux-only. The CLI-side loading follow-ups are DONE (`detectNativePackages()` resolves `<os>-<arch>` for the running host; `buildNativeEnv()` emits the loader variable the host actually reads). Only the artifact itself is missing. (See also the CI coverage item above — the darwin leg is proven, not promoted.)

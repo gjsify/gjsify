@@ -5,11 +5,22 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, realpathSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 let cnt = 0;
-const testDir = join(tmpdir(), 'gjsify-sqlite-test-' + Date.now());
+// `realpathSync`, not a bare `tmpdir()`. `location()` answers with the path
+// SQLite RESOLVED, and on macOS `/var` is a symlink to `private/var`, so
+// `tmpdir()` hands out `/var/folders/…` while the open database reports
+// `/private/var/folders/…`. Comparing the two is a test of the host's symlink
+// layout, not of `location()` — and it cannot fail on a typical Linux box,
+// where `/tmp` is a real directory and the identity answer happens to be right.
+//
+// The same trap already cost this repo six `@gjsify/child_process` cwd failures
+// and a fix to `@gjsify/fs`'s `realpathSync`, which documents it at length. This
+// is that defect in a second place: resolving ONCE, here, keeps every path this
+// suite compares in the same form.
+const testDir = join(realpathSync(tmpdir()), 'gjsify-sqlite-test-' + Date.now());
 
 function setup() {
     // recursive:true already makes an existing dir a no-op — any other

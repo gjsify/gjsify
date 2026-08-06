@@ -32,6 +32,24 @@ import dns, {
     CANCELLED,
 } from 'node:dns';
 
+/**
+ * Is this a NATIVE Node older than the release that made `lookup('')` throw?
+ *
+ * Node validated an empty hostname with `ERR_INVALID_ARG_VALUE` only from v25;
+ * before that it warned `DEP0118` and called back with `err: null`. This
+ * package declares `runtimes.node: "none"`, so `test:node` runs against native
+ * Node — which means the two rows below assert the HOST's behaviour there, and
+ * on a Node 24 runner the host is right to disagree. Measured on
+ * darwin-x64 / Node 24.18.1: `dns.lookup('', cb)` → `DEP0118`, `err: null`.
+ *
+ * The gjs check comes first and is not redundant: `@gjsify/process` reports
+ * `versions.node = '20.0.0'` deliberately, for npm packages that gate on it, so
+ * a bare major comparison would classify GJS as an old Node and tolerate a
+ * failure there — where our own implementation DOES throw and must keep doing so.
+ */
+const isPreV25NativeNode =
+    typeof process.versions?.gjs !== 'string' && Number(process.versions.node.split('.')[0]) < 25;
+
 export default async () => {
     await describe('dns', async () => {
         // --- Constants ---
@@ -186,28 +204,38 @@ export default async () => {
                 });
             });
 
-            await it('should throw ERR_INVALID_ARG_VALUE for empty hostname', async () => {
-                // Node (>=25) and @gjsify/dns both reject an empty hostname
-                // synchronously with ERR_INVALID_ARG_VALUE — older Node called
-                // back with a null address; tightened under Node 26 (see #601).
-                let code: string | undefined;
-                try {
-                    lookup('', () => {});
-                } catch (e) {
-                    code = (e as any).code;
-                }
-                expect(code).toBe('ERR_INVALID_ARG_VALUE');
-            });
+            await it.failing(
+                'should throw ERR_INVALID_ARG_VALUE for empty hostname',
+                async () => {
+                    // Node (>=25) and @gjsify/dns both reject an empty hostname
+                    // synchronously with ERR_INVALID_ARG_VALUE — older Node called
+                    // back with a null address; tightened under Node 26 (see #601).
+                    let code: string | undefined;
+                    try {
+                        lookup('', () => {});
+                    } catch (e) {
+                        code = (e as any).code;
+                    }
+                    expect(code).toBe('ERR_INVALID_ARG_VALUE');
+                },
+                'Node rejected an empty hostname only from v25 — before that it warned DEP0118 and called back with err: null. `@gjsify/dns` declares runtimes.node: "none", so this leg runs NATIVE Node and the assertion is about the host, not about us; our own implementation throws and the gjs leg proves it. Retires itself when the runner Node reaches 25.',
+                { when: isPreV25NativeNode },
+            );
 
-            await it('should throw ERR_INVALID_ARG_VALUE for empty hostname with family 6', async () => {
-                let code: string | undefined;
-                try {
-                    lookup('', { family: 6 }, () => {});
-                } catch (e) {
-                    code = (e as any).code;
-                }
-                expect(code).toBe('ERR_INVALID_ARG_VALUE');
-            });
+            await it.failing(
+                'should throw ERR_INVALID_ARG_VALUE for empty hostname with family 6',
+                async () => {
+                    let code: string | undefined;
+                    try {
+                        lookup('', { family: 6 }, () => {});
+                    } catch (e) {
+                        code = (e as any).code;
+                    }
+                    expect(code).toBe('ERR_INVALID_ARG_VALUE');
+                },
+                'Node rejected an empty hostname only from v25 — before that it warned DEP0118 and called back with err: null. `@gjsify/dns` declares runtimes.node: "none", so this leg runs NATIVE Node and the assertion is about the host, not about us; our own implementation throws and the gjs leg proves it. Retires itself when the runner Node reaches 25.',
+                { when: isPreV25NativeNode },
+            );
 
             await it('should return all addresses with all: true', async () => {
                 await new Promise<void>((resolve) => {

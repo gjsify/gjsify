@@ -251,17 +251,17 @@ export default async () => {
         await it.failing(
             'should return the real and absolute path',
             () => {
-            const dir = mkdtempSync(join(tmpdir(), 'fs-rp-'));
-            const target = join(dir, 'target.txt');
-            const link = join(dir, 'link.txt');
-            writeFileSync(target, 'data');
-            symlinkSync(target, link);
+                const dir = mkdtempSync(join(tmpdir(), 'fs-rp-'));
+                const target = join(dir, 'target.txt');
+                const link = join(dir, 'link.txt');
+                writeFileSync(target, 'data');
+                symlinkSync(target, link);
 
-            const realPath = realpathSync(target);
-            const realSymLinkPath = realpathSync(link);
+                const realPath = realpathSync(target);
+                const realSymLinkPath = realpathSync(link);
 
-            // Should point to the real file, not the symlink
-            expect(realSymLinkPath).toBe(realPath);
+                // Should point to the real file, not the symlink
+                expect(realSymLinkPath).toBe(realPath);
 
                 unlinkSync(link);
                 rmSync(target);
