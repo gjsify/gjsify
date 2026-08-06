@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { createProject } from './create.js';
+import { createProject, PACKAGE_MANAGERS, type PackageManager } from './create.js';
 import { discoverTemplates } from './discover-templates.js';
 import { promptTemplate } from './prompt-template.js';
 
@@ -33,9 +33,17 @@ void yargs(hideBin(process.argv))
                     default: false,
                 })
                 .option('install', {
-                    describe: 'Run npm install after scaffolding',
+                    describe: 'Install dependencies after scaffolding',
                     type: 'boolean',
                     default: false,
+                })
+                .option('package-manager', {
+                    alias: 'p',
+                    describe:
+                        'Package manager to install with, and to name in the printed next steps. `gjsify` is the only one that works on a host with no Node.js.',
+                    type: 'string',
+                    choices: PACKAGE_MANAGERS,
+                    default: 'npm' as PackageManager,
                 });
         },
         async (argv) => {
@@ -61,10 +69,17 @@ void yargs(hideBin(process.argv))
                 template,
                 force: argv['force'] as boolean,
                 install: argv['install'] as boolean,
+                packageManager: argv['package-manager'] as PackageManager,
             });
         },
     )
     .help().argv;
 
-export { createProject, sanitizeProjectName, type CreateProjectOptions } from './create.js';
+export {
+    createProject,
+    sanitizeProjectName,
+    PACKAGE_MANAGERS,
+    type CreateProjectOptions,
+    type PackageManager,
+} from './create.js';
 export { discoverTemplates, findTemplate, type TemplateInfo } from './discover-templates.js';

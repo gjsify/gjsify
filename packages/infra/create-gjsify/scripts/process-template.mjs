@@ -121,6 +121,14 @@ function processTemplate(name, versionMap) {
     const templatePkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
     // Overwrite the workspace name with the sentinel; createProject() replaces it with the user's project name.
     templatePkg.name = 'new-gjsify-app';
+    // …and the version, for the same reason the name is overwritten: the
+    // template's own field belongs to the template, not to the project
+    // scaffolded from it. It is a private workspace member whose version nobody
+    // publishes and nobody bumps deliberately, so whatever it happens to say
+    // became the starting version of every new user project — measured at
+    // `0.1.10`, a number with no meaning to the person who just ran
+    // `npm create @gjsify/app`.
+    templatePkg.version = '0.1.0';
     for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
         templatePkg[field] = resolveWorkspaceDeps(templatePkg[field], versionMap, name);
     }
