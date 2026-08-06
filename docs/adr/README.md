@@ -42,6 +42,7 @@ the TODO records the *what's left*.
 | [0019](0019-ts-for-gir-as-library.md) | ts-for-gir as a library; the `.gir` travels with the runtime package | Proposed |
 | [0020](0020-engine-as-optional-dependency.md) | The GJS engine set becomes an `optionalDependencies` edge of `@gjsify/cli` | Proposed |
 | [0021](0021-launcher-free-prebuild-resolution.md) | Native prebuilds resolve in-process via girepository's own search paths; the launcher becomes an optimisation | Accepted |
+| [0022](0022-webkit-on-darwin.md) | `@gjsify/iframe` on macOS — Apple's WebKit behind a GObject shim; the widget half is a compositor, not an embed | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
