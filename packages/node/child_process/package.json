@@ -60,11 +60,12 @@
         "tier": 1,
         "os": {
             "linux": "supported",
-            "darwin": "supported",
+            "darwin": "partial",
             "win32": "partial"
         },
         "osNotes": {
-            "win32": "A `src/platform/win32.ts` exists and is written against Node's documented Windows behaviour, but NOTHING RUNS IT. The package declares `runtimes.node: \"none\"`, so `test:node` exercises native Node rather than this implementation, and `test:gjs` — the leg that would measure it — cannot run on Windows at all because there is no GJS host there. The win32 module is therefore unexercised code, not a verified port. Promote to `supported` when a leg executes it."
+            "darwin": "`detached: true` degrades. macOS ships no `setsid(1)` (it is a util-linux tool) and `setsid(2)` is unreachable from JS because `g_subprocess_launcher_set_child_setup()` is not introspectable, so `detachedPrefix()` returns `null` unless the user installed one. The child is still spawned and still outlives its parent, but it stays in the parent's process group, so terminal-generated SIGINT/SIGHUP still reach it \u2014 see `src/platform/darwin.ts`. Everything else in the package is exercised on darwin by `macos-suites.yml`, including the BSD signal table and the in-process `communicate.ts` timeout that replaced GNU `timeout(1)` for this platform.",
+            "win32": "A `src/platform/win32.ts` exists and is written against Node's documented Windows behaviour, but NOTHING RUNS IT. The package declares `runtimes.node: \"none\"`, so `test:node` exercises native Node rather than this implementation, and `test:gjs` \u2014 the leg that would measure it \u2014 cannot run on Windows at all because there is no GJS host there. The win32 module is therefore unexercised code, not a verified port. Promote to `supported` when a leg executes it."
         }
     },
     "license": "MIT",

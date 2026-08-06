@@ -58,10 +58,11 @@
         "tier": 1,
         "os": {
             "linux": "supported",
-            "darwin": "supported",
+            "darwin": "partial",
             "win32": "partial"
         },
         "osNotes": {
+            "darwin": "`os.cpus()` reports the documented all-zero `times` on macOS. Linux reads the per-CPU tick counters from `/proc/stat`; the darwin equivalent is Mach's `host_processor_info(PROCESSOR_CPU_LOAD_INFO)`, which GJS cannot call without a native bridge, and no userland tool prints the cumulative per-core totals Node returns (`top`/`iostat` give an instantaneous aggregate percentage). Every other export \u2014 cpus model/speed, memory, uptime, loadavg, networkInterfaces, userInfo \u2014 is real on darwin and covered by the macOS suites. `src/index.spec.ts` carries the matching `it.failing(\u2026, { when })`, so the claim retires itself the day a reader exists.",
             "win32": "A `src/win32.ts` covers the per-platform answers, but it is unexercised for the same structural reason as `@gjsify/child_process`: `runtimes.node: \"none\"` sends `test:node` to native Node, and there is no GJS host on Windows to run `test:gjs`. Measured on the win11-gjsify VM: 10 of 178 specs fail there, and all ten are POSIX assumptions in the SPECS (asserting `type()` is `Linux`, EOL is `\\n`, devNull is `/dev/null`) rather than defects in this module."
         }
     },

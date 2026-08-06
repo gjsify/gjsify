@@ -1,0 +1,263 @@
+# The OS axis on darwin, exercised rather than declared (ADR 0018 § 5).
+#
+# WHAT THIS IS FOR
+#
+# `main.yml`'s `macos` job runs six curated `--app gjs` bundles, BUILT ON THE
+# FEDORA LEG and copied across. That is sound for what it measures (runtime
+# behaviour of platform-neutral JS on macOS/arm64) and it cannot measure
+# anything else: no checkout, no `gjsify install`, no build, and therefore no
+# `test:node` leg, no CLI suite, and no conformance audit. `@gjsify/os` ran
+# there as a NON-GATING probe because it could not pass.
+#
+# So the hole was the same shape as the Windows one, and the measurement was
+# the same kind. On darwin-x64 / gjs 1.88.1 / Node 24.18.1, against a `main`
+# every existing check called green:
+#
+#   @gjsify/child_process   the whole file    spawnSync returned status: null,
+#                                             pid: 0 and empty stdout
+#   @gjsify/process         4 of 169          pid, ppid and rss were 0
+#   @gjsify/os              2 of 164          cpus().times had no members
+#   @gjsify/net             2 of 381          isIP accepted 01.02.03.04
+#
+# None of them was visible to a Linux pipeline. Three were procfs or libc
+# assumptions that CANNOT fail on Linux, and the fourth was a Node-dialect
+# assumption that cannot fail under native Node.
+#
+# WHY THIS LEG IS STRONGER THAN THE WINDOWS ONE
+#
+# `windows-suites.yml` states its own limit: `test:gjs` does not run there and
+# cannot, because there is no GJS host on Windows, so what it measures is the
+# NODE leg — which for a package declaring `runtimes.node: "none"` proves the
+# TEST is correct rather than proving our implementation is.
+#
+# macOS has a GJS host. Both legs run here, and that is the point: `test:node`
+# says the spec is right, `test:gjs` says our port is. A package where the two
+# disagree is the interesting case, and it is exactly what
+# `@gjsify/child_process` was — green under native Node, catastrophic under GJS.
+#
+# WHY NOT ON EVERY PR
+#
+# ADR 0018 § 5, and the same asymmetry `windows-suites.yml` names rather than
+# implies: the OS axis is verified on `main` and the nightly, not on every PR.
+# macOS runners bill at 10x and `main` is branch-protected with EXACTLY THREE
+# required checks, where adding a fourth is a governance decision with a trap
+# behind it (a required check that does not RUN blocks the PR forever). The
+# `pull_request` trigger is path-filtered onto this file alone, which keeps the
+# leg ADVISORY by construction while still letting a change to it be tested by
+# the PR that makes it. `docs/ci-selective.md` lists it among the deliberate
+# exceptions.
+#
+# WHY BOTH ARCHITECTURES
+#
+# ADR 0018 declares `darwin-x64` AND `darwin-arm64`, and they are not the same
+# host. Homebrew's prefix differs (`/usr/local` vs `/opt/homebrew`) and dyld's
+# DEFAULT fallback search path contains the first and not the second, so a
+# leaf-name `dlopen` that resolves on Intel fails on Apple Silicon. Apple
+# Silicon also publishes neither `machdep.cpu.brand_string` nor
+# `hw.cpufrequency`, which is what once made `os.cpus()` THROW there rather
+# than degrade. A single-arch leg would have called both of those covered.
+#
+# WHAT THIS LEG CANNOT SEE, STATED SO NOBODY READS IT AS MORE
+#
+# It runs as a normal (non-root) user in an interactive-less session, and the
+# GI stack it installs is Homebrew's. A macOS host with a jhbuild or MacPorts
+# prefix resolves its typelibs through a different directory, which is the case
+# `systemGiLibraryDirs()` handles by probing for the `girepository-1.0` marker
+# rather than by hardcoding a prefix — that probing is exercised here only for
+# the Homebrew answer.
+
+name: macOS suites
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # 06:00 UTC — after main.yml's 04:00 nightly and windows-suites.yml's 05:30,
+    # so the three do not contend for runners or interleave in notifications.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/macos-suites.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  node-and-gjs-suites:
+    name: Node-pillar suites (darwin-${{ matrix.arch }} / gjs + node)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # An OBJECT per leg, like main.yml's macOS matrix and for the same
+          # reason: `runs-on` and the job name are read off the entry, so
+          # retiring or adding an image is one edit here rather than a static
+          # `include:` bolted onto a reduced axis.
+          - { arch: arm64, runner: macos-latest }
+          - { arch: x64, runner: macos-15-intel }
+
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      # gjs pulls spidermonkey (mozjs-140) + glib + gobject-introspection
+      # transitively — the same GJS/SM pairing the Fedora image ships, so a
+      # difference here is a difference in the OS and not in the engine. `gtk4`
+      # is NOT installed: every suite in this leg is Node-pillar and reaches at
+      # most GLib/Gio/GioUnix, and a leg that installs a toolkit it does not use
+      # buys 10x-billed minutes for nothing.
+      - name: Install GJS + SpiderMonkey via Homebrew
+        run: brew install gjs
+
+      # THE ENV-FREE REPAIR, AND WHY IT MUST BE ENV-FREE.
+      #
+      # `GjsPrivate-1.0.typelib` — which Gio's core override loads from `_init`
+      # — records its library by BARE LEAF (`libgjs.0.dylib`), and Homebrew's
+      # `gjs` binary carries exactly one rpath: `@loader_path/../../../../opt/
+      # glib/lib`, i.e. GLIB's keg and no other. So dyld resolves the glib
+      # family and nothing else, and merely importing `Gio` can die with
+      # "Unsupported type void, deriving from fundamental void" after a
+      # `Failed to load shared library 'libgjs.0.dylib'` warning: the typelib
+      # loads, its library does not, and the override then marshals a type that
+      # is no longer resolvable.
+      #
+      # The obvious repair — `DYLD_LIBRARY_PATH=$(brew --prefix)/lib` — DOES NOT
+      # WORK, and the next step measures that rather than asserting it. SIP
+      # strips every `DYLD_*` variable when a PROTECTED binary is exec'd, and
+      # `/bin/sh` and `/bin/bash` are protected, so the value dies at the first
+      # shell boundary — which is every `run:` step, every npm-style script and
+      # every `sh -c` a build spawns. Measured on the darwin-x64 VM:
+      #
+      #   DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'   -> empty
+      #   DYLD_LIBRARY_PATH=x node   -e 'print process.env…'         -> x
+      #
+      # (An unprotected binary such as Homebrew's `node` or `gjs` keeps it,
+      # which is why `buildNativeEnv()` setting it on a CHILD's launch env is
+      # correct and a workflow-level export is not.)
+      #
+      # A symlink at the location the existing rpath already names needs no
+      # variable and survives every boundary.
+      - name: Make libgjs resolvable without a DYLD_ variable
+        run: |
+          prefix="$(brew --prefix)"
+          ln -sfn "$prefix/opt/gjs/lib/libgjs.0.dylib" "$prefix/opt/glib/lib/libgjs.0.dylib"
+          ls -l "$prefix/opt/glib/lib/libgjs.0.dylib"
+
+      # Prints the measurement above so the log says WHY the repair is a
+      # symlink. A future contributor debugging a dlopen here will reach for
+      # `DYLD_LIBRARY_PATH` first; this is what tells them it cannot work.
+      - name: Show that DYLD_ variables do not survive a shell boundary (SIP)
+        run: |
+          echo "SIP: $(csrutil status 2>/dev/null || echo 'unknown')"
+          seen="$(DYLD_LIBRARY_PATH=/tmp/sip-probe /bin/sh -c 'printf %s "$DYLD_LIBRARY_PATH"')"
+          if [ -n "$seen" ]; then
+            echo "::warning title=SIP::DYLD_LIBRARY_PATH survived /bin/sh on this image ('$seen') — the note on the step above assumes it does not"
+          else
+            echo "confirmed: /bin/sh received an empty DYLD_LIBRARY_PATH — a workflow-level export is a no-op"
+          fi
+
+      - name: Verify gjs + the GLib/Gio/GioUnix typelibs
+        run: |
+          gjs --version
+          gjs -c 'const {GLib, Gio, GioUnix} = imports.gi; void Gio; void GioUnix; print("GLib " + GLib.MAJOR_VERSION + "." + GLib.MINOR_VERSION + "." + GLib.MICRO_VERSION + " — Gio + GioUnix typelibs load OK");'
+
+      # Cold tree: ADR 0002 untracked both bundles, so `node_modules/.bin/gjsify`
+      # dispatches to build outputs that do not exist yet. The published CLI is
+      # the only CLI this tree has — the same bootstrap a user performs.
+      - name: Bootstrap the toolchain from the published CLI
+        run: npx --yes @gjsify/cli@latest run build:infra
+
+      - name: Install the workspace
+        run: node packages/infra/cli/lib/index.js install --immutable
+
+      # `test:node` and `test:gjs` both only RUN a bundle; the bundle has to
+      # exist first, and a package's own build needs its workspace dependencies
+      # built. Workspace-wide and once.
+      - name: Build the workspace
+        run: node packages/infra/cli/lib/index.js run build
+
+      # Which host this run measured, in the log rather than in a reader's head.
+      # `hw.cpufrequency` and `machdep.cpu.brand_string` are Intel-only oids and
+      # `os.cpus()` degrades rather than throws where they are absent — a green
+      # arm64 leg and a green x64 leg are therefore proving different code.
+      - name: Report the host this run measured
+        run: |
+          sw_vers
+          echo "arch:   $(uname -m)"
+          echo "prefix: $(brew --prefix)"
+          echo "cpu brand oid:  $(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo '<absent — Apple Silicon>')"
+          echo "cpu freq oid:   $(sysctl -n hw.cpufrequency 2>/dev/null || echo '<absent — Apple Silicon>')"
+          node -e 'console.log("node:", process.version, process.platform, process.arch)'
+
+      # One package per step so a failure names the package in the step title
+      # rather than in the middle of a twelve-package log, and BOTH legs per
+      # package: `test:node` proves the spec, `test:gjs` proves the port. The
+      # suites run through the CLI rather than a bare `gjs -m` on purpose — that
+      # is the path `buildNativeEnv()` repairs, and running the bundle directly
+      # would measure a launch environment no user has.
+      - name: '@gjsify/utils'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/utils run test
+
+      - name: '@gjsify/path'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/path run test
+
+      # Moved out of main.yml's NON-GATING probe by this branch: `os.cpus()`
+      # now reports the documented all-zero `times` instead of an object with no
+      # members, and the one assertion macOS genuinely cannot satisfy is an
+      # `it.failing(…, { when })` that retires itself.
+      - name: '@gjsify/os'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/os run test
+
+      - name: '@gjsify/process'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/process run test
+
+      - name: '@gjsify/util'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/util run test
+
+      - name: '@gjsify/fs'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/fs run test
+
+      - name: '@gjsify/child_process'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/child_process run test
+
+      - name: '@gjsify/net'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/net run test
+
+      - name: '@gjsify/v8'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/v8 run test
+
+      - name: '@gjsify/worker_threads'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/worker_threads run test
+
+      - name: '@gjsify/node-globals'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/node run test
+
+      # The package ADR 0018 singles out: it writes `PATH` /
+      # `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` per host, owns
+      # `systemGiLibraryDirs()` — the darwin-only repair above, in code — and
+      # generates the launcher every other package is started through. Its own
+      # suite is what holds `gjsify.os.darwin: "supported"`.
+      - name: '@gjsify/cli'
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/cli run test
+
+      # Manifest conformance including `os-axis` — cheap, and it is the check
+      # that the declarations these suites back up are still present. It prints
+      # every claim below `supported` with its reason, so the log carries the
+      # current darwin ledger next to the run that measured it.
+      - name: Conformance audit (os-axis included)
+        run: node scripts/audit-runtimes.mjs --check
