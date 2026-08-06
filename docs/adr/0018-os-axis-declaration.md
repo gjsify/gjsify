@@ -198,6 +198,49 @@ INTERACTIVE user session (`SESSIONNAME=Console`), so a session-0 / service
 context is still untested and is the one place the original symptom could
 survive. That is a narrower gap than the issue described, not a closed one.
 
+## darwin re-measured — the axis found its own four, and one of them was ADR-shaped
+
+Recorded here for the same reason the win32 amendment above is: the Context
+table motivates the whole decision with four defects found by hand, and a
+reader is entitled to know what the CHECKED axis then found once a leg existed.
+
+Measured on the darwin-x64 VM (macOS 15.7.8, gjs 1.88.1, Node 24.18.1) and on
+the arm64 runner, at a commit every existing check called green:
+
+| | defect | why no Linux job could see it |
+|---|---|---|
+| 1 | `@gjsify/child_process` — the WHOLE suite: `spawnSync` returned `status: null`, `pid: 0`, empty stdout | the specs spawn `process.execPath`, and `@gjsify/process` returned `imports.system.programInvocationName` — the SCRIPT. Under native Node `execPath` is the interpreter, so the assumption is invisible on the leg that proves the test |
+| 2 | `@gjsify/process` — `pid`, `ppid` and `memoryUsage().rss` all `0` | three inline `/proc/self/*` reads with no fallback. procfs cannot be absent on Linux |
+| 3 | `@gjsify/os` — `cpu.times.user` `undefined` where Node guarantees a number | a `times` getter that warned once per core and returned `{}` |
+| 4 | `@gjsify/net` — `isIP('01.02.03.04')` answered `4`, Node answers `0` | it delegated to `Gio.InetAddress`, i.e. the host's `inet_pton(3)`: BSD accepts leading zeros, glibc rejects them, so the literal cannot fail on Linux |
+
+Three of the four are the exact failure mode §5 predicts — an answer a
+single-OS pipeline STRUCTURALLY cannot get wrong. The fourth is sharper than
+that and is the one worth generalising: **the OS axis and the runtime axis can
+hide each other's defects.** Defect 1 was introduced by a change that made the
+win32 leg correct, and it broke every GJS host on every operating system; it
+took a darwin GJS run to see it, because the Windows leg has no GJS host and
+the Linux leg had no reason to re-run that file. A per-OS leg is not enough on
+its own — the leg has to run every RUNTIME that OS supports, which is why the
+macOS one runs `test:node` and `test:gjs` and the Windows one says plainly that
+it cannot.
+
+Two consequences the ADR did not state and now does:
+
+- **A capability, not a platform name, is what a reader should key on.** Defect
+  2's fix dispatches on "is `/proc/self/status` readable", never on
+  `hostOs() === 'linux'` — a Linux container with procfs masked is a real host
+  and a darwin host will never gain procfs. The OS name is a proxy; the
+  capability is the thing. `@gjsify/v8`'s heap reader had already been written
+  this way, which is why it was the one package that answered correctly on
+  macOS.
+- **`gjsify.os` claims move DOWN as often as up.** `@gjsify/os` and
+  `@gjsify/child_process` are now `darwin: "partial"`, not because anything
+  regressed but because a leg finally measured what the code does (all-zero cpu
+  times; `detached` degrading without `setsid(1)`). A first real run of an axis
+  should be expected to lower claims, and an axis whose claims only ever rise is
+  not being exercised.
+
 ## Do not
 
 - **Do not answer an OS question with the runtime axis.** It is blind to
