@@ -96,7 +96,21 @@
         // shim note. This is the one deferral shape in the repo that lacked the
         // mandatory-reason + self-retirement pattern `it.failing`,
         // `unchecked-fields.mjs` and `platformsUncommitted` all carry.
-        "gjsify/todo-needs-anchor": "error"
+        "gjsify/todo-needs-anchor": "error",
+        // `spawn(process.execPath, …)` means "start the current runtime again" —
+        // the right idiom in a Node program and the wrong one in a DUAL-HOST
+        // one. Under `dist/cli.gjs.mjs` the current runtime is GJS, so the spawn
+        // hands a Node script to `gjs-console`, which RUNS it and dies inside
+        // the payload (`ReferenceError: module is not defined`) — a failure that
+        // reads as a bug in the payload, not in the spawn. Measured on `gjsify
+        // workspace @gjsify/create-app build` from a cold tree, where
+        // `@gjsify/tsc`'s bundle does not exist yet and `commands/tsc.ts`
+        // therefore took its upstream-`tsc` fallback. Repair: `nodeBinary()`
+        // from `utils/run-node.ts`. This was ALREADY the convention — six prose
+        // warnings across five files name `nodeBinary()`, two of them in
+        // capitals, and the single file that never got the memo is the one that
+        // broke. That is the measurement which turns a comment into a check.
+        "gjsify/spawn-node-binary": "error"
     },
     "overrides": [
         {
@@ -112,10 +126,14 @@
             }
         },
         {
-            // Node-only tooling: on Node `process.exit()` DOES halt
+            // Node-only tooling. Both rules below are about a hazard that
+            // exists only where the code can ALSO run under GJS, so the same
+            // set carves out both. On Node `process.exit()` DOES halt
             // synchronously, so the deferred-exit hazard does not exist there
             // and a bare exit followed by code is at worst dead code, not a
-            // lost exit code. `scripts/` dirs are build/CI tooling by
+            // lost exit code; and `process.execPath` genuinely IS the node
+            // binary, so re-entering it is the correct idiom rather than a
+            // wrong-interpreter bug. `scripts/` dirs are build/CI tooling by
             // convention (AGENTS.md: the CI gates stay plain Node SCRIPTS,
             // never CLI commands), `tests/e2e/**` are `node --test`
             // harnesses, and `packages/{node-gi,napi}/**` are the engines
@@ -123,9 +141,15 @@
             // (same carve-out posture as the affected classifier). Everything
             // that can run under GJS — package sources, examples/showcases
             // src, integration-test src (test:gjs) — stays covered.
+            //
+            // Measured when `spawn-node-binary` landed: all 41 of its hits
+            // across the repo fall inside this set, and none in a shipped
+            // package source. A rule that needed exemptions in the code it
+            // guards would be the wrong rule; this one needs none.
             "files": ["**/scripts/**", "tests/e2e/**", "packages/node-gi/**", "packages/napi/**"],
             "rules": {
-                "gjsify/deferred-process-exit": "off"
+                "gjsify/deferred-process-exit": "off",
+                "gjsify/spawn-node-binary": "off"
             }
         },
         {

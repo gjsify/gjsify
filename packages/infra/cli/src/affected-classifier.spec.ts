@@ -126,6 +126,7 @@ async function run(
     if (githubOutput === null || githubOutput === undefined) delete env.GITHUB_OUTPUT;
     else env.GITHUB_OUTPUT = githubOutput;
     return new Promise((res, rej) => {
+        // oxlint-disable-next-line gjsify/spawn-node-binary -- re-entering the CURRENT runtime IS the intent here: this suite is built `--app node` and run by node, bun and deno (`test:cross-runtime`), so the child has to be whichever of the three is under test. It never runs under GJS, so the wrong-interpreter hazard the rule guards cannot arise.
         const child = spawn(process.execPath, argv, { stdio: ['pipe', 'pipe', 'pipe'], env });
         let stdout = '';
         let stderr = '';
@@ -197,6 +198,7 @@ async function shellWordSplit(value: string): Promise<string[]> {
 async function runClassify(cwd: string, changedFiles: string[]): Promise<ClassifyOutput> {
     return new Promise((res, rej) => {
         const child = spawn(
+            // oxlint-disable-next-line gjsify/spawn-node-binary -- as in `run()` above: the runtime under test is the one that must classify, and this suite never runs under GJS.
             process.execPath,
             [CLI_ENTRY, 'affected', '--changed-from-stdin', '--format=json', '--cwd', cwd],
             { stdio: ['pipe', 'pipe', 'pipe'] },
