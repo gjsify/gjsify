@@ -8,6 +8,7 @@ import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import bundlerPickSuite from './bundler-pick.spec.js';
+import cliFailSuite from './cli-fail.spec.js';
 import processStubBannerSuite from './process-stub-banner.spec.js';
 import barrelsGenerateSuite from './barrels-generate.spec.js';
 import npmOidcSuite from './npm-oidc.spec.js';
@@ -174,6 +175,7 @@ if (process.platform === 'win32') {
 run(
     {
         bundlerPickSuite,
+        cliFailSuite,
         processStubBannerSuite,
         barrelsGenerateSuite,
         npmOidcSuite,
