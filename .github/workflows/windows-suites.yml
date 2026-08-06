@@ -1,0 +1,199 @@
+# The OS axis, exercised rather than declared (ADR 0018 § 5).
+#
+# WHAT THIS IS FOR
+#
+# Before this workflow, NO job ran a single `@gjsify/*` package suite on
+# Windows. `audit-runtimes.yml`'s `check-windows` reads manifests and never
+# executes a package; `cli-cross-platform.yml` diagnoses the PUBLISHED CLI on a
+# schedule and therefore structurally cannot gate this repository's code; and
+# `node-gi.yml`'s Windows jobs cover the GI bridge, not the Node pillar.
+#
+# The size of that hole was measured on the win11-gjsify VM, on a `main` that
+# every existing check called green: 144 failing assertions across five
+# packages — `child_process` 86 of 145, `path` 23 of 402, `fs` 19 of 589, `os`
+# 10 of 178, `process` 6 of 167. Not one was a defect in the implementation.
+# All of them were specs that spelled a POSIX answer as though it were THE
+# answer, which is exactly the failure mode a Linux-only pipeline cannot see:
+# on Linux the POSIX literal CANNOT fail.
+#
+# WHY NOT ON EVERY PR
+#
+# ADR 0018 § 5 decides this, and states the asymmetry rather than implying
+# parity: the OS axis is verified on `main` and the nightly, not on every PR.
+# Two reasons, and neither is a reluctance to check. Windows minutes bill at 2x,
+# and a full `gjsify install` here is ~1000 packages; and `main` is
+# branch-protected with EXACTLY THREE required checks, where adding a fourth is
+# a governance decision with a trap behind it (a required check that does not
+# RUN blocks the PR forever). So this workflow is deliberately outside that set:
+# it is read, not waited on.
+#
+# The `pull_request` trigger is path-filtered onto this file alone, which keeps
+# it ADVISORY by construction while still letting a change to the leg be tested
+# by the PR that makes it.
+#
+# WHY cmd.exe, AND WHY THE PATH IS STRIPPED
+#
+# `status/open-todos.md` records the measurement: Git for Windows puts
+# `C:\Program Files\Git\usr\bin` on PATH, which supplies a real `chmod`, `cp`,
+# `rm`, `sed` and `which`, and every process spawned from that shell inherits
+# them. npm, however, runs package scripts through `%COMSPEC%`, where none of
+# those exist. The two disagree on the same tree at the same commit —
+# `gjsify run build:infra` completed under git-bash and failed at
+# `@gjsify/create-app` under cmd.exe.
+#
+# GitHub's Windows images have Git on PATH too, so a leg that used bash would
+# reproduce that false green faithfully. Any Windows claim has to name its
+# shell; this one names cmd.exe and removes the `\Git\` entries so it cannot be
+# quietly rescued by them.
+#
+# WHAT THIS LEG CANNOT SEE, STATED SO NOBODY READS IT AS MORE
+#
+# `test:gjs` does not run here and cannot: there is no GJS host on Windows.
+# What is measured is the NODE leg of each suite, which for a package declaring
+# `runtimes.node: "none"` or `"native"` proves the TEST is correct rather than
+# proving our implementation is — that is the standing gap named in
+# `@gjsify/child_process`'s and `@gjsify/os`'s `gjsify.osNotes.win32`.
+#
+# It also runs ELEVATED. GitHub's Windows runners execute as an administrator,
+# so `fs`'s symlink specs — which need elevation or Developer Mode — RUN here
+# rather than being tolerated. That is the right way round (the capability
+# probe in `packages/node/fs/src/capabilities.spec.ts` decides per host, never
+# per platform), but it means a green run here does NOT prove an unprivileged
+# Windows user sees the same thing. The leg prints the probe's verdict so the
+# log says which of the two was measured.
+
+name: Windows suites
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # 05:30 UTC — after main.yml's 04:00 nightly, so the two do not contend for
+    # the Windows runner pool or interleave in the notification stream.
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-suites.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  node-suites:
+    name: Node-pillar suites (win32-x64 / cmd.exe)
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      # Before checkout, so it governs the checkout itself. `core.autocrlf=true`
+      # is Git for Windows' installer default and is what
+      # `website/…/platform-support.md` tells a Windows contributor to turn off;
+      # pinning it here means this job measures the setup the docs recommend and
+      # cannot start failing because a runner image changed its git defaults.
+      - name: Check out with line endings untouched
+        run: git config --global core.autocrlf false
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      # The measurement this leg exists to keep honest. See the header: a
+      # git-bash PATH turns cmd.exe-only failures green, so the POSIX utilities
+      # Git for Windows ships are removed before anything runs. Written to
+      # GITHUB_ENV so every later step inherits it.
+      - name: Remove the git-bash POSIX utilities from PATH
+        shell: pwsh
+        run: |
+          $kept = ($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\Git\\') }
+          "PATH=$($kept -join ';')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "dropped $((($env:PATH -split ';') | Where-Object { $_ -match '\\Git\\' }).Count) \Git\ entr(y|ies) from PATH"
+
+      - name: Prove the POSIX utilities are gone
+        run: |
+          where sh && exit 1 || echo "no sh on PATH - good"
+          where rm && exit 1 || echo "no rm on PATH - good"
+          echo COMSPEC=%COMSPEC%
+
+      # Cold tree: `node_modules/.bin/gjsify` dispatches to build outputs that do
+      # not exist yet (ADR 0002 untracked both bundles), and the Linux route
+      # through `gjs -m dist/cli.gjs.mjs` is unavailable here by construction.
+      # The published CLI is the only CLI this tree has, which is the same
+      # bootstrap `cli-cross-platform.yml` exercises from a user's side.
+      - name: Bootstrap the toolchain from the published CLI
+        run: npx --yes @gjsify/cli@latest run build:infra
+
+      - name: Install the workspace
+        run: node packages\infra\cli\lib\index.js install --immutable
+
+      # `test:node` is only `node test.node.mjs` — it BUILDS nothing. The
+      # bundle has to exist first, and a package's own build needs its
+      # workspace dependencies built, so this is workspace-wide and once.
+      - name: Build the workspace
+        run: node packages\infra\cli\lib\index.js run build
+
+      # Which of the two Windows hosts this run measured. `@gjsify/fs`'s symlink
+      # specs are gated on the CAPABILITY, not the platform, so the same commit
+      # legitimately produces "19 tests ran" here and "19 expected failures" on
+      # an unprivileged workstation. Without this line a reader cannot tell
+      # which, and would take the green as covering both.
+      - name: Report the host capability this run measured
+        run: node scripts\report-symlink-capability.mjs
+
+      # One package per line so a failure names the package in the step title
+      # rather than in the middle of a 10-package log. `test:node` only: there
+      # is no gjs here, and a suite's `test` script chains `test:gjs`.
+      - name: '@gjsify/utils'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/utils run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/utils run test:node
+
+      - name: '@gjsify/path'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/path run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/path run test:node
+
+      - name: '@gjsify/os'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/os run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/os run test:node
+
+      - name: '@gjsify/process'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/process run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/process run test:node
+
+      - name: '@gjsify/util'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/util run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/util run test:node
+
+      - name: '@gjsify/fs'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/fs run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/fs run test:node
+
+      - name: '@gjsify/child_process'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/child_process run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/child_process run test:node
+
+      - name: '@gjsify/net'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/net run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/net run test:node
+
+      - name: '@gjsify/worker_threads'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/worker_threads run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/worker_threads run test:node
+
+      - name: '@gjsify/node-globals'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/node run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/node run test:node
+
+      # The CLI is the package ADR 0018 singles out: it writes `PATH` /
+      # `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` per host and generates the
+      # launcher every other package is started through, and it declares
+      # `gjsify.os.win32: "supported"`. Its own suite is what holds that claim.
+      - name: '@gjsify/cli'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/cli run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/cli run test:node
+
+      # Manifest conformance including `os-axis` — cheap, and it is the check
+      # that the declarations these suites back up are still present.
+      - name: Conformance audit (os-axis included)
+        run: node scripts\audit-runtimes.mjs --check

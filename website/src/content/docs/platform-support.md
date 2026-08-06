@@ -263,7 +263,16 @@ rather than making a runtime-class claim:
   `main.yml`, a **named subset** of the `@gjsify/*` GJS suites also runs on
   macOS/arm64 under Homebrew `gjs` 1.88 — see below. The rest of the suite still
   does not.
-- **Windows** is covered by `@gjsify/node-gi`'s CI, including a real GTK window and
+- **Windows** additionally runs the Node-pillar `@gjsify/*` suites — `utils`, `path`,
+  `os`, `process`, `util`, `fs`, `child_process`, `net`, `worker_threads`,
+  `node-globals` and `@gjsify/cli`'s own — in `windows-suites.yml`, on `main` and
+  nightly rather than per PR (ADR 0018 § 5). It runs under **cmd.exe with the
+  git-bash utilities stripped from `PATH`**, because Git for Windows supplies a real
+  `rm`/`cp`/`sh` that npm's `%COMSPEC%` scripts do not have — testing from git-bash
+  reports false greens. Note the runner is ELEVATED, so `@gjsify/fs`'s symlink specs
+  execute there; on an unprivileged host they are tolerated instead, and the leg
+  prints which of the two it measured.
+- **Windows** is also covered by `@gjsify/node-gi`'s CI, including a real GTK window and
   the storybook, using a bundled GTK runtime rather than a system install.
 
 ### The `@gjsify/*` GJS suites on macOS
