@@ -86,8 +86,13 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
  * an env-var problem that does not exist. `scripts/verify-committed-bundles.mjs`
  * hit exactly that and it blocked releases.
  *
- * The probe is `existsSync`-only (no import, no resolution) so it cannot itself
- * throw or recurse into the failure being explained.
+ * NOTHING here may throw or recurse into the failure being explained. Branches 1
+ * and 2 are `existsSync`-only (no import, no resolution). Branch 3 additionally
+ * asks `missingSystemDepsFor()` and reads two env vars — both safe by
+ * construction rather than by a catch: the former routes every probe through
+ * `tryExecFile`, which returns null on any failure, and the latter is a string
+ * split. Keep that property when editing: a probe that dies here replaces the
+ * diagnosis with its own stack.
  */
 function diagnoseNativeEngine(): string {
     let pkgDir: string | null = null;
@@ -152,7 +157,7 @@ function diagnoseNativeEngine(): string {
         const names = missing.map((d) => d.name).join(', ');
         parts.push(
             `\nMEASURED CAUSE — a system library the engine's prebuild loads is MISSING: ${names}.\n` +
-                "The prebuild is present but its typelib cannot open its backing library, which GJS reports as " +
+                'The prebuild is present but its typelib cannot open its backing library, which GJS reports as ' +
                 '`Unsupported type void, deriving from fundamental void` — a message that names nothing. ' +
                 'This is a system package, not an npm one.',
         );

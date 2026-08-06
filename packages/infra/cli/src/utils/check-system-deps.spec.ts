@@ -77,9 +77,7 @@ export default async () => {
             // json-glib, bauplaner#40 libsoup3, both 2026-08-05). This row is the
             // check that was missing: each of the six real managers must produce a
             // command, and `unknown` must keep producing none.
-            const missing: DepCheck[] = [
-                { id: 'json-glib', name: 'JSON-GLib', found: false, severity: 'optional' },
-            ];
+            const missing: DepCheck[] = [{ id: 'json-glib', name: 'JSON-GLib', found: false, severity: 'optional' }];
             const silent: string[] = [];
             for (const pm of ['apt', 'dnf', 'pacman', 'zypper', 'apk', 'brew'] as const) {
                 if (!buildInstallCommand(pm, missing)) silent.push(pm);
