@@ -58,7 +58,12 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 2
+        "tier": 2,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "supported"
+        }
     },
     "license": "MIT",
     "repository": {

@@ -55,7 +55,15 @@
             "browser": "polyfill",
             "nativescript": "none"
         },
-        "tier": 1
+        "tier": 1,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "win32": "A `src/win32.ts` covers the per-platform answers, but it is unexercised for the same structural reason as `@gjsify/child_process`: `runtimes.node: \"none\"` sends `test:node` to native Node, and there is no GJS host on Windows to run `test:gjs`. Measured on the win11-gjsify VM: 10 of 178 specs fail there, and all ten are POSIX assumptions in the SPECS (asserting `type()` is `Linux`, EOL is `\\n`, devNull is `/dev/null`) rather than defects in this module."
+        }
     },
     "license": "MIT",
     "repository": {
