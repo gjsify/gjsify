@@ -185,94 +185,94 @@ export default async () => {
 
     await describe('path.join', async () => {
         await it('should join path segments', async () => {
-            expect(path.join('/foo', 'bar', 'baz/asdf', 'quux', '..')).toBe('/foo/bar/baz/asdf');
+            expect(path.posix.join('/foo', 'bar', 'baz/asdf', 'quux', '..')).toBe('/foo/bar/baz/asdf');
         });
 
         await it('should return . for no arguments', async () => {
-            expect(path.join()).toBe('.');
+            expect(path.posix.join()).toBe('.');
         });
 
         await it('should normalize the result', async () => {
-            expect(path.join('foo', 'bar', '..', 'baz')).toBe('foo/baz');
+            expect(path.posix.join('foo', 'bar', '..', 'baz')).toBe('foo/baz');
         });
 
         await it('should handle absolute paths', async () => {
-            expect(path.join('/foo', '/bar')).toBe('/foo/bar');
+            expect(path.posix.join('/foo', '/bar')).toBe('/foo/bar');
         });
 
         await it('should handle dot segments', async () => {
-            expect(path.join('.', 'x/b', '..', '/b/c.js')).toBe('x/b/c.js');
-            expect(path.join('/.', 'x/b', '..', '/b/c.js')).toBe('/x/b/c.js');
+            expect(path.posix.join('.', 'x/b', '..', '/b/c.js')).toBe('x/b/c.js');
+            expect(path.posix.join('/.', 'x/b', '..', '/b/c.js')).toBe('/x/b/c.js');
         });
 
         await it('should resolve parent traversal beyond root', async () => {
-            expect(path.join('/foo', '../../../bar')).toBe('/bar');
-            expect(path.join('foo', '../../../bar')).toBe('../../bar');
-            expect(path.join('foo/', '../../../bar')).toBe('../../bar');
-            expect(path.join('foo/x', '../../../bar')).toBe('../bar');
+            expect(path.posix.join('/foo', '../../../bar')).toBe('/bar');
+            expect(path.posix.join('foo', '../../../bar')).toBe('../../bar');
+            expect(path.posix.join('foo/', '../../../bar')).toBe('../../bar');
+            expect(path.posix.join('foo/x', '../../../bar')).toBe('../bar');
         });
 
         await it('should handle ./bar joins', async () => {
-            expect(path.join('foo/x', './bar')).toBe('foo/x/bar');
-            expect(path.join('foo/x/', './bar')).toBe('foo/x/bar');
-            expect(path.join('foo/x/', '.', 'bar')).toBe('foo/x/bar');
+            expect(path.posix.join('foo/x', './bar')).toBe('foo/x/bar');
+            expect(path.posix.join('foo/x/', './bar')).toBe('foo/x/bar');
+            expect(path.posix.join('foo/x/', '.', 'bar')).toBe('foo/x/bar');
         });
 
         await it('should handle trailing ./', async () => {
-            expect(path.join('./')).toBe('./');
-            expect(path.join('.', './')).toBe('./');
+            expect(path.posix.join('./')).toBe('./');
+            expect(path.posix.join('.', './')).toBe('./');
         });
 
         await it('should handle multiple dot segments', async () => {
-            expect(path.join('.', '.', '.')).toBe('.');
-            expect(path.join('.', './', '.')).toBe('.');
-            expect(path.join('.', '/./', '.')).toBe('.');
-            expect(path.join('.', '/////./', '.')).toBe('.');
-            expect(path.join('.')).toBe('.');
+            expect(path.posix.join('.', '.', '.')).toBe('.');
+            expect(path.posix.join('.', './', '.')).toBe('.');
+            expect(path.posix.join('.', '/./', '.')).toBe('.');
+            expect(path.posix.join('.', '/////./', '.')).toBe('.');
+            expect(path.posix.join('.')).toBe('.');
         });
 
         await it('should handle empty string arguments', async () => {
-            expect(path.join('', '.')).toBe('.');
-            expect(path.join('', 'foo')).toBe('foo');
-            expect(path.join('', '/foo')).toBe('/foo');
-            expect(path.join('', '', '/foo')).toBe('/foo');
-            expect(path.join('', '', 'foo')).toBe('foo');
-            expect(path.join('foo', '')).toBe('foo');
-            expect(path.join('foo/', '')).toBe('foo/');
-            expect(path.join('foo', '', '/bar')).toBe('foo/bar');
-            expect(path.join('')).toBe('.');
-            expect(path.join('', '')).toBe('.');
+            expect(path.posix.join('', '.')).toBe('.');
+            expect(path.posix.join('', 'foo')).toBe('foo');
+            expect(path.posix.join('', '/foo')).toBe('/foo');
+            expect(path.posix.join('', '', '/foo')).toBe('/foo');
+            expect(path.posix.join('', '', 'foo')).toBe('foo');
+            expect(path.posix.join('foo', '')).toBe('foo');
+            expect(path.posix.join('foo/', '')).toBe('foo/');
+            expect(path.posix.join('foo', '', '/bar')).toBe('foo/bar');
+            expect(path.posix.join('')).toBe('.');
+            expect(path.posix.join('', '')).toBe('.');
         });
 
         await it('should handle complex .. chains', async () => {
-            expect(path.join('./', '..', '/foo')).toBe('../foo');
-            expect(path.join('./', '..', '..', '/foo')).toBe('../../foo');
-            expect(path.join('.', '..', '..', '/foo')).toBe('../../foo');
-            expect(path.join('', '..', '..', '/foo')).toBe('../../foo');
+            expect(path.posix.join('./', '..', '/foo')).toBe('../foo');
+            expect(path.posix.join('./', '..', '..', '/foo')).toBe('../../foo');
+            expect(path.posix.join('.', '..', '..', '/foo')).toBe('../../foo');
+            expect(path.posix.join('', '..', '..', '/foo')).toBe('../../foo');
         });
 
         await it('should handle root paths', async () => {
-            expect(path.join('/')).toBe('/');
-            expect(path.join('/', '.')).toBe('/');
-            expect(path.join('/', '..')).toBe('/');
-            expect(path.join('/', '..', '..')).toBe('/');
+            expect(path.posix.join('/')).toBe('/');
+            expect(path.posix.join('/', '.')).toBe('/');
+            expect(path.posix.join('/', '..')).toBe('/');
+            expect(path.posix.join('/', '..', '..')).toBe('/');
         });
 
         await it('should handle leading space in paths', async () => {
-            expect(path.join(' /foo')).toBe(' /foo');
-            expect(path.join(' ', 'foo')).toBe(' /foo');
-            expect(path.join(' ', '.')).toBe(' ');
-            expect(path.join(' ', '/')).toBe(' /');
-            expect(path.join(' ', '')).toBe(' ');
+            expect(path.posix.join(' /foo')).toBe(' /foo');
+            expect(path.posix.join(' ', 'foo')).toBe(' /foo');
+            expect(path.posix.join(' ', '.')).toBe(' ');
+            expect(path.posix.join(' ', '/')).toBe(' /');
+            expect(path.posix.join(' ', '')).toBe(' ');
         });
 
         await it('should handle multiple absolute segments', async () => {
-            expect(path.join('/', 'foo')).toBe('/foo');
-            expect(path.join('/', '/foo')).toBe('/foo');
-            expect(path.join('/', '//foo')).toBe('/foo');
-            expect(path.join('/', '', '/foo')).toBe('/foo');
-            expect(path.join('', '/', 'foo')).toBe('/foo');
-            expect(path.join('', '/', '/foo')).toBe('/foo');
+            expect(path.posix.join('/', 'foo')).toBe('/foo');
+            expect(path.posix.join('/', '/foo')).toBe('/foo');
+            expect(path.posix.join('/', '//foo')).toBe('/foo');
+            expect(path.posix.join('/', '', '/foo')).toBe('/foo');
+            expect(path.posix.join('', '/', 'foo')).toBe('/foo');
+            expect(path.posix.join('', '/', '/foo')).toBe('/foo');
         });
     });
 
@@ -280,15 +280,15 @@ export default async () => {
 
     await describe('path.normalize', async () => {
         await it('should resolve .. and .', async () => {
-            expect(path.normalize('/foo/bar//baz/asdf/quux/..')).toBe('/foo/bar/baz/asdf');
+            expect(path.posix.normalize('/foo/bar//baz/asdf/quux/..')).toBe('/foo/bar/baz/asdf');
         });
 
         await it('should return . for empty string', async () => {
-            expect(path.normalize('')).toBe('.');
+            expect(path.posix.normalize('')).toBe('.');
         });
 
         await it('should preserve trailing slash', async () => {
-            expect(path.normalize('/foo/bar/')).toBe('/foo/bar/');
+            expect(path.posix.normalize('/foo/bar/')).toBe('/foo/bar/');
         });
 
         await it('should normalize fixtures path with ..', async () => {
@@ -391,12 +391,12 @@ export default async () => {
 
     await describe('path.resolve', async () => {
         await it('should resolve absolute path with relative segment', async () => {
-            const result = path.resolve('/foo/bar', './baz');
+            const result = path.posix.resolve('/foo/bar', './baz');
             expect(result).toBe('/foo/bar/baz');
         });
 
         await it('should resolve with absolute segment (later arg wins)', async () => {
-            const result = path.resolve('/foo/bar', '/tmp/file/');
+            const result = path.posix.resolve('/foo/bar', '/tmp/file/');
             expect(result).toBe('/tmp/file');
         });
 
@@ -439,7 +439,7 @@ export default async () => {
 
     await describe('path.relative', async () => {
         await it('should compute relative path', async () => {
-            expect(path.relative('/data/orandea/test/aaa', '/data/orandea/impl/bbb')).toBe('../../impl/bbb');
+            expect(path.posix.relative('/data/orandea/test/aaa', '/data/orandea/impl/bbb')).toBe('../../impl/bbb');
         });
 
         await it('should return empty string for same path', async () => {
@@ -650,7 +650,7 @@ export default async () => {
     await describe('path.format', async () => {
         await it('should format a path object', async () => {
             expect(
-                path.format({
+                path.posix.format({
                     root: '/',
                     dir: '/home/user/dir',
                     base: 'file.txt',
@@ -660,7 +660,7 @@ export default async () => {
 
         await it('should use name and ext if base is not provided', async () => {
             expect(
-                path.format({
+                path.posix.format({
                     root: '/',
                     name: 'file',
                     ext: '.txt',
@@ -669,45 +669,58 @@ export default async () => {
         });
 
         await it('should format with dir only (adds trailing sep)', async () => {
-            expect(path.format({ dir: 'some/dir' })).toBe('some/dir/');
+            expect(path.posix.format({ dir: 'some/dir' })).toBe('some/dir/');
         });
 
         await it('should format with base only', async () => {
-            expect(path.format({ base: 'index.html' })).toBe('index.html');
+            expect(path.posix.format({ base: 'index.html' })).toBe('index.html');
         });
 
         await it('should format with root only', async () => {
-            expect(path.format({ root: '/' })).toBe('/');
+            expect(path.posix.format({ root: '/' })).toBe('/');
         });
 
         await it('should format with name and ext only', async () => {
-            expect(path.format({ name: 'index', ext: '.html' })).toBe('index.html');
+            expect(path.posix.format({ name: 'index', ext: '.html' })).toBe('index.html');
         });
 
         await it('should prefer dir over root when both present with name+ext', async () => {
-            expect(path.format({ dir: 'some/dir', name: 'index', ext: '.html' })).toBe('some/dir/index.html');
-            expect(path.format({ root: '/', name: 'index', ext: '.html' })).toBe('/index.html');
+            expect(path.posix.format({ dir: 'some/dir', name: 'index', ext: '.html' })).toBe('some/dir/index.html');
+            expect(path.posix.format({ root: '/', name: 'index', ext: '.html' })).toBe('/index.html');
         });
 
         await it('should return empty string for empty object', async () => {
-            expect(path.format({})).toBe('');
+            expect(path.posix.format({})).toBe('');
         });
 
         await it('should handle ext without leading dot', async () => {
-            expect(path.format({ name: 'x', ext: 'png' })).toBe('x.png');
-            expect(path.format({ name: 'x', ext: '.png' })).toBe('x.png');
+            expect(path.posix.format({ name: 'x', ext: 'png' })).toBe('x.png');
+            expect(path.posix.format({ name: 'x', ext: '.png' })).toBe('x.png');
         });
     });
 
     // ===== path.sep and path.delimiter =====
 
     await describe('path.sep and path.delimiter', async () => {
-        await it('should have correct separator', async () => {
-            expect(path.sep).toBe('/');
+        // The default export IS the host flavour — `path.win32` on Windows,
+        // `path.posix` everywhere else — so neither of these is a constant.
+        // Asserting `/` and `:` unconditionally asserted the HOST the suite
+        // happened to run on, which is why both went red on win32 against a
+        // module that was answering correctly (`\` and `;`).
+        await it('should expose the host flavour separator', async () => {
+            expect(path.sep).toBe(process.platform === 'win32' ? '\\' : '/');
         });
 
-        await it('should have correct delimiter', async () => {
-            expect(path.delimiter).toBe(':');
+        await it('should expose the host flavour delimiter', async () => {
+            expect(path.delimiter).toBe(process.platform === 'win32' ? ';' : ':');
+        });
+
+        await it('posix should have / separator', async () => {
+            expect(path.posix.sep).toBe('/');
+        });
+
+        await it('win32 should have \\ separator', async () => {
+            expect(path.win32.sep).toBe('\\');
         });
 
         await it('posix should have : delimiter', async () => {
@@ -723,7 +736,13 @@ export default async () => {
 
     await describe('path.toNamespacedPath', async () => {
         await it('should be a no-op on POSIX', async () => {
-            expect(path.toNamespacedPath('/foo/bar')).toBe('/foo/bar');
+            expect(path.posix.toNamespacedPath('/foo/bar')).toBe('/foo/bar');
+        });
+
+        // The win32 counterpart, which the POSIX-only assertion above hid: on
+        // Windows the default export DOES rewrite, to the `\\?\` long-path form.
+        await it('win32 should produce the \\\\?\\ long-path form', async () => {
+            expect(path.win32.toNamespacedPath('C:\\foo\\bar')).toBe('\\\\?\\C:\\foo\\bar');
         });
 
         await it('should return the same value for any string on posix', async () => {

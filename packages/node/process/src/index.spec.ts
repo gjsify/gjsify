@@ -6,6 +6,14 @@ import { describe, it, expect } from '@gjsify/unit';
 
 import process from 'node:process';
 import * as os from 'node:os';
+import { isAbsolute, sep } from 'node:path';
+
+// This package declares `runtimes.node: "none"`, so `test:node` measures NATIVE
+// Node. Assertions spelled in POSIX — a leading `/`, a `/` inside `cwd()`,
+// `$HOME`, an uppercase `PATH` key — were therefore asserting the HOST, and six
+// of them went red on the win11-gjsify VM against a Node that was answering
+// correctly. Each now asks for what Node documents on the host it is running on.
+const IS_WIN32 = process.platform === 'win32';
 
 export default async () => {
     await describe('process: properties', async () => {
@@ -112,12 +120,12 @@ export default async () => {
 
         await it('process.cwd() should return an absolute path', async () => {
             const cwd = process.cwd();
-            expect(cwd[0]).toBe('/');
+            expect(isAbsolute(cwd)).toBeTruthy();
         });
 
-        await it('process.cwd() should return a path containing /', async () => {
+        await it('process.cwd() should return a path containing the host separator', async () => {
             const cwd = process.cwd();
-            expect(cwd).toContain('/');
+            expect(cwd).toContain(sep);
         });
 
         await it('process.uptime() should return a number', async () => {
@@ -289,7 +297,10 @@ export default async () => {
             const keys = Object.keys(process.env);
             expect(Array.isArray(keys)).toBeTruthy();
             expect(keys.length > 0).toBeTruthy();
-            expect(keys).toContain('PATH');
+            // Windows environment names are case-INSENSITIVE, and Node returns
+            // them in the case the OS stored — which is `Path`, not `PATH`.
+            // `process.env.PATH` still resolves there; only enumeration differs.
+            expect(keys.some((k) => k.toUpperCase() === 'PATH')).toBeTruthy();
         });
 
         await it('non-existent key should return undefined', async () => {
@@ -304,8 +315,10 @@ export default async () => {
             delete process.env.TEST_GJSIFY_OVERWRITE;
         });
 
-        await it('HOME should match os.homedir()', async () => {
-            const home = process.env.HOME;
+        await it('the home-directory variable should match os.homedir()', async () => {
+            // Windows has no `$HOME`; the equivalent is `%USERPROFILE%`, which
+            // is also what `os.homedir()` reads there.
+            const home = IS_WIN32 ? process.env.USERPROFILE : process.env.HOME;
             expect(home).toBeDefined();
             expect(home).toBe(os.homedir());
         });
@@ -413,15 +426,22 @@ export default async () => {
     await describe('process: chdir', async () => {
         await it('should change and restore directory', async () => {
             const original = process.cwd();
-            process.chdir('/tmp');
+            // `os.tmpdir()`, never a literal `/tmp`: on win32 that resolves
+            // against the current drive to `C:\tmp`, which does not exist — the
+            // same trap that stopped `@gjsify/child_process` loading at all
+            // (gjsify#948).
+            const tmp = os.tmpdir();
+            process.chdir(tmp);
             // `cwd()` reports the RESOLVED path, which is not always the string
             // passed to `chdir`: on macOS `/tmp` is a symlink to `/private/tmp`,
             // so asserting the literal passes on Linux and fails on macOS. Node
             // resolves on both. Assert what the test is actually about — that
             // chdir moved us into that directory — without pinning the spelling.
+            // The last segment is the portable form of that: `/tmp` on Linux,
+            // `T` under a macOS `$TMPDIR`, `Temp` on win32.
             const changed = process.cwd();
             expect(changed).not.toBe(original);
-            expect(changed.endsWith('/tmp')).toBe(true);
+            expect(changed.split(sep).pop()).toBe(tmp.split(sep).pop());
             process.chdir(original);
             expect(process.cwd()).toBe(original);
         });
