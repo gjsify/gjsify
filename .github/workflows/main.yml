@@ -493,32 +493,27 @@ jobs:
           path: ${{ steps.setup.outputs.build-cache-paths }}
           key: ${{ steps.setup.outputs.build-cache-key }}
 
-      # The committed GJS bundles must match their SOURCE, not just report the
-      # expected version string. gjsify-setup's version check runs the bundle
-      # and compares `--version` — a bundle built from OLD source passes that,
-      # which is exactly how the browser-alias fix merged with a stale
-      # `dist/cli.gjs.mjs` (fix present in `lib/index.mjs`, absent from the
-      # bundle) while CI stayed green; #825 had to rebuild it afterwards.
+      # Rebuilds the two generated things still committed — `affected.gjs.mjs`
+      # and `@gjsify/tsc`'s shipped libs — and compares them byte-for-byte
+      # against `git show HEAD:<path>`. `affected.gjs.mjs` is the one that needs
+      # it: the `changes` job boots it before any install and it gates every
+      # other job, so a stale copy does not fail, it silently gates today's PR
+      # with an older commit's tables.
       #
-      # WHY HERE, and only here:
-      #   • ONE job. The rebuild is the expensive part; doing it in test/e2e/
-      #     check too would buy nothing. `build` is the only job that already
-      #     has a built workspace, which the bundle build resolves its deps
-      #     from — so this is the cheapest place that can do it at all.
-      #   • AFTER `Build`, so the deps' `lib/` is current. It does NOT depend on
-      #     `Build` having produced the bundles: the script rebuilds every one
-      #     of them itself, because the selective path (`gjsify foreach build
-      #     $INCLUDE_ARGS`) never runs `build:gjs-bundle` at all.
-      #   • The expected bytes come from `git show HEAD:<path>`, not the working
-      #     tree — `gjsify run build` ends in `build:gjs-bundle` and rewrites
-      #     those files in place, so a working-tree comparison would compare a
-      #     fresh build against itself and pass without checking anything. That
-      #     also makes it immune to the build-output cache shadowing a tracked
-      #     artifact (the failure mode the "Re-assert committed sources" step in
-      #     gjsify-setup exists for, and which the version check — running
-      #     BEFORE that restore — structurally cannot see).
-      # The script restores the artifacts to their pre-run bytes afterwards, so
-      # the build-output cache saved below is unaffected either way.
+      # It also BUILDS `cli.gjs.mjs` + `tsc.gjs.mjs` and leaves them on disk for
+      # the artifact upload below — see the `groups` comments in the script for
+      # why built-but-ungrouped is the mechanism rather than an oversight.
+      #
+      # And it is the guard that ADR 0002's untracking STAYS: the artifact set
+      # is discovered from git and a committed bundle with no rebuild recipe is
+      # a hard error, so re-committing one reds CI.
+      #
+      # WHY HERE, and only here: ONE job. The rebuild is the expensive part, and
+      # `build` is the only job that already has a built workspace for the
+      # bundle build to resolve its deps from. AFTER `Build`, so the deps'
+      # `lib/` is current. The expected bytes come from git, NOT the working
+      # tree — `gjsify run build` rewrites those files in place, so a
+      # working-tree comparison would compare a fresh build against itself.
       - name: Verify committed bundles rebuild from source
         id: verify-bundles
         timeout-minutes: 30
@@ -533,15 +528,6 @@ jobs:
       # machine the instruction is an infinite loop and CI is the only source of
       # the bytes that satisfy the check. Uploading them costs nothing on a
       # green run (the step is skipped) and turns a dead end into a download.
-      - name: Upload the bundles CI rebuilt (on mismatch)
-        if: ${{ failure() && steps.verify-bundles.outcome == 'failure' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: rebuilt-bundles
-          path: tmp/rebuilt-bundles
-          if-no-files-found: ignore
-          retention-days: 7
-
       # The transport that replaces `git` for the two big bundles (ADR 0002).
       # Every downstream job boots `dist/cli.gjs.mjs` (≈17 e2e suites do), and
       # once it is untracked a checkout no longer carries it.

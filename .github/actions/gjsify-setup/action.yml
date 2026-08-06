@@ -3,7 +3,8 @@ description: >
   Shared setup for every gjsify CI job (build / test / e2e / examples): boots the
   prebuilt Fedora image's prerequisites, sets up Node + corepack, restores the
   node_modules + build-output caches, creates the non-root test user, runs the
-  Node-free install, and verifies the committed GJS bundles. Encapsulated as a
+  Node-free install, and (on request) restores the GJS bootstrap bundles the
+  `build` job publishes as a run artifact. Encapsulated as a
   composite action because GitHub Actions has no other way to share a step
   sequence across parallel jobs (no YAML anchors). The calling job MUST run
   `actions/checkout` first — a local composite action can only be resolved once
@@ -169,39 +170,6 @@ runs:
         echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
         echo "bootstrap-bundle=$B" >> "$GITHUB_OUTPUT"
 
-    # The committed GJS bundles must execute under stock GJS AND report the
-    # current version — catches a broken or stale committed bundle. Run BEFORE
-    # any Build step (which would rebuild them in place).
-    - name: Verify committed CLI GJS bundle is functional + up-to-date
-      shell: bash
-      run: |
-        set -e
-        EXPECTED=$(node -p "require('./packages/infra/cli/package.json').version")
-        ACTUAL=$(gjs -m packages/infra/cli/dist/cli.gjs.mjs --version 2>&1 | head -1 | tr -d '[:space:]')
-        if [ "$ACTUAL" != "$EXPECTED" ]; then
-          echo "::error::packages/infra/cli/dist/cli.gjs.mjs reports version '$ACTUAL', package.json says '$EXPECTED'."
-          echo "::error::Refresh locally: gjsify workspace @gjsify/cli build && gjsify workspace @gjsify/cli build:gjs-bundle, then commit it."
-          exit 1
-        fi
-        WS_COPIES=$(grep -o 'must be a ReadableStream' packages/infra/cli/dist/cli.gjs.mjs | wc -l | tr -d '[:space:]')
-        if [ "$WS_COPIES" != "1" ]; then
-          echo "::error::packages/infra/cli/dist/cli.gjs.mjs embeds $WS_COPIES copies of @gjsify/web-streams (expected 1)."
-          exit 1
-        fi
-        echo "GJS bundle OK — reports v$ACTUAL matching package.json, single web-streams copy."
-
-    - name: Verify committed @gjsify/tsc GJS bundle is functional + up-to-date
-      shell: bash
-      run: |
-        set -e
-        EXPECTED=$(grep "TYPESCRIPT_VERSION = " packages/infra/tsc/src/index.ts | sed "s/.*'\([^']*\)'.*/\1/")
-        ACTUAL=$(gjs -m packages/infra/tsc/dist/tsc.gjs.mjs --version 2>&1 | head -1 | sed 's/^Version //' | tr -d '[:space:]')
-        if [ "$ACTUAL" != "$EXPECTED" ]; then
-          echo "::error::packages/infra/tsc/dist/tsc.gjs.mjs reports 'Version $ACTUAL', TYPESCRIPT_VERSION says '$EXPECTED'. Rebuild + commit it."
-          exit 1
-        fi
-        echo "@gjsify/tsc bundle OK — reports v$ACTUAL matching TYPESCRIPT_VERSION."
-
     # The cached path set, defined ONCE. The `build` job's explicit save step
     # needs the identical list and `actions/cache/save` takes its own `path`
     # input, so a second literal copy would silently drift the day one side is
@@ -248,8 +216,17 @@ runs:
     # (the automatic save runs even when the job FAILED, so a half-built tree
     # would otherwise be published under a fresh key).
     #
-    # NEVER cache git-committed, version-locked artifacts (the `!` excludes keep
-    # them = the checkout).
+    # The three `!` excludes below stay after ADR 0002, for two different
+    # reasons — do not "tidy" them as leftovers:
+    #   • `affected.gjs.mjs` is still COMMITTED; caching it would let a
+    #     restore-key fallback shadow the checkout.
+    #   • `cli.gjs.mjs` / `tsc.gjs.mjs` are no longer committed, but the cache is
+    #     still the wrong transport for them: its key hashes
+    #     `packages/*/*/src/**/*.ts`, while `cli.gjs.mjs` inlines
+    #     `packages/infra/resolve-npm/lib/*.mjs` — tracked source that is not
+    #     under `src/**` and not in the key, so two revisions differing only
+    #     there share a key. That is incident #821. They travel as the
+    #     `bootstrap-bundles-fedora<v>` run artifact instead.
     - name: Restore build output (lib/ + tsbuildinfo)
       id: build-cache
       uses: actions/cache/restore@v6
@@ -269,29 +246,32 @@ runs:
     # A restore-key fallback can extract an OLD archive whose stale resolve-npm/lib
     # shadows the checkout — re-checkout just that dir from HEAD.
     #
-    # The committed GJS bundles need the same treatment, and for the same
-    # reason: they are tracked, version-locked artifacts that live under a
-    # CACHED path (`packages/*/*/dist`). The `!` excludes above are the first
-    # line of defence, but they only help for entries someone remembered to
-    # list — `affected.gjs.mjs` was missed, so every job restored a stale copy
-    # over the checkout and ran it. That is invisible: the "Verify committed
-    # CLI GJS bundle" step runs BEFORE this cache is restored, so it cannot
-    # catch a clobber that happens after it. Re-checking out from HEAD is
-    # exhaustive by construction — it covers any tracked file under dist/,
-    # including ones added later.
+    # `packages/infra/cli/dist` stays in the list for `affected.gjs.mjs`, which
+    # ADR 0002 kept committed and which lives under a CACHED path
+    # (`packages/*/*/dist`). The `!` excludes above are the first line of
+    # defence, but they only help for entries someone remembered to list —
+    # `affected.gjs.mjs` was the one missed, so every job restored a stale copy
+    # over the checkout and ran it, and nothing could see it. Re-checking out
+    # from HEAD is exhaustive by construction: it covers any tracked file under
+    # those dirs, including ones added later.
+    #
+    # `packages/infra/tsc/dist` left the list with ADR 0002 — nothing tracked
+    # lives there any more, and `git checkout HEAD --` on a path with no tracked
+    # content is an error, not a no-op. `tsc/lib` is NOT added in its place:
+    # those libs are regenerated by the verify step, which runs after this.
     - name: Re-assert committed sources over the build cache
       shell: bash
       run: |
         # Explicit paths, not a word-split variable — the latter behaves
         # differently across shells and this must not depend on that.
         chown -R testuser:testuser \
-          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist packages/infra/tsc/dist
+          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist
         # Report BEFORE repairing — after the checkout the tree is clean by
         # construction, so a check placed after it could never fire.
         SHADOWED=$(su testuser -c "git -c safe.directory='*' diff --name-only HEAD -- \
-          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist packages/infra/tsc/dist")
+          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist")
         su testuser -c "git -c safe.directory='*' checkout HEAD -- \
-          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist packages/infra/tsc/dist"
+          packages/infra/resolve-npm/lib packages/infra/manifest-conformance/lib packages/infra/cli/dist"
         if [ -n "$SHADOWED" ]; then
           echo "::warning::The build cache shadowed tracked file(s); restored from HEAD. Add them to the cache excludes:"
           echo "$SHADOWED"
