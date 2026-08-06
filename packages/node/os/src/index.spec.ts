@@ -265,8 +265,14 @@ export default async () => {
         });
 
         await it('should be one of known machine types', async () => {
+            // This list was a Linux `uname -m` vocabulary, and Darwin does not
+            // speak it: Apple Silicon reports `arm64`, never `aarch64`. The
+            // macOS arm64 leg found it — 172 specs ran, this was the only
+            // failure. A value the OS genuinely returns was missing from the
+            // list, so the TEST was wrong, not `machine()`.
             const known = [
                 'x86_64',
+                'arm64',
                 'aarch64',
                 'arm',
                 'armv7l',
@@ -280,7 +286,10 @@ export default async () => {
                 'riscv64',
                 'loongarch64',
             ];
-            expect(known.includes(os.machine())).toBeTruthy();
+            // `toContain`, not `includes(…)).toBeTruthy()`: the boolean form
+            // reports "Expected value to be truthy" and drops the machine
+            // string, which is the one thing a reader needs to extend the list.
+            expect(known).toContain(os.machine());
         });
     });
 
