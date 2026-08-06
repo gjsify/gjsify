@@ -54,25 +54,27 @@ lib/
 build/
 builddir/
 
-# Phase D.7b: the gjsify CLI's GJS bundle is committed so CI (and
-# downstream consumers) can bootstrap via `gjs -m cli.gjs.mjs …`
-# without Node. Refreshed by `gjsify workspace @gjsify/cli
-# build:gjs-bundle` on every CLI source change; a staleness check
-# in CI forces a refresh-commit when src/ changes without the
-# bundle being rebuilt.
+# ADR 0002: `cli.gjs.mjs` and `tsc.gjs.mjs` are NO LONGER committed. They stay
+# build outputs at these paths, npm-tarball entries and release assets; CI hands
+# them to downstream jobs as the `bootstrap-bundles-fedora<v>` run artifact, and
+# a fresh clone bootstraps from the PUBLISHED bundle (`gjs -m install.mjs`).
+#
+# The `dist/*` line below is NOT redundant and must not be tidied away. The
+# global `dist/` rule above matches DIRECTORIES only, so the `!…/cli/dist/`
+# re-include — which `affected.gjs.mjs` still needs — leaves every other child of
+# that directory untracked AND unignored. Measured: before this line,
+# `git check-ignore packages/infra/cli/dist/cli.gjs.mjs` matched nothing, so a
+# single `git add -A` would have recommitted 6.6 MB. `tsc/dist` needs no such
+# line because it re-ignores its whole directory again.
 !packages/infra/cli/dist/
-!packages/infra/cli/dist/cli.gjs.mjs
+packages/infra/cli/dist/*
 # Dedicated, Soup-free classifier bundle booted by the CI `changes` job on a
-# plain ubuntu+gjs host (see .github/workflows/main.yml). Committed + refreshed
-# by `build:affected-bundle` alongside cli.gjs.mjs.
+# plain ubuntu+gjs host (see .github/workflows/main.yml), BEFORE any install and
+# gating every other job. It stays committed on purpose: its tables encode THIS
+# commit's CI policy, so a published release's classifier would gate today's PR
+# with last release's rules — stale, fail-open and invisible. Refreshed by
+# `gjsify workspace @gjsify/cli build:affected-bundle`.
 !packages/infra/cli/dist/affected.gjs.mjs
-
-# @gjsify/tsc ships its bundled `tsc` as the bin — committed for
-# the same reason the CLI bundle is: downstream consumers (and
-# `gjsify install --immutable`) must not need a rebuild step on
-# install. Rebuilt by `gjsify workspace @gjsify/tsc build`.
-!packages/infra/tsc/dist/
-!packages/infra/tsc/dist/tsc.gjs.mjs
 # @gjsify/tsc's default-library `lib/lib*.d.ts` are COMMITTED, exactly like the
 # bundle above: version-locked runtime data tsc resolves on a consumer that has
 # no upstream `typescript`. `package.json#files` ships them (`lib/lib*.d.ts`).
