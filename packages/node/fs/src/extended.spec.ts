@@ -748,26 +748,28 @@ export default async () => {
     // ==================== symlink creation ====================
 
     await describe('fs.symlinkSync (creation)', async () => {
-        await it.failing('should create and read a symlink', async () => {
-            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'sym-');
-            const target = join(dir, 'target.txt');
-            const link = join(dir, 'symlink.txt');
-            writeFileSync(target, 'symlink content');
+        await it.failing(
+            'should create and read a symlink',
+            async () => {
+                const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'sym-');
+                const target = join(dir, 'target.txt');
+                const link = join(dir, 'symlink.txt');
+                writeFileSync(target, 'symlink content');
 
-            symlinkSync(target, link);
-            expect(existsSync(link)).toBeTruthy();
+                symlinkSync(target, link);
+                expect(existsSync(link)).toBeTruthy();
 
-            // lstatSync should show it as a symlink
-            const stats = lstatSync(link);
-            expect(stats.isSymbolicLink()).toBeTruthy();
+                // lstatSync should show it as a symlink
+                const stats = lstatSync(link);
+                expect(stats.isSymbolicLink()).toBeTruthy();
 
-            // Reading through the symlink should give original content
-            expect(readFileSync(link, 'utf8')).toBe('symlink content');
+                // Reading through the symlink should give original content
+                expect(readFileSync(link, 'utf8')).toBe('symlink content');
 
-            unlinkSync(link);
-            rmSync(target);
-            rmdirSync(dir);
-        },
+                unlinkSync(link);
+                rmSync(target);
+                rmdirSync(dir);
+            },
             NO_SYMLINK_REASON,
             { when: !CAN_SYMLINK },
         );
@@ -776,22 +778,24 @@ export default async () => {
     // ==================== promises.symlink ====================
 
     await describe('fs.promises.symlink', async () => {
-        await it.failing('should create a symlink', async () => {
-            const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'psym-');
-            const target = join(dir, 'target.txt');
-            const link = join(dir, 'link.txt');
-            writeFileSync(target, 'data');
+        await it.failing(
+            'should create a symlink',
+            async () => {
+                const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'psym-');
+                const target = join(dir, 'target.txt');
+                const link = join(dir, 'link.txt');
+                writeFileSync(target, 'data');
 
-            await promises.symlink(target, link);
-            expect(existsSync(link)).toBeTruthy();
+                await promises.symlink(target, link);
+                expect(existsSync(link)).toBeTruthy();
 
-            const stats = await promises.lstat(link);
-            expect(stats.isSymbolicLink()).toBeTruthy();
+                const stats = await promises.lstat(link);
+                expect(stats.isSymbolicLink()).toBeTruthy();
 
-            unlinkSync(link);
-            rmSync(target);
-            rmdirSync(dir);
-        },
+                unlinkSync(link);
+                rmSync(target);
+                rmdirSync(dir);
+            },
             NO_SYMLINK_REASON,
             { when: !CAN_SYMLINK },
         );
