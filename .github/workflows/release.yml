@@ -81,10 +81,12 @@ jobs:
         with:
           node-version: '26.x'
 
-      # Phase D.7d: Node-free install via the committed GJS bundle.
-      # Mirrors main.yml — see that workflow for rationale.
+      # Node-free install via the PUBLISHED gjsify (ADR 0002).
+      # Mirrors main.yml — see .github/actions/gjsify-setup for the rationale.
       - name: Install dependencies (gjsify install --immutable)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
 
       - name: Build packages
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build
@@ -1410,7 +1412,9 @@ jobs:
       # @types/node and @gjsify/tsc for the type emit below, plus the workspace
       # `gjsify` bin used for the build + publish.
       - name: Install dependencies (gjsify install --immutable)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
 
       # `build` = build:gjsify (rolldown --library -> lib/esm) + build:types
       # (gjsify tsc -> lib/types). packages/napi/napi is not a workspace, so it is

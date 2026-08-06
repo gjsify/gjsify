@@ -221,7 +221,7 @@ jobs:
           npm install --prefix test/consumer better-sqlite3 --no-audit --no-fund --foreground-scripts
           ( cd test/consumer/node_modules/better-sqlite3 && npm exec -- node-gyp rebuild --force_build=1 )
 
-      # Node-free workspace install via the committed CLI bundle (the supported
+      # Node-free workspace install via the published CLI (the supported
       # `gjsify install --immutable` path) so @gjsify/napi's L1 + the CLI can be
       # built under Node.
       # Restore the workspace node_modules keyed on the lockfile — SHARED with the
@@ -265,8 +265,10 @@ jobs:
             !packages/infra/resolve-npm/lib
           key: napi-libs-v2-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
 
-      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+      - name: Install the gjsify workspace (published CLI, Node-free)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
 
       # Repoint the workspace `.bin/gjsify` at a Node-runnable published @gjsify/cli
       # (npm rolldown), NOT the committed GJS bundle (which needs the absent
@@ -452,7 +454,7 @@ jobs:
           npm install --no-audit --no-fund --foreground-scripts
           npm exec -- node-gyp rebuild
 
-      # Node-free workspace install via the committed CLI bundle (the supported
+      # Node-free workspace install via the published CLI (the supported
       # `gjsify install --immutable` path) so the @gjsify/* polyfills the gates'
       # --app gjs bundles inline are symlinked into node_modules.
       # Restore the workspace node_modules keyed on the lockfile — SHARED with the
@@ -496,8 +498,10 @@ jobs:
             !packages/infra/resolve-npm/lib
           key: napi-libs-v2-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
 
-      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
-        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+      - name: Install the gjsify workspace (published CLI, Node-free)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
 
       # Repoint the workspace `.bin/gjsify` at a Node-runnable published @gjsify/cli
       # (npm rolldown), NOT the committed GJS bundle (which needs the absent

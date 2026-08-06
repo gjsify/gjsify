@@ -58,8 +58,18 @@ const USER_AGENT = 'gjsify-installer/1.0';
 const CACHE_PREFIX = 'cli-';
 const CACHE_SUFFIX = '.gjs.mjs';
 
+/**
+ * Under `--fetch-only` the ONLY thing on stdout must be the bundle path, so
+ * progress goes to stderr instead. A caller does
+ * `BOOTSTRAP=$(gjs -m install.mjs --fetch-only)`, and one stray `info()` line
+ * would make that a path with a log message glued to the front — a failure that
+ * surfaces as a confusing "file not found" rather than as bad output.
+ */
+let logToStderr = false;
+
 function info(msg) {
-    print(`[gjsify] ${msg}`);
+    if (logToStderr) printerr(`[gjsify] ${msg}`);
+    else print(`[gjsify] ${msg}`);
 }
 function error(msg) {
     printerr(`[gjsify] ERROR: ${msg}`);
@@ -71,6 +81,7 @@ function parseArgs() {
     let tag = 'latest';
     let force = false;
     let help = false;
+    let fetchOnly = false;
     let bootstrapUrl = GLib.getenv('GJSIFY_INSTALL_BOOTSTRAP_URL') || DEFAULT_BOOTSTRAP_URL;
     let bootstrapSha256Url = GLib.getenv('GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL');
     if (bootstrapSha256Url === null || bootstrapSha256Url === undefined) {
@@ -87,8 +98,9 @@ function parseArgs() {
         else if (a.startsWith('--tag=')) tag = a.slice('--tag='.length);
         else if (a === '--bootstrap-url') bootstrapUrl = argv[++i];
         else if (a.startsWith('--bootstrap-url=')) bootstrapUrl = a.slice('--bootstrap-url='.length);
+        else if (a === '--fetch-only') fetchOnly = true;
     }
-    return { target, tag, force, help, bootstrapUrl, bootstrapSha256Url };
+    return { target, tag, force, help, bootstrapUrl, bootstrapSha256Url, fetchOnly };
 }
 
 function printUsage() {
@@ -102,6 +114,10 @@ Options:
   --tag <tag>        npm dist-tag or version  (default: latest)
   --force, -f        Reinstall even when present.
   --bootstrap-url <url>  Override the cli.gjs.mjs download URL.
+  --fetch-only       Download + verify the bootstrap bundle, print its cached
+                     path to stdout and exit — no install. Lets a caller (CI)
+                     reuse this downloader instead of growing a second one
+                     beside it; progress goes to stderr so stdout is the path.
   --help, -h         Show this message.
 
 Env vars:
@@ -318,6 +334,9 @@ async function main() {
         printUsage();
         exit(0);
     }
+    // Set BEFORE the first `info()` — resolveBootstrap logs while downloading,
+    // and those lines would otherwise land on stdout ahead of the path.
+    logToStderr = opts.fetchOnly;
     checkGjsVersion();
 
     const session = new Soup.Session();
@@ -327,6 +346,12 @@ async function main() {
     } catch (err) {
         error(`Bootstrap download failed: ${err.message}`);
         exit(1);
+    }
+
+    if (opts.fetchOnly) {
+        // The one thing on stdout. Everything above went to stderr.
+        print(bundlePath);
+        exit(0);
     }
 
     const spec = buildSpec(opts.target, opts.tag);
