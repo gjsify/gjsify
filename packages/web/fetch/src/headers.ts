@@ -3,7 +3,7 @@
 // Copyright (c) node-fetch contributors. MIT license.
 // Modifications: Standalone implementation using internal Map, libsoup integration
 
-import Soup from '@girs/soup-3.0';
+import type Soup from '@girs/soup-3.0';
 import { validateHeaderName, validateHeaderValue } from '@gjsify/http/validators';
 
 const _headers = Symbol('Headers.headers');
@@ -176,9 +176,17 @@ export default class Headers implements Iterable<[string, string]> {
 
     /**
      * Append all headers to a Soup.Message for sending.
+     *
+     * `soup` is the lazily-loaded Soup namespace (see utils/soup-lazy.ts); it is
+     * passed in rather than statically imported so this module does not link the
+     * `gi://Soup` typelib at import time.
      */
-    _appendToSoupMessage(message?: Soup.Message, type = Soup.MessageHeadersType.REQUEST): Soup.MessageHeaders {
-        const soupHeaders = message ? message.get_request_headers() : new Soup.MessageHeaders(type);
+    _appendToSoupMessage(
+        soup: typeof Soup,
+        message?: Soup.Message,
+        type: Soup.MessageHeadersType = soup.MessageHeadersType.REQUEST,
+    ): Soup.MessageHeaders {
+        const soupHeaders = message ? message.get_request_headers() : new soup.MessageHeaders(type);
         for (const [name, value] of this.entries()) {
             soupHeaders.append(name, value);
         }
@@ -189,13 +197,14 @@ export default class Headers implements Iterable<[string, string]> {
      * Create a Headers instance from a Soup.Message's headers.
      */
     static _newFromSoupMessage(
+        soup: typeof Soup,
         message: Soup.Message,
-        type: Soup.MessageHeadersType = Soup.MessageHeadersType.RESPONSE,
+        type: Soup.MessageHeadersType = soup.MessageHeadersType.RESPONSE,
     ): Headers {
         const headers = new Headers();
         let soupHeaders: Soup.MessageHeaders;
 
-        if (type === Soup.MessageHeadersType.RESPONSE) {
+        if (type === soup.MessageHeadersType.RESPONSE) {
             soupHeaders = message.get_response_headers();
         } else {
             soupHeaders = message.get_request_headers();
