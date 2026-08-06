@@ -6,13 +6,13 @@
 // implementations onto the prototype.
 //
 // Houses `respondWithFD()` / `respondWithFile()` plus the file-streaming
-// helper `_respondFromFD()` and the `_fdPath()` lookup. Exported helpers
+// helper `_respondFromFD()`. Exported helpers
 // stay module-local (no public surface change).
 // Reference: refs/node/lib/internal/http2/core.js
 // (Http2Stream.respondWithFD / respondWithFile).
 // Original: see server/response.ts pre-split.
 
-import { read as fsRead, statSync, openSync, closeSync, type Stats } from 'node:fs';
+import { read as fsRead, fstatSync, openSync, closeSync, type Stats } from 'node:fs';
 import { Buffer } from 'node:buffer';
 import type { OutgoingHttpHeaders } from 'node:http';
 import type { Http2ServerResponse } from '../response.js';
@@ -107,7 +107,7 @@ const respondWithFileMethods: RespondWithFileMethods & ThisType<Http2ServerRespo
  * _respondFromFD — common implementation behind respondWithFD / respondWithFile.
  *
  * Flow:
- *  1) statSync on the FD so the user-supplied `statCheck()` callback can
+ *  1) fstatSync on the FD so the user-supplied `statCheck()` callback can
  *     mutate headers based on size / mtime / ino (Node parity).
  *  2) flushHeaders via writeHead — kicks the Soup chunked-write path.
  *  3) Read the FD in 64 KiB chunks via fs.read; pipe each chunk through
@@ -144,7 +144,14 @@ function _respondFromFD(
     // on stat results without hand-writing fstat boilerplate.
     if (options.statCheck) {
         try {
-            const stat = statSync(_fdPath(fd) ?? '/proc/self/fd/' + fd);
+            // `fstatSync(fd)`, not a stat of `/proc/self/fd/<fd>`. procfs is a
+            // LINUX filesystem, so the path form resolved nothing on macOS,
+            // `statSync` threw, and the catch below swallowed it — `statCheck`
+            // silently never ran and the response went out without the headers
+            // the application meant to set. Measured on darwin-x64 / gjs
+            // 1.88.1: `statSeen` stayed null. `fstat(2)` is what Node itself
+            // uses here and needs no path at all.
+            const stat = fstatSync(fd);
             // `finalHeaders` is the http2-style outgoing-headers shape
             // (`Record<string, string | string[] | number>`) which is the same
             // record-shape as `OutgoingHttpHeaders`; the explicit cast bridges
@@ -161,8 +168,11 @@ function _respondFromFD(
                 if (closeFd) closeSync(fd);
                 return;
             }
-            // Continue without statCheck — Node's behaviour is to skip silently
-            // when fstat fails (the FD will fail later in the read loop anyway).
+            // Continue without statCheck — Node skips silently when fstat
+            // fails, and the FD will fail again in the read loop below, so the
+            // error is not lost. Kept narrow ON PURPOSE: this catch used to
+            // absorb a platform defect (a Linux-only path that could not
+            // resolve on macOS) and report it as "the file had no stat".
         }
     }
 
@@ -248,18 +258,6 @@ function _respondFromFD(
     // Mark that we used the fd-streaming path so listeners know the body
     // is being delivered out-of-band of the regular write() machinery.
     void bytesSent;
-}
-
-/**
- * _fdPath — best-effort fd → path lookup via `/proc/self/fd/<fd>`.
- *
- * Used only for statCheck; `fs.statSync` accepts that path on Linux to
- * stat the open FD. Returns null on non-Linux (caller falls back to
- * `/proc/self/fd/N` regardless — `statSync` will fail cleanly).
- */
-function _fdPath(fd: number): string | null {
-    if (typeof fd !== 'number' || fd < 0) return null;
-    return '/proc/self/fd/' + fd;
 }
 
 /** Install respondWithFD + respondWithFile on Http2ServerResponse.prototype. */
