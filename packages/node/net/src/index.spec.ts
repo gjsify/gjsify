@@ -648,21 +648,28 @@ export default async () => {
             });
 
             await it('should report getConnections correctly', async () => {
-                const server = createServer((_socket) => {
-                    // Hold connection open
+                // The count is a SERVER-side fact, so it is read from the
+                // server's own connection handler. Reading it from the CLIENT's
+                // connect callback — as this spec used to — is a race: that
+                // callback fires when the client's handshake completes, which
+                // does not order against the server having accepted. Linux
+                // happened to win it every time; darwin reported 0 of 1.
+                let client: ReturnType<typeof createConnection> | undefined;
+                const server = createServer(() => {
+                    server.getConnections((err, count) => {
+                        expect(err).toBeNull();
+                        expect(count).toBe(1);
+                        client?.destroy();
+                        server.close(() => resolveConnected());
+                    });
                 });
 
+                let resolveConnected!: () => void;
                 await new Promise<void>((resolve, reject) => {
+                    resolveConnected = resolve;
                     server.listen(0, () => {
                         const addr = server.address() as { port: number };
-                        const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
-                            server.getConnections((err, count) => {
-                                expect(err).toBeNull();
-                                expect(count).toBe(1);
-                                client.destroy();
-                                server.close(() => resolve());
-                            });
-                        });
+                        client = createConnection({ port: addr.port, host: '127.0.0.1' });
                         client.on('error', () => {});
                     });
                     server.on('error', reject);

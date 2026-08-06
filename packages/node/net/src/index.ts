@@ -1,40 +1,18 @@
 // Node.js net module for GJS
 // Reference: Node.js lib/net.js
 
-import Gio from '@girs/gio-2.0';
-
 export { Socket, type SocketConnectOptions } from './socket.js';
 export { Server, type ListenOptions } from './server.js';
 import { Socket, type SocketConnectOptions } from './socket.js';
 import { Server } from './server.js';
 
-/** Check if input is a valid IP address. Returns 0, 4, or 6. */
-export function isIP(input: string): 0 | 4 | 6 {
-    if (typeof input !== 'string') return 0;
-    // Strip IPv6 zone ID (e.g. '%eth0') — Gio.InetAddress doesn't handle it
-    const stripped = input.includes('%') ? input.split('%')[0] : input;
-    const addr = Gio.InetAddress.new_from_string(stripped);
-    if (!addr) return 0;
-    const family = addr.get_family();
-    switch (family) {
-        case Gio.SocketFamily.INVALID:
-            return 0;
-        case Gio.SocketFamily.IPV4:
-            return 4;
-        case Gio.SocketFamily.IPV6:
-            return 6;
-    }
-}
-
-/** Check if input is a valid IPv4 address. */
-export function isIPv4(input: string): boolean {
-    return isIP(input) === 4;
-}
-
-/** Check if input is a valid IPv6 address. */
-export function isIPv6(input: string): boolean {
-    return isIP(input) === 6;
-}
+// `isIP` and friends are pure string classification and live in `is-ip.ts`,
+// shared with the browser entry. They used to be answered here by
+// `Gio.InetAddress.new_from_string()`, i.e. by the host's `inet_pton(3)` —
+// which gives a DIFFERENT answer per libc (BSD accepts leading zeros in an
+// IPv4 octet, glibc rejects them). The full measurement is in that module.
+export { isIP, isIPv4, isIPv6 } from './is-ip.js';
+import { isIP, isIPv4, isIPv6 } from './is-ip.js';
 
 /** Create a new TCP connection. */
 export function createConnection(
