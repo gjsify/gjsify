@@ -3,6 +3,22 @@ name: Commitlint
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
+  # Commits reach `main` by two routes, and until now only one of them was ever
+  # linted. Everything that arrives through a PR is covered above; the release
+  # cut pushes `chore: release v${version}` DIRECTLY, and
+  # `@release-it/conventional-changelog` then walks exactly those commits to
+  # build the CHANGELOG. A commit nothing lints is a CHANGELOG entry nobody
+  # can predict.
+  #
+  # HONEST LIMIT, so nobody reads this as more coverage than it is: the OTHER
+  # bot route — `commit-prebuilds`' `chore: update native prebuilds [skip ci]` —
+  # stays unlinted, and no trigger can change that. `[skip ci]` makes GitHub
+  # skip the workflow RUN, not just a job, so the only way to lint that path is
+  # to drop `[skip ci]` from the push, which is a deliberate cost decision of
+  # its own (one full main.yml run per landing) and is tracked in
+  # `status/open-todos.md`, not here.
+  push:
+    branches: [main]
 
 jobs:
   commitlint:
@@ -37,6 +53,9 @@ jobs:
       # holds that assumption: the moment the two diverge it fails and tells you
       # to make the list explicit here.
       - name: Lint the PR title (it becomes the squash subject)
+        # There is no PR title on a `push`, and the action errors rather than
+        # no-ops without one. The step above is the part that carries over.
+        if: github.event_name == 'pull_request'
         uses: amannn/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

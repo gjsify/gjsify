@@ -1587,6 +1587,7 @@ const CHECK_RULES = [
     // is invisible on Linux: a script that shells out to `rm`/`cp` runs fine
     // here and cannot run at all under cmd.exe.
     'portable-scripts',
+    'storybook',
     'field-coverage',
     'status-data',
 ];

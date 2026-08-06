@@ -21,11 +21,6 @@
  */
 
 export const UNCHECKED_FIELDS = {
-    storybook:
-        'FINDING (pre-existing), and the only `gjsify.*` field this repo shares with downstream consumers today ' +
-        '(buchhaltung, pixel-rpg/map-editor both declare it). `gjsify.storybook.stories` names a directory that ' +
-        '`gjsify storybook` globs for `*.story.ts`; a typo there produces an empty component browser, not an error. ' +
-        'Deferred to its own change.',
     defineFromPackageJson:
         'Build-time only: names package.json fields the bundler bakes into the bundle as defines. It promises nothing ' +
         'about a shipped artifact, so there is no on-disk fact a conformance rule could compare it against. Listed ' +

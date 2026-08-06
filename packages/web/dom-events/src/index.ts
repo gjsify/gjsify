@@ -307,7 +307,14 @@ export class ProgressEvent extends Event {
 }
 
 export class EventTarget {
-    private _listeners = new Map<string, ListenerEntry[]>();
+    // A REAL private field, not TypeScript's `private`. The latter is a
+    // compile-time marker only: at runtime the property is an ordinary
+    // enumerable own property, so every EventTarget subclass leaked
+    // `_listeners` into `for…in`, `Object.keys()` and `JSON.stringify()`.
+    // Measured on `AbortSignal`, whose W3C surface has no such member — the
+    // spec that would have caught it sat commented out in
+    // `abort-controller.spec.ts` for as long as the leak existed.
+    #listeners = new Map<string, ListenerEntry[]>();
 
     get [Symbol.toStringTag]() {
         return 'EventTarget';
@@ -324,10 +331,10 @@ export class EventTarget {
         const once = typeof options === 'object' ? (options?.once ?? false) : false;
         const passive = typeof options === 'object' ? (options?.passive ?? false) : false;
 
-        let list = this._listeners.get(type);
+        let list = this.#listeners.get(type);
         if (!list) {
             list = [];
-            this._listeners.set(type, list);
+            this.#listeners.set(type, list);
         }
 
         for (const entry of list) {
@@ -356,14 +363,14 @@ export class EventTarget {
         if (callback === null) return;
 
         const capture = typeof options === 'boolean' ? options : (options?.capture ?? false);
-        const list = this._listeners.get(type);
+        const list = this.#listeners.get(type);
         if (!list) return;
 
         const idx = list.findIndex((e) => e.listener === callback && e.capture === capture);
         if (idx !== -1) {
             list[idx].removed = true;
             list.splice(idx, 1);
-            if (list.length === 0) this._listeners.delete(type);
+            if (list.length === 0) this.#listeners.delete(type);
         }
     }
 
@@ -393,7 +400,7 @@ export class EventTarget {
         // `InvalidStateError: The event is already being dispatched.` — the
         // event object is permanently wedged.
         try {
-            const list = this._listeners.get(event.type);
+            const list = this.#listeners.get(event.type);
             if (list) {
                 const entries = [...list];
                 for (const entry of entries) {

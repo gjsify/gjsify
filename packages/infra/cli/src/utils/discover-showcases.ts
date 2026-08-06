@@ -19,16 +19,22 @@ export interface ShowcaseInfo {
     category: string;
     /** Description for the list view */
     description: string;
-    /** Whether the showcase needs the gwebgl native prebuild. */
-    needsWebgl: boolean;
 }
 
+// `needsWebgl` used to live here and in the manifest. It was declared on all
+// eight showcases, parsed into `ShowcaseInfo`, and read by NOBODY — no command,
+// no test, no website page. Removed rather than wired up, per the repo rule
+// that a declaration without a check is a declaration that lies: the proof it
+// had drifted is that `excalibur-jelly-jumper` carried `"needsWebgl": false`
+// while Excalibur 0.32 is WebGL2-only. A field nobody reads is a field nobody
+// maintains. If a WebGL pre-flight is wanted (the real motivation — on win32
+// `@gjsify/webgl` declares no platform, so the showcase dies at `gi://Gwebgl`),
+// it needs a READER and a conformance rule in the same change.
 interface ManifestEntry {
     name: string;
     package: string;
     category: string;
     description?: string;
-    needsWebgl?: boolean;
 }
 
 interface Manifest {
@@ -70,7 +76,6 @@ export function discoverShowcases(): ShowcaseInfo[] {
         packageName: e.package,
         category: e.category,
         description: e.description ?? '',
-        needsWebgl: Boolean(e.needsWebgl),
     }));
 
     showcases.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));

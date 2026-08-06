@@ -28,7 +28,7 @@ Each method carries a **kind** that the pause guard enforces. When a host pauses
 |---|---|---|
 | `read-only` | Observation / diagnostics (`GetStatus`, `Screenshot`, `DumpTree`, …) | allowed |
 | `presence` | An external driver's own awareness channel (cursor / label) | allowed |
-| `mutating` | Edits app state or the user's UI (`ActivateAction`, `SetProperty`, `SwapCss`, …) | rejected |
+| `mutating` | Edits app state or the user's UI (`ActivateAction`, `ActivateWidget`, `SwapCss`, …) | rejected |
 
 `GENERIC_METHODS` is the toolkit-neutral baseline (core control + full introspection). Adapters implement the subset they support; the bridge advertises only the implemented ones. App-specific methods are added via extensions with their own kinds — **the registry rejects an unclassified method name**, so a new method cannot silently bypass the pause policy.
 

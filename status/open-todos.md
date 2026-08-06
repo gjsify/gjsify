@@ -11,10 +11,21 @@ reproduced locally by removing the only `node` from `PATH`: on a fresh clone
 `gjsify install` succeeds (982 packages, all 10 native prebuild packages
 detected, `linux-arm64` selected) and `gjsify build` then fails with "no usable
 bundler engine under GJS", because `@gjsify/rolldown-native`'s JS facade is a
-build output a clone does not carry. **A consumer install is NOT affected** — the
-published tarball ships `lib/esm/index.js` (verified against 0.26.1: 27 files,
-`package/lib/esm/index.js` present), and inside a clone the workspace symlink is
-what shadows it. So this is a repo-development limitation, not a shipped defect.
+build output a clone does not carry.
+
+**CORRECTED 2026-08-06 — the conclusion below was wrong, and the two halves are
+about different things.** What this entry established is still true: the
+published `@gjsify/rolldown-native` TARBALL is fine (verified against 0.26.1: 27
+files, `package/lib/esm/index.js` present), and inside a clone it is the
+workspace symlink that shadows it. What it then CONCLUDED — "a consumer install
+is NOT affected … a repo-development limitation, not a shipped defect" — is
+false, and #1005 measured it from the outside (ts-for-gir run 31027844989): a
+consumer install lays down no engine AT ALL, because `@gjsify/rolldown-native`
+is an optional PEER dependency and the native install backend never resolves
+peerDependencies. `installGjsEnginePackages()` is wired into `install -g` and
+`self-update` only. So the tarball is sound and never arrives, and under GJS
+there is no npm `rolldown` to degrade to. A sound artifact that no install path
+delivers is still a shipped defect — see #1005, which owns that half.
 
 `build:infra` no longer dies at its FIRST entry: the nine bare `tsc` calls now go
 through `gjsify tsc` (byte-identical emit, verified per package against the npm
@@ -154,6 +165,8 @@ failure vanish without fixing anything (one existed on the test VM for several
 hours and hid exactly this). It has been removed there. Do not re-create it.
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 
+**Cross-reference (added 2026-08-06): #925 files the same `test/arrays.test.mjs` occurrences as a TEST FLAKE, while this entry files them as an N-API teardown crash class (`free(): invalid pointer`, a glibc abort). Same file, two theories. Whichever is right, the next occurrence should be read from the RAW job log for a `----- Native stack trace -----` block, which is what tells the two apart.**
+
 `scripts/cross-runtime.mjs` carves Deno out of exit-code gating for the
 post-pass teardown abort (#47) and deliberately does NOT carve out Bun, on
 measured grounds: *"~7000 Bun runs (arrays + the GObject/boxed-heavy files …,
@@ -221,44 +234,34 @@ Until then Bun stays on exit-code gating — a `pass>0 && fail===0 && <crash
 marker>` carve-out added now would mask exactly the real Bun teardown bug this
 might be, and the runs above show the marker is not even reliably present.
 
-### The prebuild glibc floor is an accident of the build image, and the gate that says so only runs post-merge
+### The prebuild glibc floor is OBSERVED, never CHOSEN (#924)
 
-Two halves, and the first one is now paid for. `prebuilds.yml`'s base image
-decides which glibc our published binaries link against, so bumping it rewrites
-`gjsify.glibcRequires` for every consumer without touching a line of source.
-#897 bumped it 43 → 44 as part of a hygiene sweep across the workflows' images,
-and glibc 2.43 re-versions `acosf`/`asinf`/`atan2f` — which lightningcss's colour
-conversion calls — so the measured floor went 2.39 → 2.43 and main was red for
-three consecutive `commit-prebuilds` runs. Reverted, with the reason written at
-the `container:` line so the next hygiene sweep cannot repeat it.
+The gate half is CLOSED (#1009): `scripts/check-staged-prebuild-libc.mjs` now
+runs as "Gate on the glibc floor of what this leg just built" in both build legs
+of `prebuilds.yml` (native `:722`, QEMU `:967`), both of which run on
+`pull_request`, and the legs carry `nodejs` in their `dnf install`. The staging
+question that blocked it is settled too: legs stage via `stage-prebuild.mjs .
+--scratch` into the bridge's own scratch directory while the committed binaries
+live in the platform packages, so the gate measures the NEW bytes rather than
+the old committed ones. A green PR predicts a green main here now.
 
-**The gate worked; it just fired late.** `commit-prebuilds` runs
-`audit-runtimes --check` on the freshly downloaded artifacts and refused them,
-naming both numbers — exactly what the step's own comment predicted a base-image
-bump would do. But `commit-prebuilds` is main-only, so the PR that caused it was
-green. That is the shape AGENTS.md § "PR coverage parity" calls dishonest: a
-green PR must predict a green main.
+The #897 incident that produced all of it is preserved where it can still act:
+a 33-line banner at `prebuilds.yml`'s `container:` line records that the 43 → 44
+bump moved the measured floor 2.39 → 2.43 (glibc 2.43 re-versions
+`acosf`/`asinf`/`atan2f`, which lightningcss's colour conversion calls) and
+red-lined main for three consecutive `commit-prebuilds` runs. It is pinned to
+`fedora:43` for that reason, not by habit.
 
-Closing it means running the same measurement in the BUILD legs, which do run on
-`pull_request`. Two prerequisites, neither large:
-- the legs need `nodejs` in their `dnf install` line (`audit-runtimes.mjs` is
-  pure Node with no dependencies, which is why `audit-runtimes.yml` can run it
-  with no install);
-- the measurement must read the FRESHLY BUILT files, so the legs have to stage
-  into the directory the artifact is actually published from. Today they stage
-  into the bridge's own `prebuilds/`, which is also where the committed copy
-  lives, so it happens to work — but after ADR 0017's split that is scratch
-  space and the audit would silently measure the old committed binaries instead.
-  Move the staging with the gate, in the same change.
+**What is still open is the deeper half, and it is a policy question, not a
+patch.** The floor is a number someone reads off the build image. Even pinned to
+`fedora:43` it moves the day that image's glibc re-versions something else.
+Choosing it means building the three Rust bridges against a DECLARED baseline —
+an old-glibc container (manylinux/RHEL-derived) or `cargo-zigbuild --target
+<triple>.<glibc>` — so that `gjsify.glibcRequires` becomes an input the build
+satisfies rather than a result it reports. The question underneath is "how old a
+distro do we support?", which is why #924's own comment notes its title no
+longer describes the state.
 
-**Still open underneath both:** the floor is OBSERVED, never CHOSEN. Even pinned
-to `fedora:43` it moves the day that image's glibc re-versions something else.
-Deciding it would mean building the three Rust bridges against a declared
-baseline — an old-glibc container (manylinux/RHEL-derived) or
-`cargo-zigbuild --target <triple>.<glibc>` — and then `gjsify.glibcRequires`
-becomes an input the build satisfies rather than a number someone reads off the
-result. That is a policy decision (how old a distro do we support?) and wants its
-own change.
 ### `cli.gjs.mjs` byte-reproducibility is not closed — main shipped a non-reproducing bundle again
 
 #906 merged a committed `packages/infra/cli/dist/cli.gjs.mjs` that does not
@@ -387,7 +390,7 @@ So it needs a real design decision inside `@gjsify/http2` (e.g. resolving the di
 The five standalone declaration-vs-reality scripts are now one rule registry (`@gjsify/manifest-conformance` + `scripts/manifest-conformance/`). Three things were deliberately left out of that refactor so it stayed a refactor.
 
 - **`gjsify manifest-check` is designed but not shipped.** The portable rules (`package-outputs`, `prebuild-artifacts`, `headless`, `field-coverage`) are already extracted into a package with a hand-written `lib/index.d.ts`, so the command is a thin wrapper over `selectRules({ scope: 'portable' })`. It was held back because it carries two costs a refactor must not smuggle in: the package has to flip from `private` to published, which needs the manual first-publish + Trusted-Publisher bootstrap BEFORE the next release train, and adding a command rebuilds `dist/{cli,affected}.gjs.mjs`, coupling the change to the committed-bundle gate. The name is settled: `manifest-check` — a sibling of `system-check` (machine has what the project needs) and distinct from `check` (types compile). Evidence it is worth doing: downstream consumers already declare `gjsify.storybook` (buchhaltung, pixel-rpg/map-editor) and `gjsify.prebuilds` (buchhaltung's ERiC package, which declares a prebuilds directory with NO `gjsify.platforms` — a hard failure in this repo, unchecked in theirs).
-- **Five `gjsify.*` declaration kinds have no rule** and are deferred with a written reason in `scripts/manifest-conformance/unchecked-fields.mjs`, printed on every audit run. Four are judged unverifiable-by-construction (`defineFromPackageJson`, `flatpak`, `buildCache`, and `nativescriptPlatforms` until there is a per-platform artifact to compare against); the one remaining FINDING is `gjsify.storybook` (a typo in `stories` produces an empty component browser, not an error). `gjsify.main` and `gjsify.example` left the ledger when `package-outputs` claimed them.
+- **Five `gjsify.*` declaration kinds have no rule** and are deferred with a written reason in `scripts/manifest-conformance/unchecked-fields.mjs`, printed on every audit run. All four remaining are judged unverifiable-by-construction (`defineFromPackageJson`, `flatpak`, `buildCache`, and `nativescriptPlatforms` until there is a per-platform artifact to compare against). The one entry that was a real FINDING — `gjsify.storybook` — is CLOSED: the portable `storybook` rule now resolves the declared directory the way `gjsify storybook` does and fails a path that does not exist or holds no `*.story.*`. Its ledger wording had gone stale as well: the 'empty browser, not an error' shape is the pre-#879 behaviour, when a bare `process.exit(1)` was deferred under GJS and the no-stories path fell through into the build and exited 0. That incident moved into the rule's header rather than being deleted with the entry. `gjsify.main` and `gjsify.example` left the ledger when `package-outputs` claimed them.
 - **`gjsify pack`'s own shipped-vs-declared guard is still types-only, and the same `private` flag is why.** `assertTypeDeclarationsShipped` refuses to pack a `types`/`typings` file it can see but would not ship (the #655 guard) — the right place, because it fires at the moment of packing and protects CONSUMER trees too. The superset (every declared entry point, not just the type fields) lives in `scripts/verify-tarball-outputs.mjs` instead, because it needs `declaredPaths()` from this package and a published `@gjsify/cli` cannot depend on a `private: true` one — the same blocker as `gjsify manifest-check` above, and it closes with the same npm bootstrap. Measured gap while it stands: narrow a package's `files` so only `lib/esm/register.js` is excluded and `gjsify pack` exits 0 and writes a tarball whose declared `exports["./register"].default` is absent (13 type files shipped, so the existing guard stays quiet); the script catches it. Fold the script's check INTO the packer when the package is published, and keep the script as its repo-wide sweep.
 - **The affected classifier does not know the conformance/status paths.** `scripts/audit-runtimes.mjs` is a `GLOBAL_TRIGGER`; `scripts/manifest-conformance/**`, `packages/infra/manifest-conformance/**`, `scripts/generate-status.mjs` and the authored `status/**` data are not classified (unknown paths fall back to a conservative full run). `status/*.md` is already covered by the blanket `*.md` IGNORE, but `status/status.json` is NOT — editing a package's authored status therefore forces a full CI run today, and `status/**` should join the docs-shaped IGNORE set. No coverage is lost today because `audit-runtimes.yml` carries no `paths` filter and runs on every PR, but the trigger/ignore tables and the rule locations should be brought back into agreement — an affected-classifier change rebuilds the committed `dist/affected.gjs.mjs`, so batch it with the next CLI-src touch.
 
@@ -401,7 +404,7 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 
 - **744 files are committed with CRLF, so a default Windows clone is dirty before you touch anything.** Measured on a fresh `git -c core.autocrlf=true clone --depth 1` of this repo — `core.autocrlf=true` being what Git for Windows' installer recommends: `git status` reports **744 modified files immediately**, none of them touched. The mechanism is a round-trip that does not close: those blobs already contain CRLF, checkout converts LF→CRLF, and the comparison normalises CRLF→LF against a blob that has CRLF, so they never match. By directory: `tests/` 480, `showcases/` 131, `website/` 84, `templates/` 38, `status/` 11 — `packages/` is entirely clean, which is why nothing downstream of a build ever noticed. By extension: `.ts` 318, `.mjs` 139, `.json` 108, `.md` 47, `.mts` 35. Invisible on Linux and macOS, and invisible on a Windows clone with `core.autocrlf=false` (which is what this repo's own dev VM had configured, and why it took a deliberately-default clone to see). The `.gitattributes` added in a9fa31a does NOT address this: it pins the byte-verified artifacts only, which is the correctness problem; this is the ergonomics one. Closing it means `* text=auto` plus a `git add --renormalize .` sweep — a project-wide policy change carrying a one-time 744-file diff, which is a maintainer decision rather than a drive-by. Until then a Windows contributor should set `core.autocrlf=false` before cloning, and any tooling that reads `git status` to decide what changed is unreliable there.
 
-- **`release.yml`'s two `napi-prebuild-*` legs still stage by hand.** Every other staging site in `.github/` now goes through `scripts/stage-prebuild.mjs`, and `tests/e2e/prebuild-change-gate` FAILS a hand-written `mkdir -p …prebuilds/ && cp` in `prebuilds.yml`, `emulated-build.sh` or `musl-build.sh`. `release.yml` is deliberately outside that scan and keeps its two `cp` lists (`napi-prebuild-linux`, `napi-prebuild-darwin-arm64`). They are a style debt rather than a defect — unlike the `napi.yml` pair they were written against, both already name the correct per-target package, so the destination is right and only the artifact list is hand-maintained. Left out because the change that converted the others also changes what `commit-prebuilds` commits and had to land after a release, and editing the release workflow in that same PR widens the blast radius on the one path that cannot be re-run cheaply. Convert both to `node ../../../scripts/stage-prebuild.mjs .` (the resolved destination is byte-identical; the gain is the extension match plus `checkPrebuildDir()` on the release path) and widen the e2e scan to `release.yml` in the same change, so the gate covers every workflow that stages.
+- **`release.yml`'s two `napi-prebuild-*` legs staged by hand — CLOSED.** Both now call `node ../../../scripts/stage-prebuild.mjs .`, so the release path gets the extension match and `checkPrebuildDir()` like every other staging site, and `tests/e2e/prebuild-change-gate` scans `release.yml` too — the exemption cannot come back. The same change added the load test those legs were missing: they ended at `cp` + `upload-artifact` while `publish-napi` checked four files with `test -f`, so nothing proved a released artifact could be opened. Landing it after a release, not beside one, was the reason it waited.
 - **Nine fixtures re-implement the prebuild-target name instead of importing it.** `resolvePrebuildDirName()` / `prebuildDirCandidates()` (`packages/infra/cli/src/utils/detect-native-packages.ts`) are pure functions and already the single source of truth for `prebuilds/<os>-<arch>/` — but every e2e that needs that directory composes the name itself, and several translated `process.arch` into the `uname -m` machine on the way. The `<os>-<arch>` unification had to fix all nine by hand, and one (`tests/e2e/self-host/run.mjs`) was missed on the first pass precisely because the composed string never appears as a literal. Export a small test helper (or let fixtures import the CLI's built `lib/utils/detect-native-packages.js` directly, the way `tests/e2e/dlx-native-prebuilds` already imports `run-gjs.js`) so the name has exactly one definition, and delete the per-fixture copies. Until that lands, any change to the target vocabulary must be swept for BOTH shapes — the literal path AND the computed one.
 - **`@gjsify/cli`'s `tsconfig.json` type-checks only what `src/index.ts` imports.** `files: ["src/index.ts"]` means `gjsify tsc --noEmit` never sees `src/affected-entry.ts` — the entry CI's `changes` job actually boots (`dist/affected.gjs.mjs` is bundled from it) — nor `src/test.mts`. A type error in either is caught only when the bundle build runs, i.e. in the pre-commit hook rather than in `check`. Widen to an `include` covering `src/**` (and confirm the emit stays `lib/**` only), or add the two entries to `files`.
 - **`gjsify install` materialises EVERY platform package, so a cold install does ~4x the necessary work — this, not a wedge, is what the 30-min budget hits.** Measured on a fresh clone (linux-x64, warm tarball cache, 2026-07-28): 1597 packages / **4.78 GB** extracted, of which **183 packages / 3.36 GB (70% of the bytes)** declare an `os`/`cpu` that EXCLUDES the host, so npm/yarn/pnpm would never place them — six `@anthropic-ai/claude-agent-sdk-*` siblings at ~230 MB each, six `@pagefind/*`, plus the `@rolldown`/`@oxlint`/`@oxfmt`/`@img/sharp`/`@deltachat` binding sets. The fix is to honour `os`/`cpu` like every other package manager, and it is a TWO-part change because `--immutable` materialises straight from `gjsify-lock.json`: record `os`/`cpu`/`libc` on lock entries at resolve time, and filter at materialisation. That is a lockfile-format change + a full `gjsify-lock.json` regeneration, so it wants its own PR + e2e; the napi-rs entry-replacement in `napi-node-addon.ts` already selects its sibling BY HOST TRIPLE, so it is unaffected. Do NOT "fix" this by raising `--timeout`: a budget that exists to bound a hang must not be tuned to accommodate one.
@@ -721,24 +724,6 @@ MEANS, so it wants its own regression test per scope shape (active window, a
 non-active toplevel, a child widget, and an unresolvable path → error rather than
 a silent fallback).
 
-### `SetProperty` and `EmitSignal` are classified in the contract but exist on no wire
-
-`GENERIC_METHODS` declares both with a `mutating` kind
-(`packages/framework/devtools-protocol/src/methods.ts:32` and `:35`) — which is
-what the pause guard consults — but `GENERIC_METHODS_XML`
-(`packages/framework/devtools/src/devtools-iface.ts:7-65`) carries no `<method>`
-fragment for either, `DevtoolsService` implements neither, and
-`GenericToolName` / `registerGenericTools`
-(`packages/framework/devtools-mcp/src/profile.ts`, `src/generic-tools.ts`) expose
-no tool. A caller reads the contract, sees the name and its kind, and gets
-`UnknownMethod` from the app: a classification with nothing behind it — the shape
-the manifest-conformance rules exist to prevent one level up. Fix is either to
-implement both on the GTK adapter (`SetProperty` wants the already-exported
-`buildVariant`/`variantKindFor` plus a writable-property check; `EmitSignal`
-wants a signal-name + args marshaller) or to drop them from `GENERIC_METHODS`
-until one adapter has them. Out of scope with the transport work: both are
-widget-state MUTATORS, a different surface entirely.
-
 ### Architecture backlog — ADRs 0001–0008
 
 Decisions in [docs/adr/](../docs/adr/README.md), prioritized backlog in [docs/reports/2026-07-01-architecture-review.md](../docs/reports/2026-07-01-architecture-review.md). Remaining open work (resolved sub-items are recorded in the commits/CHANGELOG that closed them):
@@ -746,6 +731,7 @@ Decisions in [docs/adr/](../docs/adr/README.md), prioritized backlog in [docs/re
 - **ADR 0001 (P1)** — install non-destructive invariant: the Phase D.8 dedup pass is still open (the e2e guards, per-prefix lock, atomic writes and conflict warning have landed).
 - **ADR 0006 (P1)** — per-package build cache: **CI wiring DEFERRED** — enabling it on the `main.yml` build steps timed out the serial `Build examples` step (cold cache + per-package closure re-hashing at scale). Remaining: (a) memoize input hashes across a single `foreach` before re-enabling in CI; (b) phase 2 = source-direct workspace-consumption spike.
 - **ADR 0003 (P1)** — tiering shipped; the website still lacks a per-package tier index (the tier model is documented on the versioning page).
+- **#1002 holds the load-bearing detail this backlog does not**: ADR 0002's increment 1 exists as UNCOMMITTED work (`git stash@{0}` plus a durable copy under `~/.local/state/gjsify-adr0002/`), taken against a tree that is now far behind `main`, while `install.ts`/`run.ts`/`publish-headers.ts` keep moving under it. Highest decay risk on the board — measure whether it still applies before planning around it.
 - **ADR 0002 (P1, after 0006)** — **amended 2026-08-02**; read the amendment before implementing, the original decision 2 is unimplementable. Minimal version-free `bootstrap/bootstrap.gjs.mjs` (install+run+integrity) built from the SAME commit stays tracked; the full CLI/tsc/bundler-engine come from a pinned `.gjsify/toolchain/` prefix, NOT from `gjsify-lock.json` (it holds 0 `@gjsify/*` entries — a workspace name can never appear there). `affected.gjs.mjs` and `tsc/lib/lib*.d.ts` now STAY tracked, with reasons; only `dist/cli.gjs.mjs` + `dist/tsc.gjs.mjs` get untracked. `tests/e2e/bootstrap-install` (does not exist yet — `bootstrap-cold-tree` stops at `--print-plan`) + `tests/e2e/bootstrap-pin` are the gate BEFORE the untracking. The pre-commit hook's four-path heuristic is replaced by a derived `bootstrap.inputs.json` + build-free verifier, not merely shrunk. Byte-reproducibility moves to `release-cut.yml`, it does not disappear.
 - **ADR 0007 (P3, easy6502)** — superseded into the full Learn6502 app-web rewrite (own project). Foundation pieces (phone-shell trio, `<adw-source-view>`) have landed on adwaita-web; remaining: the app-web view implementations over these + the classic-tutorial removal + the learn-package HTML target.
 
@@ -943,15 +929,6 @@ into one manifest. Nothing needs to be remembered afterwards:
 arch list, so widening it turns all three from "excused" into "must switch" on
 the next run, and its hand-written ledger is already empty.
 
-### CHANGELOG links break on `#nnn` written inside commit bodies
-
-conventional-changelog scans commit BODIES for issue references, so prose like
-"pre-#885" or "#870/#873" becomes a link to `github.com/gjsify/pre-/issues/885`
-and `github.com/870/gjsify/issues/873`. Both are in the published v0.26.0
-changelog. Either stop writing bare `#nnn` mid-sentence in commit bodies (a
-convention nothing enforces, so it will regress), or configure the parser's
-`issuePrefixes`/reference handling so only trailer-style references count.
-
 ### Nothing byte-compares a committed prebuild, and macOS re-commits noise
 
 AGENTS.md already records that committed `prebuilds/**` binaries are unguarded
@@ -987,38 +964,36 @@ directory. The arm64 signature follows automatically once the bytes it hashes
 are stable. Worth doing: it is the last thing standing between this repo and a
 byte-comparison of a committed prebuild against a CI-built one.
 
-### Ten committed prebuild directories still owe their `.gir`
+### The missing-`.gir` ledger is empty and should now be deleted
 
-`prebuild-artifacts` requires a `.gir` in every committed `prebuilds/<target>/`,
-and ten directories do not have one: `@gjsify/webgl` and
-`@gjsify/webrtc-native` on all five linux targets, whose pre-stager `cp` lists
-copied the `.so` and the `.typelib` only. They are deferred with their reason in
-`scripts/manifest-conformance/prebuild-gir-gaps.mjs`, which
-`audit-runtimes --check` prints on every run.
+All ten `.gir` files have landed through the commit channel, which is what the
+ledger existed to force, and `scripts/clear-satisfied-gir-gaps.mjs` emptied
+itself in the same commit that added them:
+`scripts/manifest-conformance/prebuild-gir-gaps.mjs` now exports
+`PREBUILD_GIR_GAPS = {}`. Both auto-exits worked as designed — the clearing
+script removes an entry whose file arrived, `prebuild-artifacts` fails an entry
+that outlives its cause, `stage-prebuild.mjs` refuses a `.typelib` with no
+`.gir` beside it (so the gap class is structurally closed, not just drained),
+and `platforms-ci` fails a deferral for a target no leg builds.
 
-Deliberately NOT repaired by hand: the commit channel was dead when the assertion
-was written (it rebased over the binaries), so landing the ten files THROUGH
-`commit-prebuilds` is what proves the channel works. The exit is automatic in both
-directions — the rule fails an entry whose file arrived, and
-`scripts/clear-satisfied-gir-gaps.mjs` deletes that entry in the same commit that
-adds the file. A `workflow_dispatch` run of `prebuilds.yml` on `main` classifies
-`--all` and lands all ten at once if the merge that added them does not.
+**What is left is the reviewed human commit the ledger's own header prescribes**
+— the clearing script deliberately leaves `{}` rather than deleting the module,
+because a bot pushing under `[skip ci]` must not remove something
+`scripts/audit-runtimes.mjs` imports. An empty ledger is a corpse by this repo's
+own rule, so the file and its import go by hand.
 
-Two ways that "transient" could have been a lie, both now gates rather than
-prose: a build that stops emitting the `.gir` fails `stage-prebuild.mjs` (a
-`.typelib` with no `.gir` beside it is refused — `g-ir-compiler` takes the `.gir`
-as input, so one WAS there), and a deferral for a target no `prebuilds.yml` leg
-builds fails `platforms-ci`. All ten are credited by `prebuilds.yml` with exactly
-the target whose directory is short a file, and the audit prints that leg per
-entry.
-
-WHAT IS LEFT FOR A HUMAN: when the last entry goes, the clearing script leaves
-`PREBUILD_GIR_GAPS = {}` behind rather than deleting a module that
-`scripts/audit-runtimes.mjs` imports — a bot pushing under `[skip ci]` must not be
-removing imports. Delete the ledger file and its import in a reviewed commit, and
-delete this entry with them. That importer list is machine-checked (the e2e suite
-finds every static importer and fails if the ledger's own instruction does not
-name it), so the cleanup cannot break an importer nobody remembered.
+It is not a one-line deletion, which is why it is still here. The module is
+reachable from: the real import at `scripts/audit-runtimes.mjs:143` and its use
+at `:1610`; `clear-satisfied-gir-gaps.mjs:49` (whose own tests are fixture-only,
+so the SCRIPT stays — it is the mechanism for any future ledger); a comment in
+`rules/platforms-ci.mjs:281`; the error text and summary line in
+`prebuild-artifacts.mjs:366`/`:517`, which OFFER the ledger as the deferral
+route and would otherwise point at a deleted file; the importer list that
+`tests/e2e/prebuild-declaration-invariant` machine-checks; and the now-false
+"Ten of sixty directories are in it today" in `docs/runtime-platform-axes.md:11`.
+The rule's error text needs rewording in the same change: with the stager
+refusing an incomplete triple, "restage this target" is the answer and
+"record the gap" no longer has a file to record it in.
 
 ### A gate whose fixture reads what the gated job writes — SECOND instance
 
@@ -1071,11 +1046,11 @@ reads with nothing done about them:
   webrtc-native are never actually loaded there. The gate proves declarations and
   file shape, not that an artifact loads.
 
-Adjacent, same cause, different workflow: `commitlint.yml` triggers on
-`pull_request` only, so neither bot path to `main` — the prebuild push nor
-`chore: release v${version}` — is ever linted, while
-`@release-it/conventional-changelog` walks exactly those commits to build the
-CHANGELOG.
+Adjacent, same cause — and the release half is now CLOSED: `commitlint.yml` triggers on `push` to
+`main` as well, so the release cut's direct `chore: release v${version}` commit is linted, which
+matters because `@release-it/conventional-changelog` walks exactly those commits. The prebuild push
+stays unlinted and NO trigger can change that — `[skip ci]` skips the workflow run itself, so
+dropping it (the lever below) is the only route, and that is its own deliberate cost decision.
 
 The one lever not pulled is **dropping the CI-skip directive from the prebuild
 push**. Checked: it cannot loop (`prebuilds.yml`'s own `push` paths list sources,
@@ -1084,27 +1059,6 @@ only coverage the new gate structurally cannot reach: the two specs that genuine
 LOAD a committed prebuild under GJS in `main.yml`'s `test` job. It costs one full
 `main.yml` run per landing, which is rare. It detects rather than prevents, so it
 is a complement to the gate, not a replacement — decide it deliberately.
-
-### Neither `@gjsify/napi` release prebuild leg load-tests the artifact it ships
-
-`release.yml`'s `napi-prebuild-linux` and `napi-prebuild-darwin-arm64` do `meson
-setup` → `meson compile` → `cp` → `upload-artifact`, and stop. AGENTS.md's rule is
-"ANY new prebuild job MUST end in a load test", and every other producer obeys it:
-`napi.yml`'s own jobs run the full gate set, `node-gi`'s release legs run
-`node --test test/smoke.test.mjs` against the staged prebuild, `prebuilds.yml`'s
-macOS matrix ends in `gjs -c 'imports.gi.<Ns>.<Class>'` plus an env-free
-`ctypes.CDLL`. `publish-napi` only `test -f`s the four downloaded files, which is
-existence, not loadability — the exact distinction #832 was written about.
-
-Pre-existing, and now load-bearing for linux-x64 rather than only for darwin: with
-`packages/napi/napi-linux-x64/prebuilds/` no longer committed, `prebuild-artifacts`'
-env-free `dlopen` no longer runs on it (it was the one napi check that actually
-EXECUTED the artifact — verified loading under `gjs 1.88.1` before removal), and
-napi.yml's gates load from `build/`, not from the prebuild path. So no job now proves
-that the bytes a release publishes can be opened. Fix = the same two steps the macOS
-legs already carry, added to both release legs; deliberately not done in the change
-that removed the committed copy, because that PR landed hours before a `minor`
-release and the release path is the one place a bad edit is unrecoverable.
 
 ### A PR touching only classifier-ignored paths is never linted, and the red lands on a stranger
 
@@ -1131,39 +1085,6 @@ that always runs (or move them into `audit-runtimes.yml`, which already runs on
 every PR with no paths filter — but that job deliberately performs no install, and
 both tools are devDeps, so it would need one). Pick deliberately; either way the
 claim "lint is clean" stops depending on which paths a PR happened to touch.
-
-### `needsWebgl` in `showcases.json` is declared, parsed, and read by nobody
-
-`packages/infra/cli/showcases.json` carries a `needsWebgl` boolean per showcase;
-`discover-showcases.ts` declares it on `ShowcaseInfo` and coerces it into the
-parsed record. Nothing anywhere reads that field — not `showcase.ts`, not the
-website, not a test. It is the shape every rule in the manifest-conformance
-registry exists to prevent, one directory away from where those rules look
-(`field-coverage` governs `gjsify.*` keys in package manifests; this is a
-free-standing data file).
-
-It has already drifted in the way an unchecked declaration always does:
-`excalibur-jelly-jumper` is recorded as `needsWebgl: false`, while Excalibur
-0.32 uses WebGL2 exclusively — a fact the `WebGLBridge` init-render comment
-documents in detail, because eagerly creating the webgl2 context there is what
-keeps that showcase from rendering into the wrong FBO.
-
-Two honest resolutions; pick one deliberately rather than leaving the third
-state:
-
-- **Delete it.** Every showcase that needs the bridge already declares
-  `@gjsify/webgl` as a runtime dependency, which is what actually gets the
-  typelib into the dlx tree. The field then encodes nothing the manifests do not.
-- **Make it load-bearing.** `@gjsify/webgl` ships no win32 prebuild (its declared
-  targets are the five linux ones plus darwin-arm64/darwin-x64), so
-  `gjsify showcase three-geometry-teapot` on win32 installs a tree with no
-  `prebuilds/<target>/` and dies at `gi://Gwebgl` with a raw GI error. A pre-flight
-  keyed on this field could say which showcase needs which bridge and that the host
-  has no prebuild for it — worth having while win32/darwin are active port targets.
-  It would also be the right place to say "this host has a prebuild but no GLSL ES
-  3.00", which is what makes the three WebGL2 showcases silently blank on darwin
-  (see the darwin webgl item above). Needs the fix to `excalibur-jelly-jumper` in
-  the same change, and a check so the next entry cannot be wrong for free.
 
 ### `@gjsify/lightningcss-native` references `gnu_get_libc_version`, which musl lacks
 
@@ -1386,49 +1307,41 @@ own SKIP gate — it already carries nine of them — so it skips where an Adwai
 cannot complete startup and keeps running where it can. Removing the ledger entry in the same
 change is what `check-e2e-suite-coverage.mjs` will then require.
 
-### 12 test sites are parked behind a bare marker, where `it.failing` would retire itself
+### `logSignals` has no test
 
-Found by `gjsify/todo-needs-anchor` on its first run. The suites are not broken —
-each of these is a deliberate parking whose REASON is recorded somewhere. What is
-missing is the retirement: nothing fails on the day the parked behaviour starts
-working, so the parking outlives the gap it was written for.
+The one survivor of the twelve parked test sites `gjsify/todo-needs-anchor`
+found on its first run. The other eleven are retired: two `on([])` gates became
+`it.failing` (with their reason), four commented-out assertions went live and
+three of them promptly failed — see below — two markers named nothing above a
+complete statement and were deleted, and the worker-stress one was never a
+deferral at all (its sentence says the test CLOSES a todo; `TODO` merely opened
+a comment line, and an anchor had been bolted on to satisfy the rule).
 
-Three shapes, in increasing order of how well they are already documented:
+**Why this one could not be converted.** `packages/gjs/utils/src/log.spec.ts`
+holds a fully commented-out spec for `logSignals`, and `it.failing` is the wrong
+tool for it: the spec deliberately produces an UNHANDLED REJECTION
+(`createUncaughtException()` called without `await` — that is the event under
+test), which is raised outside the callback's promise chain. `it.failing` cannot
+catch it, and Node's default handler terminates the process, so reviving it
+as-is would make the whole `@gjsify/utils` suite non-deterministic rather than
+parking a failure.
 
-`packages/web/dom-events/src/error-handler.spec.ts` gates two `describe` blocks
-to `await on([], …)`. `runtimeMatch([])` runs `[].find(…)` → `undefined` →
-`matched: false`, so the callback is never invoked and the run counts it as
-IGNORED — a permanent skip that no runtime can ever satisfy. This one IS
-explained, 50 lines below at the `listener exception reporting (active
-behaviour)` block: the parked specs exercise W3C `window.onerror` /
-`process.uncaughtException` dispatch we have not implemented, and the two active
-specs pin what we do ship. The reason is good; the distance between the marker
-and the reason is the defect, and `on([])` is `it.skip` wearing another name —
-AGENTS.md § Testing already says which of the three neighbours applies.
+What it needs is a test to WRITE, not a marker to convert: install a temporary
+rejection handler, assert the signal fired, restore. Until then `describe(
+'logSignals')` is an empty suite in the run output, which reads as coverage that
+does not exist.
 
-Commented-out assertions with a bare marker as the only trace:
-`event-target.spec.ts:397,416` (`f3 should be called`, twice) and
-`abort-controller.spec.ts:31,63` (the `[object AbortController]` stringification
-and the `for…in` key enumeration). An assertion deleted by comment is invisible
-to every count the suite reports.
-
-Markers with no statement at all — `abort-controller.spec.ts:82,126` and
-`packages/gjs/utils/src/log.spec.ts:15` (`// TODO: Fix this test`), plus
-`tests/integration/worker-stress/src/cross-process-port-transfer.gjs.spec.ts:5`,
-whose `// TODO.` opens a sentence that then describes what the file verifies.
-
-WHAT TO DO, per site: if the behaviour is genuinely unimplemented, `it.failing(name,
-fn, reason[, {when}])` — it RUNS the test, tolerates the declared failure, and
-fails the run the day it passes. If the assertion was commented out because it
-was wrong, delete it. If it was commented out because it flakes, that is a
-different entry. Only `error-handler.spec.ts:53` needs nothing: it cites
-https://gitlab.gnome.org/GNOME/gjs/-/issues/523 for the object-identity gap,
-which is an upstream defect tracked better than a local number could.
-
-Each site is anchored to this entry for now, which satisfies the lint rule and
-leaves the work visible. That is the weaker half of the pair — the rule prevents
-NEW untracked markers; converting these to `it.failing` is what makes them
-self-retiring.
+**What the retirement cost, recorded because it is the argument against parking
+an assertion in the first place.** Three of the four revived assertions failed
+immediately, each on a real defect now fixed at the source: `EventTarget`'s
+listener map was TypeScript-`private` (a compile-time marker only, so at runtime
+an ordinary ENUMERABLE own property that every subclass leaked into `for…in`,
+`Object.keys` and `JSON.stringify`); `AbortSignal.reason` was a public class
+field where the platform has a prototype getter, found by the same enumeration
+spec one line after the first fix landed; and `AbortController` carried no
+`Symbol.toStringTag`, so `String(controller)` said `[object Object]` while its
+`AbortSignal` sibling had one all along. Four commented lines had been hiding
+three shipped bugs.
 
 ### 10 small API gaps are declared only in a source comment
 

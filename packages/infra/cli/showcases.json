@@ -5,57 +5,49 @@
             "name": "canvas2d-fireworks",
             "category": "dom",
             "package": "@gjsify/example-dom-canvas2d-fireworks",
-            "description": "Colorful fireworks Canvas 2D example with Adwaita controls",
-            "needsWebgl": false
+            "description": "Colorful fireworks Canvas 2D example with Adwaita controls"
         },
         {
             "name": "excalibur-jelly-jumper",
             "category": "dom",
             "package": "@gjsify/example-dom-excalibur-jelly-jumper",
-            "description": "Excalibur.js jelly-jumper game",
-            "needsWebgl": false
+            "description": "Excalibur.js jelly-jumper game"
         },
         {
             "name": "three-geometry-teapot",
             "category": "dom",
             "package": "@gjsify/example-dom-three-geometry-teapot",
-            "description": "Three.js Utah teapot",
-            "needsWebgl": true
+            "description": "Three.js Utah teapot"
         },
         {
             "name": "three-postprocessing-pixel",
             "category": "dom",
             "package": "@gjsify/example-dom-three-postprocessing-pixel",
-            "description": "Three.js postprocessing pixel demo",
-            "needsWebgl": true
+            "description": "Three.js postprocessing pixel demo"
         },
         {
             "name": "webrtc-loopback",
             "category": "dom",
             "package": "@gjsify/example-dom-webrtc-loopback",
-            "description": "WebRTC data-channel loopback: two local peers exchange offer/answer + ICE, then echo messages over an RTCDataChannel",
-            "needsWebgl": false
+            "description": "WebRTC data-channel loopback: two local peers exchange offer/answer + ICE, then echo messages over an RTCDataChannel"
         },
         {
             "name": "minimalist-browser",
             "category": "dom",
             "package": "@gjsify/example-dom-minimalist-browser",
-            "description": "Minimalist browser with URL bar + back/forward + iframe content area; same code runs in browser (real iframe) and GJS (IFrameBridge over WebKit.WebView)",
-            "needsWebgl": false
+            "description": "Minimalist browser with URL bar + back/forward + iframe content area; same code runs in browser (real iframe) and GJS (IFrameBridge over WebKit.WebView)"
         },
         {
             "name": "express-webserver",
             "category": "node",
             "package": "@gjsify/example-node-express-webserver",
-            "description": "Express web server on GJS via @gjsify/http",
-            "needsWebgl": false
+            "description": "Express web server on GJS via @gjsify/http"
         },
         {
             "name": "adwaita-storybook",
             "category": "gtk",
             "package": "@gjsify/example-gtk-adwaita-storybook",
-            "description": "Interactive Libadwaita component browser — author one story per widget, rendered natively (GTK) and in the browser",
-            "needsWebgl": false
+            "description": "Interactive Libadwaita component browser — author one story per widget, rendered natively (GTK) and in the browser"
         }
     ]
 }

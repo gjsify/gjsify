@@ -9,7 +9,12 @@ const kInternal = Symbol('internal');
 
 export class AbortSignal extends EventTarget {
     #aborted: boolean = false;
-    reason: any = undefined;
+    // A prototype GETTER, like `aborted` beside it and like the platform — not
+    // a public field. A class field is an own ENUMERABLE property, so `reason`
+    // showed up in `for…in` over a signal where the real one does not. Found by
+    // the key-enumeration spec the moment it was uncommented, immediately after
+    // the same shape was fixed in `EventTarget` (`_listeners` → `#listeners`).
+    #reason: any = undefined;
 
     onabort: ((this: AbortSignal, ev: Event) => any) | null = null;
 
@@ -27,13 +32,17 @@ export class AbortSignal extends EventTarget {
         return this.#aborted;
     }
 
+    get reason(): any {
+        return this.#reason;
+    }
+
     get [Symbol.toStringTag]() {
         return 'AbortSignal';
     }
 
     throwIfAborted(): void {
         if (this.#aborted) {
-            throw this.reason;
+            throw this.#reason;
         }
     }
 
@@ -41,7 +50,7 @@ export class AbortSignal extends EventTarget {
         if (this.#aborted) return;
 
         this.#aborted = true;
-        this.reason = reason ?? new DOMException('The operation was aborted.', 'AbortError');
+        this.#reason = reason ?? new DOMException('The operation was aborted.', 'AbortError');
 
         const event = new Event('abort');
         if (typeof this.onabort === 'function') {
@@ -94,6 +103,15 @@ export class AbortController {
 
     constructor() {
         this.signal = new AbortSignal(kInternal);
+    }
+
+    // `AbortSignal` has carried one since it was written; the controller never
+    // did, so `String(new AbortController())` said `[object Object]` where the
+    // platform says `[object AbortController]`. Nothing noticed because the
+    // spec asserting it was commented out in the same file that asserts the
+    // signal's — two siblings, one checked.
+    get [Symbol.toStringTag]() {
+        return 'AbortController';
     }
 
     abort(reason?: any): void {

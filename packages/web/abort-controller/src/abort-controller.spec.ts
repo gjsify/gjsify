@@ -28,11 +28,10 @@ export default async () => {
             }
         });
 
-        // TODO(open-todos: 12 test sites are parked): the stringification spec below is commented out.
-        // await it('should be stringified as [object AbortController]', async () => {
-        // 	const controller = new AbortController();
-        // 	expect(controller.toString()).toBe("[object AbortController]")
-        // });
+        await it('should be stringified as [object AbortController]', async () => {
+            const controller = new AbortController();
+            expect(controller.toString()).toBe('[object AbortController]');
+        });
 
         await describe("'signal' property", async () => {
             const controller = new AbortController();
@@ -60,11 +59,10 @@ export default async () => {
                 keys.add('aborted');
                 keys.add('onabort');
 
-                // TODO(open-todos: 12 test sites are parked): the for-in key enumeration below is commented out.
-                // for (const key in signal) {
-                // 	assert(keys.has(key), `'${key}' found, but should not have it`);
-                // 	keys.delete(key)
-                // }
+                for (const key in signal) {
+                    assert(keys.has(key), `'${key}' found, but should not have it`);
+                    keys.delete(key);
+                }
 
                 keys.forEach((key) => {
                     // WORKAROUND for getter / setter
@@ -79,7 +77,6 @@ export default async () => {
             });
 
             await it("should have 'onabort' property which is null by default", async () => {
-                // TODO(open-todos: 12 test sites are parked): marker with no statement — say what is missing or delete it.
                 expect(signal.onabort).toBeNull();
             });
 
@@ -123,7 +120,6 @@ export default async () => {
                 const controller = new AbortController();
 
                 let calls = 0;
-                // TODO(open-todos: 12 test sites are parked): marker with no statement — say what is missing or delete it.
                 controller.signal.onabort = () => {
                     ++calls;
                 };

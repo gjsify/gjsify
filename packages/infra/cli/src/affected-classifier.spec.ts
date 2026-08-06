@@ -434,6 +434,23 @@ export default async (): Promise<void> => {
             expect(r.skipAll).toBe(false);
         });
 
+        await it('status/ + its generator → skipAll (audit-runtimes.yml owns them)', async () => {
+            // The authored status data (ADR 0016). `status/status.json` matched
+            // NOTHING before this entry existed: not a workspace, not ignored,
+            // so it landed in `unmatched` and forced a full CI run for a file
+            // `main.yml` never opens. The `.md` siblings were only ignored by
+            // accident, through the generic `/\.md$/i`, which is why the gap
+            // showed on the JSON alone. `audit-runtimes.yml`'s `status-data`
+            // rule reads all of it on every PR.
+            const r = await runClassify(root, [
+                'status/status.json',
+                'status/open-todos.md',
+                'scripts/generate-status.mjs',
+            ]);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
         await it('release-cut.yml → ignored (its own workflow)', async () => {
             // The same class as the two above, found while fixing them: the
             // workflow shipped without an IGNORE entry, so every change to it

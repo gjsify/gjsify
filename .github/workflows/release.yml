@@ -198,52 +198,11 @@ jobs:
             packages/infra/cli/dist/cli.gjs.mjs
             packages/infra/cli/dist/cli.gjs.mjs.sha256
 
-      # AFTER the npm publish, dispatch the cross-platform probe.
-      #
-      # A `release: published` trigger on that workflow does NOT work, and it is
-      # wrong twice over — both learned the hard way on the v0.26.1 cut:
-      #
-      #   1. It never fires. The release record is created by `release-cut.yml`
-      #      using GITHUB_TOKEN, and GitHub deliberately does not let a token-
-      #      driven event start further workflow runs. That is the same wall #895
-      #      hit, which is why THIS workflow is dispatched rather than triggered.
-      #      A trigger that cannot fire is worse than none: it reads as coverage.
-      #   2. Even if it fired, it would be too EARLY. That probe installs
-      #      `@gjsify/cli@latest` FROM NPM, and the release record exists before
-      #      this job has published anything — so it would measure the PREVIOUS
-      #      version and report the previous version's gaps, with the new release
-      #      looking checked.
-      #
-      # Dispatching from here fixes both: it cannot be missed, and it runs when
-      # the artifact it measures actually exists. Best-effort on purpose — a
-      # failed dispatch must not fail a publish that already succeeded, and the
-      # weekly cron still covers the probe.
-      - name: Dispatch the cross-platform probe (measures what was just published)
-        if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          node --input-type=module -e '
-            const { GITHUB_TOKEN, REPO } = process.env;
-            const url = `https://api.github.com/repos/${REPO}/actions/workflows/cli-cross-platform.yml/dispatches`;
-            const res = await fetch(url, {
-                method: "POST",
-                headers: {
-                    authorization: `Bearer ${GITHUB_TOKEN}`,
-                    accept: "application/vnd.github+json",
-                    "x-github-api-version": "2022-11-28",
-                    "content-type": "application/json",
-                },
-                body: JSON.stringify({ ref: "main", inputs: { cli_version: "latest" } }),
-            });
-            if (!res.ok) {
-                console.error(`dispatch failed: ${res.status} ${res.statusText} — ${(await res.text()).slice(0, 300)}`);
-                process.exit(1);
-            }
-            console.log("dispatched cli-cross-platform.yml against the freshly published latest");
-          '
+      # The cross-platform probe used to be dispatched from HERE, at the end of
+      # this job. It now has its own job, `dispatch-cross-platform-probe`, gated
+      # on `publish-node-gi` — see the reasoning and the measurement there.
+      # Dispatching after THIS job was still too early for everything the probe
+      # asserts about `@gjsify/node-gi`, which is published several jobs later.
 
       - name: Summary
         env:
@@ -1085,6 +1044,74 @@ jobs:
           node "$CLI_BIN" publish packages/node-gi/node-gi \
             --tolerate-republish --tag latest --access public
 
+  # The cross-platform probe is dispatched from HERE, gated on `publish-node-gi`,
+  # and not from a step at the end of the `publish` job where it used to live.
+  #
+  # THE INCIDENT, measured to the second on v0.30.0: `@gjsify/cli@0.30.0` hit npm
+  # at 22:13:49, the probe was dispatched at 22:13:53 — four seconds later — and
+  # failed at 22:14:34 with `No version of @gjsify/node-gi satisfies 0.30.0`.
+  # `@gjsify/node-gi@0.30.0` was not published until 22:21:44, EIGHT MINUTES
+  # after the probe had already given its verdict. Identical shape at 0.29.0
+  # (published 16:51:04, probe dispatched 16:43:18), and six consecutive red runs
+  # across two releases.
+  #
+  # The old placement was right about `@gjsify/cli` and wrong about everything
+  # else the probe measures: `publish-node-gi` needs three prebuild legs ON TOP
+  # of `publish`, so from inside `publish` the node-gi tarball the probe resolves
+  # — and the per-platform prebuild it asserts on — cannot exist yet. A probe
+  # that runs before the thing it measures does not report a gap, it reports its
+  # own scheduling.
+  #
+  # WHY DISPATCHED AT ALL, rather than triggered by `release: published` on that
+  # workflow — kept from the original placement, both halves learned on the
+  # v0.26.1 cut and neither changed by the move:
+  #
+  #   1. It never fires. The release record is created by `release-cut.yml` using
+  #      GITHUB_TOKEN, and GitHub deliberately does not let a token-driven event
+  #      start further workflow runs (the same wall #895 hit). A trigger that
+  #      cannot fire is worse than none: it reads as coverage.
+  #   2. Even if it fired, it would be too EARLY — the release record exists
+  #      before anything is published, so the probe would measure the PREVIOUS
+  #      version while the new release looked checked. That is the same class of
+  #      error this job's own placement was making, one step further out.
+  #
+  # Skipped, not failed, when `publish-node-gi` is skipped: if a prebuild leg
+  # broke there is nothing to measure, and the weekly cron still covers the
+  # probe. Best-effort is preserved — a failed dispatch must not fail a publish
+  # that already succeeded.
+  dispatch-cross-platform-probe:
+    name: Dispatch the cross-platform probe
+    needs: [publish, publish-node-gi]
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch the cross-platform probe (measures what was just published)
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          node --input-type=module -e '
+            const { GITHUB_TOKEN, REPO } = process.env;
+            const url = `https://api.github.com/repos/${REPO}/actions/workflows/cli-cross-platform.yml/dispatches`;
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    authorization: `Bearer ${GITHUB_TOKEN}`,
+                    accept: "application/vnd.github+json",
+                    "x-github-api-version": "2022-11-28",
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ ref: "main", inputs: { cli_version: "latest" } }),
+            });
+            if (!res.ok) {
+                console.error(`dispatch failed: ${res.status} ${res.statusText} — ${(await res.text()).slice(0, 300)}`);
+                process.exit(1);
+            }
+            console.log("dispatched cli-cross-platform.yml against the freshly published latest");
+          '
+
   # ---------------------------------------------------------------------------
   # @gjsify/napi — the N-API host for GJS (native `.node` addons IN GJS), the
   # forward mirror of @gjsify/node-gi. Same structural situation as node-gi and
@@ -1164,15 +1191,48 @@ jobs:
       # (`packages/napi/napi-linux-x64/`), not to the bridge: `@gjsify/napi` no
       # longer lists `prebuilds` in `files`, so staging into it would pack
       # nothing and every consumer would get a bridge with no binary.
+      #
+      # The staging goes through `scripts/stage-prebuild.mjs` like every other
+      # site in the repo, rather than a hand-written `mkdir -p` + `cp` naming
+      # each artifact. Two properties come with it that the `cp` list did not
+      # have: the destination is DERIVED from the package's own
+      # `gjsify.platforms` (a wrong target is an error, not a directory nobody
+      # declared), and artifacts are matched by EXTENSION, so renaming a library
+      # in meson.build cannot ship a stale or partial set. It also runs
+      # `check-prebuild-loader-path.mjs` on what it staged. These two legs were
+      # the last pair outside that rule — `tests/e2e/prebuild-change-gate` now
+      # scans this workflow too, so the exemption cannot come back.
       - name: Build the @gjsify/napi shim (meson) + stage prebuild
         working-directory: packages/napi/napi
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
-             ../napi-linux-x64/prebuilds/linux-x64/
-          echo "staged: $(ls -1 ../napi-linux-x64/prebuilds/linux-x64)"
+          node ../../../scripts/stage-prebuild.mjs .
+
+      # THE gate this leg was missing. It used to end at `cp` + upload, and its
+      # consumer `publish-napi` checks the four files with `test -f` — existence,
+      # never loadability. Since `packages/napi/napi-linux-x64/prebuilds/` stopped
+      # being committed, `prebuild-artifacts`' env-free dlopen no longer covers it
+      # either, and napi.yml's own gates load out of `build/`, not out of the
+      # prebuild path. So NOTHING proved the bytes a release publishes can be
+      # opened — on either target.
+      #
+      # Calling a function is the trigger, not a formality: this namespace has no
+      # GObject class, so resolving `imports.gi.GjsifyNapi` proves only that the
+      # typelib was FOUND. `is_available()` is what makes GI dlopen the library
+      # the typelib records (and it is side-effect free, unlike `init()`).
+      - name: Load-test the linux-x64 prebuild this leg will ship
+        working-directory: packages/napi/napi-linux-x64/prebuilds/linux-x64
+        run: |
+          set -euo pipefail
+          echo "shipping: $(ls -1)"
+          GI_TYPELIB_PATH="$PWD" LD_LIBRARY_PATH="$PWD" gjs -c \
+            "const N = imports.gi.GjsifyNapi;
+             if (typeof N.is_available !== 'function') {
+               throw new Error('GjsifyNapi.is_available did not resolve to a function');
+             }
+             N.is_available();
+             print('GjsifyNapi loaded from the staged prebuild');" < /dev/null
 
       - name: Upload the linux-x64 prebuild artifact
         uses: actions/upload-artifact@v4
@@ -1232,10 +1292,29 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p ../napi-darwin-arm64/prebuilds/darwin-arm64
-          cp build/libgjsifynapi.dylib build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
-             ../napi-darwin-arm64/prebuilds/darwin-arm64/
-          echo "staged: $(ls -1 ../napi-darwin-arm64/prebuilds/darwin-arm64)"
+          node ../../../scripts/stage-prebuild.mjs .
+
+      # Same gate, same reason as the linux leg above — and this target needs it
+      # more, not less: `gjsify.platformsUncommitted` exempts darwin-arm64 from
+      # ever being committed, so this job's output is the ONLY copy that exists
+      # and the release is its first and last chance to be opened by anything.
+      #
+      # DYLD_LIBRARY_PATH (not LD_LIBRARY_PATH) is what lets dlopen resolve the
+      # bare leaf the typelib records — dyld has no notion of "next to the
+      # typelib". This mirrors what the CLI exports via buildNativeEnv() on
+      # darwin, so a pass here is a pass for a real `gjsify` run.
+      - name: Load-test the darwin-arm64 prebuild this leg will ship
+        working-directory: packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
+        run: |
+          set -euo pipefail
+          echo "shipping: $(ls -1)"
+          GI_TYPELIB_PATH="$PWD" DYLD_LIBRARY_PATH="$PWD" gjs -c \
+            "const N = imports.gi.GjsifyNapi;
+             if (typeof N.is_available !== 'function') {
+               throw new Error('GjsifyNapi.is_available did not resolve to a function');
+             }
+             N.is_available();
+             print('GjsifyNapi loaded from the staged prebuild');" < /dev/null
 
       - name: Upload the darwin-arm64 prebuild artifact
         uses: actions/upload-artifact@v4

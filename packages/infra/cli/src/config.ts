@@ -251,8 +251,12 @@ export class Config {
 
         tsConfig.reflection ||= cliArgs.reflection;
 
-        // TODO(open-todos: 10 small API gaps): replace with `cliArgs.logLevel`
-        configData.verbose = cliArgs.verbose || false;
+        // `--verbose` and `--log-level` are two spellings of one question, and
+        // only the boolean reached here — so `--log-level debug` turned the
+        // BUNDLER's logging up (see the mapping further down, which sets
+        // `bundler.logLevel`) while the CLI's own verbose output stayed off.
+        // Either spelling now answers it; neither silences the other.
+        configData.verbose = cliArgs.verbose || cliArgs.logLevel === 'debug' || cliArgs.logLevel === 'verbose';
         configData.exclude = cliArgs.exclude || [];
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
         // Default `--app` FOLLOWS the host runtime the CLI executes in: gjs when

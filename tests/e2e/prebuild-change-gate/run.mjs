@@ -32,6 +32,14 @@ const script = fileURLToPath(new URL('../../../.github/prebuild-toolchain/change
 const workflow = fileURLToPath(new URL('../../../.github/workflows/prebuilds.yml', import.meta.url));
 const emulated = fileURLToPath(new URL('../../../.github/prebuild-toolchain/emulated-build.sh', import.meta.url));
 const muslScript = fileURLToPath(new URL('../../../.github/prebuild-toolchain/musl-build.sh', import.meta.url));
+// `release.yml` stages prebuilds too — its two `napi-prebuild-*` legs — and it was
+// the LAST pair outside this scan. They were exempt for no stated reason beyond
+// living in a different file, and the exemption is exactly the shape the rule
+// exists to prevent: the release path is where a hand-written `cp` list is least
+// recoverable, because its output is published before anything reads it. The
+// darwin-arm64 target is never committed at all (`gjsify.platformsUncommitted`),
+// so that leg's bytes have no second copy to compare against.
+const releaseWorkflow = fileURLToPath(new URL('../../../.github/workflows/release.yml', import.meta.url));
 // The two scripts `commit-prebuilds` runs. They hold shell that used to be inline
 // in the job, and they are in the hand-staging scan set below for exactly that
 // reason: moving shell out of the YAML must not move it out from under the ban.
@@ -505,7 +513,7 @@ describe('prebuild change gate — staging goes through the shared stager', () =
         { label: 'New-Item …prebuilds…', re: /New-Item[^\n]*prebuilds/i },
     ];
 
-    for (const file of [workflow, emulated, muslScript, syncAndStage, gatePushedTree]) {
+    for (const file of [workflow, releaseWorkflow, emulated, muslScript, syncAndStage, gatePushedTree]) {
         it(`no step in ${file.split('/').pop()} stages a prebuild by hand`, () => {
             const text = readFileSync(file, 'utf8');
             // `.sh` files are one body; `.yml` splits into steps. Either way the
@@ -547,6 +555,56 @@ describe('prebuild change gate — staging goes through the shared stager', () =
         }
         // And the emulated leg, whose single `build_pkg` helper is its collect step.
         assert.match(readFileSync(emulated, 'utf8'), /scripts\/stage-prebuild\.mjs/);
+    });
+
+    // The release path's own version of both directions, plus the one property
+    // `prebuilds.yml` gets for free and `release.yml` does not.
+    //
+    // A prebuild never LOADED in CI is a prebuild nobody tested — AGENTS.md
+    // states it, `prebuilds.yml` ends every macOS job in a real load test, and
+    // these two legs ended at `cp` + `upload-artifact`. Their consumer
+    // `publish-napi` then checks four files with `test -f`, which proves the
+    // bytes EXIST and nothing about whether they open. That gap widened rather
+    // than closed when `packages/napi/napi-linux-x64/prebuilds/` stopped being
+    // committed: `prebuild-artifacts`' env-free dlopen was the one check that
+    // actually executed the artifact, and it no longer sees it. napi.yml's own
+    // gates load out of `build/`, not out of the staged prebuild path.
+    //
+    // Asserted per JOB rather than per step name so renaming a step cannot
+    // silently drop the gate — what must hold is that the job which BUILDS a
+    // prebuild also stages it through the stager and opens what it staged.
+    it('both napi release legs stage through the stager and load-test what they ship', () => {
+        const text = readFileSync(releaseWorkflow, 'utf8');
+        for (const job of ['napi-prebuild-linux', 'napi-prebuild-darwin-arm64']) {
+            const start = text.indexOf(`\n  ${job}:\n`);
+            assert.notEqual(start, -1, `release.yml no longer defines the \`${job}\` job`);
+            // Up to the next job key at two-space indent, or EOF for the last one.
+            const rest = text.slice(start + 1);
+            const nextJob = /\n {2}[a-z][\w-]*:\n/.exec(rest.slice(1));
+            const body = nextJob ? rest.slice(0, nextJob.index + 1) : rest;
+
+            assert.match(
+                body,
+                /scripts\/stage-prebuild\.mjs/,
+                `release.yml job "${job}" stages its prebuild without the shared stager.\n` +
+                    '  Use `node ../../../scripts/stage-prebuild.mjs .` — it derives the target from the\n' +
+                    "  package's own `gjsify.platforms`, matches artifacts by EXTENSION and runs\n" +
+                    '  checkPrebuildDir() over what it wrote.',
+            );
+            // `is_available()` and not merely `imports.gi.GjsifyNapi`: the
+            // namespace carries no GObject class, so resolving it proves only
+            // that the typelib was FOUND. Calling a function is what makes GI
+            // dlopen the library the typelib records.
+            assert.match(
+                body,
+                /GjsifyNapi[\s\S]*?is_available\(\)/,
+                `release.yml job "${job}" ships a prebuild it never loads.\n` +
+                    '  Add a step that runs `gjs -c "imports.gi.GjsifyNapi.is_available()"` against the\n' +
+                    '  STAGED directory (GI_TYPELIB_PATH + the platform loader variable), so a release\n' +
+                    '  cannot publish bytes nothing has opened. AGENTS.md § Prebuilds: "ANY new prebuild\n' +
+                    '  job MUST end in a load test."',
+            );
+        }
     });
 });
 
