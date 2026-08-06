@@ -14,6 +14,7 @@ import { clone } from './body.js';
 import Response from './response.js';
 import Headers from './headers.js';
 import Request, { getSoupRequestOptions } from './request.js';
+import { loadSoup } from './utils/soup-lazy.js';
 import { FetchError } from './errors/fetch-error.js';
 import { AbortError } from './errors/abort-error.js';
 import { isRedirect } from './utils/is-redirect.js';
@@ -177,7 +178,10 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
     });
 
     const message = request._message;
-    const headers = Headers._newFromSoupMessage(message);
+    // Soup is already linked+cached by request._send above; loadSoup() returns
+    // the cached namespace so _newFromSoupMessage stays synchronous over it.
+    const soup = await loadSoup();
+    const headers = Headers._newFromSoupMessage(soup, message);
     const statusCode = message.status_code;
     const statusMessage = message.get_reason_phrase();
 

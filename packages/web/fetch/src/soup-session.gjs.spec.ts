@@ -52,16 +52,40 @@ export default async () => {
         const fetchFn = (globalThis as unknown as { fetch: typeof fetch }).fetch;
 
         await describe('@gjsify/fetch — Soup.Session lifecycle (host->conns regression)', async () => {
-            await it('reuses one shared Soup.Session across HTTP requests (no per-request session)', () => {
+            await it('reuses one shared Soup.Session across HTTP requests (no per-request session)', async () => {
                 // Two distinct HTTP Requests must share the very same Soup.Session
                 // instance. A per-request session is what triggered the GC race;
                 // a shared singleton can never be finalized while in use.
-                const a = new RequestCtor('http://example.com/a');
-                const b = new RequestCtor('https://example.org/b');
-                expect(a._session).toBeTruthy();
-                expect(b._session).toBeTruthy();
-                expect(a._session === b._session).toBe(true);
-                expect(a._session instanceof Soup.Session).toBe(true);
+                //
+                // The session is created lazily on first SEND (deferred from the
+                // Request constructor so that importing @gjsify/fetch links no
+                // `gi://Soup` typelib — see utils/soup-lazy.ts). So drive two real
+                // sends against a local server and assert the invariant where the
+                // sessions actually live; `_session` is null before send.
+                const server = new Soup.Server({});
+                server.add_handler(null, (_s: unknown, msg: SoupNS.ServerMessage) => {
+                    msg.set_status(200, null);
+                    msg.set_response('application/json', Soup.MemoryUse.COPY, new TextEncoder().encode('{}'));
+                });
+                server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+                const base = server.get_uris()[0].to_string();
+
+                try {
+                    const a = new RequestCtor(base);
+                    const b = new RequestCtor(base);
+                    // Before any send, no Soup object is allocated.
+                    expect(a._session).toBeNull();
+                    const ra = await a._send({ headers: a.headers });
+                    const rb = await b._send({ headers: b.headers });
+                    ra.readable.resume();
+                    rb.readable.resume();
+                    expect(a._session).toBeTruthy();
+                    expect(b._session).toBeTruthy();
+                    expect(a._session === b._session).toBe(true);
+                    expect(a._session instanceof Soup.Session).toBe(true);
+                } finally {
+                    server.disconnect();
+                }
             });
 
             await it('non-HTTP requests do not allocate a Soup.Session', () => {

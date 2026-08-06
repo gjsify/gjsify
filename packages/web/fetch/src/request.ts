@@ -4,9 +4,10 @@
 // Modifications: Rewritten for GJS using Soup.Message and Gio
 
 import GLib from '@girs/glib-2.0';
-import Soup from '@girs/soup-3.0';
+import type Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import { soupSendAsync, inputStreamToReadable } from './utils/soup-helpers.js';
+import { loadSoup } from './utils/soup-lazy.js';
 
 import { URL } from '@gjsify/url';
 import type { Blob } from './utils/blob-from.js';
@@ -95,7 +96,7 @@ function shouldAcceptAnyCert(rejectUnauthorized: boolean | undefined): boolean {
     return GLib.getenv('NODE_TLS_REJECT_UNAUTHORIZED') === '0';
 }
 
-function getSharedSession(): Soup.Session {
+function getSharedSession(soup: typeof Soup): Soup.Session {
     if (sharedSession === null) {
         const maxPerHost = envPositiveInt('GJSIFY_FETCH_MAX_CONNS_PER_HOST', DEFAULT_MAX_CONNS_PER_HOST);
         // The global ceiling must be ≥ the per-host cap, else libsoup clamps
@@ -103,7 +104,7 @@ function getSharedSession(): Soup.Session {
         const maxConns = Math.max(envPositiveInt('GJSIFY_FETCH_MAX_CONNS', DEFAULT_MAX_CONNS), maxPerHost);
         // `max-conns` / `max-conns-per-host` are construct-only in libsoup 3 —
         // they MUST be passed to the constructor; the setters don't exist.
-        sharedSession = new Soup.Session({
+        sharedSession = new soup.Session({
             maxConns,
             maxConnsPerHost: maxPerHost,
         });
@@ -112,7 +113,7 @@ function getSharedSession(): Soup.Session {
         // double-decompression when index.ts also runs DecompressionStream.
         // Remove it once here so our JS-level decompression handles everything.
         // (No throw path: an absent feature is a documented silent no-op.)
-        sharedSession.remove_feature_by_type(Soup.ContentDecoder.$gtype);
+        sharedSession.remove_feature_by_type(soup.ContentDecoder.$gtype);
     }
     return sharedSession;
 }
@@ -341,33 +342,11 @@ export class Request extends Body {
             referrer = undefined;
         }
 
-        // Only create Soup objects for HTTP/HTTPS — data: URIs etc. don't go through Soup
-        const scheme = parsedURL.protocol;
-        let session: Soup.Session | null = null;
-        let message: Soup.Message | null = null;
-        if (scheme === 'http:' || scheme === 'https:') {
-            // Reuse the process-wide shared session (see getSharedSession docs):
-            // a per-request session that gets GC-finalized while a connection is
-            // still registered on its host triggers libsoup's
-            // `host->conns == NULL` CRITICAL.
-            session = getSharedSession();
-            message = new Soup.Message({
-                method,
-                // ENCODED, not NONE: `parsedURL.toString()` is already a
-                // percent-encoded WHATWG URL. Parsing with NONE decodes it a
-                // second time, collapsing an escaped `%2F` in a path segment to
-                // a literal `/` — which sends `PUT /@scope/name` instead of the
-                // required `PUT /@scope%2Fname`. npm's registry tolerates the
-                // literal slash when UPDATING an existing package but 404s on
-                // the package-CREATE route and the OIDC token-exchange endpoint
-                // (`/-/npm/v1/oidc/token/exchange/package/@scope%2Fname`), which
-                // broke first-publish of new scoped packages + Trusted-Publisher
-                // OIDC auth once the CLI began running under GJS. ENCODED keeps
-                // the escaping intact on the wire.
-                uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.ENCODED),
-            });
-        }
-
+        // Soup objects (session + message) are created lazily on first send
+        // (see `_send`), NOT here: constructing a Request — or merely importing
+        // `@gjsify/fetch` — must not link the `gi://Soup` typelib, so that a
+        // Soup-free command (e.g. `gjsify tsc`) does not require libsoup. Only
+        // http:/https: requests ever reach Soup; other schemes never do.
         this[INTERNALS] = {
             method,
             redirect: init?.redirect || inputRL.redirect || 'follow',
@@ -376,8 +355,8 @@ export class Request extends Body {
             signal,
             referrer,
             referrerPolicy: '',
-            session,
-            message,
+            session: null,
+            message: null,
         };
 
         // Node-fetch-only options
@@ -404,17 +383,46 @@ export class Request extends Body {
      * Send the request using Soup.
      */
     async _send(options: { headers: Headers }) {
-        const { session, message, signal, parsedURL } = this[INTERNALS];
+        const { signal, parsedURL } = this[INTERNALS];
 
-        if (!session || !message) {
+        const scheme = parsedURL.protocol;
+        if (scheme !== 'http:' && scheme !== 'https:') {
             throw new Error('Cannot send request: no Soup session (non-HTTP URL?)');
         }
+
+        // Link the Soup typelib now (dynamic import), deferred from construction
+        // so that importing @gjsify/fetch / building a Soup-free command never
+        // links libsoup — the typelib is loaded exactly when a request is sent.
+        const soup = await loadSoup();
+
+        // Reuse the process-wide shared session (see getSharedSession docs): a
+        // per-request session that gets GC-finalized while a connection is still
+        // registered on its host triggers libsoup's `host->conns == NULL`
+        // CRITICAL.
+        const session = getSharedSession(soup);
+        const message = new soup.Message({
+            method: this[INTERNALS].method,
+            // ENCODED, not NONE: `parsedURL.toString()` is already a
+            // percent-encoded WHATWG URL. Parsing with NONE decodes it a second
+            // time, collapsing an escaped `%2F` in a path segment to a literal
+            // `/` — which sends `PUT /@scope/name` instead of the required
+            // `PUT /@scope%2Fname`. npm's registry tolerates the literal slash
+            // when UPDATING an existing package but 404s on the package-CREATE
+            // route and the OIDC token-exchange endpoint
+            // (`/-/npm/v1/oidc/token/exchange/package/@scope%2Fname`), which
+            // broke first-publish of new scoped packages + Trusted-Publisher
+            // OIDC auth once the CLI began running under GJS. ENCODED keeps the
+            // escaping intact on the wire.
+            uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.ENCODED),
+        });
+        this[INTERNALS].session = session;
+        this[INTERNALS].message = message;
 
         // ContentDecoder is removed once on the shared session in
         // getSharedSession() (so the Content-Encoding header survives for our
         // JS-level DecompressionStream in index.ts). Nothing per-request here.
 
-        options.headers._appendToSoupMessage(message);
+        options.headers._appendToSoupMessage(soup, message);
 
         // Attach the request body to the Soup message (needed for POST/PUT/PATCH).
         // Use _rawBodyBuffer to read the body without consuming the stream (the
