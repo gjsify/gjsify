@@ -57,6 +57,22 @@ function scaffold(cwd, projectName, template) {
 }
 
 /**
+ * The build artifacts a scaffolded project DECLARES: `gjsify.main` (the
+ * `--app gjs` bundle) plus `gjsify.example.node` (the `--app node` one, shared
+ * by node/bun/deno).
+ *
+ * Asserting against the manifest instead of a hardcoded `dist/index.js` is what
+ * makes this suite track the template rather than one historical filename: a
+ * template that claims a runtime and emits no bundle for it now fails here,
+ * and a rename of the output cannot quietly turn the assertion into a tautology
+ * against a file nothing produces any more.
+ */
+function declaredArtifacts(projectDir) {
+    const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'));
+    return [pkg.gjsify?.main, pkg.gjsify?.example?.node].filter((p) => typeof p === 'string' && p.length > 0);
+}
+
+/**
  * Patch the scaffolded package.json:
  * - Drop @girs/* (types-only; gi:// imports are externalized by esbuild).
  * - Remap @gjsify/* deps/devDeps to local tarballs.
@@ -145,7 +161,7 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
                 assert.ok(existsSync(join(projectDir, 'node_modules', '.package-lock.json')), 'lockfile missing');
             });
 
-            it('npm run build produces dist/index.js', (t) => {
+            it('npm run build produces every declared artifact', (t) => {
                 if (skipReason) return t.skip(skipReason);
                 console.log(`  [${template}] npm run build…`);
                 execSync('npm run build', {
@@ -153,14 +169,41 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
                     stdio: 'pipe',
                     timeout: 5 * 60 * 1000,
                 });
-                assert.ok(existsSync(join(projectDir, 'dist', 'index.js')), 'dist/index.js missing after build');
+                const artifacts = declaredArtifacts(projectDir);
+                assert.ok(artifacts.length > 0, 'template declares no build artifact');
+                for (const rel of artifacts) {
+                    assert.ok(existsSync(join(projectDir, rel)), `${rel} missing after build`);
+                }
+            });
+
+            it('every declared runtime has a bundle behind it', (t) => {
+                if (skipReason) return t.skip(skipReason);
+                const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'));
+                const runtimes = pkg.gjsify?.example?.runtimes;
+                assert.ok(Array.isArray(runtimes) && runtimes.length > 0, 'gjsify.example.runtimes not declared');
+                // node/bun/deno all consume the one `--app node` bundle, so a
+                // template claiming any of them owes exactly one extra entry.
+                if (runtimes.some((r) => r !== 'gjs')) {
+                    assert.ok(
+                        pkg.gjsify?.example?.node,
+                        'claims a non-gjs runtime but declares no gjsify.example.node',
+                    );
+                }
+                if (runtimes.includes('gjs')) {
+                    assert.ok(pkg.gjsify?.main, 'claims gjs but declares no gjsify.main');
+                }
             });
 
             it('build output is valid JavaScript', (t) => {
                 if (skipReason) return t.skip(skipReason);
-                const outFile = join(projectDir, 'dist', 'index.js');
-                if (!existsSync(outFile)) return t.skip('build output missing');
-                execFileSync('node', ['--check', outFile], { stdio: 'pipe' });
+                let checked = 0;
+                for (const rel of declaredArtifacts(projectDir)) {
+                    const outFile = join(projectDir, rel);
+                    if (!existsSync(outFile)) continue;
+                    execFileSync('node', ['--check', outFile], { stdio: 'pipe' });
+                    checked++;
+                }
+                if (checked === 0) return t.skip('build output missing');
             });
         });
     }
