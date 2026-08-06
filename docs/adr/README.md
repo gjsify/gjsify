@@ -41,6 +41,7 @@ the TODO records the *what's left*.
 | [0018](0018-os-axis-declaration.md) | The OS axis is a declared, checked claim; Linux + macOS + Windows are the target | Proposed |
 | [0019](0019-ts-for-gir-as-library.md) | ts-for-gir as a library; the `.gir` travels with the runtime package | Proposed |
 | [0020](0020-engine-as-optional-dependency.md) | The GJS engine set becomes an `optionalDependencies` edge of `@gjsify/cli` | Proposed |
+| [0021](0021-launcher-free-prebuild-resolution.md) | Native prebuilds resolve in-process via girepository's own search paths; the launcher becomes an optimisation | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
