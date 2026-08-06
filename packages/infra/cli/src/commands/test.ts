@@ -236,10 +236,10 @@ async function runTestBundle(outfile: string, runtime: Runtime): Promise<void> {
         return;
     }
     await new Promise<void>((resolvePromise, reject) => {
-        // `nodeBinary()`, never a bare `'node'`: under the committed GJS bundle
-        // `process.execPath` is the bundle itself, and on a host without Node a
-        // bare literal dies `spawn node ENOENT` — which is how a fully passing
-        // GJS suite was reported as a failed run.
+        // `nodeBinary()`, never a bare `'node'`: under GJS `process.execPath` is
+        // the `gjs` interpreter, which cannot run a `--app node` bundle, and on a
+        // host without Node a bare literal dies `spawn node ENOENT` — which is
+        // how a fully passing GJS suite was reported as a failed run.
         const child = spawn(nodeBinary(), [outfile], { stdio: 'inherit' });
         child.on('error', reject);
         child.on('exit', (code) => {

@@ -2,6 +2,8 @@
 // On GJS, builds a Proxy that round-trips reads/writes through GLib's
 // `getenv`/`setenv`/`unsetenv`/`listenv`.
 
+import { hostExecPath } from '@gjsify/utils/core';
+
 import { getGjsGlobal } from './gjs.js';
 
 export function getEnvProxy(): Record<string, string | undefined> {
@@ -70,17 +72,42 @@ export function getArgv(): string[] {
     return ['gjs'];
 }
 
+/**
+ * Node's `process.execPath` — the absolute path of the INTERPRETER, not of the
+ * script it is running.
+ *
+ * This used to return `imports.system.programInvocationName`, which is the
+ * ENTRY MODULE (the same value `getArgv()` above puts in `argv[1]`, and says so).
+ * The two are different questions and the wrong answer is load-bearing:
+ * `spawn(process.execPath, […])` is the documented portable way to start a
+ * second copy of the current runtime, and against a bundle path it fails
+ * `ENOENT` — or, because `g_spawn` retries a non-executable text file through
+ * `/bin/sh`, hands a megabyte of JavaScript to the shell.
+ *
+ * Nor is `/usr/bin/gjs` a defensible fallback: no macOS host has that path
+ * (Homebrew installs to `/usr/local/bin` or `/opt/homebrew/bin`), so the
+ * "default" was a Linux literal wearing a default's clothes. `hostExecPath()`
+ * resolves the real one; the literal remains only as the last resort for a host
+ * that answers nothing at all, where any string is equally wrong and Node's
+ * type says it must be a string.
+ */
 export function getExecPath(): string {
-    if (typeof globalThis.process?.execPath === 'string') {
-        return globalThis.process.execPath;
-    }
+    // Off GJS the host's own answer is authoritative — and under GJS
+    // `globalThis.process` is OUR object, so reading it here would return the
+    // value we are computing.
+    const host = globalThis.process as { execPath?: unknown } | undefined;
+    if (!isGjsHost() && typeof host?.execPath === 'string') return host.execPath;
+
+    return hostExecPath() ?? '/usr/bin/gjs';
+}
+
+/** Is there a GJS host under this process? */
+function isGjsHost(): boolean {
     try {
-        const system = getGjsGlobal().imports?.system;
-        if (system?.programInvocationName) return system.programInvocationName;
+        return getGjsGlobal().imports?.gi !== undefined;
     } catch {
-        /* ignore */
+        return false;
     }
-    return '/usr/bin/gjs';
 }
 
 export function getCwd(): string {

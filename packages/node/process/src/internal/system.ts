@@ -4,6 +4,8 @@
 // IS `globalThis.process` after register, so delegating to it would
 // infinite-recurse.
 
+import { readProcessMemory } from '@gjsify/utils/core';
+
 import { getGjsGlobal } from './gjs.js';
 
 /** True when running under GJS (so `globalThis.process` is our own instance). */
@@ -42,20 +44,20 @@ export interface MemoryUsage {
     arrayBuffers: number;
 }
 
+/**
+ * Node-shaped `process.memoryUsage()`.
+ *
+ * SpiderMonkey exposes no per-heap accounting to JS, so `heapTotal`/`heapUsed`
+ * are approximated from the OS's view of the whole process — the same
+ * approximation `@gjsify/v8`'s `getHeapStatistics()` makes, from the same
+ * reader, which is why the reader lives in `@gjsify/utils/core` and not here.
+ * Before that lift this function read `/proc/self/status` inline and therefore
+ * reported `rss: 0` on every macOS host.
+ */
 export function memoryUsage(): MemoryUsage {
-    try {
-        const GLib = getGjsGlobal().imports?.gi?.GLib;
-        if (GLib) {
-            const [, contents] = GLib.file_get_contents('/proc/self/status');
-            if (contents) {
-                const str = new TextDecoder().decode(contents);
-                const vmRSS = str.match(/VmRSS:\s+(\d+)/);
-                const rss = vmRSS ? parseInt(vmRSS[1], 10) * 1024 : 0;
-                return { rss, heapTotal: rss, heapUsed: rss, external: 0, arrayBuffers: 0 };
-            }
-        }
-    } catch {
-        /* ignore */
+    const mem = readProcessMemory();
+    if (mem) {
+        return { rss: mem.resident, heapTotal: mem.resident, heapUsed: mem.resident, external: 0, arrayBuffers: 0 };
     }
 
     // Delegate to native process.memoryUsage on Node.js. Gated on !isGjs
