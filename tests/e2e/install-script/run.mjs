@@ -20,7 +20,8 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // ----- tar helpers (ustar v0 with a package.json + bundle file) -----
 const BLOCK = 512;
@@ -97,19 +98,50 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
     const cliBundleBytes = existsSync(cliBundlePath) ? readFileSync(cliBundlePath) : null;
     const cliBundleSha256 = cliBundleBytes ? sha256Hex(cliBundleBytes) : null;
 
-    // Mock npm-registry index. Only `@gjsify/cli@0.0.99-test` is served — the
-    // bundle's `install -g` resolves it and lays out a fake (but valid)
-    // package tree at the user-global prefix.
+    // Mock npm-registry index. `install -g` resolves these and lays out a fake
+    // (but valid) package tree at the user-global prefix.
+    //
+    // `@gjsify/tsc` is here because a GLOBAL install is how the toolchain
+    // reaches a Node-free host (ADR 0002): `gjsify tsc` resolves
+    // `@gjsify/tsc/bundle` from two anchors, and on such a host only the second
+    // one — the running CLI's own location — can answer, because the project
+    // being built has no `@gjsify/tsc` of its own. That anchor works only if the
+    // global install put the package BESIDE the CLI, which happens only because
+    // `@gjsify/cli` declares it in `dependencies`. Modelled here; that the real
+    // manifest still declares it is asserted by `tests/e2e/node-free-bootstrap`,
+    // since a fixture that declares its own dependency cannot prove that half.
     const PACKAGES = {
         '@gjsify/cli': {
             versions: {
                 '0.0.99-test': {
-                    name: '@gjsify/cli',
-                    version: '0.0.99-test',
-                    dependencies: {},
-                    // Pretend bin: a tiny GJS script that just prints "OK".
-                    bin: { 'gjsify-test-shim': './bin.mjs' },
-                    gjsify: { bin: { 'gjsify-test-shim': './bin.mjs' } },
+                    manifest: {
+                        name: '@gjsify/cli',
+                        version: '0.0.99-test',
+                        dependencies: { '@gjsify/tsc': '0.0.99-test' },
+                        // Pretend bin: a tiny GJS script that just prints "OK".
+                        bin: { 'gjsify-test-shim': './bin.mjs' },
+                        gjsify: { bin: { 'gjsify-test-shim': './bin.mjs' } },
+                    },
+                    files: { 'bin.mjs': '#!/usr/bin/env -S gjs -m\nprint("OK from gjsify-test-shim");\n' },
+                },
+            },
+        },
+        '@gjsify/tsc': {
+            versions: {
+                '0.0.99-test': {
+                    manifest: {
+                        name: '@gjsify/tsc',
+                        version: '0.0.99-test',
+                        // The subpath `gjsify tsc` resolves. A stand-in body is
+                        // enough: what is under test is that the package ARRIVES
+                        // and that the subpath RESOLVES, not that tsc compiles.
+                        // Flat rather than the real `./dist/…` because
+                        // `buildPackageTar` emits no directory header for a
+                        // nested path, and the resolution under test does not
+                        // care where the file sits.
+                        exports: { './bundle': './tsc.gjs.mjs' },
+                    },
+                    files: { 'tsc.gjs.mjs': '#!/usr/bin/env -S gjs -m\nprint("stand-in tsc bundle");\n' },
                 },
             },
         },
@@ -132,10 +164,11 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
             index[name] = { name, 'dist-tags': {}, versions: {} };
             let last = '';
             const unscoped = name.startsWith('@') ? name.slice(name.indexOf('/') + 1) : name;
-            for (const [version, body] of Object.entries(info.versions)) {
+            for (const [version, entry] of Object.entries(info.versions)) {
+                const body = entry.manifest;
                 const files = {
                     'package.json': JSON.stringify(body, null, 2) + '\n',
-                    'bin.mjs': '#!/usr/bin/env -S gjs -m\nprint("OK from gjsify-test-shim");\n',
+                    ...entry.files,
                 };
                 const tar = buildPackageTar(files);
                 const tgz = gzipSync(tar);
@@ -215,6 +248,14 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
                     GJSIFY_INSTALL_BOOTSTRAP_CACHE: cache,
                     GJSIFY_INSTALL_BOOTSTRAP_URL: `file://${cliBundlePath}`,
                     GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `file://${sha256Path}`,
+                    // Isolate the CLI's own packument/tarball cache, not just
+                    // the bootstrap one. Without this the run reads
+                    // `~/.cache/gjsify/metadata`, where a developer machine
+                    // already holds the REAL `@gjsify/cli` packument — the
+                    // shadowing `tests/e2e/global-install-engine` records. CI is
+                    // clean, so this fails only on the machine of whoever is
+                    // working on it, which is the worst place for it to fail.
+                    XDG_CACHE_HOME: cache,
                     npm_config_registry: registryUrl,
                     ...extraEnv,
                 },
@@ -264,6 +305,33 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
         );
         // Bin launcher created.
         assert.ok(existsSync(join(r.binDir, 'gjsify-test-shim')), 'bin shim not created');
+    });
+
+    it('carries @gjsify/tsc into the prefix, where anchor 2 can reach it', async () => {
+        // ADR 0002's toolchain half. On a Node-free host `gjsify tsc` cannot
+        // resolve `@gjsify/tsc/bundle` from the project — the project has none —
+        // so it falls to the second anchor, the running CLI's own location
+        // (`commands/tsc.ts`). That anchor answers only if the global install
+        // placed the package BESIDE the CLI. Nothing asserted that before, and
+        // it is the step the whole Node-free claim rests on: without it
+        // `build:infra` dies at its first entry, which is a `gjsify tsc`.
+        const r = await runBootstrap(['--tag', '0.0.99-test']);
+        assert.equal(r.status, 0, `bootstrap failed:\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`);
+
+        const cliDir = join(r.prefix, 'node_modules', '@gjsify', 'cli');
+        assert.ok(existsSync(join(cliDir, 'package.json')), 'the CLI itself is not at the prefix');
+        assert.ok(
+            existsSync(join(r.prefix, 'node_modules', '@gjsify', 'tsc', 'package.json')),
+            'the CLI declared @gjsify/tsc but the install did not lay it down beside it',
+        );
+
+        // Resolve exactly the way the CLI does — `createRequire` anchored at a
+        // file inside the installed CLI — rather than re-deriving the path.
+        // A hand-built path would still pass if `exports["./bundle"]` were
+        // renamed, which is one of the two ways this can actually break.
+        const anchor = pathToFileURL(join(cliDir, 'bin.mjs')).href;
+        const resolved = createRequire(anchor).resolve('@gjsify/tsc/bundle');
+        assert.ok(existsSync(resolved), `anchor 2 resolved to a file that is not there: ${resolved}`);
     });
 
     it('fails fast on SHA-256 mismatch', async () => {
