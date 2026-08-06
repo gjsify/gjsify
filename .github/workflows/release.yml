@@ -198,52 +198,11 @@ jobs:
             packages/infra/cli/dist/cli.gjs.mjs
             packages/infra/cli/dist/cli.gjs.mjs.sha256
 
-      # AFTER the npm publish, dispatch the cross-platform probe.
-      #
-      # A `release: published` trigger on that workflow does NOT work, and it is
-      # wrong twice over — both learned the hard way on the v0.26.1 cut:
-      #
-      #   1. It never fires. The release record is created by `release-cut.yml`
-      #      using GITHUB_TOKEN, and GitHub deliberately does not let a token-
-      #      driven event start further workflow runs. That is the same wall #895
-      #      hit, which is why THIS workflow is dispatched rather than triggered.
-      #      A trigger that cannot fire is worse than none: it reads as coverage.
-      #   2. Even if it fired, it would be too EARLY. That probe installs
-      #      `@gjsify/cli@latest` FROM NPM, and the release record exists before
-      #      this job has published anything — so it would measure the PREVIOUS
-      #      version and report the previous version's gaps, with the new release
-      #      looking checked.
-      #
-      # Dispatching from here fixes both: it cannot be missed, and it runs when
-      # the artifact it measures actually exists. Best-effort on purpose — a
-      # failed dispatch must not fail a publish that already succeeded, and the
-      # weekly cron still covers the probe.
-      - name: Dispatch the cross-platform probe (measures what was just published)
-        if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          node --input-type=module -e '
-            const { GITHUB_TOKEN, REPO } = process.env;
-            const url = `https://api.github.com/repos/${REPO}/actions/workflows/cli-cross-platform.yml/dispatches`;
-            const res = await fetch(url, {
-                method: "POST",
-                headers: {
-                    authorization: `Bearer ${GITHUB_TOKEN}`,
-                    accept: "application/vnd.github+json",
-                    "x-github-api-version": "2022-11-28",
-                    "content-type": "application/json",
-                },
-                body: JSON.stringify({ ref: "main", inputs: { cli_version: "latest" } }),
-            });
-            if (!res.ok) {
-                console.error(`dispatch failed: ${res.status} ${res.statusText} — ${(await res.text()).slice(0, 300)}`);
-                process.exit(1);
-            }
-            console.log("dispatched cli-cross-platform.yml against the freshly published latest");
-          '
+      # The cross-platform probe used to be dispatched from HERE, at the end of
+      # this job. It now has its own job, `dispatch-cross-platform-probe`, gated
+      # on `publish-node-gi` — see the reasoning and the measurement there.
+      # Dispatching after THIS job was still too early for everything the probe
+      # asserts about `@gjsify/node-gi`, which is published several jobs later.
 
       - name: Summary
         env:
@@ -1084,6 +1043,74 @@ jobs:
         run: |
           node "$CLI_BIN" publish packages/node-gi/node-gi \
             --tolerate-republish --tag latest --access public
+
+  # The cross-platform probe is dispatched from HERE, gated on `publish-node-gi`,
+  # and not from a step at the end of the `publish` job where it used to live.
+  #
+  # THE INCIDENT, measured to the second on v0.30.0: `@gjsify/cli@0.30.0` hit npm
+  # at 22:13:49, the probe was dispatched at 22:13:53 — four seconds later — and
+  # failed at 22:14:34 with `No version of @gjsify/node-gi satisfies 0.30.0`.
+  # `@gjsify/node-gi@0.30.0` was not published until 22:21:44, EIGHT MINUTES
+  # after the probe had already given its verdict. Identical shape at 0.29.0
+  # (published 16:51:04, probe dispatched 16:43:18), and six consecutive red runs
+  # across two releases.
+  #
+  # The old placement was right about `@gjsify/cli` and wrong about everything
+  # else the probe measures: `publish-node-gi` needs three prebuild legs ON TOP
+  # of `publish`, so from inside `publish` the node-gi tarball the probe resolves
+  # — and the per-platform prebuild it asserts on — cannot exist yet. A probe
+  # that runs before the thing it measures does not report a gap, it reports its
+  # own scheduling.
+  #
+  # WHY DISPATCHED AT ALL, rather than triggered by `release: published` on that
+  # workflow — kept from the original placement, both halves learned on the
+  # v0.26.1 cut and neither changed by the move:
+  #
+  #   1. It never fires. The release record is created by `release-cut.yml` using
+  #      GITHUB_TOKEN, and GitHub deliberately does not let a token-driven event
+  #      start further workflow runs (the same wall #895 hit). A trigger that
+  #      cannot fire is worse than none: it reads as coverage.
+  #   2. Even if it fired, it would be too EARLY — the release record exists
+  #      before anything is published, so the probe would measure the PREVIOUS
+  #      version while the new release looked checked. That is the same class of
+  #      error this job's own placement was making, one step further out.
+  #
+  # Skipped, not failed, when `publish-node-gi` is skipped: if a prebuild leg
+  # broke there is nothing to measure, and the weekly cron still covers the
+  # probe. Best-effort is preserved — a failed dispatch must not fail a publish
+  # that already succeeded.
+  dispatch-cross-platform-probe:
+    name: Dispatch the cross-platform probe
+    needs: [publish, publish-node-gi]
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch the cross-platform probe (measures what was just published)
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          node --input-type=module -e '
+            const { GITHUB_TOKEN, REPO } = process.env;
+            const url = `https://api.github.com/repos/${REPO}/actions/workflows/cli-cross-platform.yml/dispatches`;
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    authorization: `Bearer ${GITHUB_TOKEN}`,
+                    accept: "application/vnd.github+json",
+                    "x-github-api-version": "2022-11-28",
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ ref: "main", inputs: { cli_version: "latest" } }),
+            });
+            if (!res.ok) {
+                console.error(`dispatch failed: ${res.status} ${res.statusText} — ${(await res.text()).slice(0, 300)}`);
+                process.exit(1);
+            }
+            console.log("dispatched cli-cross-platform.yml against the freshly published latest");
+          '
 
   # ---------------------------------------------------------------------------
   # @gjsify/napi — the N-API host for GJS (native `.node` addons IN GJS), the
