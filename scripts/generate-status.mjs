@@ -443,6 +443,78 @@ export function loadStatusData(root, facts) {
         }
     }
 
+    // The OTHER direction, and it is the same class as the corpse check above.
+    //
+    // `gjsify/todo-needs-anchor` requires a deferral marker to anchor to `#123`,
+    // a forge URL, `open-todos` or `fixed upstream in …`. For the `open-todos`
+    // form the rule only looks for the SUBSTRING — nothing ever compared the
+    // text after it against a heading that exists. So a marker could cite a
+    // section that was renamed or deleted (this file DELETES a resolved entry by
+    // design, which is exactly when it happens) and stay green forever, pointing
+    // a reader at nothing. A corpse is a heading with no work left; a dangling
+    // anchor is work with no heading. Both are the ledger disagreeing with
+    // reality, so both belong here.
+    //
+    // Matched by containment, not equality: an anchor is a short handle
+    // (`open-todos: 12 test sites are parked`) and the heading is the full
+    // sentence, so requiring equality would force every marker to restate a
+    // whole title and drift on the first reword.
+    if (todoHeadings.length > 0) {
+        const ANCHOR = /open-todos:\s*([^)\n*]+?)\s*(?:\)|$)/g;
+        const SKIP = new Set(['node_modules', 'lib', 'dist', 'refs', 'prebuilds', '.git', 'build-dir', 'tmp']);
+        const SRC = /\.(?:ts|mts|cts|js|mjs|cjs)$/;
+        /** @param {string} dir @param {(f: string) => void} onFile */
+        const walkSources = (dir, onFile) => {
+            let entries;
+            try {
+                entries = readdirSync(dir, { withFileTypes: true });
+            } catch {
+                return;
+            }
+            for (const e of entries) {
+                if (e.name.startsWith('.') || SKIP.has(e.name)) continue;
+                const full = join(dir, e.name);
+                if (e.isDirectory()) walkSources(full, onFile);
+                else if (SRC.test(e.name)) onFile(full);
+            }
+        };
+        // Skipping THIS file is not an exemption, it is the same allowance
+        // `tests/e2e/prebuild-change-gate` makes when it strips comment lines:
+        // the prose that explains a rule has to be able to quote the shape the
+        // rule rejects. The example anchor two paragraphs up tripped this check
+        // on its very first run.
+        const self = join(root, 'scripts', 'generate-status.mjs');
+        for (const top of ['packages', 'tests', 'scripts', 'showcases', 'examples']) {
+            walkSources(join(root, top), (file) => {
+                if (file === self) return;
+                let text;
+                try {
+                    text = readFileSync(file, 'utf8');
+                } catch {
+                    return;
+                }
+                if (!text.includes('open-todos:')) return;
+                for (const m of text.matchAll(ANCHOR)) {
+                    const anchor = m[1].trim();
+                    if (!anchor) continue;
+                    // Headings are markdown (backticks, emphasis); an anchor in
+                    // a code comment is plain text. Compare with the formatting
+                    // removed so a heading may name a symbol as `code` without
+                    // forcing every marker to reproduce the punctuation.
+                    const plain = (t) => t.replace(/[`*_]/g, '');
+                    if (todoHeadings.some((h) => plain(h).includes(plain(anchor)))) continue;
+                    const line = text.slice(0, m.index).split('\n').length;
+                    failures.push(
+                        `${relative(root, file)}:${line}: deferral marker anchors to "open-todos: ${anchor}", ` +
+                            'but no `### ` heading in status/open-todos.md contains that text. Either the entry was ' +
+                            'renamed or deleted (re-point or remove the marker), or the marker is the only record ' +
+                            'left and the entry needs writing.',
+                    );
+                }
+            });
+        }
+    }
+
     // Upstream patch candidates: must stay the 4-column workaround table.
     const upstreamMd = read('upstream-patch-candidates.md');
     if (
