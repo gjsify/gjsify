@@ -1,6 +1,8 @@
 // Reference: Node.js lib/internal/errors.js — system error name mapping (Linux errno codes)
 // Reimplemented for GJS
 
+import { isDarwin } from '@gjsify/utils/core';
+
 const linuxErrors: Record<number, string> = {
     [-1]: 'EPERM',
     [-2]: 'ENOENT',
@@ -236,11 +238,6 @@ const darwinErrors: Record<number, string> = {
     [-102]: 'EOPNOTSUPP',
 };
 
-function getPlatform(): string {
-    if (typeof globalThis.process?.platform === 'string') return globalThis.process.platform;
-    return 'linux';
-}
-
 export function getSystemErrorName(err: number): string {
     if (typeof err !== 'number') {
         throw new TypeError('The "err" argument must be of type number. Received type ' + typeof err);
@@ -249,14 +246,18 @@ export function getSystemErrorName(err: number): string {
         throw new RangeError(`The value of "err" is out of range. It must be a negative integer. Received ${err}`);
     }
 
-    const platform = getPlatform();
-    const map = platform === 'darwin' ? darwinErrors : linuxErrors;
+    // win32 falls to the Linux table, which is WRONG — libuv gives Windows its
+    // own errno numbering (ENOENT is -4058 there, -2 here). Declared rather than
+    // silently tolerated: see this package's `gjsify.os.win32` + `osNotes`.
+    const map = isDarwin() ? darwinErrors : linuxErrors;
     return map[err] || `Unknown system error ${err}`;
 }
 
 export function getSystemErrorMap(): Map<number, [string, string]> {
-    const platform = getPlatform();
-    const map = platform === 'darwin' ? darwinErrors : linuxErrors;
+    // win32 falls to the Linux table, which is WRONG — libuv gives Windows its
+    // own errno numbering (ENOENT is -4058 there, -2 here). Declared rather than
+    // silently tolerated: see this package's `gjsify.os.win32` + `osNotes`.
+    const map = isDarwin() ? darwinErrors : linuxErrors;
     const result = new Map<number, [string, string]>();
     for (const [key, name] of Object.entries(map)) {
         result.set(Number(key), [name, '']);

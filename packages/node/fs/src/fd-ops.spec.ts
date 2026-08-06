@@ -4,6 +4,7 @@
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
 import { describe, it, expect, on } from '@gjsify/unit';
+import { isWin32 } from '@gjsify/utils/core';
 import {
     openSync,
     closeSync,
@@ -26,7 +27,6 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { platform } from 'node:process';
 
 const TMP = tmpdir();
 
@@ -35,12 +35,6 @@ function tmpFile(name: string, content = 'hello world'): string {
     writeFileSync(p, content);
     return p;
 }
-
-// Assertions below marked `it.failing(..., { when: IS_WIN32 })` describe POSIX
-// concepts win32 does not have. The marker keeps them RUNNING and keeps the
-// assertion unweakened; it tolerates the failure only here, and fails the run the
-// day it starts passing — unlike a platform guard, which would hide it forever.
-const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     await describe('fs fd-based operations', async () => {
@@ -137,7 +131,7 @@ export default async () => {
                 }
             },
             'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
 
         await it('closeSync closes the fd', async () => {

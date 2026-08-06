@@ -2,6 +2,7 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
+import { isWin32 } from '@gjsify/utils/core';
 import {
     existsSync,
     mkdtempSync,
@@ -30,13 +31,6 @@ import {
 import * as promises from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 import { join } from 'node:path';
-import { platform } from 'node:process';
-
-// Assertions below marked `it.failing(..., { when: IS_WIN32 })` describe POSIX
-// concepts win32 does not have. The marker keeps them RUNNING and keeps the
-// assertion unweakened; it tolerates the failure only here, and fails the run the
-// day it starts passing — unlike a platform guard, which would hide it forever.
-const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     // ==================== constants ====================
@@ -67,7 +61,7 @@ export default async () => {
                 expect(constants.S_IXUSR).toBeDefined();
             },
             'The S_IRUSR/S_IWUSR/S_IXUSR family is absent from fs.constants on win32, because the permission model it describes does not exist there.',
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
     });
 

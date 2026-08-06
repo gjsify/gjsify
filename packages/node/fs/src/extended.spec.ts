@@ -3,6 +3,7 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
+import { isWin32 } from '@gjsify/utils/core';
 import {
     existsSync,
     mkdtempSync,
@@ -31,13 +32,6 @@ import * as promises from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Buffer } from 'node:buffer';
-import { platform } from 'node:process';
-
-// Assertions below marked `it.failing(..., { when: IS_WIN32 })` describe POSIX
-// concepts win32 does not have. The marker keeps them RUNNING and keeps the
-// assertion unweakened; it tolerates the failure only here, and fails the run the
-// day it starts passing — unlike a platform guard, which would hide it forever.
-const IS_WIN32 = platform === 'win32';
 
 export default async () => {
     // ==================== realpathSync ====================
@@ -265,7 +259,7 @@ export default async () => {
                 rmdirSync(dir);
             },
             'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
     });
 
@@ -361,7 +355,7 @@ export default async () => {
                 rmdirSync(dir);
             },
             'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
     });
 
@@ -386,7 +380,7 @@ export default async () => {
                 rmdirSync(dir);
             },
             'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
     });
 
@@ -408,7 +402,7 @@ export default async () => {
                 rmdirSync(dir);
             },
             'NTFS carries no POSIX permission bits, so Node reports 0o666 (0o444 when the read-only attribute is set) whatever mode was requested. The read-only case DOES work and is asserted unmarked elsewhere; the rest cannot be represented on win32.',
-            { when: IS_WIN32 },
+            { when: isWin32() },
         );
     });
 

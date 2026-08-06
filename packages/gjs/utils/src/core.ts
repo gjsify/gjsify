@@ -34,6 +34,7 @@ export * from './defer.js';
 export * from './error.js';
 export * from './gio-errors.js';
 export * from './globals.js';
+export * from './host-os.js';
 export * from './message.js';
 export * from './microtask.js';
 export * from './platform-names.js';
