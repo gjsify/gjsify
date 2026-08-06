@@ -52,6 +52,7 @@ Short form; the reasoning behind each is [docs/governance.md](docs/governance.md
 |declarations: `gjsify.{runtimes,platforms,headless,prebuilds}` are per-package declarations, each MACHINE-CHECKED — model in § Runtime & platform model. No declaration without a check; no promised prebuild target without a loadable artifact behind it
 |manifest-conformance: every "does this declaration match reality" check is a rule in ONE registry — `@gjsify/manifest-conformance`. `field-coverage` FAILS on any `gjsify.*` key no rule claims, so a new declaration kind cannot be added without a check
 |status: the status snapshot is AUTHORED DATA in `status/`; everything derivable is rendered into a GITIGNORED `STATUS.md` by `npm run status:generate` and never committed — [docs/status-changelog.md](docs/status-changelog.md)
+|simplicity: every guard was justified ALONE; the cost is the SUM. Adding a check/step/artifact — ask what it lets you DELETE, and periodically whether the whole arrangement has a simpler SHAPE. A guard watching another mechanism is the smell. Worked example + what this does NOT license: [docs/governance.md](docs/governance.md)
 |polyfills: browser-compat patches belong in packages, not examples
 |root-cause: fix bugs in the core package in the SAME PR that exposed them — no "known limitation" notes, no skip-guards, no TODO-for-later (workarounds ossify); examples/tests/CI exist to surface impl gaps
 |scope: expanding PR scope is the *expected* cost, not a reason to defer — goal is `@gjsify/*` running arbitrary npm packages unmodified on GJS
@@ -129,15 +130,11 @@ Conventional commits `<type>[scope]: <description>`, imperative, ≤50-char subj
 
 ## PR size — prefer few large ones
 
-CI here is deliberately broad (Fedora build + verify-committed-bundles + four
-test shards + four e2e shards + browser + cross-runtime + macOS/Windows legs),
-so a full pass is ~25 minutes. That cost is per PR, not per commit, which makes
-the arithmetic one-sided: **land one large feature PR rather than several small
-stacked ones.** A stack of four pays the 25 minutes four times, and every merge
-into `main` in between forces the next PR in the stack to re-merge and — if it
-touches `packages/infra/cli/src/` — to rebuild and re-verify the committed
-bundle. Measured on the Windows-port work: four stacked PRs cost three
-main-merge rounds and two bundle rebuilds before anything landed.
+A full CI pass is ~25 minutes, and that cost is per PR, not per commit — which
+makes the arithmetic one-sided: **land one large feature PR rather than several
+small stacked ones.** The measurement behind it (four stacked PRs → three
+main-merge rounds and two bundle rebuilds before anything landed) is in
+[docs/governance.md](docs/governance.md).
 
 **Do not idle on CI.** It starts on push and can be watched while work
 continues; a green run is a gate on MERGING, not on writing the next commit.
