@@ -44,6 +44,27 @@ freshness gate — the expensive option) or a `gjsify run --node-script <file>`
 mode that bundles-and-runs on the fly (one mechanism, no new artifacts — the
 better option, and it would serve every repo script, not these four).
 
+**2026-08-06 — `--node-script` is viable, and the circularity has a documented
+exit.** `scripts/bootstrap-native-facades.mjs` states the trap in its own header:
+under GJS `gjsify build` needs the native engine, whose JS facade is itself a
+build artifact, so building the facade needs a bundler. A bundle-and-run mode
+therefore cannot bootstrap THAT script from a cold clone using the WORKSPACE CLI.
+
+What breaks the cycle is where the engine is resolved from. The published
+`@gjsify/rolldown-native` tarball carries a real `lib/esm/index.js`; only inside
+a clone does the workspace symlink shadow it. And `installGjsEnginePackages()`
+IS wired into `install -g` — so a gjsify installed the Node-less way
+(`gjs -m install.mjs`, the path CI now uses too) has a working engine, while the
+workspace CLI in a clone does not. So `gjsify run --node-script` works today when
+driven by the GLOBAL CLI, which is exactly the host that needs it; inside a clone
+the Node entry exists anyway. The residual gap is #1005 (a plain workspace
+install lays down no engine because the peer is never resolved), not this.
+
+Scope note when building it: it is ONE mechanism serving every script and every
+consumer. Hand-porting the four scripts to `gi://` instead is N pieces of work
+AND makes each one Node-incompatible — motion without deletion (AGENTS.md
+§ Governance, `simplicity`).
+
 Until then the engine diagnostic says the limitation out loud rather than
 recommending two commands that cannot work there; that wording is already fixed.
 
