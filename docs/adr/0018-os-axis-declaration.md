@@ -163,6 +163,41 @@ duplication — nine ad-hoc spellings including `const IS_WIN32 = platform ===
 'win32'` copied byte-identical into six `@gjsify/fs` spec files — behind
 `@gjsify/utils/core`'s `host-os` module.
 
+## Defect 4 re-measured — `Adw.init()` does not fault where the runtime is present
+
+Recorded here because the Context table above uses it as one of the four
+motivating defects, and the ADR must not keep citing a finding its own
+implementation contradicted.
+
+#997 states the decisive test itself: *"whether this is downstream of (1) — a
+partially-loaded MSVC-ABI stack can fault at first real use rather than at load.
+If a machine WITH the redistributable does not crash, (1) is the whole story and
+this is a duplicate."*
+
+Run on the win11-gjsify VM (Windows 11 Pro 25H2, Node 24.18.1), with the
+published `@gjsify/node-gi` 0.30.0 prebuild plus
+`@gjsify/gtk-runtime-win32-x64` (78 MB), on a host where the new
+`checkMsvcRuntime()` reports the Visual C++ runtime PRESENT:
+
+```
+requireGi('GLib','2.0')  ok        GLib 2.88.1
+requireGi('Gtk','4.0')   ok        Gtk.init()  returned
+requireGi('Adw','1')     ok        Adw.init()  returned      exit 0
+```
+
+**No access violation.** So defect 4 is a duplicate of defect 2, and the two
+were one bug: the undeclared prerequisite, surfacing at first real USE rather
+than at load — exactly the failure mode the issue predicted.
+
+Precision about the session, because the original report turned on it ("only
+reproducible outside an interactive console session — which is also what a
+GitHub Windows runner is"): the probe ran **non-interactively**, with
+`process.stdout.isTTY` and `process.stdin.isTTY` both `false` and stdin on the
+null device, which is the condition that report named. It ran in the
+INTERACTIVE user session (`SESSIONNAME=Console`), so a session-0 / service
+context is still untested and is the one place the original symptom could
+survive. That is a narrower gap than the issue described, not a closed one.
+
 ## Do not
 
 - **Do not answer an OS question with the runtime axis.** It is blind to

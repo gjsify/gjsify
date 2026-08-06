@@ -1308,3 +1308,31 @@ tracked nowhere, so none of them can be prioritised against anything else.
 The two `uniform.ts` casts and the `webtorrent-augment.d.ts` DefinitelyTyped note
 are the only ones whose repair is in ANOTHER repo (ts-for-gir and
 DefinitelyTyped); the rest are ordinary in-tree work.
+
+### win32 `Adw.init()` — measured NOT to fault; two narrower gaps remain
+
+#997's second finding (an `0xC0000005` access violation in `Adw.init()` on
+win32) did not reproduce. Measured on the win11-gjsify VM with the published
+`@gjsify/node-gi` 0.30.0 prebuild plus `@gjsify/gtk-runtime-win32-x64`, on a
+host where `checkMsvcRuntime()` reports the Visual C++ runtime PRESENT: GLib
+2.88.1 resolves, `Gtk.init()` returns, `Adw.init()` returns, exit 0. Per the
+issue's own decisive test that makes it a DUPLICATE of the first finding — the
+undeclared MSVC prerequisite, surfacing at first real use rather than at load.
+Full write-up, including the session characterisation, is in ADR 0018.
+
+What is NOT closed by that run, stated so neither reads as covered:
+
+- **Session 0.** The probe was non-interactive (`isTTY` false on both ends,
+  stdin on the null device — the condition the original report named) but ran in
+  the interactive user session (`SESSIONNAME=Console`). A service / session-0
+  context is the one place the original symptom could still live, and it is also
+  what some CI agents look like.
+- **The GTK bundle did not arrive with `npm install @gjsify/node-gi`.** The
+  install script reported *"using the shipped prebuild for win32-x64"* and
+  nothing else; `@gjsify/gtk-runtime-win32-x64` (78 MB) had to be installed
+  EXPLICITLY before any namespace would resolve. That may be npm 11 declining to
+  run install scripts by default (`npm warn allow-scripts`, which did fire here
+  and forced the script to be run by hand) rather than a gap in the package —
+  the two are not separable from this one observation. Worth one deliberate
+  measurement on a clean host with scripts approved, because "install node-gi and
+  it works" is what the win32 story currently promises.
