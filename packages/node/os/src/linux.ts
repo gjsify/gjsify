@@ -27,6 +27,20 @@ const getIPv6Subnet = createSubnet(128, 16, 16, ':');
 function parseInterfaces(info) {
     info = info.trim();
     if (info.length < 1) return;
+    // Node derives `internal` from the interface's IFF_LOOPBACK flag, not from
+    // the address. `darwin.ts` already reads it that way and carries the
+    // reasoning; off `ip addr` the same flag sits in the block's first line
+    // (`lo: <LOOPBACK,UP,LOWER_UP> …`), because `networkInterfaces()` splits the
+    // output on `^\d+:\s+`.
+    //
+    // The address test this replaces — `ip[0] === '127.0.0.1'` — answered NO for
+    // `::1`, so loopback's IPv6 address came back EXTERNAL while its IPv4 came
+    // back internal, on the same interface. Two specs in `index.spec.ts` have
+    // asserted otherwise all along. They pass in CI only because the image
+    // ships no `iproute`: `cli('ip addr')` throws there and the procfs fallback
+    // answers instead, and that fallback reads the flag correctly. On any host
+    // that HAS `ip` — every developer machine — this path runs and they fail.
+    const internal = /<[^>]*\bLOOPBACK\b[^>]*>/.test(info.split(EOL)[0] ?? '');
     let iface = [],
         mac;
     for (let line, lines = info.split(EOL), i = 0; i < lines.length; i++) {
@@ -43,7 +57,7 @@ function parseInterfaces(info) {
                     netmask: (v === '4' ? getIPv4Subnet : getIPv6Subnet)(ip[1]),
                     family: 'IPv' + v,
                     mac: mac,
-                    internal: ip[0] === '127.0.0.1',
+                    internal,
                 });
                 break;
         }
