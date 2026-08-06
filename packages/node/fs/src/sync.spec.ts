@@ -24,6 +24,7 @@ import {
 } from 'node:fs';
 import { Buffer } from 'node:buffer';
 import { tmpdir } from 'node:os';
+import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 // Node on win32 returns the first created directory in EXTENDED-LENGTH form
 // (`\\?\C:\…`) from a recursive mkdir, while `join()` yields the plain form.
@@ -247,7 +248,9 @@ export default async () => {
             expect(typeof realpathSync).toBe('function');
         });
 
-        await it('should return the real and absolute path', () => {
+        await it.failing(
+            'should return the real and absolute path',
+            () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-rp-'));
             const target = join(dir, 'target.txt');
             const link = join(dir, 'link.txt');
@@ -260,10 +263,13 @@ export default async () => {
             // Should point to the real file, not the symlink
             expect(realSymLinkPath).toBe(realPath);
 
-            unlinkSync(link);
-            rmSync(target);
-            rmdirSync(dir);
-        });
+                unlinkSync(link);
+                rmSync(target);
+                rmdirSync(dir);
+            },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 
     await describe('fs.mkdirSync recursive', async () => {

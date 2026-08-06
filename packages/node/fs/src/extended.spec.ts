@@ -32,6 +32,7 @@ import * as promises from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Buffer } from 'node:buffer';
+import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 export default async () => {
     // ==================== realpathSync ====================
@@ -747,7 +748,7 @@ export default async () => {
     // ==================== symlink creation ====================
 
     await describe('fs.symlinkSync (creation)', async () => {
-        await it('should create and read a symlink', async () => {
+        await it.failing('should create and read a symlink', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'sym-');
             const target = join(dir, 'target.txt');
             const link = join(dir, 'symlink.txt');
@@ -766,13 +767,16 @@ export default async () => {
             unlinkSync(link);
             rmSync(target);
             rmdirSync(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 
     // ==================== promises.symlink ====================
 
     await describe('fs.promises.symlink', async () => {
-        await it('should create a symlink', async () => {
+        await it.failing('should create a symlink', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'psym-');
             const target = join(dir, 'target.txt');
             const link = join(dir, 'link.txt');
@@ -787,7 +791,10 @@ export default async () => {
             unlinkSync(link);
             rmSync(target);
             rmdirSync(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 
     // ==================== promises.unlink ====================

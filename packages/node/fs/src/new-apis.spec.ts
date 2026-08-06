@@ -31,6 +31,7 @@ import {
 import * as promises from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 import { join } from 'node:path';
+import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 export default async () => {
     // ==================== constants ====================
@@ -312,7 +313,7 @@ export default async () => {
     // ==================== readlinkSync ====================
 
     await describe('fs.readlinkSync', async () => {
-        await it('should read symlink target', async () => {
+        await it.failing('should read symlink target', async () => {
             const dir = mkdtempSync('fs-test-');
             const target = join(dir, 'target.txt');
             const link = join(dir, 'link.txt');
@@ -325,7 +326,10 @@ export default async () => {
             unlinkSync(link);
             rmSync(target);
             rmdirSync(dir);
-        });
+        },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
     });
 
     // ==================== readFile / writeFile (callback) ====================
