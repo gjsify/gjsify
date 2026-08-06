@@ -20,6 +20,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 
+import { classifyCliFailure } from './cli-fail.js';
+
 import {
     buildCommand as build,
     clearCommand as clear,
@@ -128,6 +130,25 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .scriptName(APP_NAME)
         .version(readBundleVersion())
         .strict()
+        // Sits beside `.strict()` because that is what produces most of what it
+        // classifies. See `cli-fail.ts` for the four yargs measurements this
+        // depends on; the short version: `msg` is the discriminator (a handler
+        // rejection is the ONE call site that passes null), registering a handler
+        // removes yargs' own showHelp+exit, and the incoming error must never be
+        // re-thrown as-is because yargs routes `YError` back into `fail()`.
+        .fail((msg, err) => {
+            const failure = classifyCliFailure(msg, err);
+            if (failure.kind === 'usage') {
+                cli.showHelp('error');
+                // Plain Error, not `err`: re-throwing a YError re-enters fail()
+                // and prints the help twice. `index.ts` prints this message.
+                throw new Error(failure.message, { cause: err });
+            }
+            // A handler threw. Return WITHOUT printing or exiting — that is the
+            // entire fix. The rejection propagates out of `parseAsync()` and
+            // `index.ts`'s catch is the one printer (message, optional
+            // GJSIFY_DEBUG stack, `process.exitCode = 1`, `gjsExit(1)`).
+        })
         // Use the full terminal width for help (yargs caps at 80 by default).
         .wrap(cli.terminalWidth())
         .command(create.command, create.description, create.builder, create.handler)
