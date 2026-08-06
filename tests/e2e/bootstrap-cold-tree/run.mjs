@@ -29,6 +29,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { resolveGjsifySpawn } from '../../../scripts/resolve-gjsify.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
@@ -45,8 +46,16 @@ const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const SCRIPT_FILES = ['bootstrap-native-facades.mjs', 'resolve-gjsify.mjs'];
 const NO_RECURSE_ENV = 'GJSIFY_BOOTSTRAP_NO_BUILD_INFRA';
 
-/** A fixture root holding a copy of the real script at `<root>/scripts/`. */
-function makeFixture({ warm }) {
+/**
+ * A fixture root holding a copy of the real script at `<root>/scripts/`.
+ *
+ * `warm` / `bundle` create the two files the workspace `.bin/gjsify` shim can
+ * hand control to; `shim` creates the shim itself. They are independent on
+ * purpose — "the shim exists but both its targets do not" is the state a fresh
+ * clone is in since ADR 0002 untracked the bundles, and it is the one the
+ * resolver has to refuse.
+ */
+function makeFixture({ warm, shim = false, bundle = false }) {
     const root = mkdtempSync(join(tmpdir(), 'gjsify-bootstrap-cold-'));
     mkdirSync(join(root, 'scripts'), { recursive: true });
     for (const name of SCRIPT_FILES) {
@@ -56,6 +65,20 @@ function makeFixture({ warm }) {
         const libDir = join(root, 'packages', 'infra', 'cli', 'lib');
         mkdirSync(libDir, { recursive: true });
         writeFileSync(join(libDir, 'index.js'), '// stand-in for the built Node CLI entry\n');
+    }
+    if (bundle) {
+        const distDir = join(root, 'packages', 'infra', 'cli', 'dist');
+        mkdirSync(distDir, { recursive: true });
+        writeFileSync(join(distDir, 'cli.gjs.mjs'), '// stand-in for the built GJS bundle\n');
+    }
+    if (shim) {
+        const binDir = join(root, 'node_modules', '.bin');
+        mkdirSync(binDir, { recursive: true });
+        // Both spellings, so the assertions hold on win32 too — npm writes the
+        // extensionless sh shim beside the `.cmd`, and the resolver picks the
+        // `.cmd` there (see `scripts/resolve-gjsify.mjs`).
+        writeFileSync(join(binDir, 'gjsify'), '#!/bin/sh\n');
+        writeFileSync(join(binDir, 'gjsify.cmd'), '@echo off\n');
     }
     return root;
 }
@@ -97,6 +120,69 @@ describe('bootstrap-native-facades on a cold tree', { timeout: 60_000 }, () => {
             assert.doesNotMatch(output, /build:infra/);
         } finally {
             rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('does not pick the workspace shim when both its targets are gone', () => {
+        // The state a fresh clone is in after `gjsify install --immutable`
+        // since ADR 0002: `.bin/gjsify` exists, and the `dist/cli.gjs.mjs` /
+        // `lib/index.js` it dispatches to do not. Returning it would spawn fine
+        // and then die inside `sh` with `Cannot find module …/lib/index.js`,
+        // which reads as a broken install — and it would shadow the two rungs
+        // below it. PATH is emptied so the assertion cannot be satisfied by a
+        // global gjsify on the machine running this suite.
+        const root = makeFixture({ warm: false, shim: true });
+        try {
+            const resolved = resolveGjsifySpawn(root, ['--version'], { platform: 'linux', env: { PATH: '' } });
+            assert.equal(resolved, null);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('picks the workspace shim as soon as either target exists', () => {
+        for (const targets of [{ warm: true }, { bundle: true }]) {
+            const root = makeFixture({ warm: false, shim: true, ...targets });
+            try {
+                const resolved = resolveGjsifySpawn(root, ['--version'], { platform: 'linux', env: { PATH: '' } });
+                assert.equal(resolved?.via, 'node_modules/.bin');
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        }
+    });
+
+    it('falls back to this tree’s own bundle, then to GJSIFY_BOOTSTRAP', () => {
+        const bootstrapHost = makeFixture({ warm: false });
+        const bootstrap = join(bootstrapHost, 'scripts', 'resolve-gjsify.mjs'); // any existing file
+        const withBundle = makeFixture({ warm: false, bundle: true });
+        const bare = makeFixture({ warm: false });
+        try {
+            // A built bundle in THIS tree outranks the published one: it is the
+            // version the tree pins.
+            const built = resolveGjsifySpawn(withBundle, ['--version'], {
+                platform: 'linux',
+                env: { PATH: '', GJSIFY_BOOTSTRAP: bootstrap },
+            });
+            assert.equal(built?.via, 'built bundle');
+            assert.equal(built?.cmd, 'gjs');
+
+            const fetched = resolveGjsifySpawn(bare, ['--version'], {
+                platform: 'linux',
+                env: { PATH: '', GJSIFY_BOOTSTRAP: bootstrap },
+            });
+            assert.equal(fetched?.via, 'GJSIFY_BOOTSTRAP');
+            assert.deepEqual(fetched?.args, ['-m', bootstrap, '--version']);
+
+            // A GJSIFY_BOOTSTRAP naming a file that is not there must not be
+            // handed back — an unspawnable path is worse than no answer.
+            const missing = resolveGjsifySpawn(bare, ['--version'], {
+                platform: 'linux',
+                env: { PATH: '', GJSIFY_BOOTSTRAP: join(bare, 'nope.gjs.mjs') },
+            });
+            assert.equal(missing, null);
+        } finally {
+            for (const r of [bootstrapHost, withBundle, bare]) rmSync(r, { recursive: true, force: true });
         }
     });
 
