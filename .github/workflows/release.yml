@@ -1164,15 +1164,48 @@ jobs:
       # (`packages/napi/napi-linux-x64/`), not to the bridge: `@gjsify/napi` no
       # longer lists `prebuilds` in `files`, so staging into it would pack
       # nothing and every consumer would get a bridge with no binary.
+      #
+      # The staging goes through `scripts/stage-prebuild.mjs` like every other
+      # site in the repo, rather than a hand-written `mkdir -p` + `cp` naming
+      # each artifact. Two properties come with it that the `cp` list did not
+      # have: the destination is DERIVED from the package's own
+      # `gjsify.platforms` (a wrong target is an error, not a directory nobody
+      # declared), and artifacts are matched by EXTENSION, so renaming a library
+      # in meson.build cannot ship a stale or partial set. It also runs
+      # `check-prebuild-loader-path.mjs` on what it staged. These two legs were
+      # the last pair outside that rule — `tests/e2e/prebuild-change-gate` now
+      # scans this workflow too, so the exemption cannot come back.
       - name: Build the @gjsify/napi shim (meson) + stage prebuild
         working-directory: packages/napi/napi
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p ../napi-linux-x64/prebuilds/linux-x64
-          cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
-             ../napi-linux-x64/prebuilds/linux-x64/
-          echo "staged: $(ls -1 ../napi-linux-x64/prebuilds/linux-x64)"
+          node ../../../scripts/stage-prebuild.mjs .
+
+      # THE gate this leg was missing. It used to end at `cp` + upload, and its
+      # consumer `publish-napi` checks the four files with `test -f` — existence,
+      # never loadability. Since `packages/napi/napi-linux-x64/prebuilds/` stopped
+      # being committed, `prebuild-artifacts`' env-free dlopen no longer covers it
+      # either, and napi.yml's own gates load out of `build/`, not out of the
+      # prebuild path. So NOTHING proved the bytes a release publishes can be
+      # opened — on either target.
+      #
+      # Calling a function is the trigger, not a formality: this namespace has no
+      # GObject class, so resolving `imports.gi.GjsifyNapi` proves only that the
+      # typelib was FOUND. `is_available()` is what makes GI dlopen the library
+      # the typelib records (and it is side-effect free, unlike `init()`).
+      - name: Load-test the linux-x64 prebuild this leg will ship
+        working-directory: packages/napi/napi-linux-x64/prebuilds/linux-x64
+        run: |
+          set -euo pipefail
+          echo "shipping: $(ls -1)"
+          GI_TYPELIB_PATH="$PWD" LD_LIBRARY_PATH="$PWD" gjs -c \
+            "const N = imports.gi.GjsifyNapi;
+             if (typeof N.is_available !== 'function') {
+               throw new Error('GjsifyNapi.is_available did not resolve to a function');
+             }
+             N.is_available();
+             print('GjsifyNapi loaded from the staged prebuild');" < /dev/null
 
       - name: Upload the linux-x64 prebuild artifact
         uses: actions/upload-artifact@v4
@@ -1232,10 +1265,29 @@ jobs:
         run: |
           meson setup build .
           meson compile -C build
-          mkdir -p ../napi-darwin-arm64/prebuilds/darwin-arm64
-          cp build/libgjsifynapi.dylib build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib \
-             ../napi-darwin-arm64/prebuilds/darwin-arm64/
-          echo "staged: $(ls -1 ../napi-darwin-arm64/prebuilds/darwin-arm64)"
+          node ../../../scripts/stage-prebuild.mjs .
+
+      # Same gate, same reason as the linux leg above — and this target needs it
+      # more, not less: `gjsify.platformsUncommitted` exempts darwin-arm64 from
+      # ever being committed, so this job's output is the ONLY copy that exists
+      # and the release is its first and last chance to be opened by anything.
+      #
+      # DYLD_LIBRARY_PATH (not LD_LIBRARY_PATH) is what lets dlopen resolve the
+      # bare leaf the typelib records — dyld has no notion of "next to the
+      # typelib". This mirrors what the CLI exports via buildNativeEnv() on
+      # darwin, so a pass here is a pass for a real `gjsify` run.
+      - name: Load-test the darwin-arm64 prebuild this leg will ship
+        working-directory: packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
+        run: |
+          set -euo pipefail
+          echo "shipping: $(ls -1)"
+          GI_TYPELIB_PATH="$PWD" DYLD_LIBRARY_PATH="$PWD" gjs -c \
+            "const N = imports.gi.GjsifyNapi;
+             if (typeof N.is_available !== 'function') {
+               throw new Error('GjsifyNapi.is_available did not resolve to a function');
+             }
+             N.is_available();
+             print('GjsifyNapi loaded from the staged prebuild');" < /dev/null
 
       - name: Upload the darwin-arm64 prebuild artifact
         uses: actions/upload-artifact@v4
