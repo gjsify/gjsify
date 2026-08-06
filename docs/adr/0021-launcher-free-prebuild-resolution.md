@@ -103,9 +103,26 @@ wants an engine:
 - `bundler-pick.ts` → `tryLoadNative()`
 - `utils/oxc-resolve.ts` → `tryLoadNativeOxfmt()`
 
-Availability is a capability probe, not a `try`/`catch`: `dup_default()` is GLib ≥ 2.86, so
-`typeof …dup_default !== 'function'` returns "not activated" and the launcher path behaves
-exactly as it does today. The change is strictly additive — no host gets worse.
+Availability is a **capability probe** where the answer is knowable — `dup_default()` is
+GLib ≥ 2.86, so `typeof …dup_default !== 'function'` returns "not activated" rather than
+throwing — and a **single documented `catch`** where it is not. Both throw paths are real,
+not defensive, which is what the repo's anti-pattern rule demands of a kept catch:
+
+1. `imports.gi.GIRepository` LOADS the namespace, and GJS raises *"Requiring GIRepository,
+   version none: Typelib file … not found"* when that typelib is absent — verified by probe.
+   It is a separate FILE from the girepository library GJS links against, and distributions
+   split them (Debian ships `gir1.2-girepository-3.0` apart from `libgirepository-2.0-0`),
+   so a lean host can have the second without the first.
+2. The two `detectNativePackages()` walks are filesystem I/O (EACCES, a directory removed
+   mid-walk).
+
+Either would otherwise escape into `diagnoseNativeEngine()`, which documents that nothing it
+calls may throw while explaining a failure — the diagnosis would have been replaced by a
+stack. The result is memoized BEFORE the work, so every outcome is decided once.
+
+Every one of those paths lands on the same behaviour: no activation, and the caller is
+exactly where it was before this function existed. **The change is strictly additive — no
+host gets worse.**
 
 The GJS check is the probe itself (`globalThis.imports?.gi`, the spelling `.oxlintrc.json`
 sanctions), not `isGjs()`: the question is "is there a GIRepository to prepend to", and on
