@@ -17,7 +17,9 @@ import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:c
 import { Buffer } from 'node:buffer';
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import process from 'node:process';
 import { pathToFileURL } from 'node:url';
+import { NODE, SHELL_IS_CMD, UV_ENOENT, cat, echo, exitOk, nodeShellCmd, printArgv0, printEnv, printEnvTemplate, pwd, sleep } from './commands.spec.js';
 
 // See the note in `index.spec.ts`: a child's reported cwd is the RESOLVED path,
 // which differs from the literal wherever the directory is a symlink, and
@@ -36,7 +38,7 @@ export default async () => {
 
     await describe('child_process env — value coercion', async () => {
         await it('drops `undefined` values from env', async () => {
-            const result = spawnSync('sh', ['-c', 'echo "DROP=${DROP:-missing}"'], {
+            const result = spawnSync(...printEnvTemplate("DROP=${DROP:-missing}"), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', DROP: undefined as unknown as string },
             });
@@ -46,7 +48,7 @@ export default async () => {
         });
 
         await it('coerces `null` to the string "null"', async () => {
-            const result = spawnSync('sh', ['-c', 'echo "VAL=$VAL"'], {
+            const result = spawnSync(...printEnvTemplate("VAL=$VAL"), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', VAL: null as unknown as string },
             });
@@ -55,7 +57,7 @@ export default async () => {
         });
 
         await it('coerces numbers to their decimal string', async () => {
-            const result = spawnSync('sh', ['-c', 'echo "PORT=$PORT"'], {
+            const result = spawnSync(...printEnvTemplate("PORT=$PORT"), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', PORT: 8080 as unknown as string },
             });
@@ -64,7 +66,7 @@ export default async () => {
         });
 
         await it('coerces booleans to "true" / "false"', async () => {
-            const result = spawnSync('sh', ['-c', 'echo "DEBUG=$DEBUG OFF=$OFF"'], {
+            const result = spawnSync(...printEnvTemplate("DEBUG=$DEBUG OFF=$OFF"), {
                 encoding: 'utf8',
                 env: {
                     PATH: '/usr/bin:/bin',
@@ -77,7 +79,7 @@ export default async () => {
         });
 
         await it('coerces arrays via toString (comma join)', async () => {
-            const result = spawnSync('sh', ['-c', 'echo "LIST=$LIST"'], {
+            const result = spawnSync(...printEnvTemplate("LIST=$LIST"), {
                 encoding: 'utf8',
                 env: { PATH: '/usr/bin:/bin', LIST: [1, 2, 3] as unknown as string },
             });
@@ -92,7 +94,7 @@ export default async () => {
             const env = Object.create({ INHERITED: 'from_proto' }) as Record<string, string>;
             env.OWN = 'own_value';
             env.PATH = '/usr/bin:/bin';
-            const result = spawnSync('sh', ['-c', 'echo "$INHERITED|$OWN"'], {
+            const result = spawnSync(...printEnvTemplate("$INHERITED|$OWN"), {
                 encoding: 'utf8',
                 env,
             });
@@ -100,17 +102,24 @@ export default async () => {
             expect((result.stdout as string).trim()).toBe('from_proto|own_value');
         });
 
-        await it('empty env object — child sees an empty environment', async () => {
-            // POSIX `env` with no -i flag prints inherited env; with empty
-            // override it prints just what we passed. Use printenv on a
-            // specific var to avoid relying on absent inheritance.
-            const result = spawnSync('/usr/bin/env', [], {
-                encoding: 'utf8',
-                env: {},
-            });
-            expect(result.status).toBe(0);
-            // Output should be empty since we wiped env completely.
-            expect((result.stdout as string).trim()).toBe('');
+        await it('empty env object — the parent environment is not inherited', async () => {
+            // Asserting that the child's whole environment is EMPTY is not
+            // portable: Windows injects a handful of variables into every
+            // process regardless of what `env` says, so `/usr/bin/env` printing
+            // nothing was only ever a POSIX fact (and `/usr/bin/env` does not
+            // exist there either). What `env: {}` actually promises — that the
+            // PARENT's variables do not come through — holds everywhere.
+            process.env.PARITY_MUST_NOT_LEAK = 'leaked';
+            try {
+                const result = spawnSync(...printEnv('PARITY_MUST_NOT_LEAK'), {
+                    encoding: 'utf8',
+                    env: {},
+                });
+                expect(result.status).toBe(0);
+                expect((result.stdout as string).trim()).toBe('');
+            } finally {
+                delete process.env.PARITY_MUST_NOT_LEAK;
+            }
         });
 
         await it('Symbol-keyed env entries are silently ignored', async () => {
@@ -122,7 +131,7 @@ export default async () => {
                 VISIBLE: 'yes',
             };
             (env as Record<string | symbol, string>)[sym] = 'should_not_appear';
-            const result = spawnSync('sh', ['-c', 'echo "$VISIBLE"'], {
+            const result = spawnSync(...printEnvTemplate("$VISIBLE"), {
                 encoding: 'utf8',
                 env: env as Record<string, string>,
             });
@@ -141,14 +150,14 @@ export default async () => {
             // symlink target rather than the literal (`/tmp` is a symlink to
             // `/private/tmp` on macOS; on Linux realpath is the identity).
             const url = pathToFileURL(TMP_DIR);
-            const result = spawnSync('pwd', [], { encoding: 'utf8', cwd: url });
+            const result = spawnSync(...pwd(), { encoding: 'utf8', cwd: url });
             expect(result.status).toBe(0);
             expect((result.stdout as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
 
         await it('throws on a non-file: URL', async () => {
             expect(() =>
-                spawnSync('pwd', [], {
+                spawnSync(...pwd(), {
                     encoding: 'utf8',
                     cwd: new URL('http://example.com/'),
                 }),
@@ -156,14 +165,14 @@ export default async () => {
         });
 
         await it('treats `undefined` cwd as inherit', async () => {
-            const result = spawnSync('pwd', [], { encoding: 'utf8', cwd: undefined });
+            const result = spawnSync(...pwd(), { encoding: 'utf8', cwd: undefined });
             expect(result.status).toBe(0);
             // Whatever the current dir is, the call should not throw.
             expect(typeof result.stdout).toBe('string');
         });
 
         await it('treats `null` cwd as inherit', async () => {
-            const result = spawnSync('pwd', [], {
+            const result = spawnSync(...pwd(), {
                 encoding: 'utf8',
                 cwd: null as unknown as string,
             });
@@ -174,7 +183,7 @@ export default async () => {
         await it('empty-string cwd fails with ENOENT', async () => {
             // Node treats `cwd: ''` as a real (empty) path and the child
             // fails to chdir, surfacing as ENOENT on the result. Match.
-            const result = spawnSync('pwd', [], { encoding: 'utf8', cwd: '' });
+            const result = spawnSync(...pwd(), { encoding: 'utf8', cwd: '' });
             expect(result.status).toBeNull();
             const err = result.error as (Error & { code?: string }) | undefined;
             expect(err).toBeDefined();
@@ -186,8 +195,8 @@ export default async () => {
     // Ports refs/node-test/parallel/test-child-process-spawn-argv0.js.
 
     await describe('child_process argv0 — overrides child argv[0]', async () => {
-        await it('child sees the overridden argv0 (sh -c echo "$0")', async () => {
-            const result = spawnSync('sh', ['-c', 'echo "$0"'], {
+        await it('child sees the overridden argv0', async () => {
+            const result = spawnSync(...printArgv0(), {
                 encoding: 'utf8',
                 argv0: 'my_custom_argv0',
             });
@@ -197,17 +206,18 @@ export default async () => {
 
         await it('throws on non-string argv0', async () => {
             expect(() =>
-                spawnSync('sh', ['-c', 'true'], {
+                spawnSync(...exitOk(), {
                     argv0: 123 as unknown as string,
                 }),
             ).toThrow();
         });
 
         await it('omitting argv0 leaves the original binary path as argv[0]', async () => {
-            const result = spawnSync('sh', ['-c', 'echo "$0"'], { encoding: 'utf8' });
+            const result = spawnSync(...printArgv0(), { encoding: 'utf8' });
             expect(result.status).toBe(0);
-            // `sh -c` sets $0 to argv[0] of the *script*, which is "sh".
-            expect((result.stdout as string).trim()).toBe('sh');
+            // Node documents argv0 as defaulting to `command`, so the child sees
+            // the binary it was started from.
+            expect((result.stdout as string).trim()).toBe(NODE);
         });
     });
 
@@ -244,7 +254,7 @@ export default async () => {
 
         await it('execFile with `encoding: "buffer"` returns Buffer in callback', async () => {
             const stdout = await new Promise<unknown>((resolve, reject) => {
-                execFile('echo', ['buf_file_test'], { encoding: 'buffer' }, (err, out) => {
+                execFile(...echo('buf_file_test'), { encoding: 'buffer' }, (err, out) => {
                     if (err) reject(err);
                     else resolve(out);
                 });
@@ -293,7 +303,11 @@ export default async () => {
         await it('`maxBuffer: Infinity` disables the cap', async () => {
             // 100 KiB output — would trip a 1KiB default cap.
             const stdout = await new Promise<string>((resolve, reject) => {
-                exec('printf "%.s." $(seq 1 102400)', { maxBuffer: Infinity }, (err, out) => {
+                // `printf` and `seq` are POSIX utilities and `$(…)` is POSIX
+                // command substitution — none of the three exists under
+                // cmd.exe. The subject is `maxBuffer`, so the 100 KiB comes
+                // from Node instead.
+                exec(nodeShellCmd("process.stdout.write('.'.repeat(102400))"), { maxBuffer: Infinity }, (err, out) => {
                     if (err) reject(err);
                     else resolve(out.toString());
                 });
@@ -311,7 +325,7 @@ export default async () => {
             const result = await new Promise<{
                 err: (Error & { killed?: boolean; signal?: string | null }) | null;
             }>((resolve) => {
-                exec('sleep 10', { timeout: 100 }, (err) => {
+                exec(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 100 }, (err) => {
                     resolve({ err: err as Error & { killed?: boolean; signal?: string | null } });
                 });
             });
@@ -325,7 +339,7 @@ export default async () => {
             const result = await new Promise<{
                 err: (Error & { killed?: boolean; signal?: string | null }) | null;
             }>((resolve) => {
-                exec('sleep 10', { timeout: 50, killSignal: 'SIGKILL' }, (err) => {
+                exec(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 50, killSignal: 'SIGKILL' }, (err) => {
                     resolve({ err: err as Error & { killed?: boolean; signal?: string | null } });
                 });
             });
@@ -349,7 +363,7 @@ export default async () => {
             const result = await new Promise<{
                 err: (Error & { name?: string }) | null;
             }>((resolve) => {
-                exec('sleep 10', { signal: ctrl.signal }, (err) => {
+                exec(nodeShellCmd('setTimeout(()=>{},10000)'), { signal: ctrl.signal }, (err) => {
                     resolve({ err: err as Error & { name?: string } });
                 });
                 setTimeout(() => ctrl.abort(), 50);
@@ -368,7 +382,7 @@ export default async () => {
                 code: number | null;
                 signal: string | null;
             }>((resolve) => {
-                const child = spawn('sleep', ['10'], { timeout: 100 });
+                const child = spawn(...sleep(10000), { timeout: 100 });
                 child.on('close', (c, s) => resolve({ code: c, signal: s }));
             });
             const elapsed = Date.now() - start;
@@ -383,7 +397,7 @@ export default async () => {
     await describe('child_process spawnSync — timeout', async () => {
         await it('kills the child after `timeout` ms and surfaces error', async () => {
             const start = Date.now();
-            const result = spawnSync('sleep', ['10'], { timeout: 100 });
+            const result = spawnSync(...sleep(10000), { timeout: 100 });
             const elapsed = Date.now() - start;
             expect(elapsed).toBeLessThan(5000);
             // Either status is null (signal) or non-zero exit. The error
@@ -400,7 +414,7 @@ export default async () => {
     // SIGTERM) and the thrown error carries `signal` + `status: null` +
     // `code: 'ETIMEDOUT'`. Both wrappers previously called
     // `Gio.Subprocess.communicate()` straight through and ignored `timeout`
-    // entirely, so `execSync('sleep 10', { timeout: 100 })` blocked the whole
+    // entirely, so `execSync(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 100 })` blocked the whole
     // process for the full 10s.
 
     await describe('child_process execSync — timeout', async () => {
@@ -408,7 +422,7 @@ export default async () => {
             const start = Date.now();
             let err: (Error & { code?: string; signal?: string | null; killed?: boolean }) | null = null;
             try {
-                execSync('sleep 10', { timeout: 200 });
+                execSync(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 200 });
             } catch (e) {
                 err = e as Error & { code?: string; signal?: string | null; killed?: boolean };
             }
@@ -416,16 +430,22 @@ export default async () => {
             expect(err).toBeTruthy();
             // The whole point: we came back long before the child's 10s.
             expect(elapsed).toBeLessThan(5000);
+            // Node reports the synthesised signal name on Windows too, even
+            // though there are no POSIX signals underneath — MEASURED on the
+            // win11-gjsify VM. This used to read `null` there only because the
+            // child was `sleep 10`, which cmd.exe cannot run: the shell failed
+            // instantly and no timeout ever fired.
             expect(err?.signal).toBe('SIGTERM');
         });
 
         await it('uses the requested killSignal', async () => {
             let err: (Error & { signal?: string | null }) | null = null;
             try {
-                execSync('sleep 10', { timeout: 100, killSignal: 'SIGKILL' });
+                execSync(nodeShellCmd('setTimeout(()=>{},10000)'), { timeout: 100, killSignal: 'SIGKILL' });
             } catch (e) {
                 err = e as Error & { signal?: string | null };
             }
+            expect(err).toBeTruthy();
             expect(err?.signal).toBe('SIGKILL');
         });
 
@@ -440,7 +460,7 @@ export default async () => {
             const start = Date.now();
             let err: (Error & { code?: string; signal?: string | null }) | null = null;
             try {
-                execFileSync('sleep', ['10'], { timeout: 200 });
+                execFileSync(...sleep(10000), { timeout: 200 });
             } catch (e) {
                 err = e as Error & { code?: string; signal?: string | null };
             }
@@ -451,7 +471,7 @@ export default async () => {
         });
 
         await it('does not fire when the child exits in time', async () => {
-            const out = execFileSync('echo', ['quick'], { encoding: 'utf8', timeout: 10000 });
+            const out = execFileSync(...echo('quick'), { encoding: 'utf8', timeout: 10000 });
             expect((out as string).trim()).toBe('quick');
         });
     });
@@ -513,7 +533,9 @@ export default async () => {
             );
             expect(err).toBeDefined();
             expect(err.code).toBe('ENOENT');
-            expect(err.errno).toBe(-2);
+            // libuv numbers Windows separately: UV_ENOENT is -4058 there, -2 on POSIX.
+            // `code` is the portable half and is asserted above.
+            expect(err.errno).toBe(UV_ENOENT);
             expect(err.syscall).toBe('spawn definitely_not_a_real_binary_xyz123');
             expect(err.path).toBe('definitely_not_a_real_binary_xyz123');
         });
@@ -523,7 +545,7 @@ export default async () => {
             const err = result.error as (Error & { code?: string; errno?: number }) | undefined;
             expect(err).toBeDefined();
             expect(err?.code).toBe('ENOENT');
-            expect(err?.errno).toBe(-2);
+            expect(err?.errno).toBe(UV_ENOENT);
         });
 
         await it('execFileSync throws with code=ENOENT for missing binary', async () => {
@@ -544,15 +566,15 @@ export default async () => {
 
     await describe('child_process spawn — options validation', async () => {
         await it('throws when 2nd positional is a non-object, non-array', async () => {
-            expect(() => spawn('echo', 'not-an-array' as unknown as string[])).toThrow();
+            expect(() => spawn(NODE, 'not-an-array' as unknown as string[])).toThrow();
         });
 
         await it('throws when options is a string', async () => {
-            expect(() => spawn('echo', [], 'options-string' as unknown as object)).toThrow();
+            expect(() => spawn(...echo(), 'options-string' as unknown as object)).toThrow();
         });
 
         await it('throws when options is a number', async () => {
-            expect(() => spawn('echo', [], 42 as unknown as object)).toThrow();
+            expect(() => spawn(...echo(), 42 as unknown as object)).toThrow();
         });
 
         await it('accepts spawn(cmd, options) two-arg form', async () => {
@@ -570,23 +592,23 @@ export default async () => {
 
     await describe('child_process spawnSync — input validation', async () => {
         await it('throws on numeric input', async () => {
-            expect(() => spawnSync('cat', [], { input: 1234 as unknown as string })).toThrow();
+            expect(() => spawnSync(...cat(), { input: 1234 as unknown as string })).toThrow();
         });
 
         await it('throws on plain-object input', async () => {
-            expect(() => spawnSync('cat', [], { input: { foo: 'bar' } as unknown as string })).toThrow();
+            expect(() => spawnSync(...cat(), { input: { foo: 'bar' } as unknown as string })).toThrow();
         });
 
         await it('accepts Uint8Array input', async () => {
             const buf = new TextEncoder().encode('uint8-input');
-            const result = spawnSync('cat', [], { encoding: 'utf8', input: buf });
+            const result = spawnSync(...cat(), { encoding: 'utf8', input: buf });
             expect(result.status).toBe(0);
             expect(result.stdout).toBe('uint8-input');
         });
 
         await it('accepts Buffer input', async () => {
             const buf = Buffer.from('buffer-input');
-            const result = spawnSync('cat', [], { encoding: 'utf8', input: buf });
+            const result = spawnSync(...cat(), { encoding: 'utf8', input: buf });
             expect(result.status).toBe(0);
             expect(result.stdout).toBe('buffer-input');
         });
@@ -598,7 +620,7 @@ export default async () => {
 
     await describe('child_process — Windows-only options no-op on Linux', async () => {
         await it('windowsHide:true is accepted', async () => {
-            const result = spawnSync('echo', ['windows_hide_test'], {
+            const result = spawnSync(...echo('windows_hide_test'), {
                 encoding: 'utf8',
                 windowsHide: true,
             });
@@ -607,7 +629,18 @@ export default async () => {
         });
 
         await it('windowsVerbatimArguments:true is accepted', async () => {
-            const result = spawnSync('echo', ['windows_verbatim'], {
+            // Verbatim means Node does NOT quote the command line it builds, so
+            // NOTHING in it may contain a space — including the executable
+            // path. `process.execPath` on a default Windows install is
+            // `C:\Program Files\nodejs\node.exe`, which then arrives at the
+            // child split across three argv entries and exits 1. So the win32
+            // arm uses `cmd`, resolved off PATH with no spaces anywhere; off
+            // Windows the option is a documented no-op and any command shows it
+            // is accepted.
+            const verbatim: [string, string[]] = SHELL_IS_CMD
+                ? ['cmd', ['/c', 'echo', 'windows_verbatim']]
+                : [...echo('windows_verbatim')];
+            const result = spawnSync(...verbatim, {
                 encoding: 'utf8',
                 windowsVerbatimArguments: true,
             });
@@ -623,7 +656,7 @@ export default async () => {
             // Use current user's uid (process.getuid() or 0 fallback). Don't
             // try a different uid — needs privilege.
             const myUid = typeof process !== 'undefined' && typeof process.getuid === 'function' ? process.getuid() : 0;
-            const result = spawnSync('echo', ['uid_test'], {
+            const result = spawnSync(...echo('uid_test'), {
                 encoding: 'utf8',
                 uid: myUid,
             });
@@ -637,7 +670,7 @@ export default async () => {
 
     await describe('ChildProcess.kill — signal coercion', async () => {
         await it('kills with SIGINT', async () => {
-            const child = spawn('sleep', ['10']);
+            const child = spawn(...sleep(10000));
             const ok = child.kill('SIGINT');
             expect(ok).toBeTruthy();
             expect(child.killed).toBeTruthy();
@@ -645,14 +678,14 @@ export default async () => {
         });
 
         await it('kills with SIGTERM (default)', async () => {
-            const child = spawn('sleep', ['10']);
+            const child = spawn(...sleep(10000));
             const ok = child.kill();
             expect(ok).toBeTruthy();
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
         });
 
         await it('kills with numeric signal 9', async () => {
-            const child = spawn('sleep', ['10']);
+            const child = spawn(...sleep(10000));
             const ok = child.kill(9);
             expect(ok).toBeTruthy();
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
@@ -660,7 +693,7 @@ export default async () => {
 
         await it('returns false after the subprocess handle is gone', async () => {
             // Spawning a non-existent binary leaves _subprocess unset.
-            const child = spawn('echo', ['kill_after_exit']);
+            const child = spawn(...echo('kill_after_exit'));
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
             // Process is reaped, but our wrapper still holds the handle.
             // Multiple .kill() calls should not throw; Gio returns true even
@@ -675,7 +708,7 @@ export default async () => {
         await it('signal name set when child was killed', async () => {
             // Manually kill — set up a long-running child and use timeout
             // with a known signal name.
-            const result = spawnSync('sleep', ['10'], {
+            const result = spawnSync(...sleep(10000), {
                 timeout: 100,
                 killSignal: 'SIGINT',
             });
@@ -704,7 +737,7 @@ export default async () => {
             // option does not break spawn, not to benchmark stdout
             // buffering.
             const result = await new Promise<{ code: number | null; out: string }>((resolve) => {
-                const child = spawn('echo', ['detached_test'], { detached: true });
+                const child = spawn(...echo('detached_test'), { detached: true });
                 let out = '';
                 child.stdout?.on('data', (chunk: Buffer) => {
                     out += chunk.toString();
