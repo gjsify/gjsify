@@ -46,7 +46,9 @@ import { spawnToCompletion } from '../utils/spawn.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import {
     binDirOnPath,
+    BUNDLER_ENGINE_PACKAGE,
     defaultGlobalLayout,
+    hasBundlerEngineInstalled,
     installGjsEnginePackages,
     linkGlobalBins,
     specToPackageName,
@@ -260,7 +262,7 @@ export const installCommand: Command<unknown, InstallOptions> = {
 
         if (backend === 'npm') {
             await projectInstallViaNpm(args);
-            await runPostInstallChecks();
+            await runPostInstallChecks(args);
             return;
         }
 
@@ -330,7 +332,7 @@ export const installCommand: Command<unknown, InstallOptions> = {
         (hardExitTimerId as { unref?: () => void } | null)?.unref?.();
         try {
             await projectInstallNative(args, overallController?.signal);
-            await runPostInstallChecks();
+            await runPostInstallChecks(args);
         } catch (err) {
             if (overallController !== null && overallController.signal.aborted && isAbortedFromOverallTimeout(err)) {
                 const secs = Math.round(overallTimeoutMs / 100) / 10;
@@ -1572,7 +1574,94 @@ function reportLinkedBins(created: ReturnType<typeof linkGlobalBins>, binDir: st
     }
 }
 
-async function runPostInstallChecks(): Promise<void> {
+/**
+ * Lay the GJS bundler engine down after a PROJECT install, when the host will
+ * need it and does not have it. Closes #1005.
+ *
+ * The engine is an OPTIONAL PEER of `@gjsify/cli`, deliberately: a plain
+ * `npm install @gjsify/cli` on Node/macOS/Windows must not fetch Linux
+ * prebuilds. But nobody resolves it for a project — npm 7+ skips optional peers,
+ * and the native backend does not resolve peerDependencies at all
+ * (`install-backend-native.ts:76`). Under GJS there is no npm `rolldown`
+ * fallback, so `gjsify build` simply cannot work. Every consumer in the
+ * workspace independently discovered this and hand-declared the engine.
+ *
+ * Four conditions, and the second is the one worth reading:
+ *
+ *   (a) `@gjsify/cli` is in this tree — otherwise the engine has no caller.
+ *   (b) THE HOST CAN RUN GJS, which is NOT the same question as `isGjs()`.
+ *       `isGjs()` asks which runtime is executing the installer; the launcher
+ *       (`bin-shim.ts:616`) prefers the GJS bundle whenever `command -v gjs`
+ *       succeeds, so a tree installed BY NODE is routinely built BY GJS. Gating
+ *       on the interpreter would reproduce #1005 for every contributor who
+ *       installs on Node and builds through the shim. `runMinimalChecks()` above
+ *       already probed for gjs, so this costs no extra spawn — and it goes
+ *       nowhere near `which`.
+ *   (c) No engine is already reachable — asked with the same walk the BUILD uses.
+ *   (d) Not `--immutable`. A frozen install cannot acquire something its
+ *       lockfile does not name without breaking the contract `--immutable`
+ *       exists to hold, so that case warns and installs nothing.
+ *
+ * Deliberately NOT gated on `gjsify.app` or on "declares a build script":
+ * neither of the failing consumers declares the former, and the latter would
+ * mean pattern-matching script bodies — the hand-maintained judgement that
+ * drifts, which ADR 0017 rejects by name.
+ *
+ * NOT recorded in the lockfile. `installPackages` writes one only under
+ * `if (resolved && opts.lockfile)` and the default is falsy, so a consumer's
+ * `gjsify-lock.json` is never rewritten by this. An e2e row pins that.
+ *
+ * Ordering is not a constraint here, unlike the global path (which must precede
+ * `linkGlobalBins`): `buildNativeEnvPreamble` scans the prefix at LAUNCH time
+ * (`bin-shim.ts:432-444`), so a shim written before the engine arrives still
+ * exports its dir. `tests/e2e/global-install-engine/run.mjs:361-374` asserts
+ * exactly that case.
+ */
+export interface EnsureProjectGjsEngineDeps {
+    /** Project root. Defaults to `process.cwd()`. */
+    cwd?: string;
+    /** Injected so the decision is testable without a registry — the shape
+     *  `installGjsEnginePackages` already uses for the same reason. */
+    installFn?: (prefix: string, version: string, opts: { verbose?: boolean }) => Promise<void>;
+    /** Injected so a host that HAS an engine can still exercise the missing branch. */
+    hasEngineFn?: (dir: string) => boolean;
+}
+
+export async function ensureProjectGjsEngine(
+    args: InstallOptions,
+    gjsFound: boolean,
+    deps: EnsureProjectGjsEngineDeps = {},
+): Promise<void> {
+    const cwd = deps.cwd ?? process.cwd();
+    const hasEngine = deps.hasEngineFn ?? hasBundlerEngineInstalled;
+    if (!existsSync(join(cwd, 'node_modules', '@gjsify', 'cli', 'package.json'))) return;
+    if (!gjsFound) return;
+    if (hasEngine(cwd)) return;
+
+    if (args.immutable) {
+        // Name the DURABLE fix, not a transient one: a frozen CI install cannot
+        // be repaired by anything that happens at this moment, so the answer is
+        // to put the engine in the lockfile.
+        console.warn(
+            `\nWarning: \`gjsify build\` will fail under GJS — ${BUNDLER_ENGINE_PACKAGE} is not installed, and\n` +
+                '  --immutable cannot add it (the lockfile does not name it). Declare it so the lockfile carries it:\n' +
+                `    gjsify install ${BUNDLER_ENGINE_PACKAGE}\n` +
+                '  Under Node the npm `rolldown` engine is used instead and this does not apply.',
+        );
+        return;
+    }
+
+    const cliVersion = readCliVersionFrom(join(cwd, 'node_modules', '@gjsify', 'cli', 'package.json')) ?? 'latest';
+    console.log(
+        `\n${BUNDLER_ENGINE_PACKAGE} is missing and this host can run gjs, so \`gjsify build\` would have no\n` +
+            `  bundler engine (there is no npm \`rolldown\` fallback under GJS). Installing the GJS engine set at\n` +
+            `  ${cliVersion}, in lockstep with the CLI.`,
+    );
+    const install = deps.installFn ?? installGjsEnginePackages;
+    await install(cwd, cliVersion, { verbose: args.verbose });
+}
+
+async function runPostInstallChecks(args: InstallOptions): Promise<void> {
     console.log('\n--- gjsify post-install checks ---');
 
     // 1. System deps that GJS apps typically need.
@@ -1590,8 +1679,15 @@ async function runPostInstallChecks(): Promise<void> {
         console.log('System dependencies OK.');
     }
 
-    // 2. Surface @gjsify/* packages with native prebuilds — `gjsify run`
+    // 2. Close #1005 before reporting the prebuild set, so the report reflects
+    //    what the tree ACTUALLY has rather than what it had a moment ago.
+    await ensureProjectGjsEngine(args, results.find((r) => r.id === 'gjs')?.found ?? false);
+
+    // 3. Surface @gjsify/* packages with native prebuilds — `gjsify run`
     //    will set LD_LIBRARY_PATH / GI_TYPELIB_PATH for these automatically.
+    //    Runs AFTER step 2 on purpose: an engine installed a moment ago belongs
+    //    in this list, and a consumer reading "Detected N …" needs it to be the
+    //    tree's current state rather than its state on entry.
     const native = detectNativePackages(process.cwd());
     if (native.length > 0) {
         console.log(`\nDetected ${native.length} @gjsify/* package(s) with native prebuilds:`);

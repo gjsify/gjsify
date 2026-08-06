@@ -132,9 +132,10 @@ return 200.
 
 ### Known and open
 
-- A project-local install still does not lay down the GJS bundler engine, although a global one
-  does. Until that is resolved, a project that builds under GJS should declare
-  `@gjsify/rolldown-native` itself (#1005).
+- A `gjsify install --immutable` (the CI shape) still cannot acquire the GJS bundler engine,
+  because the lockfile a frozen install consumes does not name it. It now says so, and names the
+  durable fix: declare `@gjsify/rolldown-native` so the lockfile carries it. A normal project
+  install lays it down by itself (#1005, and ADR 0020 for the shape that would retire the policy).
 - Nothing yet stops a new call site inside the CLI from bypassing the spawn/teardown contract
   the `pack` hang came from. The contract is documented and the fix is in; the guard that would
   make a future bypass visible is not (#1012).

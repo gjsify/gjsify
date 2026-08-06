@@ -44,6 +44,39 @@ function tryExecFile(binary: string, args: string[]): string | null {
     }
 }
 
+/**
+ * True when `cmd` is on PATH. Walks `process.env.PATH` with `existsSync`
+ * instead of shelling out to `which`(1).
+ *
+ * `which` is NOT a probe you can rely on: the Fedora 43/44 minimal containers
+ * CI runs in ship without it (only the `which-2.x` rpm provides it), so a
+ * `which`-based check silently answers "missing" for EVERY command. That is
+ * exactly where this file's answer matters most — `detectPackageManager()`
+ * returning `unknown` makes `buildInstallCommand()` return null, so the
+ * distro-specific install hint for a missing system library prints nothing on
+ * the hosts that needed it. Measured twice on 2026-08-05: ts-for-gir#437 had to
+ * discover `json-glib` by hand, bauplaner#40 `libsoup3` — both in such a
+ * container, both while this file already declared the dependency.
+ *
+ * `tests/e2e/helpers.mjs`'s `hasCommand()` carries the same walk for the same
+ * reason. It stays a second copy on purpose: it is `.mjs` under `tests/` and
+ * cannot be imported from the shipped CLI.
+ */
+function isOnPath(cmd: string): boolean {
+    const pathVar = process.env.PATH;
+    if (!pathVar) return false;
+    const sep = process.platform === 'win32' ? ';' : ':';
+    for (const dir of pathVar.split(sep)) {
+        if (!dir) continue;
+        try {
+            if (existsSync(join(dir, cmd))) return true;
+        } catch {
+            // An inaccessible PATH entry is not an answer about `cmd`.
+        }
+    }
+    return false;
+}
+
 /** Check if a binary exists and optionally capture its version output. */
 function checkBinary(
     id: string,
@@ -123,8 +156,7 @@ export function detectPackageManager(): PackageManager {
     const managers: PackageManager[] =
         process.platform === 'darwin' ? ['brew'] : ['apt', 'dnf', 'pacman', 'zypper', 'apk', 'brew'];
     for (const pm of managers) {
-        const result = tryExecFile('which', [pm]);
-        if (result !== null) return pm;
+        if (isOnPath(pm)) return pm;
     }
     return 'unknown';
 }
@@ -184,6 +216,45 @@ export const OPTIONAL_DEPS: Record<string, OptionalDep> = {
     epoxy: { id: 'epoxy', name: 'libepoxy', pkgName: 'epoxy' },
     'gst-webrtc': { id: 'gst-webrtc', name: 'GStreamer WebRTC', pkgName: 'gstreamer-webrtc-1.0' },
 };
+
+/**
+ * The declared system libraries a single `@gjsify/*` package needs that are NOT
+ * present on this host.
+ *
+ * Exists so a FAILURE can answer the question this file already knows the answer
+ * to. The tables below have declared `@gjsify/rolldown-native → json-glib` since
+ * #994, complete with per-distro package names — but the only reader was
+ * `runAllChecks()`, i.e. `gjsify system-check`, a command the user has to think
+ * to run. So when the engine was installed and simply would not LOAD, the build
+ * said "@gjsify/rolldown-native is NOT INSTALLED … install it" (it was) or
+ * guessed at a bypassed launcher. Two repositories spent a CI round rediscovering
+ * a library this file could have named: ts-for-gir#437, bauplaner#40.
+ *
+ * Cannot throw, by construction rather than by a catch: `checkPkgConfig` goes
+ * through `tryExecFile`, which returns null on any failure. That matters because
+ * the caller is `diagnoseNativeEngine()`, which runs *while explaining another
+ * failure* — a probe that dies there would replace the diagnosis with its own
+ * stack.
+ *
+ * Returns `[]` for an unknown package or one with no declared deps, so a caller
+ * needs no special case for "nothing to say".
+ */
+export function missingSystemDepsFor(packageName: string): DepCheck[] {
+    const ids = PACKAGE_DEPS[packageName];
+    if (!ids) return [];
+    const missing: DepCheck[] = [];
+    for (const id of ids) {
+        const dep = OPTIONAL_DEPS[id];
+        // An id with no OPTIONAL_DEPS entry is not "present"; it is unanswerable
+        // here. The spec's declaration invariant is what keeps that set empty —
+        // silently reporting it as found would be the failure mode this whole
+        // function exists to end.
+        if (!dep?.pkgName) continue;
+        const result = checkPkgConfig(dep.id, dep.name, dep.pkgName, 'optional', [packageName]);
+        if (!result.found) missing.push(result);
+    }
+    return missing;
+}
 
 /**
  * Map of @gjsify/* package name → ids of OPTIONAL_DEPS this package needs.

@@ -25,7 +25,12 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { detectNativePackages } from './detect-native-packages.js';
+import {
+    detectHostLibc,
+    detectNativePackages,
+    hostPlatformTokens,
+    platformPackageName,
+} from './detect-native-packages.js';
 import {
     buildLauncherShims,
     buildNativeEnvPreamble,
@@ -83,9 +88,45 @@ export const GJS_ENGINE_PACKAGES = [
     '@gjsify/oxfmt-native',
 ] as const;
 
-/** True when `<prefix>/node_modules/@gjsify/rolldown-native` is laid down. */
-export function hasBundlerEngineInstalled(prefix: string): boolean {
-    return fs.existsSync(path.join(prefix, 'node_modules', '@gjsify/rolldown-native', 'package.json'));
+/**
+ * The one engine whose absence is fatal rather than degrading: `gjsify build`
+ * has no fallback under GJS. Named separately because two different questions
+ * ("what do we install") and ("is a build possible") want different sets.
+ */
+export const BUNDLER_ENGINE_PACKAGE = '@gjsify/rolldown-native';
+
+/**
+ * True when a bundler engine `gjsify build` can actually LOAD is reachable from
+ * `dir`.
+ *
+ * This used to `existsSync` the bridge's own `package.json` and stop there. That
+ * answer was correct before ADR 0017 and is wrong after it: the bridge is now
+ * pure TypeScript (`files: ["lib", "meson.build", "src/rust", "src/vala"]`) and
+ * the binary lives in a per-target child (`@gjsify/rolldown-native-<os>-<arch>`).
+ * So "bridge present, child missing" reported `true` — which is why
+ * `self-update`'s repair gate could say "Already up to date" about a prefix whose
+ * engine cannot load. A live defect, not a hypothetical one.
+ *
+ * Asks `detectNativePackages` instead, which is the same walk-up
+ * `findRolldownNativeDir` performs at BUILD time. That matters more than the
+ * shortcut it replaces: an installer that disagrees with the builder about
+ * whether the engine is present is worse than one that is merely slow. It also
+ * makes the gjsify monorepo a no-op — the workspace symlink resolves — which is
+ * what keeps ADR 0001's non-destructive invariant safe from a registry copy
+ * landing on top of `packages/infra/rolldown-native`.
+ *
+ * `dir` is a prefix for a global install and a project root for a project one;
+ * the walk handles both.
+ */
+export function hasBundlerEngineInstalled(dir: string): boolean {
+    const names = new Set(detectNativePackages(dir).map((p) => p.name));
+    if (names.has(BUNDLER_ENGINE_PACKAGE)) return true;
+    // The per-target child is the thing that actually carries the binary, so its
+    // presence is the honest positive answer even when the umbrella is absent.
+    const libc = detectHostLibc(process.platform);
+    return hostPlatformTokens(process.platform, process.arch, libc).some((token) =>
+        names.has(platformPackageName(BUNDLER_ENGINE_PACKAGE, token)),
+    );
 }
 
 /**
