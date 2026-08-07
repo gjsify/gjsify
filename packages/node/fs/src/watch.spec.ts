@@ -8,24 +8,31 @@ import { promises, writeFileSync, mkdtempSync, realpathSync, rmSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-// `realpathSync`, and it is load-bearing on Windows rather than tidiness.
+// `realpathSync.native`, and BOTH halves of that are load-bearing on Windows.
 //
 // GitHub's Windows runners hand back an 8.3 SHORT path from `tmpdir()`
-// (`C:\Users\RUNNER~1\AppData\Local\Temp`), while the change notifications
-// libuv receives carry the LONG name. libuv checks the two agree and aborts the
-// process when they do not:
+// (`C:\Users\RUNNER~1\AppData\Local\Temp`). libuv watches the directory it was
+// given, then for each notification builds `dir + "\" + name`, expands it with
+// `GetLongPathNameW`, and asserts the expansion still starts with `dir`
+// (`refs/node/deps/uv/src/win/fs-event.c`, `uv__relative_path`). A short
+// component makes the expansion diverge from `dir`, so the assert fails:
 //
 //   Assertion failed: !_wcsnicmp(filename, dir, dirlen),
 //   file src\win\fs-event.c, line 72          → exit code 3221226505
 //
-// That is a hard abort, not a failing assertion, so it takes the whole suite
-// with it — 589 specs never reported and `it.failing` could not have helped,
-// because nothing survives to report. Canonicalising the directory is what the
-// watcher is entitled to: watching a path the OS will name differently is the
-// TEST's mistake. It also fixes the same class on macOS, where `/tmp` is a
-// symlink to `/private/tmp` and events arrive under the resolved name.
+// That is a hard ABORT, not a failing assertion: it takes the whole suite with
+// it — 589 specs never reported — which is also why `it.failing` could not
+// cover it. Nothing survives to report a tolerated failure.
+//
+// Plain `realpathSync` is NOT enough and this was measured: it resolves
+// symlinks but does not canonicalise 8.3 names, so the first attempt aborted
+// identically. `.native` goes through `GetFinalPathNameByHandle` and returns
+// the long form, which is the same name `GetLongPathNameW` will produce. Our
+// GJS implementation aliases `.native` to `realpathSync`, so the spec stays
+// runtime-neutral, and the call also fixes the macOS half of the class where
+// `/tmp` resolves to `/private/tmp`.
 function makeTmp(): string {
-    return realpathSync(mkdtempSync(join(tmpdir(), 'gjsify-watch-')));
+    return realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-watch-')));
 }
 
 // WHY EVERY DEFERRED WRITE BELOW IS CANCELLED IN A `finally`.

@@ -108,10 +108,10 @@ export default async () => {
         // there and invisible on Linux.
         const libVar = libraryPathVar(process.platform).name;
 
-        await it('is EMPTY when no native package was detected', () => {
-            // Two directories with no node_modules at all: nothing to prepend,
-            // so `buildNativeEnv` hands the inherited values straight back and
-            // the CLI has changed nothing to report.
+        await it('reports only what the CLI genuinely changed', () => {
+            // Two directories with no node_modules at all, so nothing is
+            // prepended from a PREBUILD. What may still appear is what the HOST
+            // forces — see the darwin branch below.
             const a = mkdtempSync(join(tmpdir(), 'gjsify-env-echo-a-'));
             const b = mkdtempSync(join(tmpdir(), 'gjsify-env-echo-b-'));
             const bundle = makeBundle(a, 'dist');
@@ -121,7 +121,30 @@ export default async () => {
                 GI_TYPELIB_PATH: '/usr/lib/girepository-1.0',
             };
             const { envPrefix } = computeNativeEnvForBundle(bundle, b, inherited);
-            expect(envPrefix).toBe('');
+
+            // Nothing INHERITED is ever echoed back — the line exists to show a
+            // change, and this half holds on every host.
+            expect(envPrefix.includes('C:\\Windows\\system32')).toBe(false);
+            expect(envPrefix.includes('/usr/lib/girepository-1.0')).toBe(false);
+
+            if (process.platform === 'darwin') {
+                // darwin is NOT the empty case, and this spec asserted it was
+                // until the macOS leg first ran it (1 of 1953, both arches).
+                // `buildNativeEnv()` puts `systemGiLibraryDirs()` on the child's
+                // `DYLD_FALLBACK_LIBRARY_PATH` UNCONDITIONALLY, because
+                // Homebrew's `gjs` carries an rpath into GLIB's keg alone and a
+                // bare-leaf `dlopen` fails without it. That is a change the CLI
+                // really made, so the echo is right to print it and the old
+                // expectation was the Linux answer generalised.
+                //
+                // What stays asserted is the part that was actually at stake:
+                // it prints ONE assignment, to the library-path variable, and
+                // no `GI_TYPELIB_PATH` and no `PATH`.
+                expect(envPrefix.startsWith(`${libVar}=`)).toBe(true);
+                expect(envPrefix.split(' ').length).toBe(1);
+            } else {
+                expect(envPrefix).toBe('');
+            }
 
             rmSync(a, { recursive: true, force: true });
             rmSync(b, { recursive: true, force: true });
