@@ -195,7 +195,7 @@ describe('gjsify tsc — Node fallback under a GJS-hosted CLI', { skip: SKIP, ti
         );
         assert.match(
             output,
-            /not on PATH|cannot run|not found/i,
+            /not on PATH|cannot (be )?run|not found/i,
             `expected a diagnosis naming the missing interpreter, got:\n${output}`,
         );
     });
