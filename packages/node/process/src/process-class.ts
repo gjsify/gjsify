@@ -8,7 +8,7 @@ import { detectArch, detectPlatform, detectPpid, detectVersionInfo, getPid } fro
 import { chdir, getArgv, getCwd, getEnvProxy, getExecPath } from './internal/env.js';
 import { exitProcess } from './internal/exit.js';
 import { hrtime as hrtimeImpl, hrtimeBigint } from './internal/hrtime.js';
-import { cpuUsage, killPid, memoryUsage, type CpuUsage, type MemoryUsage } from './internal/system.js';
+import { cpuUsage, killPid, memoryUsage, readUmask, type CpuUsage, type MemoryUsage } from './internal/system.js';
 import { ProcessReadStream, ProcessWriteStream } from './streams.js';
 
 type ProcessPlatform = NodeJS.Platform;
@@ -133,10 +133,41 @@ export class Process extends EventEmitter {
         this.exit(1);
     }
 
-    // no-op stubs for compatibility
-    umask(_mask?: number): number {
-        return 0o22;
+    /**
+     * The file-creation mask. READING it is real; SETTING it is not possible.
+     *
+     * The getter used to return a hardcoded `0o22` — right only on a 022
+     * machine and wrong in the PERMISSIVE direction everywhere else: on a 002
+     * host a caller computing `0o666 & ~process.umask()` believes it produced
+     * 0644 while the file is group-writable 0664. Linux publishes the live
+     * value in `/proc/self/status`, race-free, so it is read rather than
+     * guessed.
+     *
+     * The setter cannot be implemented: GJS has no `umask(2)` binding, and the
+     * mask is per-process kernel state that a library cannot emulate. It stays
+     * a no-op for that reason — but not a SILENT one. `process.umask(0o077)`
+     * before writing a secret is a standard idiom, and here it changes nothing;
+     * a caller who believes it tightened the mask is precisely the
+     * "more permissive than requested" failure this package's fs work exists to
+     * remove, so the attempt warns once instead of being swallowed. It does not
+     * throw: that would break the equally common read-modify-restore pattern,
+     * and the real fix for a caller is an explicit `mode`, which now works.
+     */
+    umask(mask?: number): number {
+        const live = readUmask();
+        if (mask !== undefined && !this._umaskWarned) {
+            this._umaskWarned = true;
+            this.emitWarning(
+                `process.umask(0${mask.toString(8)}) cannot change the file-creation mask under GJS — there is no ` +
+                    'umask(2) binding, so the mask is UNCHANGED. Pass an explicit `mode` to open/mkdir/writeFile ' +
+                    'instead; the kernel applies it atomically at creation.',
+                'UnsupportedWarning',
+            );
+        }
+        return live;
     }
+    private _umaskWarned = false;
+
     emitWarning(warning: string | Error, name?: string): void {
         if (typeof warning === 'string') {
             console.warn(`(${name || 'Warning'}): ${warning}`);
