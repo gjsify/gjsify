@@ -14,7 +14,7 @@ import {
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
 import { dirname, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
@@ -325,17 +325,25 @@ export class BuildAction {
      * `--outdir` build, not just a single `--outfile`.
      */
     private async escapeRawNul(
-        result: RolldownOutput,
         outfile: string | undefined,
         outdir: string | undefined,
         verbose: boolean | undefined,
     ): Promise<void> {
+        // Deliberately NOT driven by the chunk graph: `--watch`'s BUNDLE_END carries the bundle
+        // rather than the generated output, and re-running generate() just to list chunks would
+        // double every rebuild. Reading the directory needs neither, so the same hook serves the
+        // one-shot build and the watch loop — and a watch rebuild that quietly reintroduced the
+        // raw NUL would fail exactly like the bug this exists to prevent, only intermittently.
         const targets: string[] = [];
         if (outfile) {
             targets.push(outfile);
         } else if (outdir) {
-            for (const item of result.output ?? []) {
-                if (item.type === 'chunk') targets.push(resolve(outdir, item.fileName));
+            try {
+                for (const name of await readdir(outdir)) {
+                    if (name.endsWith('.mjs') || name.endsWith('.js')) targets.push(resolve(outdir, name));
+                }
+            } catch {
+                return; // no outdir yet (first watch pass failed) — nothing to escape
             }
         }
         for (const target of targets) {
@@ -780,7 +788,7 @@ export class BuildAction {
         };
 
         if (opts.watch) {
-            await this.runWatchLoop(finalOpts, app, outfile, verbose);
+            await this.runWatchLoop(finalOpts, app, outfile, outdir, verbose);
             return [];
         }
 
@@ -790,7 +798,7 @@ export class BuildAction {
         // NUL-terminated C string), so escape any the minifier emitted before anything else
         // touches the file. See utils/gjs-source-escape.ts.
         if (app === 'gjs') {
-            await this.escapeRawNul(writeResult, outfile, outdir, verbose);
+            await this.escapeRawNul(outfile, outdir, verbose);
         }
 
         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
@@ -831,6 +839,7 @@ export class BuildAction {
         finalOpts: BundlerOptions,
         app: App,
         outfile: string | undefined,
+        outdir: string | undefined,
         verbose: boolean | undefined,
     ): Promise<void> {
         const watcher = await runWatch(finalOpts);
@@ -864,6 +873,12 @@ export class BuildAction {
                 case 'BUNDLE_END':
                     console.log(`[gjsify build --watch] built in ${event.duration}ms`);
                     try {
+                        // Before the shebang, which re-reads the file: a rebuild that dropped a
+                        // raw NUL back in would produce a bundle GJS cannot load, and on the
+                        // watch loop that reads as "it broke when I saved", not as a build bug.
+                        if (app === 'gjs') {
+                            await this.escapeRawNul(outfile, outdir, verbose);
+                        }
                         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
                             await this.applyShebang(app, outfile, verbose);
                         }

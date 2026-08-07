@@ -7,13 +7,14 @@ import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
 import { chmodSync, chownSync } from './sync.js';
-import { applyCreationMode, FILE_BASE_MODE } from './creation-mode.js';
+import { applyCreationMode, normalizeMode } from './creation-mode.js';
 import {
     resolveIOMode,
     openIOChannel,
     mapOpenError,
     shouldCreate,
     isExclusive,
+    isAppend,
     type IOMode,
 } from './file-handle-open.js';
 import GLib from '@girs/glib-2.0';
@@ -57,14 +58,26 @@ export class FileHandle implements IFileHandle {
     private _readStream: Gio.FileInputStream | null = null;
     private readonly _gFile: Gio.File;
     private readonly _ioMode: IOMode;
-    /** Current byte offset for `position: null` sync reads — Node advances the fd position. */
-    private _readPos = 0;
     /**
-     * Current byte offset for `position: null` sync writes — the write-side mirror of
-     * `_readPos`. Without it every `writeSync(fd, chunk)` restarts at offset 0, so a
-     * streaming writer overwrites its own output and only the LAST chunk survives.
+     * The fd's current byte offset for `position: null` operations.
+     *
+     * ONE cursor, shared by reads and writes, because that is what an fd is: `read` and `write`
+     * advance the same offset, so a sequential write must move what the next sequential read
+     * sees. Reads tracked this before; writes did not track it at all, which is why every
+     * `writeSync(fd, chunk)` restarted at 0 and a streaming writer kept only its last chunk.
      */
-    private _writePos = 0;
+    private _pos = 0;
+    /**
+     * True when the handle was opened in an APPEND mode.
+     *
+     * Derived from the caller's ORIGINAL flags, not from `_ioMode`: `resolveIOMode` maps the
+     * append aliases `as` and numeric `O_RDWR|O_APPEND` to `'r+'`, so testing the resolved mode
+     * misses them and their writes would land at offset 0 — clobbering the very log the caller
+     * opened to append to.
+     */
+    private readonly _isAppend: boolean;
+    /** The exact mode the caller asked for, applied on close. See the constructor. */
+    private _pendingMode: number | null = null;
     // Serialize async I/O on the shared FileIOStream. Concurrent write_bytes_async
     // calls hit Gio.IOErrorEnum.PENDING ("Datenstrom hat noch einen ausstehenden
     // Vorgang"); overlapping seek()s on the shared cursor also corrupt positions.
@@ -84,18 +97,27 @@ export class FileHandle implements IFileHandle {
         },
     ) {
         this.options.flags ||= 'r';
+        // The mode the caller ACTUALLY passed, before the default is filled in — only an
+        // explicit one is applied after creation (see applyCreationMode).
+        const requestedMode = normalizeMode(this.options.mode as string | number | undefined);
         this.options.mode ||= 0o666;
         const pathStr = normalizePath(options.path);
         const creat = shouldCreate(options.flags);
         const ioMode = resolveIOMode(options.flags);
+        this._isAppend = isAppend(options.flags);
         // Whether this open CREATES the file decides whether `mode` applies at all — open(2)
         // ignores it for an existing file. Sampled before the open, because afterwards
-        // everything exists.
-        const existedBefore = GLib.file_test(pathStr, GLib.FileTest.EXISTS);
+        // everything exists. A DANGLING SYMLINK counts as existing here: `EXISTS` follows the
+        // link and would report false, so the pair below is what distinguishes them.
+        const existedBefore =
+            GLib.file_test(pathStr, GLib.FileTest.EXISTS) || GLib.file_test(pathStr, GLib.FileTest.IS_SYMLINK);
         // Exclusive create ('wx', 'ax', O_EXCL) must FAIL on an existing file. fopen(3) has no
         // such mode, so resolveIOMode maps it to plain 'w'/'a' and IOChannel would happily
         // truncate — defeating the whole point of the flag, which is to claim a name without
-        // racing. Not atomic like O_EXCL, but the alternative is no check at all.
+        // racing. The symlink half matters most: a plain EXISTS test follows a DANGLING symlink,
+        // reports "free", and the open then creates and writes through it — letting whoever
+        // planted the link choose where the caller's bytes land. Real O_EXCL refuses any
+        // symlink. Not atomic like O_EXCL, but the alternative is no check at all.
         if (isExclusive(options.flags) && existedBefore) {
             const err = new Error(`EEXIST: file already exists, open '${pathStr}'`) as NodeJS.ErrnoException;
             err.code = 'EEXIST';
@@ -113,8 +135,17 @@ export class FileHandle implements IFileHandle {
         // a caller asking for 0o600 got the process default 0644 — world-readable, with no sign
         // the request had been ignored. Apply it now, and only when this open actually created
         // the file, since open(2) ignores `mode` for one that already existed.
-        if (creat && !existedBefore) {
-            applyCreationMode(pathStr, this.options.mode as number, FILE_BASE_MODE);
+        //
+        // While the handle is OPEN the owner keeps rw regardless of what was asked for, and the
+        // exact mode is applied on close(). Positional I/O re-opens the path through Gio rather
+        // than reusing this fd, so a mode like 0o444 or 0o200 would make the handle's own next
+        // write fail with a raw Gio permission error — something real open(2) never does, since
+        // it checks permissions only at open time. Widening is OWNER-ONLY and temporary: the
+        // file is never more permissive to anyone else than the caller asked for.
+        if (creat && !existedBefore && requestedMode !== null) {
+            const ownerNeeds = 0o600;
+            applyCreationMode(pathStr, requestedMode | ownerNeeds);
+            if ((requestedMode & ownerNeeds) !== ownerNeeds) this._pendingMode = requestedMode;
         }
         // Binary mode: prevent GLib from doing any character set conversion.
         this._file.set_encoding(null as unknown as string);
@@ -695,7 +726,12 @@ export class FileHandle implements IFileHandle {
         const bufOffset = offset ?? 0;
         const writeLength = length ?? writeBuf.byteLength - bufOffset;
         const writeSlice = writeBuf.slice(bufOffset, bufOffset + writeLength);
-        const writePos = position ?? 0;
+        // The SAME shared cursor the sync path uses. `position ?? 0` sent every unpositioned
+        // async write to offset 0, so an `await fh.write(a); await fh.write(b)` pair kept only
+        // `b` — the identical corruption the sync fix addresses, in the half of the API most
+        // fsPromises consumers actually call.
+        const usePos = position !== null && position !== undefined && position >= 0;
+        const writePos = usePos ? position : this._pos;
 
         // Positional write — seek + write_bytes_async on the IOStream, touches
         // only the requested region. Uses async Gio I/O so the GLib main loop
@@ -704,7 +740,11 @@ export class FileHandle implements IFileHandle {
         // trigger GIO_ERROR_PENDING or corrupt the shared seek cursor.
         const bytesWritten = await this._serialize(async () => {
             const stream = this._getWriteStream();
-            stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
+            if (this._isAppend && !usePos) {
+                stream.seek(BigInt(0), GLib.SeekType.END, null);
+            } else {
+                stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
+            }
             const output = stream.get_output_stream();
             const written = await new Promise<number>((resolve, reject) => {
                 output.write_bytes_async(
@@ -732,6 +772,7 @@ export class FileHandle implements IFileHandle {
             });
             return written;
         });
+        if (!usePos) this._pos = writePos + bytesWritten;
 
         return {
             bytesWritten,
@@ -791,6 +832,21 @@ export class FileHandle implements IFileHandle {
         this._file.flush();
     }
 
+    /**
+     * Narrow to the exact mode the caller asked for, now that this handle is done with the file.
+     * Only set when the requested mode denies the OWNER rw — see the constructor, which keeps
+     * owner rw while the handle is open so its own positional I/O can still re-open the path.
+     *
+     * Shared by both close paths: `closeSync` goes through `_closeSync`, not the async
+     * `close()`, so putting this in only one of them silently skips the sync half.
+     */
+    private _applyPendingMode(): void {
+        if (this._pendingMode === null) return;
+        const pending = this._pendingMode;
+        this._pendingMode = null;
+        applyCreationMode(normalizePath(this.options.path), pending);
+    }
+
     /** @internal */ _closeSync(): void {
         try {
             this._ioStream?.close(null);
@@ -809,6 +865,7 @@ export class FileHandle implements IFileHandle {
         } catch {
             /* best-effort */
         }
+        this._applyPendingMode();
         // `instances` is declared `private static` on FileHandle; same-module
         // access is allowed via a typed view of the constructor without
         // dropping into `as any`.
@@ -827,11 +884,11 @@ export class FileHandle implements IFileHandle {
             // Node semantics: an explicit `position` reads from there and leaves the
             // fd's current position unchanged; `position === null` reads from the
             // CURRENT position and ADVANCES it. Each call opens a fresh stream (at 0),
-            // so seek to the effective start — and for the null case advance `_readPos`,
+            // so seek to the effective start — and for the null case advance the shared cursor,
             // otherwise a `readSync(fd, buf, 0, len, null)` loop re-reads offset 0
             // forever (the build-cache `hashFileStream` hang).
             const usePos = position !== null && position >= 0;
-            const start = usePos ? position : this._readPos;
+            const start = usePos ? position : this._pos;
             if (start > 0) {
                 (stream as unknown as Gio.Seekable).seek(start, GLib.SeekType.SET, null);
             }
@@ -840,7 +897,7 @@ export class FileHandle implements IFileHandle {
             // `NodeJS.ArrayBufferView` carries `buffer` + `byteOffset` directly;
             // the previous `as any` was eating the structural lookup.
             new Uint8Array(buffer.buffer as ArrayBuffer, buffer.byteOffset + offset).set(arr.subarray(0, arr.length));
-            if (!usePos) this._readPos += arr.length;
+            if (!usePos) this._pos += arr.length;
             return arr.length;
         } finally {
             stream.close(null);
@@ -857,17 +914,19 @@ export class FileHandle implements IFileHandle {
             // every time and the file ends up holding only the final chunk.
             const usePos = position !== null && position >= 0;
             const seekable = stream as unknown as Gio.Seekable;
-            let start = usePos ? position : this._writePos;
-            if (this._ioMode === 'a' || this._ioMode === 'a+') {
-                // Append mode ignores the tracked cursor: every write goes to the end, which is
-                // the guarantee 'a' exists to make.
+            let start = usePos ? position : this._pos;
+            if (this._isAppend && !usePos) {
+                // Append with no explicit position goes to the END — the guarantee 'a' exists
+                // to make. An EXPLICIT position is still honoured, as it was before: silently
+                // redirecting a positional write to EOF would be a regression, and the append
+                // aliases reach here through several spellings that resolveIOMode flattens.
                 seekable.seek(0, GLib.SeekType.END, null);
                 start = seekable.tell();
             } else if (start > 0) {
                 seekable.seek(start, GLib.SeekType.SET, null);
             }
             const written = stream.get_output_stream().write_bytes(GLib.Bytes.new(data), null);
-            if (!usePos) this._writePos = start + written;
+            if (!usePos) this._pos = start + written;
             return written;
         } finally {
             stream.close(null);
@@ -914,6 +973,7 @@ export class FileHandle implements IFileHandle {
         } catch {
             /* best-effort */
         }
+        this._applyPendingMode();
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

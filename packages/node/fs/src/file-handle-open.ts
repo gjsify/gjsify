@@ -86,9 +86,26 @@ export function shouldCreate(flags: OpenFlags | number | undefined): boolean {
  * without racing another process. Callers must check this and refuse an existing path.
  */
 export function isExclusive(flags: OpenFlags | number | undefined): boolean {
-    if (typeof flags === 'number') return (flags & O_EXCL) !== 0;
+    // O_EXCL is only meaningful WITH O_CREAT — on its own POSIX leaves it undefined and Node
+    // simply opens the file, so demanding both is what keeps a passed-through flag set from
+    // suddenly throwing EEXIST on a path that opens fine today.
+    if (typeof flags === 'number') return (flags & O_EXCL) !== 0 && (flags & O_CREAT) !== 0;
     if (typeof flags !== 'string') return false;
     return flags === 'wx' || flags === 'wx+' || flags === 'ax' || flags === 'ax+';
+}
+
+/**
+ * Whether the flags request APPEND semantics.
+ *
+ * Read from the caller's original flags, never from the resolved IOChannel mode: `resolveIOMode`
+ * flattens `as` and numeric `O_RDWR|O_APPEND` to `'r+'`, so a check against the resolved mode
+ * misses them and their writes land at offset 0 — clobbering the log the caller opened to
+ * append to.
+ */
+export function isAppend(flags: OpenFlags | number | undefined): boolean {
+    if (typeof flags === 'number') return (flags & O_APPEND) !== 0;
+    if (typeof flags !== 'string') return false;
+    return flags.startsWith('a');
 }
 
 /**

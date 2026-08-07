@@ -14,7 +14,7 @@ import { Dirent } from './dirent.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError, isNotFoundError } from './errors.js';
 import { tempDirPath, normalizePath } from './utils.js';
-import { applyCreationMode, DIR_BASE_MODE } from './creation-mode.js';
+import { applyCreationMode, normalizeMode } from './creation-mode.js';
 import { isStdFd, readStdFdAll } from './std-fd.js';
 
 import type { OpenFlags, EncodingOption } from './types/index.js';
@@ -287,20 +287,21 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
  */
 export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions | null): string | undefined | void {
     let recursive = false;
-    let mode: Mode | undefined = 0o777;
+    // null = the caller passed no mode, so nothing is applied after creation and the system
+    // default stands — exactly what happened before mode was honoured at all.
+    let requested: Mode | undefined;
 
     if (typeof options === 'object') {
         if (options?.recursive) recursive = options.recursive;
-        if (options?.mode) mode = options.mode;
-    } else {
-        mode = options || 0o777;
+        if (options?.mode !== undefined && options?.mode !== null) requested = options.mode;
+    } else if (options !== undefined && options !== null) {
+        requested = options;
     }
 
     path = normalizePath(path);
 
-    if (typeof mode === 'string') {
-        throw new TypeError('mode as string is currently not supported!');
-    }
+    // Node documents `mode` as string | integer and parses a string as OCTAL.
+    const mode = normalizeMode(requested as string | number | undefined);
 
     if (recursive) {
         return mkdirSyncRecursive(path, mode);
@@ -313,7 +314,7 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
     } catch (err: unknown) {
         throw createNodeError(err, 'mkdir', path);
     }
-    applyCreationMode(path, mode, DIR_BASE_MODE);
+    if (mode !== null) applyCreationMode(path, mode);
     return undefined;
 }
 
@@ -325,13 +326,13 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
 // Gio's make_directory() takes no mode, so it was previously parsed and dropped and every
 // directory landed at the process default. Directories that already existed are left alone,
 // matching mkdir(2). See creation-mode.ts for how the umask is emulated.
-function mkdirSyncRecursive(pathStr: string, mode: number): string | undefined {
+function mkdirSyncRecursive(pathStr: string, mode: number | null): string | undefined {
     const file = Gio.File.new_for_path(pathStr);
 
     // Try to create the directory directly
     try {
         file.make_directory(null);
-        applyCreationMode(pathStr, mode, DIR_BASE_MODE);
+        if (mode !== null) applyCreationMode(pathStr, mode);
         // This directory was created successfully — it's a candidate for "first created"
         return pathStr;
     } catch (err: unknown) {
@@ -356,7 +357,7 @@ function mkdirSyncRecursive(pathStr: string, mode: number): string | undefined {
             } catch (retryErr: unknown) {
                 throw createNodeError(retryErr, 'mkdir', pathStr);
             }
-            applyCreationMode(pathStr, mode, DIR_BASE_MODE);
+            if (mode !== null) applyCreationMode(pathStr, mode);
             return firstCreated ?? pathStr;
         }
         throw createNodeError(err, 'mkdir', pathStr);
@@ -695,7 +696,10 @@ export function mkdtempSync(prefix: string, options?: EncodingOption | BufferEnc
     const encoding: string | undefined = getEncodingFromOptions(options);
     const path = tempDirPath(prefix);
 
-    mkdirSync(path, { recursive: false, mode: 0o777 });
+    // 0o700, as mkdtemp(3) and Node create it. The old 0o777 was inert while `mode` was
+    // ignored; now that it is honoured, leaving it would hand out a world-readable directory
+    // from the one API whose entire purpose is a PRIVATE scratch space.
+    mkdirSync(path, { recursive: false, mode: 0o700 });
 
     return decode(path, encoding);
 }

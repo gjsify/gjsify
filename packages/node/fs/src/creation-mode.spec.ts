@@ -8,7 +8,21 @@
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import { isWin32 } from '@gjsify/utils/core';
-import { closeSync, mkdirSync, mkdtempSync, openSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+    chmodSync,
+    closeSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    openSync,
+    readFileSync,
+    rmSync,
+    statSync,
+    symlinkSync,
+    writeFileSync,
+    writeSync,
+} from 'node:fs';
+import { Buffer } from 'node:buffer';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -24,14 +38,18 @@ function scratch(name: string): string {
 /**
  * What the umask leaves of a base mode, measured rather than assumed — the suite must pass
  * under any umask the developer or CI happens to have.
+ *
+ * The probe is a DIRECTORY, not a file. A file is created 0666 & ~umask, which carries no
+ * execute bits, so a umask masking execute (0111 and friends) is invisible in it — and using
+ * that reading to predict a DIRECTORY mode (base 0777) would expect execute bits the kernel
+ * actually stripped. A directory probe observes every bit.
  */
 function withoutUmask(base: number): number {
     const dir = scratch('umask');
     try {
         const probe = join(dir, 'probe');
-        writeFileSync(probe, '');
-        // A freshly written file is 0666 & ~umask, so the missing bits ARE the umask.
-        const umask = 0o666 & ~mode(probe);
+        mkdirSync(probe);
+        const umask = 0o777 & ~mode(probe);
         return base & ~umask;
     } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -170,6 +188,119 @@ export default async () => {
                     // recursive:true is the form that tolerates an existing directory
                     mkdirSync(target, { recursive: true, mode: 0o700 });
                     expect(mode(target)).toBe(before);
+                } finally {
+                    rmSync(dir, { recursive: true, force: true });
+                }
+            });
+        });
+    });
+
+    await describe('mode is applied only where Node applies it', async () => {
+        await on(['Gjs', 'Node.js'], async () => {
+            if (isWin32()) return;
+
+            await it('parses a STRING mode as octal, as Node does', async () => {
+                // Node documents mode as string | integer and parses a string with
+                // parseInt(v, 8). Read as a JS number instead, '600' is decimal 600 = 0o1130
+                // (sticky + --x-wx---) and the owner cannot read back its own new file.
+                const dir = scratch('string-mode');
+                try {
+                    const path = join(dir, 'octal.txt');
+                    closeSync(openSync(path, 'w', '600' as unknown as number));
+                    expect(mode(path)).toBe(0o600);
+                    expect(readFileSync(path, 'utf8')).toBe('');
+                } finally {
+                    rmSync(dir, { recursive: true, force: true });
+                }
+            });
+
+            await it('PRESERVES a setgid bit the kernel inherited', async () => {
+                // The standard shared-workspace setup: a 2775 parent hands S_ISGID to every
+                // child. A chmod computed from a plain mode strips it, and the group loses
+                // access to everything created there afterwards.
+                const dir = scratch('setgid');
+                try {
+                    const parent = join(dir, 'shared');
+                    mkdirSync(parent);
+                    chmodSync(parent, 0o2775);
+                    if ((statSync(parent).mode & 0o2000) === 0) return; // fs refused setgid
+                    const child = join(parent, 'child');
+                    mkdirSync(child, 0o750);
+                    expect(statSync(child).mode & 0o2000).toBe(0o2000);
+                    expect(mode(child)).toBe(0o750);
+                } finally {
+                    rmSync(dir, { recursive: true, force: true });
+                }
+            });
+
+            await it('does not chmod at all when no mode was passed', async () => {
+                // The claim the whole design rests on: an omitted mode must leave the path
+                // exactly as the system made it, special bits included.
+                const dir = scratch('untouched');
+                try {
+                    const parent = join(dir, 'shared');
+                    mkdirSync(parent);
+                    chmodSync(parent, 0o2775);
+                    if ((statSync(parent).mode & 0o2000) === 0) return;
+                    const child = join(parent, 'plain');
+                    mkdirSync(child);
+                    expect(statSync(child).mode & 0o2000).toBe(0o2000);
+                } finally {
+                    rmSync(dir, { recursive: true, force: true });
+                }
+            });
+
+            await it('keeps a restrictive mode usable for the handle that created it', async () => {
+                // open(2) checks permissions once, at open. A 0444 file must still be writable
+                // through the fd that created it; only the FINAL mode has to be 0444.
+                const dir = scratch('restrictive');
+                try {
+                    const path = join(dir, 'ro.txt');
+                    const fd = openSync(path, 'w', 0o444);
+                    writeSync(fd, Buffer.from('written'));
+                    closeSync(fd);
+                    expect(readFileSync(path, 'utf8')).toBe('written');
+                    expect(mode(path)).toBe(0o444);
+                } finally {
+                    rmSync(dir, { recursive: true, force: true });
+                }
+            });
+
+            await it('mkdtempSync creates a PRIVATE directory', async () => {
+                // mkdtemp(3) and Node create 0700. The old 0o777 was inert while mode was
+                // ignored; honouring mode without fixing it would hand out a world-readable
+                // scratch dir from the one API whose whole point is privacy.
+                const d = mkdtempSync(join(tmpdir(), 'gjsify-mkdtemp-'));
+                try {
+                    expect(mode(d)).toBe(0o700);
+                } finally {
+                    rmSync(d, { recursive: true, force: true });
+                }
+            });
+        });
+    });
+
+    await describe('exclusive create and symlinks', async () => {
+        await on(['Gjs', 'Node.js'], async () => {
+            if (isWin32()) return;
+
+            await it('refuses wx on a DANGLING symlink instead of writing through it', async () => {
+                // A plain EXISTS test follows the link, reports "free", and the open then
+                // creates and writes the link's TARGET — letting whoever planted it choose
+                // where the caller's bytes land. Real O_EXCL refuses any symlink.
+                const dir = scratch('wx-symlink');
+                try {
+                    const link = join(dir, 'lock');
+                    const target = join(dir, 'victim.txt');
+                    symlinkSync(target, link);
+                    let code = '';
+                    try {
+                        closeSync(openSync(link, 'wx'));
+                    } catch (err) {
+                        code = (err as NodeJS.ErrnoException).code ?? '';
+                    }
+                    expect(code).toBe('EEXIST');
+                    expect(existsSync(target)).toBe(false);
                 } finally {
                     rmSync(dir, { recursive: true, force: true });
                 }

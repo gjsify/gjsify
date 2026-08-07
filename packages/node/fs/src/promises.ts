@@ -39,6 +39,7 @@ import {
 } from './fd-ops.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath, normalizePath } from './utils.js';
+import { applyCreationMode, normalizeMode } from './creation-mode.js';
 import type { Dirent } from './dirent.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError } from './errors.js';
@@ -95,19 +96,23 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
 
 async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | null): Promise<string | undefined | void> {
     let recursive: boolean | undefined;
-    let _mode: Mode | undefined = 0o777;
+    // undefined = no mode given, so nothing is applied after creation. Mirrors mkdirSync;
+    // `mode` used to be collected here and then dropped, so the async half of the API silently
+    // ignored what the sync half now honours.
+    let requested: Mode | undefined;
 
     if (typeof options === 'object') {
         if (options.recursive) recursive = options.recursive;
-        if (options.mode) _mode = options.mode;
-    } else {
-        _mode = options;
+        if (options.mode !== undefined && options.mode !== null) requested = options.mode;
+    } else if (options !== undefined && options !== null) {
+        requested = options;
     }
 
     const pathStr = normalizePath(path);
+    const mode = normalizeMode(requested as string | number | undefined);
 
     if (recursive) {
-        return mkdirRecursiveAsync(pathStr);
+        return mkdirRecursiveAsync(pathStr, mode);
     }
 
     const file = Gio.File.new_for_path(pathStr);
@@ -115,6 +120,7 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
         file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
             try {
                 file.make_directory_finish(res);
+                if (mode !== null) applyCreationMode(pathStr, mode);
                 resolve(undefined);
             } catch (err: unknown) {
                 reject(createNodeError(err, 'mkdir', pathStr));
@@ -127,7 +133,7 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
  * Recursively creates directories, similar to `mkdir -p`.
  * Returns the first directory path created, or undefined if all directories already existed.
  */
-async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined> {
+async function mkdirRecursiveAsync(pathStr: string, mode: number | null): Promise<string | undefined> {
     const file = Gio.File.new_for_path(pathStr);
 
     // Try to create the directory directly first
@@ -159,13 +165,14 @@ async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined>
                 // Reached root, cannot go further
                 throw createNodeError(err, 'mkdir', pathStr);
             }
-            const firstCreated = await mkdirRecursiveAsync(parentPath);
+            const firstCreated = await mkdirRecursiveAsync(parentPath, mode);
             // Now create this directory
             const retryFile = Gio.File.new_for_path(pathStr);
             await new Promise<void>((resolve, reject) => {
                 retryFile.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
                     try {
                         retryFile.make_directory_finish(res);
+                        if (mode !== null) applyCreationMode(pathStr, mode);
                         resolve();
                     } catch (retryErr: unknown) {
                         reject(createNodeError(retryErr, 'mkdir', pathStr));
