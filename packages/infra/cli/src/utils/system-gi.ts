@@ -87,7 +87,16 @@
 // bundle's first line runs.
 import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+// POSIX path semantics, not the HOST's. This function answers a question about
+// a darwin filesystem — `platform` is a PARAMETER, so the host running the code
+// may be any of the three. Node's default `join`/`dirname`/`basename` follow the
+// host, so on win32 `join('/usr/local/lib', 'girepository-1.0')` becomes
+// `\usr\local\lib\girepository-1.0` and never matches the darwin path the
+// caller (or the injected `existsDir`) is holding. Measured on the Windows leg:
+// three `systemGiLibraryDirs` specs returned `[]` where they assert a prefix.
+// `PROBED_GI_LIBDIRS` is darwin-only, so POSIX is always the right dialect here.
+import { posix } from 'node:path';
+const { basename, dirname, join } = posix;
 
 /** Injectable host facts — the darwin branch is testable from Linux. */
 export interface SystemGiOptions {

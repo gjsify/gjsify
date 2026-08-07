@@ -99,17 +99,34 @@ export default async () => {
             }
         });
 
-        await it('REFRESHES an existing `pkg` on the POSIX path', async () => {
-            const { cacheDir, prepare, cleanup } = fixture();
-            try {
-                symlinkSwap(cacheDir, prepare('tree-a'), { junctions: false });
-                const second = prepare('tree-b');
-                expect(symlinkSwap(cacheDir, second, { junctions: false })).toBe(second);
-                expect(getValidCachedPkg(cacheDir)).toBe(second);
-            } finally {
-                cleanup();
-            }
-        });
+        await it.failing(
+            'REFRESHES an existing `pkg` on the POSIX path',
+            async () => {
+                const { cacheDir, prepare, cleanup } = fixture();
+                try {
+                    symlinkSwap(cacheDir, prepare('tree-a'), { junctions: false });
+                    const second = prepare('tree-b');
+                    expect(symlinkSwap(cacheDir, second, { junctions: false })).toBe(second);
+                    expect(getValidCachedPkg(cacheDir)).toBe(second);
+                } finally {
+                    cleanup();
+                }
+            },
+            // `junctions: false` FORCES the POSIX strategy, and what this row
+            // asserts is the atomic rename-over-an-existing-symlink that POSIX
+            // guarantees — the very guarantee whose absence on Windows the
+            // junction row below exists to pin. Forced onto win32 the rename
+            // fails, the catch reads it as "race lost", and the OLD target comes
+            // back: measured on the Windows leg as `tree-a` where `tree-b` was
+            // expected.
+            //
+            // Declared rather than skipped and rather than guarded away. The
+            // combination never occurs in production — the CLI picks junctions
+            // on win32, which the next row covers — but the assertion still RUNS
+            // there and will fail the day Windows honours it.
+            'the POSIX rename-over-existing-symlink refresh is not a guarantee win32 makes for a directory entry',
+            { when: process.platform === 'win32' },
+        );
 
         await it('REFRESHES an existing `pkg` on the WINDOWS path (junctions forced)', async () => {
             // The regression pin. With the unlink omitted, the rename-over-existing
