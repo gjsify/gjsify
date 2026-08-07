@@ -70,6 +70,14 @@ That runs meson and stages `libgjsifywebkit.dylib` + `WebKit-6.0.typelib` +
 `WebKit-6.0.gir` into `prebuilds/<os>-<arch>/`, from where ADR 0017's per-target
 split publishes them.
 
+**In CI this needs the `ci:macos` label on the PR.** `prebuilds.yml`'s
+`build-prebuilds-macos` job is opt-in (macOS runners bill at 10×), so without the
+label every darwin leg skips and nothing here is built or uploaded — a PR can go
+green while this package was never compiled. The label only takes effect on a run
+created *after* it was added: neither workflow declares `types:`, so the default
+`[opened, synchronize, reopened]` applies and `labeled` is not among them. Push a
+commit (or reopen the PR) after labelling.
+
 ## Not implemented
 
 Deliberate, and each fails loudly rather than silently:
