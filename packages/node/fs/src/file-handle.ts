@@ -400,7 +400,11 @@ export class FileHandle implements IFileHandle {
         // so an explicit `autoClose: true` was silently discarded and the
         // descriptor was never released. Not re-opening the path and not closing
         // the fd are two different questions; only the first one is settled here.
-        return new WriteStream(this.options.path, { ...options, fd: this.fd });
+        // `fdFromHandle` tells the stream that its descriptor belongs to a
+        // HANDLE, whose close is idempotent in Node — so finishing after the
+        // caller has already closed this handle is silent there, where a raw
+        // `{fd}` stream reports EBADF. See `WriteStreamOptions.fdFromHandle`.
+        return new WriteStream(this.options.path, { ...options, fd: this.fd, fdFromHandle: true });
     }
     /**
      * Forces all currently queued I/O operations associated with the file to the

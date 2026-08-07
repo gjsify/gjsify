@@ -25,6 +25,21 @@ export type WriteStreamOptions = CreateWriteStreamOptions & {
     flags?: OpenFlags | string;
     mode?: Mode;
     fd?: number | null;
+    /**
+     * @internal Set only by {@link FileHandle.createWriteStream}.
+     *
+     * A descriptor that came from a `FileHandle` is closed through the HANDLE
+     * in Node, and a handle's close is IDEMPOTENT — so a stream that finishes
+     * after the caller already closed the handle reports nothing (measured
+     * against v24.15.0: `errs=[]`). A raw `fd` handed to
+     * `createWriteStream(p, {fd})` is a real `close(2)`, and Node DOES surface
+     * its EBADF as an `'error'`. The two look identical from inside this class,
+     * which is why they are told apart here rather than both swallowed — or, as
+     * before this flag existed, both reported: that turned the ordinary
+     * `fh.createWriteStream(); …; await fh.close()` sequence into an
+     * `'error'` nobody listens for.
+     */
+    fdFromHandle?: boolean;
 };
 
 const kIsPerformingIO = Symbol('kIsPerformingIO');
@@ -49,8 +64,14 @@ export class WriteStream extends Writable implements IWriteStream {
             this.fd = null;
             callback(err);
         } else {
+            const fromHandle = this._fdFromHandle;
             close(this.fd, (er?: Error | null) => {
-                callback(er || err);
+                // See `fdFromHandle`: a handle's close is idempotent in Node, a
+                // raw descriptor's is not. Reporting the handle case is what
+                // turns `fh.createWriteStream(); …; await fh.close()` into an
+                // unlistened `'error'`.
+                const reported = fromHandle && (er as NodeJS.ErrnoException | null)?.code === 'EBADF' ? null : er;
+                callback(reported || err);
             });
             this.fd = null;
         }
@@ -89,6 +110,8 @@ export class WriteStream extends Writable implements IWriteStream {
     pos: number | undefined = undefined;
     /** Whether this stream owns the descriptor and must close it. */
     private _autoClose = true;
+    /** Whether the descriptor came from a FileHandle — see `fdFromHandle`. */
+    private _fdFromHandle = false;
     [kIsPerformingIO] = false;
 
     constructor(path: PathLike, opts: WriteStreamOptions = {}) {
@@ -115,6 +138,7 @@ export class WriteStream extends Writable implements IWriteStream {
             // caller's options, made `autoClose: true` unreachable from either
             // entry point.
             this._autoClose = opts.autoClose ?? true;
+            this._fdFromHandle = opts.fdFromHandle === true;
         } else if (opts.autoClose !== undefined) {
             this._autoClose = opts.autoClose;
         }
