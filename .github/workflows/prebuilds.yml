@@ -85,6 +85,8 @@ on:
       - 'packages/node/tls-native/meson.build'
       - 'packages/node/terminal-native/src/vala/**'
       - 'packages/node/terminal-native/meson.build'
+      - 'packages/framework/webkit-native/src/objc/**'
+      - 'packages/framework/webkit-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -139,6 +141,8 @@ on:
       - 'packages/node/tls-native/meson.build'
       - 'packages/node/terminal-native/src/vala/**'
       - 'packages/node/terminal-native/meson.build'
+      - 'packages/framework/webkit-native/src/objc/**'
+      - 'packages/framework/webkit-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -1212,6 +1216,27 @@ jobs:
         # records under `@rpath/` are picked up together. Omitting the second was the
         # #832 failure — a missing FILE that reads exactly like a broken rpath — and a
         # hand-written `cp` list is precisely where it went missing.
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      # -------- @gjsify/webkit-native (WebKit-6.0, darwin only) --------
+      # The one bridge with NO Linux counterpart: it binds Apple's
+      # WebKit.framework, which is why it appears here and in no other job. Its
+      # typelib deliberately claims the `WebKit-6.0` namespace so `@gjsify/iframe`
+      # keeps `gi://WebKit?version=6.0` verbatim on both platforms (ADR 0022).
+      #
+      # No `refs/` submodule and no Rust: the source is one Objective-C file and
+      # a pure-C header, and the toolchain is clang + meson + gobject-introspection,
+      # all of which this runner already has for the rows above.
+      - name: Build @gjsify/webkit-native (Objective-C → GObject shim)
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        working-directory: packages/framework/webkit-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/webkit-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        working-directory: packages/framework/webkit-native
         run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # -------- @gjsify/terminal-native (GjsifyTerminal) --------

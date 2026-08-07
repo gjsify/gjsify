@@ -1,0 +1,52 @@
+{
+    "name": "@gjsify/webkit-native",
+    "version": "0.30.0",
+    "description": "Apple WebKit (WKWebView) behind a GObject API shaped like WebKitGTK 6.0 — the darwin backend for @gjsify/iframe (ADR 0022). Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
+    "type": "module",
+    "files": [
+        "prebuilds"
+    ],
+    "gjsify": {
+        "platforms": [
+            "darwin-x64"
+        ],
+        "prebuilds": "prebuilds",
+        "os": {
+            "linux": "none",
+            "darwin": "supported",
+            "win32": "none"
+        },
+        "osNotes": {
+            "linux": "Binds Apple's WebKit.framework, which exists only on macOS. Linux has the real thing: @gjsify/iframe imports gi://WebKit 6.0 there and never reaches this package.",
+            "win32": "Binds Apple's WebKit.framework, which exists only on macOS. Windows has no GJS host either (see @gjsify/os win32 notes)."
+        },
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "gjsify clear build _install",
+        "check": "echo 'no TypeScript in this package'",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build": "echo 'native only — see build:prebuilds'",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
+        "test": "echo 'covered by @gjsify/iframe on darwin'"
+    },
+    "keywords": [
+        "gjs",
+        "webkit",
+        "wkwebview",
+        "darwin",
+        "macos"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/webkit-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/webkit-native#readme"
+}
