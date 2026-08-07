@@ -461,8 +461,25 @@ export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
                 // but not libsoup/GStreamer/libgda, and failing there would
                 // make the guard report the runner's package list rather than
                 // anything about the artifact.
+                //
+                // Match on the UNRESOLVED object only. dyld names BOTH the
+                // library it opened and the one it could not find:
+                //
+                //   dlopen(…/prebuilds/darwin-arm64/libgjsifyhttpsoupbridge.dylib, 0x0006):
+                //     Library not loaded: /opt/homebrew/opt/libsoup/lib/libsoup-3.0.0.dylib
+                //
+                // so a raw substring test finds the probed leaf in its own error
+                // and blames the artifact for existing. glibc names only the
+                // missing library, which is why Linux never saw this and why
+                // the first macOS run of this audit reported all three darwin
+                // prebuilds as staging defects — for Homebrew libraries none of
+                // them stages and the runner does not install. Dropping the
+                // probed path first leaves exactly the dependency, so a real
+                // sibling-resolution defect (an unresolved `libgjsify*` that IS
+                // staged beside it) still fails as before.
                 const ownLeaves = new Set([...present].filter((f) => f.endsWith(ext)));
-                const blamesOwn = [...ownLeaves].some((f) => probe.detail?.includes(f));
+                const unresolved = (probe.detail ?? '').split(join(dir, leaf)).join('');
+                const blamesOwn = [...ownLeaves].some((f) => unresolved.includes(f));
                 if (blamesOwn) {
                     failures.push(
                         `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${leaf}\` fails to load on this host with no library-path variable set — ${probe.detail}. The unresolved object is one this package stages itself, so the prebuild cannot resolve its own siblings from its own directory (\`$ORIGIN\`/\`@loader_path\`).`,

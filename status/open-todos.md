@@ -4,6 +4,67 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `foreach build` can read a workspace package's `lib/` while another job is writing it
+
+The parallel sweep rebuilds packages that the RUNNING CLI imports at runtime, so
+a package's build can import a half-written `lib/esm`. Measured on the macOS
+leg (run 31130155911, darwin-arm64), on the first full build that leg had ever
+reached:
+
+    [gjsify foreach] start @gjsify/native-platform (49/160 done, 3 in flight)
+    [gjsify foreach] start @gjsify/npm-registry    (50/160 done, 3 in flight)
+    [@gjsify/native-platform] ERR_MODULE_NOT_FOUND
+      .../npm-registry/lib/esm/_virtual/_rolldown/runtime.js
+      imported from .../npm-registry/lib/esm/auth.js
+
+`auth.js` was already on disk and its rolldown chunk was not — a creation
+window, not a corrupt build.
+
+**Narrowed, not closed.** `build:infra` used to build `@gjsify/{semver,
+npm-registry,tar,workspace}` with `build:types`, which writes `lib/types` and
+NOT the `lib/esm` that their `exports["."].default` names — so the CLI's own
+four runtime dependencies were still absent when the sweep began creating them.
+They now get a full `build`, verified on a cold tree: all four have
+`lib/esm/index.js` AND `lib/esm/_virtual/` before the sweep starts. That is the
+same protection Linux CI gets for free from its restored `lib/` cache, which is
+why a Linux pipeline never saw this — a cold Linux worktree at the same commit
+built all 160 packages green, so the race is real but timing-dependent and
+macOS simply lost it.
+
+What is NOT fixed: a concurrent REWRITE of an existing `lib/` is still a window,
+it is just a much smaller one (every file already exists). The structural fix is
+for `foreach build` to build the CLI's own dependency closure serially before
+starting the parallel sweep, rather than relying on `build:infra` having done
+it. Do that where the scheduler lives, not in a root script.
+
+### The macOS/Windows cold-tree bootstrap still needs a two-variable bridge in the workflow
+
+`macos-suites.yml` and `windows-suites.yml` bootstrap from the PUBLISHED CLI,
+because ADR 0002 untracked both bundles and a cold tree therefore has no CLI of
+its own. After `install --immutable` the tree DOES have
+`node_modules/.bin/gjsify`, and it dispatches to build outputs that
+`build:infra` is what produces — so the first nested `gjsify` inside that
+compound script dies with `Cannot find module …/packages/infra/cli/lib/index.js`.
+
+Fixed at the core for the NEXT release: `ensureGjsifyShimOnPath()` now also
+covers a bootstrap CLI under Node (not only the node-free GJS case), and
+`detectPackageManager()` returns `gjsify` for it — the second half matters
+because npm re-prepends `node_modules/.bin` for every lifecycle script it
+starts, which puts the dead shim back one level down and undoes the first half.
+Measured on a cold Linux worktree with the build cache cleared: `build:infra`
+exits 0 with the fixed CLI and fails on its first clause without it.
+
+Until that CLI is `latest` on npm the two legs set `GJSIFY_SHIM_DIR` and
+`npm_config_user_agent=gjsify/bootstrap`, the two levers the published 0.30.0
+already honours (`lib/commands/run.js` unshifts the first; `lib/commands/
+workspace.js` reads the second). **RETIREMENT TRIGGER: delete both `env:` blocks
+once `npm view @gjsify/cli version` is >0.30.0** — they are inert from that
+point, not merely redundant, and leaving them hides whether the core fix works.
+
+Linux never needed either lever: its bootstrap runs the published GJS bundle,
+where `detectPackageManager()` already returns `gjsify`. That is also why a
+Linux-only pipeline could not see this — the same shape ADR 0018 § 5 predicts.
+
 ### A Node-less host cannot bootstrap a fresh CLONE — four `node scripts/*.mjs` calls remain
 
 Measured on a postmarketOS/aarch64 phone (musl, gjs 1.88.1, no node/npm/git) and
@@ -154,36 +215,6 @@ launcher defer to the CLI rather than re-derive; that is a launcher-shape change
 and belongs in its own PR, ideally the one that lifts `system-gi` to a shared
 package (above).
 
-### `@gjsify/child_process` on Windows — 86 of 145 specs fail once the module can load at all
-
-The specs took `TMP_DIR` from a literal `/tmp` and `realpathSync`'d it at MODULE
-EVALUATION. On `win32-x64` that resolves against the current drive to `C:\tmp`,
-which does not exist, so the module threw before defining a single test.
-
-Measured on the win11-gjsify VM (Node 24.18.1), with no `C:\tmp` present:
-
-| | before | after `tmpdir()` |
-|---|---|---|
-| output | 23 lines, `ENOENT: lstat 'C:\tmp'` | full run |
-| tests run | **0** | **145** |
-| failures | — (module never loaded) | 86 |
-
-The 86 are pre-existing POSIX assumptions in the SPECS, not regressions and not
-impl gaps — which is structural, not a judgement call: `@gjsify/child_process`
-declares `runtimes.node: "none"`, so `test:node` never aliases
-`node:child_process` to our polyfill and those specs run against NATIVE Node. Per
-the testing rules a failure there means the TEST is wrong. What they encode:
-shell built-ins assumed to exist (`echo`/`pwd`/`cat` under `cmd.exe`), POSIX
-absolute paths, exit-code and signal semantics, and `/bin/sh`-shaped `shell:`
-options. Node's own behaviour on Windows is the oracle for each.
-
-The GJS run is the one that measures our impl, and it cannot run on Windows at
-all (no `gjs` there) — so this package's Windows impl story is still unmeasured;
-only its specs have been.
-
-**Note for anyone re-measuring:** a hand-created `C:\tmp` makes the module-load
-failure vanish without fixing anything (one existed on the test VM for several
-hours and hid exactly this). It has been removed there. Do not re-create it.
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 
 **Cross-reference (added 2026-08-06): #925 files the same `test/arrays.test.mjs` occurrences as a TEST FLAKE, while this entry files them as an N-API teardown crash class (`free(): invalid pointer`, a glibc abort). Same file, two theories. Whichever is right, the next occurrence should be read from the RAW job log for a `----- Native stack trace -----` block, which is what tells the two apart.**

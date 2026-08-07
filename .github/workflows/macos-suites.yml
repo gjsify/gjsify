@@ -180,19 +180,53 @@ jobs:
       # dispatches to build outputs that do not exist yet. The published CLI is
       # the only CLI this tree has — the same bootstrap a user performs.
       #
-      # INSTALL BEFORE BUILD, and that order is the whole point of these two
-      # steps being separate. `build:infra` compiles `@gjsify/vite-plugin-blueprint`
-      # first, whose `gjsify tsc` needs `@types/node` — a dependency, not a build
-      # output. Building first on a tree with no `node_modules` therefore dies
-      # with `TS2688: Cannot find type definition file for 'node'`, which is what
-      # this leg did on BOTH architectures on its first real run. It is also the
-      # order `.github/actions/gjsify-setup` has always used (`install --immutable`,
-      # then build) and the one ADR 0002 documents.
-      - name: Install the workspace with the published CLI
-        run: npx --yes @gjsify/cli@latest install --immutable
+      # THE ORDER IS LOAD-BEARING, and it was inverted until 2026-08-07. This
+      # workflow landed (#1022) during the GitHub Actions degradation with NO
+      # checks reported on its PR, so the leg had never once been green:
+      # `build:infra` ran BEFORE the install, on a tree with no `node_modules`,
+      # where `@gjsify/vite-plugin-blueprint` (`"types": ["node"]`) cannot
+      # typecheck — every run died on `TS2688: Cannot find type definition file
+      # for 'node'`, on both arches, ~30 s in. Nothing about that was darwin-
+      # specific; it reproduces in a cold worktree on Linux.
+      #
+      # Install first, and drive BOTH steps from the PUBLISHED CLI. After the
+      # install the workspace `.bin/gjsify` exists and still points at nothing,
+      # so it stays unusable until `build:infra` has run; what keeps the nested
+      # `gjsify` calls INSIDE `build:infra` on the published CLI rather than on
+      # that dead shim is `ensureGjsifyShimOnPath()`, which now covers a
+      # bootstrap CLI under Node and not only the node-free GJS case.
+      # Fetched to RUNNER_TEMP, not into the work tree: nothing this drags in
+      # can then be mistaken for repo state by a later step.
+      - name: Fetch the published CLI (a cold tree has no other)
+        run: npm install --no-save --prefix "$RUNNER_TEMP/bootstrap-cli" @gjsify/cli@latest
 
-      - name: Bootstrap this repo's own toolchain
-        run: npx --yes @gjsify/cli@latest run build:infra
+      - name: Install the workspace
+        run: node "$RUNNER_TEMP/bootstrap-cli/node_modules/@gjsify/cli/lib/index.js" install --immutable
+
+      - name: Bootstrap the toolchain
+        env:
+          # THE BOOTSTRAP BRIDGE — both variables retire together the moment a
+          # CLI carrying `usingSelfShim()` (>0.30.0) is `latest` on npm; the CLI
+          # then does this for itself and this `env:` block is deletable.
+          #
+          # `build:infra` is a compound script whose every clause is a nested
+          # `gjsify`, resolved from PATH — where the install above has just put
+          # the tree's OWN `node_modules/.bin/gjsify`, which dispatches to the
+          # build outputs this step is what produces. Two levers the published
+          # CLI already honours make it reach a CLI that exists instead:
+          #   GJSIFY_SHIM_DIR       is unshifted ahead of `node_modules/.bin`
+          #                         when the CLI runs a script;
+          #   npm_config_user_agent `gjsify/` makes it run package scripts
+          #                         ITSELF rather than delegating to npm, which
+          #                         re-prepends `node_modules/.bin` for every
+          #                         lifecycle script and would undo the first
+          #                         lever one level down.
+          # Both measured against the published 0.30.0 on a cold Linux tree with
+          # the build cache cleared: without them `build:infra` dies on its first
+          # clause with `Cannot find module …/packages/infra/cli/lib/index.js`.
+          GJSIFY_SHIM_DIR: ${{ runner.temp }}/bootstrap-cli/node_modules/.bin
+          npm_config_user_agent: gjsify/bootstrap
+        run: node "$RUNNER_TEMP/bootstrap-cli/node_modules/@gjsify/cli/lib/index.js" run build:infra
 
       # `test:node` and `test:gjs` both only RUN a bundle; the bundle has to
       # exist first, and a package's own build needs its workspace dependencies
@@ -254,7 +288,7 @@ jobs:
         run: node packages/infra/cli/lib/index.js workspace @gjsify/worker_threads run test
 
       - name: '@gjsify/node-globals'
-        run: node packages/infra/cli/lib/index.js workspace @gjsify/node run test
+        run: node packages/infra/cli/lib/index.js workspace @gjsify/node-globals run test
 
       # The package ADR 0018 singles out: it writes `PATH` /
       # `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` per host, owns

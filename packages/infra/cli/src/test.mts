@@ -31,6 +31,7 @@ import giSearchPathSuite from './utils/gi-search-path.spec.js';
 import systemGiSuite from './utils/system-gi.spec.js';
 import platformCheckSuite from './utils/platform-check.spec.js';
 import binShimSuite from './utils/bin-shim.spec.js';
+import gjsifyShimSuite from './utils/gjsify-shim.spec.js';
 import binShimRuntimeOrderSuite from './bin-shim-runtime-order.spec.js';
 import nodeVersionSuite from './utils/node-version.spec.js';
 import authNpmrcSuite from './utils/auth-npmrc.spec.js';
@@ -202,6 +203,7 @@ run(
         systemGiSuite,
         platformCheckSuite,
         binShimSuite,
+        gjsifyShimSuite,
         binShimRuntimeOrderSuite,
         nodeVersionSuite,
         inlineStaticReadsSuite,

@@ -4,12 +4,34 @@
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { promises, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { promises, writeFileSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+// `realpathSync.native`, and BOTH halves of that are load-bearing on Windows.
+//
+// GitHub's Windows runners hand back an 8.3 SHORT path from `tmpdir()`
+// (`C:\Users\RUNNER~1\AppData\Local\Temp`). libuv watches the directory it
+// was given, then for each notification builds `dir + "\" + name`, expands it
+// with `GetLongPathNameW`, and asserts the expansion still starts with `dir`
+// (`uv__relative_path`, `refs/node/deps/uv/src/win/fs-event.c:72`). A short
+// component makes the expansion diverge, so the assert fails:
+//
+//   Assertion failed: !_wcsnicmp(filename, dir, dirlen),
+//   file src\win\fs-event.c, line 72          -> exit code 3221226505
+//
+// That is a hard ABORT, not a failing assertion: it took all 589 specs with it,
+// which is also why `it.failing` could not have covered it — nothing survives
+// to report a tolerated failure.
+//
+// Plain `realpathSync` is NOT enough and this was measured: it resolves
+// symlinks but does not canonicalise 8.3 names, so the first attempt aborted
+// identically. `.native` goes through `GetFinalPathNameByHandle` and returns
+// the long form `GetLongPathNameW` will agree with. Our GJS implementation
+// aliases `.native` to `realpathSync`, so the spec stays runtime-neutral, and
+// the call also resolves `/tmp` -> `/private/tmp` on macOS.
 function makeTmp(): string {
-    return mkdtempSync(join(tmpdir(), 'gjsify-watch-'));
+    return realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-watch-')));
 }
 
 /**

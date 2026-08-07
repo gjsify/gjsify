@@ -278,8 +278,8 @@ export default async () => {
             // older than that move; the move is what made it visible.
             const known = [
                 'x86_64',
-                'aarch64',
                 'arm64',
+                'aarch64',
                 'arm',
                 'armv7l',
                 'i686',
@@ -292,7 +292,10 @@ export default async () => {
                 'riscv64',
                 'loongarch64',
             ];
-            expect(known.includes(os.machine())).toBeTruthy();
+            // `toContain`, not `includes(…)).toBeTruthy()`: the boolean form
+            // reports "Expected value to be truthy" and drops the machine
+            // string, which is the one thing a reader needs to extend the list.
+            expect(known).toContain(os.machine());
         });
     });
 
