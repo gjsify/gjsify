@@ -34,6 +34,12 @@
 // marker is exactly the shape that triggered this (`\0${index}\0`), so `\0` would
 // trade one unloadable bundle for another.
 
+// Built with `String.fromCharCode(0)` rather than written as a U+0000 escape, for the
+// reason this module documents above: the minifier may inline a string constant as the
+// CHARACTER, and a raw NUL in the CLI's own gjs bundle is precisely the failure this
+// code exists to prevent. The spec file states the same rule, for the same reason.
+const NUL = String.fromCharCode(0);
+
 /**
  * Replace every raw U+0000 in `code` with the `\x00` escape.
  *
@@ -41,10 +47,14 @@
  * writing the file (and reporting) in the overwhelmingly common zero case.
  */
 export function escapeRawNulForGjs(code: string): { code: string; replaced: number } {
-    let replaced = 0;
-    const out = code.replace(/\u0000/g, () => {
-        replaced++;
-        return '\\x00';
-    });
-    return { code: out, replaced };
+    // A plain split rather than a `code.replace()` over a U+0000 regex literal: a regex
+    // holding a control character is what `no-control-regex` exists to catch, and
+    // suppressing that rule in the ONE file whose subject IS raw NULs would switch the
+    // check off exactly where it is most likely to be right about something else later.
+    //
+    // `split` always yields one more piece than separators, so `parts.length - 1` IS the
+    // count — and the zero case returns the original string with nothing rebuilt.
+    const parts = code.split(NUL);
+    const replaced = parts.length - 1;
+    return { code: replaced === 0 ? code : parts.join('\\x00'), replaced };
 }
