@@ -7,7 +7,15 @@ import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
 import { chmodSync, chownSync } from './sync.js';
-import { resolveIOMode, openIOChannel, mapOpenError, shouldCreate, type IOMode } from './file-handle-open.js';
+import { applyCreationMode, FILE_BASE_MODE } from './creation-mode.js';
+import {
+    resolveIOMode,
+    openIOChannel,
+    mapOpenError,
+    shouldCreate,
+    isExclusive,
+    type IOMode,
+} from './file-handle-open.js';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { createInterface } from 'node:readline';
@@ -51,6 +59,12 @@ export class FileHandle implements IFileHandle {
     private readonly _ioMode: IOMode;
     /** Current byte offset for `position: null` sync reads — Node advances the fd position. */
     private _readPos = 0;
+    /**
+     * Current byte offset for `position: null` sync writes — the write-side mirror of
+     * `_readPos`. Without it every `writeSync(fd, chunk)` restarts at offset 0, so a
+     * streaming writer overwrites its own output and only the LAST chunk survives.
+     */
+    private _writePos = 0;
     // Serialize async I/O on the shared FileIOStream. Concurrent write_bytes_async
     // calls hit Gio.IOErrorEnum.PENDING ("Datenstrom hat noch einen ausstehenden
     // Vorgang"); overlapping seek()s on the shared cursor also corrupt positions.
@@ -74,10 +88,33 @@ export class FileHandle implements IFileHandle {
         const pathStr = normalizePath(options.path);
         const creat = shouldCreate(options.flags);
         const ioMode = resolveIOMode(options.flags);
+        // Whether this open CREATES the file decides whether `mode` applies at all — open(2)
+        // ignores it for an existing file. Sampled before the open, because afterwards
+        // everything exists.
+        const existedBefore = GLib.file_test(pathStr, GLib.FileTest.EXISTS);
+        // Exclusive create ('wx', 'ax', O_EXCL) must FAIL on an existing file. fopen(3) has no
+        // such mode, so resolveIOMode maps it to plain 'w'/'a' and IOChannel would happily
+        // truncate — defeating the whole point of the flag, which is to claim a name without
+        // racing. Not atomic like O_EXCL, but the alternative is no check at all.
+        if (isExclusive(options.flags) && existedBefore) {
+            const err = new Error(`EEXIST: file already exists, open '${pathStr}'`) as NodeJS.ErrnoException;
+            err.code = 'EEXIST';
+            err.errno = -17;
+            err.syscall = 'open';
+            err.path = pathStr;
+            throw err;
+        }
         try {
             this._file = openIOChannel(pathStr, ioMode, creat);
         } catch (err: unknown) {
             throw mapOpenError(err, pathStr);
+        }
+        // GLib.IOChannel.new_file() takes no mode, so `mode` was parsed above and then dropped:
+        // a caller asking for 0o600 got the process default 0644 — world-readable, with no sign
+        // the request had been ignored. Apply it now, and only when this open actually created
+        // the file, since open(2) ignores `mode` for one that already existed.
+        if (creat && !existedBefore) {
+            applyCreationMode(pathStr, this.options.mode as number, FILE_BASE_MODE);
         }
         // Binary mode: prevent GLib from doing any character set conversion.
         this._file.set_encoding(null as unknown as string);
@@ -813,10 +850,25 @@ export class FileHandle implements IFileHandle {
     /** @internal */ _writeSync(data: Uint8Array, position: number | null): number {
         const stream = this._gFile.open_readwrite(null);
         try {
-            if (position !== null && position >= 0) {
-                (stream as unknown as Gio.Seekable).seek(position, GLib.SeekType.SET, null);
+            // Node semantics, mirroring _readSync: an explicit `position` writes there and
+            // leaves the fd's position unchanged; `position === null` writes at the CURRENT
+            // position and ADVANCES it. Each call opens a fresh stream (at 0), so seek to the
+            // effective start — without this a `writeSync(fd, chunk)` loop rewrites offset 0
+            // every time and the file ends up holding only the final chunk.
+            const usePos = position !== null && position >= 0;
+            const seekable = stream as unknown as Gio.Seekable;
+            let start = usePos ? position : this._writePos;
+            if (this._ioMode === 'a' || this._ioMode === 'a+') {
+                // Append mode ignores the tracked cursor: every write goes to the end, which is
+                // the guarantee 'a' exists to make.
+                seekable.seek(0, GLib.SeekType.END, null);
+                start = seekable.tell();
+            } else if (start > 0) {
+                seekable.seek(start, GLib.SeekType.SET, null);
             }
-            return stream.get_output_stream().write_bytes(GLib.Bytes.new(data), null);
+            const written = stream.get_output_stream().write_bytes(GLib.Bytes.new(data), null);
+            if (!usePos) this._writePos = start + written;
+            return written;
         } finally {
             stream.close(null);
         }

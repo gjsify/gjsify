@@ -18,6 +18,7 @@ import type { OpenFlags } from './types/index.js';
 const O_WRONLY = 1;
 const O_RDWR = 2;
 const O_CREAT = 64;
+const O_EXCL = 128;
 const O_TRUNC = 512;
 const O_APPEND = 1024;
 
@@ -74,6 +75,20 @@ export function shouldCreate(flags: OpenFlags | number | undefined): boolean {
         flags === 'as' ||
         flags === 'as+'
     );
+}
+
+/**
+ * Whether the flags demand EXCLUSIVE creation — `O_EXCL`, or the `x` string aliases.
+ *
+ * fopen(3) has no exclusive mode, so `resolveIOMode` necessarily maps `wx` → `w` and `ax` → `a`,
+ * which TRUNCATES an existing file instead of failing. That silently defeats the one guarantee
+ * these flags exist to provide: they are how a lock file or a `.part` temp file claims a name
+ * without racing another process. Callers must check this and refuse an existing path.
+ */
+export function isExclusive(flags: OpenFlags | number | undefined): boolean {
+    if (typeof flags === 'number') return (flags & O_EXCL) !== 0;
+    if (typeof flags !== 'string') return false;
+    return flags === 'wx' || flags === 'wx+' || flags === 'ax' || flags === 'ax+';
 }
 
 /**

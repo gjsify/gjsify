@@ -205,6 +205,86 @@ export default async () => {
             }
         });
 
+        await it('writeSync with position null ADVANCES the file position', async () => {
+            // The write-side mirror of readSync's `_readPos`. Without it every call restarts at
+            // offset 0, so a streaming writer overwrites its own output and only the LAST chunk
+            // survives — an attachment downloaded in chunks came out as its final chunk alone.
+            // The pre-existing writeSync test always passed an explicit position, which is why
+            // this went unnoticed.
+            const f = join(TMP, `gjsify-wsync-seq-${process.pid}`);
+            const fd = openSync(f, 'w');
+            try {
+                expect(writeSync(fd, Buffer.from('hello '))).toBe(6);
+                expect(writeSync(fd, Buffer.from('world'))).toBe(5);
+                expect(writeSync(fd, Buffer.from('!'))).toBe(1);
+                closeSync(fd);
+                expect(readFileSync(f, 'utf8')).toBe('hello world!');
+            } finally {
+                unlinkSync(f);
+            }
+        });
+
+        await it('writeSync with an explicit position leaves the cursor alone', async () => {
+            // Node's other half of the contract: a positional write must not disturb the
+            // sequential cursor, so the two styles can be interleaved.
+            const f = join(TMP, `gjsify-wsync-pos-${process.pid}`);
+            const fd = openSync(f, 'w');
+            try {
+                writeSync(fd, Buffer.from('aaaa')); // cursor → 4
+                writeSync(fd, Buffer.from('Z'), 0, 1, 0); // at 0, cursor stays 4
+                writeSync(fd, Buffer.from('bb')); // resumes at 4
+                closeSync(fd);
+                expect(readFileSync(f, 'utf8')).toBe('Zaaabb');
+            } finally {
+                unlinkSync(f);
+            }
+        });
+
+        await it('writeSync in append mode always writes at the end', async () => {
+            const f = tmpFile('wsync-append', 'start:');
+            const fd = openSync(f, 'a');
+            try {
+                writeSync(fd, Buffer.from('one'));
+                writeSync(fd, Buffer.from('two'));
+                closeSync(fd);
+                expect(readFileSync(f, 'utf8')).toBe('start:onetwo');
+            } finally {
+                unlinkSync(f);
+            }
+        });
+
+        await it('openSync with wx throws EEXIST on an existing file', async () => {
+            // fopen(3) has no exclusive mode, so 'wx' mapped to plain 'w' and TRUNCATED the
+            // file instead of failing — defeating the one guarantee the flag exists to give.
+            // It is how a lock file or a `.part` temp file claims a name without racing.
+            const f = tmpFile('wx-exists', 'precious');
+            try {
+                let code = '';
+                try {
+                    closeSync(openSync(f, 'wx'));
+                } catch (err) {
+                    code = (err as NodeJS.ErrnoException).code ?? '';
+                }
+                expect(code).toBe('EEXIST');
+                // And the existing content must be intact — the failure mode was silent loss.
+                expect(readFileSync(f, 'utf8')).toBe('precious');
+            } finally {
+                unlinkSync(f);
+            }
+        });
+
+        await it('openSync with wx succeeds when the file is absent', async () => {
+            const f = join(TMP, `gjsify-wx-new-${process.pid}`);
+            const fd = openSync(f, 'wx');
+            try {
+                writeSync(fd, Buffer.from('fresh'));
+                closeSync(fd);
+                expect(readFileSync(f, 'utf8')).toBe('fresh');
+            } finally {
+                unlinkSync(f);
+            }
+        });
+
         await it('readv reads into multiple buffers', async () => {
             const f = tmpFile('readv', 'abcdef');
             const fd = openSync(f, 'r');
