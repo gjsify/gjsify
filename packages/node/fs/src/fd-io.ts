@@ -329,8 +329,15 @@ function ancestorIsNotADirectory(file: Gio.File): boolean {
  *
  * So every read of an attribute in this module is gated on this, and a
  * `false` means "no answer" — never "no".
+ *
+ * Exported because the stat family needs the identical gate and used to lack
+ * it: `statSync` under an unsearchable directory built a `Stats` from the empty
+ * shell, which is BOTH of the failures above at once — four CRITICALs (hence a
+ * SIGABRT under `G_DEBUG=fatal-criticals`) and then a fabricated `{mode: 0,
+ * size: 0, ino: 0}` returned as fact where Node raises EACCES. See
+ * `statsFrom()` in `stats.ts`, which is the one place that decision now lives.
  */
-function answered(info: Gio.FileInfo | null): boolean {
+export function answered(info: Gio.FileInfo | null): boolean {
     return info !== null && info.has_attribute('standard::type');
 }
 

@@ -3,7 +3,7 @@
 
 import { ReadStream } from './read-stream.js';
 import { WriteStream } from './write-stream.js';
-import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
 import { chmodSync, chownSync } from './sync.js';
@@ -632,7 +632,7 @@ export class FileHandle implements IFileHandle {
                 },
             );
         });
-        return opts?.bigint ? new BigIntStats(info, this._pathStr) : new Stats(info, this._pathStr);
+        return statsFrom(info, this._pathStr, 'fstat', opts?.bigint);
     }
     /**
      * Truncates the file.

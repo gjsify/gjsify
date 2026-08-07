@@ -43,7 +43,7 @@ import {
 import { FileHandle } from './file-handle.js';
 import { normalizePath } from './utils.js';
 import type { Dirent } from './dirent.js';
-import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { createNodeError } from './errors.js';
 
 import type { OpenFlags, ReadOptions } from './types/index.js';
@@ -396,7 +396,7 @@ function queryInfoAsync(
             (_s: unknown, res: Gio.AsyncResult) => {
                 try {
                     const info = file.query_info_finish(res);
-                    resolve(options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr));
+                    resolve(statsFrom(info, pathStr, syscall, options?.bigint));
                 } catch (err: unknown) {
                     reject(createNodeError(err, syscall, pathStr));
                 }

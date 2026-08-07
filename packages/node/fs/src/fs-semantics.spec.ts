@@ -62,6 +62,7 @@ import {
     read as fsRead,
     write as fsWrite,
     close as fsClose,
+    stat as fsStat,
     readFile as fsReadFile,
     chmod as fsChmod,
     accessSync,
@@ -1966,6 +1967,58 @@ export default async () => {
             },
             !CAN_SYMLINK ? NO_SYMLINK_REASON : NO_DENY_SEARCH_REASON,
             { when: !CAN_SYMLINK || !CAN_DENY_SEARCH },
+        );
+
+        await it.failing(
+            'K-17 stat does not invent a Stats for a name it may not look at',
+            async () => {
+                // The same empty `GFileInfo` K-1 is about, reached by the other
+                // family. `g_file_query_info()` SUCCEEDS on a name under an
+                // unsearchable directory, and every stat entry point built a
+                // `Stats` straight out of the shell it got back. Two failures in
+                // one call: reading the type and the size logs four
+                // `GLib-GIO-CRITICAL` lines — so this rule, like K-1, is also
+                // asserted by the RUN completing under `G_DEBUG=fatal-criticals`
+                // — and what comes back is a fabricated `{mode: 0, size: 0,
+                // ino: 0}` presented as fact. A caller testing
+                // `statSync(p).mode & 0o200` before writing is told the file is
+                // read-only rather than that it may not look, and one reading
+                // `.size` is told an unreadable file is empty. Node raises
+                // EACCES from all four spellings (measured against v24.15.0).
+                //
+                // The open side grew the `answered()` gate in this same
+                // redesign; the stat side asks the identical question and did
+                // not, which is exactly the divergence a shared helper exists to
+                // stop — `statsFrom()` is now the one place that decides it.
+                const dir = scratch('r17');
+                try {
+                    const blind = join(dir, 'blind');
+                    mkdirSync(blind);
+                    writeFileSync(join(blind, 'inner'), 'DATA');
+                    chmodSync(blind, 0o000);
+                    const hidden = join(blind, 'inner');
+                    try {
+                        expectCode(() => statSync(hidden), 'EACCES');
+                        expectCode(() => lstatSync(hidden), 'EACCES');
+                        await expectRejectedCode(() => fsPromises.stat(hidden), 'EACCES');
+                        await expectRejectedCode(() => fsPromises.lstat(hidden), 'EACCES');
+                        const viaCallback = await new Promise<string | undefined>((resolve) => {
+                            fsStat(hidden, (err: NodeJS.ErrnoException | null) => resolve(err?.code));
+                        });
+                        expect(viaCallback).toBe('EACCES');
+                        // `throwIfNoEntry: false` narrows ENOENT and nothing
+                        // else — a permission denial must still be raised, or
+                        // the option turns "you may not look" into "not there".
+                        expectCode(() => statSync(hidden, { throwIfNoEntry: false }), 'EACCES');
+                    } finally {
+                        chmodSync(blind, 0o700);
+                    }
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_DENY_SEARCH_REASON,
+            { when: !CAN_DENY_SEARCH },
         );
     });
 

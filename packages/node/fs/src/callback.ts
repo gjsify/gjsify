@@ -17,7 +17,7 @@ import type {
 } from 'node:fs';
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'node:buffer';
-import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { createNodeError } from './errors.js';
 import {
     realpathSync,
@@ -94,7 +94,7 @@ function statImpl(
     file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
         try {
             const info = file.query_info_finish(res);
-            callback(null, options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr));
+            callback(null, statsFrom(info, pathStr, syscall, options?.bigint as boolean | undefined));
         } catch (err: unknown) {
             callback(createNodeError(err, syscall, pathStr));
         }

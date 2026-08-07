@@ -11,7 +11,7 @@ import FSWatcher from './fs-watcher.js';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
 import { FileHandle } from './file-handle.js';
 import { Dirent } from './dirent.js';
-import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { createNodeError, isNotFoundError } from './errors.js';
 import { normalizePath, randomName } from './utils.js';
 import { isStdFd, readStdFdAll, writeStdFdSync } from './std-fd.js';
@@ -38,7 +38,7 @@ export function statSync(path: PathLike, options?: StatSyncOptions): Stats | Big
     try {
         const file = Gio.File.new_for_path(pathStr);
         const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NONE, null);
-        return options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr);
+        return statsFrom(info, pathStr, 'stat', options?.bigint);
     } catch (err: unknown) {
         if (options?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
         throw createNodeError(err, 'stat', pathStr);
@@ -50,7 +50,7 @@ export function lstatSync(path: PathLike, options?: StatSyncOptions): Stats | Bi
     try {
         const file = Gio.File.new_for_path(pathStr);
         const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
-        return options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr);
+        return statsFrom(info, pathStr, 'lstat', options?.bigint);
     } catch (err: unknown) {
         if (options?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
         throw createNodeError(err, 'lstat', pathStr);
