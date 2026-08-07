@@ -14,6 +14,11 @@ if host_machine.system() != 'darwin'
           'On Linux, @gjsify/iframe uses gi://WebKit 6.0 directly.')
 endif
 
+# CI reaches this file only through prebuilds.yml's `build-prebuilds-macos` job,
+# which is opt-in behind the `ci:macos` PR label (macOS runners bill at 10x).
+# Unlabelled, every darwin leg skips and this package is never compiled — see
+# README.md § Building for why that can hide behind a green PR.
+
 gnome = import('gnome')
 fs = import('fs')
 
