@@ -366,7 +366,7 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(
     data: string | TBuffer,
     ...args: (number | string | BufferEncoding | WriteStrCallback | WriteBufCallback | undefined | null)[]
 ): void {
-    const fileHandle = FileHandle.getInstance(fd);
+    const fileHandle = FileHandle.getInstance(fd, 'write');
 
     if (typeof data === 'string') {
         const callback = args.pop() as WriteStrCallback;
@@ -483,7 +483,7 @@ export function read<TBuffer extends NodeJS.ArrayBufferView>(
 export function read(fd: number, callback: ReadCallback): void;
 
 export function read(fd: number, ...args: unknown[]): void {
-    const fileHandle = FileHandle.getInstance(fd);
+    const fileHandle = FileHandle.getInstance(fd, 'read');
 
     const callback: ReadCallback = args[args.length - 1] as ReadCallback;
 
@@ -528,7 +528,7 @@ export function read(fd: number, ...args: unknown[]): void {
  * @since v0.0.2
  */
 export function close(fd: number, callback?: NoParamCallback): void {
-    FileHandle.getInstance(fd)
+    FileHandle.getInstance(fd, 'close')
         .close()
         .then(() => {
             callback(null);

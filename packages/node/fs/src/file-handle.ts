@@ -214,13 +214,33 @@ export class FileHandle implements IFileHandle {
      */
     readonly fd: number;
 
-    /** Not part of the default implementation, used internal by gjsify */
-    static getInstance(fd: number) {
-        const instance = FileHandle.instances[fd];
-        if (!instance) {
-            throw new Error('No instance found for fd!');
-        }
-        return FileHandle.instances[fd];
+    /**
+     * The handle behind a descriptor number. Not part of Node's API.
+     *
+     * TWO things used to go wrong here, both of them at the boundary where a
+     * caller holds a NUMBER and this package holds an object.
+     *
+     * It threw `Error('No instance found for fd!')` — no `code`, not an
+     * `ErrnoException`. But the overwhelmingly common way to reach it is an fd
+     * that WAS valid: `_teardown()` deletes the instance, so every call on a
+     * closed descriptor landed here rather than on `_assertOpen`, which made
+     * that guard dead for every fd-number call site. `catch (e) { if (e.code
+     * === 'EBADF') }` — the idiom for tolerating a racing close — fell through
+     * to the generic branch instead. The syscall is threaded in from the caller
+     * because Node names it in the message, and we know it there and only there.
+     *
+     * It also indexed `instances` with whatever it was given. `openSync()`
+     * returns a FileHandle rather than Node's number (a pre-existing divergence
+     * this does not attempt to change), so `fs.write(fs.openSync(p,'w'), …)`
+     * stringified the object into a key, missed, and threw out of the callback
+     * machinery. Unwrapping is one line and makes every fd call site accept
+     * both spellings.
+     */
+    static getInstance(fd: number | FileHandle, syscall: string = 'read'): FileHandle {
+        const key = fd instanceof FileHandle ? fd.fd : fd;
+        const instance = FileHandle.instances[key as number];
+        if (!instance) throw fsError('EBADF', syscall);
+        return instance;
     }
 
     /**
@@ -250,6 +270,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async chown(uid: number, gid: number): Promise<void> {
+        this._assertOpen('fchown');
         chownSync(normalizePath(this.options.path), uid, gid);
     }
     /**
@@ -259,6 +280,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async chmod(mode: Mode): Promise<void> {
+        this._assertOpen('fchmod');
         // fchmod(2): act on the descriptor, so a rename between open and now
         // cannot hand the caller's permission change to a different file.
         chmodSync(this._fdTarget(), mode);
@@ -351,6 +373,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async datasync(): Promise<void> {
+        this._assertOpen('fdatasync');
         fsyncFd(this.fd);
     }
     /**
@@ -361,6 +384,7 @@ export class FileHandle implements IFileHandle {
      * @return Fufills with `undefined` upon success.
      */
     async sync(): Promise<void> {
+        this._assertOpen('fsync');
         fsyncFd(this.fd);
     }
     /**
@@ -539,6 +563,11 @@ export class FileHandle implements IFileHandle {
         },
     ): Promise<BigIntStats>;
     async stat(opts?: StatOptions): Promise<Stats | BigIntStats> {
+        // A closed handle is EBADF, and it has to be said HERE: `_fdTarget()`
+        // resolves to `/proc/self/fd/N`, which simply stops existing once the
+        // descriptor is gone, so without this the caller got a NOT_FOUND about
+        // a procfs path it never named.
+        this._assertOpen('fstat');
         // fstat(2): the descriptor, not the name — so the answer survives a
         // rename and an unlink, and cannot describe an impostor at that path.
         const target = Gio.File.new_for_path(this._fdTarget());
@@ -595,6 +624,7 @@ export class FileHandle implements IFileHandle {
      * @since v10.0.0
      */
     async utimes(atime: string | number | Date, mtime: string | number | Date): Promise<void> {
+        this._assertOpen('futimes');
         const { utimesSync } = await import('./utimes.js');
         utimesSync(normalizePath(this.options.path), atime, mtime);
     }

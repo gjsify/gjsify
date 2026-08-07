@@ -345,7 +345,7 @@ async function _writeBuf<TBuffer extends Uint8Array>(
     bytesWritten: number;
     buffer: TBuffer;
 }> {
-    const fileHandle = FileHandle.getInstance(fd);
+    const fileHandle = FileHandle.getInstance(fd, 'write');
     const result = await fileHandle.write(buffer, offset, length, position);
     return { bytesWritten: result.bytesWritten, buffer };
 }
@@ -359,7 +359,7 @@ async function _writeStr(
     bytesWritten: number;
     buffer: string;
 }> {
-    const fileHandle = FileHandle.getInstance(fd);
+    const fileHandle = FileHandle.getInstance(fd, 'write');
     const result = await fileHandle.write(data, position, encoding);
     return { bytesWritten: result.bytesWritten, buffer: data };
 }

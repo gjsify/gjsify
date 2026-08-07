@@ -229,7 +229,7 @@ export function readFileSync(
         // the fd back to its path and re-reading the whole file from 0 gave a
         // different answer to every caller that had already read part of it.
         const enc = getEncodingFromOptions(options as Parameters<typeof getEncodingFromOptions>[0], 'buffer');
-        return encodeUint8Array(enc, FileHandle.getInstance(path)._readToEndSync());
+        return encodeUint8Array(enc, FileHandle.getInstance(path, 'read')._readToEndSync());
     }
     const pathStr = normalizePath(path);
     const file = Gio.File.new_for_path(pathStr);
