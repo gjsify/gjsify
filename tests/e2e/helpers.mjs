@@ -7,12 +7,14 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 
 import { readLockfileVersion } from '../../scripts/check-lockfile-current.mjs';
+import { MONOREPO_ROOT, HOST_TARGET, registryOnlyDependencies } from './workspaces.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const MONOREPO_ROOT = join(__dirname, '..', '..');
 
-/** The `<os>-<arch>` target this host resolves — the ONE spelling, unmapped. */
-export const HOST_TARGET = `${process.platform}-${process.arch}`;
+// Re-exported, not re-derived: `pack.mjs` reads the same two from
+// `workspaces.mjs`, and what a suite packs must be described by the same
+// constants as what it asserts about.
+export { MONOREPO_ROOT, HOST_TARGET };
 
 /**
  * The `lockfileVersion` a FRESH resolve writes — READ FROM THE WRITER, never
@@ -220,6 +222,81 @@ export function buildYarnResolutions(tarballsDir, tarballMap) {
         resolutions[name] = `file:${join(tarballsDir, filename)}`;
     }
     return resolutions;
+}
+
+/**
+ * Which of the packages a packed tree must fetch from npm the registry cannot
+ * supply at this workspace's version — i.e. which ones a Yarn-PnP install here
+ * is going to fail on.
+ *
+ * `pack.mjs` deliberately leaves the foreign-target platform packages out of the
+ * tarball set (see `isForeignPlatformPackage`), so `resolutions` never covers
+ * them and Yarn goes to npm. npm's node-modules linker drops an unresolvable
+ * OPTIONAL dependency silently, which is why the npm-based suites never noticed;
+ * PnP resolves the whole graph up front and stops:
+ *
+ *     ➤ YN0082: @gjsify/http-soup-bridge-darwin-arm64@npm:0.31.0: No candidates found
+ *
+ * That is not a defect in what these suites test — it is the suite asking the
+ * registry for a version that does not exist there yet. It happens in exactly one
+ * window: after `release-cut.yml` has bumped every workspace to the new version
+ * and before `release.yml` has published it. In that window an external consumer
+ * cannot install the version either, so the scenario the suites reconstruct is
+ * not merely untested, it is not constructible.
+ *
+ * Fails OPEN. A probe that cannot reach the registry reports nothing missing, so
+ * a network problem yields the same honest red as before rather than silently
+ * disarming the suite.
+ *
+ * @returns {Promise<string[]>} `name@version` for each package npm 404s on
+ */
+export async function unpublishedRegistryDependencies({ timeoutMs = 30_000 } = {}) {
+    const wanted = registryOnlyDependencies();
+    if (wanted.length === 0) return [];
+
+    const registry = (process.env.GJSIFY_E2E_REGISTRY ?? 'https://registry.npmjs.org').replace(/\/+$/, '');
+    const signal = AbortSignal.timeout(timeoutMs);
+    const missing = [];
+
+    await Promise.all(
+        wanted.map(async ({ name, version }) => {
+            // `<registry>/<name>/<version>` returns that single version's
+            // manifest (a few KB) or 404 — no packument download.
+            const url = `${registry}/${name.replace('/', '%2f')}/${encodeURIComponent(version)}`;
+            let res;
+            try {
+                res = await fetch(url, { signal, headers: { accept: 'application/json' } });
+            } catch {
+                return; // unreachable registry — fail open
+            }
+            // Drain: an unconsumed undici body holds its socket open and would
+            // keep the test process alive past the last assertion.
+            await res.body?.cancel().catch(() => {});
+            if (res.status === 404) missing.push(`${name}@${version}`);
+        }),
+    );
+
+    return missing.sort();
+}
+
+/**
+ * `false` when the Yarn-PnP suites can run, otherwise the reason they cannot.
+ * Shaped for `describe(name, { skip }, fn)`; both PnP suites share the wording
+ * so the skip reads the same wherever it shows up in the log.
+ */
+export async function pnpRegistryGapSkipReason() {
+    const missing = await unpublishedRegistryDependencies();
+    if (missing.length === 0) return false;
+
+    const sample = missing.slice(0, 3).join(', ');
+    const more = missing.length > 3 ? ` (+${missing.length - 3} more)` : '';
+    return (
+        `the workspace version is not on npm yet — ${missing.length} unpacked ` +
+        `dependency/-ies 404: ${sample}${more}. Yarn PnP resolves those from the ` +
+        `registry because pack.mjs omits them by design, so this suite cannot build ` +
+        `its external-consumer tree until release.yml has published. Re-runs after ` +
+        `the publish exercise it again unchanged.`
+    );
 }
 
 /**
