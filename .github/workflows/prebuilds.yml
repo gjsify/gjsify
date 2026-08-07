@@ -1239,6 +1239,22 @@ jobs:
         working-directory: packages/framework/webkit-native
         run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
+      # NOT optional, for two reasons that are easy to miss. Without an upload
+      # the build is thrown away, so a `ci:macos` run would prove the shim
+      # compiles and produce nothing to commit. And `changed-packages.mjs`
+      # discovers the package table from exactly these `path:` lines — a bridge
+      # with no upload step is invisible to it, so every edit under its
+      # directory is classified as "shared input changed" and rebuilds all ten
+      # other bridges on all five legs, QEMU included.
+      - name: Upload @gjsify/webkit-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: webkit-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/framework/webkit-native/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
       # -------- @gjsify/terminal-native (GjsifyTerminal) --------
       # Plain POSIX; the only Linux dependency it had was Vala's `linux.vapi`
       # (`Linux.winsize` / `Linux.Termios.TIOCGWINSZ`), now replaced by the
