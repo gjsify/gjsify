@@ -365,7 +365,12 @@ export class FileHandle implements IFileHandle {
      * @since v16.11.0
      */
     createReadStream(options?: CreateReadStreamOptions): ReadStream {
-        return new ReadStream(this.options.path, options);
+        // Through THIS descriptor, so the stream shares the handle's cursor —
+        // the read counterpart of createWriteStream() below. Opening the path
+        // afresh started a SECOND cursor at 0: after `await fh.read(b,0,4,null)`
+        // the stream replayed the whole file where Node resumes at byte 4, and
+        // it bound a different inode if the path had been replaced since.
+        return new ReadStream(this.options.path, { ...options, fd: this.fd });
     }
     /**
      * `options` may also include a `start` option to allow writing data at some
@@ -388,7 +393,14 @@ export class FileHandle implements IFileHandle {
         // Opening the path afresh gave the stream default flags `'w'`, i.e. it
         // TRUNCATED the file the handle had open, and bound a different inode
         // if the path had been replaced since.
-        return new WriteStream(this.options.path, { ...options, fd: this.fd, autoClose: false });
+        //
+        // `autoClose` is the caller's, and it defaults to CLOSING: Node closes a
+        // handle-derived write stream's handle at 'finish' (measured — a later
+        // `fh.stat()` rejects EBADF). It was hardcoded `false` AFTER the spread,
+        // so an explicit `autoClose: true` was silently discarded and the
+        // descriptor was never released. Not re-opening the path and not closing
+        // the fd are two different questions; only the first one is settled here.
+        return new WriteStream(this.options.path, { ...options, fd: this.fd });
     }
     /**
      * Forces all currently queued I/O operations associated with the file to the

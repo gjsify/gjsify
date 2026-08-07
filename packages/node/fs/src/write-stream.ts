@@ -107,8 +107,14 @@ export class WriteStream extends Writable implements IWriteStream {
         }
         if (typeof opts.fd === 'number') {
             this.fd = opts.fd;
-            // Node: a caller-supplied descriptor is the caller's to close.
-            this._autoClose = opts.autoClose ?? false;
+            // Node closes a stream-held descriptor at 'finish' whether the
+            // stream opened it or was handed one: `createWriteStream(f, {fd})`
+            // leaves that fd closed (measured — a later `writeSync` gives
+            // EBADF). Defaulting to `false` here contradicted it and, with
+            // `FileHandle.createWriteStream()` hardcoding `false` on top of the
+            // caller's options, made `autoClose: true` unreachable from either
+            // entry point.
+            this._autoClose = opts.autoClose ?? true;
         } else if (opts.autoClose !== undefined) {
             this._autoClose = opts.autoClose;
         }
