@@ -3,14 +3,18 @@
     "version": "0.30.0",
     "description": "Apple WebKit (WKWebView) behind a GObject API shaped like WebKitGTK 6.0 — the darwin backend for @gjsify/iframe (ADR 0022). Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
     "type": "module",
-    "files": [
-        "prebuilds"
-    ],
+    "files": [],
     "gjsify": {
         "platforms": [
-            "darwin-x64"
+            "darwin-x64",
+            "darwin-arm64"
         ],
-        "prebuilds": "prebuilds",
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
         "os": {
             "linux": "none",
             "darwin": "supported",
@@ -48,5 +52,9 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/webkit-native#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/webkit-native#readme",
+    "optionalDependencies": {
+        "@gjsify/webkit-native-darwin-arm64": "workspace:*",
+        "@gjsify/webkit-native-darwin-x64": "workspace:*"
+    }
 }
