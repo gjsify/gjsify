@@ -206,7 +206,6 @@ function dirModeFor(requested: number, umask: number): number {
     return (requested & 0o1000) | (requested & 0o777 & ~umask);
 }
 
-
 /** Run a read stream to completion; resolves on 'close' or 'error'. */
 function drainReadStream(stream: NodeJS.ReadableStream & { on: (e: string, f: () => void) => unknown }): Promise<void> {
     return new Promise((resolve) => {
@@ -2014,10 +2013,7 @@ export default async () => {
 
                 const file = join(dir, 'plain');
                 writeFileSync(file, 'x');
-                expectCode(
-                    () => openSync(file, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY),
-                    'ENOTDIR',
-                );
+                expectCode(() => openSync(file, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY), 'ENOTDIR');
                 // ...and a real directory still opens through the same flag.
                 closeSync(fdOf(openSync(dir, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY)));
             } finally {

@@ -277,7 +277,9 @@ function invalidMode(mode: string): NodeJS.ErrnoException {
 function modeNotANumber(value: unknown): NodeJS.ErrnoException {
     const received =
         value === null || value === undefined ? String(value) : `type ${typeof value} (${describeValue(value)})`;
-    const err = new TypeError(`The "mode" argument must be of type number. Received ${received}`) as NodeJS.ErrnoException;
+    const err = new TypeError(
+        `The "mode" argument must be of type number. Received ${received}`,
+    ) as NodeJS.ErrnoException;
     err.code = 'ERR_INVALID_ARG_TYPE';
     return err;
 }
