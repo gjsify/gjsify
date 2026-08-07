@@ -108,6 +108,14 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
 }
 
 async function readFile(path: PathLike | FileHandle, options: ReadOptions = { encoding: null, flag: 'r' }) {
+    // Node's documented FileHandle overload: read from the handle's CURRENT
+    // position to EOF, and do not close it. `normalizePath(handle)` produced
+    // `'[object Object]'`, so this threw ENOENT — or, worse, succeeded once a
+    // mis-routed write had created a file by that name.
+    if (path instanceof FileHandle || typeof path === 'number') {
+        const handle = FileHandle.getInstance(path as number | FileHandle, 'read');
+        return encodeUint8Array(getEncodingFromOptions(options, 'buffer'), handle._readToEndSync());
+    }
     const pathStr = normalizePath(path as PathLike);
     const file = Gio.File.new_for_path(pathStr);
 
@@ -190,7 +198,7 @@ async function mkdtemp(
 }
 
 async function writeFile(
-    path: PathLike,
+    path: PathLike | FileHandle,
     data: string | Uint8Array | unknown,
     options?: { encoding?: string | null; mode?: Mode; flag?: OpenFlags | string } | string | null,
 ) {
@@ -202,7 +210,12 @@ async function writeFile(
     // truncate-in-place, `{mode}` and `{flag}` at once.
     const payload =
         typeof data === 'string' || data instanceof Uint8Array ? (data as string | Uint8Array) : String(data);
-    writeFileSync(normalizePath(path), payload, options ?? null);
+    // `path` goes through UNNORMALIZED. Node documents a FileHandle overload
+    // here, and `normalizePath(handle)` is the string `'[object Object]'` — so
+    // the payload landed in a file of that name in the CWD while the file the
+    // caller had open stayed empty, and the call resolved. `writeFileSync` owns
+    // the name-vs-descriptor decision now, for all four spellings at once.
+    writeFileSync(path as PathLike, payload, options ?? null);
 }
 
 /**
@@ -524,11 +537,11 @@ async function access(path: PathLike, mode?: number): Promise<void> {
 
 // --- appendFile ---
 async function appendFile(
-    path: PathLike,
+    path: PathLike | FileHandle,
     data: string | Uint8Array,
     options?: { encoding?: string; mode?: number; flag?: string } | string,
 ): Promise<void> {
-    appendFileSync(path, data, options);
+    appendFileSync(path as PathLike, data, options);
 }
 
 // --- readlink ---

@@ -14,7 +14,7 @@ import { Dirent } from './dirent.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError, isNotFoundError } from './errors.js';
 import { normalizePath, randomName } from './utils.js';
-import { isStdFd, readStdFdAll } from './std-fd.js';
+import { isStdFd, readStdFdAll, writeStdFdSync } from './std-fd.js';
 import { normalizeMode } from './posix-flags.js';
 import { classifyMkdirFailure, fsError } from './fd-io.js';
 
@@ -214,9 +214,15 @@ export function symlinkSync(target: PathLike, path: PathLike, _type?: 'file' | '
 }
 
 export function readFileSync(
-    path: PathLike | number,
+    path: PathLike | number | FileHandle,
     options: { encoding?: string | null; flag?: string } | string | null = { encoding: null, flag: 'r' },
 ) {
+    // `openSync()` hands back a FileHandle rather than Node's number, so this is
+    // the shape `readFileSync(openSync(p, 'r'))` arrives in. Left to fall
+    // through it stringified to `'[object Object]'` and read that name from the
+    // CWD; the numeric branch below already does the right thing, so it only
+    // needed the object unwrapped onto it.
+    if (path instanceof FileHandle) path = path.fd;
     // A numeric fd: the standard descriptors 0/1/2 have no path and are read
     // from the process's own Unix stream (the Node `readFileSync(0)` stdin
     // idiom); any other number is an open FileHandle, resolved to its path.
@@ -415,7 +421,7 @@ type WriteFileOptions = { encoding?: string | null; mode?: Mode; flag?: OpenFlag
  * consumers actually use.
  */
 function writeWholeFile(
-    pathStr: string,
+    path: PathLike | number | FileHandle,
     data: string | Uint8Array,
     options: WriteFileOptions,
     defaultFlag: OpenFlags,
@@ -424,8 +430,27 @@ function writeWholeFile(
     const bag = typeof options === 'object' && options !== null ? options : {};
     const bytes = typeof data === 'string' ? Buffer.from(data, (encoding as BufferEncoding) || 'utf8') : data;
 
+    // A DESCRIPTOR, not a name. Node writes at the descriptor's own position,
+    // ignores `mode` and `flag` (the file is already open, so there is nothing
+    // left for either to decide) and does NOT close it afterwards.
+    //
+    // What happened instead: `normalizePath(8)` is the string `'8'` and
+    // `normalizePath(handle)` is `'[object Object]'`, so the payload landed in
+    // a file of that NAME in the process CWD while the file the caller had open
+    // was left untouched — and every one of these APIs reported success. The
+    // read twin, `readFileSync(fd)`, was fixed earlier in this redesign, so
+    // until now the two halves of one API disagreed.
+    if (typeof path === 'number' || path instanceof FileHandle) {
+        if (typeof path === 'number' && isStdFd(path)) {
+            writeStdFdSync(path, bytes);
+            return;
+        }
+        FileHandle.getInstance(path, 'write')._writeSync(bytes, null);
+        return;
+    }
+
     const handle = new FileHandle({
-        path: pathStr,
+        path: normalizePath(path),
         flags: (bag.flag as OpenFlags) ?? defaultFlag,
         mode: bag.mode ?? 0o666,
     });
@@ -436,8 +461,12 @@ function writeWholeFile(
     }
 }
 
-export function writeFileSync(path: PathLike, data: string | Uint8Array, options?: WriteFileOptions) {
-    writeWholeFile(normalizePath(path), data, options ?? null, 'w');
+export function writeFileSync(
+    path: PathLike | number | FileHandle,
+    data: string | Uint8Array,
+    options?: WriteFileOptions,
+) {
+    writeWholeFile(path, data, options ?? null, 'w');
 }
 
 // --- rename ---
@@ -504,10 +533,14 @@ export function accessSync(path: PathLike, mode?: number): void {
 
 // --- appendFile ---
 
-export function appendFileSync(path: PathLike, data: string | Uint8Array, options?: WriteFileOptions): void {
+export function appendFileSync(
+    path: PathLike | number | FileHandle,
+    data: string | Uint8Array,
+    options?: WriteFileOptions,
+): void {
     // The third parameter used to be named `_options` — declared, typed, and
     // thrown away, so a `{mode: 0o600}` append log came out world-readable.
-    writeWholeFile(normalizePath(path), data, options ?? null, 'a');
+    writeWholeFile(path, data, options ?? null, 'a');
 }
 
 // --- readlink ---
