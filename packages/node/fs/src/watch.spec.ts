@@ -4,12 +4,28 @@
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { promises, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { promises, writeFileSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+// `realpathSync`, and it is load-bearing on Windows rather than tidiness.
+//
+// GitHub's Windows runners hand back an 8.3 SHORT path from `tmpdir()`
+// (`C:\Users\RUNNER~1\AppData\Local\Temp`), while the change notifications
+// libuv receives carry the LONG name. libuv checks the two agree and aborts the
+// process when they do not:
+//
+//   Assertion failed: !_wcsnicmp(filename, dir, dirlen),
+//   file src\win\fs-event.c, line 72          → exit code 3221226505
+//
+// That is a hard abort, not a failing assertion, so it takes the whole suite
+// with it — 589 specs never reported and `it.failing` could not have helped,
+// because nothing survives to report. Canonicalising the directory is what the
+// watcher is entitled to: watching a path the OS will name differently is the
+// TEST's mistake. It also fixes the same class on macOS, where `/tmp` is a
+// symlink to `/private/tmp` and events arrive under the resolved name.
 function makeTmp(): string {
-    return mkdtempSync(join(tmpdir(), 'gjsify-watch-'));
+    return realpathSync(mkdtempSync(join(tmpdir(), 'gjsify-watch-')));
 }
 
 // WHY EVERY DEFERRED WRITE BELOW IS CANCELLED IN A `finally`.

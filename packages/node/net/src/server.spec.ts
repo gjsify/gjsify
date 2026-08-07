@@ -20,6 +20,21 @@ import { Buffer } from 'node:buffer';
  *
  * Only a reset is tolerated. Anything else is re-thrown, so this cannot grow
  * into a blanket "ignore socket errors".
+ *
+ * EVERY client socket in this file now registers one of these, and that is a
+ * rule rather than a habit. A spec resolves as soon as it has its answer and
+ * `withServer` then destroys the accepted socket, so the client can see the RST
+ * AFTER its own spec finished — and an unhandled `error` event is attributed to
+ * whichever spec is running by then. Measured on the macOS arm64 leg:
+ * `read ECONNRESET` reported against `should expose localPort after connect`,
+ * which already HAD tolerance; the socket that reset belonged to the previous
+ * spec, which did not.
+ *
+ * So the only choice per socket is which tolerance: `tolerateReset` where the
+ * spec has no error path of its own, `rejectUnlessReset(reject)` where it does.
+ * A bare `client.on('error', reject)` is the shape that fails, because it turns
+ * teardown noise into the spec's verdict. The one deliberate exception is the
+ * connection-refused spec, whose subject IS the error.
  */
 function tolerateReset(socket: { on(event: 'error', listener: (err: NodeJS.ErrnoException) => void): unknown }): void {
     socket.on('error', (err) => {
@@ -89,7 +104,7 @@ export default async () => {
                         client.end();
                         resolve(typeof data === 'string' ? data : data.toString('utf8'));
                     });
-                    client.on('error', reject);
+                    client.on('error', rejectUnlessReset(reject));
                 });
                 expect(result).toBe('hello echo');
             });
@@ -117,7 +132,7 @@ export default async () => {
                             resolve(received);
                         }
                     });
-                    client.on('error', reject);
+                    client.on('error', rejectUnlessReset(reject));
                 });
                 expect(result).toBe('firstsecond');
             });
@@ -155,6 +170,7 @@ export default async () => {
                 server.on('connection', (socket) => socket.end());
                 const connected = await new Promise<boolean>((resolve) => {
                     const client = createConnection({ port, host: '127.0.0.1' });
+                    tolerateReset(client);
                     client.on('connect', () => {
                         client.end();
                         resolve(true);
@@ -182,6 +198,7 @@ export default async () => {
                 server.on('connection', (socket) => socket.end());
                 const ended = await new Promise<boolean>((resolve) => {
                     const client = createConnection({ port, host: '127.0.0.1' });
+                    tolerateReset(client);
                     client.on('end', () => {
                         client.end();
                         resolve(true);
@@ -201,6 +218,7 @@ export default async () => {
                 for (let i = 0; i < 3; i++) {
                     await new Promise<void>((resolve) => {
                         const client = createConnection({ port, host: '127.0.0.1' });
+                        tolerateReset(client);
                         client.on('close', () => resolve());
                         client.resume();
                     });
@@ -253,6 +271,7 @@ export default async () => {
                             });
                             client.end();
                         });
+                        tolerateReset(client);
                     },
                 );
                 expect(remoteAddress).toBe('127.0.0.1');
@@ -345,6 +364,7 @@ export default async () => {
 
             const data = await new Promise<string>((resolve) => {
                 const client = createConnection({ port, host: '127.0.0.1' });
+                tolerateReset(client);
                 client.setEncoding('utf8');
                 const chunks: string[] = [];
                 client.on('data', (chunk: string | Buffer) =>
