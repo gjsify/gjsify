@@ -90,10 +90,31 @@ import {
     exists,
     openAsBlob,
 } from './fd-ops.js';
-import { openFlagValues } from './posix-flags.js';
+import { openFlagValues, type PosixOpenFlags } from './posix-flags.js';
+
+/**
+ * Accessor descriptors for the `O_*` members of `fs.constants`, each reading the
+ * platform table when it is ASKED rather than when this module is evaluated.
+ *
+ * They are installed with `defineProperties` and NOT spread into the literal:
+ * object spread copies values, so `{ ...openFlagGetters() }` would invoke every
+ * getter at module-evaluation time and freeze exactly the answer this exists to
+ * avoid. See the call site for why the timing matters.
+ */
+function openFlagDescriptors(): PropertyDescriptorMap {
+    const descriptors: PropertyDescriptorMap = {};
+    for (const name of Object.keys(openFlagValues())) {
+        descriptors[name] = {
+            enumerable: true,
+            configurable: true,
+            get: () => openFlagValues()[name as keyof PosixOpenFlags],
+        };
+    }
+    return descriptors;
+}
 
 // --- fs.constants ---
-export const constants = {
+const fixedConstants = {
     // File access constants
     F_OK: 0,
     R_OK: 4,
@@ -108,7 +129,15 @@ export const constants = {
     // looked at them and not harmless now that they reach `open(2)`: on darwin
     // `O_CREAT` is 0x200, which is Linux's `O_TRUNC`, so a caller passing
     // `constants.O_CREAT` would have silently truncated the file it created.
-    ...openFlagValues(),
+    //
+    // GETTERS, not a spread. `openFlagValues()` is a function precisely so the
+    // platform is read LATE (posix-flags.ts says so in as many words):
+    // `process.platform` is a lazy property that `@gjsify/process` installs at
+    // register time, so a value frozen during module evaluation can capture the
+    // byte-1 stub's answer for the life of the process. Spreading the call here
+    // re-froze it one line below the comment explaining why it must not be. The
+    // divergence is silent and darwin-only — the same dormant-wrong-constant
+    // shape as `mkdtempSync`'s 0o777, inert until the day the value is used.
     // File type constants
     S_IFMT: 61440,
     S_IFREG: 32768,
@@ -132,6 +161,9 @@ export const constants = {
     S_IWOTH: 2,
     S_IXOTH: 1,
 };
+
+export const constants = Object.defineProperties(fixedConstants, openFlagDescriptors()) as typeof fixedConstants &
+    PosixOpenFlags;
 
 export {
     FSWatcher,
