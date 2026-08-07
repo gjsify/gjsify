@@ -1,14 +1,5 @@
 # @gjsify/webkit-native-darwin-arm64
 
-> **No artifact in this tarball yet.** `darwin-arm64` is declared by
-> `@gjsify/webkit-native` and built by CI, but not committed to the repository:
-> prebuilds.yml's `build-prebuilds-macos` job builds and uploads this on its macos-latest (arm64) leg, and `commit-prebuilds` now downloads it — that download was MISSING when ADR 0022 landed, so every arm64 artifact it ever built was discarded, which is the real reason no binary exists rather than the authoring host's architecture. What remains is one `ci:macos`-labelled run reaching main: the Objective-C is architecture-independent, the meson build has no arch branch, and the x64 sibling is committed and loads.
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/webkit-native` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **darwin-arm64** native artifacts of [`@gjsify/webkit-native`](https://www.npmjs.com/package/@gjsify/webkit-native) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
