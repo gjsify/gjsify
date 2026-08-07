@@ -14,11 +14,12 @@ import {
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
 import { dirname, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
 import { assertGjsBundleLoadable } from '../utils/gjs-bundle-guard.js';
+import { escapeRawNulForGjs } from '../utils/gjs-source-escape.js';
 import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
@@ -308,6 +309,66 @@ export class BuildAction {
         }
         await chmod(outfile, 0o755);
         if (verbose) console.debug(`[gjsify] --shebang: wrote ${line} + chmod 0o755 to ${outfile}`);
+    }
+
+    /**
+     * Post-bundle rewrite for `--app gjs`: replace raw U+0000 bytes with `\x00`.
+     *
+     * GJS hands module source to SpiderMonkey as a NUL-terminated C string, so one raw NUL
+     * truncates the file and the loader reports whatever construct was open — typically
+     * "`` literal not terminated before end of script", which names neither the NUL nor its
+     * location. The minifier produces them by inlining a `'\u0000'` constant into a template
+     * literal, so a bundle can build and run unminified and fail under the default `--minify`.
+     *
+     * Rewrites the files on disk rather than the in-memory chunks: rolldown has already
+     * written them by this point, and the same treatment has to reach every chunk of an
+     * `--outdir` build, not just a single `--outfile`.
+     */
+    private async escapeRawNul(
+        outfile: string | undefined,
+        outdir: string | undefined,
+        verbose: boolean | undefined,
+    ): Promise<void> {
+        // Deliberately NOT driven by the chunk graph: `--watch`'s BUNDLE_END carries the bundle
+        // rather than the generated output, and re-running generate() just to list chunks would
+        // double every rebuild. Reading the directory needs neither, so the same hook serves the
+        // one-shot build and the watch loop — and a watch rebuild that quietly reintroduced the
+        // raw NUL would fail exactly like the bug this exists to prevent, only intermittently.
+        const targets: string[] = [];
+        if (outfile) {
+            targets.push(outfile);
+        } else if (outdir) {
+            try {
+                for (const name of await readdir(outdir)) {
+                    if (name.endsWith('.mjs') || name.endsWith('.js')) targets.push(resolve(outdir, name));
+                }
+            } catch (err) {
+                // ENOENT alone is benign — a watch pass that failed before writing anything has
+                // no outdir yet, and there is nothing to escape. Anything ELSE (a permissions
+                // error, an I/O error, a wrong outdir) would silently skip the escape and let
+                // the build report success while emitting a bundle GJS cannot load, which is
+                // precisely the failure this hook exists to prevent.
+                if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return;
+                throw err;
+            }
+        }
+        for (const target of targets) {
+            let original: string;
+            try {
+                original = await readFile(target, 'utf-8');
+            } catch (err) {
+                // Same split: a listed-but-unwritten chunk is not this hook's problem; a real
+                // read failure must not pass for "nothing to do".
+                if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') continue;
+                throw err;
+            }
+            const { code, replaced } = escapeRawNulForGjs(original);
+            if (replaced === 0) continue; // the overwhelmingly common case — touch nothing
+            await writeFile(target, code);
+            if (verbose) {
+                console.debug(`[gjsify] escaped ${replaced} raw NUL byte(s) in ${target} so GJS can load it`);
+            }
+        }
     }
 
     /**
@@ -736,11 +797,18 @@ export class BuildAction {
         };
 
         if (opts.watch) {
-            await this.runWatchLoop(finalOpts, app, outfile, verbose);
+            await this.runWatchLoop(finalOpts, app, outfile, outdir, verbose);
             return [];
         }
 
         const writeResult = await runBundle(finalOpts);
+
+        // GJS truncates module source at a raw U+0000 (it is handed to SpiderMonkey as a
+        // NUL-terminated C string), so escape any the minifier emitted before anything else
+        // touches the file. See utils/gjs-source-escape.ts.
+        if (app === 'gjs') {
+            await this.escapeRawNul(outfile, outdir, verbose);
+        }
 
         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
             await this.applyShebang(app, outfile, verbose);
@@ -780,6 +848,7 @@ export class BuildAction {
         finalOpts: BundlerOptions,
         app: App,
         outfile: string | undefined,
+        outdir: string | undefined,
         verbose: boolean | undefined,
     ): Promise<void> {
         const watcher = await runWatch(finalOpts);
@@ -813,6 +882,12 @@ export class BuildAction {
                 case 'BUNDLE_END':
                     console.log(`[gjsify build --watch] built in ${event.duration}ms`);
                     try {
+                        // Before the shebang, which re-reads the file: a rebuild that dropped a
+                        // raw NUL back in would produce a bundle GJS cannot load, and on the
+                        // watch loop that reads as "it broke when I saved", not as a build bug.
+                        if (app === 'gjs') {
+                            await this.escapeRawNul(outfile, outdir, verbose);
+                        }
                         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
                             await this.applyShebang(app, outfile, verbose);
                         }
