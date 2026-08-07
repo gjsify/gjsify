@@ -14,6 +14,12 @@
 // That makes the fix a no-op for the defaults — `mode` 0666 under umask 022 resolves to the
 // 0644 the file already has, so nothing is chmod'ed and no existing behaviour changes. Only a
 // caller who asked for something specific sees a difference.
+//
+// One precision boundary, stated rather than glossed: only umask bits that fall INSIDE the base
+// mode are observable this way. For files the base is 0666, which carries no execute bits, so a
+// umask that masks execute (0111 and friends — unusual, but legal) is invisible here and an
+// explicit `open(…, 0o777)` on a FILE would keep its execute bits where Node would drop them.
+// Directories have base 0777, so every bit is observable and they are exact.
 
 import Gio from '@girs/gio-2.0';
 
