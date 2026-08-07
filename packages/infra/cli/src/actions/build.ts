@@ -19,6 +19,7 @@ import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
 import { assertGjsBundleLoadable } from '../utils/gjs-bundle-guard.js';
+import { escapeRawNulForGjs } from '../utils/gjs-source-escape.js';
 import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
@@ -308,6 +309,49 @@ export class BuildAction {
         }
         await chmod(outfile, 0o755);
         if (verbose) console.debug(`[gjsify] --shebang: wrote ${line} + chmod 0o755 to ${outfile}`);
+    }
+
+    /**
+     * Post-bundle rewrite for `--app gjs`: replace raw U+0000 bytes with `\x00`.
+     *
+     * GJS hands module source to SpiderMonkey as a NUL-terminated C string, so one raw NUL
+     * truncates the file and the loader reports whatever construct was open — typically
+     * "`` literal not terminated before end of script", which names neither the NUL nor its
+     * location. The minifier produces them by inlining a `'\u0000'` constant into a template
+     * literal, so a bundle can build and run unminified and fail under the default `--minify`.
+     *
+     * Rewrites the files on disk rather than the in-memory chunks: rolldown has already
+     * written them by this point, and the same treatment has to reach every chunk of an
+     * `--outdir` build, not just a single `--outfile`.
+     */
+    private async escapeRawNul(
+        result: RolldownOutput,
+        outfile: string | undefined,
+        outdir: string | undefined,
+        verbose: boolean | undefined,
+    ): Promise<void> {
+        const targets: string[] = [];
+        if (outfile) {
+            targets.push(outfile);
+        } else if (outdir) {
+            for (const item of result.output ?? []) {
+                if (item.type === 'chunk') targets.push(resolve(outdir, item.fileName));
+            }
+        }
+        for (const target of targets) {
+            let original: string;
+            try {
+                original = await readFile(target, 'utf-8');
+            } catch {
+                continue; // a chunk the bundler reported but did not write is not this hook's problem
+            }
+            const { code, replaced } = escapeRawNulForGjs(original);
+            if (replaced === 0) continue; // the overwhelmingly common case — touch nothing
+            await writeFile(target, code);
+            if (verbose) {
+                console.debug(`[gjsify] escaped ${replaced} raw NUL byte(s) in ${target} so GJS can load it`);
+            }
+        }
     }
 
     /**
@@ -741,6 +785,13 @@ export class BuildAction {
         }
 
         const writeResult = await runBundle(finalOpts);
+
+        // GJS truncates module source at a raw U+0000 (it is handed to SpiderMonkey as a
+        // NUL-terminated C string), so escape any the minifier emitted before anything else
+        // touches the file. See utils/gjs-source-escape.ts.
+        if (app === 'gjs') {
+            await this.escapeRawNul(writeResult, outfile, outdir, verbose);
+        }
 
         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
             await this.applyShebang(app, outfile, verbose);
