@@ -26,6 +26,14 @@ static atomic_long g_delivered = 0;  // call_js with a live env
 static atomic_long g_dropped = 0;    // call_js with env == NULL (abort drain)
 static atomic_int g_finalized = 0;   // thread finalizer ran (flood tsfn)
 static atomic_int g_spin_finalized = 0;
+// DrainWorkers whose FIRST push has RETURNED — i.e. the number of DISTINCT
+// threads the shim has credited one of holdDraining's initial claims to (it
+// attributes under its own mutex before the call can return). g_delivered
+// cannot stand in for this: it counts DELIVERIES, so N of them can come from
+// one thread that pushed N times while the other N-1 have not run once, which
+// leaves those claims unattributed and makes the teardown warn — correctly —
+// against a shape that promised silence.
+static atomic_long g_drain_pushers = 0;
 
 static napi_threadsafe_function g_spin_tsfn = NULL;
 
@@ -143,14 +151,27 @@ static napi_threadsafe_function MakeTsfn(napi_env env, napi_value cb,
   return st == napi_ok ? tsfn : NULL;
 }
 
-static void SpawnDetached(void* (*fn)(void*), napi_threadsafe_function tsfn,
+// Returns false if the worker could not be started. Callers MUST report that:
+// a thread that never runs holds its initial claim forever, which at env
+// teardown is byte-identical to a thread that has merely not been scheduled
+// yet. Discarding pthread_create's status turns a hard failure into the exact
+// intermittent teardown warning this fixture's readiness gates exist to rule
+// out, with nothing in the output to tell the two apart.
+static bool SpawnDetached(void* (*fn)(void*), napi_threadsafe_function tsfn,
                           long calls) {
   WorkerArgs* w = malloc(sizeof(WorkerArgs));
+  if (w == NULL) {
+    return false;
+  }
   w->tsfn = tsfn;
   w->calls = calls;
   pthread_t t;
-  pthread_create(&t, NULL, fn, w);
+  if (pthread_create(&t, NULL, fn, w) != 0) {
+    free(w);
+    return false;
+  }
   pthread_detach(t);
+  return true;
 }
 
 // start(cb, nThreads, callsPerThread) — nonblocking flood, unbounded queue.
@@ -167,7 +188,12 @@ static napi_value Start(napi_env env, napi_callback_info info) {
     napi_throw_error(env, NULL, "create_threadsafe_function failed");
     return NULL;
   }
-  for (long i = 0; i < threads; i++) SpawnDetached(PushWorker, tsfn, calls);
+  for (long i = 0; i < threads; i++) {
+    if (!SpawnDetached(PushWorker, tsfn, calls)) {
+      napi_throw_error(env, NULL, "pthread_create failed");
+      return NULL;
+    }
+  }
   return NULL;
 }
 
@@ -185,8 +211,12 @@ static napi_value StartBlocking(napi_env env, napi_callback_info info) {
     napi_throw_error(env, NULL, "create_threadsafe_function failed");
     return NULL;
   }
-  for (long i = 0; i < threads; i++)
-    SpawnDetached(BlockingWorker, tsfn, calls);
+  for (long i = 0; i < threads; i++) {
+    if (!SpawnDetached(BlockingWorker, tsfn, calls)) {
+      napi_throw_error(env, NULL, "pthread_create failed");
+      return NULL;
+    }
+  }
   return NULL;
 }
 
@@ -203,8 +233,12 @@ static napi_value StartSpin(napi_env env, napi_callback_info info) {
     napi_throw_error(env, NULL, "create_threadsafe_function failed");
     return NULL;
   }
-  for (long i = 0; i < threads; i++)
-    SpawnDetached(SpinWorker, g_spin_tsfn, 0);
+  for (long i = 0; i < threads; i++) {
+    if (!SpawnDetached(SpinWorker, g_spin_tsfn, 0)) {
+      napi_throw_error(env, NULL, "pthread_create failed");
+      return NULL;
+    }
+  }
   return NULL;
 }
 
@@ -274,11 +308,21 @@ static void* ParkWorker(void* arg) {
 // tsfn under it — the napi_closing return consumes the claim, so it drains.
 static void* DrainWorker(void* arg) {
   WorkerArgs* w = arg;
+  int counted = 0;
   for (;;) {
     int* item = malloc(sizeof(int));
     *item = 0;
     napi_status st =
         napi_call_threadsafe_function(w->tsfn, item, napi_tsfn_nonblocking);
+    // Count this thread ONCE, on the first push to RETURN — whatever the
+    // status. The shim attributes the calling thread's claim under its own
+    // mutex before either the queue-full or the napi_closing early-return, so
+    // a returned push means this worker's initial claim is attributed;
+    // gating on napi_ok would under-count and reintroduce the race.
+    if (!counted) {
+      counted = 1;
+      atomic_fetch_add(&g_drain_pushers, 1);
+    }
     if (st != napi_ok) {
       free(item);
       if (st == napi_closing) break;
@@ -327,7 +371,10 @@ static napi_value HoldForeign(napi_env env, napi_callback_info info) {
     napi_throw_error(env, NULL, "create_threadsafe_function failed");
     return NULL;
   }
-  SpawnDetached(ParkWorker, tsfn, 0);
+  if (!SpawnDetached(ParkWorker, tsfn, 0)) {
+    napi_throw_error(env, NULL, "pthread_create failed");
+    return NULL;
+  }
   return NULL;
 }
 
@@ -338,21 +385,35 @@ static napi_value HoldDraining(napi_env env, napi_callback_info info) {
   napi_value argv[2];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   long threads = GetLongArg(env, argv[1]);
+  // Reset HERE, not in resetStats(): this is the one point at which no
+  // DrainWorker exists yet. Each worker counts itself exactly once and never
+  // again, so zeroing the counter under a live fan-out would strand it below
+  // `threads` forever and hang the readiness wait. A second holdDraining call
+  // in one process must keep this reset-before-spawn ordering.
+  atomic_store(&g_drain_pushers, 0);
   napi_threadsafe_function tsfn =
       MakeTsfn(env, argv[0], 0, (size_t)threads, NULL);
   if (tsfn == NULL) {
     napi_throw_error(env, NULL, "create_threadsafe_function failed");
     return NULL;
   }
-  for (long i = 0; i < threads; i++) SpawnDetached(DrainWorker, tsfn, 0);
+  for (long i = 0; i < threads; i++) {
+    if (!SpawnDetached(DrainWorker, tsfn, 0)) {
+      napi_throw_error(env, NULL, "pthread_create failed");
+      return NULL;
+    }
+  }
   return NULL;
 }
 
-// stats() → [delivered, dropped, floodFinalized, spinFinalized]
+// stats() → [delivered, dropped, floodFinalized, spinFinalized, drainPushers]
+// [4] is the only PER-THREAD figure here; [0] counts deliveries, which is not
+// the same question and must not be used as a stand-in for it (see
+// g_drain_pushers).
 static napi_value Stats(napi_env env, napi_callback_info info) {
   (void)info;
   napi_value result, v;
-  napi_create_array_with_length(env, 4, &result);
+  napi_create_array_with_length(env, 5, &result);
   napi_create_int64(env, atomic_load(&g_delivered), &v);
   napi_set_element(env, result, 0, v);
   napi_create_int64(env, atomic_load(&g_dropped), &v);
@@ -361,6 +422,8 @@ static napi_value Stats(napi_env env, napi_callback_info info) {
   napi_set_element(env, result, 2, v);
   napi_create_int64(env, atomic_load(&g_spin_finalized), &v);
   napi_set_element(env, result, 3, v);
+  napi_create_int64(env, atomic_load(&g_drain_pushers), &v);
+  napi_set_element(env, result, 4, v);
   return result;
 }
 
