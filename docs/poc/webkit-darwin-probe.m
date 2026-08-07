@@ -15,6 +15,7 @@
 //     [ok] navigation finished  (== WebKit.LoadEvent.FINISHED)
 //     [ok] evaluateJavaScript -> gjsify/document-start
 //     [ok] takeSnapshot -> 800x600 px, 32 bpp  (== Gdk.Texture source)
+//   verdict: the engine half maps 1:1
 //
 // `@gjsify/iframe` uses a small WebKitGTK surface: WebKit.WebView as a
 // Gtk.Widget, WebKit.Settings, a UserContentManager + UserScript injected at
@@ -29,7 +30,14 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 
-static int gExit = 2;
+// `[NSApp terminate:]` calls `exit(0)` unconditionally, so a probe that reported
+// a failure through it would still exit 0 and read as a pass in CI. Every exit
+// goes through here instead, which is also the only reason the verdict prints:
+// nothing after `[NSApp run]` is reachable once the app is told to stop.
+__attribute__((noreturn)) static void finish(int code) {
+    printf("verdict: %s\n", code == 0 ? "the engine half maps 1:1" : "incomplete");
+    exit(code);
+}
 
 @interface Probe : NSObject <WKNavigationDelegate, WKScriptMessageHandler>
 @property(nonatomic, strong) WKWebView *webView;
@@ -53,9 +61,7 @@ static int gExit = 2;
               completionHandler:^(id result, NSError *error) {
         if (error) {
             printf("  [FAIL] evaluateJavaScript: %s\n", error.localizedDescription.UTF8String);
-            gExit = 1;
-            [NSApp terminate:nil];
-            return;
+            finish(1);
         }
         printf("  [ok] evaluateJavaScript -> %s\n", [[NSString stringWithFormat:@"%@", result] UTF8String]);
 
@@ -65,22 +71,25 @@ static int gExit = 2;
             if (snapErr || !image) {
                 printf("  [FAIL] takeSnapshot: %s\n",
                        snapErr ? snapErr.localizedDescription.UTF8String : "no image");
-                gExit = 1;
-            } else {
-                CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
-                printf("  [ok] takeSnapshot -> %zux%zu px, %zu bpp  (== Gdk.Texture source)\n",
-                       CGImageGetWidth(cg), CGImageGetHeight(cg), CGImageGetBitsPerPixel(cg));
-                gExit = self.sawDocumentStartScript ? 0 : 1;
+                finish(1);
             }
-            [NSApp terminate:nil];
+            CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
+            printf("  [ok] takeSnapshot -> %zux%zu px, %zu bpp  (== Gdk.Texture source)\n",
+                   CGImageGetWidth(cg), CGImageGetHeight(cg), CGImageGetBitsPerPixel(cg));
+            // The user script is checked LAST: its message arrives before
+            // navigation finishes, so by here its absence is a real negative.
+            if (!self.sawDocumentStartScript) {
+                printf("  [FAIL] no script message arrived from the user script\n");
+                finish(1);
+            }
+            finish(0);
         }];
     }];
 }
 
 - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     printf("  [FAIL] navigation failed: %s\n", error.localizedDescription.UTF8String);
-    gExit = 1;
-    [NSApp terminate:nil];
+    finish(1);
 }
 
 @end
@@ -120,12 +129,11 @@ int main(void) {
         // Hard timeout so a hang is a result, not a wedged run.
         [NSTimer scheduledTimerWithTimeInterval:20.0 repeats:NO block:^(NSTimer *t) {
             printf("  [FAIL] timed out after 20 s\n");
-            gExit = 1;
-            [NSApp terminate:nil];
+            finish(1);
         }];
 
         [NSApp run];
     }
-    printf("verdict: %s\n", gExit == 0 ? "the engine half maps 1:1" : "incomplete");
-    return gExit;
+    // Only reachable if the run loop ended without any callback firing.
+    finish(2);
 }

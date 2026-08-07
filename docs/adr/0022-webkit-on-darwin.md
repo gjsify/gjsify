@@ -6,8 +6,11 @@
 ## Context
 
 ADR 0018 made Linux, macOS and Windows a declared, checked target set, and
-`macos-suites.yml` now runs the Node pillar on both architectures. One package
-does not merely fail there, it cannot load at all:
+`macos-suites.yml` now runs the **Node** pillar there on both architectures.
+`@gjsify/iframe` is Framework-pillar and is in no macOS leg; its suite runs
+only under `gjsify foreach test` on Fedora, where WebKitGTK 6.0 exists. This
+ADR is about why that gap is not closed by adding a package to a matrix.
+Measured by hand on the host, importing the package's own dependency:
 
 ```
 JS ERROR: Error: Requiring WebKit, version 6.0:
@@ -47,18 +50,21 @@ probing WKWebView in a NON-BUNDLED process (no .app):
   [ok] navigation finished  (== WebKit.LoadEvent.FINISHED)
   [ok] evaluateJavaScript -> gjsify/document-start
   [ok] takeSnapshot -> 800x600 px, 32 bpp  (== Gdk.Texture source)
+verdict: the engine half maps 1:1
 ```
 
 `gjsify/document-start` is one expression evaluating two things at once: the
 DOM query `document.querySelector('h1').textContent` **and** the global a user
 script set at document-start. Both halves answered.
 
-The surface that has to map is small. Counted over `@gjsify/iframe`'s shipping
-source (`packages/framework/iframe/src/**`, specs excluded): `WebKit.WebView`
-27×, `LoadEvent` 5×, `UserContentManager` 3×, `UserScript` +
+The surface that has to map is small. Counting `WebKit.`-qualified occurrences
+over the 14 files `@gjsify/iframe` actually ships — `packages/framework/iframe/src/**/*.ts`
+minus `*.spec.ts`, which is exactly what its `build:gjsify` script compiles:
+`WebKit.WebView` 25×, `LoadEvent` 5×, `UserContentManager` 3×, `UserScript` +
 `UserScriptInjectionTime` + `UserContentInjectedFrames` 2× each,
 `SnapshotRegion` 2×, `SnapshotOptions` and `Settings` 1× each; four instance
-methods — `evaluate_javascript`, `get_snapshot`, `load_html`, `load_uri`.
+methods — `evaluate_javascript` (14 call sites), `get_snapshot` (5),
+`load_html` and `load_uri` (1 each).
 
 | WebKitGTK 6.0 | Apple WebKit | measured |
 |---|---|---|
@@ -106,10 +112,17 @@ transport does not.
 ```
 display        : GdkMacosDisplay
 GSK_RENDERER   : <unset — GTK chooses>
-  GskNglRenderer / GskVulkanRenderer / GskCairoRenderer / GskGLRenderer   all available
+  GskNglRenderer     available
+  GskVulkanRenderer  available
+  GskCairoRenderer   available
+  GskGLRenderer      available
 chosen renderer: GskGLRenderer
-GL context     : API GL — version 4.1
+GL context     : GL — version 4.1
 ```
+
+"available" there is what the typelib exposes, not a claim that each one would
+realise; the load-bearing line is the one below it, which is what a real
+`Gtk.Window` on this host actually got.
 
 Three things follow. OpenGL on macOS is frozen at **4.1** and deprecated since
 10.14 — it works (Apple implements it over Metal) but it is the legacy path;
@@ -157,9 +170,9 @@ engine; the inconvenient one preserves parity with the Linux backend.
    distributed by the pattern this repo already runs: `@gjsify/webkit-native`
    plus `@gjsify/webkit-native-darwin-{x64,arm64}` per-target packages behind an
    `optionalDependencies` bridge (ADR 0017), built by meson and staged by
-   `stage-prebuild.mjs`. That pattern is already proven on darwin —
+   `stage-prebuild.mjs`. That pattern already carries darwin —
    `http2-native-darwin-x64`, `tls-native-darwin-x64` and `webgl-darwin-x64`
-   exist and load.
+   each ship a `.dylib` with its `.gir` and `.typelib` beside it today.
 
 3. **Stage 2 — a paintable, not an embed.** `WKWebView`'s layer tree →
    `CARenderer` → `IOSurface` → `GdkTexture` → `GdkPaintable` in a

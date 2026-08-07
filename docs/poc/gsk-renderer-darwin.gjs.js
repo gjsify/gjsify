@@ -17,10 +17,13 @@
 // Expected on macOS 15.7.8 / x86_64, a VM with no GPU:
 //
 //   display        : GdkMacosDisplay
-//   GSK_RENDERER   : <unset - GTK chooses>
-//     GskNglRenderer / GskVulkanRenderer / GskCairoRenderer / GskGLRenderer  available
+//   GSK_RENDERER   : <unset — GTK chooses>
+//     GskNglRenderer     available
+//     GskVulkanRenderer  available
+//     GskCairoRenderer   available
+//     GskGLRenderer      available
 //   chosen renderer: GskGLRenderer
-//   GL context     : 1 - version 4.1
+//   GL context     : GL — version 4.1
 //
 // The load-bearing readings: GTK picks GL and does NOT fall back to cairo on
 // its own, and macOS caps OpenGL at 4.1 (deprecated since 10.14). Both are why
@@ -43,11 +46,21 @@ for (let i = 0; i < 50 && !win.get_native()?.get_renderer(); i++) ctx.iteration(
 const renderer = win.get_native()?.get_renderer();
 print(`chosen renderer: ${renderer ? renderer.constructor.$gtype.name : 'not realised'}`);
 // And whether a GL context can be created at all — the hardware question.
+// Gdk.GLAPI is a FLAGS type, so print the names rather than the bare integer:
+// desktop GL vs GLES is the load-bearing distinction, and `1` does not say it.
+const glApiNames = (api) =>
+    [
+        [Gdk.GLAPI.GL, 'GL'],
+        [Gdk.GLAPI.GLES, 'GLES'],
+    ]
+        .filter(([bit]) => (api & bit) !== 0)
+        .map(([, name]) => name)
+        .join('+') || String(api);
 try {
     const surface = win.get_native().get_surface();
     const gl = surface.create_gl_context();
     gl.realize();
-    print(`GL context     : ${gl.get_api()} — version ${gl.get_version().join('.')}`);
+    print(`GL context     : ${glApiNames(gl.get_api())} — version ${gl.get_version().join('.')}`);
 } catch (e) {
     print(`GL context     : unavailable — ${e.message}`);
 }
