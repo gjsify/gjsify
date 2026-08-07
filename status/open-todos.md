@@ -159,13 +159,23 @@ change, where a red macOS leg means what it says.
 
 ### `systemGiLibraryDirs()` lives in two places, pinned by a test rather than shared
 
-The darwin bare-leaf `dlopen` gap is one rule with two consumers now:
+The darwin bare-leaf `dlopen` gap is one rule with THREE consumers now:
 `@gjsify/node-gi` re-execs itself with the host's GI libdirs on
-`DYLD_FALLBACK_LIBRARY_PATH`, and `@gjsify/cli`'s `buildNativeEnv()` puts the same
+`DYLD_FALLBACK_LIBRARY_PATH`, `@gjsify/cli`'s `buildNativeEnv()` puts the same
 dirs on the gjs CHILD's copy of that variable (Homebrew's `gjs` has an rpath into
 GLIB's keg alone, so a plain `gjs -c "imports.gi.Gtk; Gtk.init()"` reproduced the
 failure with no gjsify in the process — the trace is in
-`packages/infra/cli/src/utils/system-gi.ts`).
+`packages/infra/cli/src/utils/system-gi.ts`), and — since ADR 0022's follow-up —
+`prebuilds.yml`'s macOS **load-test step**, which had CLAIMED in a comment to
+mirror `buildNativeEnv()` while carrying only the `DYLD_LIBRARY_PATH` half. The
+omission was invisible for as long as no bridge in that step needed a host GNOME
+library by bare leaf: every one of the eight either binds a portable C library or,
+like `Gwebgl`, reaches GL without Gtk. `@gjsify/webkit-native` is the first whose
+typelib references `libgtk-4.1.dylib`, and it failed on the arm64 leg with GJS's
+own `overrides/Gtk.js` unable to load — a THIRD hand-written copy of the same
+rule, found by adding coverage rather than by a consumer. It is now spelled the
+way the other two are; the shared-helper question this entry is about applies to
+it as well.
 
 The CLI cannot IMPORT node-gi's copy: ADR 0005 Decision 2 forbids a Tier-1 package
 taking a `dependencies`/`optionalDependencies` edge on `@gjsify/node-gi`, and the

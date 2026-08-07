@@ -1440,13 +1440,28 @@ jobs:
             echo "--- ${ns}.${sym} from ${abs}"
             # GI_TYPELIB_PATH locates the typelib; DYLD_LIBRARY_PATH is what lets
             # dlopen resolve the BARE leaf the typelib records (dyld has no
-            # notion of "next to the typelib"). This mirrors exactly what the CLI
-            # exports via detectNativePackages()/buildNativeEnv() on darwin, so a
-            # pass here is a pass for a real `gjsify` run. The sibling cdylib is
+            # notion of "next to the typelib"). The sibling cdylib is
             # deliberately NOT covered by that variable — see the next step.
+            #
+            # DYLD_FALLBACK_LIBRARY_PATH carries the HOST's libdir, and the split
+            # between the two variables is the whole point rather than belt and
+            # braces: the override variable wins by LEAF for every dylib in the
+            # process, so a system libdir in it would shadow the very libraries a
+            # prebuild links against. That is exactly the division
+            # `buildNativeEnv()` makes on darwin — this step CLAIMED to mirror it
+            # and did not, carrying only the override half, which held for as
+            # long as no bridge here needed a host GNOME library by bare leaf.
+            # `@gjsify/webkit-native` is the first that does (its typelib
+            # references `libgtk-4.1.dylib`), and it failed with GJS's own Gtk
+            # override unable to load — the darwin bare-leaf gap in
+            # status/open-todos.md, surfacing in CI rather than in a consumer.
+            # `/usr/lib` is appended because setting the variable REPLACES dyld's
+            # default fallback list.
+            #
             # `< /dev/null`: the loop's stdin is the table rows, and a child that
             # reads it would eat the remaining ones.
-            if GI_TYPELIB_PATH="$abs" DYLD_LIBRARY_PATH="$abs" gjs -c \
+            if GI_TYPELIB_PATH="$abs" DYLD_LIBRARY_PATH="$abs" \
+               DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib:/usr/lib" gjs -c \
                  "const T = imports.gi.${ns}.${sym};
                   if (typeof T !== 'function') { throw new Error('${ns}.${sym} did not resolve to a class'); }
                   print('${ns}.${sym} resolved — shared library loaded');" < /dev/null
