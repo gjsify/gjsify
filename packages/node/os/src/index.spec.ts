@@ -265,9 +265,21 @@ export default async () => {
         });
 
         await it('should be one of known machine types', async () => {
+            // `os.machine()` is `uname -m`, and that string is the KERNEL's — the
+            // same CPU answers differently per OS. Apple's arm64 says `arm64`
+            // where Linux says `aarch64` (Darwin on Intel says `x86_64`, as Linux
+            // does). Listing only the Linux spelling made this assert the HOST
+            // instead of the contract, which is the exact failure mode ADR 0018
+            // names: on Linux the missing entry cannot fail.
+            //
+            // It went red the moment it could — #1022 moved `packages/node/os`
+            // from `MACOS_PROBE_PACKAGES` to `MACOS_TEST_PACKAGES`, so the macOS
+            // leg began GATING on a suite it had only probed with. The gap is
+            // older than that move; the move is what made it visible.
             const known = [
                 'x86_64',
                 'aarch64',
+                'arm64',
                 'arm',
                 'armv7l',
                 'i686',
