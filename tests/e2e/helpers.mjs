@@ -260,6 +260,27 @@ export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
     );
 
     console.log('  running yarn install (PnP)...');
+    // `stdio: 'pipe'` is deliberate — yarn is chatty — but on FAILURE it makes
+    // the reason invisible: execFileSync's Error carries stdout/stderr as
+    // Buffers, and a test reporter prints those as `<Buffer 1b 5b …>`. Both
+    // failures this helper has produced were diagnosed from a single line that
+    // happened to reach the log, and the second one (an empty stderr with the
+    // whole story in stdout) could not be diagnosed at all. Re-throwing with the
+    // captured output decoded costs nothing on the happy path.
+    try {
+        runYarnInstall(projectDir);
+    } catch (err) {
+        const dump = (buf) => (buf ? Buffer.from(buf).toString('utf8').trimEnd() : '(empty)');
+        console.error('  yarn install FAILED — captured output follows');
+        console.error('  --- stdout ---\n' + dump(err.stdout));
+        console.error('  --- stderr ---\n' + dump(err.stderr));
+        throw err;
+    }
+    console.log('  yarn install done');
+}
+
+/** The install itself, split out so the caller above owns the diagnostics. */
+function runYarnInstall(projectDir) {
     execFileSync('yarn', ['install', '--no-immutable'], {
         cwd: projectDir,
         stdio: 'pipe',
@@ -282,7 +303,6 @@ export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
             COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
         },
     });
-    console.log('  yarn install done');
 }
 
 /**
