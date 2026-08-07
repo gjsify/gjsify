@@ -139,6 +139,21 @@ jobs:
       # mechanism napi.yml already uses for the same reason, down to the shared
       # `install-published-cli.sh` (which retries through the window where a release
       # has bumped every package.json but npm does not serve the version yet).
+      #
+      # TEMPORARY, AND MEANT TO BE REVERTED. The project's direction is to run as
+      # much as possible ON gjsify rather than on Node — CI included — because
+      # running the toolchain on itself is what makes its defects observable at
+      # all. This one step is the exception only because it cannot repair itself.
+      # Revert it to `gjs -m "$GJSIFY_BOOTSTRAP" run build:infra` once BOTH hold:
+      #   1. a RELEASED @gjsify/cli carries the fixes this step trips over
+      #      (gjsify#1038: `gjsify tsc` exiting 0 when it can spawn no compiler),
+      #      so `releases/latest` is no longer the broken one; and
+      #   2. a NON-BLOCKING job exercises the GJS-hosted bootstrap, so the next
+      #      regression there is a signal rather than a deadlocked release.
+      # Without (2) a revert only re-arms the trap for the next CLI bug.
+      # Note: every step AFTER this one already runs the repo's own CLI
+      # (`PATH="$PWD/node_modules/.bin:$PATH" gjsify …`), so what is on Node here
+      # is the cold start, not the release.
       - name: Bootstrap the build toolchain (cold trees only)
         run: |
           if [ -f packages/infra/cli/lib/index.js ]; then
