@@ -72,6 +72,9 @@ const JOB = 'build-prebuilds-macos';
  * @property {boolean} rustSibling whether the Vala library links a cargo cdylib
  *                              (`libgjsify_<x>.dylib`, underscore) it must reach
  *                              through `@loader_path` alone
+ * @property {string} [library]  the library leaf, when it is NOT `lib<namespace>`.
+ *                              Authored only where the derivation below cannot
+ *                              hold — see `webkit-native`.
  */
 
 /** Every bridge `build-prebuilds-macos` builds. Order = the job's step order. */
@@ -84,6 +87,23 @@ export const DARWIN_BRIDGES = /** @type {DarwinBridge[]} */ ([
     { dir: 'packages/node/http-soup-bridge', namespace: 'GjsifyHttpSoupBridge', klass: 'Server', rustSibling: false },
     { dir: 'packages/node/http2-native', namespace: 'GjsifyHttp2', klass: 'SessionBridge', rustSibling: false },
     { dir: 'packages/framework/webgl', namespace: 'Gwebgl', klass: 'WebGLRenderingContext', rustSibling: false },
+    // The ONE row whose library leaf is authored, and the reason the field
+    // exists. ADR 0022 makes GIR namespace and symbol prefix deliberately
+    // different here — the typelib answers to `WebKit` 6.0 (so `@gjsify/iframe`
+    // needs no OS branch) while the C symbols and the library stay
+    // `gjsify_webkit` / `libgjsifywebkit`. The derivation would say
+    // `libwebkit.dylib`, which is not this artifact and IS the name of the real
+    // WebKitGTK. It has no Rust sibling, so nothing consumes the leaf today; it
+    // is declared anyway because the first consumer that appears would otherwise
+    // dlopen the wrong file, and "wrong library, plausible name" is the worst
+    // shape of that bug.
+    {
+        dir: 'packages/framework/webkit-native',
+        namespace: 'WebKit',
+        klass: 'WebView',
+        rustSibling: false,
+        library: 'libgjsifywebkit.dylib',
+    },
 ]);
 
 /**
@@ -98,6 +118,16 @@ export const DARWIN_BRIDGES = /** @type {DarwinBridge[]} */ ([
  */
 export function valaLibraryLeaf(namespace, ext = '.dylib') {
     return `lib${namespace.toLowerCase()}${ext}`;
+}
+
+/**
+ * The library leaf for a bridge: authored if the row says so, derived otherwise.
+ * One function so no caller has to remember the override exists.
+ *
+ * @param {DarwinBridge} bridge
+ */
+export function libraryLeaf(bridge) {
+    return bridge.library ?? valaLibraryLeaf(bridge.namespace);
 }
 
 /**
@@ -239,7 +269,7 @@ function main() {
             // without a sibling are absent: there is no hop to prove, and a pass
             // would claim coverage the artifact does not need.
             for (const b of built) {
-                if (b.rustSibling) console.log(`${b.dir}|${dirOf(b)}/${valaLibraryLeaf(b.namespace)}`);
+                if (b.rustSibling) console.log(`${b.dir}|${dirOf(b)}/${libraryLeaf(b)}`);
             }
             return;
         default:

@@ -3,6 +3,7 @@
 - **Status:** Accepted (2026-08-07)
 - **Scope:** `@gjsify/iframe` (Framework pillar) and its `WebKit.WebView` dependency; `@gjsify/webkit-native` + its `*-darwin-*` per-target set (distribution per ADR 0017, OS axis per ADR 0018).
 - **Amended while implementing.** Two decisions in the Proposed draft were measured wrong and are corrected below, each with the measurement that overturned it: the shim does NOT take its own namespace (§ *One namespace*), and stage 2 does NOT go through `IOSurface`/`CARenderer` (§ *The renderer question*). A third finding the draft had no idea about — the run loop — is what stage 1 actually turned on.
+- **Amended again after the first release.** Input forwarding — deferred as its own track — has landed, and two of the four "not implemented" bullets turned out to be mistakes of fact rather than deferrals: named script worlds and user-script allow/block lists are both implementable and both now ship. See § *Input forwarding* and § *What the first revision got wrong*, each with the measurement behind it.
 
 ## Context
 
@@ -300,28 +301,129 @@ engine; the inconvenient one preserves parity with the Linux backend.
   view is alive. It is refcounted so a program that has finished with WebKit
   stops paying, but an idle page still costs a periodic wakeup — the CFRunLoop
   exposes no descriptor to poll instead.
-- **`WKWebView` runs its own content process.** The plain CLI case is measured
-  working; App Sandbox, hardened runtime and service contexts are untested, and a
-  `gjs` process has no bundle identifier, which some WebKit features key on.
+- **`WKWebView` runs its own content process, and the HARDENED RUNTIME is fine
+  with that.** `docs/poc/webkit-hardened-runtime-darwin.sh` signs the same
+  minimal program three ways and runs each:
+
+  ```
+    unsigned (what a gjs process is today)   engine works
+    ad-hoc signed + hardened runtime         engine works
+    ad-hoc signed + App Sandbox              killed by signal 4 before it could run
+  ```
+
+  The hardened-runtime row is the one that matters for shipping, and it passes
+  with `com.apple.security.cs.allow-jit` — so a notarised application embedding
+  this backend has no WebKit-specific obstacle.
+
+  **App Sandbox remains genuinely unanswered, and the probe says so rather than
+  reporting a result it did not measure.** The abort is at process start, before
+  `main`: `com.apple.security.app-sandbox` requires a bundled application with an
+  `application-identifier` entitlement, and an ad-hoc signature has no team to
+  issue one. That is a statement about bare executables and ad-hoc signing, not
+  about WebKit. A properly bundled, Developer-ID-signed app needs a real identity
+  to test and is out of reach here. A `gjs` process still has no bundle
+  identifier, which some WebKit features key on.
+
+### Input forwarding — the second track, now landed
+
+The first revision of this ADR deferred input entirely and called it "comparable
+in size to the rendering half". It is not, and the reason is one measurement:
+`docs/poc/webkit-input-darwin.m`.
+
+The expectation was that input would need the view to be first responder of a
+key window, because that is how WebKit derives `ActivityState::IsFocused`. Three
+modes were built and measured — bare windowless, windowless +
+`-[NSView becomeFirstResponder]`, and a parked offscreen `NSWindow` +
+`-[NSWindow makeFirstResponder:]` — and they are **indistinguishable on every
+line, typing included**. The offscreen window was strictly worse while it
+existed: it never became key even under activation policy `Accessory`, and it
+dragged the wheel event's location out of the view, so scrolling stopped
+working. So the shim creates no window, touches no responder chain, and leaves
+the activation policy at `Prohibited`.
+
+Two findings decide the code:
+
+```
+  WKWebView isFlipped : YES   (top-left, like GTK)
+  mousedown at        : [30,50]   (sent 30,50 top-left)
+  focused element     : i
+  input.value         : x
+  scrollY             : 50   (sent 50 px)
+  document.hasFocus   : false
+```
+
+**The coordinate space is not the view's.** `-[WKWebView isFlipped]` is `YES`, so
+the view's own space is top-left exactly like GTK's — but an `NSEvent` carries
+`locationInWindow`, which is bottom-left, and WebKit converts with
+`-[NSView convertPoint:fromView:nil]`. So a GTK y is flipped **once** against the
+widget height. Unflipped, a y of 55 lands at `clientY` 245 in a 300 px view: the
+events all arrive, at the wrong element, which is the only symptom.
+
+**A forwarded click focuses the element under it**, so DOM focus follows the
+pointer as it does on Linux and there is no separate focus channel to build.
+
+`docs/poc/webkit-input-widget-darwin.m` then drives the shipping widget through
+the `GtkEventController`s it installs, and is what holds the pieces the first
+probe cannot see — that the controllers are connected, that the flip is against
+the live widget height, and that GTK's scroll steps convert at WebCore's own
+`Scrollbar::pixelsPerLineStep()` of 40 px (3 steps → `scrollY` 120, measured).
+
+No `GtkIMContext` is attached, deliberately: WebKit routes `keyDown:` through
+`-[NSView interpretKeyEvents:]` into its own `NSTextInputClient`, which *is* the
+macOS input-method path, and a second IM context on the GTK side would compose
+the input twice.
 
 ### What is not implemented
 
 Each fails loudly rather than silently, which is the difference between a subset
 and a lie:
 
-- **Input forwarding.** The widget renders; mouse, keyboard, focus, scroll and
-  IME are not forwarded to the web content. This is the half the draft correctly
-  called "comparable in size to the rendering half", and it remains its own
-  track.
-- **Named script worlds.** `WKWebView` has no public isolated-world API, so
-  `register_script_message_handler(name, world)` returns `FALSE` for a
-  non-`NULL` world instead of quietly registering into the page world, where
-  page scripts could reach it.
-- **User-script allow/block lists.** Not a WebKit feature — WebKitGTK implements
-  them above WebKit. A non-empty list warns rather than being dropped.
-- **`darwin-arm64`.** The code is architecture-independent and this VM is Intel.
-  Per ADR 0018, a platform is declared when a job builds it, not when it would
-  compile, so `gjsify.platforms` says `darwin-x64` only.
+- **`document.hasFocus()` is always `false`,** so `window.onfocus` / `onblur`
+  never fire and focus-dependent UA chrome (a blinking caret) does not appear.
+  It is a page-level activity-state flag WebKit derives from the responder
+  chain, distinct from which element holds DOM focus — text input works without
+  it. Measured in all three modes above, including the one with a real window,
+  which is what says no arrangement of public API reaches it.
+- **The pointer cursor does not change** over links or text. Cursor shape is
+  another thing WebKit delivers through a window it does not have.
+- **`darwin-arm64` is built but not committed.** `commit-prebuilds` downloads it
+  now — the step was missing when this ADR first landed, so every arm64 artifact
+  the `ci:macos` leg produced was discarded, which was the real blocker rather
+  than the authoring host's architecture. It needs one labelled run to reach
+  `main`.
+- **App Sandbox stays unanswered.** See § *Consequences*.
+
+### What the first revision got wrong
+
+Two of the four bullets that stood here were not deferrals, they were **mistakes
+of fact**, and both are now implemented:
+
+- **Named script worlds.** This ADR said "`WKWebView` has no public
+  isolated-world API" and refused a non-`NULL` world. `WKContentWorld` has been
+  public since **macOS 11**, together with the `inContentWorld:` overloads of
+  `addScriptMessageHandler`, `WKUserScript`'s initialiser and
+  `evaluateJavaScript`. `docs/poc/webkit-script-worlds-darwin.m` measures the
+  property that matters rather than merely that the calls return: the same
+  global set in two worlds reads back `page` and `iso`, and a handler registered
+  in `"iso"` is `undefined` from the page world and an `object` from `"iso"`.
+  The requirement is now declared — `meson.build` pins
+  `-mmacosx-version-min=11.0` — rather than inherited from whichever host built
+  it.
+- **User-script allow/block lists.** True that Apple's `WKUserScript` has no URL
+  filter; false that this leaves nothing to do. Warning and running the script
+  anyway is precisely the failure a block list exists to prevent. The patterns
+  are now parsed in C and applied by wrapping the source in a guard that tests
+  the document's URL, measured against a real origin via
+  `loadHTMLString:baseURL:`: of five scripts on `https://example.com/page`, the
+  exact-origin and `*.example.com` ones run and the other-host, other-path and
+  `*://*/*`-blocked ones do not.
+
+  The wrap costs one thing, stated because it cannot be hidden: the guard is a
+  **labelled block**, so a filtered script's top-level `let`, `const` and `class`
+  become block-scoped instead of global. `var` and function declarations are
+  unaffected. A labelled block is used rather than the obvious IIFE precisely
+  because an IIFE would capture those too, and a script with no lists is not
+  wrapped at all.
 
 ## Implementation
 
@@ -334,9 +436,20 @@ and a lie:
    offscreen view so the page lays out to the widget's width.
 4. `@gjsify/iframe`: `sideEffects` gains `./lib/esm/promisify.js`. That is the
    package's ONLY change.
-5. `docs/poc/webkit-runloop-darwin.m`, which fails if either half of the run-loop
-   finding stops holding.
-6. Per-target split per ADR 0017 and the `gjsify onboard` bootstrap before the
+5. Input forwarding: `GtkGestureClick`, motion, scroll and key controllers on the
+   widget, each re-synthesizing an `NSEvent` with the single y-flip; no window,
+   no responder chain, no `GtkIMContext`.
+6. Script worlds via `WKContentWorld`, with `gjsify_webkit_user_script_new_for_world()`
+   mirroring `webkit_user_script_new_for_world()`, and `-mmacosx-version-min=11.0`
+   declaring the floor that API needs.
+7. URL-pattern allow/block lists parsed in C and applied as a labelled-block
+   guard around the script source.
+8. The probes, each of which fails if its own finding stops holding:
+   `webkit-runloop-darwin.m` (the run loop), `webkit-input-darwin.m` (what
+   WebKit accepts), `webkit-input-widget-darwin.m` (what the widget forwards),
+   `webkit-script-worlds-darwin.m` (isolation and filtering) and
+   `webkit-hardened-runtime-darwin.sh` (code-signing contexts).
+9. Per-target split per ADR 0017 and the `gjsify onboard` bootstrap before the
    release that ships the new names.
 
 ## Do not
@@ -361,3 +474,18 @@ and a lie:
   parity.
 - **Do not make `WebView` final, or `UserScript` a GObject.** Both compile,
   install, and then break the exact call the port exists to preserve.
+- **Do not put the `WKWebView` in an offscreen `NSWindow` to make input work.**
+  It was built that way first. It buys nothing measurable — a bare windowless
+  view types and clicks identically — it never becomes key even under activation
+  policy `Accessory`, and it moves the wheel event's location out of the view, so
+  scrolling regresses. Likewise do not relax the activation policy from
+  `Prohibited`: that is what keeps a `gjs` CLI process out of the Dock, and
+  nothing in the input path needs it.
+- **Do not flip the pointer y twice, or not at all.** `isFlipped` is `YES` and
+  the event location is still bottom-left; exactly one flip against the widget
+  height is correct. Both errors deliver every event to the wrong element, which
+  is a symptom that looks like a hit-testing bug anywhere but here.
+- **Do not write "WKWebView has no public isolated-world API" again.**
+  `WKContentWorld` has been public since macOS 11 and this ADR asserted the
+  opposite for a release. If an Apple API looks absent, check the availability
+  annotation before designing around it.

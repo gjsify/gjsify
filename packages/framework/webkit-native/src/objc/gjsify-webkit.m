@@ -201,6 +201,49 @@ static GjsifyWebKitValue *gjsify_webkit_value_new_from_objc(id object)
 }
 
 /* ==========================================================================
+ * Script worlds
+ *
+ * WKContentWorld has been public since macOS 11 (`worldWithName:`, plus the
+ * `inContentWorld:` overloads of addScriptMessageHandler, WKUserScript's
+ * initialiser and evaluateJavaScript). ADR 0022 shipped saying there was no
+ * public isolated-world API and rejected a non-NULL world outright; that was
+ * wrong, and this is the correction.
+ *
+ * The instances are cached because `+worldWithName:` returns the same object
+ * only for as long as one is still alive — without holding them, a message
+ * handler and a user script registered into "foo" at different moments would
+ * land in DIFFERENT worlds, which is exactly the isolation bug the caller was
+ * trying to avoid. WebKitGTK's script worlds are process-global by name too, so
+ * a process-lifetime cache is the matching lifetime rather than a leak.
+ * ========================================================================== */
+
+static WKContentWorld *gjsify_webkit_content_world(const gchar *world_name)
+{
+    static NSMutableDictionary<NSString *, WKContentWorld *> *cache;
+    static gsize once = 0;
+
+    /* NULL is WebKitGTK's "the page's own world", which is what every consumer
+     * in this workspace passes and what the postMessage bridge needs: a handler
+     * in an isolated world is unreachable from the page's own scripts. */
+    if (world_name == NULL) {
+        return [WKContentWorld pageWorld];
+    }
+
+    if (g_once_init_enter(&once)) {
+        cache = [[NSMutableDictionary alloc] init];
+        g_once_init_leave(&once, 1);
+    }
+
+    NSString *key = @(world_name);
+    WKContentWorld *world = cache[key];
+    if (world == nil) {
+        world = [WKContentWorld worldWithName:key];
+        cache[key] = world;
+    }
+    return world;
+}
+
+/* ==========================================================================
  * GjsifyWebKitUserScript
  * ========================================================================== */
 
@@ -209,6 +252,7 @@ struct _GjsifyWebKitUserScript {
     gchar *source;
     GjsifyWebKitUserContentInjectedFrames injected_frames;
     GjsifyWebKitUserScriptInjectionTime injection_time;
+    gchar *world_name; /* NULL = the page world */
 };
 
 G_DEFINE_BOXED_TYPE(GjsifyWebKitUserScript,
@@ -228,8 +272,195 @@ void gjsify_webkit_user_script_unref(GjsifyWebKitUserScript *self)
     g_return_if_fail(self != NULL);
     if (g_atomic_ref_count_dec(&self->ref_count)) {
         g_free(self->source);
+        g_free(self->world_name);
         g_free(self);
     }
+}
+
+/* ---- allow/block lists --------------------------------------------------
+ *
+ * WKUserScript has no URL filter: WebKitGTK's allow/block lists are
+ * `WebCore::UserContentURLPattern`, applied in the web process at injection
+ * time, and Apple's API exposes no equivalent hook. ADR 0022 shipped warning
+ * and running the script anyway, which is the one failure mode a block list
+ * exists to prevent — a script running on an origin the caller excluded.
+ *
+ * So the filter moves into the script: the source is wrapped in a guard that
+ * tests the document's own URL against the patterns before running it. The
+ * patterns are parsed HERE, in C, rather than shipped as strings to be
+ * interpreted by page-visible JavaScript.
+ *
+ * THE ONE SEMANTIC DIFFERENCE, because it is real and cannot be hidden: the
+ * guard is a labelled block, so a filtered script's top-level `let`, `const` and
+ * `class` become block-scoped instead of global. `var` and function
+ * declarations still hoist to global scope, which is what a user script
+ * normally relies on. A labelled block is used rather than the obvious IIFE
+ * precisely because an IIFE would additionally capture `var` and `function`.
+ * Scripts with NO lists are not wrapped at all and are byte-identical to what
+ * shipped before.
+ * ------------------------------------------------------------------------- */
+
+typedef struct {
+    gchar *scheme;      /* "*" matches http and https, as WebKit's does */
+    gchar *host;        /* NULL = any host */
+    gboolean subdomains;/* the pattern was *.example.com */
+    gchar *path;        /* glob, "*" wildcards */
+} GjsifyWebKitUrlPattern;
+
+static void gjsify_webkit_url_pattern_clear(gpointer data)
+{
+    GjsifyWebKitUrlPattern *pattern = data;
+    g_free(pattern->scheme);
+    g_free(pattern->host);
+    g_free(pattern->path);
+}
+
+/* `scheme://host/path`, the shape WebKit's UserContentURLPattern parses. An
+ * unparseable pattern is DROPPED with a warning, which is WebKitGTK's behaviour
+ * — and the safe direction for both list kinds, since a dropped allow entry
+ * narrows and a dropped block entry is reported rather than silently widening. */
+static gboolean gjsify_webkit_url_pattern_parse(const gchar *text, GjsifyWebKitUrlPattern *out)
+{
+    const gchar *separator = strstr(text, "://");
+    if (separator == NULL || separator == text) {
+        g_warning("GjsifyWebKit: ignoring malformed user-script URL pattern '%s' "
+                  "(expected scheme://host/path)",
+                  text);
+        return FALSE;
+    }
+
+    out->scheme = g_strndup(text, (gsize) (separator - text));
+
+    const gchar *host = separator + 3;
+    const gchar *slash = strchr(host, '/');
+    gchar *host_part = slash != NULL ? g_strndup(host, (gsize) (slash - host)) : g_strdup(host);
+
+    if (g_strcmp0(host_part, "*") == 0) {
+        out->host = NULL;
+        g_free(host_part);
+    } else if (g_str_has_prefix(host_part, "*.")) {
+        out->subdomains = TRUE;
+        out->host = g_strdup(host_part + 2);
+        g_free(host_part);
+    } else {
+        out->host = host_part;
+    }
+
+    /* No path means the whole origin, exactly as `https://example.com` does in
+     * WebKitGTK. */
+    out->path = g_strdup(slash != NULL ? slash : "/*");
+    return TRUE;
+}
+
+/* A JSON string literal, which is also a valid JavaScript one.
+ *
+ * NOT `g_strescape()`, which was the first spelling and is wrong here: it emits
+ * OCTAL escapes (`\303\251`) for every non-ASCII byte, and a legacy octal escape
+ * in a JS string is a SyntaxError under `"use strict"` and a byte-wise
+ * misreading of UTF-8 everywhere else — so an IDN host in a pattern would either
+ * refuse to parse or silently match nothing. JS source is UTF-8, so the correct
+ * answer is to pass multi-byte sequences through untouched and escape only what
+ * JSON requires. */
+static void gjsify_webkit_append_json_string(GString *out, const gchar *value)
+{
+    g_string_append_c(out, '"');
+    for (const guchar *p = (const guchar *) value; *p != '\0'; p++) {
+        switch (*p) {
+            case '"': g_string_append(out, "\\\""); break;
+            case '\\': g_string_append(out, "\\\\"); break;
+            case '\n': g_string_append(out, "\\n"); break;
+            case '\r': g_string_append(out, "\\r"); break;
+            case '\t': g_string_append(out, "\\t"); break;
+            default:
+                if (*p < 0x20) {
+                    g_string_append_printf(out, "\\u%04x", *p);
+                } else {
+                    g_string_append_c(out, (gchar) *p);
+                }
+        }
+    }
+    g_string_append_c(out, '"');
+}
+
+/* One JSON object per pattern. Building JSON in C rather than interpolating the
+ * raw pattern strings is what keeps a pattern containing a quote from ending
+ * the string literal and becoming page-visible code. */
+static void gjsify_webkit_url_patterns_to_json(
+    const gchar *const *list, GString *out)
+{
+    g_string_append_c(out, '[');
+
+    for (gsize i = 0; list != NULL && list[i] != NULL; i++) {
+        GjsifyWebKitUrlPattern pattern = { 0 };
+        if (!gjsify_webkit_url_pattern_parse(list[i], &pattern)) {
+            continue;
+        }
+
+        if (out->len > 1) {
+            g_string_append_c(out, ',');
+        }
+
+        g_string_append(out, "{s:");
+        gjsify_webkit_append_json_string(out, pattern.scheme);
+        g_string_append_printf(out, ",d:%s,p:", pattern.subdomains ? "1" : "0");
+        gjsify_webkit_append_json_string(out, pattern.path);
+        g_string_append(out, ",h:");
+        if (pattern.host != NULL) {
+            gjsify_webkit_append_json_string(out, pattern.host);
+        } else {
+            g_string_append(out, "null");
+        }
+        g_string_append_c(out, '}');
+
+        gjsify_webkit_url_pattern_clear(&pattern);
+    }
+
+    g_string_append_c(out, ']');
+}
+
+/* The matcher, mirroring UserContentURLPattern::matches: the scheme must agree
+ * ("*" meaning http or https, as WebKit's does), the host must agree exactly or
+ * as a subdomain, and the path glob must match path+query. */
+#define GJSIFY_WEBKIT_URL_MATCHER                                                             \
+    "var __gjsifyMatch=function(p){"                                                          \
+    "var s=location.protocol.slice(0,-1);"                                                    \
+    "if(p.s==='*'){if(s!=='http'&&s!=='https')return false;}else if(p.s!==s)return false;"     \
+    "if(p.h!==null){var h=location.hostname;"                                                 \
+    "if(p.d){if(h!==p.h&&!h.endsWith('.'+p.h))return false;}else if(h!==p.h)return false;}"    \
+    "var re=p.p.split('*').map(function(x){return x.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&');})" \
+    ".join('[\\\\s\\\\S]*');"                                                                 \
+    "return new RegExp('^'+re+'$').test(location.pathname+location.search);};"
+
+static gboolean gjsify_webkit_list_is_empty(const gchar *const *list)
+{
+    return list == NULL || list[0] == NULL;
+}
+
+static gchar *gjsify_webkit_apply_url_patterns(
+    const gchar *source, const gchar *const *allow_list, const gchar *const *block_list)
+{
+    if (gjsify_webkit_list_is_empty(allow_list) && gjsify_webkit_list_is_empty(block_list)) {
+        return g_strdup(source);
+    }
+
+    GString *allow = g_string_new(NULL);
+    GString *block = g_string_new(NULL);
+    gjsify_webkit_url_patterns_to_json(allow_list, allow);
+    gjsify_webkit_url_patterns_to_json(block_list, block);
+
+    GString *wrapped = g_string_new("__gjsifyUserScript: {\n");
+    g_string_append(wrapped, GJSIFY_WEBKIT_URL_MATCHER);
+    g_string_append_printf(wrapped, "var __gjsifyAllow=%s,__gjsifyBlock=%s;\n", allow->str, block->str);
+    g_string_append(
+        wrapped,
+        "if(__gjsifyAllow.length&&!__gjsifyAllow.some(__gjsifyMatch))break __gjsifyUserScript;\n"
+        "if(__gjsifyBlock.some(__gjsifyMatch))break __gjsifyUserScript;\n");
+    g_string_append(wrapped, source);
+    g_string_append(wrapped, "\n}");
+
+    g_string_free(allow, TRUE);
+    g_string_free(block, TRUE);
+    return g_string_free(wrapped, FALSE);
 }
 
 GjsifyWebKitUserScript *gjsify_webkit_user_script_new(
@@ -239,25 +470,31 @@ GjsifyWebKitUserScript *gjsify_webkit_user_script_new(
     const gchar *const *allow_list,
     const gchar *const *block_list)
 {
+    return gjsify_webkit_user_script_new_for_world(
+        source, injected_frames, injection_time, NULL, allow_list, block_list);
+}
+
+GjsifyWebKitUserScript *gjsify_webkit_user_script_new_for_world(
+    const gchar *source,
+    GjsifyWebKitUserContentInjectedFrames injected_frames,
+    GjsifyWebKitUserScriptInjectionTime injection_time,
+    const gchar *world_name,
+    const gchar *const *allow_list,
+    const gchar *const *block_list)
+{
     GjsifyWebKitUserScript *self;
 
     g_return_val_if_fail(source != NULL, NULL);
 
-    /* WKUserScript has no allow/block list — WebKitGTK's are implemented above
-     * WebKit, not inside it. Accepting them and dropping them silently would
-     * make a script run on origins the caller excluded, so a non-empty list is
-     * a warning rather than a no-op. Nothing in this workspace passes one. */
-    if ((allow_list != NULL && allow_list[0] != NULL) ||
-        (block_list != NULL && block_list[0] != NULL)) {
-        g_warning("GjsifyWebKit: user-script allow/block lists are not supported on the "
-                  "darwin backend; the script will run in every frame it is injected into");
-    }
-
     self = g_new0(GjsifyWebKitUserScript, 1);
     g_atomic_ref_count_init(&self->ref_count);
-    self->source = g_strdup(source);
+    /* The patterns are baked in HERE rather than at injection time, because
+     * this is the only point where the caller's list is still in hand — a
+     * WKUserScript carries nothing but its source. */
+    self->source = gjsify_webkit_apply_url_patterns(source, allow_list, block_list);
     self->injected_frames = injected_frames;
     self->injection_time = injection_time;
+    self->world_name = g_strdup(world_name);
     return self;
 }
 
@@ -396,10 +633,11 @@ void gjsify_webkit_user_content_manager_add_script(
         BOOL main_frame_only =
             script->injected_frames == GJSIFY_WEBKIT_USER_CONTENT_INJECT_TOP_FRAME;
 
-        WKUserScript *user_script =
-            [[WKUserScript alloc] initWithSource:@(script->source)
-                                   injectionTime:time
-                                forMainFrameOnly:main_frame_only];
+        WKUserScript *user_script = [[WKUserScript alloc]
+                 initWithSource:@(script->source)
+                  injectionTime:time
+               forMainFrameOnly:main_frame_only
+                 inContentWorld:gjsify_webkit_content_world(script->world_name)];
         [controller addUserScript:user_script];
     }
 
@@ -424,27 +662,16 @@ gboolean gjsify_webkit_user_content_manager_register_script_message_handler(
     g_return_val_if_fail(GJSIFY_WEBKIT_IS_USER_CONTENT_MANAGER(self), FALSE);
     g_return_val_if_fail(name != NULL, FALSE);
 
-    /* WebKitGTK's world_name selects a script world. WKWebView has no public
-     * equivalent, and registering into the page world while the caller asked
-     * for an isolated one would hand page scripts a handler they should not
-     * reach. Refusing is the honest answer. */
-    if (world_name != NULL) {
-        g_warning("GjsifyWebKit: named script worlds are not available on the darwin "
-                  "backend; refusing to register handler '%s' in world '%s'",
-                  name,
-                  world_name);
-        return FALSE;
-    }
-
     @autoreleasepool {
         WKUserContentController *controller = (__bridge WKUserContentController *) self->controller;
         GjsifyWebKitScriptMessageHandler *handler =
             (__bridge GjsifyWebKitScriptMessageHandler *) self->handler;
+        WKContentWorld *world = gjsify_webkit_content_world(world_name);
         /* Re-registering the same name throws an ObjC exception, which would
          * cross the C frame and abort. WebKitGTK returns FALSE instead, so
          * remove first and keep the contract. */
-        [controller removeScriptMessageHandlerForName:@(name)];
-        [controller addScriptMessageHandler:handler name:@(name)];
+        [controller removeScriptMessageHandlerForName:@(name) contentWorld:world];
+        [controller addScriptMessageHandler:handler contentWorld:world name:@(name)];
     }
 
     return TRUE;
@@ -455,11 +682,11 @@ void gjsify_webkit_user_content_manager_unregister_script_message_handler(
 {
     g_return_if_fail(GJSIFY_WEBKIT_IS_USER_CONTENT_MANAGER(self));
     g_return_if_fail(name != NULL);
-    (void) world_name;
 
     @autoreleasepool {
         WKUserContentController *controller = (__bridge WKUserContentController *) self->controller;
-        [controller removeScriptMessageHandlerForName:@(name)];
+        [controller removeScriptMessageHandlerForName:@(name)
+                                         contentWorld:gjsify_webkit_content_world(world_name)];
     }
 }
 
@@ -585,6 +812,16 @@ typedef struct {
     guint tick_id;            /* the repaint tick, live only while mapped */
     gboolean refresh_pending; /* a snapshot is in flight */
     gint64 last_refresh_us;
+
+    /* Input. The pointer position is remembered because GTK reports it only on
+     * motion, while a scroll or a key event still has to name one — AppKit has
+     * no "wherever the pointer was" and WebKit hit-tests wheel events by
+     * position. `buttons_down` is what makes a motion with a button held a
+     * `mouseDragged:` rather than a `mouseMoved:`; WebKit distinguishes them and
+     * a drag reported as a move ends text selection at the wrong character. */
+    double pointer_x;
+    double pointer_y;
+    guint buttons_down;
 
     gchar *uri;
     gboolean is_loading;
@@ -845,6 +1082,443 @@ static gboolean gjsify_webkit_web_view_tick(
     return G_SOURCE_CONTINUE;
 }
 
+/* ==========================================================================
+ * Input forwarding — GTK event controllers in, synthesized NSEvents out.
+ *
+ * docs/poc/webkit-input-darwin.m is the measurement this rests on, and it
+ * overturned the design that was expected. The short version:
+ *
+ *   - A WINDOWLESS WKWebView takes mouse, key and wheel events. No NSWindow, no
+ *     first responder, no activation-policy change: all three were built and
+ *     measured INDISTINGUISHABLE from the bare view, and the offscreen-window
+ *     variant was strictly worse (it never became key, and it dragged the wheel
+ *     event's location out of the view).
+ *   - An NSEvent's `locationInWindow` is BOTTOM-LEFT window space even though
+ *     `-[WKWebView isFlipped]` is YES, because WebKit converts with
+ *     `-[NSView convertPoint:fromView:nil]`. So a GTK y is flipped exactly once.
+ *     Getting this wrong is an off-by-viewport-height bug that looks like
+ *     "clicks land on the wrong element" and nothing else.
+ *   - A forwarded click focuses the element under it, so DOM focus follows the
+ *     pointer exactly as on Linux and there is no separate focus channel.
+ *
+ * What this does NOT reach is `document.hasFocus()`, which stays FALSE: it is a
+ * page-level activity-state flag WebKit derives from the responder chain, and
+ * the public API offers no way to set it without a window. `window.onfocus` /
+ * `onblur` therefore do not fire. Measured, not assumed — the probe reports it.
+ * ========================================================================== */
+
+/* WebCore's own `Scrollbar::pixelsPerLineStep()`. GTK reports scroll deltas in
+ * wheel steps and the probe measured `kCGScrollEventUnitPixel` to be 1:1 with
+ * CSS pixels, so this is the one number between them — and taking WebKit's
+ * rather than inventing one keeps a wheel click scrolling the same distance as
+ * it does through WebKitGTK. */
+#define GJSIFY_WEBKIT_PIXELS_PER_SCROLL_STEP 40.0
+
+static NSEventModifierFlags gjsify_webkit_modifier_flags(GdkModifierType state)
+{
+    NSEventModifierFlags flags = 0;
+
+    if (state & GDK_SHIFT_MASK) {
+        flags |= NSEventModifierFlagShift;
+    }
+    if (state & GDK_CONTROL_MASK) {
+        flags |= NSEventModifierFlagControl;
+    }
+    if (state & GDK_ALT_MASK) {
+        flags |= NSEventModifierFlagOption;
+    }
+    /* Command, not Super: GDK's macOS backend maps NSEventModifierFlagCommand
+     * onto GDK_META_MASK, so this is the round trip of that mapping. */
+    if (state & GDK_META_MASK) {
+        flags |= NSEventModifierFlagCommand;
+    }
+    if (state & GDK_LOCK_MASK) {
+        flags |= NSEventModifierFlagCapsLock;
+    }
+    return flags;
+}
+
+/* The single flip. GTK hands top-left widget coordinates; an NSEvent's location
+ * is bottom-left window space, and the view sits at the window origin. */
+static NSPoint gjsify_webkit_event_location(GjsifyWebKitWebView *self, double x, double y)
+{
+    return NSMakePoint(x, (double) gtk_widget_get_height(GTK_WIDGET(self)) - y);
+}
+
+static double gjsify_webkit_event_timestamp(void)
+{
+    return [[NSProcessInfo processInfo] systemUptime];
+}
+
+static NSEvent *gjsify_webkit_mouse_event(GjsifyWebKitWebView *self,
+                                          NSEventType type,
+                                          double x,
+                                          double y,
+                                          GdkModifierType state,
+                                          int click_count)
+{
+    return [NSEvent mouseEventWithType:type
+                              location:gjsify_webkit_event_location(self, x, y)
+                         modifierFlags:gjsify_webkit_modifier_flags(state)
+                             timestamp:gjsify_webkit_event_timestamp()
+                          windowNumber:0
+                               context:nil
+                           eventNumber:0
+                            clickCount:click_count
+                              pressure:type == NSEventTypeLeftMouseDown ? 1.0 : 0.0];
+}
+
+/* GTK numbers buttons 1/2/3 = left/middle/right; AppKit has a dedicated event
+ * type and selector per button and lumps everything else into "other". WebKit
+ * reads the TYPE rather than the button number (`mouseButtonForEvent` maps
+ * NSEventTypeOtherMouse* straight to Middle), so the type is what has to be
+ * right here. */
+static void gjsify_webkit_send_button(GjsifyWebKitWebView *self,
+                                      guint button,
+                                      gboolean pressed,
+                                      double x,
+                                      double y,
+                                      GdkModifierType state,
+                                      int click_count)
+{
+    WKWebView *web_view = (__bridge WKWebView *) PRIV(self)->web_view;
+    if (web_view == nil) {
+        return;
+    }
+
+    NSEventType type;
+    switch (button) {
+        case GDK_BUTTON_PRIMARY:
+            type = pressed ? NSEventTypeLeftMouseDown : NSEventTypeLeftMouseUp;
+            break;
+        case GDK_BUTTON_SECONDARY:
+            type = pressed ? NSEventTypeRightMouseDown : NSEventTypeRightMouseUp;
+            break;
+        default:
+            type = pressed ? NSEventTypeOtherMouseDown : NSEventTypeOtherMouseUp;
+            break;
+    }
+
+    /* Every ObjC allocation in the input path is pooled, as everywhere else in
+     * this file. It matters more here than elsewhere: motion arrives at pointer
+     * rate, and a `+…EventWithType:` factory returns an autoreleased object, so
+     * an unpooled handler defers every one of them to a pool that a GTK main
+     * loop never drains. */
+    @autoreleasepool {
+        NSEvent *event = gjsify_webkit_mouse_event(self, type, x, y, state, click_count);
+        if (event == nil) {
+            return;
+        }
+
+        switch (type) {
+            case NSEventTypeLeftMouseDown: [web_view mouseDown:event]; break;
+            case NSEventTypeLeftMouseUp: [web_view mouseUp:event]; break;
+            case NSEventTypeRightMouseDown: [web_view rightMouseDown:event]; break;
+            case NSEventTypeRightMouseUp: [web_view rightMouseUp:event]; break;
+            case NSEventTypeOtherMouseDown: [web_view otherMouseDown:event]; break;
+            default: [web_view otherMouseUp:event]; break;
+        }
+    }
+}
+
+static void gjsify_webkit_on_pressed(
+    GtkGestureClick *gesture, gint n_press, gdouble x, gdouble y, gpointer user_data)
+{
+    GjsifyWebKitWebView *self = GJSIFY_WEBKIT_WEB_VIEW(user_data);
+    guint button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
+    GdkModifierType state =
+        gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
+
+    /* Keyboard focus follows the click, as it does in every other GTK text
+     * surface — without it the widget never becomes the key target and the
+     * keystrokes that should follow a click go to whatever had focus before. */
+    gtk_widget_grab_focus(GTK_WIDGET(self));
+
+    PRIV(self)->pointer_x = x;
+    PRIV(self)->pointer_y = y;
+    PRIV(self)->buttons_down |= 1u << button;
+
+    gjsify_webkit_send_button(self, button, TRUE, x, y, state, n_press);
+    gjsify_webkit_web_view_request_refresh(self);
+}
+
+static void gjsify_webkit_on_released(
+    GtkGestureClick *gesture, gint n_press, gdouble x, gdouble y, gpointer user_data)
+{
+    GjsifyWebKitWebView *self = GJSIFY_WEBKIT_WEB_VIEW(user_data);
+    guint button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
+    GdkModifierType state =
+        gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
+
+    PRIV(self)->pointer_x = x;
+    PRIV(self)->pointer_y = y;
+    PRIV(self)->buttons_down &= ~(1u << button);
+
+    gjsify_webkit_send_button(self, button, FALSE, x, y, state, n_press);
+    gjsify_webkit_web_view_request_refresh(self);
+}
+
+static void gjsify_webkit_on_motion(
+    GtkEventControllerMotion *controller, gdouble x, gdouble y, gpointer user_data)
+{
+    GjsifyWebKitWebView *self = GJSIFY_WEBKIT_WEB_VIEW(user_data);
+    WKWebView *web_view = (__bridge WKWebView *) PRIV(self)->web_view;
+    if (web_view == nil) {
+        return;
+    }
+
+    GdkModifierType state =
+        gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(controller));
+
+    PRIV(self)->pointer_x = x;
+    PRIV(self)->pointer_y = y;
+
+    /* A move with a button held is a DRAG to WebKit, and reporting it as a plain
+     * move breaks text selection and HTML5 drag-and-drop. */
+    @autoreleasepool {
+        if (PRIV(self)->buttons_down & (1u << GDK_BUTTON_PRIMARY)) {
+            [web_view mouseDragged:gjsify_webkit_mouse_event(
+                                       self, NSEventTypeLeftMouseDragged, x, y, state, 1)];
+        } else if (PRIV(self)->buttons_down & (1u << GDK_BUTTON_SECONDARY)) {
+            [web_view rightMouseDragged:gjsify_webkit_mouse_event(
+                                            self, NSEventTypeRightMouseDragged, x, y, state, 1)];
+        } else if (PRIV(self)->buttons_down != 0) {
+            [web_view otherMouseDragged:gjsify_webkit_mouse_event(
+                                            self, NSEventTypeOtherMouseDragged, x, y, state, 1)];
+        } else {
+            [web_view mouseMoved:gjsify_webkit_mouse_event(
+                                     self, NSEventTypeMouseMoved, x, y, state, 0)];
+        }
+    }
+}
+
+static void gjsify_webkit_on_leave(GtkEventControllerMotion *controller, gpointer user_data)
+{
+    GjsifyWebKitWebView *self = GJSIFY_WEBKIT_WEB_VIEW(user_data);
+    WKWebView *web_view = (__bridge WKWebView *) PRIV(self)->web_view;
+    (void) controller;
+    if (web_view == nil) {
+        return;
+    }
+
+    /* Without this the last hovered element keeps its :hover state forever,
+     * because nothing else ever tells the page the pointer went away. A
+     * tracking number of 0 is correct for a synthesized event: WebKit reads the
+     * type and the location, not the tracking area it did not install. */
+    @autoreleasepool {
+        NSEvent *event = [NSEvent enterExitEventWithType:NSEventTypeMouseExited
+                                                location:gjsify_webkit_event_location(
+                                                             self,
+                                                             PRIV(self)->pointer_x,
+                                                             PRIV(self)->pointer_y)
+                                           modifierFlags:0
+                                               timestamp:gjsify_webkit_event_timestamp()
+                                            windowNumber:0
+                                                 context:nil
+                                             eventNumber:0
+                                          trackingNumber:0
+                                                userData:NULL];
+        if (event != nil) {
+            [web_view mouseExited:event];
+        }
+    }
+    gjsify_webkit_web_view_request_refresh(self);
+}
+
+static gboolean gjsify_webkit_on_scroll(
+    GtkEventControllerScroll *controller, gdouble dx, gdouble dy, gpointer user_data)
+{
+    GjsifyWebKitWebView *self = GJSIFY_WEBKIT_WEB_VIEW(user_data);
+    WKWebView *web_view = (__bridge WKWebView *) PRIV(self)->web_view;
+    (void) controller;
+    if (web_view == nil) {
+        return GDK_EVENT_PROPAGATE;
+    }
+
+    /* NSEvent has no public constructor for a scroll event carrying deltas, so
+     * it comes from a CGEvent. The sign flips because GDK counts positive
+     * downward and AppKit counts positive upward. */
+    CGEventRef cg = CGEventCreateScrollWheelEvent(
+        NULL,
+        kCGScrollEventUnitPixel,
+        2,
+        (int32_t) -(dy * GJSIFY_WEBKIT_PIXELS_PER_SCROLL_STEP),
+        (int32_t) -(dx * GJSIFY_WEBKIT_PIXELS_PER_SCROLL_STEP));
+    if (cg == NULL) {
+        return GDK_EVENT_PROPAGATE;
+    }
+
+    /* windowNumber stays 0, i.e. the location stays in the view's own space.
+     * Pointing it at a window is what broke scrolling in the offscreen-window
+     * design the probe threw away. */
+    @autoreleasepool {
+        NSEvent *event = [NSEvent eventWithCGEvent:cg];
+        if (event != nil) {
+            [web_view scrollWheel:event];
+        }
+    }
+    CFRelease(cg);
+
+    gjsify_webkit_web_view_request_refresh(self);
+    return GDK_EVENT_STOP;
+}
+
+/* GDK keyvals that carry no Unicode character have to be spelled as the
+ * private-use characters AppKit defines for them, because that is what WebKit
+ * pattern-matches on to recognise an arrow or a function key. Everything with a
+ * real character (including Return, Tab, Escape and Backspace, which map to
+ * their ASCII control codes) falls through to gdk_keyval_to_unicode(). */
+static NSString *gjsify_webkit_characters_for_keyval(guint keyval)
+{
+    unichar character;
+
+    switch (keyval) {
+        case GDK_KEY_Up: character = NSUpArrowFunctionKey; break;
+        case GDK_KEY_Down: character = NSDownArrowFunctionKey; break;
+        case GDK_KEY_Left: character = NSLeftArrowFunctionKey; break;
+        case GDK_KEY_Right: character = NSRightArrowFunctionKey; break;
+        case GDK_KEY_Home: character = NSHomeFunctionKey; break;
+        case GDK_KEY_End: character = NSEndFunctionKey; break;
+        case GDK_KEY_Page_Up: character = NSPageUpFunctionKey; break;
+        case GDK_KEY_Page_Down: character = NSPageDownFunctionKey; break;
+        case GDK_KEY_Insert: character = NSInsertFunctionKey; break;
+        case GDK_KEY_Delete: character = NSDeleteFunctionKey; break;
+        case GDK_KEY_Menu: character = NSMenuFunctionKey; break;
+        default:
+            if (keyval >= GDK_KEY_F1 && keyval <= GDK_KEY_F35) {
+                character = (unichar) (NSF1FunctionKey + (keyval - GDK_KEY_F1));
+                break;
+            }
+            {
+                guint32 unicode = gdk_keyval_to_unicode(keyval);
+                if (unicode == 0) {
+                    return @"";
+                }
+                /* Beyond the BMP an NSString needs a surrogate pair, which a
+                 * single unichar cannot hold. */
+                return [[NSString alloc] initWithBytes:&unicode
+                                                length:sizeof(unicode)
+                                              encoding:NSUTF32LittleEndianStringEncoding];
+            }
+    }
+
+    return [NSString stringWithCharacters:&character length:1];
+}
+
+static gboolean gjsify_webkit_send_key(
+    GjsifyWebKitWebView *self, guint keyval, guint keycode, GdkModifierType state, gboolean pressed)
+{
+    WKWebView *web_view = (__bridge WKWebView *) PRIV(self)->web_view;
+    if (web_view == nil) {
+        return GDK_EVENT_PROPAGATE;
+    }
+
+    @autoreleasepool {
+        NSString *characters = gjsify_webkit_characters_for_keyval(keyval);
+        NSEventModifierFlags flags = gjsify_webkit_modifier_flags(state);
+
+        /* GDK's hardware keycode IS the Carbon virtual keycode on the macOS
+         * backend, which is the only backend this file compiles for — so it
+         * passes through rather than being translated. WebKit needs it for
+         * layout-independent shortcuts, where the character is the wrong key to
+         * match on. */
+        NSEvent *event = [NSEvent keyEventWithType:pressed ? NSEventTypeKeyDown : NSEventTypeKeyUp
+                                          location:gjsify_webkit_event_location(
+                                                       self,
+                                                       PRIV(self)->pointer_x,
+                                                       PRIV(self)->pointer_y)
+                                     modifierFlags:flags
+                                         timestamp:gjsify_webkit_event_timestamp()
+                                      windowNumber:0
+                                           context:nil
+                                        characters:characters
+                       charactersIgnoringModifiers:characters
+                                         isARepeat:NO
+                                           keyCode:(unsigned short) keycode];
+        if (event == nil) {
+            return GDK_EVENT_PROPAGATE;
+        }
+
+        /* A Command chord is a key EQUIVALENT on macOS, not a key down — that is
+         * the path Cmd+C/V/A/Z travel, and WebKit only implements the editing
+         * commands behind it. Sending one as a plain keyDown: types nothing and
+         * copies nothing. It answers whether it consumed the chord, so an
+         * unhandled one still falls through to the normal path. */
+        if (pressed && (flags & NSEventModifierFlagCommand) != 0 &&
+            [web_view performKeyEquivalent:event]) {
+            gjsify_webkit_web_view_request_refresh(self);
+            return GDK_EVENT_STOP;
+        }
+
+        if (pressed) {
+            [web_view keyDown:event];
+        } else {
+            [web_view keyUp:event];
+        }
+    }
+
+    gjsify_webkit_web_view_request_refresh(self);
+    return GDK_EVENT_STOP;
+}
+
+static gboolean gjsify_webkit_on_key_pressed(GtkEventControllerKey *controller,
+                                             guint keyval,
+                                             guint keycode,
+                                             GdkModifierType state,
+                                             gpointer user_data)
+{
+    (void) controller;
+    return gjsify_webkit_send_key(
+        GJSIFY_WEBKIT_WEB_VIEW(user_data), keyval, keycode, state, TRUE);
+}
+
+static void gjsify_webkit_on_key_released(GtkEventControllerKey *controller,
+                                          guint keyval,
+                                          guint keycode,
+                                          GdkModifierType state,
+                                          gpointer user_data)
+{
+    (void) controller;
+    gjsify_webkit_send_key(GJSIFY_WEBKIT_WEB_VIEW(user_data), keyval, keycode, state, FALSE);
+}
+
+/* No GtkIMContext is attached, and that is deliberate rather than missing.
+ * WebKit routes `keyDown:` through `-[NSView interpretKeyEvents:]` into its own
+ * NSTextInputClient, which IS the macOS input-method path — dead keys and
+ * marked text are handled by the same code a Safari text field uses. Attaching
+ * a second IM context on the GTK side would compose the input twice. */
+static void gjsify_webkit_web_view_install_input(GjsifyWebKitWebView *self)
+{
+    GtkWidget *widget = GTK_WIDGET(self);
+
+    /* WebKitWebView is focusable; a web view that cannot take focus cannot be
+     * typed into, and GtkEventControllerKey only fires on the focus target. */
+    gtk_widget_set_focusable(widget, TRUE);
+
+    GtkGesture *click = gtk_gesture_click_new();
+    /* Button 0 means "every button" — the default of 1 would drop right-clicks,
+     * so a page's context menu handler would never fire. */
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), 0);
+    g_signal_connect(click, "pressed", G_CALLBACK(gjsify_webkit_on_pressed), self);
+    g_signal_connect(click, "released", G_CALLBACK(gjsify_webkit_on_released), self);
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(click));
+
+    GtkEventController *motion = gtk_event_controller_motion_new();
+    g_signal_connect(motion, "motion", G_CALLBACK(gjsify_webkit_on_motion), self);
+    g_signal_connect(motion, "leave", G_CALLBACK(gjsify_webkit_on_leave), self);
+    gtk_widget_add_controller(widget, motion);
+
+    GtkEventController *scroll =
+        gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
+    g_signal_connect(scroll, "scroll", G_CALLBACK(gjsify_webkit_on_scroll), self);
+    gtk_widget_add_controller(widget, scroll);
+
+    GtkEventController *key = gtk_event_controller_key_new();
+    g_signal_connect(key, "key-pressed", G_CALLBACK(gjsify_webkit_on_key_pressed), self);
+    g_signal_connect(key, "key-released", G_CALLBACK(gjsify_webkit_on_key_released), self);
+    gtk_widget_add_controller(widget, key);
+}
+
 static void gjsify_webkit_web_view_map(GtkWidget *widget)
 {
     GjsifyWebKitWebView *self = GJSIFY_WEBKIT_WEB_VIEW(widget);
@@ -1012,6 +1686,11 @@ static void gjsify_webkit_web_view_constructed(GObject *object)
         PRIV(self)->web_view = (void *) CFBridgingRetain(web_view);
         PRIV(self)->delegate = (void *) CFBridgingRetain(delegate);
     }
+
+    /* After the WKWebView exists: every controller callback forwards to it, and
+     * a controller that fired before it was built would have to check for NULL
+     * on a path that cannot otherwise happen. */
+    gjsify_webkit_web_view_install_input(self);
 }
 
 static void gjsify_webkit_web_view_dispose(GObject *object)
@@ -1227,20 +1906,15 @@ void gjsify_webkit_web_view_evaluate_javascript(
     task = g_task_new(self, cancellable, callback, user_data);
     g_task_set_source_tag(task, gjsify_webkit_web_view_evaluate_javascript);
 
-    if (world_name != NULL) {
-        g_task_return_new_error(task,
-                                G_IO_ERROR,
-                                G_IO_ERROR_NOT_SUPPORTED,
-                                "named script worlds are not available on the darwin backend");
-        g_object_unref(task);
-        return;
-    }
-
     source = length < 0 ? g_strdup(script) : g_strndup(script, (gsize) length);
 
     @autoreleasepool {
         WKWebView *web_view = (__bridge WKWebView *) PRIV(self)->web_view;
+        /* A nil frame means the main frame, matching WebKitGTK, which has no
+         * frame argument here at all. */
         [web_view evaluateJavaScript:@(source)
+                             inFrame:nil
+                      inContentWorld:gjsify_webkit_content_world(world_name)
                    completionHandler:^(id result, NSError *error) {
             if (error != nil) {
                 g_task_return_new_error(task,

@@ -78,16 +78,45 @@ created *after* it was added: neither workflow declares `types:`, so the default
 `[opened, synchronize, reopened]` applies and `labeled` is not among them. Push a
 commit (or reopen the PR) after labelling.
 
+## Input
+
+Mouse, scroll and keyboard are forwarded from the GTK widget to the web content:
+`GtkGestureClick`, motion, scroll and key controllers each re-synthesize an
+`NSEvent`. A forwarded click focuses the element under it, so DOM focus follows
+the pointer as it does on Linux, and no `GtkIMContext` is attached because WebKit
+routes `keyDown:` through its own `NSTextInputClient` — which *is* the macOS
+input-method path, so a second IM context would compose the input twice.
+
+Two things worth knowing if you touch it, both measured
+(`docs/poc/webkit-input-darwin.m`): the view needs **no window and no responder
+chain** — an offscreen `NSWindow` was built and is indistinguishable except that
+it breaks scrolling — and an `NSEvent`'s location is **bottom-left window space
+even though `WKWebView` is flipped**, so a GTK y is flipped exactly once against
+the widget height. Getting that wrong delivers every event to the wrong element
+and nothing else.
+
+Minimum deployment target is **macOS 11**, declared in `meson.build`, because
+script worlds are `WKContentWorld`.
+
 ## Not implemented
 
 Deliberate, and each fails loudly rather than silently:
 
-- **Named script worlds.** `WKWebView` has no public isolated-world API.
-  `register_script_message_handler(name, world)` returns `FALSE` for a non-`NULL`
-  world instead of registering into the page world.
-- **User-script allow/block lists.** Not a WebKit feature — WebKitGTK implements
-  them above WebKit. A non-empty list warns.
-- **Input forwarding.** The widget renders; mouse, keyboard, focus and IME are
-  not yet forwarded to the web content. Scoped as its own track in ADR 0022.
-- **Sandboxed / hardened-runtime processes** are untested. `WKWebView` runs its
-  own content process and a `gjs` process has no bundle identifier.
+- **`document.hasFocus()` is always `false`,** so `window.onfocus` / `onblur`
+  never fire and no caret blinks. It is derived from a responder chain a
+  windowless view has no place in; an offscreen window does not fix it, which was
+  measured rather than assumed.
+- **The pointer cursor never changes** over links or text — another thing WebKit
+  delivers through a window it does not have.
+- **App Sandbox is unanswered.** The **hardened runtime works**
+  (`docs/poc/webkit-hardened-runtime-darwin.sh`, with
+  `com.apple.security.cs.allow-jit`), so a notarised app has no WebKit-specific
+  obstacle. The sandbox case dies before `main` because
+  `com.apple.security.app-sandbox` needs a bundled app with an
+  `application-identifier` that an ad-hoc signature cannot issue — a statement
+  about bare executables, not about WebKit. A `gjs` process also has no bundle
+  identifier, which some WebKit features key on.
+- **No CI covers the input path**, on any platform. It is held by two by-hand
+  probes that both need a display, and `@gjsify/iframe`'s unit suite instantiates
+  no live WebView. See `status/open-todos.md` for the two event-injection routes
+  that were tried and are dead ends.

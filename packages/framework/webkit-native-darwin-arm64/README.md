@@ -2,7 +2,7 @@
 
 > **No artifact in this tarball yet.** `darwin-arm64` is declared by
 > `@gjsify/webkit-native` and built by CI, but not committed to the repository:
-> prebuilds.yml's `build-prebuilds-macos` job builds this on its macos-latest (arm64) leg, but that job is opt-in behind the `ci:macos` label and the host that authored the package is an Intel VM, so no arm64 binary has been produced yet to commit. The x64 sibling is committed and loads. Closing this is one labelled CI run, not code: the Objective-C is architecture-independent and the meson build has no arch branch.
+> prebuilds.yml's `build-prebuilds-macos` job builds and uploads this on its macos-latest (arm64) leg, and `commit-prebuilds` now downloads it — that download was MISSING when ADR 0022 landed, so every arm64 artifact it ever built was discarded, which is the real reason no binary exists rather than the authoring host's architecture. What remains is one `ci:macos`-labelled run reaching main: the Objective-C is architecture-independent, the meson build has no arch branch, and the x64 sibling is committed and loads.
 >
 > The package exists so the artifact has somewhere to land — and so its npm name
 > is claimed before the release that first ships it. Until then installing it is
