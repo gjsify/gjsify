@@ -137,10 +137,19 @@ export default async () => {
                 // really made, so the echo is right to print it and the old
                 // expectation was the Linux answer generalised.
                 //
-                // What stays asserted is the part that was actually at stake:
-                // it prints ONE assignment, to the library-path variable, and
-                // no `GI_TYPELIB_PATH` and no `PATH`.
-                expect(envPrefix.startsWith(`${libVar}=`)).toBe(true);
+                // What stays asserted is the part that was actually at stake,
+                // and it is sharper than the old `toBe('')`: the repair goes on
+                // the FALLBACK variable and nothing else moves. The two are
+                // deliberately different questions — `libraryPathVar()` names
+                // the OVERRIDE (`DYLD_LIBRARY_PATH`, the right home for a
+                // prebuild we ship), the fallback names what fills in where
+                // nothing else resolved (the right home for the host's own
+                // libdirs). With no prebuild detected the override must stay
+                // untouched, and mixing the two is the mistake `buildNativeEnv`
+                // documents at length.
+                expect(envPrefix.startsWith('DYLD_FALLBACK_LIBRARY_PATH=')).toBe(true);
+                expect(envPrefix.includes(`${libVar}=`)).toBe(false);
+                expect(envPrefix.includes('GI_TYPELIB_PATH=')).toBe(false);
                 expect(envPrefix.split(' ').length).toBe(1);
             } else {
                 expect(envPrefix).toBe('');
