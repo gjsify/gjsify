@@ -352,6 +352,36 @@ static gboolean gjsify_webkit_url_pattern_parse(const gchar *text, GjsifyWebKitU
     return TRUE;
 }
 
+/* A JSON string literal, which is also a valid JavaScript one.
+ *
+ * NOT `g_strescape()`, which was the first spelling and is wrong here: it emits
+ * OCTAL escapes (`\303\251`) for every non-ASCII byte, and a legacy octal escape
+ * in a JS string is a SyntaxError under `"use strict"` and a byte-wise
+ * misreading of UTF-8 everywhere else — so an IDN host in a pattern would either
+ * refuse to parse or silently match nothing. JS source is UTF-8, so the correct
+ * answer is to pass multi-byte sequences through untouched and escape only what
+ * JSON requires. */
+static void gjsify_webkit_append_json_string(GString *out, const gchar *value)
+{
+    g_string_append_c(out, '"');
+    for (const guchar *p = (const guchar *) value; *p != '\0'; p++) {
+        switch (*p) {
+            case '"': g_string_append(out, "\\\""); break;
+            case '\\': g_string_append(out, "\\\\"); break;
+            case '\n': g_string_append(out, "\\n"); break;
+            case '\r': g_string_append(out, "\\r"); break;
+            case '\t': g_string_append(out, "\\t"); break;
+            default:
+                if (*p < 0x20) {
+                    g_string_append_printf(out, "\\u%04x", *p);
+                } else {
+                    g_string_append_c(out, (gchar) *p);
+                }
+        }
+    }
+    g_string_append_c(out, '"');
+}
+
 /* One JSON object per pattern. Building JSON in C rather than interpolating the
  * raw pattern strings is what keeps a pattern containing a quote from ending
  * the string literal and becoming page-visible code. */
@@ -370,20 +400,17 @@ static void gjsify_webkit_url_patterns_to_json(
             g_string_append_c(out, ',');
         }
 
-        gchar *scheme = g_strescape(pattern.scheme, NULL);
-        gchar *path = g_strescape(pattern.path, NULL);
-        g_string_append_printf(out, "{s:\"%s\",d:%s,p:\"%s\",h:", scheme,
-                               pattern.subdomains ? "1" : "0", path);
+        g_string_append(out, "{s:");
+        gjsify_webkit_append_json_string(out, pattern.scheme);
+        g_string_append_printf(out, ",d:%s,p:", pattern.subdomains ? "1" : "0");
+        gjsify_webkit_append_json_string(out, pattern.path);
+        g_string_append(out, ",h:");
         if (pattern.host != NULL) {
-            gchar *host = g_strescape(pattern.host, NULL);
-            g_string_append_printf(out, "\"%s\"", host);
-            g_free(host);
+            gjsify_webkit_append_json_string(out, pattern.host);
         } else {
             g_string_append(out, "null");
         }
         g_string_append_c(out, '}');
-        g_free(scheme);
-        g_free(path);
 
         gjsify_webkit_url_pattern_clear(&pattern);
     }

@@ -21,12 +21,14 @@
 //     handler in "iso", read from the page      -> undefined
 //     handler in the page world, read from page -> object
 //   url patterns — document is https://example.com/page
-//     allow https://example.com/*  -> ran
-//     allow https://other.test/*   -> did not run
-//     allow *://*.example.com/*    -> ran
-//     block *://*/*                -> did not run
-//     path allow  https://example.com/other/* -> did not run
+//     scripts that ran (A same, S subdomain, Q quote, U non-ASCII) -> ASQU
 //   verdict: worlds isolate and URL patterns filter
+//
+// The marks, in injection order: A `https://example.com/*` allowed, B
+// `https://other.test/*` allowed, S `*://*.example.com/*` allowed, C `*://*/*`
+// blocked, P `https://example.com/other/*` allowed, Q a block pattern
+// containing a quote, U a block pattern containing a non-ASCII host. A, S, Q
+// and U run; B, C and P do not.
 //
 // WHY IT EXISTS. ADR 0022 shipped claiming "WKWebView has no public
 // isolated-world API", and refused a non-NULL world outright. That was wrong:
@@ -197,12 +199,22 @@ int main(void)
     const gchar *allow_subdomain[] = { "*://*.example.com/*", NULL };
     const gchar *allow_other_path[] = { "https://example.com/other/*", NULL };
     const gchar *block_all[] = { "*://*/*", NULL };
+    /* The escaping cases, and the assertion is INVERTED on purpose: neither
+     * pattern matches this document, so both scripts must RUN. A quote that
+     * escaped its string literal, or a non-ASCII byte emitted as a legacy octal
+     * escape, makes the wrapped source a syntax error — and a script that fails
+     * to parse also does not run, which would read as a correct block. Marking
+     * them as expected-to-run is what tells the two apart. */
+    const gchar *block_quote[] = { "https://ex\"ample.com/*", NULL };
+    const gchar *block_unicode[] = { "https://exämple.com/*", NULL };
 
     add_marked_script(ucm, "A", allow_same, NULL);
     add_marked_script(ucm, "B", allow_other, NULL);
     add_marked_script(ucm, "S", allow_subdomain, NULL);
     add_marked_script(ucm, "C", NULL, block_all);
     add_marked_script(ucm, "P", allow_other_path, NULL);
+    add_marked_script(ucm, "Q", NULL, block_quote);
+    add_marked_script(ucm, "U", NULL, block_unicode);
 
     GtkWidget *view = GTK_WIDGET(
         g_object_new(GJSIFY_WEBKIT_TYPE_WEB_VIEW, "user-content-manager", ucm, NULL));
@@ -238,8 +250,9 @@ int main(void)
            eval_in(view, NULL, "location.href"));
     gchar *ran = eval_in(view, NULL, "String(document.documentElement.dataset.ran||'')");
     // Marks are appended in injection order, so the whole outcome is one string:
-    // A (same origin) and S (subdomain wildcard) ran, B, C and P did not.
-    check("scripts that ran (A allow-same, S allow-subdomain)", ran, "AS");
+    // A (same origin), S (subdomain wildcard), Q (quote in a non-matching block)
+    // and U (non-ASCII in a non-matching block) ran; B, C and P did not.
+    check("scripts that ran (A same, S subdomain, Q quote, U non-ASCII)", ran, "ASQU");
 
     printf(gFailures == 0 ? "verdict: worlds isolate and URL patterns filter\n"
                           : "verdict: FAILED\n");
