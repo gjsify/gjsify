@@ -9,8 +9,12 @@
 // them. This suite is that comparison.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { AVATAR_COLORS } from '@gjsify/adwaita-core';
-import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { AVATAR_COLORS, avatarMaxFontSize } from '@gjsify/adwaita-core';
+import {
+    AVATAR_COLOR_VECTORS,
+    AVATAR_FONT_SIZE_VECTORS,
+    AVATAR_INITIALS_VECTORS,
+} from '@gjsify/adwaita-core/conformance';
 
 /**
  * Mount an avatar and set `text` through `setAttribute`, never through parsed
@@ -67,9 +71,10 @@ export const AdwAvatarTest = async () => {
 
     await describe('adw-avatar colour (libadwaita conformance vectors)', async () => {
         for (const { text, colorClass } of AVATAR_COLOR_VECTORS) {
-            // A blank name renders no initials, so no colour is painted either —
-            // those rows are covered by the core suite instead.
-            if (text.trim().length === 0) continue;
+            // Only a genuinely EMPTY name drops to icon mode; a whitespace-only
+            // one stays in initials mode (blank label) and is still painted, so
+            // it belongs in this loop.
+            if (text.length === 0) continue;
 
             await it(`${JSON.stringify(text)} paints color${colorClass}`, () => {
                 const { avatar, host } = mountAvatar(text);
@@ -87,6 +92,47 @@ export const AdwAvatarTest = async () => {
             expect(avatar.style.backgroundImage).not.toBe('');
             avatar.removeAttribute('show-initials');
             expect(avatar.style.backgroundImage).toBe('');
+            host.remove();
+        });
+    });
+    await describe('adw-avatar font size (Adw.Avatar update_font_size)', async () => {
+        for (const { size, maxFontSize } of AVATAR_FONT_SIZE_VECTORS) {
+            await it(`size ${size} never exceeds the ${maxFontSize}px cap`, () => {
+                const { avatar, host } = mountAvatar('Ada Lovelace');
+                avatar.setAttribute('size', String(size));
+                const label = avatar.querySelector('.adw-avatar-text') as HTMLElement;
+                const applied = Number.parseFloat(label.style.fontSize);
+                // The measured aspect ratio decides the exact value; what the
+                // element must never do is overflow the circle.
+                expect(applied <= avatarMaxFontSize(size) + 0.001).toBe(true);
+                expect(applied > 0).toBe(true);
+                host.remove();
+            });
+        }
+
+        await it('grows monotonically across the old 31px/32px discontinuity', () => {
+            const { avatar, host } = mountAvatar('Ada Lovelace');
+            const label = avatar.querySelector('.adw-avatar-text') as HTMLElement;
+            const at = (size: number) => {
+                avatar.setAttribute('size', String(size));
+                return Number.parseFloat(label.style.fontSize);
+            };
+            // The old heuristic returned 16px at 31 and 13px at 32.
+            expect(at(32) >= at(31)).toBe(true);
+            expect(at(64) >= at(48)).toBe(true);
+            host.remove();
+        });
+    });
+
+    await describe('adw-avatar mode (Adw.Avatar update_visibility)', async () => {
+        await it('keeps a whitespace-only name in initials mode with a blank label', () => {
+            const { avatar, host } = mountAvatar('   ');
+            const label = avatar.querySelector('.adw-avatar-text') as HTMLElement;
+            const icon = avatar.querySelector('.adw-avatar-icon') as HTMLElement;
+            // libadwaita gates on strlen(text), not on the derived initials.
+            expect(label.hidden).toBe(false);
+            expect(label.textContent).toBe('');
+            expect(icon.hidden).toBe(true);
             host.remove();
         });
     });

@@ -60,6 +60,61 @@ export interface AvatarColorVector {
  * for every accented name. `"Jörg Schröder"` is the canary — it landed on
  * `color6` before this table existed, where GTK paints `color14`.
  */
+/** One `avatarMaxFontSize` expectation. */
+export interface AvatarFontSizeVector {
+    /** `Adw.Avatar:size`, the circle diameter. */
+    size: number;
+    /** `sqr_size - padding` for that diameter, rounded to 2dp for the table. */
+    maxFontSize: number;
+    /** What the browser renderer's old heuristic asked for, before this landed. */
+    legacyWebGuess: number;
+}
+
+/**
+ * `update_font_size`'s cap (adw-avatar.c:221-227) — the inscribed square
+ * `size / 1.4142` less `max(size * 0.4 - 5, 0)`.
+ *
+ * `legacyWebGuess` is kept in the table on purpose: it is `size * (size < 32 ?
+ * 0.5 : 0.4)`, which OVERFLOWS the cap at 28, 30, 31 and every size from 64 up
+ * (the initials spilled out of the circle), and is not even monotonic — it asked
+ * for 16px at size 31 and 13px at size 32.
+ */
+export const AVATAR_FONT_SIZE_VECTORS: ReadonlyArray<AvatarFontSizeVector> = [
+    { size: 12, maxFontSize: 8.49, legacyWebGuess: 6 },
+    { size: 16, maxFontSize: 9.91, legacyWebGuess: 8 },
+    { size: 24, maxFontSize: 12.37, legacyWebGuess: 12 },
+    { size: 28, maxFontSize: 13.6, legacyWebGuess: 14 },
+    { size: 31, maxFontSize: 14.52, legacyWebGuess: 16 },
+    { size: 32, maxFontSize: 14.83, legacyWebGuess: 13 },
+    { size: 48, maxFontSize: 19.74, legacyWebGuess: 19 },
+    { size: 64, maxFontSize: 24.66, legacyWebGuess: 26 },
+    { size: 128, maxFontSize: 44.31, legacyWebGuess: 51 },
+];
+
+/** One `avatarMode` expectation. */
+export interface AvatarModeVector {
+    hasCustomImage: boolean;
+    showInitials: boolean;
+    text: string;
+    mode: 'image' | 'initials' | 'icon';
+    rule: string;
+}
+
+/** `update_visibility` (adw-avatar.c:117). */
+export const AVATAR_MODE_VECTORS: ReadonlyArray<AvatarModeVector> = [
+    { hasCustomImage: true, showInitials: true, text: 'Ada', mode: 'image', rule: 'a custom image wins outright' },
+    { hasCustomImage: false, showInitials: true, text: 'Ada', mode: 'initials', rule: 'asked for, and a name to derive from' },
+    { hasCustomImage: false, showInitials: false, text: 'Ada', mode: 'icon', rule: 'a name alone is not enough' },
+    {
+        hasCustomImage: false,
+        showInitials: true,
+        text: '   ',
+        mode: 'initials',
+        rule: 'the gate is TEXT length, so a blank name still shows an (empty) label',
+    },
+    { hasCustomImage: false, showInitials: true, text: '', mode: 'icon', rule: 'an empty name falls back to the icon' },
+];
+
 export const AVATAR_COLOR_VECTORS: ReadonlyArray<AvatarColorVector> = [
     { text: 'Ada Lovelace', hash: 2497722230, colorClass: 11 },
     { text: 'Ada', hash: 193451179, colorClass: 6 },

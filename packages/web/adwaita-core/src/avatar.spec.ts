@@ -8,12 +8,21 @@ import {
     AVATAR_COLORS,
     avatarColor,
     avatarColorClass,
+    avatarFontSize,
     avatarInitials,
+    avatarMaxFontSize,
+    avatarMode,
     flattenAvatarGradient,
+    glibClamp,
     gStrHash,
     randomAvatarColorClass,
 } from './avatar.js';
-import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS } from './conformance/avatar.js';
+import {
+    AVATAR_COLOR_VECTORS,
+    AVATAR_FONT_SIZE_VECTORS,
+    AVATAR_INITIALS_VECTORS,
+    AVATAR_MODE_VECTORS,
+} from './conformance/avatar.js';
 
 export default async () => {
     await describe('avatarInitials (Adw.Avatar extract_initials_from_text)', async () => {
@@ -69,6 +78,71 @@ export default async () => {
                 expect(cls >= 1 && cls <= AVATAR_COLOR_COUNT).toBe(true);
             }
             expect(AVATAR_COLORS).toHaveLength(AVATAR_COLOR_COUNT);
+        });
+    });
+
+    await describe('avatarMaxFontSize / avatarFontSize (Adw.Avatar update_font_size)', async () => {
+        for (const { size, maxFontSize, legacyWebGuess } of AVATAR_FONT_SIZE_VECTORS) {
+            await it(`size ${size} caps the initials at ${maxFontSize}px`, () => {
+                expect(avatarMaxFontSize(size)).toBeCloseTo(maxFontSize, 2);
+            });
+
+            await it(`size ${size}: the old browser guess (${legacyWebGuess}px) is judged by the cap`, () => {
+                // Records which sizes the pre-lift heuristic overflowed at, so a
+                // future "simplification" back to it fails right here.
+                const overflows = legacyWebGuess > avatarMaxFontSize(size);
+                expect(overflows).toBe([28, 31, 64, 128].includes(size));
+            });
+        }
+
+        await it('is monotonic — a bigger circle never gets smaller initials', () => {
+            // One assertion, not 300: report every regression at once and name
+            // the sizes. The old heuristic broke exactly here (31px -> 32px).
+            const regressions: number[] = [];
+            let previous = -1;
+            for (let size = 1; size <= 300; size++) {
+                const cap = avatarMaxFontSize(size);
+                if (cap < previous) regressions.push(size);
+                previous = cap;
+            }
+            expect(regressions).toStrictEqual([]);
+        });
+
+        await it('scales by the measured aspect ratio, clamped to the cap', () => {
+            const cap = avatarMaxFontSize(48);
+            // Square text: height/width === 1 -> exactly the cap.
+            expect(avatarFontSize(48, { width: 20, height: 20 })).toBeCloseTo(cap, 6);
+            // Wide text (two letters) -> proportionally smaller.
+            expect(avatarFontSize(48, { width: 40, height: 20 })).toBeCloseTo(cap / 2, 6);
+            // Tall text would exceed the cap, so CLAMP holds it there.
+            expect(avatarFontSize(48, { width: 10, height: 40 })).toBeCloseTo(cap, 6);
+        });
+
+        await it('falls back to the cap when nothing has been measured yet', () => {
+            expect(avatarFontSize(48, { width: 0, height: 0 })).toBeCloseTo(avatarMaxFontSize(48), 6);
+        });
+    });
+
+    await describe('avatarMode (Adw.Avatar update_visibility)', async () => {
+        for (const { hasCustomImage, showInitials, text, mode, rule } of AVATAR_MODE_VECTORS) {
+            await it(`${JSON.stringify({ hasCustomImage, showInitials, text })} -> ${mode} — ${rule}`, () => {
+                expect(avatarMode({ hasCustomImage, showInitials, text })).toBe(mode);
+            });
+        }
+    });
+
+    await describe('glibClamp', async () => {
+        await it('matches Math.min/max while the bounds are sane', () => {
+            expect(glibClamp(5, 0, 10)).toBe(5);
+            expect(glibClamp(-1, 0, 10)).toBe(0);
+            expect(glibClamp(11, 0, 10)).toBe(10);
+        });
+
+        await it('tests the HIGH bound first, so inverted bounds differ', () => {
+            // GLib returns the LOW bound here; Math.min(high, Math.max(low, x))
+            // returns the high one. Adwaita reaches inverted bounds for real.
+            expect(glibClamp(5, 10, 8)).toBe(10);
+            expect(Math.min(8, Math.max(10, 5))).toBe(8);
         });
     });
 

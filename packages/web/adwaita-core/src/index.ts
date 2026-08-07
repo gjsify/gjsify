@@ -23,12 +23,16 @@ export {
     AVATAR_COLORS,
     avatarColor,
     avatarColorClass,
+    avatarFontSize,
     avatarInitials,
+    avatarMaxFontSize,
+    avatarMode,
     flattenAvatarGradient,
+    glibClamp,
     gStrHash,
     randomAvatarColorClass,
 } from './avatar.js';
-export type { AdwAvatarColor } from './avatar.js';
+export type { AdwAvatarColor, AdwAvatarMode } from './avatar.js';
 
 // --- Responsive breakpoints (Adw.Breakpoint / Adw.BreakpointCondition) ---
 export { AdwBreakpoint, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';

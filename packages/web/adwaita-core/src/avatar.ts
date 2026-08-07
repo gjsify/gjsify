@@ -174,6 +174,70 @@ export function avatarColor(text: string): AdwAvatarColor {
     return AVATAR_COLORS[(cls ?? 1) - 1]!;
 }
 
+/** Which of the three mutually exclusive things an avatar shows. */
+export type AdwAvatarMode = 'image' | 'initials' | 'icon';
+
+/**
+ * `update_visibility` (adw-avatar.c:117): a custom image wins outright,
+ * otherwise initials show when they were asked for and the name is non-empty,
+ * otherwise the fallback icon.
+ *
+ * The gate is the length of the TEXT, not of the derived initials — a
+ * whitespace-only name is in `'initials'` mode with a blank label, where a
+ * renderer keying on the initials would fall back to the icon instead.
+ */
+export function avatarMode(input: { hasCustomImage: boolean; showInitials: boolean; text: string }): AdwAvatarMode {
+    if (input.hasCustomImage) return 'image';
+    return input.showInitials && input.text.length > 0 ? 'initials' : 'icon';
+}
+
+/**
+ * The largest font size that still fits the initials inside the circle
+ * (`update_font_size`, adw-avatar.c:221-227): the biggest square inscribed in
+ * the circle, `size / 1.4142`, less a size-proportional padding
+ * `max(size * 0.4 - 5, 0)`.
+ *
+ * Monotonically increasing in `size`. A renderer that cannot measure text can
+ * use this alone and stay inside libadwaita's bound — which the browser
+ * renderer's old `size * (size < 32 ? 0.5 : 0.4)` did not: at size 31 it asked
+ * for 15.5px against a 14.5px cap, then DROPPED to 12.8px at size 32.
+ */
+export function avatarMaxFontSize(size: number): number {
+    const inscribedSquare = size / 1.4142;
+    const padding = Math.max(size * 0.4 - 5, 0);
+    return inscribedSquare - padding;
+}
+
+/**
+ * The font size `Adw.Avatar` gives the initials label, given the label's
+ * measured box: `height * (max / width)`, clamped to `[0, max]`.
+ *
+ * Text measurement is the one genuinely renderer-specific input, so it is
+ * injected — the same seam style as `ToastScheduler`. Only the ASPECT RATIO of
+ * the measurement matters (the formula scales it against the cap), so a renderer
+ * may measure at any font size it likes, exactly as Pango's reset-then-measure
+ * does. A non-positive width means "not laid out yet"; the cap is then the only
+ * defensible answer.
+ */
+export function avatarFontSize(size: number, measured: { width: number; height: number }): number {
+    const max = avatarMaxFontSize(size);
+    if (!(measured.width > 0)) return max;
+    return glibClamp(measured.height * (max / measured.width), 0, max);
+}
+
+/**
+ * GLib's `CLAMP`, which tests the HIGH bound FIRST:
+ * `x > high ? high : (x < low ? low : x)`.
+ *
+ * Not interchangeable with `Math.min(high, Math.max(low, x))` — the two disagree
+ * whenever the bounds are inverted, and Adwaita reaches inverted bounds in more
+ * than one place (a split view's sidebar caps do it whenever the content
+ * minimum exceeds what is left of the width).
+ */
+export function glibClamp(x: number, low: number, high: number): number {
+    return x > high ? high : x < low ? low : x;
+}
+
 /**
  * The flat 50/50 blend of a palette entry's gradient, for renderers whose style
  * layer has no gradients (the NativeScript CSS subset is the one that forced

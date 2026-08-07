@@ -24,6 +24,8 @@
 
 import { GridLayout, ItemSpec, Label } from '@nativescript/core';
 
+import { avatarMaxFontSize } from '@gjsify/adwaita-core';
+
 import { avatarColor, avatarInitials } from './avatar-color.js';
 
 /** Default avatar diameter in DIPs (Adwaita's common avatar size). */
@@ -65,10 +67,16 @@ export class AdwAvatar extends GridLayout {
         // NS exposes it on the style object; set via the public `set` to stay
         // within the ambient surface.
         this.set('borderRadius', this._size / 2);
-        // Scale the initials with the diameter (Adwaita ≈ 0.4 × size) — a single
-        // CSS rule can't size per-instance, so set fontSize inline. Without this
-        // the initials are too small to read at size 32 (action-bar avatar).
-        this._label.set('fontSize', Math.round(this._size * 0.4));
+        // Scale the initials with the diameter — a single CSS rule can't size
+        // per-instance, so set fontSize inline. Without this the initials are
+        // too small to read at size 32 (action-bar avatar).
+        //
+        // `update_font_size` derives the real value from the MEASURED label, and
+        // NativeScript exposes no text metrics here, so the 0.4 heuristic stays
+        // — but clamped to libadwaita's cap, which it exceeded above ~54 DIPs
+        // (at size 128 it asked for 51px against a 44px cap and the initials
+        // spilled out of the circle).
+        this._label.set('fontSize', Math.round(Math.min(this._size * 0.4, avatarMaxFontSize(this._size))));
     }
 
     /** The name the initials are derived from. */

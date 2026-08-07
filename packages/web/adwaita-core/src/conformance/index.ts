@@ -22,5 +22,15 @@
 //
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-export { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS } from './avatar.js';
-export type { AvatarColorVector, AvatarInitialsVector } from './avatar.js';
+export {
+    AVATAR_COLOR_VECTORS,
+    AVATAR_FONT_SIZE_VECTORS,
+    AVATAR_INITIALS_VECTORS,
+    AVATAR_MODE_VECTORS,
+} from './avatar.js';
+export type {
+    AvatarColorVector,
+    AvatarFontSizeVector,
+    AvatarInitialsVector,
+    AvatarModeVector,
+} from './avatar.js';

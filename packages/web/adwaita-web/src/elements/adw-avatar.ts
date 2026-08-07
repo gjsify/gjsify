@@ -15,7 +15,7 @@
 // vectors in `@gjsify/adwaita-core/conformance` now pin this element to the C
 // source — see `src/adw-avatar.spec.ts`.
 
-import { avatarColor, avatarInitials } from '@gjsify/adwaita-core';
+import { avatarColor, avatarFontSize, avatarInitials, avatarMaxFontSize, avatarMode } from '@gjsify/adwaita-core';
 
 export class AdwAvatar extends HTMLElement {
     private _textEl!: HTMLSpanElement;
@@ -49,19 +49,24 @@ export class AdwAvatar extends HTMLElement {
         const size = parseFloat(this.getAttribute('size') || '48');
         this.style.width = `${size}px`;
         this.style.height = `${size}px`;
-        this.style.fontSize = `${Math.round(size * (size < 32 ? 0.5 : 0.4))}px`;
 
         const text = this.getAttribute('text') ?? '';
-        const initials = avatarInitials(text);
-        const showInitials = this.hasAttribute('show-initials') && initials.length > 0;
+        // The gate is the TEXT, not the derived initials — `update_visibility`
+        // keeps a whitespace-only name in initials mode with a blank label.
+        const mode = avatarMode({
+            hasCustomImage: false,
+            showInitials: this.hasAttribute('show-initials'),
+            text,
+        });
 
-        if (showInitials) {
+        if (mode === 'initials') {
             const { fg, start, stop } = avatarColor(text);
             this.style.backgroundImage = `linear-gradient(${start}, ${stop})`;
             this.style.color = fg;
-            this._textEl.textContent = initials;
+            this._textEl.textContent = avatarInitials(text);
             this._textEl.hidden = false;
             this._iconEl.hidden = true;
+            this._applyFontSize(size);
         } else {
             this.style.backgroundImage = '';
             this.style.color = '';
@@ -72,6 +77,23 @@ export class AdwAvatar extends HTMLElement {
             this._iconEl.style.height = `${Math.round(size * 0.55)}px`;
             this._iconEl.hidden = false;
         }
+    }
+
+    /**
+     * Size the initials the way `update_font_size` does: measure the label, then
+     * scale its aspect ratio against the cap.
+     *
+     * Only the ratio matters and it is font-size invariant, so measuring AT the
+     * cap is the browser's equivalent of Pango's reset-then-measure. The old
+     * `size * (size < 32 ? 0.5 : 0.4)` guess overflowed that cap at sizes 28, 30,
+     * 31 and everything from 64 up — the initials spilled out of the circle —
+     * and was not monotonic across the 32px boundary.
+     */
+    private _applyFontSize(size: number) {
+        const cap = avatarMaxFontSize(size);
+        this._textEl.style.fontSize = `${cap}px`;
+        const { width, height } = this._textEl.getBoundingClientRect();
+        this._textEl.style.fontSize = `${avatarFontSize(size, { width, height })}px`;
     }
 }
 
