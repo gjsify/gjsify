@@ -43,6 +43,36 @@ import type { OpenFlags } from './types/index.js';
 
 // --- helpers ---
 
+/**
+ * The handle behind `fd`, or `null` after handing EBADF to `deliver`.
+ *
+ * `FileHandle.getInstance()` raises a proper `EBADF` for a stale or bogus
+ * descriptor — but a CALLBACK api has to DELIVER that error, not throw it.
+ * Nobody wraps `fs.write(fd, buf, cb)` in try/catch, so the throw walked
+ * straight out of the callback machinery and terminated the GJS process. The
+ * six sibling fd callbacks (`fstat`, `ftruncate`, `fsync`, `fdatasync`,
+ * `futimes`, `fchmod`) all deliver correctly, so `write`/`read`/`close` were an
+ * inconsistency inside one file.
+ *
+ * It also unstalls `fs.WriteStream`. Its `_destroy()` closes through `close()`
+ * below, and with autoDestroy that now runs on the ORDINARY end path; the
+ * escaping throw meant the stream emitted neither `'close'` nor `'error'`, so
+ * `await once(ws,'close')`, `stream.finished(ws)` and `pipeline(…, ws)` waited
+ * forever.
+ *
+ * Delivery is deferred one microtask because Node's is: `fs.write(9999, buf, cb)`
+ * RETURNS before `cb` runs (measured against v24.15.0). Calling back inside the
+ * call would trade one divergence for another.
+ */
+function withHandle(fd: number, syscall: string, deliver: (err: NodeJS.ErrnoException) => void): FileHandle | null {
+    try {
+        return FileHandle.getInstance(fd, syscall);
+    } catch (err: unknown) {
+        Promise.resolve().then(() => deliver(err as NodeJS.ErrnoException));
+        return null;
+    }
+}
+
 function parseOptsCb(
     optionsOrCallback: unknown,
     maybeCallback?: Function,
@@ -366,7 +396,13 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(
     data: string | TBuffer,
     ...args: (number | string | BufferEncoding | WriteStrCallback | WriteBufCallback | undefined | null)[]
 ): void {
-    const fileHandle = FileHandle.getInstance(fd, 'write');
+    const fileHandle = withHandle(fd, 'write', (err) => {
+        const cb = args[args.length - 1];
+        if (typeof cb !== 'function') return;
+        if (typeof data === 'string') (cb as WriteStrCallback)(err, 0, '');
+        else (cb as WriteBufCallback)(err, 0, Buffer.from([]) as unknown as TBuffer);
+    });
+    if (!fileHandle) return;
 
     if (typeof data === 'string') {
         const callback = args.pop() as WriteStrCallback;
@@ -483,9 +519,12 @@ export function read<TBuffer extends NodeJS.ArrayBufferView>(
 export function read(fd: number, callback: ReadCallback): void;
 
 export function read(fd: number, ...args: unknown[]): void {
-    const fileHandle = FileHandle.getInstance(fd, 'read');
-
     const callback: ReadCallback = args[args.length - 1] as ReadCallback;
+
+    const fileHandle = withHandle(fd, 'read', (err) => {
+        if (typeof callback === 'function') callback(err, 0, Buffer.from([]));
+    });
+    if (!fileHandle) return;
 
     let buffer: NodeJS.ArrayBufferView | undefined;
     let offset: number | null | undefined;
@@ -528,7 +567,11 @@ export function read(fd: number, ...args: unknown[]): void {
  * @since v0.0.2
  */
 export function close(fd: number, callback?: NoParamCallback): void {
-    FileHandle.getInstance(fd, 'close')
+    const fileHandle = withHandle(fd, 'close', (err) => {
+        if (typeof callback === 'function') callback(err);
+    });
+    if (!fileHandle) return;
+    fileHandle
         .close()
         .then(() => {
             callback(null);
@@ -769,14 +812,20 @@ export function readFile(
 ): void {
     const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
     const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
-    const pathStr = normalizePath(path);
     Promise.resolve().then(() => {
         try {
             const readOpts =
                 typeof options === 'string'
                     ? { encoding: options as string | null, flag: 'r' }
                     : { encoding: (options?.encoding ?? null) as string | null, flag: options?.flag ?? 'r' };
-            callback(null, readFileSync(pathStr, readOpts) as unknown as Buffer);
+            // Deliberately NOT `normalizePath(path)` first: `path` may be a
+            // descriptor, and `readFileSync` is the single place that decides
+            // between a name and a descriptor — the same rule `writeFile` below
+            // carries. Stringifying it here is worse than the ENOENT it usually
+            // produces: `normalizePath(8)` is the RELATIVE name `'8'`, so if a
+            // file of that name exists in the process CWD the call SUCCEEDS and
+            // returns that file's contents instead of the descriptor's.
+            callback(null, readFileSync(path, readOpts) as unknown as Buffer);
         } catch (err: unknown) {
             callback(err as NodeJS.ErrnoException, null as unknown as Buffer);
         }
