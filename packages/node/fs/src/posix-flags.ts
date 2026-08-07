@@ -219,21 +219,45 @@ export function parseOpenFlags(flags: OpenFlags | number | string | undefined | 
  */
 export function normalizeMode(mode: Mode | undefined | null, fallback: number): number {
     if (mode === undefined || mode === null) return fallback;
-    if (typeof mode === 'number') {
-        if (!Number.isInteger(mode) || mode < 0) {
-            const err = new TypeError(`The value of "mode" is out of range. Received ${mode}`) as NodeJS.ErrnoException;
-            err.code = 'ERR_OUT_OF_RANGE';
-            throw err;
-        }
-        return mode;
+
+    let value: number;
+    if (typeof mode === 'string') {
+        // Node's `octalReg`, verbatim: `/^[0-7]+$/`, tested BEFORE the parse and
+        // matching the WHOLE string — because `parseInt` is lenient in exactly
+        // the two directions that matter. It accepts a sign, so
+        // `parseInt('-1', 8)` is `-1` and not `NaN`; a NaN-only guard therefore
+        // passed a negative mode to `open(2)`, where the kernel read the gint
+        // as unsigned and masked it to 0o7777 — `openSync(p, 'w', '-1')`
+        // created a SETUID + SETGID + STICKY file, and `mkdirSync(d, '-1')` a
+        // sticky directory. It also stops at the first invalid digit rather
+        // than rejecting the value.
+        if (!/^[0-7]+$/.test(mode)) throw invalidMode(mode);
+        value = parseInt(mode, 8);
+    } else {
+        value = mode;
     }
-    const parsed = parseInt(mode, 8);
-    if (Number.isNaN(parsed)) {
-        const err = new TypeError(
-            `The argument 'mode' must be a 32-bit unsigned integer or an octal string. Received '${mode}'`,
-        ) as NodeJS.ErrnoException;
-        err.code = 'ERR_INVALID_ARG_VALUE';
-        throw err;
-    }
-    return parsed;
+
+    // Node's `validateUint32`, applied to BOTH branches. The string branch
+    // needs it just as much: `'77777777777'` is well-formed octal and parses to
+    // 8589934591, which does not fit the `guint32` the syscall takes — it
+    // reached `open(2)` truncated, and produced 0o7755 as well.
+    if (!Number.isInteger(value)) throw modeOutOfRange('an integer', value);
+    if (value < 0 || value > 4294967295) throw modeOutOfRange('>= 0 && <= 4294967295', value);
+    return value;
+}
+
+function invalidMode(mode: string): NodeJS.ErrnoException {
+    const err = new TypeError(
+        `The argument 'mode' must be a 32-bit unsigned integer or an octal string. Received '${mode}'`,
+    ) as NodeJS.ErrnoException;
+    err.code = 'ERR_INVALID_ARG_VALUE';
+    return err;
+}
+
+function modeOutOfRange(expected: string, value: number): NodeJS.ErrnoException {
+    const err = new RangeError(
+        `The value of "mode" is out of range. It must be ${expected}. Received ${value}`,
+    ) as NodeJS.ErrnoException;
+    err.code = 'ERR_OUT_OF_RANGE';
+    return err;
 }
