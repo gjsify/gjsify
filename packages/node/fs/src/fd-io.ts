@@ -392,7 +392,69 @@ function output(fd: number): GioUnix.OutputStream {
     return stream;
 }
 
-/** Absolute `lseek(2)`. */
+const seekableFds = new Map<number, boolean>();
+
+/**
+ * Can this descriptor be positioned at all?
+ *
+ * `seekFd` used to be issued before EVERY read and write, unconditionally, so a
+ * FIFO / pipe / socket / tty produced one
+ * `g_io_channel_seek_position: assertion 'channel->is_seekable' failed`
+ * per I/O call — a `GLib-CRITICAL`, which `G_DEBUG=fatal-criticals` (standard
+ * in GNOME CI) turns into an abort. The bytes happened to survive because a
+ * pipe ignores the offset, so the failed seek was a silent no-op and `_pos`
+ * accumulated a number that meant nothing.
+ *
+ * The answer is therefore ASKED FOR rather than discovered by tripping an
+ * assertion. `GIOChannel` decides it with `lseek(fd, 0, SEEK_CUR)`, which GJS
+ * cannot reach, and its `is_seekable` field is not introspectable — so the file
+ * TYPE is the available instrument.
+ *
+ * The rule is deliberately narrow: only `S_IFIFO` and `S_IFSOCK` are refused.
+ * The tempting "seekable means `S_IFREG` or `S_IFBLK`" is WRONG and would trade
+ * this defect for a worse one — a character device usually seeks fine
+ * (`noop_llseek`), and Node performs positional I/O on `/dev/null`,
+ * `/dev/zero` and `/dev/urandom` without complaint (measured against
+ * v24.15.0). Refusing those would have turned a stray log line into an ESPIPE
+ * that Node never raises.
+ *
+ * What is left uncovered, stated plainly: a TTY opened BY PATH is `S_IFCHR`
+ * with `no_llseek`, so it is called seekable here and still logs the CRITICAL.
+ * The process's own stdin/stdout/stderr — the overwhelmingly common tty case —
+ * never reach this code: `isStdFd()` intercepts them first.
+ *
+ * Cached per fd: the type behind an open file description cannot change under
+ * it, and the cache is dropped by {@link releaseFd} so a recycled fd number
+ * never inherits the previous holder's answer.
+ */
+export function isSeekableFd(fd: number, fallbackPath: string): boolean {
+    let known = seekableFds.get(fd);
+    if (known === undefined) {
+        known = probeSeekable(fd, fallbackPath);
+        seekableFds.set(fd, known);
+    }
+    return known;
+}
+
+function probeSeekable(fd: number, fallbackPath: string): boolean {
+    try {
+        const info = Gio.File.new_for_path(fdPath(fd) ?? fallbackPath).query_info(
+            'unix::mode',
+            Gio.FileQueryInfoFlags.NONE,
+            null,
+        );
+        const format = info.get_attribute_uint32('unix::mode') & 0o170000;
+        return format !== 0o010000 /* S_IFIFO */ && format !== 0o140000 /* S_IFSOCK */;
+    } catch {
+        // No answer is not the same as "no". Assuming NOT seekable would make
+        // every positional read on an ordinary file fail with ESPIPE, which is
+        // far worse than the CRITICAL this check exists to avoid; assuming
+        // seekable is exactly the behaviour of the code this replaces.
+        return true;
+    }
+}
+
+/** Absolute `lseek(2)`. Only valid on a descriptor {@link isSeekableFd} accepts. */
 export function seekFd(fd: number, position: number): void {
     seekHandle(fd).seek_position(position, GLib.SeekType.SET);
 }
@@ -462,6 +524,7 @@ export function releaseFd(fd: number): void {
     seekHandles.delete(fd);
     inputStreams.delete(fd);
     outputStreams.delete(fd);
+    seekableFds.delete(fd);
 }
 
 // ─── descriptor metadata ─────────────────────────────────────────────────────

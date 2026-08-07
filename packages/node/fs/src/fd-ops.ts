@@ -196,14 +196,18 @@ export function readSync(
     let offset = 0;
     if (offsetOrOptions !== null && typeof offsetOrOptions === 'object') {
         offset = offsetOrOptions.offset ?? 0;
-        length = offsetOrOptions.length ?? buffer.byteLength;
+        // `byteLength - offset`, matching the positional form four lines down.
+        // These two spellings of one API disagreed, so the documented options
+        // form threw RangeError on `readSync(fd, Buffer.alloc(8), {offset: 4})`
+        // where the positional one read 4 bytes.
+        length = offsetOrOptions.length ?? buffer.byteLength - offset;
         position = offsetOrOptions.position ?? null;
     } else {
         offset = (offsetOrOptions as number | null | undefined) ?? 0;
         length = length ?? buffer.byteLength - offset;
     }
     if (isStdFd(fd)) return readStdFdSync(fd, buffer, offset, length!);
-    return getFH(fd)._readSync(buffer, offset, length!, position ?? null);
+    return getFH(fd, 'read')._readSync(buffer, offset, length!, position ?? null);
 }
 
 // ─── writeSync ────────────────────────────────────────────────────────────────

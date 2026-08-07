@@ -13,6 +13,7 @@ import {
     closeFd,
     releaseFd,
     seekFd,
+    isSeekableFd,
     tellFd,
     readFd,
     writeFd,
@@ -120,15 +121,36 @@ export class FileHandle implements IFileHandle {
         // G_IO_ERROR_FAILED, so it is raised from what we know instead.
         if (!this._spec.readable) throw fsError('EBADF', 'read', this._pathStr);
 
+        // Node validates the window into the CALLER's view, not into the
+        // ArrayBuffer behind it. The difference is not academic: the `.set()`
+        // below is bounded by the ArrayBuffer, so on a runtime whose `Buffer`
+        // pools its allocations (Node's does) a too-long read would silently
+        // overrun into the NEIGHBOURING buffer instead of being refused.
+        if (length > target.byteLength - offset) {
+            const err = new RangeError(
+                `The value of "length" is out of range. It must be <= ${target.byteLength - offset}. Received ${length}`,
+            ) as NodeJS.ErrnoException;
+            err.code = 'ERR_OUT_OF_RANGE';
+            throw err;
+        }
+
         const usePos = position !== null && position !== undefined && position >= 0;
+        const seekable = isSeekableFd(this.fd, this._pathStr);
+        // `pread(2)` on a pipe / socket / tty is ESPIPE, and saying so is the
+        // point: the unconditional seek this replaces turned a positional read
+        // on such a descriptor into a SEQUENTIAL one and reported success.
+        if (usePos && !seekable) throw fsError('ESPIPE', 'read', this._pathStr);
+
         const start = usePos ? position : this._pos;
-        seekFd(this.fd, start);
+        if (seekable) seekFd(this.fd, start);
         const data = readFd(this.fd, length);
         if (data.length > 0) {
-            new Uint8Array(target.buffer as ArrayBuffer, target.byteOffset + offset).set(data);
+            new Uint8Array(target.buffer as ArrayBuffer, target.byteOffset + offset, data.length).set(data);
         }
-        // An explicit position is pread(2): it must leave the cursor alone.
-        if (!usePos) this._pos = start + data.length;
+        // An explicit position is pread(2): it must leave the cursor alone. A
+        // non-seekable descriptor has no offset to model — the kernel's stream
+        // position is the only one, and it is not ours to shadow.
+        if (!usePos && seekable) this._pos = start + data.length;
         return data.length;
     }
 
@@ -149,10 +171,14 @@ export class FileHandle implements IFileHandle {
         }
 
         const usePos = position !== null && position !== undefined && position >= 0;
+        const seekable = isSeekableFd(this.fd, this._pathStr);
+        // See `_readCore`: `pwrite(2)` on a non-seekable descriptor is ESPIPE.
+        if (usePos && !seekable) throw fsError('ESPIPE', 'write', this._pathStr);
+
         const start = usePos ? position : this._pos;
-        seekFd(this.fd, start);
+        if (seekable) seekFd(this.fd, start);
         const written = writeFd(this.fd, data);
-        if (!usePos) this._pos = start + written;
+        if (!usePos && seekable) this._pos = start + written;
         return written;
     }
 
@@ -429,7 +455,11 @@ export class FileHandle implements IFileHandle {
 
         const bufView = buffer as unknown as Uint8Array;
         const bufOffset = offset ?? 0;
-        const readLength = length ?? bufView?.byteLength ?? 65536;
+        // `byteLength - offset`, not `byteLength`. Node documents the default as
+        // "the number of bytes that FIT AFTER the offset"; defaulting to the
+        // whole buffer made `fh.read({ buffer: Buffer.alloc(8), offset: 4 })` —
+        // the documented options form — throw RangeError where Node reads 4.
+        const readLength = length ?? (bufView ? bufView.byteLength - bufOffset : 65536);
 
         // `position ?? 0` used to live here, which meant an unpositioned async
         // read sought to 0 forever: `while ((await fh.read(b,0,4,null)).bytesRead)`
