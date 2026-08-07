@@ -3010,8 +3010,21 @@ jobs:
           name: webgl-prebuilds-darwin-arm64
           path: packages/framework/webgl-darwin-arm64/prebuilds/darwin-arm64/
 
+      # THE ONLY WAY darwin-arm64 EVER GETS A WEBKIT BINARY. ADR 0022 added the
+      # build and the upload but not these two downloads, so the artifact was
+      # produced on every `ci:macos` run and thrown away — which is why
+      # `@gjsify/webkit-native-darwin-arm64` carried a `platformsUncommitted`
+      # entry blaming the authoring host's architecture. The host was never the
+      # blocker; the missing download was.
+      - name: Download webkit-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webkit-native-prebuilds-darwin-arm64
+          path: packages/framework/webkit-native-darwin-arm64/prebuilds/darwin-arm64/
+
       # -------- darwin-x64 (macOS, Intel) --------
-      # The SAME seven packages as the arm64 block above, because both come from
+      # The SAME eight packages as the arm64 block above, because both come from
       # the one matrixed `build-prebuilds-macos` job — the sets cannot drift.
       - name: Download lightningcss-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
@@ -3068,6 +3081,13 @@ jobs:
         with:
           name: webgl-prebuilds-darwin-x64
           path: packages/framework/webgl-darwin-x64/prebuilds/darwin-x64/
+
+      - name: Download webkit-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webkit-native-prebuilds-darwin-x64
+          path: packages/framework/webkit-native-darwin-x64/prebuilds/darwin-x64/
 
       # Two scratch paths, named ONCE, both OUTSIDE the repository so nothing
       # parked in them can be staged by accident. Four steps and two scripts have
