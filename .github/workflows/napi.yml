@@ -364,13 +364,36 @@ jobs:
         working-directory: packages/napi/napi
         run: sh test/addons/setup.sh
 
-      # Driven by the COMMITTED dist/cli.gjs.mjs, NOT the published CLI the
-      # consumer gate above uses — and that distinction is the whole point.
+      # ADR 0002 untracked `dist/cli.gjs.mjs`, so the matrix below has to BUILD
+      # the bundle it drives — it used to just find it in the checkout.
+      #
+      # Substituting the published CLI here would be the easy repair and the
+      # wrong one, for the reason the next comment gives: it carries the last
+      # release's plugin, so a PR changing `napiNodeAddonPlugin` would measure
+      # nothing. Falling back to the Node driver when the file is absent would
+      # be worse still — the GJS path would stop being exercised while the job
+      # went green. The bundle has to come from THIS commit's source, which
+      # means building it.
+      #
+      # Two steps because they answer different questions: `build` produces the
+      # CLI's own `lib/` (the bundle's entry), `build:gjs-bundle` produces the
+      # artifact. The polyfill libs and the bundler plugin they both need were
+      # built further up, and the published CLI on PATH is what drives this
+      # build — the same bootstrap `.github/actions/gjsify-setup` performs.
+      - name: Build the CLI's GJS bundle (untracked since ADR 0002)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/cli build
+          gjsify workspace @gjsify/cli build:gjs-bundle
+          ls -l packages/infra/cli/dist/cli.gjs.mjs
+
+      # Driven by the dist/cli.gjs.mjs BUILT ABOVE, NOT the published CLI the
+      # consumer gate uses — and that distinction is the whole point.
       # The published CLI carries the LAST RELEASE's plugin, so a PR changing
-      # `napiNodeAddonPlugin` would test nothing at all; the committed bundle
-      # carries THIS commit's plugin (the pre-commit hook rebuilds it, and
-      # main.yml's verify-committed-bundles proves it reproduces from that
-      # source). It also runs the build on `@gjsify/rolldown-native` — the
+      # `napiNodeAddonPlugin` would test nothing at all; a bundle built from
+      # this checkout carries THIS commit's plugin. (Until ADR 0002 the file was
+      # committed and the pre-commit hook kept it fresh; the step above replaces
+      # that.) It also runs the build on `@gjsify/rolldown-native` — the
       # engine where two of the six #840 defects lived (a `null` importer
       # across the JSON hook boundary, and a Rust-`regex`-incompatible filter
       # that silently disabled every interception). A Node-driven build cannot
@@ -384,12 +407,14 @@ jobs:
       # stand-in, since packages/napi is not a workspace member.
       #
       # GJSIFY_CLI_ENTRY covers only the gate's build-the-napi-L1 FALLBACK
-      # (normally a no-op — the consumer gate above already built lib/esm): the
-      # in-repo Node CLI is not built in this job, so without it that fallback
-      # would spawn a nonexistent packages/infra/cli/lib/index.js. The matrix
-      # BUILD itself is driven by the committed bundle (GJSIFY_GATE_ENGINE=gjs),
+      # (normally a no-op — the consumer gate above already built lib/esm). It
+      # is kept pointing at the PUBLISHED entry even though the step above now
+      # builds `packages/infra/cli/lib/` too: this variable exists so the
+      # fallback has something to spawn, and pinning it to the published CLI
+      # keeps it independent of whether the in-repo build ran. The matrix BUILD
+      # itself is driven by the bundle built above (GJSIFY_GATE_ENGINE=gjs),
       # never by this entry.
-      - name: Transparent addon matrix (GJS engine, committed CLI bundle)
+      - name: Transparent addon matrix (GJS engine, freshly built CLI bundle)
         working-directory: packages/napi/napi
         env:
           GJSIFY_GATE_ENGINE: gjs
