@@ -474,20 +474,66 @@ export function sizeOfFd(fd: number, fallbackPath: string): number {
 }
 
 /**
- * `ftruncate(2)`.
+ * `ftruncate(2)`, as closely as GJS can express it.
  *
- * There is no `g_ftruncate`, so this re-opens the descriptor by its procfs
- * name — inode-correct, but a second `open(2)`, which means it is the one
- * operation in this module that a mode without owner-write can still refuse.
- * The path fallback off Linux additionally loses descriptor identity. Both are
- * narrow and both are named rather than hidden.
+ * THE PART THAT IS REACHABLE, AND WHERE IT LIVES
+ *
+ * `ftruncate(2)` checks ONE thing: that the descriptor is open for writing. It
+ * never looks at the file's mode. That check is pure bookkeeping we already
+ * hold, so it is enforced where the access mode lives — `FileHandle`, next to
+ * the identical gates in `_readCore`/`_writeCore` — and NOT here. Without it a
+ * handle opened `'r'` could destroy the file, because the re-open below asks
+ * the kernel for its own fresh permission and gets it.
+ *
+ * THE PART THAT IS NOT, MEASURED
+ *
+ * There is no `g_ftruncate`, and no route from an fd to a `GSeekable`:
+ * `GioUnix.OutputStream` does not implement it, and `GBufferedOutputStream` /
+ * `GDataOutputStream` wrapped around one both report `can_truncate() == false`
+ * (measured under gjs 1.88.1). Truncation therefore needs a second `open(2)`,
+ * by the descriptor's procfs name so it lands on the right inode after a rename
+ * or an unlink — and a second open is checked against the FILE's mode.
+ *
+ * So the re-open takes the least privilege that can truncate: `append_to()` is
+ * `O_WRONLY`, `open_readwrite()` is `O_RDWR`. That is not a micro-optimisation
+ * — it is the difference between working and not on a write-only file: mode
+ * 0o200 truncates through the first and is refused by the second (measured).
+ * What remains unreachable is a file whose mode denies its own owner write
+ * (0o444, 0o400, 0o000): Node truncates those through the descriptor, we cannot.
+ * The failure is at least REPORTED now — it used to escape as a bare
+ * `Gio.IOErrorEnum` with a numeric `code` and `instanceof Error === false`, so
+ * `catch (e) { if (e.code === 'EACCES') }` could not see it.
  */
 export function truncateFd(fd: number, length: number, fallbackPath: string): void {
-    const target = fdPath(fd) ?? fallbackPath;
-    const stream = Gio.File.new_for_path(target).open_readwrite(null);
+    const file = Gio.File.new_for_path(fdPath(fd) ?? fallbackPath);
+    let refusal: unknown;
+
     try {
-        (stream.get_output_stream() as Gio.FileOutputStream).truncate(length, null);
-    } finally {
-        stream.close(null);
+        const stream = file.append_to(Gio.FileCreateFlags.NONE, null);
+        try {
+            stream.truncate(length, null);
+        } finally {
+            stream.close(null);
+        }
+        return;
+    } catch (err: unknown) {
+        refusal = err;
     }
+
+    try {
+        const stream = file.open_readwrite(null);
+        try {
+            (stream.get_output_stream() as Gio.FileOutputStream).truncate(length, null);
+        } finally {
+            stream.close(null);
+        }
+        return;
+    } catch {
+        // Report the FIRST refusal: the O_WRONLY attempt is the one whose
+        // requirements match `ftruncate(2)`, so its error describes the real
+        // obstruction. The O_RDWR retry exists only to cover filesystems that
+        // refuse `append_to` for reasons of their own.
+    }
+
+    throw createNodeError(refusal, 'ftruncate', fallbackPath);
 }

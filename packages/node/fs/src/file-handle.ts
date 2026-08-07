@@ -160,6 +160,29 @@ export class FileHandle implements IFileHandle {
         if (this._closed) throw fsError('EBADF', syscall, this._pathStr);
     }
 
+    /**
+     * `ftruncate(2)` — ONE body for the sync and async halves.
+     *
+     * The access-mode gate belongs HERE and not in `truncateFd`, because it is
+     * the descriptor's property and `truncateFd` has to re-open the file to do
+     * its work (see there) — a re-open that asks the kernel for its own fresh
+     * permission and is granted it. Without this line a handle opened `'r'`
+     * truncates the file: `writeFileSync(f,'ABCDEFGH'); ftruncateSync(openSync(f,'r'), 2)`
+     * destroyed six bytes through a READ-ONLY descriptor and returned normally.
+     * Node reports EINVAL, and so does this.
+     *
+     * `_readCore`/`_writeCore` have carried the identical gate since this
+     * redesign began; truncate was the one byte-mover left outside it, which is
+     * exactly the shape of divergence the single-core rule exists to prevent.
+     */
+    private _truncateCore(len: number): void {
+        this._assertOpen('ftruncate');
+        if (!this._spec.writable) throw fsError('EINVAL', 'ftruncate', this._pathStr);
+        // ftruncate(2) does not move the file offset, so `_pos` is deliberately
+        // untouched: a write straight after a shrink leaves a hole, as Node does.
+        truncateFd(this.fd, Math.max(0, len), this._pathStr);
+    }
+
     /** Read from the cursor to EOF, advancing it — Node's whole-file read on a handle. */
     private _readToEnd(): Uint8Array {
         const chunks: Uint8Array[] = [];
@@ -565,10 +588,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async truncate(len: number = 0): Promise<void> {
-        this._assertOpen('ftruncate');
-        // ftruncate(2) does not move the file offset, so `_pos` is deliberately
-        // untouched: a write straight after a shrink leaves a hole, as Node does.
-        truncateFd(this.fd, Math.max(0, len), this._pathStr);
+        this._truncateCore(len);
     }
     /**
      * Change the file system timestamps of the object referenced by the `FileHandle` then resolves the promise with no arguments upon success.
@@ -773,8 +793,7 @@ export class FileHandle implements IFileHandle {
     }
 
     /** @internal Truncate through the descriptor. */ _truncateSync(len: number): void {
-        this._assertOpen('ftruncate');
-        truncateFd(this.fd, Math.max(0, len), this._pathStr);
+        this._truncateCore(len);
     }
 
     /** @internal The path that names this descriptor — `/proc/self/fd/N` where the host has it. */
