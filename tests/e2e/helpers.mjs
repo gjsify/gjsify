@@ -264,7 +264,23 @@ export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
         cwd: projectDir,
         stdio: 'pipe',
         timeout: 5 * 60 * 1000,
-        env: { ...process.env, YARN_ENABLE_HARDENED_MODE: '0' },
+        env: {
+            ...process.env,
+            YARN_ENABLE_HARDENED_MODE: '0',
+            // `packageManager: yarn@4.14.1` above makes Corepack fetch that exact
+            // Yarn, and Corepack ASKS before downloading. There is no TTY here, so
+            // the prompt is not a pause — it is an immediate exit 1 whose only
+            // trace is the line "Corepack is about to download …". The suite then
+            // reports its own tests as failures, naming the polyfills it never got
+            // to build rather than the install that never happened.
+            //
+            // Not a regression in this repo: nothing here has ever set it. It stays
+            // invisible for as long as the runner image happens to carry that Yarn
+            // in Corepack's cache, and reddens the moment the image, the pinned
+            // Yarn or Corepack's default moves — which is exactly how it surfaced,
+            // on two shards of two different branches at once.
+            COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+        },
     });
     console.log('  yarn install done');
 }
