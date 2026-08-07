@@ -23,6 +23,24 @@ export class ReadStream extends Readable implements IReadStream {
     private _start: number;
     private _end: number;
     private _pos: number;
+    /**
+     * Whether a `read_bytes_async` is in flight.
+     *
+     * A `GInputStream` allows exactly ONE outstanding async operation; a second
+     * one fails with `G_IO_ERROR_PENDING` ("Datenstrom hat noch einen
+     * ausstehenden Vorgang"). Nothing here used to prevent the second call, and
+     * the only thing that kept it rare was that the write side of a pipe took a
+     * main-loop turn to acknowledge each chunk. The moment writes stopped
+     * needing one, `pipe()` of a 128 KB file started failing about two runs in
+     * three — a race that was always there, timed out of reach.
+     *
+     * So the invariant is enforced rather than relied on: a `_read()` that
+     * arrives mid-flight is remembered and re-issued on completion instead of
+     * being dropped (which would stall the stream) or issued (which throws).
+     */
+    private _reading = false;
+    private _readAgain = false;
+    private _lastSize = 64 * 1024;
 
     close(callback?: (err?: NodeJS.ErrnoException | null) => void): void {
         this._cancellable.cancel();
@@ -77,6 +95,11 @@ export class ReadStream extends Readable implements IReadStream {
     }
 
     override _read(size: number): void {
+        this._lastSize = size;
+        if (this._reading) {
+            this._readAgain = true;
+            return;
+        }
         this._doRead(size);
     }
 
@@ -91,13 +114,21 @@ export class ReadStream extends Readable implements IReadStream {
             toRead = Math.min(size, remaining);
         }
 
-        const stream = this._inputStream!;
+        const stream = this._inputStream;
+        if (!stream || this.destroyed) return;
+
+        this._reading = true;
         stream.read_bytes_async(toRead, GLib.PRIORITY_DEFAULT, this._cancellable, (_source, asyncResult) => {
+            // Cleared BEFORE push(), because push() can call _read() straight
+            // back on this stack in flowing mode and that call is legitimate —
+            // the operation it would follow has already completed.
+            this._reading = false;
             try {
                 const gbytes = stream.read_bytes_finish(asyncResult);
                 const data = gbytes.get_data();
 
                 if (!data || data.length === 0) {
+                    this._readAgain = false;
                     this.push(null);
                     return;
                 }
@@ -105,7 +136,13 @@ export class ReadStream extends Readable implements IReadStream {
                 this.bytesRead += data.length;
                 this._pos += data.length;
                 this.push(Buffer.from(data));
+
+                if (this._readAgain && !this._reading) {
+                    this._readAgain = false;
+                    this._doRead(this._lastSize);
+                }
             } catch (err) {
+                this._readAgain = false;
                 if (!this._cancellable.is_cancelled()) {
                     this.destroy(err as Error);
                 }
