@@ -123,12 +123,33 @@ jobs:
           gjs -m "$B" install --immutable
           echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
 
+      # Bootstrap under NODE, not under the GJS bootstrap bundle.
+      #
+      # `$GJSIFY_BOOTSTRAP` is downloaded from `releases/latest/download/cli.gjs.mjs`,
+      # so it is ALWAYS THE PREVIOUS RELEASE'S CLI. That makes this step unfixable
+      # from the CLI source: a bug reached here can only be repaired by a release,
+      # and this step is what a release runs. v0.31.0's first cut hit exactly that —
+      # `gjsify tsc` inside `@gjsify/create-app`'s build spawned the bootstrap bundle
+      # instead of `node`, wrote no `lib/index.js`, and the `&&` chain then died in
+      # `set-bin-mode.mjs` on the missing file, naming a step past the fault.
+      #
+      # A published @gjsify/cli run under Node has none of that surface: `isNode()`
+      # is genuinely true so `nodeBinary()` resolves the real interpreter, and
+      # `process.exit()` is immediate rather than idle-scheduled. It is the same
+      # mechanism napi.yml already uses for the same reason, down to the shared
+      # `install-published-cli.sh` (which retries through the window where a release
+      # has bumped every package.json but npm does not serve the version yet).
       - name: Bootstrap the build toolchain (cold trees only)
         run: |
           if [ -f packages/infra/cli/lib/index.js ]; then
             echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
           else
-            gjs -m "$GJSIFY_BOOTSTRAP" run build:infra
+            CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+            mkdir -p /tmp/gjsify-node-cli
+            cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1
+            "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}"
+            cd - >/dev/null
+            node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js run build:infra
           fi
 
       # `verify-committed-bundles.mjs` (the after:bump hook) resolves each
