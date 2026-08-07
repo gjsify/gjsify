@@ -97,7 +97,11 @@ export class Stats extends Dirent implements NodeStats {
             info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
         }
 
-        super(pathStr, filename, info.get_file_type());
+        // The info goes down with the type: `Dirent` classifies a SPECIAL file
+        // from `unix::mode`, and re-querying the path would ask about a
+        // different object where the path is a symlink to the real one — which
+        // is exactly what `/proc/self/fd/<n>` is on the `fstat` route.
+        super(pathStr, filename, info.get_file_type(), info);
         this._info = info;
 
         const data = populateFromInfo(info);
@@ -169,7 +173,11 @@ export class BigIntStats extends Dirent implements NodeBigIntStats {
             info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
         }
 
-        super(pathStr, filename, info.get_file_type());
+        // The info goes down with the type: `Dirent` classifies a SPECIAL file
+        // from `unix::mode`, and re-querying the path would ask about a
+        // different object where the path is a symlink to the real one — which
+        // is exactly what `/proc/self/fd/<n>` is on the `fstat` route.
+        super(pathStr, filename, info.get_file_type(), info);
         this._info = info;
 
         const data = populateFromInfo(info);

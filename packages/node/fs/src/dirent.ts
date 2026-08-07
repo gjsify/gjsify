@@ -50,8 +50,14 @@ export class Dirent implements OriginalDirent {
     /** This is not part of node.fs and is used internal by gjsify */
     protected _file: Gio.File;
 
-    /** This is not part of node.fs and is used internal by gjsify */
-    constructor(path: string, filename?: string, fileType?: Gio.FileType) {
+    /**
+     * This is not part of node.fs and is used internal by gjsify
+     *
+     * `info` is the lookup `fileType` came from, where the caller has one.
+     * Passing it is what makes `fstatSync` answer about the FILE and not about
+     * the procfs link that names its descriptor — see {@link _classifySpecialFile}.
+     */
+    constructor(path: string, filename?: string, fileType?: Gio.FileType, info?: Gio.FileInfo) {
         if (!filename) filename = basename(path);
         this.name = filename;
         this.parentPath = dirname(path);
@@ -74,7 +80,7 @@ export class Dirent implements OriginalDirent {
             case Gio.FileType.SPECIAL:
                 // File is a "special" file, such as a socket, fifo, block device, or character device.
                 // Use unix::mode from Gio.FileInfo to distinguish the exact type via POSIX S_IFMT bits.
-                this._classifySpecialFile(path);
+                this._classifySpecialFile(path, info);
                 break;
         }
     }
@@ -82,12 +88,28 @@ export class Dirent implements OriginalDirent {
     /**
      * Classify a SPECIAL file type using the unix::mode attribute from Gio.FileInfo.
      * Falls back to marking nothing if the mode attribute is unavailable.
+     *
+     * TWO lookups decide one question here, and they have to agree. The type
+     * above said SPECIAL after FOLLOWING the name; re-asking with
+     * `NOFOLLOW_SYMLINKS` asks about a different object. That is not academic:
+     * `fstatSync(fd)` stats `/proc/self/fd/<n>`, which IS a symlink, so the
+     * followed lookup correctly said SPECIAL and the NOFOLLOW re-query saw
+     * `S_IFLNK`, matched none of the four cases below, and left EVERY predicate
+     * false — `isFIFO()`, `isFile()` and `isCharacterDevice()` all `false` for a
+     * descriptor on a FIFO or on `/dev/null`, so a caller classifying it got
+     * "none of the above".
+     *
+     * So the caller's own `GFileInfo` is used when there is one (`statSync` and
+     * `lstatSync` already query `unix::*`, so it costs no syscall), and the
+     * fallback follows, matching the `query_file_type` two lines above it.
      */
-    private _classifySpecialFile(path: string): void {
+    private _classifySpecialFile(path: string, info?: Gio.FileInfo): void {
         try {
-            const file = Gio.File.new_for_path(path);
-            const info = file.query_info('unix::mode', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
-            const mode = info.get_attribute_uint32('unix::mode');
+            const source =
+                info?.has_attribute('unix::mode') === true
+                    ? info
+                    : Gio.File.new_for_path(path).query_info('unix::mode', Gio.FileQueryInfoFlags.NONE, null);
+            const mode = source.has_attribute('unix::mode') ? source.get_attribute_uint32('unix::mode') : 0;
             if (mode === 0) return;
             const fmt = mode & S_IFMT;
             switch (fmt) {
