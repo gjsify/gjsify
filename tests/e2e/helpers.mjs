@@ -254,9 +254,35 @@ export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
     writeFileSync(join(projectDir, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
     writeFileSync(
         join(projectDir, '.yarnrc.yml'),
-        ['nodeLinker: pnp', 'enableScripts: false', 'enableGlobalCache: false', 'enableTelemetry: false', ''].join(
-            '\n',
-        ),
+        [
+            'nodeLinker: pnp',
+            'enableScripts: false',
+            'enableGlobalCache: false',
+            'enableTelemetry: false',
+            // Resolve ONLY this host's platform packages (ADR 0017). `pack.mjs`
+            // deliberately does not pack the foreign ones — a consumer installs
+            // exactly one, so a temp tree is more faithful without the other five,
+            // and packing all of them once cost ~98 MB and timed this suite out.
+            //
+            // npm's node-modules linker skips an unresolvable `optionalDependency`
+            // silently, so that omission was invisible. Yarn PnP does NOT: it
+            // resolves every optional entry up front and fails the whole install
+            // on a miss. That made this suite depend on the REGISTRY rather than
+            // on the tree — invisible while the workspace version happened to be
+            // published, and a hard failure the moment it was not:
+            //
+            //   YN0082: @gjsify/http-soup-bridge-darwin-arm64@npm:0.31.0:
+            //           No candidates found
+            //
+            // i.e. every window between a release commit bumping the versions and
+            // the publish landing them. Telling Yarn what a real consumer supports
+            // makes the suite hermetic AND matches the split it is meant to model.
+            'supportedArchitectures:',
+            '  os: ["current"]',
+            '  cpu: ["current"]',
+            '  libc: ["current"]',
+            '',
+        ].join('\n'),
     );
 
     console.log('  running yarn install (PnP)...');
