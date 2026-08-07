@@ -35,7 +35,15 @@ dependencies = [
 # implementation mean what they say: under ARC those are the explicit
 # hand-offs between ObjC's ownership and GObject's, and without it they are
 # double-frees waiting to happen.
-add_project_arguments(['-fobjc-arc'], language: 'objc')
+#
+# The deployment target is DECLARED rather than inherited from whatever host
+# happens to build it. Script worlds are `WKContentWorld`, which is
+# API_AVAILABLE(macos(11.0)) — clang only accepts an unguarded call to it when
+# the target says so, and a runner defaulting to the host version would let that
+# requirement pass unnoticed until a build on an older one failed. 11.0 is the
+# floor the source actually needs; everything else it touches is older.
+add_project_arguments(['-fobjc-arc', '-mmacosx-version-min=11.0'], language: 'objc')
+add_project_link_arguments(['-mmacosx-version-min=11.0'], language: 'objc')
 
 frameworks = ['-framework', 'Cocoa', '-framework', 'WebKit', '-framework', 'CoreGraphics']
 

@@ -139,12 +139,44 @@ void gjsify_webkit_user_script_unref(GjsifyWebKitUserScript *self);
  * @allow_list: (nullable) (array zero-terminated=1): URI patterns to allow, or %NULL for all.
  * @block_list: (nullable) (array zero-terminated=1): URI patterns to block, or %NULL for none.
  *
+ * The lists are `scheme://host/path` patterns as WebKitGTK's are, with `*`
+ * wildcards; `*` as a scheme means http or https, and a `*.` host prefix
+ * matches subdomains. Apple's WKUserScript carries no URL filter, so a script
+ * with a non-empty list is wrapped in a guard that tests the document's URL
+ * before running — which costs one thing worth knowing: the guard is a labelled
+ * block, so a filtered script's top-level `let`, `const` and `class` are
+ * block-scoped rather than global. `var` and function declarations are
+ * unaffected, and a script with no lists is not wrapped at all.
+ *
  * Returns: (transfer full): a new script.
  */
 GjsifyWebKitUserScript *gjsify_webkit_user_script_new(
     const gchar *source,
     GjsifyWebKitUserContentInjectedFrames injected_frames,
     GjsifyWebKitUserScriptInjectionTime injection_time,
+    const gchar *const *allow_list,
+    const gchar *const *block_list);
+
+/**
+ * gjsify_webkit_user_script_new_for_world:
+ * @source: the script source.
+ * @injected_frames: which frames to inject into.
+ * @injection_time: when to inject.
+ * @world_name: (nullable): the script world to inject into, or %NULL for the
+ *   page's own world.
+ * @allow_list: (nullable) (array zero-terminated=1): URI patterns to allow, or %NULL for all.
+ * @block_list: (nullable) (array zero-terminated=1): URI patterns to block, or %NULL for none.
+ *
+ * Mirrors `webkit_user_script_new_for_world()`. Backed by `WKContentWorld`,
+ * public since macOS 11.
+ *
+ * Returns: (transfer full): a new script.
+ */
+GjsifyWebKitUserScript *gjsify_webkit_user_script_new_for_world(
+    const gchar *source,
+    GjsifyWebKitUserContentInjectedFrames injected_frames,
+    GjsifyWebKitUserScriptInjectionTime injection_time,
+    const gchar *world_name,
     const gchar *const *allow_list,
     const gchar *const *block_list);
 
@@ -178,9 +210,10 @@ void gjsify_webkit_user_content_manager_remove_all_scripts(
  * @self: the manager.
  * @name: the handler name, reachable from the page as
  *   `window.webkit.messageHandlers.<name>.postMessage()`.
- * @world_name: (nullable): reserved for script-world parity with WebKitGTK; the
- *   Apple backend has no public isolated-world API, so a non-%NULL value is
- *   rejected loudly rather than silently ignored.
+ * @world_name: (nullable): the script world to register in, or %NULL for the
+ *   page's own world. Backed by `WKContentWorld`, public since macOS 11. A
+ *   handler in a named world is deliberately NOT reachable from the page's own
+ *   scripts, which is the isolation the argument exists for.
  *
  * Returns: %TRUE if the handler was registered.
  */
@@ -280,7 +313,8 @@ GjsifyWebKitSettings *gjsify_webkit_web_view_get_settings(GjsifyWebKitWebView *s
  * @self: the view.
  * @script: the source to evaluate.
  * @length: length of @script in bytes, or -1 if nul-terminated.
- * @world_name: (nullable): reserved for parity; must be %NULL on this backend.
+ * @world_name: (nullable): the script world to evaluate in, or %NULL for the
+ *   page's own world.
  * @source_uri: (nullable): a URI attributed to the script in errors.
  * @cancellable: (nullable): a #GCancellable.
  * @callback: (scope async) (closure user_data) (nullable): called when the

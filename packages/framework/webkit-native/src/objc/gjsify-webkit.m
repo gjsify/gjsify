@@ -201,6 +201,49 @@ static GjsifyWebKitValue *gjsify_webkit_value_new_from_objc(id object)
 }
 
 /* ==========================================================================
+ * Script worlds
+ *
+ * WKContentWorld has been public since macOS 11 (`worldWithName:`, plus the
+ * `inContentWorld:` overloads of addScriptMessageHandler, WKUserScript's
+ * initialiser and evaluateJavaScript). ADR 0022 shipped saying there was no
+ * public isolated-world API and rejected a non-NULL world outright; that was
+ * wrong, and this is the correction.
+ *
+ * The instances are cached because `+worldWithName:` returns the same object
+ * only for as long as one is still alive — without holding them, a message
+ * handler and a user script registered into "foo" at different moments would
+ * land in DIFFERENT worlds, which is exactly the isolation bug the caller was
+ * trying to avoid. WebKitGTK's script worlds are process-global by name too, so
+ * a process-lifetime cache is the matching lifetime rather than a leak.
+ * ========================================================================== */
+
+static WKContentWorld *gjsify_webkit_content_world(const gchar *world_name)
+{
+    static NSMutableDictionary<NSString *, WKContentWorld *> *cache;
+    static gsize once = 0;
+
+    /* NULL is WebKitGTK's "the page's own world", which is what every consumer
+     * in this workspace passes and what the postMessage bridge needs: a handler
+     * in an isolated world is unreachable from the page's own scripts. */
+    if (world_name == NULL) {
+        return [WKContentWorld pageWorld];
+    }
+
+    if (g_once_init_enter(&once)) {
+        cache = [[NSMutableDictionary alloc] init];
+        g_once_init_leave(&once, 1);
+    }
+
+    NSString *key = @(world_name);
+    WKContentWorld *world = cache[key];
+    if (world == nil) {
+        world = [WKContentWorld worldWithName:key];
+        cache[key] = world;
+    }
+    return world;
+}
+
+/* ==========================================================================
  * GjsifyWebKitUserScript
  * ========================================================================== */
 
@@ -209,6 +252,7 @@ struct _GjsifyWebKitUserScript {
     gchar *source;
     GjsifyWebKitUserContentInjectedFrames injected_frames;
     GjsifyWebKitUserScriptInjectionTime injection_time;
+    gchar *world_name; /* NULL = the page world */
 };
 
 G_DEFINE_BOXED_TYPE(GjsifyWebKitUserScript,
@@ -228,8 +272,168 @@ void gjsify_webkit_user_script_unref(GjsifyWebKitUserScript *self)
     g_return_if_fail(self != NULL);
     if (g_atomic_ref_count_dec(&self->ref_count)) {
         g_free(self->source);
+        g_free(self->world_name);
         g_free(self);
     }
+}
+
+/* ---- allow/block lists --------------------------------------------------
+ *
+ * WKUserScript has no URL filter: WebKitGTK's allow/block lists are
+ * `WebCore::UserContentURLPattern`, applied in the web process at injection
+ * time, and Apple's API exposes no equivalent hook. ADR 0022 shipped warning
+ * and running the script anyway, which is the one failure mode a block list
+ * exists to prevent — a script running on an origin the caller excluded.
+ *
+ * So the filter moves into the script: the source is wrapped in a guard that
+ * tests the document's own URL against the patterns before running it. The
+ * patterns are parsed HERE, in C, rather than shipped as strings to be
+ * interpreted by page-visible JavaScript.
+ *
+ * THE ONE SEMANTIC DIFFERENCE, because it is real and cannot be hidden: the
+ * guard is a labelled block, so a filtered script's top-level `let`, `const` and
+ * `class` become block-scoped instead of global. `var` and function
+ * declarations still hoist to global scope, which is what a user script
+ * normally relies on. A labelled block is used rather than the obvious IIFE
+ * precisely because an IIFE would additionally capture `var` and `function`.
+ * Scripts with NO lists are not wrapped at all and are byte-identical to what
+ * shipped before.
+ * ------------------------------------------------------------------------- */
+
+typedef struct {
+    gchar *scheme;      /* "*" matches http and https, as WebKit's does */
+    gchar *host;        /* NULL = any host */
+    gboolean subdomains;/* the pattern was *.example.com */
+    gchar *path;        /* glob, "*" wildcards */
+} GjsifyWebKitUrlPattern;
+
+static void gjsify_webkit_url_pattern_clear(gpointer data)
+{
+    GjsifyWebKitUrlPattern *pattern = data;
+    g_free(pattern->scheme);
+    g_free(pattern->host);
+    g_free(pattern->path);
+}
+
+/* `scheme://host/path`, the shape WebKit's UserContentURLPattern parses. An
+ * unparseable pattern is DROPPED with a warning, which is WebKitGTK's behaviour
+ * — and the safe direction for both list kinds, since a dropped allow entry
+ * narrows and a dropped block entry is reported rather than silently widening. */
+static gboolean gjsify_webkit_url_pattern_parse(const gchar *text, GjsifyWebKitUrlPattern *out)
+{
+    const gchar *separator = strstr(text, "://");
+    if (separator == NULL || separator == text) {
+        g_warning("GjsifyWebKit: ignoring malformed user-script URL pattern '%s' "
+                  "(expected scheme://host/path)",
+                  text);
+        return FALSE;
+    }
+
+    out->scheme = g_strndup(text, (gsize) (separator - text));
+
+    const gchar *host = separator + 3;
+    const gchar *slash = strchr(host, '/');
+    gchar *host_part = slash != NULL ? g_strndup(host, (gsize) (slash - host)) : g_strdup(host);
+
+    if (g_strcmp0(host_part, "*") == 0) {
+        out->host = NULL;
+        g_free(host_part);
+    } else if (g_str_has_prefix(host_part, "*.")) {
+        out->subdomains = TRUE;
+        out->host = g_strdup(host_part + 2);
+        g_free(host_part);
+    } else {
+        out->host = host_part;
+    }
+
+    /* No path means the whole origin, exactly as `https://example.com` does in
+     * WebKitGTK. */
+    out->path = g_strdup(slash != NULL ? slash : "/*");
+    return TRUE;
+}
+
+/* One JSON object per pattern. Building JSON in C rather than interpolating the
+ * raw pattern strings is what keeps a pattern containing a quote from ending
+ * the string literal and becoming page-visible code. */
+static void gjsify_webkit_url_patterns_to_json(
+    const gchar *const *list, GString *out)
+{
+    g_string_append_c(out, '[');
+
+    for (gsize i = 0; list != NULL && list[i] != NULL; i++) {
+        GjsifyWebKitUrlPattern pattern = { 0 };
+        if (!gjsify_webkit_url_pattern_parse(list[i], &pattern)) {
+            continue;
+        }
+
+        if (out->len > 1) {
+            g_string_append_c(out, ',');
+        }
+
+        gchar *scheme = g_strescape(pattern.scheme, NULL);
+        gchar *path = g_strescape(pattern.path, NULL);
+        g_string_append_printf(out, "{s:\"%s\",d:%s,p:\"%s\",h:", scheme,
+                               pattern.subdomains ? "1" : "0", path);
+        if (pattern.host != NULL) {
+            gchar *host = g_strescape(pattern.host, NULL);
+            g_string_append_printf(out, "\"%s\"", host);
+            g_free(host);
+        } else {
+            g_string_append(out, "null");
+        }
+        g_string_append_c(out, '}');
+        g_free(scheme);
+        g_free(path);
+
+        gjsify_webkit_url_pattern_clear(&pattern);
+    }
+
+    g_string_append_c(out, ']');
+}
+
+/* The matcher, mirroring UserContentURLPattern::matches: the scheme must agree
+ * ("*" meaning http or https, as WebKit's does), the host must agree exactly or
+ * as a subdomain, and the path glob must match path+query. */
+#define GJSIFY_WEBKIT_URL_MATCHER                                                             \
+    "var __gjsifyMatch=function(p){"                                                          \
+    "var s=location.protocol.slice(0,-1);"                                                    \
+    "if(p.s==='*'){if(s!=='http'&&s!=='https')return false;}else if(p.s!==s)return false;"     \
+    "if(p.h!==null){var h=location.hostname;"                                                 \
+    "if(p.d){if(h!==p.h&&!h.endsWith('.'+p.h))return false;}else if(h!==p.h)return false;}"    \
+    "var re=p.p.split('*').map(function(x){return x.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&');})" \
+    ".join('[\\\\s\\\\S]*');"                                                                 \
+    "return new RegExp('^'+re+'$').test(location.pathname+location.search);};"
+
+static gboolean gjsify_webkit_list_is_empty(const gchar *const *list)
+{
+    return list == NULL || list[0] == NULL;
+}
+
+static gchar *gjsify_webkit_apply_url_patterns(
+    const gchar *source, const gchar *const *allow_list, const gchar *const *block_list)
+{
+    if (gjsify_webkit_list_is_empty(allow_list) && gjsify_webkit_list_is_empty(block_list)) {
+        return g_strdup(source);
+    }
+
+    GString *allow = g_string_new(NULL);
+    GString *block = g_string_new(NULL);
+    gjsify_webkit_url_patterns_to_json(allow_list, allow);
+    gjsify_webkit_url_patterns_to_json(block_list, block);
+
+    GString *wrapped = g_string_new("__gjsifyUserScript: {\n");
+    g_string_append(wrapped, GJSIFY_WEBKIT_URL_MATCHER);
+    g_string_append_printf(wrapped, "var __gjsifyAllow=%s,__gjsifyBlock=%s;\n", allow->str, block->str);
+    g_string_append(
+        wrapped,
+        "if(__gjsifyAllow.length&&!__gjsifyAllow.some(__gjsifyMatch))break __gjsifyUserScript;\n"
+        "if(__gjsifyBlock.some(__gjsifyMatch))break __gjsifyUserScript;\n");
+    g_string_append(wrapped, source);
+    g_string_append(wrapped, "\n}");
+
+    g_string_free(allow, TRUE);
+    g_string_free(block, TRUE);
+    return g_string_free(wrapped, FALSE);
 }
 
 GjsifyWebKitUserScript *gjsify_webkit_user_script_new(
@@ -239,25 +443,31 @@ GjsifyWebKitUserScript *gjsify_webkit_user_script_new(
     const gchar *const *allow_list,
     const gchar *const *block_list)
 {
+    return gjsify_webkit_user_script_new_for_world(
+        source, injected_frames, injection_time, NULL, allow_list, block_list);
+}
+
+GjsifyWebKitUserScript *gjsify_webkit_user_script_new_for_world(
+    const gchar *source,
+    GjsifyWebKitUserContentInjectedFrames injected_frames,
+    GjsifyWebKitUserScriptInjectionTime injection_time,
+    const gchar *world_name,
+    const gchar *const *allow_list,
+    const gchar *const *block_list)
+{
     GjsifyWebKitUserScript *self;
 
     g_return_val_if_fail(source != NULL, NULL);
 
-    /* WKUserScript has no allow/block list — WebKitGTK's are implemented above
-     * WebKit, not inside it. Accepting them and dropping them silently would
-     * make a script run on origins the caller excluded, so a non-empty list is
-     * a warning rather than a no-op. Nothing in this workspace passes one. */
-    if ((allow_list != NULL && allow_list[0] != NULL) ||
-        (block_list != NULL && block_list[0] != NULL)) {
-        g_warning("GjsifyWebKit: user-script allow/block lists are not supported on the "
-                  "darwin backend; the script will run in every frame it is injected into");
-    }
-
     self = g_new0(GjsifyWebKitUserScript, 1);
     g_atomic_ref_count_init(&self->ref_count);
-    self->source = g_strdup(source);
+    /* The patterns are baked in HERE rather than at injection time, because
+     * this is the only point where the caller's list is still in hand — a
+     * WKUserScript carries nothing but its source. */
+    self->source = gjsify_webkit_apply_url_patterns(source, allow_list, block_list);
     self->injected_frames = injected_frames;
     self->injection_time = injection_time;
+    self->world_name = g_strdup(world_name);
     return self;
 }
 
@@ -396,10 +606,11 @@ void gjsify_webkit_user_content_manager_add_script(
         BOOL main_frame_only =
             script->injected_frames == GJSIFY_WEBKIT_USER_CONTENT_INJECT_TOP_FRAME;
 
-        WKUserScript *user_script =
-            [[WKUserScript alloc] initWithSource:@(script->source)
-                                   injectionTime:time
-                                forMainFrameOnly:main_frame_only];
+        WKUserScript *user_script = [[WKUserScript alloc]
+                 initWithSource:@(script->source)
+                  injectionTime:time
+               forMainFrameOnly:main_frame_only
+                 inContentWorld:gjsify_webkit_content_world(script->world_name)];
         [controller addUserScript:user_script];
     }
 
@@ -424,27 +635,16 @@ gboolean gjsify_webkit_user_content_manager_register_script_message_handler(
     g_return_val_if_fail(GJSIFY_WEBKIT_IS_USER_CONTENT_MANAGER(self), FALSE);
     g_return_val_if_fail(name != NULL, FALSE);
 
-    /* WebKitGTK's world_name selects a script world. WKWebView has no public
-     * equivalent, and registering into the page world while the caller asked
-     * for an isolated one would hand page scripts a handler they should not
-     * reach. Refusing is the honest answer. */
-    if (world_name != NULL) {
-        g_warning("GjsifyWebKit: named script worlds are not available on the darwin "
-                  "backend; refusing to register handler '%s' in world '%s'",
-                  name,
-                  world_name);
-        return FALSE;
-    }
-
     @autoreleasepool {
         WKUserContentController *controller = (__bridge WKUserContentController *) self->controller;
         GjsifyWebKitScriptMessageHandler *handler =
             (__bridge GjsifyWebKitScriptMessageHandler *) self->handler;
+        WKContentWorld *world = gjsify_webkit_content_world(world_name);
         /* Re-registering the same name throws an ObjC exception, which would
          * cross the C frame and abort. WebKitGTK returns FALSE instead, so
          * remove first and keep the contract. */
-        [controller removeScriptMessageHandlerForName:@(name)];
-        [controller addScriptMessageHandler:handler name:@(name)];
+        [controller removeScriptMessageHandlerForName:@(name) contentWorld:world];
+        [controller addScriptMessageHandler:handler contentWorld:world name:@(name)];
     }
 
     return TRUE;
@@ -455,11 +655,11 @@ void gjsify_webkit_user_content_manager_unregister_script_message_handler(
 {
     g_return_if_fail(GJSIFY_WEBKIT_IS_USER_CONTENT_MANAGER(self));
     g_return_if_fail(name != NULL);
-    (void) world_name;
 
     @autoreleasepool {
         WKUserContentController *controller = (__bridge WKUserContentController *) self->controller;
-        [controller removeScriptMessageHandlerForName:@(name)];
+        [controller removeScriptMessageHandlerForName:@(name)
+                                         contentWorld:gjsify_webkit_content_world(world_name)];
     }
 }
 
@@ -1662,20 +1862,15 @@ void gjsify_webkit_web_view_evaluate_javascript(
     task = g_task_new(self, cancellable, callback, user_data);
     g_task_set_source_tag(task, gjsify_webkit_web_view_evaluate_javascript);
 
-    if (world_name != NULL) {
-        g_task_return_new_error(task,
-                                G_IO_ERROR,
-                                G_IO_ERROR_NOT_SUPPORTED,
-                                "named script worlds are not available on the darwin backend");
-        g_object_unref(task);
-        return;
-    }
-
     source = length < 0 ? g_strdup(script) : g_strndup(script, (gsize) length);
 
     @autoreleasepool {
         WKWebView *web_view = (__bridge WKWebView *) PRIV(self)->web_view;
+        /* A nil frame means the main frame, matching WebKitGTK, which has no
+         * frame argument here at all. */
         [web_view evaluateJavaScript:@(source)
+                             inFrame:nil
+                      inContentWorld:gjsify_webkit_content_world(world_name)
                    completionHandler:^(id result, NSError *error) {
             if (error != nil) {
                 g_task_return_new_error(task,
