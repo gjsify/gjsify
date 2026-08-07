@@ -2282,6 +2282,62 @@ export default async () => {
                 drop(dir);
             }
         });
+
+        await it('K-16 the two genuinely optional close callbacks are optional', async () => {
+            // `fs.close(fd)` and `ws.close()` with no callback are legal and
+            // SILENT in Node (measured against v24.15.0) — the only two in this
+            // package that are, since `fstat`/`ftruncate`/`fsync`/`readv`/
+            // `writev`/`cp`/`glob`/`opendir`/`statfs` all reject a missing one
+            // with ERR_INVALID_ARG_TYPE. Both declared the parameter optional
+            // and then called it unconditionally, so the documented spelling
+            // raised `callback is not a function`: synchronously on the branch
+            // where the stream has no descriptor left, and INSIDE `fs.close`'s
+            // promise chain otherwise — an unhandled rejection that no
+            // try/catch at the call site can see and that GJS, which has no
+            // host hook for the event, cannot even report to the runner.
+            //
+            // That invisibility is why every previous round went green over it,
+            // and it is why the sync half is asserted here explicitly: on the
+            // GJS leg it is the only half a test can observe. On the Node leg
+            // the runner's own `unhandledRejection` hook catches the other one,
+            // so this rule fails there on the pre-fix tree.
+            const dir = scratch('r16');
+            try {
+                const f = join(dir, 'f');
+
+                // The descriptor-owning branch: a real `close(2)` behind it.
+                await new Promise<void>((resolve, reject) => {
+                    const stream = createWriteStream(f);
+                    stream.on('error', reject);
+                    stream.on('open', () => {
+                        (stream as unknown as { close(): void }).close();
+                        setTimeout(resolve, 50);
+                    });
+                });
+
+                // The branch that owns nothing and must still answer: a handle
+                // stream with `autoClose: false` leaves the fd to the handle.
+                const handle = await fsPromises.open(f, 'r+');
+                try {
+                    const borrowed = handle.createWriteStream({ autoClose: false } as never);
+                    await new Promise<void>((resolve) => borrowed.write('Z', () => resolve()));
+                    (borrowed as unknown as { close(): void }).close();
+                    // The handle still owns its descriptor — the stream must
+                    // not have closed it out from under it.
+                    expect((await handle.stat()).isFile()).toBe(true);
+                } finally {
+                    await handle.close();
+                }
+
+                // And the bare `fs.close(fd)` the stream reaches it through.
+                const fd = fdOf(openSync(f, 'r'));
+                fsClose(fd);
+                await new Promise<void>((resolve) => setTimeout(resolve, 50));
+                expectCode(() => readSync(fd, Buffer.alloc(1), 0, 1, null), 'EBADF');
+            } finally {
+                drop(dir);
+            }
+        });
     });
 
     await describe('fs — a descriptor describes the object, not the name it was reached by', async () => {

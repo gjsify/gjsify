@@ -57,12 +57,22 @@ export class WriteStream extends Writable implements IWriteStream {
      * @since v0.9.4
      */
     close(callback?: (err?: NodeJS.ErrnoException | null) => void, err: Error | null = null): void {
+        // `ws.close()` with no callback is legal and silent in Node (measured
+        // against v24.15.0). It was declared optional here and then called
+        // unconditionally, so the documented no-argument spelling raised
+        // `callback is not a function` — synchronously on the first branch, and
+        // inside `fs.close`'s promise chain on the second, where it surfaced
+        // only as an unhandled rejection. `_destroy()` always passes one, which
+        // is why every test went green over it.
+        const done = (e?: NodeJS.ErrnoException | Error | null) => {
+            if (typeof callback === 'function') callback(e as NodeJS.ErrnoException | null);
+        };
         if (this.fd === null || !this._autoClose) {
             // A descriptor we were handed stays open: the FileHandle (or the
             // caller) still owns it, and closing it here would pull the fd out
             // from under them.
             this.fd = null;
-            callback(err);
+            done(err);
         } else {
             const fromHandle = this._fdFromHandle;
             close(this.fd, (er?: Error | null) => {
@@ -71,7 +81,7 @@ export class WriteStream extends Writable implements IWriteStream {
                 // turns `fh.createWriteStream(); …; await fh.close()` into an
                 // unlistened `'error'`.
                 const reported = fromHandle && (er as NodeJS.ErrnoException | null)?.code === 'EBADF' ? null : er;
-                callback(reported || err);
+                done(reported || err);
             });
             this.fd = null;
         }

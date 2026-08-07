@@ -567,16 +567,25 @@ export function read(fd: number, ...args: unknown[]): void {
  * @since v0.0.2
  */
 export function close(fd: number, callback?: NoParamCallback): void {
-    const fileHandle = withHandle(fd, 'close', (err) => {
+    // `fs.close(fd)` with no callback is legal and SILENT in Node (measured
+    // against v24.15.0) — it is the one fd callback whose completion handler is
+    // genuinely optional; the six siblings all reject a missing one with
+    // ERR_INVALID_ARG_TYPE. The parameter was declared optional here too, and
+    // then called unconditionally on both settled paths: an absent callback
+    // became `callback is not a function` INSIDE the promise chain, i.e. an
+    // unhandled rejection that no `try`/`catch` around the call could see.
+    // `WriteStream.close()` reaches this from the same defect in its own
+    // optional-callback signature, so the ordinary `ws.close()` spelling
+    // printed a GJS warning and swallowed the real close error.
+    const done = (err: NodeJS.ErrnoException | null) => {
         if (typeof callback === 'function') callback(err);
-    });
+    };
+    const fileHandle = withHandle(fd, 'close', done);
     if (!fileHandle) return;
     fileHandle
         .close()
-        .then(() => {
-            callback(null);
-        })
-        .catch((err) => callback(err));
+        .then(() => done(null))
+        .catch((err) => done(err));
 }
 
 /**
