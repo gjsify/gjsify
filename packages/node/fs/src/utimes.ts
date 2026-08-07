@@ -100,12 +100,40 @@ export async function lchownAsync(path: PathLike, uid: number, gid: number): Pro
 }
 
 // ─── lchmod ───────────────────────────────────────────────────────────────────
-// Not supported on Linux — no-op, no throw (mirrors Node.js behavior on Linux).
 
-export function lchmodSync(_path: PathLike, _mode: number): void {}
-
-export function lchmod(_path: PathLike, _mode: number, callback: (err: NodeJS.ErrnoException | null) => void): void {
-    callback(null);
+/**
+ * `lchmod` is not implemented, and now it SAYS so.
+ *
+ * The comment this replaces claimed the empty body "mirrors Node.js behavior on
+ * Linux". It does not. Node does not define `fs.lchmodSync` or `fs.lchmod` on
+ * Linux at all — both are `undefined`, so the caller gets a TypeError — and
+ * `fsPromises.lchmod` does exist but throws `ERR_METHOD_NOT_IMPLEMENTED`
+ * (measured against v24.15.0). Every one of those spellings tells the caller.
+ *
+ * An empty body does the opposite: a request to RESTRICT permissions returns
+ * normally having changed nothing. That is the same silent-non-restriction
+ * class as the dropped `mode` this redesign exists to close, and the quietest
+ * member of it — there is not even a wrong mode left on disk to notice later.
+ *
+ * They throw rather than being deleted because the export list and the
+ * `node:fs` type surface are load-bearing for consumers that re-export the
+ * module wholesale, and a throw is exactly what the one spelling Node DOES
+ * define already does.
+ */
+function lchmodUnsupported(): NodeJS.ErrnoException {
+    const err = new Error('The lchmod() method is not implemented') as NodeJS.ErrnoException;
+    err.code = 'ERR_METHOD_NOT_IMPLEMENTED';
+    return err;
 }
 
-export async function lchmodAsync(_path: PathLike, _mode: number): Promise<void> {}
+export function lchmodSync(_path: PathLike, _mode: number): void {
+    throw lchmodUnsupported();
+}
+
+export function lchmod(_path: PathLike, _mode: number, callback: (err: NodeJS.ErrnoException | null) => void): void {
+    callback(lchmodUnsupported());
+}
+
+export async function lchmodAsync(_path: PathLike, _mode: number): Promise<void> {
+    throw lchmodUnsupported();
+}
