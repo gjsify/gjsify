@@ -20,6 +20,13 @@
 //   foreign     1, attributed foreign, parked   ~the 2 s deadline  warns
 //   draining    8, attributed foreign, live     fast               silent
 //
+// The "claims at teardown" column is a PRECONDITION the case establishes before
+// it returns, and for a row with more than one claim owner that means counting
+// OWNERS, not work done: `draining` waits on the addon's per-thread first-push
+// counter (stats()[4]), because the global delivery counter it used to read can
+// reach N from fewer than N workers — leaving a claim unattributed and failing
+// this gate's own `no warning` row against a runtime that is behaving correctly.
+//
 // `self` / `self-used` are the regression: a claim the JS thread will never hand
 // back cannot drain from inside a join the JS thread is blocked in, so before
 // per-claim owner attribution both burned the FULL 2 s deadline and then

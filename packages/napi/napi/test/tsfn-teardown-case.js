@@ -89,8 +89,12 @@ switch (shape) {
         addon.resetStats();
         addon.holdDraining(cb, DRAIN_THREADS);
         // Wait until every worker has pushed at least once, so all N claims are
-        // attributed foreign when teardown starts.
-        if (!drainUntil(() => addon.stats()[0] >= DRAIN_THREADS)) throw new Error('draining: workers never got going');
+        // attributed foreign when teardown starts. Readiness must count claim
+        // OWNERS (stats()[4], distinct workers whose first push returned), NOT
+        // deliveries: stats()[0] is global, so >= N deliveries can come from
+        // fewer than N workers and leave a claim unattributed — a teardown the
+        // gate's table promises is silent then warns, correctly.
+        if (!drainUntil(() => addon.stats()[4] >= DRAIN_THREADS)) throw new Error('draining: workers never got going');
         break;
 
     default:
