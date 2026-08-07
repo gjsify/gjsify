@@ -443,6 +443,10 @@ v0.4.20 `@gjsify/tls-native` incident: 60+ packages stuck). One command:
 `gjsify onboard` (whoami-gated login, per-package state probe, publishes + trusts only the gaps,
 ONE shared OTP). The package itself, its builder and both CI chains are in place.
 
+### `gjsify onboard` for the three `@gjsify/webkit-native*` names — required before the release that ships them
+
+Same mechanism as the `gtk-runtime-darwin-x64` entry above, three names at once: `@gjsify/webkit-native`, `@gjsify/webkit-native-darwin-x64` and `@gjsify/webkit-native-darwin-arm64` are all published (none is `private`), all new as of ADR 0022, and none exists on npm. Trusted Publishing cannot CREATE a package, so an unbootstrapped name 404s the OIDC exchange and stalls every alphabetically-later package — the v0.4.20 incident left 60+ at 0.4.19, and `webkit-*` sits ahead of `websocket`, `webstorage` and `xmlhttprequest`. One `gjsify onboard` run covers all three (it probes per package and publishes only the gaps, one shared OTP).
+
 ### `@gjsify/webgl` renders on darwin-x64, but no WebGL2 CONTENT can
 
 First rendering proof on darwin, measured 2026-08-03 on the Intel macOS 15.7.8 test VM
