@@ -126,6 +126,8 @@ export interface OpenSpec {
     trunc: boolean;
     /** `O_NOFOLLOW` — the open refuses a symlink instead of following it. */
     nofollow: boolean;
+    /** `O_DIRECTORY` — the open refuses anything that is not a directory. */
+    directory: boolean;
 }
 
 // Node's `stringToFlags()` table, verbatim. Reference: Node.js
@@ -205,6 +207,7 @@ export function parseOpenFlags(flags: OpenFlags | number | string | undefined | 
         excl: (posix & O.O_CREAT) !== 0 && (posix & O.O_EXCL) !== 0,
         trunc: (posix & O.O_TRUNC) !== 0,
         nofollow: O.O_NOFOLLOW !== 0 && (posix & O.O_NOFOLLOW) !== 0,
+        directory: O.O_DIRECTORY !== 0 && (posix & O.O_DIRECTORY) !== 0,
     };
 }
 
@@ -217,14 +220,23 @@ export function parseOpenFlags(flags: OpenFlags | number | string | undefined | 
  * parser, shared by open / mkdir / mkdtemp / writeFile / appendFile / chmod,
  * because the two that disagreed were the two that drifted.
  *
- * `fallback` is used only when `mode` is absent. `0` is a VALID mode and must
- * survive: the old `options.mode ||= 0o666` silently replaced it.
+ * `fallback` is used only when `mode` is absent, and it is OPTIONAL because not
+ * every caller has one: Node's `open`/`mkdir`/`writeFile` document a default,
+ * and `chmod` does NOT — its `mode` is required, and Node rejects a missing one
+ * with `ERR_INVALID_ARG_TYPE`. Handing `chmod` a 0o666 default here made
+ * `fs.chmodSync(p, cfg.mode)` with an absent `cfg.mode` silently WIDEN a 0600
+ * secret to world-writable, from the shared parser this redesign introduced to
+ * stop the two spellings drifting. `0` is a VALID mode and must survive: the
+ * old `options.mode ||= 0o666` silently replaced it.
  */
-export function normalizeMode(mode: Mode | undefined | null, fallback: number): number {
-    if (mode === undefined || mode === null) return fallback;
+export function normalizeMode(mode: Mode | undefined | null, fallback?: number): number {
+    // Node's `parseFileMode`, in its own order: `value ??= def` first, so an
+    // absent mode with no default falls into the type check below rather than
+    // being invented.
+    const requested = mode ?? fallback;
 
-    let value: number;
-    if (typeof mode === 'string') {
+    let value: unknown = requested;
+    if (typeof requested === 'string') {
         // Node's `octalReg`, verbatim: `/^[0-7]+$/`, tested BEFORE the parse and
         // matching the WHOLE string — because `parseInt` is lenient in exactly
         // the two directions that matter. It accepts a sign, so
@@ -234,16 +246,20 @@ export function normalizeMode(mode: Mode | undefined | null, fallback: number): 
         // created a SETUID + SETGID + STICKY file, and `mkdirSync(d, '-1')` a
         // sticky directory. It also stops at the first invalid digit rather
         // than rejecting the value.
-        if (!/^[0-7]+$/.test(mode)) throw invalidMode(mode);
-        value = parseInt(mode, 8);
-    } else {
-        value = mode;
+        if (!/^[0-7]+$/.test(requested)) throw invalidMode(requested);
+        value = parseInt(requested, 8);
     }
 
-    // Node's `validateUint32`, applied to BOTH branches. The string branch
-    // needs it just as much: `'77777777777'` is well-formed octal and parses to
+    // Node's `validateUint32`, applied to BOTH branches and in ITS OWN ORDER.
+    // The type check is `validateUint32`'s FIRST, and dropping it is what made
+    // `openSync(p,'w',true)` and `openSync(p,'w',{})` throw a RangeError
+    // (`ERR_OUT_OF_RANGE`) where Node — and the code this replaced — throw a
+    // TypeError, so the universal `catch (e) { if (e instanceof TypeError) }`
+    // stopped matching. The range checks after it are what the string branch
+    // needs just as much: `'77777777777'` is well-formed octal and parses to
     // 8589934591, which does not fit the `guint32` the syscall takes — it
     // reached `open(2)` truncated, and produced 0o7755 as well.
+    if (typeof value !== 'number') throw modeNotANumber(value);
     if (!Number.isInteger(value)) throw modeOutOfRange('an integer', value);
     if (value < 0 || value > 4294967295) throw modeOutOfRange('>= 0 && <= 4294967295', value);
     return value;
@@ -255,6 +271,26 @@ function invalidMode(mode: string): NodeJS.ErrnoException {
     ) as NodeJS.ErrnoException;
     err.code = 'ERR_INVALID_ARG_VALUE';
     return err;
+}
+
+/** Node's `ERR_INVALID_ARG_TYPE` for `mode` — a TypeError, never a RangeError. */
+function modeNotANumber(value: unknown): NodeJS.ErrnoException {
+    const received =
+        value === null || value === undefined ? String(value) : `type ${typeof value} (${describeValue(value)})`;
+    const err = new TypeError(`The "mode" argument must be of type number. Received ${received}`) as NodeJS.ErrnoException;
+    err.code = 'ERR_INVALID_ARG_TYPE';
+    return err;
+}
+
+/** A short, throw-free rendering of a rejected value for the message above. */
+function describeValue(value: unknown): string {
+    try {
+        return typeof value === 'object' ? Object.prototype.toString.call(value) : String(value);
+    } catch {
+        // A `Symbol` has no implicit string conversion and an exotic object can
+        // throw from `toString`; the message must never replace the error.
+        return '<unprintable>';
+    }
 }
 
 function modeOutOfRange(expected: string, value: number): NodeJS.ErrnoException {

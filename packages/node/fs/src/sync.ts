@@ -671,8 +671,13 @@ export function truncateSync(path: PathLike, len?: number): void {
 export function chmodSync(path: PathLike, mode: Mode): void {
     const pathStr = normalizePath(path);
     // One shared octal parser with open/mkdir/mkdtemp/writeFile, so the two
-    // spellings of "mode" cannot drift apart again.
-    const modeNum = normalizeMode(mode, 0o666);
+    // spellings of "mode" cannot drift apart again — but with NO default, which
+    // is the one thing chmod does not share with them. Node's `chmod` takes a
+    // REQUIRED mode and rejects a missing one; passing 0o666 here meant
+    // `chmodSync(p, cfg.mode)` with an absent `cfg.mode` returned normally
+    // having made a 0600 secret world-writable. All six chmod spellings
+    // (sync/callback/promise, path and fd) route through this one call.
+    const modeNum = normalizeMode(mode);
     // Gio can chmod natively (G_FILE_ATTRIBUTE_UNIX_MODE is settable on local
     // files) — no subprocess. The previous `chmod` shell-out broke on any path
     // containing a space and never even checked the child's exit status.
