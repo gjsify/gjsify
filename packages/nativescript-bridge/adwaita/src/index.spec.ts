@@ -20,7 +20,10 @@ import { describe, it, expect } from '@gjsify/unit';
 // specifier is unresolvable off NativeScript and would fail the test bundle
 // before any guard could run. `@gjsify/native-platform` and `./fonts.js` are
 // pure-TS (no `@nativescript/core` value imports), so they load everywhere.
+import { AVATAR_COLORS, flattenAvatarGradient } from '@gjsify/adwaita-core';
+import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
+import { avatarColor, avatarInitials } from './widgets/avatar-color.js';
 import {
     ADWAITA_SANS_FONT_FAMILY,
     ADWAITA_SANS_TTF_FILES,
@@ -184,14 +187,6 @@ class MockSliderRow {
     set step(v: number) {
         this._step = v > 0 ? v : 1;
     }
-}
-
-// Mirrors avatarInitials() from src/widgets/adw-avatar.ts.
-function mockAvatarInitials(text: string): string {
-    const words = (text ?? '').trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return '';
-    if (words.length === 1) return words[0]!.charAt(0).toUpperCase();
-    return (words[0]!.charAt(0) + words[words.length - 1]!.charAt(0)).toUpperCase();
 }
 
 // --- Mocks for the new Tier-2 widgets (mirror their accessor logic, kept in
@@ -620,22 +615,31 @@ export default async () => {
         });
     });
 
-    await describe('AdwAvatar initials derivation', async () => {
-        await it('derives two-letter initials from first+last word', () => {
-            expect(mockAvatarInitials('Ada Lovelace')).toBe('AL');
-        });
+    // The REAL derivation, not a mirror of it: `avatar-color.ts` is free of
+    // `@nativescript/core` value imports precisely so this suite can drive the
+    // shipping code, and the vectors are the same table `@gjsify/adwaita-web`
+    // asserts against — so a divergence between the two renderers, or from the
+    // libadwaita C source, fails here instead of in a screenshot.
+    await describe('AdwAvatar derivation (shared conformance vectors)', async () => {
+        for (const { text, initials, rule } of AVATAR_INITIALS_VECTORS) {
+            await it(`initials ${JSON.stringify(text)} -> ${JSON.stringify(initials)} — ${rule}`, () => {
+                expect(avatarInitials(text)).toBe(initials);
+            });
+        }
 
-        await it('uses a single letter for one word', () => {
-            expect(mockAvatarInitials('Grace')).toBe('G');
-        });
+        for (const { text, colorClass } of AVATAR_COLOR_VECTORS) {
+            await it(`colour for ${JSON.stringify(text)} is color${colorClass}, flattened`, () => {
+                const palette = AVATAR_COLORS[colorClass - 1]!;
+                expect(avatarColor(text)).toStrictEqual({
+                    fill: flattenAvatarGradient(palette),
+                    fg: palette.fg,
+                });
+            });
+        }
 
-        await it('uses first+last for three or more words', () => {
-            expect(mockAvatarInitials('John von Neumann')).toBe('JN');
-        });
-
-        await it('returns empty string for blank input', () => {
-            expect(mockAvatarInitials('   ')).toBe('');
-            expect(mockAvatarInitials('')).toBe('');
+        await it('treats a null-ish name as empty rather than throwing', () => {
+            expect(avatarInitials(undefined as unknown as string)).toBe('');
+            expect(avatarColor(undefined as unknown as string).fg).toBe(AVATAR_COLORS[0]!.fg);
         });
     });
 

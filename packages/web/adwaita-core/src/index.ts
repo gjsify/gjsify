@@ -12,8 +12,23 @@
 // evaluator + the transition-only `AdwBreakpoint` apply/unapply state machine,
 // and the light/dark color-scheme observable. Step 2: the toast queue
 // (one-at-a-time + auto-dismiss lifecycle) and the alert-dialog response model.
-// Step 3 (this module set): the row interaction state machines — expander
-// disclosure, combo selection, spin clamp/step, toggle-group selection.
+// Step 3: the row interaction state machines — expander disclosure, combo
+// selection, spin clamp/step, toggle-group selection. Step 4: pure derivations
+// ported straight from the libadwaita C source and held to per-input vectors
+// that BOTH renderers assert against — see `@gjsify/adwaita-core/conformance`.
+
+// --- Avatar derivation (Adw.Avatar initials + colour) ---
+export {
+    AVATAR_COLOR_COUNT,
+    AVATAR_COLORS,
+    avatarColor,
+    avatarColorClass,
+    avatarInitials,
+    flattenAvatarGradient,
+    gStrHash,
+    randomAvatarColorClass,
+} from './avatar.js';
+export type { AdwAvatarColor } from './avatar.js';
 
 // --- Responsive breakpoints (Adw.Breakpoint / Adw.BreakpointCondition) ---
 export { AdwBreakpoint, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';
