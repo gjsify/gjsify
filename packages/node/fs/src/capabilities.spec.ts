@@ -199,3 +199,54 @@ export const NO_PROC_FD_REASON =
     'This host has no `/proc/self/fd` (measured at load — see `capabilities.spec.ts`), which is the only route ' +
     'GJS has to act on an open descriptor rather than on the path it was opened from. Without it `fstat`/' +
     '`ftruncate` fall back to the path and lose descriptor identity after a rename or an unlink.';
+
+/**
+ * Does a mode-000 directory actually hide its contents from THIS process?
+ *
+ * Every rule about "the kernel would not tell me anything" needs a directory it
+ * cannot search, and a process with `CAP_DAC_OVERRIDE` — root in a container,
+ * which is how a lot of CI runs — is not bound by the mode at all. Without the
+ * measurement those tests would go green on such a host for the wrong reason:
+ * the open they expect to fail SUCCEEDS, so nothing is asserted.
+ *
+ * Measured with the same instrument the rules use, and gated the same way as
+ * {@link CAN_SYMLINK}: it retires itself the moment the host stops granting the
+ * override.
+ */
+function probeSearchDenial(): boolean {
+    let dir: string | undefined;
+    try {
+        dir = mkdtempSync(join(tmpdir(), 'gjsify-search-probe-'));
+        const blind = join(dir, 'blind');
+        mkdirSync(blind);
+        writeFileSync(join(blind, 'inside'), 'probe');
+        chmodSync(blind, 0o000);
+        try {
+            closeSync(openSync(join(blind, 'inside'), 'r') as unknown as number);
+            return false;
+        } catch {
+            return true;
+        } finally {
+            chmodSync(blind, 0o700);
+        }
+    } catch {
+        return false;
+    } finally {
+        if (dir) {
+            try {
+                rmSync(dir, { recursive: true, force: true });
+            } catch {
+                // A probe must not fail the run over its own cleanup.
+            }
+        }
+    }
+}
+
+export const CAN_DENY_SEARCH = probeSearchDenial();
+
+/** The `reason` string every search-denial-gated `it.failing` shares. */
+export const NO_DENY_SEARCH_REASON =
+    'A mode-000 directory does not hide its contents from this process (measured at load — see ' +
+    '`capabilities.spec.ts`). A process holding CAP_DAC_OVERRIDE — root in a container, and so a great deal of ' +
+    'CI — is not bound by the mode, so the open these rules expect to be REFUSED succeeds and there is nothing ' +
+    'left to assert. Not keyed on the platform or the uid: the marker retires the day the override is gone.';

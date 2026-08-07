@@ -57,7 +57,15 @@ import {
     writeSync,
     writevSync,
     chmodSync,
+    fchmodSync,
     writeFile,
+    read as fsRead,
+    write as fsWrite,
+    close as fsClose,
+    readFile as fsReadFile,
+    chmod as fsChmod,
+    accessSync,
+    constants as fsConstants,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -72,6 +80,8 @@ import {
     NO_PROC_FD_REASON,
     CAN_FD_TRUNCATE_ANY_MODE,
     NO_FD_TRUNCATE_REASON,
+    CAN_DENY_SEARCH,
+    NO_DENY_SEARCH_REASON,
 } from './capabilities.spec.js';
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -194,6 +204,16 @@ function fileModeFor(requested: number, umask: number): number {
  */
 function dirModeFor(requested: number, umask: number): number {
     return (requested & 0o1000) | (requested & 0o777 & ~umask);
+}
+
+
+/** Run a read stream to completion; resolves on 'close' or 'error'. */
+function drainReadStream(stream: NodeJS.ReadableStream & { on: (e: string, f: () => void) => unknown }): Promise<void> {
+    return new Promise((resolve) => {
+        stream.on('close', () => resolve());
+        stream.on('error', () => resolve());
+        stream.resume();
+    });
 }
 
 export default async () => {
@@ -1870,7 +1890,535 @@ export default async () => {
         });
     });
 
-    // ─── 8. the registry ─────────────────────────────────────────────────────
+    // ─── 8. what the classifier is NOT allowed to invent ─────────────────────
+    //
+    // Every rule here failed on this branch and passes on Node, and every one
+    // of them came from the SAME patch round that fixed the rules above it.
+    // They are grouped because they share one shape: an answer that is wrong in
+    // the direction that tells a caller to keep going.
+
+    await describe('fs — a refusal the kernel will not explain is EACCES', async () => {
+        await it.failing(
+            'K-1 an unsearchable directory is EACCES, never EEXIST',
+            async () => {
+                // `g_file_query_info()` does NOT fail on a name under a
+                // directory this process cannot search: it returns a non-NULL
+                // GFileInfo with NO attributes (measured — `list_attributes()`
+                // is `[]`). Reading that as "the name exists" answered EEXIST
+                // for a hard permission denial, which sends an `openSync(lock,
+                // 'wx')` retry loop round forever and makes the ubiquitous
+                // `catch (e) { if (e.code !== 'EEXIST') throw }` swallow it.
+                //
+                // Reading the TYPE off that empty info is the other half, and
+                // it is why this suite is also run under
+                // `G_DEBUG=fatal-criticals`: `g_file_info_get_file_type()` on
+                // it logs `GFileInfo created without standard::type` +
+                // `should not be reached`, two GLib-GIO-CRITICALs that
+                // fatal-criticals turns into a SIGABRT before any `catch` runs.
+                // There is no assertion for that here because there cannot be
+                // one — the process is gone. The RUN is the assertion.
+                const dir = scratch('r1');
+                try {
+                    const blind = join(dir, 'blind');
+                    mkdirSync(blind);
+                    chmodSync(blind, 0o000);
+                    try {
+                        expectCode(() => openSync(join(blind, 'lock'), 'wx'), 'EACCES');
+                        expectCode(() => openSync(join(blind, 'any'), 'r'), 'EACCES');
+                        expectCode(() => mkdirSync(join(blind, 'sub')), 'EACCES');
+                        expectCode(() => mkdirSync(join(blind, 'sub2'), { recursive: true }), 'EACCES');
+                        expectCode(() => writeFileSync(join(blind, 'l'), 'x', { flag: 'wx' }), 'EACCES');
+                        expectCode(() => mkdtempSync(join(blind, 't-')), 'EACCES');
+                        await expectRejectedCode(() => fsPromises.open(join(blind, 'lock'), 'wx'), 'EACCES');
+                    } finally {
+                        chmodSync(blind, 0o700);
+                    }
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_DENY_SEARCH_REASON,
+            { when: !CAN_DENY_SEARCH },
+        );
+
+        await it.failing(
+            'K-2 a symlink into an unsearchable directory is EACCES too',
+            async () => {
+                // The chain walk reaches the same empty GFileInfo one hop in.
+                // Only the symlink spelling was new in the round that added the
+                // walk; the direct one already went through the same read.
+                const dir = scratch('r2');
+                try {
+                    const locked = join(dir, 'locked');
+                    mkdirSync(locked);
+                    writeFileSync(join(locked, 'target'), 'DATA');
+                    chmodSync(locked, 0o000);
+                    const link = join(dir, 'link');
+                    symlinkSync(join(locked, 'target'), link);
+                    try {
+                        expectCode(() => openSync(link, 'r'), 'EACCES');
+                        expectCode(() => openSync(join(locked, 'target'), 'r'), 'EACCES');
+                    } finally {
+                        chmodSync(locked, 0o700);
+                    }
+                } finally {
+                    drop(dir);
+                }
+            },
+            !CAN_SYMLINK ? NO_SYMLINK_REASON : NO_DENY_SEARCH_REASON,
+            { when: !CAN_SYMLINK || !CAN_DENY_SEARCH },
+        );
+    });
+
+    await describe('fs — the path walk decides before the name does', async () => {
+        await it('K-3 a child of a regular file is ENOTDIR for every spelling', async () => {
+            // `open(2)` ends the walk at a prefix component that is not a
+            // directory, whatever the caller asked for — so gating the check on
+            // O_CREAT made `openSync(file/child, 'r')` answer ENOENT ("not
+            // there, try the next candidate") while `'w'`, `readFileSync`,
+            // `accessSync` and `statSync` on the SAME name all answered
+            // ENOTDIR. A config loader walking candidate paths silently skipped
+            // a misconfigured base path.
+            const dir = scratch('r3');
+            try {
+                const file = join(dir, 'config');
+                writeFileSync(file, 'x');
+                expectCode(() => openSync(join(file, 'app.json'), 'r'), 'ENOTDIR');
+                expectCode(() => openSync(join(file, 'app.json'), 'w'), 'ENOTDIR');
+                // Deeper: the immediate parent cannot be looked up at all, so
+                // the first ancestor that ANSWERS is the one that decides.
+                expectCode(() => openSync(join(file, 'a', 'b.json'), 'r'), 'ENOTDIR');
+                expectCode(() => readFileSync(join(file, 'app.json')), 'ENOTDIR');
+                expectCode(() => accessSync(join(file, 'app.json')), 'ENOTDIR');
+                expectCode(() => statSync(join(file, 'app.json')), 'ENOTDIR');
+
+                // The control the rule above must not break: a name that is
+                // simply absent under a real directory is still ENOENT.
+                expectCode(() => openSync(join(dir, 'absent'), 'r'), 'ENOENT');
+                expectCode(() => openSync(join(dir, 'no', 'such', 'file'), 'r'), 'ENOENT');
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('K-4 mkdir names an over-long name, and O_DIRECTORY names a non-directory', async () => {
+            // Two halves of one failure that disagreed inside one release: the
+            // open side reported ENAMETOOLONG and the mkdir side, which had no
+            // length check at all, reported "permission denied" for it. And
+            // O_DIRECTORY was parsed and then never consulted, so asking for a
+            // directory and getting a file was EACCES instead of ENOTDIR.
+            const dir = scratch('r4');
+            try {
+                expectCode(() => mkdirSync(join(dir, 'x'.repeat(500))), 'ENAMETOOLONG');
+                expectCode(() => openSync(join(dir, 'x'.repeat(500)), 'w'), 'ENAMETOOLONG');
+
+                const file = join(dir, 'plain');
+                writeFileSync(file, 'x');
+                expectCode(
+                    () => openSync(file, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY),
+                    'ENOTDIR',
+                );
+                // ...and a real directory still opens through the same flag.
+                closeSync(fdOf(openSync(dir, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY)));
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('K-5 a device with nothing on the other end is not "permission denied"', async () => {
+            // `open('/dev/tty')` with no controlling terminal is ENXIO, and a
+            // caller that retries on ENXIO (wait for the other end to attach)
+            // gives up permanently when told EACCES instead. /dev/tty is 0666,
+            // so permission is never the honest answer here — which is what
+            // makes this assertable without a controlling terminal to arrange.
+            // Both outcomes are legitimate depending on how the suite is run,
+            // and EACCES is legitimate under neither.
+            if (!existsSync('/dev/tty')) return;
+            const err = caught(() => {
+                const handle = openSync('/dev/tty', 'r');
+                closeSync(fdOf(handle));
+                return undefined;
+            });
+            if (err) expect(['ENXIO', 'ENOENT'].includes(err.code ?? '')).toBe(true);
+        });
+    });
+
+    await describe('fs — chmod has no default mode', async () => {
+        await it('K-6 an absent mode is rejected, not treated as 0o666', async () => {
+            // The shared parser this redesign introduced gave chmod the
+            // open/writeFile default. Node's chmod takes a REQUIRED mode, so
+            // `chmodSync(p, cfg.mode)` with an absent `cfg.mode` silently made
+            // a 0600 secret WORLD-WRITABLE where Node throws and leaves it
+            // alone. Every spelling routes through the one parser, so every
+            // spelling is checked.
+            const dir = scratch('r6');
+            try {
+                const secret = join(dir, 'secret');
+                writeFileSync(secret, 'secret', { mode: 0o600 });
+                expect(modeOf(secret)).toBe(0o600);
+
+                for (const absent of [undefined, null]) {
+                    expect(caught(() => chmodSync(secret, absent as never)) instanceof TypeError).toBe(true);
+                    expect(modeOf(secret)).toBe(0o600);
+                }
+
+                const fd = fdOf(openSync(secret, 'r+'));
+                try {
+                    expect(caught(() => fchmodSync(fd, undefined as never)) instanceof TypeError).toBe(true);
+                } finally {
+                    closeSync(fd);
+                }
+                expect(modeOf(secret)).toBe(0o600);
+
+                await expectRejectedCode(() => fsPromises.chmod(secret, undefined as never), 'ERR_INVALID_ARG_TYPE');
+                const handle = await fsPromises.open(secret, 'r+');
+                try {
+                    await expectRejectedCode(() => handle.chmod(undefined as never), 'ERR_INVALID_ARG_TYPE');
+                } finally {
+                    await handle.close();
+                }
+                expect(modeOf(secret)).toBe(0o600);
+
+                // The callback half must not report SUCCESS. Node rejects it
+                // synchronously and gjsify reports through the callback; what
+                // both must never do is return `null` having widened the file,
+                // which is what this branch did.
+                const reported = await new Promise<string>((resolve) => {
+                    try {
+                        fsChmod(secret, undefined as never, (err) => resolve(err ? 'error' : 'SUCCESS'));
+                    } catch {
+                        resolve('threw');
+                    }
+                });
+                expect(reported === 'SUCCESS').toBe(false);
+                expect(modeOf(secret)).toBe(0o600);
+
+                // ...and a real mode still applies, through the same parser.
+                chmodSync(secret, 0o640);
+                expect(modeOf(secret)).toBe(0o640);
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('K-7 a mode that is not a number is a TypeError, not a RangeError', async () => {
+            // `validateUint32`'s FIRST check is the type one. Dropping it moved
+            // a boolean / object / array from ERR_INVALID_ARG_TYPE to
+            // ERR_OUT_OF_RANGE, so the universal
+            // `catch (e) { if (e instanceof TypeError) }` — which matched on
+            // Node AND on the code this replaced — stopped matching.
+            const dir = scratch('r7');
+            try {
+                for (const bad of [true, {}, [], 'not-octal', '9']) {
+                    const err = caught(() => openSync(join(dir, 'm'), 'w', bad as never));
+                    expect(err instanceof TypeError).toBe(true);
+                    expect(err instanceof RangeError).toBe(false);
+                }
+                // ...while a number OUT OF RANGE stays a RangeError, which is
+                // the case the same rewrite got right and must keep.
+                const negative = caught(() => openSync(join(dir, 'n'), 'w', -1));
+                expect(negative instanceof RangeError).toBe(true);
+                expect(negative?.code).toBe('ERR_OUT_OF_RANGE');
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — a callback API delivers its errors', async () => {
+        await it('K-8 write / read / close report EBADF instead of throwing', async () => {
+            // A synchronous throw out of `fs.write(fd, buf, cb)` terminates the
+            // process: nobody wraps a callback API in try/catch. The six
+            // sibling fd callbacks already delivered correctly, so these three
+            // were an inconsistency inside one file — and the same throw is
+            // what stalled every WriteStream whose descriptor closed early.
+            const dir = scratch('r8');
+            try {
+                const f = join(dir, 'f');
+                const fd = fdOf(openSync(f, 'w+'));
+                closeSync(fd);
+
+                const wrote = await new Promise<string>((resolve) => {
+                    fsWrite(fd, Buffer.from('x'), (err) => resolve(err?.code ?? 'null'));
+                });
+                expect(wrote).toBe('EBADF');
+
+                const readBack = await new Promise<string>((resolve) => {
+                    fsRead(fd, Buffer.alloc(4), 0, 4, 0, (err) => resolve(err?.code ?? 'null'));
+                });
+                expect(readBack).toBe('EBADF');
+
+                const closed = await new Promise<string>((resolve) => {
+                    fsClose(fd, (err) => resolve(err?.code ?? 'null'));
+                });
+                expect(closed).toBe('EBADF');
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('K-9 readFile(fd, cb) reads the DESCRIPTOR, not a file named after it', async () => {
+            // `normalizePath(8)` is the RELATIVE name '8'. Usually that is an
+            // ENOENT; where a file of that name exists in the CWD the call
+            // SUCCEEDS and returns the wrong file's contents. The five sibling
+            // spellings were fixed in the round that left this one.
+            const dir = scratch('r9');
+            const decoys: string[] = [];
+            try {
+                const f = join(dir, 'f');
+                writeFileSync(f, 'HEADBODY');
+                const handle = await fsPromises.open(f, 'r');
+                try {
+                    await handle.read(Buffer.alloc(4), 0, 4, null);
+                    const decoy = join(process.cwd(), String(handle.fd));
+                    if (!existsSync(decoy)) {
+                        writeFileSync(decoy, 'DECOY-FROM-CWD');
+                        decoys.push(decoy);
+                    }
+                    const data = await new Promise<string>((resolve, reject) => {
+                        fsReadFile(handle.fd as unknown as string, 'utf8', (err, contents) =>
+                            err ? reject(err) : resolve(contents as unknown as string),
+                        );
+                    });
+                    expect(data).toBe('BODY');
+                } finally {
+                    await handle.close();
+                }
+            } finally {
+                for (const decoy of decoys) {
+                    try {
+                        unlinkSync(decoy);
+                    } catch {
+                        // The assertion above already ran; cleanup must not
+                        // decide the verdict.
+                    }
+                }
+                drop(dir);
+            }
+        });
+
+        await it('K-10 a write stream over a closed descriptor finishes', async () => {
+            // With autoDestroy on, `_destroy()` runs on the ORDINARY end path,
+            // so a synchronous throw from inside it escapes through nextTick
+            // and the stream emits NEITHER 'close' NOR 'error' — `once(ws,
+            // 'close')`, `finished(ws)` and `pipeline(…, ws)` wait forever.
+            const dir = scratch('r10');
+            const f = join(dir, 'f');
+            const handle = await fsPromises.open(f, 'w');
+            try {
+                const stream = createWriteStream(f, { fd: handle.fd } as never);
+                await new Promise<void>((resolve) => stream.write('X', () => resolve()));
+                closeSync(handle.fd as unknown as number);
+
+                const events: string[] = [];
+                await new Promise<void>((resolve) => {
+                    const timer = setTimeout(() => {
+                        events.push('TIMEOUT');
+                        resolve();
+                    }, 2000);
+                    stream.on('error', (err: NodeJS.ErrnoException) => events.push(`error:${err.code}`));
+                    stream.on('close', () => {
+                        events.push('close');
+                        clearTimeout(timer);
+                        resolve();
+                    });
+                    stream.end();
+                });
+                expect(events.includes('close')).toBe(true);
+                expect(events.includes('TIMEOUT')).toBe(false);
+                expect(stream.destroyed).toBe(true);
+            } finally {
+                // The descriptor was closed behind this handle's back — that is
+                // the whole scenario — but a FileHandle left in that state is
+                // closed AGAIN by Node's garbage collector, and by then the fd
+                // NUMBER belongs to somebody else. Retiring the object here
+                // keeps a later test from being closed out from under it.
+                await handle.close().catch(() => {});
+                drop(dir);
+            }
+        });
+
+        await it('K-11 a handle-derived write stream tolerates a handle closed twice', async () => {
+            // A FileHandle's close is IDEMPOTENT in Node, so
+            // `fh.createWriteStream(); …; await fh.close()` is silent there.
+            // Reporting the second close as EBADF turns the ordinary sequence
+            // into an `'error'` nobody is listening for — which is why R-8's
+            // delivery fix has to know whose descriptor it is closing.
+            const dir = scratch('r11');
+            try {
+                const f = join(dir, 'f');
+                const handle = await fsPromises.open(f, 'w');
+                const stream = handle.createWriteStream();
+                const errors: string[] = [];
+                let closed = false;
+                let onClosed: (() => void) | null = null;
+                // Both listeners go on IMMEDIATELY. Node destroys a
+                // handle-derived stream when the handle closes, so 'close' can
+                // fire during the `await` below — a listener attached after it
+                // would record a stall that never happened.
+                stream.on('error', (err: NodeJS.ErrnoException) => errors.push(err.code ?? 'unknown'));
+                stream.on('close', () => {
+                    closed = true;
+                    onClosed?.();
+                });
+                await new Promise<void>((resolve) => stream.write('Y', () => resolve()));
+                await handle.close();
+                await new Promise<void>((resolve) => {
+                    if (closed) {
+                        resolve();
+                        return;
+                    }
+                    const timer = setTimeout(resolve, 2000);
+                    onClosed = () => {
+                        clearTimeout(timer);
+                        resolve();
+                    };
+                    stream.end();
+                });
+                // Both halves matter and they pull in opposite directions:
+                // swallowing the second close silently would satisfy `errors`
+                // and stall, and reporting it would satisfy `closed` and fire
+                // an `'error'` Node does not.
+                expect(errors).toEqualArray([]);
+                expect(closed).toBe(true);
+                expect(readFileSync(f, 'utf8')).toBe('Y');
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — a descriptor describes the object, not the name it was reached by', async () => {
+        await it.failing(
+            'K-12 fstat on a character device says so',
+            async () => {
+                // `fstatSync` stats `/proc/self/fd/<n>`, which IS a symlink, so
+                // the SPECIAL-file classifier's second lookup — the one that
+                // asked again with NOFOLLOW_SYMLINKS — saw `S_IFLNK`, matched
+                // none of its four cases and left EVERY predicate false. A
+                // caller classifying a descriptor got "none of the above".
+                if (!existsSync('/dev/null')) return;
+                const fd = fdOf(openSync('/dev/null', 'r'));
+                try {
+                    const viaFd = fstatSync(fd);
+                    expect(viaFd.isCharacterDevice()).toBe(true);
+                    expect(viaFd.isFile()).toBe(false);
+                    // The path spelling on the same build was always right,
+                    // which is what isolates the procfs indirection.
+                    expect(statSync('/dev/null').isCharacterDevice()).toBe(true);
+                } finally {
+                    closeSync(fd);
+                }
+            },
+            NO_PROC_FD_REASON,
+            { when: !CAN_PROC_FD },
+        );
+
+        await it('K-13 a character device that CAN seek still seeks', async () => {
+            // The seekability rule now asks the descriptor itself
+            // (`lseek(fd, 0, SEEK_CUR)`) after the type test, because a tty is
+            // `S_IFCHR` exactly like /dev/zero and cannot seek — the raw,
+            // non-Error `Gio.IOErrorEnum` that escaped `writeFileSync('/dev/pts/N')`.
+            // Widening the refusal to all of `S_IFCHR` instead would have
+            // traded that for an ESPIPE Node never raises, so these two are the
+            // guard on the fix.
+            if (existsSync('/dev/zero')) {
+                const fd = fdOf(openSync('/dev/zero', 'r'));
+                try {
+                    expect(readSync(fd, Buffer.alloc(4), 0, 4, 0)).toBe(4);
+                } finally {
+                    closeSync(fd);
+                }
+            }
+            if (existsSync('/dev/null')) {
+                const fd = fdOf(openSync('/dev/null', 'w'));
+                try {
+                    expect(writeSync(fd, Buffer.from('abc'))).toBe(3);
+                } finally {
+                    closeSync(fd);
+                }
+            }
+        });
+    });
+
+    await describe('fs — a read stream lets go of what it opened', async () => {
+        await it.failing(
+            'K-14 createReadStream(path) releases its descriptor at EOF',
+            async () => {
+                // A Readable that simply reaches EOF emits 'end' then 'close'
+                // WITHOUT destroying, so `_destroy()` never runs for the
+                // ordinary case. The release was registered on 'end' for the
+                // fd-given shape only, so the far commoner path-opened one
+                // leaked exactly one descriptor per stream — and the eventual
+                // exhaustion surfaced as a raw Gio error, not EMFILE.
+                const dir = scratch('r14');
+                try {
+                    const src = join(dir, 'src');
+                    writeFileSync(src, 'x'.repeat(4096));
+                    const openFds = () => readdirSync('/proc/self/fd').length;
+
+                    // One warm-up stream first: the first call in a process can
+                    // open a cache or a probe that is not a leak.
+                    await drainReadStream(createReadStream(src));
+                    const before = openFds();
+                    for (let i = 0; i < 40; i++) await drainReadStream(createReadStream(src));
+                    expect(openFds() - before).toBe(0);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_PROC_FD_REASON,
+            { when: !CAN_PROC_FD },
+        );
+
+        await it('K-15 a handle stream does not pay a main-loop turn per chunk', async () => {
+            // `handle._readSync()` is synchronous by design, so pushing from
+            // inside `_read()` sets the Readable's `sync` flag and the next
+            // `_read()` goes through `process.nextTick` — whose GJS drainer
+            // re-arms with a 1 ms yield whenever its queue is non-empty. A
+            // serial chain therefore costs one full main-loop turn per chunk:
+            // 64 MB took 1129 ms against 148 ms before, and 90 ms for the
+            // Gio-async path stream measured beside it.
+            //
+            // The MECHANISM is what is asserted, not a wall time: a 1 ms
+            // interval running alongside the read fires about once per chunk
+            // when the defect is present and roughly a tenth of that when it is
+            // not. That bound holds on a slow machine and on a fast one, and it
+            // can only fail in the safe direction — a loaded host fires the
+            // timer LESS often, never more.
+            const dir = scratch('r15');
+            try {
+                const f = join(dir, 'big');
+                const chunkSize = 64 * 1024;
+                const chunkCount = 256;
+                writeFileSync(f, 'z'.repeat(chunkSize * chunkCount));
+
+                let ticks = 0;
+                const interval = setInterval(() => ticks++, 1);
+                // The stream auto-closes the handle at EOF on both runtimes, so
+                // there is deliberately no `handle.close()` after it: a second
+                // close is a different rule (K-11) and only adds noise here.
+                const handle = await fsPromises.open(f, 'r');
+                let bytes = 0;
+                let chunks = 0;
+                try {
+                    for await (const chunk of handle.createReadStream()) {
+                        bytes += (chunk as Buffer).length;
+                        chunks++;
+                    }
+                } finally {
+                    clearInterval(interval);
+                }
+                expect(bytes).toBe(chunkSize * chunkCount);
+                expect(chunks >= chunkCount).toBe(true);
+                expect(ticks < chunks / 2).toBe(true);
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    // ─── 9. the registry ─────────────────────────────────────────────────────
 
     await describe('fs — every suite is registered', async () => {
         await it('test.mts imports every spec that exports one', async () => {
