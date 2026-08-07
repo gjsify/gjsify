@@ -3,7 +3,7 @@
 
 import { FileHandle } from './file-handle.js';
 import type { Stats, BigIntStats } from './stats.js';
-import { statSync, truncateSync, chmodSync, chownSync, readFileSync } from './sync.js';
+import { statSync, chmodSync, chownSync, readFileSync } from './sync.js';
 import { utimesSync } from './utimes.js';
 import { normalizePath } from './utils.js';
 import { isStdFd, readStdFdSync, writeStdFdSync } from './std-fd.js';
@@ -20,12 +20,16 @@ function getFH(fd: number | FileHandle): FileHandle {
 export function fstatSync(fd: number, options?: { bigint?: false }): Stats;
 export function fstatSync(fd: number, options: { bigint: true }): BigIntStats;
 export function fstatSync(fd: number, options?: { bigint?: boolean }): Stats | BigIntStats {
+    // fstat(2) describes the DESCRIPTOR. Resolving the fd back to the name it
+    // was opened from answers about whatever now holds that name — a different
+    // inode after a rename, and nothing at all after an unlink.
+    //
     // The `statSync` overload accepts a union of `{bigint?:false}` /
     // `{bigint:true}` literals; here `options.bigint` is `boolean` (loosened
     // by our entry-point overloads), so the call site needs a `StatOptions`
     // cast. Going through the public `StatOptions` type instead of `any`
     // preserves the rest of the option-bag's shape.
-    return statSync(normalizePath(getFH(fd).options.path), options as StatOptions);
+    return statSync(getFH(fd)._fdStatTarget(), options as StatOptions);
 }
 
 export function fstat(fd: number, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
@@ -58,7 +62,7 @@ export async function fstatAsync(fd: number, options?: StatOptions): Promise<Sta
 // ─── ftruncate ────────────────────────────────────────────────────────────────
 
 export function ftruncateSync(fd: number, len = 0): void {
-    truncateSync(normalizePath(getFH(fd).options.path), len);
+    getFH(fd)._truncateSync(len);
 }
 
 export function ftruncate(fd: number, callback: (err: NodeJS.ErrnoException | null) => void): void;
@@ -107,7 +111,8 @@ export async function fsyncAsync(fd: number): Promise<void> {
 // ─── fchmod / fchown / futimes ────────────────────────────────────────────────
 
 export function fchmodSync(fd: number, mode: number | string): void {
-    chmodSync(normalizePath(getFH(fd).options.path), mode);
+    // fchmod(2): the descriptor, so a swapped path cannot capture the change.
+    chmodSync(getFH(fd)._fdStatTarget(), mode);
 }
 export function fchmod(fd: number, mode: number | string, callback: (err: NodeJS.ErrnoException | null) => void): void {
     Promise.resolve()

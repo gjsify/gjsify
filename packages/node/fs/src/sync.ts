@@ -13,8 +13,10 @@ import { FileHandle } from './file-handle.js';
 import { Dirent } from './dirent.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError, isNotFoundError } from './errors.js';
-import { tempDirPath, normalizePath } from './utils.js';
+import { normalizePath, randomName } from './utils.js';
 import { isStdFd, readStdFdAll } from './std-fd.js';
+import { normalizeMode } from './posix-flags.js';
+import { classifyMkdirFailure, fsError } from './fd-io.js';
 
 import type { OpenFlags, EncodingOption } from './types/index.js';
 import type {
@@ -222,8 +224,14 @@ export function readFileSync(
         const enc = getEncodingFromOptions(options as Parameters<typeof getEncodingFromOptions>[0], 'buffer');
         return encodeUint8Array(enc, readStdFdAll(path));
     }
-    const pathStr =
-        typeof path === 'number' ? normalizePath(FileHandle.getInstance(path).options.path) : normalizePath(path);
+    if (typeof path === 'number') {
+        // Node reads an fd from its CURRENT position and consumes it. Resolving
+        // the fd back to its path and re-reading the whole file from 0 gave a
+        // different answer to every caller that had already read part of it.
+        const enc = getEncodingFromOptions(options as Parameters<typeof getEncodingFromOptions>[0], 'buffer');
+        return encodeUint8Array(enc, FileHandle.getInstance(path)._readToEndSync());
+    }
+    const pathStr = normalizePath(path);
     const file = Gio.File.new_for_path(pathStr);
 
     try {
@@ -286,78 +294,70 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
  */
 export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions | null): string | undefined | void {
     let recursive = false;
-    let mode: Mode | undefined = 0o777;
+    let requested: Mode | undefined;
 
-    if (typeof options === 'object') {
-        if (options?.recursive) recursive = options.recursive;
-        if (options?.mode) mode = options.mode;
-    } else {
-        mode = options || 0o777;
+    if (options !== null && options !== undefined) {
+        if (typeof options === 'object') {
+            if (options.recursive) recursive = options.recursive;
+            // `!== undefined`, not truthiness: `{ mode: 0 }` is a legitimate
+            // request for an inaccessible directory and used to be replaced.
+            if (options.mode !== undefined) requested = options.mode;
+        } else {
+            requested = options;
+        }
     }
 
     path = normalizePath(path);
+    // Node parses a string mode as OCTAL. The `TypeError('mode as string is
+    // currently not supported!')` this replaces was the only place in the
+    // package that rejected a documented argument outright.
+    const mode = normalizeMode(requested, 0o777);
 
-    if (typeof mode === 'string') {
-        throw new TypeError('mode as string is currently not supported!');
-    }
+    if (recursive) return mkdirSyncRecursive(path, mode);
 
-    if (recursive) {
-        return mkdirSyncRecursive(path);
-    }
-
-    // Non-recursive: create a single directory
-    const file = Gio.File.new_for_path(path);
-    try {
-        file.make_directory(null);
-    } catch (err: unknown) {
-        throw createNodeError(err, 'mkdir', path);
-    }
+    mkdirWithMode(path, mode);
     return undefined;
+}
+
+/**
+ * `mkdir(2)` with the mode the caller asked for.
+ *
+ * `Gio.File.make_directory()` takes no mode, which is why `mkdirSync` used to
+ * drop it and why `mkdirSyncRecursive` carried a NOTE conceding as much.
+ * `GLib.mkdir()` is plain `mkdir(2)`, so the KERNEL applies the mode — masked
+ * by the live umask, with `S_ISGID` inherited from the parent and a requested
+ * setuid/setgid dropped, which is exactly Node's asymmetry and needs no code
+ * on this side to reproduce.
+ */
+function mkdirWithMode(pathStr: string, mode: number): void {
+    if (GLib.mkdir(pathStr, mode) !== 0) throw classifyMkdirFailure(pathStr);
 }
 
 /**
  * Recursively creates directories, similar to `mkdir -p`.
  * Returns the first directory path created, or undefined if all directories already existed.
+ *
+ * Walks rather than calling `GLib.mkdir_with_parents()` because Node's return
+ * value is the FIRST directory created, which the C helper cannot report.
  */
-// NOTE: `mode` is intentionally not threaded here — Gio's `make_directory` does
-// not take a mode and the existing implementation never applied one (the
-// non-recursive path ignores `mode` too). Honoring `mode` for recursive mkdir
-// is a separate behavior change (would need a post-create chmod). Tracked for
-// follow-up; current behavior preserved.
-function mkdirSyncRecursive(pathStr: string): string | undefined {
-    const file = Gio.File.new_for_path(pathStr);
+function mkdirSyncRecursive(pathStr: string, mode: number): string | undefined {
+    if (GLib.mkdir(pathStr, mode) === 0) return pathStr;
 
-    // Try to create the directory directly
-    try {
-        file.make_directory(null);
-        // This directory was created successfully — it's a candidate for "first created"
-        return pathStr;
-    } catch (err: unknown) {
-        const gErr = err as { code?: number };
-        // If it already exists, nothing to create
-        if (gErr.code === Gio.IOErrorEnum.EXISTS) {
-            return undefined;
-        }
-        // If parent doesn't exist, create parent first then retry
-        if (gErr.code === Gio.IOErrorEnum.NOT_FOUND) {
-            const parentPath = join(pathStr, '..');
-            const resolvedParent = Gio.File.new_for_path(parentPath).get_path()!;
-            if (resolvedParent === pathStr) {
-                // Reached root, cannot go further
-                throw createNodeError(err, 'mkdir', pathStr);
-            }
-            const firstCreated = mkdirSyncRecursive(resolvedParent);
-            // Now create this directory
-            const retryFile = Gio.File.new_for_path(pathStr);
-            try {
-                retryFile.make_directory(null);
-            } catch (retryErr: unknown) {
-                throw createNodeError(retryErr, 'mkdir', pathStr);
-            }
-            return firstCreated ?? pathStr;
-        }
-        throw createNodeError(err, 'mkdir', pathStr);
+    const failure = classifyMkdirFailure(pathStr);
+    // Already there: Node applies no mode to directories that existed.
+    if (failure.code === 'EEXIST') {
+        if (GLib.file_test(pathStr, GLib.FileTest.IS_DIR)) return undefined;
+        throw failure;
     }
+    if (failure.code !== 'ENOENT') throw failure;
+
+    const parentPath = join(pathStr, '..');
+    const resolvedParent = Gio.File.new_for_path(parentPath).get_path()!;
+    if (resolvedParent === pathStr) throw failure;
+
+    const firstCreated = mkdirSyncRecursive(resolvedParent, mode);
+    mkdirWithMode(pathStr, mode);
+    return firstCreated ?? pathStr;
 }
 
 /**
@@ -402,8 +402,42 @@ export function unlinkSync(path: PathLike): void {
     }
 }
 
-export function writeFileSync(path: PathLike, data: string | Uint8Array) {
-    GLib.file_set_contents(normalizePath(path), data);
+/** The `{ encoding, mode, flag }` bag `writeFileSync` / `appendFileSync` accept. */
+type WriteFileOptions = { encoding?: string | null; mode?: Mode; flag?: OpenFlags | string } | string | null;
+
+/**
+ * Write a whole file through a descriptor, honouring `mode` and `flag`.
+ *
+ * `writeFileSync` had NO options parameter at all — it was a bare
+ * `GLib.file_set_contents()` — so `fs.writeFileSync(p, secret, {mode: 0o600})`
+ * silently produced a world-readable file and `{flag: 'wx'}` silently lost its
+ * exclusivity. That is the same disclosure the handle path had, in the spelling
+ * consumers actually use.
+ */
+function writeWholeFile(
+    pathStr: string,
+    data: string | Uint8Array,
+    options: WriteFileOptions,
+    defaultFlag: OpenFlags,
+): void {
+    const encoding = getEncodingFromOptions(options as Parameters<typeof getEncodingFromOptions>[0], 'utf8');
+    const bag = typeof options === 'object' && options !== null ? options : {};
+    const bytes = typeof data === 'string' ? Buffer.from(data, (encoding as BufferEncoding) || 'utf8') : data;
+
+    const handle = new FileHandle({
+        path: pathStr,
+        flags: (bag.flag as OpenFlags) ?? defaultFlag,
+        mode: bag.mode ?? 0o666,
+    });
+    try {
+        handle._writeSync(bytes, null);
+    } finally {
+        handle._closeSync();
+    }
+}
+
+export function writeFileSync(path: PathLike, data: string | Uint8Array, options?: WriteFileOptions) {
+    writeWholeFile(normalizePath(path), data, options ?? null, 'w');
 }
 
 // --- rename ---
@@ -470,29 +504,10 @@ export function accessSync(path: PathLike, mode?: number): void {
 
 // --- appendFile ---
 
-export function appendFileSync(
-    path: PathLike,
-    data: string | Uint8Array,
-    _options?: { encoding?: string; mode?: number; flag?: string } | string,
-): void {
-    const pathStr = normalizePath(path);
-    const file = Gio.File.new_for_path(pathStr);
-    let bytes: Uint8Array;
-    if (typeof data === 'string') {
-        bytes = new TextEncoder().encode(data);
-    } else {
-        bytes = data;
-    }
-
-    try {
-        const stream = file.append_to(Gio.FileCreateFlags.NONE, null);
-        if (bytes.length > 0) {
-            stream.write_bytes(new GLib.Bytes(bytes), null);
-        }
-        stream.close(null);
-    } catch (err: unknown) {
-        throw createNodeError(err, 'appendfile', pathStr);
-    }
+export function appendFileSync(path: PathLike, data: string | Uint8Array, options?: WriteFileOptions): void {
+    // The third parameter used to be named `_options` — declared, typed, and
+    // thrown away, so a `{mode: 0o600}` append log came out world-readable.
+    writeWholeFile(normalizePath(path), data, options ?? null, 'a');
 }
 
 // --- readlink ---
@@ -603,16 +618,16 @@ export function truncateSync(path: PathLike, len?: number): void {
     const pathStr = normalizePath(path);
     const file = Gio.File.new_for_path(pathStr);
     try {
-        const stream = file.replace(null, false, Gio.FileCreateFlags.NONE, null);
-        if (len && len > 0) {
-            // Read existing content, truncate to len
-            const [, data] = file.load_contents(null);
-            const truncated = data.slice(0, len);
-            if (truncated.length > 0) {
-                stream.write_bytes(new GLib.Bytes(truncated), null);
-            }
+        // `replace()` + rewrite gave a NEW INODE, so every open descriptor on
+        // this file was orphaned and any hard link stopped following it —
+        // ftruncate(2) does neither. `open_readwrite().truncate()` is the real
+        // operation: same inode, extends with zeros when growing.
+        const stream = file.open_readwrite(null);
+        try {
+            (stream.get_output_stream() as Gio.FileOutputStream).truncate(Math.max(0, len ?? 0), null);
+        } finally {
+            stream.close(null);
         }
-        stream.close(null);
     } catch (err: unknown) {
         throw createNodeError(err, 'truncate', pathStr);
     }
@@ -622,7 +637,9 @@ export function truncateSync(path: PathLike, len?: number): void {
 
 export function chmodSync(path: PathLike, mode: Mode): void {
     const pathStr = normalizePath(path);
-    const modeNum = typeof mode === 'string' ? parseInt(mode, 8) : mode;
+    // One shared octal parser with open/mkdir/mkdtemp/writeFile, so the two
+    // spellings of "mode" cannot drift apart again.
+    const modeNum = normalizeMode(mode, 0o666);
     // Gio can chmod natively (G_FILE_ATTRIBUTE_UNIX_MODE is settable on local
     // files) — no subprocess. The previous `chmod` shell-out broke on any path
     // containing a space and never even checked the child's exit status.
@@ -690,11 +707,39 @@ export function mkdtempSync(prefix: string, options?: EncodingOption): string | 
 
 export function mkdtempSync(prefix: string, options?: EncodingOption | BufferEncodingOption): string | Buffer {
     const encoding: string | undefined = getEncodingFromOptions(options);
-    const path = tempDirPath(prefix);
+    return decode(mkdtempAt(prefix), encoding);
+}
 
-    mkdirSync(path, { recursive: false, mode: 0o777 });
-
-    return decode(path, encoding);
+/**
+ * `mkdtemp(3)`: claim a unique name and create it 0700, atomically.
+ *
+ * TWO defects lived in the four lines this replaces. It asked `mkdirSync` for
+ * `mode: 0o777` — inert while `mode` was ignored, and a WORLD-READABLE
+ * directory the moment `mode` started working, from the one API whose whole
+ * purpose is a private scratch space. And it picked the name with
+ * `while (existsSync(path))`, a test-then-create whose `existsSync` was
+ * `Gio.File.query_exists()` — true for a dangling symlink, and racy against
+ * any other process regardless. `mkdir(2)` decides both questions in one
+ * syscall: it fails EEXIST if the name is taken, so the loop retries instead
+ * of guessing.
+ *
+ * Both entry points call THIS, so `mkdtempSync` and `promises.mkdtemp` cannot
+ * disagree on the mode again — they already did, by 0o077.
+ */
+export function mkdtempAt(prefix: string): string {
+    // mkdtemp(3) is specified as `mkdir(pathname, S_IRWXU)`; the umask can only
+    // make it tighter, never looser, so this is a ceiling and not a request.
+    const PRIVATE_DIR_MODE = 0o700;
+    for (let attempt = 0; attempt < 64; attempt++) {
+        const candidate = prefix + randomName();
+        if (GLib.mkdir(candidate, PRIVATE_DIR_MODE) === 0) return candidate;
+        const failure = classifyMkdirFailure(candidate);
+        if (failure.code !== 'EEXIST') {
+            failure.syscall = 'mkdtemp';
+            throw failure;
+        }
+    }
+    throw fsError('EEXIST', 'mkdtemp', prefix + 'XXXXXX');
 }
 
 /**

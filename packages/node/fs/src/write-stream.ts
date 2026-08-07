@@ -6,10 +6,26 @@
 import { Writable } from 'node:stream';
 import { open, write, close } from './callback.js';
 import { normalizePath } from './utils.js';
+import { normalizeMode } from './posix-flags.js';
 
 import type { OpenFlags } from './types/index.js';
-import type { PathLike, WriteStream as IWriteStream } from 'node:fs';
+import type { Mode, PathLike, WriteStream as IWriteStream } from 'node:fs';
 import type { CreateWriteStreamOptions } from 'node:fs/promises'; // Types from @types/node
+
+/**
+ * What `fs.createWriteStream()` accepts, as opposed to
+ * `filehandle.createWriteStream()`.
+ *
+ * `CreateWriteStreamOptions` is the fs/promises shape and carries only
+ * `encoding`/`autoClose`/`emitClose`/`start`/`highWaterMark` — which is
+ * precisely why `flags`, `mode` and `fd` were never read here: they are not in
+ * the type the constructor was written against.
+ */
+export type WriteStreamOptions = CreateWriteStreamOptions & {
+    flags?: OpenFlags | string;
+    mode?: Mode;
+    fd?: number | null;
+};
 
 const kIsPerformingIO = Symbol('kIsPerformingIO');
 const kIoDone = Symbol('kIoDone');
@@ -26,7 +42,11 @@ export class WriteStream extends Writable implements IWriteStream {
      * @since v0.9.4
      */
     close(callback?: (err?: NodeJS.ErrnoException | null) => void, err: Error | null = null): void {
-        if (!this.fd) {
+        if (this.fd === null || !this._autoClose) {
+            // A descriptor we were handed stays open: the FileHandle (or the
+            // caller) still owns it, and closing it here would pull the fd out
+            // from under them.
+            this.fd = null;
             callback(err);
         } else {
             close(this.fd, (er?: Error | null) => {
@@ -58,19 +78,53 @@ export class WriteStream extends Writable implements IWriteStream {
     fd: number | null = null;
     flags: OpenFlags = 'w';
     mode = 0o666;
-    pos = 0;
+    /**
+     * The offset the next chunk is written at, or `undefined` to ride the
+     * descriptor's own cursor — which is what Node does unless `start` is given.
+     *
+     * This was `pos = 0`, i.e. ALWAYS defined, so every chunk carried an
+     * explicit position. That is why a `{flags: 'a'}` stream could only ever
+     * rewrite the file from byte 0, and why `{start: n}` was silently ignored.
+     */
+    pos: number | undefined = undefined;
+    /** Whether this stream owns the descriptor and must close it. */
+    private _autoClose = true;
     [kIsPerformingIO] = false;
 
-    constructor(path: PathLike, opts: CreateWriteStreamOptions = {}) {
+    constructor(path: PathLike, opts: WriteStreamOptions = {}) {
         super(opts);
         this.path = toPathIfFileURL(path);
 
+        // `opts.flags`, `opts.mode`, `opts.start`, `opts.fd` and
+        // `opts.autoClose` were all discarded here — the class-field defaults
+        // `'w'`/0o666 won, so `createWriteStream(p, {flags:'a'})` truncated and
+        // `{mode: 0o600}` produced a world-readable file.
+        if (opts.flags !== undefined) this.flags = opts.flags as OpenFlags;
+        if (opts.mode !== undefined) this.mode = normalizeMode(opts.mode, 0o666);
+        if (opts.start !== undefined) this.pos = opts.start;
         if (opts.encoding) {
             this.setDefaultEncoding(opts.encoding);
         }
+        if (typeof opts.fd === 'number') {
+            this.fd = opts.fd;
+            // Node: a caller-supplied descriptor is the caller's to close.
+            this._autoClose = opts.autoClose ?? false;
+        } else if (opts.autoClose !== undefined) {
+            this._autoClose = opts.autoClose;
+        }
+        this.pending = this.fd === null;
     }
 
     override _construct(callback: (err?: Error) => void) {
+        // A descriptor handed in by the caller (or by FileHandle.createWriteStream)
+        // is already open; re-opening the path would bind a different inode and,
+        // with the default `'w'` flags, truncate the file the caller had open.
+        if (this.fd !== null) {
+            callback();
+            this.emit('open', this.fd);
+            this.emit('ready');
+            return;
+        }
         open(this.path.toString(), this.flags!, this.mode!, (err: Error | null, fd: number) => {
             if (err) {
                 callback(err);
@@ -78,6 +132,7 @@ export class WriteStream extends Writable implements IWriteStream {
             }
 
             this.fd = fd;
+            this.pending = false;
             callback();
             this.emit('open', this.fd);
             this.emit('ready');
@@ -86,7 +141,7 @@ export class WriteStream extends Writable implements IWriteStream {
 
     override _write(data: Buffer, _encoding: string, cb: (err?: Error | null) => void) {
         this[kIsPerformingIO] = true;
-        write(this.fd!, data, 0, data.length, this.pos, (er: Error | null, bytes: number) => {
+        write(this.fd!, data, 0, data.length, this.pos ?? null, (er: Error | null, bytes: number) => {
             this[kIsPerformingIO] = false;
             if (this.destroyed) {
                 // Tell ._destroy() that it's safe to close the fd now.
@@ -116,6 +171,6 @@ export class WriteStream extends Writable implements IWriteStream {
     }
 }
 
-export function createWriteStream(path: string | Buffer, opts: CreateWriteStreamOptions): WriteStream {
+export function createWriteStream(path: string | Buffer, opts: WriteStreamOptions): WriteStream {
     return new WriteStream(path, opts);
 }

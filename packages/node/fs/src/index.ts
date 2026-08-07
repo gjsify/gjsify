@@ -90,6 +90,7 @@ import {
     exists,
     openAsBlob,
 } from './fd-ops.js';
+import { openFlagValues } from './posix-flags.js';
 
 // --- fs.constants ---
 export const constants = {
@@ -102,18 +103,12 @@ export const constants = {
     COPYFILE_EXCL: 1,
     COPYFILE_FICLONE: 2,
     COPYFILE_FICLONE_FORCE: 4,
-    // File open constants
-    O_RDONLY: 0,
-    O_WRONLY: 1,
-    O_RDWR: 2,
-    O_CREAT: 64,
-    O_EXCL: 128,
-    O_TRUNC: 512,
-    O_APPEND: 1024,
-    O_SYNC: 1052672,
-    O_NONBLOCK: 2048,
-    O_DIRECTORY: 65536,
-    O_NOFOLLOW: 131072,
+    // File open constants — from the ONE platform table `parseOpenFlags()` also
+    // reads. These were hardcoded Linux values, harmless while nothing but JS
+    // looked at them and not harmless now that they reach `open(2)`: on darwin
+    // `O_CREAT` is 0x200, which is Linux's `O_TRUNC`, so a caller passing
+    // `constants.O_CREAT` would have silently truncated the file it created.
+    ...openFlagValues(),
     // File type constants
     S_IFMT: 61440,
     S_IFREG: 32768,
