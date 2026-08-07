@@ -100,12 +100,57 @@ export async function lchownAsync(path: PathLike, uid: number, gid: number): Pro
 }
 
 // ─── lchmod ───────────────────────────────────────────────────────────────────
-// Not supported on Linux — no-op, no throw (mirrors Node.js behavior on Linux).
 
-export function lchmodSync(_path: PathLike, _mode: number): void {}
-
-export function lchmod(_path: PathLike, _mode: number, callback: (err: NodeJS.ErrnoException | null) => void): void {
-    callback(null);
+/**
+ * `lchmod` is not implemented — and the shape of "not implemented" is the whole
+ * point, because portable code already has a way to ask.
+ *
+ * Node does not DEFINE `fs.lchmodSync` or `fs.lchmod` where the platform has no
+ * `O_SYMLINK` — on Linux both properties are `undefined` (measured against
+ * v24.15.0) — while `fsPromises.lchmod` exists everywhere and throws
+ * `ERR_METHOD_NOT_IMPLEMENTED`. So the standard guard is
+ * `typeof fs.lchmodSync === 'function'`, and there are exactly three things the
+ * property can be:
+ *
+ *   - a working function        — what a darwin build gets;
+ *   - ABSENT                    — what the guard is written for: it skips, and
+ *                                 the caller's copy/permission routine carries
+ *                                 on;
+ *   - present and THROWING      — a third behaviour neither Node nor the code
+ *                                 this redesign started from has. The guard
+ *                                 ENTERS and the caller aborts.
+ *
+ * The empty body that was here first was wrong for the opposite reason: a
+ * request to RESTRICT permissions returned normally having changed nothing,
+ * which is the same silent-non-restriction class as the dropped `mode` this
+ * redesign exists to close. Round 2 replaced it with the throw, which trades a
+ * silent non-restriction for a broken feature test. Absent is the answer that
+ * is true and that the ecosystem's guard already handles.
+ *
+ * `@gjsify/fs` has no route to `lchmod(2)` on ANY platform — Gio can set
+ * `unix::mode` with `NOFOLLOW_SYMLINKS`, but Linux itself refuses to change a
+ * symlink's mode, and there is no `O_SYMLINK` open to hand a mode to — so the
+ * property is absent everywhere rather than per-platform. The names stay
+ * EXPORTED (as `undefined`) so a consumer re-exporting the module wholesale
+ * still resolves them, exactly as `import { lchmodSync } from 'node:fs'`
+ * resolves to `undefined` on Node/Linux.
+ */
+function lchmodUnsupported(): NodeJS.ErrnoException {
+    const err = new Error('The lchmod() method is not implemented') as NodeJS.ErrnoException;
+    err.code = 'ERR_METHOD_NOT_IMPLEMENTED';
+    return err;
 }
 
-export async function lchmodAsync(_path: PathLike, _mode: number): Promise<void> {}
+export const lchmodSync: ((path: PathLike, mode: number) => void) | undefined = undefined;
+
+export const lchmod:
+    | ((path: PathLike, mode: number, callback: (err: NodeJS.ErrnoException | null) => void) => void)
+    | undefined = undefined;
+
+/**
+ * The one spelling Node defines on every platform — and it throws there too, so
+ * this is the only lchmod surface that keeps a body.
+ */
+export async function lchmodAsync(_path: PathLike, _mode: number): Promise<void> {
+    throw lchmodUnsupported();
+}

@@ -3,11 +3,26 @@
 
 import { ReadStream } from './read-stream.js';
 import { WriteStream } from './write-stream.js';
-import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
 import { chmodSync, chownSync } from './sync.js';
-import { resolveIOMode, openIOChannel, mapOpenError, shouldCreate, type IOMode } from './file-handle-open.js';
+import { parseOpenFlags, normalizeMode, type OpenSpec } from './posix-flags.js';
+import {
+    openFd,
+    closeFd,
+    releaseFd,
+    seekFd,
+    isSeekableFd,
+    tellFd,
+    readFd,
+    writeFd,
+    fsyncFd,
+    sizeOfFd,
+    truncateFd,
+    fdPath,
+    fsError,
+} from './fd-io.js';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { createInterface } from 'node:readline';
@@ -33,31 +48,29 @@ import type {
 import type { Interface as ReadlineInterface } from 'node:readline';
 
 export class FileHandle implements IFileHandle {
-    /** Not part of the default implementation, used internal by gjsify */
-    private _file: GLib.IOChannel;
+    private readonly _gFile: Gio.File;
+    private readonly _pathStr: string;
+    /** What the caller asked open(2) for — the ORIGINAL flags, nothing flattened. */
+    private readonly _spec: OpenSpec;
 
     /**
-     * Lazily-opened Gio streams for positional read() / write() so each call does
-     * not re-load the entire file via Gio.File.load_contents(). The IOStream is
-     * used when the handle was opened with write capability (r+, w, w+, a, a+) —
-     * it shares seek state between input and output so writes are visible to
-     * subsequent reads without a flush. For read-only handles we only open a
-     * FileInputStream; trying to open_readwrite on a read-only file can fall
-     * back to create_readwrite(REPLACE_DESTINATION) which would truncate it.
+     * The one byte position this handle has.
+     *
+     * A descriptor has exactly ONE offset, shared by reads and writes, and this
+     * is it: `_readCore`/`_writeCore` seek to it absolutely before every
+     * operation, so the kernel's own offset is a consequence of this value and
+     * can never drift away from it. It replaces four carriers that used to
+     * disagree — a read-only `_readPos`, the IOChannel's buffered offset, a
+     * cached Gio stream's cursor, and a fresh per-call stream that always
+     * started at 0.
+     *
+     * The single exception is an `O_APPEND` write: there the kernel repositions
+     * to EOF without telling us, so the new value is READ BACK rather than
+     * computed from the pre-write one. Computing it is how the previous attempt
+     * let the cursor drift away from the file after the first append.
      */
-    private _ioStream: Gio.FileIOStream | null = null;
-    private _readStream: Gio.FileInputStream | null = null;
-    private readonly _gFile: Gio.File;
-    private readonly _ioMode: IOMode;
-    /** Current byte offset for `position: null` sync reads — Node advances the fd position. */
-    private _readPos = 0;
-    // Serialize async I/O on the shared FileIOStream. Concurrent write_bytes_async
-    // calls hit Gio.IOErrorEnum.PENDING ("Datenstrom hat noch einen ausstehenden
-    // Vorgang"); overlapping seek()s on the shared cursor also corrupt positions.
-    // random-access-file (used by fs-chunk-store / webtorrent) issues many
-    // concurrent positional writes, so every async op on this handle chains
-    // through _ioLock.
-    private _ioLock: Promise<unknown> = Promise.resolve();
+    private _pos = 0;
+    private _closed = false;
 
     /** Not part of the default implementation, used internal by gjsify */
     private static instances: { [fd: number]: FileHandle } = {};
@@ -69,73 +82,156 @@ export class FileHandle implements IFileHandle {
             mode?: Mode;
         },
     ) {
-        this.options.flags ||= 'r';
-        this.options.mode ||= 0o666;
+        this.options.flags ??= 'r';
         const pathStr = normalizePath(options.path);
-        const creat = shouldCreate(options.flags);
-        const ioMode = resolveIOMode(options.flags);
-        try {
-            this._file = openIOChannel(pathStr, ioMode, creat);
-        } catch (err: unknown) {
-            throw mapOpenError(err, pathStr);
-        }
-        // Binary mode: prevent GLib from doing any character set conversion.
-        this._file.set_encoding(null as unknown as string);
-        this.fd = this._file.unix_get_fd();
+        this._spec = parseOpenFlags(this.options.flags);
+        // `??=` and not `||=`: 0 is a valid mode, and `||=` silently replaced it
+        // with 0o666 — a caller asking for "no access" got a readable file.
+        this.options.mode ??= 0o666;
+        const mode = normalizeMode(this.options.mode, 0o666);
+
+        // One syscall does the create, the exclusivity check and the mode. The
+        // kernel masks by the live umask, so there is no umask to emulate here,
+        // and nothing to chmod afterwards — which is what removes the whole
+        // widen-then-narrow family of defects along with its code.
+        this.fd = openFd(pathStr, this._spec, mode);
+        this._pathStr = pathStr;
         this._gFile = Gio.File.new_for_path(pathStr);
-        this._ioMode = ioMode;
 
         FileHandle.instances[this.fd] = this;
         return FileHandle.getInstance(this.fd);
     }
 
     /**
-     * Lazy-open the read-capable stream and return both the input stream and
-     * its seekable view. Both FileInputStream (read-only handle) and
-     * FileIOStream (read/write handle) implement Gio.Seekable, but we return
-     * both to avoid callers needing to know which concrete type they got.
+     * Read at `position`, or at the cursor when it is `null`/negative.
+     *
+     * SYNCHRONOUS ON PURPOSE. The cursor's read-modify-write — read `_pos`,
+     * seek, transfer, store `_pos` — has no `await` inside it, so it is
+     * indivisible by construction on a single-threaded runtime. The previous
+     * attempt held an async lock around the I/O but computed the offset outside
+     * it, so two concurrent writers captured the same offset and one write was
+     * lost. That class cannot exist here: there is no suspension point for
+     * anything to interleave with, which is why the async lock this replaces is
+     * gone rather than tightened.
      */
-    private _getReadStream(): { input: Gio.InputStream; seekable: Gio.Seekable } {
-        if (this._ioStream) {
-            return {
-                input: this._ioStream.get_input_stream(),
-                seekable: this._ioStream as unknown as Gio.Seekable,
-            };
+    private _readCore(target: NodeJS.ArrayBufferView, offset: number, length: number, position: number | null): number {
+        this._assertOpen('read');
+        // Node checks the access mode, not the file's permissions: reading a
+        // handle opened write-only is EBADF. GioUnix reports it as a localized
+        // G_IO_ERROR_FAILED, so it is raised from what we know instead.
+        if (!this._spec.readable) throw fsError('EBADF', 'read', this._pathStr);
+
+        // Node validates the window into the CALLER's view, not into the
+        // ArrayBuffer behind it. The difference is not academic: the `.set()`
+        // below is bounded by the ArrayBuffer, so on a runtime whose `Buffer`
+        // pools its allocations (Node's does) a too-long read would silently
+        // overrun into the NEIGHBOURING buffer instead of being refused.
+        if (length > target.byteLength - offset) {
+            const err = new RangeError(
+                `The value of "length" is out of range. It must be <= ${target.byteLength - offset}. Received ${length}`,
+            ) as NodeJS.ErrnoException;
+            err.code = 'ERR_OUT_OF_RANGE';
+            throw err;
         }
-        if (this._ioMode === 'r') {
-            if (!this._readStream) this._readStream = this._gFile.read(null);
-            return {
-                input: this._readStream,
-                seekable: this._readStream as unknown as Gio.Seekable,
-            };
+
+        const usePos = position !== null && position !== undefined && position >= 0;
+        const seekable = isSeekableFd(this.fd, this._pathStr);
+        // `pread(2)` on a pipe / socket / tty is ESPIPE, and saying so is the
+        // point: the unconditional seek this replaces turned a positional read
+        // on such a descriptor into a SEQUENTIAL one and reported success.
+        if (usePos && !seekable) throw fsError('ESPIPE', 'read', this._pathStr);
+
+        const start = usePos ? position : this._pos;
+        if (seekable) seekFd(this.fd, start);
+        const data = readFd(this.fd, length);
+        if (data.length > 0) {
+            new Uint8Array(target.buffer as ArrayBuffer, target.byteOffset + offset, data.length).set(data);
         }
-        // open_readwrite requires the file to exist. For modes that imply
-        // create-if-missing (w, w+, a, a+) the IOChannel already created it
-        // above; for 'r+' openIOChannel() catches ENOENT and pre-creates it.
-        this._ioStream = this._gFile.open_readwrite(null);
-        return {
-            input: this._ioStream.get_input_stream(),
-            seekable: this._ioStream as unknown as Gio.Seekable,
-        };
+        // An explicit position is pread(2): it must leave the cursor alone. A
+        // non-seekable descriptor has no offset to model — the kernel's stream
+        // position is the only one, and it is not ours to shadow.
+        if (!usePos && seekable) this._pos = start + data.length;
+        return data.length;
     }
 
-    /** Lazy-open the write-capable stream (IOStream) for this handle. Only valid
-     *  when the handle was opened with a write-capable mode. */
-    private _getWriteStream(): Gio.FileIOStream {
-        if (this._ioStream) return this._ioStream;
-        if (this._ioMode === 'r') {
-            throw new Error('FileHandle opened read-only; cannot write');
+    /** Write at `position`, or at the cursor when it is `null`/negative. See {@link _readCore}. */
+    private _writeCore(data: Uint8Array, position: number | null): number {
+        this._assertOpen('write');
+        if (!this._spec.writable) throw fsError('EBADF', 'write', this._pathStr);
+
+        if (this._spec.append) {
+            // Under O_APPEND the kernel ignores `position` entirely and writes
+            // at EOF — POSIX says so and Node documents it. Honouring the
+            // position instead means `writeSync(fd, buf, 0, n, 0)` on an append
+            // fd destroys the head of the log, which is strictly worse than the
+            // bug that fix was meant to close.
+            const written = writeFd(this.fd, data);
+            this._pos = tellFd(this.fd) ?? sizeOfFd(this.fd, this._pathStr);
+            return written;
         }
-        this._ioStream = this._gFile.open_readwrite(null);
-        return this._ioStream;
+
+        const usePos = position !== null && position !== undefined && position >= 0;
+        const seekable = isSeekableFd(this.fd, this._pathStr);
+        // See `_readCore`: `pwrite(2)` on a non-seekable descriptor is ESPIPE.
+        if (usePos && !seekable) throw fsError('ESPIPE', 'write', this._pathStr);
+
+        const start = usePos ? position : this._pos;
+        if (seekable) seekFd(this.fd, start);
+        const written = writeFd(this.fd, data);
+        if (!usePos && seekable) this._pos = start + written;
+        return written;
     }
 
-    /** Serialize an async operation on the shared FileIOStream. */
-    private _serialize<T>(op: () => Promise<T>): Promise<T> {
-        const prev = this._ioLock;
-        const next = prev.catch(() => {}).then(op);
-        this._ioLock = next;
-        return next;
+    private _assertOpen(syscall: string): void {
+        if (this._closed) throw fsError('EBADF', syscall, this._pathStr);
+    }
+
+    /**
+     * `ftruncate(2)` — ONE body for the sync and async halves.
+     *
+     * The access-mode gate belongs HERE and not in `truncateFd`, because it is
+     * the descriptor's property and `truncateFd` has to re-open the file to do
+     * its work (see there) — a re-open that asks the kernel for its own fresh
+     * permission and is granted it. Without this line a handle opened `'r'`
+     * truncates the file: `writeFileSync(f,'ABCDEFGH'); ftruncateSync(openSync(f,'r'), 2)`
+     * destroyed six bytes through a READ-ONLY descriptor and returned normally.
+     * Node reports EINVAL, and so does this.
+     *
+     * `_readCore`/`_writeCore` have carried the identical gate since this
+     * redesign began; truncate was the one byte-mover left outside it, which is
+     * exactly the shape of divergence the single-core rule exists to prevent.
+     */
+    private _truncateCore(len: number): void {
+        this._assertOpen('ftruncate');
+        if (!this._spec.writable) throw fsError('EINVAL', 'ftruncate', this._pathStr);
+        // ftruncate(2) does not move the file offset, so `_pos` is deliberately
+        // untouched: a write straight after a shrink leaves a hole, as Node does.
+        truncateFd(this.fd, Math.max(0, len), this._pathStr);
+    }
+
+    /** Read from the cursor to EOF, advancing it — Node's whole-file read on a handle. */
+    private _readToEnd(): Uint8Array {
+        const chunks: Uint8Array[] = [];
+        let total = 0;
+        for (;;) {
+            const buf = new Uint8Array(64 * 1024);
+            const n = this._readCore(buf, 0, buf.length, null);
+            if (n === 0) break;
+            chunks.push(buf.subarray(0, n));
+            total += n;
+        }
+        const out = new Uint8Array(total);
+        let at = 0;
+        for (const chunk of chunks) {
+            out.set(chunk, at);
+            at += chunk.length;
+        }
+        return out;
+    }
+
+    /** The path that names this DESCRIPTOR, falling back to the name it was opened from. */
+    private _fdTarget(): string {
+        return fdPath(this.fd) ?? this._pathStr;
     }
 
     /**
@@ -144,13 +240,33 @@ export class FileHandle implements IFileHandle {
      */
     readonly fd: number;
 
-    /** Not part of the default implementation, used internal by gjsify */
-    static getInstance(fd: number) {
-        const instance = FileHandle.instances[fd];
-        if (!instance) {
-            throw new Error('No instance found for fd!');
-        }
-        return FileHandle.instances[fd];
+    /**
+     * The handle behind a descriptor number. Not part of Node's API.
+     *
+     * TWO things used to go wrong here, both of them at the boundary where a
+     * caller holds a NUMBER and this package holds an object.
+     *
+     * It threw `Error('No instance found for fd!')` — no `code`, not an
+     * `ErrnoException`. But the overwhelmingly common way to reach it is an fd
+     * that WAS valid: `_teardown()` deletes the instance, so every call on a
+     * closed descriptor landed here rather than on `_assertOpen`, which made
+     * that guard dead for every fd-number call site. `catch (e) { if (e.code
+     * === 'EBADF') }` — the idiom for tolerating a racing close — fell through
+     * to the generic branch instead. The syscall is threaded in from the caller
+     * because Node names it in the message, and we know it there and only there.
+     *
+     * It also indexed `instances` with whatever it was given. `openSync()`
+     * returns a FileHandle rather than Node's number (a pre-existing divergence
+     * this does not attempt to change), so `fs.write(fs.openSync(p,'w'), …)`
+     * stringified the object into a key, missed, and threw out of the callback
+     * machinery. Unwrapping is one line and makes every fd call site accept
+     * both spellings.
+     */
+    static getInstance(fd: number | FileHandle, syscall: string = 'read'): FileHandle {
+        const key = fd instanceof FileHandle ? fd.fd : fd;
+        const instance = FileHandle.instances[key as number];
+        if (!instance) throw fsError('EBADF', syscall);
+        return instance;
     }
 
     /**
@@ -165,18 +281,12 @@ export class FileHandle implements IFileHandle {
         data: string | Uint8Array,
         options?: (ObjectEncodingOptions & FlagAndOpenMode) | BufferEncoding | null,
     ): Promise<void> {
-        const encoding = getEncodingFromOptions(options);
-        if (typeof data === 'string') {
-            data = Buffer.from(data);
-        }
-
-        if (encoding) this._file.set_encoding(encoding);
-
-        const [status, _written] = this._file.write_chars(data, data.length);
-
-        if (status === GLib.IOStatus.ERROR) {
-            throw new Error('Error on append to file!');
-        }
+        // Node documents this as an alias of writeFile() on a handle, so it is
+        // literally one: a cursor write, appending only because the descriptor
+        // carries O_APPEND. The old body wrote at whatever offset the IOChannel
+        // happened to hold, which on a fresh handle meant it OVERWROTE from
+        // byte 0 the file it was asked to append to.
+        await this.writeFile(data, options);
     }
     /**
      * Changes the ownership of the file. A wrapper for [`chown(2)`](http://man7.org/linux/man-pages/man2/chown.2.html).
@@ -186,6 +296,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async chown(uid: number, gid: number): Promise<void> {
+        this._assertOpen('fchown');
         chownSync(normalizePath(this.options.path), uid, gid);
     }
     /**
@@ -195,7 +306,10 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async chmod(mode: Mode): Promise<void> {
-        chmodSync(normalizePath(this.options.path), mode);
+        this._assertOpen('fchmod');
+        // fchmod(2): act on the descriptor, so a rename between open and now
+        // cannot hand the caller's permission change to a different file.
+        chmodSync(this._fdTarget(), mode);
     }
     /**
      * Unlike the 16 kb default `highWaterMark` for a `stream.Readable`, the stream
@@ -251,7 +365,12 @@ export class FileHandle implements IFileHandle {
      * @since v16.11.0
      */
     createReadStream(options?: CreateReadStreamOptions): ReadStream {
-        return new ReadStream(this.options.path, options);
+        // Through THIS descriptor, so the stream shares the handle's cursor —
+        // the read counterpart of createWriteStream() below. Opening the path
+        // afresh started a SECOND cursor at 0: after `await fh.read(b,0,4,null)`
+        // the stream replayed the whole file where Node resumes at byte 4, and
+        // it bound a different inode if the path had been replaced since.
+        return new ReadStream(this.options.path, { ...options, fd: this.fd });
     }
     /**
      * `options` may also include a `start` option to allow writing data at some
@@ -270,7 +389,22 @@ export class FileHandle implements IFileHandle {
      * @since v16.11.0
      */
     createWriteStream(options?: CreateWriteStreamOptions): WriteStream {
-        return new WriteStream(this.options.path, options);
+        // Through THIS descriptor, so the stream shares the handle's cursor.
+        // Opening the path afresh gave the stream default flags `'w'`, i.e. it
+        // TRUNCATED the file the handle had open, and bound a different inode
+        // if the path had been replaced since.
+        //
+        // `autoClose` is the caller's, and it defaults to CLOSING: Node closes a
+        // handle-derived write stream's handle at 'finish' (measured — a later
+        // `fh.stat()` rejects EBADF). It was hardcoded `false` AFTER the spread,
+        // so an explicit `autoClose: true` was silently discarded and the
+        // descriptor was never released. Not re-opening the path and not closing
+        // the fd are two different questions; only the first one is settled here.
+        // `fdFromHandle` tells the stream that its descriptor belongs to a
+        // HANDLE, whose close is idempotent in Node — so finishing after the
+        // caller has already closed this handle is silent there, where a raw
+        // `{fd}` stream reports EBADF. See `WriteStreamOptions.fdFromHandle`.
+        return new WriteStream(this.options.path, { ...options, fd: this.fd, fdFromHandle: true });
     }
     /**
      * Forces all currently queued I/O operations associated with the file to the
@@ -281,7 +415,8 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async datasync(): Promise<void> {
-        this._file.flush();
+        this._assertOpen('fdatasync');
+        fsyncFd(this.fd);
     }
     /**
      * Request that all data for the open file descriptor is flushed to the storage
@@ -291,7 +426,8 @@ export class FileHandle implements IFileHandle {
      * @return Fufills with `undefined` upon success.
      */
     async sync(): Promise<void> {
-        this._file.flush();
+        this._assertOpen('fsync');
+        fsyncFd(this.fd);
     }
     /**
      * Reads data from the file and stores that in the given buffer.
@@ -335,26 +471,19 @@ export class FileHandle implements IFileHandle {
 
         const bufView = buffer as unknown as Uint8Array;
         const bufOffset = offset ?? 0;
-        const readLength = length ?? bufView?.byteLength ?? 65536;
-        const startPos = (position as number | null) ?? 0;
+        // `byteLength - offset`, not `byteLength`. Node documents the default as
+        // "the number of bytes that FIT AFTER the offset"; defaulting to the
+        // whole buffer made `fh.read({ buffer: Buffer.alloc(8), offset: 4 })` —
+        // the documented options form — throw RangeError where Node reads 4.
+        const readLength = length ?? (bufView ? bufView.byteLength - bufOffset : 65536);
 
-        // Positional read — seek + read_bytes on the appropriate Gio stream,
-        // touching only the requested region. Replaces the old load_contents()
-        // path that read the entire file on every call (O(N²) over streamed
-        // workloads like WebTorrent piece hashing or random-access-file).
-        // Serialized with writes: seek() on the shared FileIOStream cursor must
-        // not interleave with a pending write_bytes_async.
-        return this._serialize(async () => {
-            const { input, seekable } = this._getReadStream();
-            seekable.seek(BigInt(startPos), GLib.SeekType.SET, null);
-            const bytes = input.read_bytes(readLength, null);
-            const data = bytes.get_data() as Uint8Array | null;
-            const bytesRead = data?.length ?? 0;
-            if (bufView && data && bytesRead > 0) {
-                bufView.set(data, bufOffset);
-            }
-            return { bytesRead, buffer: buffer as T };
-        });
+        // `position ?? 0` used to live here, which meant an unpositioned async
+        // read sought to 0 forever: `while ((await fh.read(b,0,4,null)).bytesRead)`
+        // never terminated, and a read after an async write started from the
+        // top. It goes through the same cursor core as every other byte-mover,
+        // so there is no second offset rule to forget.
+        const bytesRead = this._readCore(buffer as NodeJS.ArrayBufferView, bufOffset, readLength, position ?? null);
+        return { bytesRead, buffer: buffer as T };
     }
     /**
      * Returns a `ReadableStream` that may be used to read the files data.
@@ -439,17 +568,12 @@ export class FileHandle implements IFileHandle {
             | null,
     ): Promise<string | Buffer<ArrayBuffer>> {
         const encoding = getEncodingFromOptions(options, 'buffer');
-        if (encoding) this._file.set_encoding(encoding);
-
-        const [status, buf] = this._file.read_to_end();
-
-        if (status === GLib.IOStatus.ERROR) {
-            throw new Error('Error on read from file!');
-        }
-
-        const res = encodeUint8Array(encoding, buf);
-
-        return res;
+        // Node: "the data will be read from the current position till the end
+        // of the file. It doesn't always read from the beginning." The old body
+        // drove the IOChannel's own offset — a third cursor neither the handle
+        // nor the Gio streams knew about, so mixing this with read()/write()
+        // corrupted positions in both directions.
+        return encodeUint8Array(encoding, this._readToEnd());
     }
     /**
      * Convenience method to create a `readline` interface and stream over the file. For example:
@@ -485,23 +609,30 @@ export class FileHandle implements IFileHandle {
         },
     ): Promise<BigIntStats>;
     async stat(opts?: StatOptions): Promise<Stats | BigIntStats> {
+        // A closed handle is EBADF, and it has to be said HERE: `_fdTarget()`
+        // resolves to `/proc/self/fd/N`, which simply stops existing once the
+        // descriptor is gone, so without this the caller got a NOT_FOUND about
+        // a procfs path it never named.
+        this._assertOpen('fstat');
+        // fstat(2): the descriptor, not the name — so the answer survives a
+        // rename and an unlink, and cannot describe an impostor at that path.
+        const target = Gio.File.new_for_path(this._fdTarget());
         const info = await new Promise<Gio.FileInfo>((resolve, reject) => {
-            this._gFile.query_info_async(
+            target.query_info_async(
                 STAT_ATTRIBUTES,
                 Gio.FileQueryInfoFlags.NONE,
                 GLib.PRIORITY_DEFAULT,
                 null,
                 (_s: unknown, res: Gio.AsyncResult) => {
                     try {
-                        resolve(this._gFile.query_info_finish(res));
+                        resolve(target.query_info_finish(res));
                     } catch (e) {
                         reject(e);
                     }
                 },
             );
         });
-        const pathStr = normalizePath(this.options.path);
-        return opts?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr);
+        return statsFrom(info, this._pathStr, 'fstat', opts?.bigint);
     }
     /**
      * Truncates the file.
@@ -532,18 +663,14 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async truncate(len: number = 0): Promise<void> {
-        const effectiveLen = Math.max(0, len);
-        this._file.flush();
-        // Gio.FileOutputStream implements Seekable.truncate — extends with zeros
-        // when growing, matches POSIX ftruncate(2).
-        const out = this._getWriteStream().get_output_stream() as Gio.FileOutputStream;
-        out.truncate(effectiveLen, null);
+        this._truncateCore(len);
     }
     /**
      * Change the file system timestamps of the object referenced by the `FileHandle` then resolves the promise with no arguments upon success.
      * @since v10.0.0
      */
     async utimes(atime: string | number | Date, mtime: string | number | Date): Promise<void> {
+        this._assertOpen('futimes');
         const { utimesSync } = await import('./utimes.js');
         utimesSync(normalizePath(this.options.path), atime, mtime);
     }
@@ -576,12 +703,11 @@ export class FileHandle implements IFileHandle {
         } else {
             buf = data;
         }
-        this._file.seek_position(0, GLib.SeekType.SET);
-        const [status] = this._file.write_chars(buf, buf.length);
-        if (status === GLib.IOStatus.ERROR) {
-            throw new Error('Error writing to file!');
-        }
-        this._file.flush();
+        // Node: "the data will be written from the current position till the
+        // end of the file. It doesn't always write from the beginning." The
+        // `seek_position(0)` this replaces both contradicted that and, because
+        // it never truncated, left the tail of a longer previous file behind.
+        this._writeCore(buf, null);
     }
     /**
      * Write `buffer` to the file.
@@ -657,47 +783,14 @@ export class FileHandle implements IFileHandle {
         }
         const bufOffset = offset ?? 0;
         const writeLength = length ?? writeBuf.byteLength - bufOffset;
-        const writeSlice = writeBuf.slice(bufOffset, bufOffset + writeLength);
-        const writePos = position ?? 0;
+        const writeSlice = writeBuf.subarray(bufOffset, bufOffset + writeLength);
 
-        // Positional write — seek + write_bytes_async on the IOStream, touches
-        // only the requested region. Uses async Gio I/O so the GLib main loop
-        // (and GTK events) are not blocked during the write. Serialized via
-        // _serialize() so concurrent callers (e.g. random-access-file) don't
-        // trigger GIO_ERROR_PENDING or corrupt the shared seek cursor.
-        const bytesWritten = await this._serialize(async () => {
-            const stream = this._getWriteStream();
-            stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
-            const output = stream.get_output_stream();
-            const written = await new Promise<number>((resolve, reject) => {
-                output.write_bytes_async(
-                    new GLib.Bytes(writeSlice),
-                    GLib.PRIORITY_DEFAULT,
-                    null,
-                    (_source, asyncResult) => {
-                        try {
-                            resolve(output.write_bytes_finish(asyncResult));
-                        } catch (err) {
-                            reject(err);
-                        }
-                    },
-                );
-            });
-            await new Promise<void>((resolve, reject) => {
-                output.flush_async(GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
-                    try {
-                        output.flush_finish(asyncResult);
-                        resolve();
-                    } catch (err) {
-                        reject(err);
-                    }
-                });
-            });
-            return written;
-        });
-
+        // Same cursor core as writeSync(), so the sync and async halves of one
+        // API cannot disagree about where the bytes go — they did, and the
+        // half most fsPromises consumers call sent every unpositioned write to
+        // offset 0.
         return {
-            bytesWritten,
+            bytesWritten: this._writeCore(writeSlice, position ?? null),
             buffer: data,
         };
     }
@@ -751,32 +844,11 @@ export class FileHandle implements IFileHandle {
         return { bytesRead, buffers: buffers as unknown as TBuffers };
     }
     /** @internal */ _flushSync(): void {
-        this._file.flush();
+        fsyncFd(this.fd);
     }
 
     /** @internal */ _closeSync(): void {
-        try {
-            this._ioStream?.close(null);
-        } catch {
-            /* best-effort */
-        }
-        try {
-            this._readStream?.close(null);
-        } catch {
-            /* best-effort */
-        }
-        this._ioStream = null;
-        this._readStream = null;
-        try {
-            this._file.shutdown(true);
-        } catch {
-            /* best-effort */
-        }
-        // `instances` is declared `private static` on FileHandle; same-module
-        // access is allowed via a typed view of the constructor without
-        // dropping into `as any`.
-        const _ctor = FileHandle as unknown as { instances: { [fd: number]: FileHandle } };
-        delete _ctor.instances[this.fd];
+        this._teardown();
     }
 
     /** @internal */ _readSync(
@@ -785,41 +857,44 @@ export class FileHandle implements IFileHandle {
         length: number,
         position: number | null,
     ): number {
-        const stream = this._gFile.read(null);
-        try {
-            // Node semantics: an explicit `position` reads from there and leaves the
-            // fd's current position unchanged; `position === null` reads from the
-            // CURRENT position and ADVANCES it. Each call opens a fresh stream (at 0),
-            // so seek to the effective start — and for the null case advance `_readPos`,
-            // otherwise a `readSync(fd, buf, 0, len, null)` loop re-reads offset 0
-            // forever (the build-cache `hashFileStream` hang).
-            const usePos = position !== null && position >= 0;
-            const start = usePos ? position : this._readPos;
-            if (start > 0) {
-                (stream as unknown as Gio.Seekable).seek(start, GLib.SeekType.SET, null);
-            }
-            const bytes = stream.read_bytes(length, null);
-            const arr = bytes.get_data() ?? new Uint8Array(0);
-            // `NodeJS.ArrayBufferView` carries `buffer` + `byteOffset` directly;
-            // the previous `as any` was eating the structural lookup.
-            new Uint8Array(buffer.buffer as ArrayBuffer, buffer.byteOffset + offset).set(arr.subarray(0, arr.length));
-            if (!usePos) this._readPos += arr.length;
-            return arr.length;
-        } finally {
-            stream.close(null);
-        }
+        return this._readCore(buffer, offset, length, position);
     }
 
     /** @internal */ _writeSync(data: Uint8Array, position: number | null): number {
-        const stream = this._gFile.open_readwrite(null);
-        try {
-            if (position !== null && position >= 0) {
-                (stream as unknown as Gio.Seekable).seek(position, GLib.SeekType.SET, null);
-            }
-            return stream.get_output_stream().write_bytes(GLib.Bytes.new(data), null);
-        } finally {
-            stream.close(null);
-        }
+        return this._writeCore(data, position);
+    }
+
+    /** @internal Read from the cursor to EOF, advancing it — `readFileSync(fd)`. */ _readToEndSync(): Uint8Array {
+        return this._readToEnd();
+    }
+
+    /** @internal Truncate through the descriptor. */ _truncateSync(len: number): void {
+        this._truncateCore(len);
+    }
+
+    /** @internal The path that names this descriptor — `/proc/self/fd/N` where the host has it. */
+    _fdStatTarget(): string {
+        return this._fdTarget();
+    }
+
+    /**
+     * Close the descriptor and deregister the handle.
+     *
+     * ONE implementation for both halves. `close()` used to leave the fd in
+     * `instances` while `_closeSync()` removed it, so every `fsPromises` close
+     * leaked its entry — and a later `openSync` reusing that fd number found a
+     * stale handle waiting for it.
+     */
+    private _teardown(): void {
+        if (this._closed) return;
+        this._closed = true;
+        releaseFd(this.fd);
+        closeFd(this.fd);
+        // `instances` is declared `private static` on FileHandle; same-module
+        // access is allowed via a typed view of the constructor without
+        // dropping into `as any`.
+        const _ctor = FileHandle as unknown as { instances: { [fd: number]: FileHandle } };
+        delete _ctor.instances[this.fd];
     }
 
     /**
@@ -840,28 +915,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async close(): Promise<void> {
-        // Close the Gio streams first; they own an fd wrapping the same file
-        // as the IOChannel. IOChannel.shutdown(true) flushes + closes its own
-        // fd — safe to call even if the Gio streams already released theirs,
-        // but guarded here so a throw from shutdown doesn't strand the stream
-        // references in a "closed but still pinned" state.
-        try {
-            this._ioStream?.close(null);
-        } catch {
-            /* best-effort */
-        }
-        try {
-            this._readStream?.close(null);
-        } catch {
-            /* best-effort */
-        }
-        this._ioStream = null;
-        this._readStream = null;
-        try {
-            this._file.shutdown(true);
-        } catch {
-            /* best-effort */
-        }
+        this._teardown();
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

@@ -3,6 +3,7 @@
 
 import Gio from '@girs/gio-2.0';
 import { Dirent } from './dirent.js';
+import { answered, fsError } from './fd-io.js';
 import { basename } from 'node:path';
 
 import type { Stats as NodeStats, BigIntStats as NodeBigIntStats, PathLike } from 'node:fs';
@@ -97,7 +98,11 @@ export class Stats extends Dirent implements NodeStats {
             info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
         }
 
-        super(pathStr, filename, info.get_file_type());
+        // The info goes down with the type: `Dirent` classifies a SPECIAL file
+        // from `unix::mode`, and re-querying the path would ask about a
+        // different object where the path is a symlink to the real one — which
+        // is exactly what `/proc/self/fd/<n>` is on the `fstat` route.
+        super(pathStr, filename, info.get_file_type(), info);
         this._info = info;
 
         const data = populateFromInfo(info);
@@ -169,7 +174,11 @@ export class BigIntStats extends Dirent implements NodeBigIntStats {
             info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
         }
 
-        super(pathStr, filename, info.get_file_type());
+        // The info goes down with the type: `Dirent` classifies a SPECIAL file
+        // from `unix::mode`, and re-querying the path would ask about a
+        // different object where the path is a symlink to the real one — which
+        // is exactly what `/proc/self/fd/<n>` is on the `fstat` route.
+        super(pathStr, filename, info.get_file_type(), info);
         this._info = info;
 
         const data = populateFromInfo(info);
@@ -196,4 +205,30 @@ export class BigIntStats extends Dirent implements NodeBigIntStats {
         this.ctime = data.ctime;
         this.birthtime = data.birthtime;
     }
+}
+
+/**
+ * A `Stats` for `info`, or the error the kernel actually gave.
+ *
+ * `g_file_query_info()` does NOT fail when the kernel refuses to stat a name —
+ * a path under a directory this process cannot search comes back as a non-NULL
+ * `GFileInfo` carrying no attributes at all (see {@link answered}, where the
+ * measurement lives). Every stat entry point built a `Stats` straight from
+ * whatever it got, and that is two failures in one call: reading the type and
+ * the size off the empty shell logs four `GLib-GIO-CRITICAL` lines — a SIGABRT
+ * under `G_DEBUG=fatal-criticals` — and what it then returns is a FABRICATED
+ * `{mode: 0, size: 0, ino: 0, nlink: 0}` presented as fact, where Node raises
+ * EACCES. A caller checking `statSync(p).mode & 0o200` before writing is told
+ * the file is unwritable rather than that it may not look; one checking
+ * `.size` is told the file is empty.
+ *
+ * All five GJS-side call sites (`statSync`, `lstatSync`, the `stat`/`lstat`
+ * callbacks, `fsPromises.stat` and `filehandle.stat()`) go through here, so the
+ * gate cannot be present in four of them and missing in the fifth — which is
+ * how it got here: the open path grew {@link answered} in this same redesign
+ * and the stat path, which asks the identical question, did not.
+ */
+export function statsFrom(info: Gio.FileInfo, pathStr: string, syscall: string, bigint?: boolean): Stats | BigIntStats {
+    if (!answered(info)) throw fsError('EACCES', syscall, pathStr);
+    return bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr);
 }

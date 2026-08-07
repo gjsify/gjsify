@@ -3,7 +3,7 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { join, dirname } from 'node:path';
+import { join } from 'node:path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
 import {
     realpathSync,
@@ -17,6 +17,9 @@ import {
     chmodSync,
     chownSync,
     linkSync,
+    mkdirSync,
+    mkdtempAt,
+    writeFileSync,
 } from './sync.js';
 import { cpAsync } from './cp.js';
 import type { Dir } from './dir.js';
@@ -38,9 +41,9 @@ import {
     openAsBlob,
 } from './fd-ops.js';
 import { FileHandle } from './file-handle.js';
-import { tempDirPath, normalizePath } from './utils.js';
+import { normalizePath } from './utils.js';
 import type { Dirent } from './dirent.js';
-import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { createNodeError } from './errors.js';
 
 import type { OpenFlags, ReadOptions } from './types/index.js';
@@ -94,91 +97,25 @@ async function mkdir(
 async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | null): Promise<string | undefined>;
 
 async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | null): Promise<string | undefined | void> {
-    let recursive: boolean | undefined;
-    let _mode: Mode | undefined = 0o777;
-
-    if (typeof options === 'object') {
-        if (options.recursive) recursive = options.recursive;
-        if (options.mode) _mode = options.mode;
-    } else {
-        _mode = options;
-    }
-
-    const pathStr = normalizePath(path);
-
-    if (recursive) {
-        return mkdirRecursiveAsync(pathStr);
-    }
-
-    const file = Gio.File.new_for_path(pathStr);
-    return new Promise<undefined>((resolve, reject) => {
-        file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
-            try {
-                file.make_directory_finish(res);
-                resolve(undefined);
-            } catch (err: unknown) {
-                reject(createNodeError(err, 'mkdir', pathStr));
-            }
-        });
-    });
-}
-
-/**
- * Recursively creates directories, similar to `mkdir -p`.
- * Returns the first directory path created, or undefined if all directories already existed.
- */
-async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined> {
-    const file = Gio.File.new_for_path(pathStr);
-
-    // Try to create the directory directly first
-    try {
-        await new Promise<void>((resolve, reject) => {
-            file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
-                try {
-                    file.make_directory_finish(res);
-                    resolve();
-                } catch (err: unknown) {
-                    reject(err);
-                }
-            });
-        });
-        // This directory was created; it's the deepest one.
-        // Now check if we also created parents by recursing on the parent first.
-        // Since we succeeded directly, this is the "first created" path candidate.
-        return pathStr;
-    } catch (err: unknown) {
-        const gErr = err as { code?: number };
-        // If it already exists, nothing to create
-        if (gErr.code === Gio.IOErrorEnum.EXISTS) {
-            return undefined;
-        }
-        // If parent doesn't exist, create parent first then retry
-        if (gErr.code === Gio.IOErrorEnum.NOT_FOUND) {
-            const parentPath = dirname(pathStr);
-            if (parentPath === pathStr) {
-                // Reached root, cannot go further
-                throw createNodeError(err, 'mkdir', pathStr);
-            }
-            const firstCreated = await mkdirRecursiveAsync(parentPath);
-            // Now create this directory
-            const retryFile = Gio.File.new_for_path(pathStr);
-            await new Promise<void>((resolve, reject) => {
-                retryFile.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
-                    try {
-                        retryFile.make_directory_finish(res);
-                        resolve();
-                    } catch (retryErr: unknown) {
-                        reject(createNodeError(retryErr, 'mkdir', pathStr));
-                    }
-                });
-            });
-            return firstCreated ?? pathStr;
-        }
-        throw createNodeError(err, 'mkdir', pathStr);
-    }
+    // ONE implementation for both halves of a documented API. This one used to
+    // collect the mode into a variable named `_mode` and never apply it, so
+    // `fs.promises.mkdir(p, {mode: 0o700})` produced 0755 long after the sync
+    // half was fixed — and when a later cut did thread it, it applied it only
+    // on the recursive RETRY path, so the common case (parent already exists)
+    // silently skipped it again. A second implementation is a second truth;
+    // `mkdir(2)` is one syscall, so there is nothing to gain by keeping one.
+    return mkdirSync(normalizePath(path), options);
 }
 
 async function readFile(path: PathLike | FileHandle, options: ReadOptions = { encoding: null, flag: 'r' }) {
+    // Node's documented FileHandle overload: read from the handle's CURRENT
+    // position to EOF, and do not close it. `normalizePath(handle)` produced
+    // `'[object Object]'`, so this threw ENOENT — or, worse, succeeded once a
+    // mis-routed write had created a file by that name.
+    if (path instanceof FileHandle || typeof path === 'number') {
+        const handle = FileHandle.getInstance(path as number | FileHandle, 'read');
+        return encodeUint8Array(getEncodingFromOptions(options, 'buffer'), handle._readToEndSync());
+    }
     const pathStr = normalizePath(path as PathLike);
     const file = Gio.File.new_for_path(pathStr);
 
@@ -254,77 +191,31 @@ async function mkdtemp(
     options?: BufferEncodingOption | ObjectEncodingOptions | BufferEncoding | null,
 ): Promise<string | Buffer> {
     const encoding: string | undefined = getEncodingFromOptions(options);
-    const path = tempDirPath(prefix);
-
-    await mkdir(path, { recursive: false, mode: 0o700 });
-
-    return decode(path, encoding);
+    // The same helper the sync half calls, so the two cannot disagree about the
+    // mode again — they already did, by 0o077, one asking 0o700 and the other
+    // 0o777 for the same documented API.
+    return decode(mkdtempAt(prefix), encoding);
 }
 
-async function writeFile(path: PathLike, data: string | Uint8Array | unknown) {
-    const pathStr = normalizePath(path);
-    const file = Gio.File.new_for_path(pathStr);
-
-    // Convert data to Uint8Array if it's a string
-    let bytes: Uint8Array;
-    if (typeof data === 'string') {
-        bytes = new TextEncoder().encode(data);
-    } else if (data instanceof Uint8Array) {
-        bytes = data;
-    } else {
-        // Fallback: convert to string first
-        bytes = new TextEncoder().encode(String(data));
-    }
-
-    // Open the file for writing (replace contents), creating if needed
-    const outputStream = await new Promise<Gio.FileOutputStream>((resolve, reject) => {
-        file.replace_async(
-            null,
-            false,
-            Gio.FileCreateFlags.REPLACE_DESTINATION,
-            GLib.PRIORITY_DEFAULT,
-            null,
-            (_s: unknown, res: Gio.AsyncResult) => {
-                try {
-                    resolve(file.replace_finish(res));
-                } catch (err: unknown) {
-                    reject(createNodeError(err, 'open', pathStr));
-                }
-            },
-        );
-    });
-
-    // Write the bytes to the stream (skip if empty — GLib rejects null/empty buffer)
-    if (bytes.length > 0) {
-        const glibBytes = new GLib.Bytes(bytes);
-        await new Promise<void>((resolve, reject) => {
-            outputStream.write_bytes_async(
-                glibBytes,
-                GLib.PRIORITY_DEFAULT,
-                null,
-                (_s: unknown, res: Gio.AsyncResult) => {
-                    try {
-                        outputStream.write_bytes_finish(res);
-                        resolve();
-                    } catch (err: unknown) {
-                        reject(createNodeError(err, 'write', pathStr));
-                    }
-                },
-            );
-        });
-    }
-
-    // Close the output stream
-    await new Promise<void>((resolve, reject) => {
-        outputStream.close_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
-            try {
-                outputStream.close_finish(res);
-                resolve();
-            } catch (err: unknown) {
-                reject(createNodeError(err, 'close', pathStr));
-            }
-        });
-    });
+async function writeFile(
+    path: PathLike | FileHandle,
+    data: string | Uint8Array | unknown,
+    options?: { encoding?: string | null; mode?: Mode; flag?: OpenFlags | string } | string | null,
+) {
+    // `replace_async(… REPLACE_DESTINATION)` is documented as "don't try to
+    // keep any old permissions", so rewriting an existing 0600 file silently
+    // WIDENED it to 0644 — with no option passed and nothing to warn the
+    // caller. It also replaces the inode, which `writeFile` is not supposed to
+    // do. Routing through the same open/write/close as the sync half gives
+    // truncate-in-place, `{mode}` and `{flag}` at once.
+    const payload =
+        typeof data === 'string' || data instanceof Uint8Array ? (data as string | Uint8Array) : String(data);
+    // `path` goes through UNNORMALIZED. Node documents a FileHandle overload
+    // here, and `normalizePath(handle)` is the string `'[object Object]'` — so
+    // the payload landed in a file of that name in the CWD while the file the
+    // caller had open stayed empty, and the call resolved. `writeFileSync` owns
+    // the name-vs-descriptor decision now, for all four spellings at once.
+    writeFileSync(path as PathLike, payload, options ?? null);
 }
 
 /**
@@ -467,7 +358,7 @@ async function _writeBuf<TBuffer extends Uint8Array>(
     bytesWritten: number;
     buffer: TBuffer;
 }> {
-    const fileHandle = FileHandle.getInstance(fd);
+    const fileHandle = FileHandle.getInstance(fd, 'write');
     const result = await fileHandle.write(buffer, offset, length, position);
     return { bytesWritten: result.bytesWritten, buffer };
 }
@@ -481,7 +372,7 @@ async function _writeStr(
     bytesWritten: number;
     buffer: string;
 }> {
-    const fileHandle = FileHandle.getInstance(fd);
+    const fileHandle = FileHandle.getInstance(fd, 'write');
     const result = await fileHandle.write(data, position, encoding);
     return { bytesWritten: result.bytesWritten, buffer: data };
 }
@@ -505,7 +396,7 @@ function queryInfoAsync(
             (_s: unknown, res: Gio.AsyncResult) => {
                 try {
                     const info = file.query_info_finish(res);
-                    resolve(options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr));
+                    resolve(statsFrom(info, pathStr, syscall, options?.bigint));
                 } catch (err: unknown) {
                     reject(createNodeError(err, syscall, pathStr));
                 }
@@ -646,11 +537,11 @@ async function access(path: PathLike, mode?: number): Promise<void> {
 
 // --- appendFile ---
 async function appendFile(
-    path: PathLike,
+    path: PathLike | FileHandle,
     data: string | Uint8Array,
     options?: { encoding?: string; mode?: number; flag?: string } | string,
 ): Promise<void> {
-    appendFileSync(path, data, options);
+    appendFileSync(path as PathLike, data, options);
 }
 
 // --- readlink ---

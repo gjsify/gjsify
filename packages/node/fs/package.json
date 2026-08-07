@@ -88,6 +88,15 @@
             "browser": "partial",
             "nativescript": "none"
         },
+        "os": {
+            "linux": "supported",
+            "darwin": "partial",
+            "win32": "none"
+        },
+        "osNotes": {
+            "darwin": "The descriptor path is measured on Linux only. fstat/fchmod/ftruncate and the cursor read-back go through /proc/self/fd and /proc/self/fdinfo, which darwin does not have; fd-io.ts falls back to acting on the PATH there, and tellFd() to sizeOfFd(). Both fallbacks are gated on the measured CAN_PROC_FD capability rather than assumed, but no darwin host has run them — shipping an unmeasured darwin path is how the first cut of this work shipped a broken umask probe. The O_* table in posix-flags.ts carries darwin values (O_CREAT 0x200 collides with Linux O_TRUNC, which is why it is host-keyed at all) and those are equally unexercised: prebuilds.yml runs no darwin leg for this package.",
+            "win32": "Not attempted. The implementation is POSIX open(2)/mkdir(2) semantics with real O_CREAT|O_EXCL, an fd-owned cursor and mode-at-creation; win32 has no procfs, no POSIX mode bits and different open flags. The WIN32 branch in posix-flags.ts exists so the table is total, not because the package works there — the fs specs already carry `it.failing({ when: isWin32() })` rows saying the same."
+        },
         "tier": 1
     },
     "license": "MIT",

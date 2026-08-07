@@ -21,9 +21,23 @@
 // the failure is tolerated and retires itself the moment the host gains the
 // privilege.
 
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+    chmodSync,
+    closeSync,
+    existsSync,
+    ftruncateSync,
+    lstatSync,
+    mkdirSync,
+    mkdtempSync,
+    openSync,
+    rmSync,
+    symlinkSync,
+    writeFileSync,
+    writeSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Buffer } from 'node:buffer';
 
 /**
  * Can this process create a symbolic link?
@@ -62,3 +76,177 @@ export const NO_SYMLINK_REASON =
     'Creating a symbolic link needs an elevated process or Developer Mode on Windows; this host has neither ' +
     '(measured at load — see `capabilities.spec.ts`). Not a platform gap: the same test passes on a Windows host ' +
     'that has the privilege, and this marker fails the run the day it does.';
+
+/**
+ * Does this filesystem keep `S_ISGID` on a directory and hand it down to
+ * children?
+ *
+ * Measured for the same reason as {@link CAN_SYMLINK}: it is a property of the
+ * MOUNT, not of the OS. NTFS carries no POSIX mode at all, `nosuid` mounts drop
+ * the bit, and a container's overlayfs may or may not honour the inheritance —
+ * none of which `process.platform` reports. The setgid rules in
+ * `fs-semantics.spec.ts` guard a real regression (a post-create chmod that
+ * silently strips an inherited `S_ISGID` breaks group access for everyone else
+ * in a shared tree), so they must run wherever the host can express them.
+ */
+function probeSetgidInheritance(): boolean {
+    let dir: string | undefined;
+    try {
+        dir = mkdtempSync(join(tmpdir(), 'gjsify-setgid-probe-'));
+        const parent = join(dir, 'parent');
+        mkdirSync(parent, { mode: 0o775 });
+        chmodSync(parent, 0o2775);
+        if ((lstatSync(parent).mode & 0o2000) === 0) return false;
+        const child = join(parent, 'child');
+        mkdirSync(child, { mode: 0o775 });
+        return (lstatSync(child).mode & 0o2000) !== 0;
+    } catch {
+        return false;
+    } finally {
+        if (dir) {
+            try {
+                rmSync(dir, { recursive: true, force: true });
+            } catch {
+                // A probe must not fail the run over its own cleanup.
+            }
+        }
+    }
+}
+
+export const CAN_SETGID = probeSetgidInheritance();
+
+/** The `reason` string every setgid-gated `it.failing` shares. */
+export const NO_SETGID_REASON =
+    'This filesystem does not keep S_ISGID on a directory or does not hand it to children (measured at load — ' +
+    'see `capabilities.spec.ts`). NTFS carries no POSIX mode bits, a `nosuid` mount drops them, and some overlay ' +
+    'filesystems skip the inheritance. Not keyed on the platform: the same test passes on any mount that can ' +
+    'express it, and this marker fails the run the day this one can.';
+
+/**
+ * Does `/proc/self/fd/<n>` resolve an open descriptor to its inode?
+ *
+ * This is the route `fstat`/`fchmod`/`ftruncate` take to act on the DESCRIPTOR
+ * rather than on the path it was opened from — the property that makes them
+ * survive a rename or an unlink. It is Linux-only, and `respond-with-file.ts`
+ * already carries the scar of assuming otherwise (a procfs path resolved to
+ * nothing on macOS, `statSync` threw, and a swallowed catch meant `statCheck`
+ * silently never ran). So it is measured, and the descriptor-identity rules
+ * that depend on it are gated on the measurement.
+ */
+function probeProcFdSupport(): boolean {
+    try {
+        return existsSync('/proc/self/fd/0');
+    } catch {
+        return false;
+    }
+}
+
+export const CAN_PROC_FD = probeProcFdSupport();
+
+/**
+ * Does `ftruncate` act on the DESCRIPTOR, ignoring the file's own mode?
+ *
+ * `ftruncate(2)` checks exactly one thing: that the fd is open for writing. It
+ * never looks at the permission bits, so the handle that created a mode-0444
+ * file can still shorten it. GJS has no `g_ftruncate` and no route from an fd to
+ * a `GSeekable` (`GioUnix.OutputStream` does not implement it, and
+ * `GBufferedOutputStream` / `GDataOutputStream` wrapped around one both report
+ * `can_truncate() == false` — measured under gjs 1.88.1), so truncation has to
+ * re-open the descriptor by its procfs name, and that second `open(2)` IS
+ * checked against the file's mode.
+ *
+ * Measured rather than keyed on the runtime, for the reason {@link CAN_SYMLINK}
+ * gives: it is a property of what the host can express, and the marker must
+ * retire itself the day a real binding lands rather than have to be remembered.
+ */
+function probeFdTruncateIgnoresFileMode(): boolean {
+    let dir: string | undefined;
+    try {
+        dir = mkdtempSync(join(tmpdir(), 'gjsify-ftruncate-probe-'));
+        const fd = openSync(join(dir, 'ro'), 'w', 0o444) as unknown as number;
+        try {
+            writeSync(fd, Buffer.from('ABCDEFGH'));
+            ftruncateSync(fd, 4);
+            return true;
+        } finally {
+            closeSync(fd);
+        }
+    } catch {
+        return false;
+    } finally {
+        if (dir) {
+            try {
+                rmSync(dir, { recursive: true, force: true });
+            } catch {
+                // A probe must not fail the run over its own cleanup.
+            }
+        }
+    }
+}
+
+export const CAN_FD_TRUNCATE_ANY_MODE = probeFdTruncateIgnoresFileMode();
+
+/** The `reason` string the mode-independent-ftruncate rule carries. */
+export const NO_FD_TRUNCATE_REASON =
+    'This runtime cannot call ftruncate(2) on a descriptor (measured at load — see `capabilities.spec.ts`). GJS ' +
+    'has no `g_ftruncate` and no route from an fd to a GSeekable, so truncation re-opens the descriptor by its ' +
+    'procfs name — and that second open(2) IS checked against the file mode, which 0444 denies. The ACCESS-mode ' +
+    'half of the contract (a read-only handle must not be able to truncate at all) is enforced and separately ' +
+    'tested; this marker covers only the file-mode half, and it retires the day a real binding exists.';
+
+/** The `reason` string every procfs-gated `it.failing` shares. */
+export const NO_PROC_FD_REASON =
+    'This host has no `/proc/self/fd` (measured at load — see `capabilities.spec.ts`), which is the only route ' +
+    'GJS has to act on an open descriptor rather than on the path it was opened from. Without it `fstat`/' +
+    '`ftruncate` fall back to the path and lose descriptor identity after a rename or an unlink.';
+
+/**
+ * Does a mode-000 directory actually hide its contents from THIS process?
+ *
+ * Every rule about "the kernel would not tell me anything" needs a directory it
+ * cannot search, and a process with `CAP_DAC_OVERRIDE` — root in a container,
+ * which is how a lot of CI runs — is not bound by the mode at all. Without the
+ * measurement those tests would go green on such a host for the wrong reason:
+ * the open they expect to fail SUCCEEDS, so nothing is asserted.
+ *
+ * Measured with the same instrument the rules use, and gated the same way as
+ * {@link CAN_SYMLINK}: it retires itself the moment the host stops granting the
+ * override.
+ */
+function probeSearchDenial(): boolean {
+    let dir: string | undefined;
+    try {
+        dir = mkdtempSync(join(tmpdir(), 'gjsify-search-probe-'));
+        const blind = join(dir, 'blind');
+        mkdirSync(blind);
+        writeFileSync(join(blind, 'inside'), 'probe');
+        chmodSync(blind, 0o000);
+        try {
+            closeSync(openSync(join(blind, 'inside'), 'r') as unknown as number);
+            return false;
+        } catch {
+            return true;
+        } finally {
+            chmodSync(blind, 0o700);
+        }
+    } catch {
+        return false;
+    } finally {
+        if (dir) {
+            try {
+                rmSync(dir, { recursive: true, force: true });
+            } catch {
+                // A probe must not fail the run over its own cleanup.
+            }
+        }
+    }
+}
+
+export const CAN_DENY_SEARCH = probeSearchDenial();
+
+/** The `reason` string every search-denial-gated `it.failing` shares. */
+export const NO_DENY_SEARCH_REASON =
+    'A mode-000 directory does not hide its contents from this process (measured at load — see ' +
+    '`capabilities.spec.ts`). A process holding CAP_DAC_OVERRIDE — root in a container, and so a great deal of ' +
+    'CI — is not bound by the mode, so the open these rules expect to be REFUSED succeeds and there is nothing ' +
+    'left to assert. Not keyed on the platform or the uid: the marker retires the day the override is gone.';
