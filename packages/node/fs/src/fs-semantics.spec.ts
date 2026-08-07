@@ -1105,6 +1105,31 @@ export default async () => {
             }
         });
 
+        await it('a handle-derived stream writes THROUGH the handle', async () => {
+            // `fh.createWriteStream()` used to re-open the path with the class
+            // default flags `'w'`, so it TRUNCATED the file its own handle had
+            // open — and bound a different inode if the name had been replaced
+            // since. It must share the descriptor and its cursor instead.
+            const dir = scratch('fhws');
+            try {
+                const f = join(dir, 'through');
+                const fh = await fsPromises.open(f, 'w+');
+                try {
+                    await fh.write(B('HEAD'));
+                    await new Promise<void>((resolve, reject) => {
+                        const s = fh.createWriteStream();
+                        s.on('error', reject);
+                        s.end('tail', () => resolve());
+                    });
+                } finally {
+                    await fh.close();
+                }
+                expect(readFileSync(f, 'utf8')).toBe('HEADtail');
+            } finally {
+                drop(dir);
+            }
+        });
+
         await it('still concatenates chunked writes', async () => {
             // Passes today only because WriteStream keeps its own `pos`. After
             // the cursor redesign it must pass for the right reason, so this is
