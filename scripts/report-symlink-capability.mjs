@@ -36,7 +36,8 @@ try {
     const target = join(dir, 'target.txt');
     writeFileSync(target, 'probe');
     symlinkSync(target, join(dir, 'link.txt'));
-    verdict = 'CAN_SYMLINK=true — this host may create symlinks, so @gjsify/fs\'s 19 symlink specs RUN and must pass here.';
+    verdict =
+        "CAN_SYMLINK=true — this host may create symlinks, so @gjsify/fs's 19 symlink specs RUN and must pass here.";
 } catch (err) {
     const code = err && typeof err === 'object' && 'code' in err ? err.code : 'unknown';
     verdict =

@@ -367,10 +367,7 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
                 existsSync(join(appDir, 'dist', 'chdir-probe.txt')),
                 'the copy must land in the WORKSPACE, not the caller cwd',
             );
-            assert.ok(
-                !existsSync(join(root, 'dist', 'chdir-probe.txt')),
-                'nothing may be written at the caller cwd',
-            );
+            assert.ok(!existsSync(join(root, 'dist', 'chdir-probe.txt')), 'nothing may be written at the caller cwd');
         },
     );
 

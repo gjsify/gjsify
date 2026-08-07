@@ -206,6 +206,22 @@ describe('gjsify self-update E2E', { timeout: 60_000 }, () => {
                 gjsify: { prebuilds: 'prebuilds' },
             }) + '\n',
         );
+        // The manifest field alone does NOT make the engine detected, and this
+        // line is what actually makes the prefix HEALTHY. `detectNativePackages()`
+        // — which `hasBundlerEngineInstalled()` asks, and which the repair branch
+        // keys on — requires the arch-specific directory to physically exist; a
+        // package declaring `gjsify.prebuilds` with nothing on disk is skipped.
+        // Measured against this fixture: without the directory it answers `[]`,
+        // with it `["@gjsify/rolldown-native"]`.
+        //
+        // Without it the three version-match rows below read as engine-missing,
+        // self-update repairs instead of short-circuiting, and they fail
+        // asserting "Already up to date" — which is exactly how they failed on
+        // `main`. `tests/e2e/global-install-engine/run.mjs` builds its fixture
+        // the same way and documents the same `prebuilds/<os>-<arch>` convention.
+        mkdirSync(join(enginePkgDir, 'prebuilds', `${process.platform}-${process.arch}`), {
+            recursive: true,
+        });
 
         // Empty prefix (no @gjsify/cli).
         prefixEmpty = join(tmpRoot, 'global-empty');
