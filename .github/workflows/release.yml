@@ -93,12 +93,7 @@ jobs:
           echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
 
       - name: Bootstrap the build toolchain (cold trees only)
-        run: |
-          if [ -f packages/infra/cli/lib/index.js ]; then
-            echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
-          else
-            gjs -m "$GJSIFY_BOOTSTRAP" run build:infra
-          fi
+        run: .github/scripts/bootstrap-cold-tree.sh
 
       - name: Build packages
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build
