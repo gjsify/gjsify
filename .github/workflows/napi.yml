@@ -316,7 +316,7 @@ jobs:
           # These jobs never use the tsc bundle, so skip building it.
           gjsify foreach build:gjsify --exclude '@gjsify/tsc'
 
-      # The committed dist/cli.gjs.mjs INLINES the build pipeline's CODE but not
+      # The CLI's `dist/cli.gjs.mjs` INLINES the build pipeline's CODE but not
       # its runtime DATA files: `resolveShim()` (rolldown-plugin-gjsify's
       # app/gjs.ts) hands rolldown FILE paths under
       # packages/infra/rolldown-plugin-gjsify/lib/shims/ (unicorn-magic,
@@ -324,14 +324,24 @@ jobs:
       # `./shims/<name>` subpath export at BUILD time and inlined into the
       # OUTPUT bundle. That `lib/` is a plain-`tsc` build output the polyfill
       # step above never produces (the package has no `build:gjsify` script), so
-      # without this step every `--app gjs` build driven by the committed bundle
-      # dies at config time with `cannot locate the "unicorn-magic" shim` — the
-      # first red of the GJS-engine transparent matrix. `--with-dependencies`
+      # without this step every `--app gjs` build driven by that bundle dies at
+      # config time with `cannot locate the "unicorn-magic" shim` — the first
+      # red of the GJS-engine transparent matrix. `--with-dependencies`
       # tsc-builds the small workspace-dep closure the plugin's own `tsc` needs
       # declarations from (console, deepkit, pnp, blueprint); deps without a
       # `build` script are skipped. Runs in BOTH jobs that save the napi-libs
       # cache so an entry always carries this output regardless of which job's
       # post-job save wins the per-key race (see the cache step above).
+      #
+      # This `lib/` is ALSO what makes the transparent matrix measure THIS
+      # commit's plugin: `napiNodeAddonPlugin` lives in THIS package, not in the
+      # CLI, and the bundle step below reaches it by resolving
+      # `@gjsify/rolldown-plugin-gjsify` through the workspace symlink. That
+      # survives a cache HIT only because the key above is exact-only with NO
+      # `restore-keys` over `packages/*/*/src/**` — all 43 of this package's
+      # sources are `.ts`, so the hash covers the whole input. Adding a
+      # `restore-keys:` fallback there would let this matrix report PASS while
+      # driving a plugin built from a DIFFERENT commit. Do not add one.
       - name: Build @gjsify/rolldown-plugin-gjsify lib (bundler shims)
         if: steps.napi-libs-cache.outputs.cache-hit != 'true'
         run: |
@@ -364,13 +374,85 @@ jobs:
         working-directory: packages/napi/napi
         run: sh test/addons/setup.sh
 
-      # Driven by the COMMITTED dist/cli.gjs.mjs, NOT the published CLI the
-      # consumer gate above uses — and that distinction is the whole point.
+      # ADR 0002 untracked `dist/cli.gjs.mjs`, so the matrix below has to BUILD
+      # the bundle it drives — it used to just find it in the checkout.
+      #
+      # Substituting the published CLI here would be the easy repair and the
+      # wrong one, for the reason the next comment gives: it carries the last
+      # release's plugin, so a PR changing `napiNodeAddonPlugin` would measure
+      # nothing. Falling back to the Node driver when the file is absent would
+      # be worse still — the GJS path would stop being exercised while the job
+      # went green. The bundle has to come from THIS commit's source, which
+      # means building it.
+      #
+      # The package's own `build:gjs-bundle` cannot be used here. It is
+      # `node lib/index.js build …`, so it needs the CLI's own `lib/`, which
+      # comes from `build` = `gjsify tsc …` — and the workspace libs this job
+      # fills in are TRANSPILE-ONLY: `build:gjsify` emits no `lib/types/*.d.ts`
+      # (the cache step above records the same fact from the other side).
+      # Measured on 8ef235413, job 92755831272: 63 errors in 26 files, 34 of
+      # them TS7016 `Could not find a declaration file for module` against
+      # @gjsify/{workspace,npm-registry,tar,semver}, the rest cascading off the
+      # resulting `any`s. NOT `@types/node` — that was installed, and every
+      # `node:` import here typechecked. Giving this job declarations means a
+      # full `gjsify foreach build` (tsc everywhere), the multi-minute build
+      # this job exists to avoid.
+      #
+      # So drive the SAME bundle out of the published CLI instead. That is not
+      # the substitution the comment below rules out: what matters is whose
+      # SOURCE is bundled, not who runs rolldown. The entry is this checkout's
+      # `src/index.ts`, and `src/actions/build.ts` imports
+      # `@gjsify/rolldown-plugin-gjsify` — where `napiNodeAddonPlugin` actually
+      # lives (app/gjs.ts installs it for every `--app gjs` build) — which
+      # resolves through the workspace symlink into the `lib/` built above. The
+      # artifact therefore carries THIS commit's plugin, the whole property the
+      # matrix needs; only the transform pass is last release's.
+      #
+      # `@gjsify/create-app` is built first because it is the ONE workspace dep
+      # of this entry that neither fill step above produces: no `build:gjsify`
+      # (the polyfill foreach skips it) and not in
+      # `@gjsify/rolldown-plugin-gjsify`'s dep closure (`--with-dependencies`
+      # never reaches it), while `src/commands/create.ts` imports it and its
+      # `exports` name a gitignored `lib/`. That was 0a8e5f3d9's red:
+      # `UnresolvedWorkspaceImportError: cannot resolve the workspace package
+      # @gjsify/create-app`. It is the only such hole — the other 26 packages in
+      # this entry's `--app gjs` closure resolve. `--external` is NOT an escape
+      # (the guard says why: stock GJS's ESM loader has no node_modules walker
+      # and does not follow `package.json#exports`, so it would fail at LOAD),
+      # and aliasing it to `@gjsify/empty` would go green while making the
+      # artifact differ from the bundle that SHIPS — the matrix would quietly
+      # stop measuring what it claims to. Its own tsc closure is empty (dep:
+      # yargs; `types: ["node"]`; no `@gjsify/*` imports), so it cannot hit the
+      # .d.ts wall above, and `files: ["src/index.ts","src/create.ts"]` plus
+      # index.ts's `./prompt-template.js` import emits BOTH exported subpaths.
+      #
+      # Both commands share ONE step, and it is deliberately NOT guarded on
+      # `napi-libs-cache`. The guarded steps DEFINE what an entry under that key
+      # carries, and every live `napi-libs-v2` entry was saved by a run that
+      # never built create-app — this PR's own run took an exact hit
+      # (`Cache hit for: napi-libs-v2-104a5967…`) and skipped both of them. A
+      # guard here would be skipped on exactly the hit a workflow-only change
+      # gets and red the matrix: the v1 → v2 incident, repeated. Keeping the two
+      # commands physically together is what stops that guard being re-added by
+      # someone reading only a step name, and it keeps create-app OUT of the
+      # fill-step set the cache comment's invariant is about — so that invariant
+      # stays literally true and no key bump is needed.
+      - name: Build @gjsify/create-app, then the CLI's GJS bundle (ADR 0002 untracked it)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/create-app build
+          cd packages/infra/cli
+          node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js \
+            build src/index.ts --app gjs --outfile dist/cli.gjs.mjs --shebang
+          ls -l dist/cli.gjs.mjs
+
+      # Driven by the dist/cli.gjs.mjs BUILT ABOVE, NOT the published CLI the
+      # consumer gate uses — and that distinction is the whole point.
       # The published CLI carries the LAST RELEASE's plugin, so a PR changing
-      # `napiNodeAddonPlugin` would test nothing at all; the committed bundle
-      # carries THIS commit's plugin (the pre-commit hook rebuilds it, and
-      # main.yml's verify-committed-bundles proves it reproduces from that
-      # source). It also runs the build on `@gjsify/rolldown-native` — the
+      # `napiNodeAddonPlugin` would test nothing at all; a bundle built from
+      # this checkout carries THIS commit's plugin. (Until ADR 0002 the file was
+      # committed and the pre-commit hook kept it fresh; the step above replaces
+      # that.) It also runs the build on `@gjsify/rolldown-native` — the
       # engine where two of the six #840 defects lived (a `null` importer
       # across the JSON hook boundary, and a Rust-`regex`-incompatible filter
       # that silently disabled every interception). A Node-driven build cannot
@@ -385,11 +467,13 @@ jobs:
       #
       # GJSIFY_CLI_ENTRY covers only the gate's build-the-napi-L1 FALLBACK
       # (normally a no-op — the consumer gate above already built lib/esm): the
-      # in-repo Node CLI is not built in this job, so without it that fallback
-      # would spawn a nonexistent packages/infra/cli/lib/index.js. The matrix
-      # BUILD itself is driven by the committed bundle (GJSIFY_GATE_ENGINE=gjs),
-      # never by this entry.
-      - name: Transparent addon matrix (GJS engine, committed CLI bundle)
+      # in-repo Node CLI is not built in this job — the step above emits
+      # `dist/cli.gjs.mjs` and create-app's `lib/`, never
+      # `packages/infra/cli/lib/` — so without it that fallback would spawn a
+      # nonexistent packages/infra/cli/lib/index.js. The matrix BUILD itself is
+      # driven by the bundle built above (GJSIFY_GATE_ENGINE=gjs), never by this
+      # entry.
+      - name: Transparent addon matrix (GJS engine, freshly built CLI bundle)
         working-directory: packages/napi/napi
         env:
           GJSIFY_GATE_ENGINE: gjs
@@ -548,7 +632,7 @@ jobs:
           # These jobs never use the tsc bundle, so skip building it.
           gjsify foreach build:gjsify --exclude '@gjsify/tsc'
 
-      # The committed dist/cli.gjs.mjs INLINES the build pipeline's CODE but not
+      # The CLI's `dist/cli.gjs.mjs` INLINES the build pipeline's CODE but not
       # its runtime DATA files: `resolveShim()` (rolldown-plugin-gjsify's
       # app/gjs.ts) hands rolldown FILE paths under
       # packages/infra/rolldown-plugin-gjsify/lib/shims/ (unicorn-magic,
@@ -556,9 +640,9 @@ jobs:
       # `./shims/<name>` subpath export at BUILD time and inlined into the
       # OUTPUT bundle. That `lib/` is a plain-`tsc` build output the polyfill
       # step above never produces (the package has no `build:gjsify` script), so
-      # without this step every `--app gjs` build driven by the committed bundle
-      # dies at config time with `cannot locate the "unicorn-magic" shim` — the
-      # first red of the GJS-engine transparent matrix. `--with-dependencies`
+      # without this step every `--app gjs` build driven by that bundle dies at
+      # config time with `cannot locate the "unicorn-magic" shim` — the first
+      # red of the GJS-engine transparent matrix. `--with-dependencies`
       # tsc-builds the small workspace-dep closure the plugin's own `tsc` needs
       # declarations from (console, deepkit, pnp, blueprint); deps without a
       # `build` script are skipped. Runs in BOTH jobs that save the napi-libs

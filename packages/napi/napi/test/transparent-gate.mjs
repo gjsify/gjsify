@@ -71,8 +71,9 @@ const runGjsify = (args, opts) => execFileSync(process.execPath, [CLI, ...args],
 
 /**
  * How the gate DRIVES `gjsify build`. Default is the Node CLI entry (npm
- * `rolldown`); `GJSIFY_GATE_ENGINE=gjs` drives the committed GJS bundle
- * instead, i.e. `@gjsify/rolldown-native`.
+ * `rolldown`); `GJSIFY_GATE_ENGINE=gjs` drives the in-repo
+ * `packages/infra/cli/dist/cli.gjs.mjs` instead, i.e.
+ * `@gjsify/rolldown-native`.
  *
  * The engine is not an implementation detail for this gate, it is a distinct
  * risk surface, and the interception had NO coverage on it. Two of the six
@@ -88,11 +89,17 @@ const runGjsify = (args, opts) => execFileSync(process.execPath, [CLI, ...args],
  *     WHOLE pattern rather than one branch, silently disabling every
  *     interception under GJS while npm `rolldown` keeps working.
  *
- * Using the COMMITTED bundle is deliberate: it carries the plugin code of the
- * commit under test (the pre-commit hook rebuilds it; `verify-committed-bundles`
- * proves it reproduces from that source), so no in-repo CLI build is needed —
- * which is what let this run inside the existing consumer job instead of
- * needing its own workspace build.
+ * Driving the IN-REPO bundle is deliberate: it carries the plugin code of the
+ * commit under test, which the published CLI cannot — that one ships the LAST
+ * RELEASE's `napiNodeAddonPlugin`, so a PR changing it would measure nothing.
+ *
+ * ADR 0002 untracked this file (it used to be committed, kept fresh by the
+ * pre-commit hook and proved reproducible by `verify-committed-bundles`), so
+ * producing it is now the CALLER's job — see napi.yml's "Build
+ * @gjsify/create-app, then the CLI's GJS bundle" step in the better-sqlite3
+ * consumer job. This gate does NOT build it, and deliberately does not fall
+ * back to the Node driver when it is absent: that would retire the GJS path
+ * while reporting green — the false green the six #840 defects rode in on.
  *
  * The prebuild env must be exported BEFORE the process starts: the typelib
  * lookup happens inside the GJS runtime, so the CLI cannot repair it from the
@@ -103,7 +110,13 @@ function resolveBuildDriver() {
         return { cmd: process.execPath, pre: [CLI], env: {}, label: 'node/npm-rolldown' };
     }
     const bundle = join(ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
-    if (!existsSync(bundle)) die(`GJSIFY_GATE_ENGINE=gjs but the committed CLI bundle is missing: ${bundle}`);
+    if (!existsSync(bundle))
+        die(
+            `GJSIFY_GATE_ENGINE=gjs but the CLI's GJS bundle is missing: ${bundle} — untracked since ` +
+                `ADR 0002, so the CALLER must build it (napi.yml, better-sqlite3 consumer job, ` +
+                `"Build @gjsify/create-app, then the CLI's GJS bundle"). Not falling back to the Node ` +
+                `driver on purpose: that would report green without exercising @gjsify/rolldown-native.`,
+        );
     const prebuilds = [
         join(ROOT, 'packages', 'infra', 'rolldown-native-linux-x64', 'prebuilds', 'linux-x64'),
         join(ROOT, 'node_modules', '@gjsify', 'rolldown-native', 'prebuilds', 'linux-x64'),
