@@ -47,22 +47,31 @@ import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import GioUnix from '@girs/giounix-2.0';
 
+import { createNodeError } from './errors.js';
+
 import type { OpenSpec } from './posix-flags.js';
 
 /** POSIX errno numbers for the codes this module raises, so `err.errno` is Node's. */
 const ERRNO: Record<string, number> = {
     EPERM: -1,
     ENOENT: -2,
+    EIO: -5,
+    ENXIO: -6,
     EBADF: -9,
     EACCES: -13,
     EEXIST: -17,
     ENOTDIR: -20,
     EISDIR: -21,
     EINVAL: -22,
+    ENFILE: -23,
+    EMFILE: -24,
+    ETXTBSY: -26,
     ENOSPC: -28,
+    ESPIPE: -29,
     EROFS: -30,
+    ENAMETOOLONG: -36,
     ENOTEMPTY: -39,
-    EIO: -5,
+    ELOOP: -40,
 };
 
 type ErrnoExceptionWithDest = NodeJS.ErrnoException & { dest?: string };
@@ -100,6 +109,20 @@ function describe(code: string): string {
             return 'operation not permitted';
         case 'EINVAL':
             return 'invalid argument';
+        case 'ELOOP':
+            return 'too many symbolic links encountered';
+        case 'ENAMETOOLONG':
+            return 'name too long';
+        case 'EMFILE':
+            return 'too many open files';
+        case 'ENFILE':
+            return 'file table overflow';
+        case 'EROFS':
+            return 'read-only file system';
+        case 'ESPIPE':
+            return 'invalid seek';
+        case 'ENXIO':
+            return 'no such device or address';
         default:
             return 'i/o error';
     }
@@ -167,10 +190,20 @@ export function closeFd(fd: number): void {
  * `file_test(EXISTS)` was the wrong instrument for the check this replaces.
  */
 export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoException {
+    // The kernel's own order, so a path that trips two rules reports the code
+    // `open(2)` would. Length goes first: it is decided before any lookup
+    // happens, and it needs no syscall at all.
+    const tooLong = nameTooLong(path);
+    if (tooLong) return tooLong;
+
     const file = Gio.File.new_for_path(path);
     let existing: Gio.FileInfo | null = null;
     try {
-        existing = file.query_info('standard::type', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+        existing = file.query_info(
+            'standard::type,standard::symlink-target',
+            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+            null,
+        );
     } catch {
         existing = null;
     }
@@ -180,10 +213,26 @@ export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoE
         // is really a permission error would be a silently wrong answer from
         // the mechanism added to remove silently wrong answers.
         if (spec.excl) return fsError('EEXIST', 'open', path);
+
+        // The open that just failed FOLLOWED this symlink (unless the caller
+        // asked it not to), so the name found here is not the object the kernel
+        // refused. Two of `open(2)`'s codes are reachable only from the chain,
+        // and both used to arrive as EACCES — which is what sent a retry loop
+        // keyed on ELOOP down the give-up branch instead.
+        if (existing.get_file_type() === Gio.FileType.SYMBOLIC_LINK && !spec.nofollow) {
+            const chain = walkSymlinkChain(file);
+            if (chain === 'loop') return fsError('ELOOP', 'open', path);
+            if (chain === 'too-long') return fsError('ENAMETOOLONG', 'open', path);
+            // A dangling link reads as "the name is taken" to `lstat` but as
+            // "nothing is there" to `open`, which is why `O_CREAT` creates the
+            // TARGET through it while a plain read reports ENOENT.
+            if (chain === 'dangling' && !spec.creat) return fsError('ENOENT', 'open', path);
+        }
+
         if (existing.get_file_type() === Gio.FileType.DIRECTORY && spec.writable) {
             return fsError('EISDIR', 'open', path);
         }
-        return fsError('EACCES', 'open', path);
+        return refusalNotAboutThePath(path, spec, file);
     }
 
     if (!spec.creat) return fsError('ENOENT', 'open', path);
@@ -196,6 +245,80 @@ export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoE
     } catch {
         return fsError('ENOENT', 'open', path);
     }
+    return refusalNotAboutThePath(path, spec, file);
+}
+
+/** `NAME_MAX` / `PATH_MAX`, counted in BYTES — the limits are on the encoded name, not on code points. */
+function nameTooLong(path: string): NodeJS.ErrnoException | null {
+    const encoder = new TextEncoder();
+    if (encoder.encode(path).length > 4096) return fsError('ENAMETOOLONG', 'open', path);
+    for (const component of path.split('/')) {
+        if (encoder.encode(component).length > 255) return fsError('ENAMETOOLONG', 'open', path);
+    }
+    return null;
+}
+
+/**
+ * Follow a symlink chain the way `open(2)` would, and name how it ends.
+ *
+ * `SYMLOOP_MAX` is 40 on Linux: the kernel gives up at that depth and reports
+ * ELOOP whether or not the links form an actual cycle. Counting hops is
+ * therefore the faithful test, and it terminates on a self-referential pair
+ * without having to remember where it has already been.
+ */
+function walkSymlinkChain(start: Gio.File): 'loop' | 'dangling' | 'too-long' | 'resolved' {
+    const encoder = new TextEncoder();
+    let current = start;
+    for (let hop = 0; hop < 40; hop++) {
+        let info: Gio.FileInfo;
+        try {
+            info = current.query_info(
+                'standard::type,standard::symlink-target',
+                Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+                null,
+            );
+        } catch {
+            return 'dangling';
+        }
+        if (info.get_file_type() !== Gio.FileType.SYMBOLIC_LINK) return 'resolved';
+        const target = info.get_symlink_target();
+        if (!target) return 'dangling';
+        if (encoder.encode(target).length > 4096) return 'too-long';
+        const parent = current.get_parent();
+        current = target.startsWith('/')
+            ? Gio.File.new_for_path(target)
+            : (parent?.resolve_relative_path(target) ?? Gio.File.new_for_path(target));
+    }
+    return 'loop';
+}
+
+/**
+ * The refusals that are not about this path at all.
+ *
+ * Everything above reads the NAME; these two read the process and the mount,
+ * and they are why this function no longer ends in a bare `EACCES`. A
+ * descriptor-table exhaustion reported as "permission denied" is the worst of
+ * the codes that were collapsed: EMFILE is the one a caller is expected to back
+ * off and retry on, and EACCES tells it to give up instead.
+ */
+function refusalNotAboutThePath(path: string, spec: OpenSpec, file: Gio.File): NodeJS.ErrnoException {
+    // Ask for a descriptor that cannot be refused for any reason of its own. If
+    // even that fails, the table is full and the caller's path was never the
+    // problem. One fd, closed immediately.
+    const probe = GLib.open('/dev/null', 0, 0);
+    if (probe < 0) return fsError('EMFILE', 'open', path);
+    GLib.close(probe);
+
+    if (spec.writable || spec.creat) {
+        try {
+            const fsInfo = file.query_filesystem_info('filesystem::readonly', null);
+            if (fsInfo.get_attribute_boolean('filesystem::readonly')) return fsError('EROFS', 'open', path);
+        } catch {
+            // A mount that will not describe itself is not evidence of anything;
+            // fall through to the permission answer rather than invent one.
+        }
+    }
+
     return fsError('EACCES', 'open', path);
 }
 

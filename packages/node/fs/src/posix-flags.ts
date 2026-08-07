@@ -124,6 +124,8 @@ export interface OpenSpec {
     excl: boolean;
     /** `O_TRUNC` */
     trunc: boolean;
+    /** `O_NOFOLLOW` — the open refuses a symlink instead of following it. */
+    nofollow: boolean;
 }
 
 // Node's `stringToFlags()` table, verbatim. Reference: Node.js
@@ -202,6 +204,7 @@ export function parseOpenFlags(flags: OpenFlags | number | string | undefined | 
         // fine today, so exclusivity demands both bits.
         excl: (posix & O.O_CREAT) !== 0 && (posix & O.O_EXCL) !== 0,
         trunc: (posix & O.O_TRUNC) !== 0,
+        nofollow: O.O_NOFOLLOW !== 0 && (posix & O.O_NOFOLLOW) !== 0,
     };
 }
 
