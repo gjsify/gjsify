@@ -48,7 +48,8 @@
         "@girs/webkit-6.0": "^4.1.0",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
-        "@gjsify/message-channel": "workspace:^"
+        "@gjsify/message-channel": "workspace:^",
+        "@gjsify/webkit-native": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
