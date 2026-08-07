@@ -9,6 +9,7 @@ import '@gjsify/adwaita-web';
 
 import { AdwAvatarTest } from './adw-avatar.spec.js';
 import { AdwButtonRowTest } from './adw-button-row.spec.js';
+import { AdwBreakpointsTest } from './breakpoints.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwDropDownTest } from './adw-drop-down.spec.js';
@@ -21,6 +22,7 @@ import { AdwStyleIsolationTest } from './style-isolation.spec.js';
 run({
     AdwAvatarTest,
     AdwButtonRowTest,
+    AdwBreakpointsTest,
     AdwDataGridTest,
     AdwDialogTest,
     AdwDropDownTest,
