@@ -375,17 +375,26 @@ jobs:
       # went green. The bundle has to come from THIS commit's source, which
       # means building it.
       #
-      # Two steps because they answer different questions: `build` produces the
-      # CLI's own `lib/` (the bundle's entry), `build:gjs-bundle` produces the
-      # artifact. The polyfill libs and the bundler plugin they both need were
-      # built further up, and the published CLI on PATH is what drives this
-      # build — the same bootstrap `.github/actions/gjsify-setup` performs.
+      # The package's own `build:gjs-bundle` cannot be used here, and the reason
+      # is the same one that made this job attractive in the first place. It is
+      # `node lib/index.js build …`, so it needs the CLI's `lib/`, which comes
+      # from `build` = `gjsify tsc …` — and this job deliberately installs only
+      # the slice the bundler needs, so that typecheck dies on TS7016/TS7006
+      # against `@types/node` it never installed. Measured here, not guessed.
+      #
+      # So drive the SAME bundle out of the published CLI instead. That is not
+      # the substitution the comment below rules out: what matters is whose
+      # SOURCE is bundled, not who runs rolldown. The entry is this checkout's
+      # `src/index.ts`, so the artifact carries THIS commit's
+      # `napiNodeAddonPlugin` — which is the whole property the matrix needs.
+      # Using the published CLI as the DRIVER would be the broken variant, since
+      # it would execute last release's plugin.
       - name: Build the CLI's GJS bundle (untracked since ADR 0002)
+        working-directory: packages/infra/cli
         run: |
-          export PATH="$PWD/node_modules/.bin:$PATH"
-          gjsify workspace @gjsify/cli build
-          gjsify workspace @gjsify/cli build:gjs-bundle
-          ls -l packages/infra/cli/dist/cli.gjs.mjs
+          node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js \
+            build src/index.ts --app gjs --outfile dist/cli.gjs.mjs --shebang
+          ls -l dist/cli.gjs.mjs
 
       # Driven by the dist/cli.gjs.mjs BUILT ABOVE, NOT the published CLI the
       # consumer gate uses — and that distinction is the whole point.
