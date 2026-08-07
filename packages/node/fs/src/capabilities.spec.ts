@@ -21,9 +21,23 @@
 // the failure is tolerated and retires itself the moment the host gains the
 // privilege.
 
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+    chmodSync,
+    closeSync,
+    existsSync,
+    ftruncateSync,
+    lstatSync,
+    mkdirSync,
+    mkdtempSync,
+    openSync,
+    rmSync,
+    symlinkSync,
+    writeFileSync,
+    writeSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Buffer } from 'node:buffer';
 
 /**
  * Can this process create a symbolic link?
@@ -128,6 +142,57 @@ function probeProcFdSupport(): boolean {
 }
 
 export const CAN_PROC_FD = probeProcFdSupport();
+
+/**
+ * Does `ftruncate` act on the DESCRIPTOR, ignoring the file's own mode?
+ *
+ * `ftruncate(2)` checks exactly one thing: that the fd is open for writing. It
+ * never looks at the permission bits, so the handle that created a mode-0444
+ * file can still shorten it. GJS has no `g_ftruncate` and no route from an fd to
+ * a `GSeekable` (`GioUnix.OutputStream` does not implement it, and
+ * `GBufferedOutputStream` / `GDataOutputStream` wrapped around one both report
+ * `can_truncate() == false` — measured under gjs 1.88.1), so truncation has to
+ * re-open the descriptor by its procfs name, and that second `open(2)` IS
+ * checked against the file's mode.
+ *
+ * Measured rather than keyed on the runtime, for the reason {@link CAN_SYMLINK}
+ * gives: it is a property of what the host can express, and the marker must
+ * retire itself the day a real binding lands rather than have to be remembered.
+ */
+function probeFdTruncateIgnoresFileMode(): boolean {
+    let dir: string | undefined;
+    try {
+        dir = mkdtempSync(join(tmpdir(), 'gjsify-ftruncate-probe-'));
+        const fd = openSync(join(dir, 'ro'), 'w', 0o444) as unknown as number;
+        try {
+            writeSync(fd, Buffer.from('ABCDEFGH'));
+            ftruncateSync(fd, 4);
+            return true;
+        } finally {
+            closeSync(fd);
+        }
+    } catch {
+        return false;
+    } finally {
+        if (dir) {
+            try {
+                rmSync(dir, { recursive: true, force: true });
+            } catch {
+                // A probe must not fail the run over its own cleanup.
+            }
+        }
+    }
+}
+
+export const CAN_FD_TRUNCATE_ANY_MODE = probeFdTruncateIgnoresFileMode();
+
+/** The `reason` string the mode-independent-ftruncate rule carries. */
+export const NO_FD_TRUNCATE_REASON =
+    'This runtime cannot call ftruncate(2) on a descriptor (measured at load — see `capabilities.spec.ts`). GJS ' +
+    'has no `g_ftruncate` and no route from an fd to a GSeekable, so truncation re-opens the descriptor by its ' +
+    'procfs name — and that second open(2) IS checked against the file mode, which 0444 denies. The ACCESS-mode ' +
+    'half of the contract (a read-only handle must not be able to truncate at all) is enforced and separately ' +
+    'tested; this marker covers only the file-mode half, and it retires the day a real binding exists.';
 
 /** The `reason` string every procfs-gated `it.failing` shares. */
 export const NO_PROC_FD_REASON =

@@ -19,10 +19,14 @@
 //
 // WHY THE UMASK IS MEASURED HERE AND NEVER READ
 //
-// `process.umask()` in `@gjsify/process` returns a hardcoded `0o22` and ignores
-// its setter, so a test that trusted it would be right only on a 022 machine
-// and would silently pass for the wrong reason everywhere else. There is also
-// no `g_umask` binding, so a test cannot CHANGE the umask from inside GJS.
+// `process.umask()` in `@gjsify/process` used to return a hardcoded `0o22`, so
+// a test that trusted it would be right only on a 022 machine and would
+// silently pass for the wrong reason everywhere else. It reads the live mask
+// now — rule U-1 below is what holds it to that — but this file still must not
+// USE it: the thing under test and the yardstick cannot be the same
+// instrument. There is also no `g_umask` binding, so a test cannot CHANGE the
+// mask from inside GJS.
+//
 // Both problems go away by measuring the live mask from an ordinary directory
 // create — a DIRECTORY, because a file probe's 0o666 base cannot observe a
 // mask over the execute bits, which is exactly how the first patch round
@@ -32,6 +36,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import {
     appendFileSync,
     closeSync,
+    createReadStream,
     createWriteStream,
     existsSync,
     ftruncateSync,
@@ -52,6 +57,7 @@ import {
     writeSync,
     writevSync,
     chmodSync,
+    writeFile,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -64,6 +70,8 @@ import {
     NO_SETGID_REASON,
     CAN_PROC_FD,
     NO_PROC_FD_REASON,
+    CAN_FD_TRUNCATE_ANY_MODE,
+    NO_FD_TRUNCATE_REASON,
 } from './capabilities.spec.js';
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -87,6 +95,73 @@ function modeOf(path: string): number {
 }
 
 const B = (s: string) => Buffer.from(s);
+
+/**
+ * A plain descriptor NUMBER.
+ *
+ * Node's `openSync` returns one; gjsify's returns a `FileHandle` (a
+ * pre-existing divergence this ledger records rather than hides). Tests that
+ * need the number — to close it behind the object's back, or to prove an
+ * fd-number call site behaves — go through here so they read the same on both
+ * legs.
+ */
+function fdOf(handle: unknown): number {
+    return typeof handle === 'number' ? handle : (handle as { fd: number }).fd;
+}
+
+/** The error `fn` threw, or `undefined`. */
+function caught(fn: () => unknown): NodeJS.ErrnoException | undefined {
+    try {
+        fn();
+        return undefined;
+    } catch (err: unknown) {
+        return err as NodeJS.ErrnoException;
+    }
+}
+
+/**
+ * Assert the `code` and not the message.
+ *
+ * `toThrow(/EACCES/)` passes for a raw `Gio.IOErrorEnum` whose localized text
+ * happens to contain the word, and fails on a correct error raised in another
+ * locale. The `code` is the contract every caller actually branches on.
+ */
+function expectCode(fn: () => unknown, code: string): void {
+    expect(caught(fn)?.code).toBe(code);
+}
+
+async function expectRejectedCode(fn: () => Promise<unknown>, code: string): Promise<void> {
+    let err: NodeJS.ErrnoException | undefined;
+    try {
+        await fn();
+    } catch (thrown: unknown) {
+        err = thrown as NodeJS.ErrnoException;
+    }
+    expect(err?.code).toBe(code);
+}
+
+type CallbackWriteOptions = { encoding?: string; mode?: number; flag?: string };
+
+function callbackWriteFile(path: string, data: string, options: CallbackWriteOptions): Promise<void> {
+    return new Promise((resolve, reject) => {
+        writeFile(path, data, options as never, (err) => (err ? reject(err) : resolve()));
+    });
+}
+
+function callbackWriteError(
+    path: string,
+    data: string,
+    options: CallbackWriteOptions,
+): Promise<NodeJS.ErrnoException | null> {
+    return new Promise((resolve) => {
+        writeFile(path, data, options as never, resolve);
+    });
+}
+
+/** Names in the CWD that only a descriptor-stringified-into-a-path can create. */
+function strayDescriptorFiles(): string[] {
+    return readdirSync('.').filter((name) => /^\d+$/.test(name) || name.includes('[object'));
+}
 
 /**
  * The live file-creation mask, measured from a directory create.
@@ -1151,7 +1226,651 @@ export default async () => {
         });
     });
 
-    // ─── 7. the registry ─────────────────────────────────────────────────────
+    // ─── 7. the codes and cursors an fd-first rewrite newly exposes ──────────
+    //
+    // Every rule below was demonstrated against a GREEN suite. The redesign
+    // landed, both legs passed, and three adversarial reads still produced a
+    // concrete failing sequence apiece — so each of these was written to FAIL
+    // on the tree that had just been declared correct.
+
+    await describe('fs — mode is parsed the way Node parses it', async () => {
+        await it('M-1 a string mode that parses NEGATIVE is refused', async () => {
+            // `parseInt('-1', 8)` is -1, not NaN, so a NaN-only guard handed it
+            // to open(2), where the kernel read the gint as unsigned and masked
+            // it to 0o7777 — the file came out SETUID + SETGID + STICKY.
+            const dir = scratch('m1');
+            try {
+                const f = join(dir, 'neg');
+                expect(() => openSync(f, 'w', '-1' as unknown as number)).toThrow();
+                expect(existsSync(f)).toBe(false);
+
+                const d = join(dir, 'negdir');
+                expect(() => mkdirSync(d, '-1' as unknown as number)).toThrow();
+                expect(existsSync(d)).toBe(false);
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('M-2 a string mode wider than uint32 is refused', async () => {
+            // Well-formed octal, so a digit check alone lets it through:
+            // 0o77777777777 is 8_589_934_591, which does not fit the guint32
+            // the syscall takes, and it arrived truncated as 0o7755.
+            const dir = scratch('m2');
+            try {
+                const f = join(dir, 'huge');
+                expect(() => openSync(f, 'w', '77777777777' as unknown as number)).toThrow();
+                expect(existsSync(f)).toBe(false);
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('M-3 a numeric mode out of range is refused; 0 and octal strings are not', async () => {
+            const dir = scratch('m3');
+            try {
+                expect(() => openSync(join(dir, 'a'), 'w', -1)).toThrow();
+                expect(() => openSync(join(dir, 'b'), 'w', 0.5)).toThrow();
+                expect(() => openSync(join(dir, 'c'), 'w', 2 ** 32)).toThrow();
+
+                // The two the guard must NOT reject. `'700'` is the documented
+                // octal-string form, and 0 is a valid mode that an earlier
+                // `||= 0o666` silently replaced with a readable file.
+                const umask = measureUmask(dir);
+                const ok = join(dir, 'ok');
+                closeSync(fdOf(openSync(ok, 'w', '700' as unknown as number)));
+                expect(modeOf(ok)).toBe(fileModeFor(0o700, umask));
+
+                const zero = join(dir, 'zero');
+                closeSync(fdOf(openSync(zero, 'w', 0)));
+                expect(modeOf(zero)).toBe(0);
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — open() names the reason it failed', async () => {
+        await it.failing(
+            'C-1 a symlink cycle is ELOOP, not EACCES',
+            async () => {
+                // The classifier ended in a bare `EACCES` for anything it could
+                // not explain, and a NOFOLLOW lookup SUCCEEDS on a link, so
+                // every chain failure landed there. A retry loop keyed on ELOOP
+                // took the give-up branch instead.
+                const dir = scratch('c1');
+                try {
+                    const a = join(dir, 'a');
+                    const b = join(dir, 'b');
+                    symlinkSync(b, a);
+                    symlinkSync(a, b);
+                    expectCode(() => openSync(a, 'r'), 'ELOOP');
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
+
+        await it.failing(
+            'C-2 a dangling symlink is ENOENT to read and EEXIST to create exclusively',
+            async () => {
+                // Two different answers about one name, and neither is EACCES:
+                // `lstat` says the name is taken, so `wx` must refuse; `open`
+                // says nothing is there, so `r` must be ENOENT.
+                const dir = scratch('c2');
+                try {
+                    const link = join(dir, 'dangling');
+                    symlinkSync(join(dir, 'absent'), link);
+                    expectCode(() => openSync(link, 'r'), 'ENOENT');
+                    expectCode(() => openSync(link, 'wx'), 'EEXIST');
+
+                    // ...and a plain create still writes THROUGH it, as open(2)
+                    // does: the TARGET appears and the link stays a link.
+                    closeSync(fdOf(openSync(link, 'w')));
+                    expect(existsSync(join(dir, 'absent'))).toBe(true);
+                    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK },
+        );
+
+        await it('C-3 an over-long name is ENAMETOOLONG, not EACCES', async () => {
+            const dir = scratch('c3');
+            try {
+                expectCode(() => openSync(join(dir, 'x'.repeat(500)), 'w'), 'ENAMETOOLONG');
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('C-4 the codes that were already right stay right', async () => {
+            // The regression guard for the classifier rewrite: widening it must
+            // not move ENOTDIR / ENOENT / EACCES off their own cases.
+            const dir = scratch('c4');
+            try {
+                const file = join(dir, 'plain');
+                writeFileSync(file, 'x');
+                expectCode(() => openSync(join(file, 'child'), 'w'), 'ENOTDIR');
+                expectCode(() => openSync(join(dir, 'absent'), 'r'), 'ENOENT');
+
+                const locked = join(dir, 'locked');
+                mkdirSync(locked, { mode: 0o500 });
+                try {
+                    let opened: unknown;
+                    try {
+                        opened = openSync(join(locked, 'nope'), 'w');
+                    } catch (err: unknown) {
+                        expect((err as NodeJS.ErrnoException).code).toBe('EACCES');
+                    }
+                    // A process with CAP_DAC_OVERRIDE (root in a container) is
+                    // not bound by the mode, so there is nothing to assert —
+                    // but the descriptor it just got still has to be released.
+                    if (opened !== undefined) closeSync(fdOf(opened));
+                } finally {
+                    chmodSync(locked, 0o700);
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — ftruncate obeys the descriptor', async () => {
+        await it('F-1 a READ-ONLY handle cannot truncate', async () => {
+            // ftruncate(2) checks the access mode and nothing else, so this is
+            // EINVAL. The re-open that truncation has to use asks the kernel for
+            // its own fresh permission and is GRANTED it, so without an explicit
+            // gate a handle opened 'r' silently destroyed the file.
+            // `_readCore`/`_writeCore` have carried the same gate since this
+            // redesign began; truncate was the one byte-mover left outside it.
+            const dir = scratch('f1');
+            try {
+                const f = join(dir, 'victim');
+                writeFileSync(f, '0123456789');
+
+                const fd = fdOf(openSync(f, 'r'));
+                try {
+                    expectCode(() => ftruncateSync(fd, 4), 'EINVAL');
+                    expect(readFileSync(f, 'utf8')).toBe('0123456789');
+                } finally {
+                    closeSync(fd);
+                }
+
+                const handle = await fsPromises.open(f, 'r');
+                try {
+                    await expectRejectedCode(() => handle.truncate(4), 'EINVAL');
+                    expect(readFileSync(f, 'utf8')).toBe('0123456789');
+                } finally {
+                    await handle.close();
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('F-2 a WRITE-ONLY file truncates through the handle that made it', async () => {
+            // Mode 0o200 grants write and nothing else. Truncation used to
+            // re-open O_RDWR, which that mode refuses, so the creating handle
+            // could write the file but not shorten it. O_WRONLY is the least
+            // privilege that can truncate, and it is what ftruncate(2) needs.
+            const dir = scratch('f2');
+            try {
+                const fd = fdOf(openSync(join(dir, 'wonly'), 'w', 0o200));
+                try {
+                    writeSync(fd, B('AAAABBBB'));
+                    ftruncateSync(fd, 4);
+                    expect(fstatSync(fd).size).toBe(4);
+                } finally {
+                    closeSync(fd);
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('F-3 a refused truncate is a Node error, never a bare GError', async () => {
+            // The SHAPE rule, asserted separately from the outcome on purpose.
+            // When this failed it threw a raw `Gio.IOErrorEnum` whose `code` was
+            // the NUMBER 14 and which was not an Error at all, so
+            // `catch (e) { if (e.code === 'EACCES') }` could not see it. Where
+            // the host can truncate through the fd nothing is thrown and there
+            // is nothing to check: the rule is about the failure, not about
+            // whether one happens.
+            const dir = scratch('f3');
+            try {
+                const fd = fdOf(openSync(join(dir, 'ro'), 'w', 0o444));
+                try {
+                    writeSync(fd, B('AAAABBBB'));
+                    try {
+                        ftruncateSync(fd, 4);
+                    } catch (err: unknown) {
+                        expect(err instanceof Error).toBe(true);
+                        expect(typeof (err as NodeJS.ErrnoException).code).toBe('string');
+                        expect(typeof (err as NodeJS.ErrnoException).syscall).toBe('string');
+                    }
+                } finally {
+                    closeSync(fd);
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it.failing(
+            'F-4 ftruncate ignores the FILE mode, only the access mode',
+            async () => {
+                const dir = scratch('f4');
+                try {
+                    const fd = fdOf(openSync(join(dir, 'ro'), 'w', 0o444));
+                    try {
+                        writeSync(fd, B('AAAABBBB'));
+                        ftruncateSync(fd, 4);
+                        expect(fstatSync(fd).size).toBe(4);
+                    } finally {
+                        closeSync(fd);
+                    }
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_FD_TRUNCATE_REASON,
+            { when: !CAN_FD_TRUNCATE_ANY_MODE },
+        );
+    });
+
+    await describe('fs — a descriptor is a descriptor, not a filename', async () => {
+        await it('D-1 the whole-file writers accept an fd and write at its cursor', async () => {
+            // `normalizePath(8)` is the string '8' and `normalizePath(handle)`
+            // is '[object Object]', so these wrote the payload to a file of
+            // that NAME in the process CWD, left the intended file untouched,
+            // and reported success. The read twin `readFileSync(fd)` had
+            // already been fixed, so the two halves of one API disagreed.
+            const dir = scratch('d1');
+            try {
+                const f = join(dir, 'log');
+                const handle = await fsPromises.open(f, 'w');
+                try {
+                    writeSync(handle.fd, B('HEAD'));
+                    writeFileSync(handle.fd, 'BODY');
+                    appendFileSync(handle.fd, 'TAIL');
+                } finally {
+                    await handle.close();
+                }
+                expect(readFileSync(f, 'utf8')).toBe('HEADBODYTAIL');
+                // A mis-route is not only a lost write: it is a stray file
+                // somewhere nobody thinks to look.
+                expect(strayDescriptorFiles()).toEqualArray([]);
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('D-2 fsPromises.writeFile / readFile accept a FileHandle', async () => {
+            const dir = scratch('d2');
+            try {
+                const f = join(dir, 'handle');
+
+                const writer = await fsPromises.open(f, 'w');
+                try {
+                    await fsPromises.writeFile(writer, 'DATA');
+                } finally {
+                    await writer.close();
+                }
+                expect(readFileSync(f, 'utf8')).toBe('DATA');
+
+                // readFile(handle) reads from the CURRENT position to EOF, so
+                // after two bytes have been consumed it returns only the rest.
+                const reader = await fsPromises.open(f, 'r');
+                try {
+                    await reader.read(Buffer.alloc(2), 0, 2, null);
+                    expect(await fsPromises.readFile(reader, 'utf8')).toBe('TA');
+                } finally {
+                    await reader.close();
+                }
+                expect(strayDescriptorFiles()).toEqualArray([]);
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('D-3 readFileSync accepts what openSync returned, unwrapped or not', async () => {
+            // Deliberately NOT `fdOf(...)`: the value under test is the one
+            // `openSync` HANDS BACK. On gjsify that is a FileHandle rather than
+            // Node's number, and the object fell past the numeric branch into
+            // `normalizePath`, which read `'[object Object]'` from the CWD.
+            const dir = scratch('d3');
+            try {
+                const f = join(dir, 'r');
+                writeFileSync(f, 'CONTENT');
+                const opened = openSync(f, 'r');
+                try {
+                    expect(readFileSync(opened as unknown as number, 'utf8')).toBe('CONTENT');
+                } finally {
+                    closeSync(fdOf(opened));
+                }
+                expect(strayDescriptorFiles()).toEqualArray([]);
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — a closed descriptor is EBADF', async () => {
+        await it('B-1 every fd operation on a closed fd reports EBADF', async () => {
+            // `_teardown()` deletes the registry entry, so the lookup missed
+            // before the `_closed` guard could run and threw
+            // `Error('No instance found for fd!')` — no `code` at all. That
+            // made the guard dead for every fd-NUMBER call site, which is all
+            // of them except a caller still holding the FileHandle.
+            const dir = scratch('b1');
+            try {
+                const fd = fdOf(openSync(join(dir, 'gone'), 'w+'));
+                closeSync(fd);
+
+                expectCode(() => writeSync(fd, B('x')), 'EBADF');
+                expectCode(() => readSync(fd, Buffer.alloc(4), 0, 4, null), 'EBADF');
+                expectCode(() => fstatSync(fd), 'EBADF');
+                expectCode(() => ftruncateSync(fd, 0), 'EBADF');
+                expectCode(() => closeSync(fd), 'EBADF');
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('B-2 a closed FileHandle reports EBADF too', async () => {
+            const dir = scratch('b2');
+            try {
+                const handle = await fsPromises.open(join(dir, 'gone'), 'w+');
+                await handle.close();
+                // `stat()` resolves the fd through /proc/self/fd/N, which stops
+                // existing along with the descriptor — so without an explicit
+                // guard the caller got a NOT_FOUND about a procfs path it never
+                // named.
+                await expectRejectedCode(() => handle.stat(), 'EBADF');
+                await expectRejectedCode(() => handle.truncate(0), 'EBADF');
+                await expectRejectedCode(() => handle.write(Buffer.from('x'), 0, 1, null), 'EBADF');
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — the read window is the buffer the caller passed', async () => {
+        await it('W-1 length defaults to what fits AFTER the offset', async () => {
+            // Both spellings defaulted `length` to the WHOLE buffer, ignoring
+            // the offset, so the documented options form threw RangeError where
+            // Node reads `byteLength - offset` bytes.
+            const dir = scratch('w1');
+            try {
+                const f = join(dir, 'abc');
+                writeFileSync(f, 'abcdefgh');
+
+                const handle = await fsPromises.open(f, 'r');
+                try {
+                    const result = await handle.read({ buffer: Buffer.alloc(8), offset: 4 });
+                    expect(result.bytesRead).toBe(4);
+                    expect((result.buffer as Buffer).toString('utf8', 4, 8)).toBe('abcd');
+                } finally {
+                    await handle.close();
+                }
+
+                const fd = fdOf(openSync(f, 'r'));
+                try {
+                    expect(readSync(fd, Buffer.alloc(8), { offset: 4 })).toBe(4);
+                } finally {
+                    closeSync(fd);
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('W-2 a length past the end of the view is refused', async () => {
+            // The transfer was bounded by the ArrayBuffer rather than by the
+            // caller's VIEW. On a runtime whose Buffer pools its allocations —
+            // Node's does — that is a silent overrun into the NEIGHBOURING
+            // buffer instead of an error, which is why the bound is checked
+            // rather than relied upon.
+            const dir = scratch('w2');
+            try {
+                const f = join(dir, 'abc');
+                writeFileSync(f, 'abcdefgh');
+                const fd = fdOf(openSync(f, 'r'));
+                try {
+                    // The CODE, not just "it threw": the unchecked transfer
+                    // also ended in a RangeError, but a bare one with no `code`
+                    // — raised by `.set()` after the bytes had already been
+                    // consumed from the kernel, and only because this runtime's
+                    // Buffer happens not to pool.
+                    expectCode(() => readSync(fd, Buffer.alloc(8), 4, 8, null), 'ERR_OUT_OF_RANGE');
+                } finally {
+                    closeSync(fd);
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — positional I/O needs a descriptor that can seek', async () => {
+        await it('S-1 a character device still takes positional reads', async () => {
+            // The regression guard for the seekability check itself. "Seekable
+            // means S_IFREG or S_IFBLK" is the obvious rule and it is WRONG:
+            // most character devices seek fine, and Node reads /dev/zero at an
+            // explicit position without complaint. Refusing them would trade a
+            // stray GLib-CRITICAL for an ESPIPE that Node never raises — a
+            // strictly worse bug than the one being fixed.
+            //
+            // The FIFO half of this rule (a pipe MUST report ESPIPE, and
+            // sequential I/O on one must emit no CRITICAL) needs `mkfifo(3)`,
+            // which neither `node:fs` nor GLib exposes, so it is verified by
+            // the out-of-suite reproduction instead of here.
+            if (!existsSync('/dev/zero')) return;
+            const fd = fdOf(openSync('/dev/zero', 'r'));
+            try {
+                expect(readSync(fd, Buffer.alloc(4), 0, 4, 0)).toBe(4);
+            } finally {
+                closeSync(fd);
+            }
+        });
+    });
+
+    await describe('fs — streams ride the descriptor they were given', async () => {
+        await it('R-1 a handle read stream resumes at the handle cursor', async () => {
+            // It opened the PATH afresh at offset 0 — a second read cursor that
+            // neither consulted nor advanced the handle's. The write half had
+            // already been moved onto the descriptor, so the "one cursor"
+            // invariant held for writes only.
+            const dir = scratch('r1');
+            try {
+                const f = join(dir, 'stream');
+                writeFileSync(f, 'HEADBODY');
+                const handle = await fsPromises.open(f, 'r');
+                await handle.read(Buffer.alloc(4), 0, 4, null);
+
+                let seen = '';
+                for await (const chunk of handle.createReadStream()) seen += String(chunk);
+                expect(seen).toBe('BODY');
+
+                // ...and Node closes the handle when that stream ends.
+                await expectRejectedCode(() => handle.read(Buffer.alloc(1), 0, 1, null), 'EBADF');
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('R-2 createReadStream({fd}) reads through the descriptor', async () => {
+            const dir = scratch('r2');
+            try {
+                const f = join(dir, 'stream');
+                writeFileSync(f, 'HEADBODY');
+                const handle = await fsPromises.open(f, 'r');
+                try {
+                    await handle.read(Buffer.alloc(4), 0, 4, null);
+                    let seen = '';
+                    for await (const chunk of createReadStream(f, { fd: handle.fd, autoClose: false })) {
+                        seen += String(chunk);
+                    }
+                    expect(seen).toBe('BODY');
+                } finally {
+                    await handle.close();
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('R-3 a handle read stream with `start` leaves the cursor alone', async () => {
+            const dir = scratch('r3');
+            try {
+                const f = join(dir, 'ranged');
+                writeFileSync(f, 'ABCDEFGH');
+                const handle = await fsPromises.open(f, 'r');
+                try {
+                    let seen = '';
+                    for await (const chunk of handle.createReadStream({ start: 2, end: 3, autoClose: false })) {
+                        seen += String(chunk);
+                    }
+                    expect(seen).toBe('CD');
+
+                    // An explicit start is pread, so the handle's own cursor
+                    // never moved and the next read still starts at zero.
+                    const after = await handle.read(Buffer.alloc(2), 0, 2, null);
+                    expect((after.buffer as Buffer).toString('utf8', 0, after.bytesRead)).toBe('AB');
+                } finally {
+                    await handle.close();
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('R-4 a handle write stream honours autoClose', async () => {
+            // `autoClose: false` was hardcoded AFTER the caller's options were
+            // spread in, so an explicit `true` was silently discarded — and
+            // Node's default for a handle-derived stream is to close.
+            const dir = scratch('r4');
+            try {
+                const f = join(dir, 'ws');
+                const handle = await fsPromises.open(f, 'w+');
+                const stream = handle.createWriteStream({ autoClose: true });
+                await new Promise<void>((resolve) => {
+                    stream.on('close', () => resolve());
+                    stream.end('DATA');
+                });
+                await expectRejectedCode(() => handle.stat(), 'EBADF');
+                expect(readFileSync(f, 'utf8')).toBe('DATA');
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it.failing(
+            'R-5 a write stream releases its descriptor',
+            async () => {
+                // One fd leaked PER STREAM: `close()` is reachable only from
+                // `_destroy()`, and a finished Writable emitted 'close' without
+                // ever destroying, so nothing ran. At the 1024 soft limit that
+                // is EMFILE after about a thousand files — on precisely the
+                // workload this redesign exists for.
+                const dir = scratch('r5');
+                try {
+                    const before = readdirSync('/proc/self/fd').length;
+                    for (let i = 0; i < 32; i++) {
+                        const stream = createWriteStream(join(dir, `f${i}`));
+                        await new Promise<void>((resolve) => {
+                            stream.on('close', () => resolve());
+                            stream.end('x');
+                        });
+                    }
+                    // Not `=== before`: the loop may legitimately move the count
+                    // by a descriptor or two. A LEAK is linear in the iteration
+                    // count, and 32 streams used to cost 32 descriptors.
+                    expect(readdirSync('/proc/self/fd').length - before < 8).toBe(true);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_PROC_FD_REASON,
+            { when: !CAN_PROC_FD },
+        );
+    });
+
+    await describe('fs — the surfaces that answered without doing anything', async () => {
+        await it('U-1 process.umask() reports the mask the kernel actually applies', async () => {
+            // It returned a hardcoded 0o22, which is right only on a 022
+            // machine and wrong in the PERMISSIVE direction everywhere else: on
+            // a 002 host a caller computing `0o666 & ~process.umask()` believes
+            // it produced 0644 while the file is group-writable 0664. Measured
+            // against a real `mkdir(2)`, which is the only witness that cannot
+            // be wrong — the same instrument section 2 uses, and the reason
+            // this ledger never TRUSTS the API it is checking.
+            const dir = scratch('u1');
+            try {
+                expect(process.umask()).toBe(measureUmask(dir));
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('U-2 lchmod reports that it is not implemented', async () => {
+            // The bodies were empty, so a request to RESTRICT permissions
+            // returned normally having changed nothing — the quietest member of
+            // the silent-non-restriction class this redesign exists to close,
+            // since it does not even leave a wrong mode on disk to notice.
+            // Node has no `fs.lchmodSync` on Linux at all, and its
+            // `fsPromises.lchmod` throws; only the promise form can be asked
+            // the question on both legs.
+            const dir = scratch('u2');
+            try {
+                const f = join(dir, 'f');
+                writeFileSync(f, 'x');
+                await expectRejectedCode(() => fsPromises.lchmod(f, 0o600), 'ERR_METHOD_NOT_IMPLEMENTED');
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — writeFile(callback) is the same API as writeFileSync', async () => {
+        await it('A-1 the callback form honours mode, flag and encoding', async () => {
+            // The options bag was located only to find the callback behind it,
+            // and then dropped. Before this redesign all four spellings lost
+            // `mode`, so they were at least uniformly wrong; fixing the other
+            // three is what turned this one into a divergence.
+            const dir = scratch('a1');
+            try {
+                const umask = measureUmask(dir);
+
+                const secret = join(dir, 'secret');
+                await callbackWriteFile(secret, 'data', { mode: 0o600 });
+                expect(modeOf(secret)).toBe(fileModeFor(0o600, umask));
+
+                const lock = join(dir, 'lock');
+                writeFileSync(lock, 'first');
+                expect((await callbackWriteError(lock, 'second', { flag: 'wx' }))?.code).toBe('EEXIST');
+                expect(readFileSync(lock, 'utf8')).toBe('first');
+
+                const log = join(dir, 'log');
+                writeFileSync(log, 'HEAD');
+                await callbackWriteFile(log, 'TAIL', { flag: 'a' });
+                expect(readFileSync(log, 'utf8')).toBe('HEADTAIL');
+
+                const encoded = join(dir, 'encoded');
+                await callbackWriteFile(encoded, 'QUJD', { encoding: 'base64' });
+                expect(readFileSync(encoded, 'utf8')).toBe('ABC');
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    // ─── 8. the registry ─────────────────────────────────────────────────────
 
     await describe('fs — every suite is registered', async () => {
         await it('test.mts imports every spec that exports one', async () => {
