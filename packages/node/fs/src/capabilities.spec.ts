@@ -21,7 +21,7 @@
 // the failure is tolerated and retires itself the moment the host gains the
 // privilege.
 
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -62,3 +62,75 @@ export const NO_SYMLINK_REASON =
     'Creating a symbolic link needs an elevated process or Developer Mode on Windows; this host has neither ' +
     '(measured at load — see `capabilities.spec.ts`). Not a platform gap: the same test passes on a Windows host ' +
     'that has the privilege, and this marker fails the run the day it does.';
+
+/**
+ * Does this filesystem keep `S_ISGID` on a directory and hand it down to
+ * children?
+ *
+ * Measured for the same reason as {@link CAN_SYMLINK}: it is a property of the
+ * MOUNT, not of the OS. NTFS carries no POSIX mode at all, `nosuid` mounts drop
+ * the bit, and a container's overlayfs may or may not honour the inheritance —
+ * none of which `process.platform` reports. The setgid rules in
+ * `fs-semantics.spec.ts` guard a real regression (a post-create chmod that
+ * silently strips an inherited `S_ISGID` breaks group access for everyone else
+ * in a shared tree), so they must run wherever the host can express them.
+ */
+function probeSetgidInheritance(): boolean {
+    let dir: string | undefined;
+    try {
+        dir = mkdtempSync(join(tmpdir(), 'gjsify-setgid-probe-'));
+        const parent = join(dir, 'parent');
+        mkdirSync(parent, { mode: 0o775 });
+        chmodSync(parent, 0o2775);
+        if ((lstatSync(parent).mode & 0o2000) === 0) return false;
+        const child = join(parent, 'child');
+        mkdirSync(child, { mode: 0o775 });
+        return (lstatSync(child).mode & 0o2000) !== 0;
+    } catch {
+        return false;
+    } finally {
+        if (dir) {
+            try {
+                rmSync(dir, { recursive: true, force: true });
+            } catch {
+                // A probe must not fail the run over its own cleanup.
+            }
+        }
+    }
+}
+
+export const CAN_SETGID = probeSetgidInheritance();
+
+/** The `reason` string every setgid-gated `it.failing` shares. */
+export const NO_SETGID_REASON =
+    'This filesystem does not keep S_ISGID on a directory or does not hand it to children (measured at load — ' +
+    'see `capabilities.spec.ts`). NTFS carries no POSIX mode bits, a `nosuid` mount drops them, and some overlay ' +
+    'filesystems skip the inheritance. Not keyed on the platform: the same test passes on any mount that can ' +
+    'express it, and this marker fails the run the day this one can.';
+
+/**
+ * Does `/proc/self/fd/<n>` resolve an open descriptor to its inode?
+ *
+ * This is the route `fstat`/`fchmod`/`ftruncate` take to act on the DESCRIPTOR
+ * rather than on the path it was opened from — the property that makes them
+ * survive a rename or an unlink. It is Linux-only, and `respond-with-file.ts`
+ * already carries the scar of assuming otherwise (a procfs path resolved to
+ * nothing on macOS, `statSync` threw, and a swallowed catch meant `statCheck`
+ * silently never ran). So it is measured, and the descriptor-identity rules
+ * that depend on it are gated on the measurement.
+ */
+function probeProcFdSupport(): boolean {
+    try {
+        return existsSync('/proc/self/fd/0');
+    } catch {
+        return false;
+    }
+}
+
+export const CAN_PROC_FD = probeProcFdSupport();
+
+/** The `reason` string every procfs-gated `it.failing` shares. */
+export const NO_PROC_FD_REASON =
+    'This host has no `/proc/self/fd` (measured at load — see `capabilities.spec.ts`), which is the only route ' +
+    'GJS has to act on an open descriptor rather than on the path it was opened from. Without it `fstat`/' +
+    '`ftruncate` fall back to the path and lose descriptor identity after a rename or an unlink.';
