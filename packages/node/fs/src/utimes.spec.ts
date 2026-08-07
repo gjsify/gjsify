@@ -116,13 +116,32 @@ export default async () => {
             { when: !CAN_SYMLINK },
         );
 
-        await it('lchmod is a no-op (does not throw)', async () => {
+        await it('lchmod is ABSENT, which is what the portable guard tests for', async () => {
             const f = tmpFile('lchmod');
-            // Node.js removed lchmod on Linux; on GJS we export it as a no-op
+            // Node defines fs.lchmod / fs.lchmodSync only where the platform has
+            // O_SYMLINK (darwin); on Linux both properties are `undefined`, so
+            // portable code writes `typeof fs.lchmodSync === 'function'` and
+            // skips. Asserting the ABSENCE is what stops the property becoming a
+            // present-but-throwing third state — which makes that guard ENTER
+            // and abort a caller that was correct. The assertion this replaces
+            // ("is a no-op (does not throw)") had gone vacuous: its `if` was
+            // false on Node and its body no longer described gjsify either.
             const fsModule = (await import('node:fs')) as any;
-            if (typeof fsModule.lchmod === 'function') {
-                expect(() => fsModule.lchmod(f, 0o644, () => {})).not.toThrow();
+            expect(typeof fsModule.lchmod).toBe('undefined');
+            expect(typeof fsModule.lchmodSync).toBe('undefined');
+
+            // fsPromises.lchmod DOES exist on every platform, and it throws
+            // ERR_METHOD_NOT_IMPLEMENTED — the one lchmod spelling that keeps a
+            // body, on both legs.
+            const promisesModule = (await import('node:fs/promises')) as any;
+            expect(typeof promisesModule.lchmod).toBe('function');
+            let code: string | undefined;
+            try {
+                await promisesModule.lchmod(f, 0o600);
+            } catch (err: any) {
+                code = err?.code;
             }
+            expect(code).toBe('ERR_METHOD_NOT_IMPLEMENTED');
             unlinkSync(f);
         });
     });

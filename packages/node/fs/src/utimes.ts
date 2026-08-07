@@ -102,23 +102,38 @@ export async function lchownAsync(path: PathLike, uid: number, gid: number): Pro
 // ─── lchmod ───────────────────────────────────────────────────────────────────
 
 /**
- * `lchmod` is not implemented, and now it SAYS so.
+ * `lchmod` is not implemented — and the shape of "not implemented" is the whole
+ * point, because portable code already has a way to ask.
  *
- * The comment this replaces claimed the empty body "mirrors Node.js behavior on
- * Linux". It does not. Node does not define `fs.lchmodSync` or `fs.lchmod` on
- * Linux at all — both are `undefined`, so the caller gets a TypeError — and
- * `fsPromises.lchmod` does exist but throws `ERR_METHOD_NOT_IMPLEMENTED`
- * (measured against v24.15.0). Every one of those spellings tells the caller.
+ * Node does not DEFINE `fs.lchmodSync` or `fs.lchmod` where the platform has no
+ * `O_SYMLINK` — on Linux both properties are `undefined` (measured against
+ * v24.15.0) — while `fsPromises.lchmod` exists everywhere and throws
+ * `ERR_METHOD_NOT_IMPLEMENTED`. So the standard guard is
+ * `typeof fs.lchmodSync === 'function'`, and there are exactly three things the
+ * property can be:
  *
- * An empty body does the opposite: a request to RESTRICT permissions returns
- * normally having changed nothing. That is the same silent-non-restriction
- * class as the dropped `mode` this redesign exists to close, and the quietest
- * member of it — there is not even a wrong mode left on disk to notice later.
+ *   - a working function        — what a darwin build gets;
+ *   - ABSENT                    — what the guard is written for: it skips, and
+ *                                 the caller's copy/permission routine carries
+ *                                 on;
+ *   - present and THROWING      — a third behaviour neither Node nor the code
+ *                                 this redesign started from has. The guard
+ *                                 ENTERS and the caller aborts.
  *
- * They throw rather than being deleted because the export list and the
- * `node:fs` type surface are load-bearing for consumers that re-export the
- * module wholesale, and a throw is exactly what the one spelling Node DOES
- * define already does.
+ * The empty body that was here first was wrong for the opposite reason: a
+ * request to RESTRICT permissions returned normally having changed nothing,
+ * which is the same silent-non-restriction class as the dropped `mode` this
+ * redesign exists to close. Round 2 replaced it with the throw, which trades a
+ * silent non-restriction for a broken feature test. Absent is the answer that
+ * is true and that the ecosystem's guard already handles.
+ *
+ * `@gjsify/fs` has no route to `lchmod(2)` on ANY platform — Gio can set
+ * `unix::mode` with `NOFOLLOW_SYMLINKS`, but Linux itself refuses to change a
+ * symlink's mode, and there is no `O_SYMLINK` open to hand a mode to — so the
+ * property is absent everywhere rather than per-platform. The names stay
+ * EXPORTED (as `undefined`) so a consumer re-exporting the module wholesale
+ * still resolves them, exactly as `import { lchmodSync } from 'node:fs'`
+ * resolves to `undefined` on Node/Linux.
  */
 function lchmodUnsupported(): NodeJS.ErrnoException {
     const err = new Error('The lchmod() method is not implemented') as NodeJS.ErrnoException;
@@ -126,14 +141,16 @@ function lchmodUnsupported(): NodeJS.ErrnoException {
     return err;
 }
 
-export function lchmodSync(_path: PathLike, _mode: number): void {
-    throw lchmodUnsupported();
-}
+export const lchmodSync: ((path: PathLike, mode: number) => void) | undefined = undefined;
 
-export function lchmod(_path: PathLike, _mode: number, callback: (err: NodeJS.ErrnoException | null) => void): void {
-    callback(lchmodUnsupported());
-}
+export const lchmod:
+    | ((path: PathLike, mode: number, callback: (err: NodeJS.ErrnoException | null) => void) => void)
+    | undefined = undefined;
 
+/**
+ * The one spelling Node defines on every platform — and it throws there too, so
+ * this is the only lchmod surface that keeps a body.
+ */
 export async function lchmodAsync(_path: PathLike, _mode: number): Promise<void> {
     throw lchmodUnsupported();
 }
