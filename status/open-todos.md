@@ -215,36 +215,6 @@ launcher defer to the CLI rather than re-derive; that is a launcher-shape change
 and belongs in its own PR, ideally the one that lifts `system-gi` to a shared
 package (above).
 
-### `@gjsify/child_process` on Windows — 86 of 145 specs fail once the module can load at all
-
-The specs took `TMP_DIR` from a literal `/tmp` and `realpathSync`'d it at MODULE
-EVALUATION. On `win32-x64` that resolves against the current drive to `C:\tmp`,
-which does not exist, so the module threw before defining a single test.
-
-Measured on the win11-gjsify VM (Node 24.18.1), with no `C:\tmp` present:
-
-| | before | after `tmpdir()` |
-|---|---|---|
-| output | 23 lines, `ENOENT: lstat 'C:\tmp'` | full run |
-| tests run | **0** | **145** |
-| failures | — (module never loaded) | 86 |
-
-The 86 are pre-existing POSIX assumptions in the SPECS, not regressions and not
-impl gaps — which is structural, not a judgement call: `@gjsify/child_process`
-declares `runtimes.node: "none"`, so `test:node` never aliases
-`node:child_process` to our polyfill and those specs run against NATIVE Node. Per
-the testing rules a failure there means the TEST is wrong. What they encode:
-shell built-ins assumed to exist (`echo`/`pwd`/`cat` under `cmd.exe`), POSIX
-absolute paths, exit-code and signal semantics, and `/bin/sh`-shaped `shell:`
-options. Node's own behaviour on Windows is the oracle for each.
-
-The GJS run is the one that measures our impl, and it cannot run on Windows at
-all (no `gjs` there) — so this package's Windows impl story is still unmeasured;
-only its specs have been.
-
-**Note for anyone re-measuring:** a hand-created `C:\tmp` makes the module-load
-failure vanish without fixing anything (one existed on the test VM for several
-hours and hid exactly this). It has been removed there. Do not re-create it.
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 
 **Cross-reference (added 2026-08-06): #925 files the same `test/arrays.test.mjs` occurrences as a TEST FLAKE, while this entry files them as an N-API teardown crash class (`free(): invalid pointer`, a glibc abort). Same file, two theories. Whichever is right, the next occurrence should be read from the RAW job log for a `----- Native stack trace -----` block, which is what tells the two apart.**
