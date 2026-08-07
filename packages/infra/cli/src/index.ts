@@ -17,7 +17,25 @@ try {
     // a scary `Gjs-CRITICAL **: Module … threw an exception` that buries the
     // real, already-actionable message (e.g. "gjsify build: no usable bundler
     // engine under GJS — build the facade first or run under Node"). See #597.
-    console.error(err instanceof Error ? err.message : String(err));
+    //
+    // The `code` is printed WITH the message, not dropped. Errors in this CLI
+    // carry npm's own codes on purpose — `badPlatformError()` documents that it
+    // reproduces npm's `EBADPLATFORM` payload "so a consumer's error handling
+    // (and a human reading the message) sees what npm reports" — and npm itself
+    // prints the code (`npm ERR! code EBADPLATFORM`) rather than only the prose.
+    //
+    // It has to be explicit here because this catch became the SINGLE printer:
+    // before the `.fail()` handler in `cli-app.ts`, yargs logged the error OBJECT
+    // and the code came along for free. Printing `err.message` alone silently
+    // dropped it for every coded error, which is what turned
+    // `tests/e2e/install-optional-both-blocks` red on `main` — it asserts the
+    // code is visible, and the prose it still printed did not contain it.
+    const code =
+        typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string'
+            ? (err as { code: string }).code
+            : '';
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(code && !message.includes(code) ? `${code}: ${message}` : message);
     if (process.env.GJSIFY_DEBUG && err instanceof Error && err.stack) console.error(err.stack);
     // `process.exitCode` is the gentle Node idiom (streams flush). GJS has no
     // atexit hook and would exit 0 at natural shutdown, so force a non-zero exit

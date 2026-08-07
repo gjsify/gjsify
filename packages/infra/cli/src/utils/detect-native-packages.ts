@@ -762,7 +762,18 @@ export function buildNativeEnv(
     const systemDirs = (opts.systemGiDirs ?? systemGiLibraryDirs)({ platform, env });
     if (systemDirs.length > 0) {
         const inherited = splitSearchPath(env[DYLD_FALLBACK_VAR]);
-        out[DYLD_FALLBACK_VAR] = [...systemDirs, ...(inherited.length > 0 ? inherited : ['/usr/lib'])].join(':');
+        // Deduplicated, and not for tidiness: `systemGiLibraryDirs()` accepts a
+        // libdir stated outright through `GI_TYPELIB_PATH` on directory
+        // existence alone, so a host that names `/usr/lib/girepository-1.0`
+        // there puts `/usr/lib` in `systemDirs` — and the `/usr/lib` tail below
+        // then repeated it. A search path that lists the same directory twice
+        // asks the loader to stat it twice for every miss, and it makes the
+        // value the `$ …` echo prints read as though the CLI had composed
+        // something it did not. First occurrence wins in every loader, so
+        // dropping later repeats is behaviour-preserving.
+        out[DYLD_FALLBACK_VAR] = [
+            ...new Set([...systemDirs, ...(inherited.length > 0 ? inherited : ['/usr/lib'])]),
+        ].join(':');
     }
     return out;
 }

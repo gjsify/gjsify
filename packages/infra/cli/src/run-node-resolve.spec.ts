@@ -20,6 +20,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { resolveNodeGi, resolveNodeGiForBundle } from './utils/run-node.js';
 import { computeNativeEnvForBundle } from './utils/run-gjs.js';
 import { libraryPathVar } from './utils/detect-native-packages.js';
+import { systemGiLibraryDirs } from './utils/system-gi.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -108,10 +109,23 @@ export default async () => {
         // there and invisible on Linux.
         const libVar = libraryPathVar(process.platform).name;
 
-        await it('reports only what the CLI genuinely changed', () => {
-            // Two directories with no node_modules at all, so nothing is
-            // prepended from a PREBUILD. What may still appear is what the HOST
-            // forces — see the darwin branch below.
+        await it('reports NOTHING BUT what the CLI actually changed', () => {
+            // Two directories with no node_modules at all, so no prebuild dir
+            // is prepended to anything.
+            //
+            // "Nothing to prepend" is NOT the same as "nothing to report", and
+            // spelling it that way was a Linux answer wearing a universal
+            // one's clothes. `buildNativeEnv` also repairs the HOST's own GI
+            // libdirs on darwin — deliberately, and deliberately even when the
+            // package set is empty, because that gap is in dyld and not in a
+            // gjsify prebuild. So on a Mac with a system GTK the echo has one
+            // legitimate entry, and asserting an empty string there fails a
+            // launcher that is doing exactly what it documents.
+            //
+            // Keyed on the CAPABILITY, never on `process.platform`: a Mac with
+            // no GI stack installed produces an empty prefix and must still
+            // pass, and if `systemGiLibraryDirs()` ever answers on another OS
+            // this row follows without being edited.
             const a = mkdtempSync(join(tmpdir(), 'gjsify-env-echo-a-'));
             const b = mkdtempSync(join(tmpdir(), 'gjsify-env-echo-b-'));
             const bundle = makeBundle(a, 'dist');
@@ -122,38 +136,41 @@ export default async () => {
             };
             const { envPrefix } = computeNativeEnvForBundle(bundle, b, inherited);
 
-            // Nothing INHERITED is ever echoed back — the line exists to show a
-            // change, and this half holds on every host.
-            expect(envPrefix.includes('C:\\Windows\\system32')).toBe(false);
-            expect(envPrefix.includes('/usr/lib/girepository-1.0')).toBe(false);
-
-            if (process.platform === 'darwin') {
-                // darwin is NOT the empty case, and this spec asserted it was
-                // until the macOS leg first ran it (1 of 1953, both arches).
-                // `buildNativeEnv()` puts `systemGiLibraryDirs()` on the child's
-                // `DYLD_FALLBACK_LIBRARY_PATH` UNCONDITIONALLY, because
-                // Homebrew's `gjs` carries an rpath into GLIB's keg alone and a
-                // bare-leaf `dlopen` fails without it. That is a change the CLI
-                // really made, so the echo is right to print it and the old
-                // expectation was the Linux answer generalised.
-                //
-                // What stays asserted is the part that was actually at stake,
-                // and it is sharper than the old `toBe('')`: the repair goes on
-                // the FALLBACK variable and nothing else moves. The two are
-                // deliberately different questions — `libraryPathVar()` names
-                // the OVERRIDE (`DYLD_LIBRARY_PATH`, the right home for a
-                // prebuild we ship), the fallback names what fills in where
-                // nothing else resolved (the right home for the host's own
-                // libdirs). With no prebuild detected the override must stay
-                // untouched, and mixing the two is the mistake `buildNativeEnv`
-                // documents at length.
-                expect(envPrefix.startsWith('DYLD_FALLBACK_LIBRARY_PATH=')).toBe(true);
-                expect(envPrefix.includes(`${libVar}=`)).toBe(false);
-                expect(envPrefix.includes('GI_TYPELIB_PATH=')).toBe(false);
-                expect(envPrefix.split(' ').length).toBe(1);
-            } else {
+            const systemDirs = systemGiLibraryDirs({ env: inherited });
+            if (systemDirs.length === 0) {
                 expect(envPrefix).toBe('');
+                rmSync(a, { recursive: true, force: true });
+                rmSync(b, { recursive: true, force: true });
+                return;
             }
+
+            // Asserted as PROPERTIES rather than as a literal, so this row
+            // states the contract instead of restating the implementation —
+            // a spec that recomputes `buildNativeEnv`'s join order passes for
+            // whatever that function does, including for a bug.
+            const assignments = envPrefix.trim().split(/\s+/).filter(Boolean);
+            expect(assignments.length).toBe(1);
+
+            const [name, value] = [
+                assignments[0].slice(0, assignments[0].indexOf('=')),
+                assignments[0].slice(assignments[0].indexOf('=') + 1),
+            ];
+            // The FALLBACK variable, never the override one: pointing the
+            // override at a whole system libdir replaces libraries the host
+            // already resolved correctly. `buildNativeEnv` documents why.
+            expect(name).toBe('DYLD_FALLBACK_LIBRARY_PATH');
+
+            const entries = value.split(':');
+            // Every probed libdir is there, `/usr/lib` still terminates the
+            // search (setting the variable REPLACES dyld's own default list),
+            // and nothing appears twice.
+            for (const dir of systemDirs) expect(entries.includes(dir)).toBe(true);
+            expect(entries.includes('/usr/lib')).toBe(true);
+            expect(entries.length).toBe(new Set(entries).size);
+            // The "and nothing else" half: the inherited loader variable must
+            // not come back, which is the win32 symptom the next row pins from
+            // the other side.
+            expect(envPrefix.includes('C:\\Windows')).toBe(false);
 
             rmSync(a, { recursive: true, force: true });
             rmSync(b, { recursive: true, force: true });

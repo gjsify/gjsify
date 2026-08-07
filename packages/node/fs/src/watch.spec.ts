@@ -11,51 +11,62 @@ import { tmpdir } from 'node:os';
 // `realpathSync.native`, and BOTH halves of that are load-bearing on Windows.
 //
 // GitHub's Windows runners hand back an 8.3 SHORT path from `tmpdir()`
-// (`C:\Users\RUNNER~1\AppData\Local\Temp`). libuv watches the directory it was
-// given, then for each notification builds `dir + "\" + name`, expands it with
-// `GetLongPathNameW`, and asserts the expansion still starts with `dir`
-// (`refs/node/deps/uv/src/win/fs-event.c`, `uv__relative_path`). A short
-// component makes the expansion diverge from `dir`, so the assert fails:
+// (`C:\Users\RUNNER~1\AppData\Local\Temp`). libuv watches the directory it
+// was given, then for each notification builds `dir + "\" + name`, expands it
+// with `GetLongPathNameW`, and asserts the expansion still starts with `dir`
+// (`uv__relative_path`, `refs/node/deps/uv/src/win/fs-event.c:72`). A short
+// component makes the expansion diverge, so the assert fails:
 //
 //   Assertion failed: !_wcsnicmp(filename, dir, dirlen),
-//   file src\win\fs-event.c, line 72          → exit code 3221226505
+//   file src\win\fs-event.c, line 72          -> exit code 3221226505
 //
-// That is a hard ABORT, not a failing assertion: it takes the whole suite with
-// it — 589 specs never reported — which is also why `it.failing` could not
-// cover it. Nothing survives to report a tolerated failure.
+// That is a hard ABORT, not a failing assertion: it took all 589 specs with it,
+// which is also why `it.failing` could not have covered it — nothing survives
+// to report a tolerated failure.
 //
 // Plain `realpathSync` is NOT enough and this was measured: it resolves
 // symlinks but does not canonicalise 8.3 names, so the first attempt aborted
 // identically. `.native` goes through `GetFinalPathNameByHandle` and returns
-// the long form, which is the same name `GetLongPathNameW` will produce. Our
-// GJS implementation aliases `.native` to `realpathSync`, so the spec stays
-// runtime-neutral, and the call also fixes the macOS half of the class where
-// `/tmp` resolves to `/private/tmp`.
+// the long form `GetLongPathNameW` will agree with. Our GJS implementation
+// aliases `.native` to `realpathSync`, so the spec stays runtime-neutral, and
+// the call also resolves `/tmp` -> `/private/tmp` on macOS.
 function makeTmp(): string {
     return realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-watch-')));
 }
 
-// WHY EVERY DEFERRED WRITE BELOW IS CANCELLED IN A `finally`.
-//
-// These tests arm a timer that writes into the temp dir, then stop iterating as
-// soon as ONE event arrives and remove the dir. If the timer is still pending at
-// that point it fires into a directory that no longer exists, and the
-// `ENOENT: … open '…/gjsify-watch-XXXX/new-file.txt'` surfaces as an unhandled
-// error inside whichever test happens to be running next — so the failure is
-// reported against an innocent neighbour.
-//
-// On Linux the timer cannot outlive its test: inotify only has an event to
-// deliver BECAUSE the write happened, so the write always precedes the abort.
-// On darwin the watcher can yield before that write lands, the test finishes
-// early, and the orphan timer then throws. Measured on the macOS arm64 leg:
-// 2 of 671, and neither was in the test that owned the timer
-// (`fs.promises.watch` rename → reported against "change", abort-during-
-// iteration → reported against the abort test).
-//
-// `stops cleanly when AbortController is aborted during iteration` already had
-// this right with `clearInterval` in a `finally`; the four `setTimeout` cases
-// did not. Cancel the timer, do not make the write defensive — a write that
-// silently tolerates a missing directory would hide a real teardown bug.
+/**
+ * Timers a test armed and must not leave running past its own temp directory.
+ *
+ * Every test here writes into its temp dir from a timer and then removes that
+ * dir when it ends, and the abort RACES the timeout by design — so "it will
+ * have fired by then" is not a property any of them can rely on. A timer that
+ * outlives its test writes into a path that no longer exists, and the ENOENT
+ * surfaces against whichever test happens to be running when it fires: on
+ * darwin a `tracked.txt` write armed by `filename in event is a string or null`
+ * failed `stops cleanly when AbortController is aborted during iteration`.
+ *
+ * Four timers were armed and never cancelled. Rather than four clears, the
+ * timer and the directory it writes into get ONE owner — {@link scheduleWrite}
+ * arms, {@link cleanup} cancels and removes, and a test cannot do the second
+ * without the first.
+ */
+const pendingWrites = new Set<ReturnType<typeof setTimeout>>();
+
+/** Schedule `write` once, `ms` from now, and remember it until it fires. */
+function scheduleWrite(write: () => void, ms: number): void {
+    const id = setTimeout(() => {
+        pendingWrites.delete(id);
+        write();
+    }, ms);
+    pendingWrites.add(id);
+}
+
+/** Cancel anything still armed, THEN remove the directory it would write into. */
+function cleanup(tmp: string): void {
+    for (const id of pendingWrites) clearTimeout(id);
+    pendingWrites.clear();
+    rmSync(tmp, { recursive: true, force: true });
+}
 
 export default async () => {
     await describe('fs.promises.watch', async () => {
@@ -65,7 +76,7 @@ export default async () => {
             let received = false;
 
             // Write the file shortly after the iterator starts waiting
-            const timer = setTimeout(() => {
+            scheduleWrite(() => {
                 writeFileSync(join(tmp, 'new-file.txt'), 'hello');
             }, 30);
 
@@ -79,12 +90,10 @@ export default async () => {
             } catch (e: any) {
                 // AbortError from native Node.js is expected — our impl ends cleanly
                 if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw e;
-            } finally {
-                clearTimeout(timer);
             }
 
             expect(received).toBe(true);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('yields change event when a watched file is modified', async () => {
@@ -95,7 +104,7 @@ export default async () => {
             const ac = new AbortController();
             let received = false;
 
-            const timer = setTimeout(() => {
+            scheduleWrite(() => {
                 writeFileSync(file, 'modified');
             }, 30);
 
@@ -108,12 +117,10 @@ export default async () => {
                 }
             } catch (e: any) {
                 if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw e;
-            } finally {
-                clearTimeout(timer);
             }
 
             expect(received).toBe(true);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('filename in event is a string or null', async () => {
@@ -121,7 +128,7 @@ export default async () => {
             const ac = new AbortController();
             let filename: string | null | undefined = undefined;
 
-            const timer = setTimeout(() => {
+            scheduleWrite(() => {
                 writeFileSync(join(tmp, 'tracked.txt'), 'x');
             }, 30);
 
@@ -132,14 +139,12 @@ export default async () => {
                 }
             } catch (e: any) {
                 if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw e;
-            } finally {
-                clearTimeout(timer);
             }
 
             // filename is a string basename or null (GJS writeFileSync uses atomic writes
             // via GLib.file_set_contents which may report a temp filename — any string is valid)
             expect(typeof filename === 'string' || filename === null).toBe(true);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('stops iterating immediately when signal is pre-aborted', async () => {
@@ -157,7 +162,7 @@ export default async () => {
             }
 
             expect(count).toBe(0);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('stops cleanly when AbortController is aborted during iteration', async () => {
@@ -186,7 +191,7 @@ export default async () => {
             }
 
             expect(eventCount).toBeGreaterThan(0);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
 
         await it('multiple events can be collected before abort', async () => {
@@ -194,7 +199,7 @@ export default async () => {
             const ac = new AbortController();
             const events: string[] = [];
 
-            const timer = setTimeout(() => {
+            scheduleWrite(() => {
                 writeFileSync(join(tmp, 'a.txt'), '1');
                 writeFileSync(join(tmp, 'b.txt'), '2');
             }, 30);
@@ -208,12 +213,10 @@ export default async () => {
                 }
             } catch (e: any) {
                 if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw e;
-            } finally {
-                clearTimeout(timer);
             }
 
             expect(events.length).toBeGreaterThan(0);
-            rmSync(tmp, { recursive: true, force: true });
+            cleanup(tmp);
         });
     });
 };
