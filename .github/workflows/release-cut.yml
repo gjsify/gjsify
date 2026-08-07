@@ -123,12 +123,69 @@ jobs:
           gjs -m "$B" install --immutable
           echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
 
+      # Bootstrap under NODE, not under the GJS bootstrap bundle.
+      #
+      # `$GJSIFY_BOOTSTRAP` is downloaded from `releases/latest/download/cli.gjs.mjs`,
+      # so it is ALWAYS THE PREVIOUS RELEASE'S CLI. That makes this step unfixable
+      # from the CLI source: a bug reached here can only be repaired by a release,
+      # and this step is what a release runs. v0.31.0's first cut hit exactly that —
+      # `gjsify tsc` inside `@gjsify/create-app`'s build spawned the bootstrap bundle
+      # instead of `node`, wrote no `lib/index.js`, and the `&&` chain then died in
+      # `set-bin-mode.mjs` on the missing file, naming a step past the fault.
+      #
+      # A published @gjsify/cli run under Node has none of that surface: `isNode()`
+      # is genuinely true so `nodeBinary()` resolves the real interpreter, and
+      # `process.exit()` is immediate rather than idle-scheduled. It is the same
+      # mechanism napi.yml already uses for the same reason, down to the shared
+      # `install-published-cli.sh` (which retries through the window where a release
+      # has bumped every package.json but npm does not serve the version yet).
+      #
+      # TEMPORARY, AND MEANT TO BE REVERTED. The project's direction is to run as
+      # much as possible ON gjsify rather than on Node — CI included — because
+      # running the toolchain on itself is what makes its defects observable at
+      # all. This one step is the exception only because it cannot repair itself.
+      # Revert it to `gjs -m "$GJSIFY_BOOTSTRAP" run build:infra` once BOTH hold:
+      #   1. a RELEASED @gjsify/cli carries the fixes this step trips over
+      #      (gjsify#1038: `gjsify tsc` exiting 0 when it can spawn no compiler),
+      #      so `releases/latest` is no longer the broken one; and
+      #   2. a NON-BLOCKING job exercises the GJS-hosted bootstrap, so the next
+      #      regression there is a signal rather than a deadlocked release.
+      # Without (2) a revert only re-arms the trap for the next CLI bug.
+      # Note: every step AFTER this one already runs the repo's own CLI
+      # (`PATH="$PWD/node_modules/.bin:$PATH" gjsify …`), so what is on Node here
+      # is the cold start, not the release.
       - name: Bootstrap the build toolchain (cold trees only)
         run: |
           if [ -f packages/infra/cli/lib/index.js ]; then
             echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
           else
-            gjs -m "$GJSIFY_BOOTSTRAP" run build:infra
+            CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+            mkdir -p /tmp/gjsify-node-cli
+            cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1
+            "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}"
+            cd - >/dev/null
+            # Point the workspace shim at the published CLI too. `build:infra`
+            # runs PACKAGE SCRIPTS, and those call bare `gjsify`, which resolves
+            # through `node_modules/.bin/gjsify` — a workspace symlink to the
+            # very `packages/infra/cli/lib/index.js` this step exists to create.
+            # Without this the child dies on MODULE_NOT_FOUND for that path.
+            ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+            echo "Node bootstrap CLI: $(node_modules/.bin/gjsify --version)"
+            node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js run build:infra
+            # …and HAND THE SHIM BACK the moment the tree can drive itself. The
+            # published CLI is a jump-start, not the release's toolchain: every
+            # later step resolves `gjsify` through this shim, so leaving it
+            # pointed at 0.30.0 would build, verify and CUT with a stale CLI
+            # instead of the one this commit ships.
+            #
+            # Measured, not hypothetical: with the shim left dangling,
+            # `verify-committed-bundles` rebuilt `affected.gjs.mjs` 157 bytes
+            # SHORTER than the committed file and reported it STALE — while the
+            # same rebuild driven by the freshly built CLI reproduces it
+            # byte-identically. The check was right; it was being handed the
+            # wrong compiler.
+            ln -sf "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
+            echo "Handed back to the freshly built CLI: $(node_modules/.bin/gjsify --version)"
           fi
 
       # `verify-committed-bundles.mjs` (the after:bump hook) resolves each
