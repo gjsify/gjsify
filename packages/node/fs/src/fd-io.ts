@@ -193,20 +193,32 @@ export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoE
     // The kernel's own order, so a path that trips two rules reports the code
     // `open(2)` would. Length goes first: it is decided before any lookup
     // happens, and it needs no syscall at all.
-    const tooLong = nameTooLong(path);
+    const tooLong = nameTooLong(path, 'open');
     if (tooLong) return tooLong;
 
     const file = Gio.File.new_for_path(path);
     let existing: Gio.FileInfo | null = null;
+    let unanswered = false;
     try {
-        existing = file.query_info(
-            'standard::type,standard::symlink-target',
+        // `unix::mode` and `access::*` ride along on the one lookup this
+        // function already makes: `refusalNotAboutThePath` needs both to tell
+        // "the device has nothing on the other end" from "you may not".
+        const info = file.query_info(
+            'standard::type,standard::symlink-target,unix::mode,access::can-read,access::can-write',
             Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
             null,
         );
+        if (answered(info)) existing = info;
+        else unanswered = true;
     } catch {
         existing = null;
     }
+
+    // "I was not allowed to look" is neither "it is not there" nor "it is
+    // there" — it is the permission answer, which is the one `open(2)` gave.
+    // See {@link answered}: this used to fall into the `existing` branch below
+    // and report EEXIST for a hard EACCES.
+    if (unanswered) return refusalNotAboutThePath(path, spec, file, null);
 
     if (existing) {
         // EEXIST is gated on O_EXCL. Reporting "file already exists" for what
@@ -232,28 +244,102 @@ export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoE
         if (existing.get_file_type() === Gio.FileType.DIRECTORY && spec.writable) {
             return fsError('EISDIR', 'open', path);
         }
-        return refusalNotAboutThePath(path, spec, file);
+
+        // `O_DIRECTORY` is the caller saying "a directory or nothing", and
+        // `open(2)` answers ENOTDIR when it is anything else. The flag was
+        // parsed and then never consulted, so the refusal fell through to the
+        // permission answer — the one code that tells a caller to stop rather
+        // than to look elsewhere.
+        if (spec.directory && existing.get_file_type() !== Gio.FileType.DIRECTORY) {
+            return fsError('ENOTDIR', 'open', path);
+        }
+
+        return refusalNotAboutThePath(path, spec, file, existing);
     }
+
+    // BEFORE the ENOENT below, because `open(2)` decides it before it decides
+    // ENOENT: a prefix component that exists and is not a directory ends the
+    // path walk whatever the caller asked for. Gating this on `O_CREAT` — the
+    // shape this replaces — made `openSync(file/child, 'r')` answer ENOENT
+    // ("not there, try the next candidate") for a base path that is a FILE,
+    // while `openSync(file/child, 'w')`, `readFileSync`, `accessSync` and
+    // `statSync` on the very same name all answered ENOTDIR. A config loader
+    // walking candidate paths silently skipped the misconfiguration.
+    const notDir = ancestorIsNotADirectory(file);
+    if (notDir) return fsError('ENOTDIR', 'open', path);
 
     if (!spec.creat) return fsError('ENOENT', 'open', path);
 
     const parent = file.get_parent();
     if (!parent) return fsError('ENOENT', 'open', path);
     try {
-        const parentInfo = parent.query_info('standard::type', Gio.FileQueryInfoFlags.NONE, null);
-        if (parentInfo.get_file_type() !== Gio.FileType.DIRECTORY) return fsError('ENOTDIR', 'open', path);
+        parent.query_info('standard::type', Gio.FileQueryInfoFlags.NONE, null);
     } catch {
         return fsError('ENOENT', 'open', path);
     }
-    return refusalNotAboutThePath(path, spec, file);
+    return refusalNotAboutThePath(path, spec, file, null);
+}
+
+/**
+ * Does an existing ancestor of `path` block the walk by not being a directory?
+ *
+ * The immediate parent is not enough: for `<file>/a/b.json` the parent
+ * `<file>/a` cannot be looked up AT ALL — the lookup dies one level higher —
+ * so the first ancestor that answers is the one that decides. Walking up until
+ * something answers is exactly the order `open(2)` resolves the name in, and it
+ * stops at the first answer, so it costs one lookup in the ordinary case.
+ */
+function ancestorIsNotADirectory(file: Gio.File): boolean {
+    for (let parent = file.get_parent(); parent; parent = parent.get_parent()) {
+        let info: Gio.FileInfo;
+        try {
+            info = parent.query_info('standard::type', Gio.FileQueryInfoFlags.NONE, null);
+        } catch {
+            // This component does not exist either — keep climbing.
+            continue;
+        }
+        // No answer (see {@link answered}) is not evidence of a non-directory;
+        // the permission branch above already owns that case.
+        if (!answered(info)) return false;
+        return info.get_file_type() !== Gio.FileType.DIRECTORY;
+    }
+    return false;
+}
+
+/**
+ * Does this `GFileInfo` actually ANSWER, or is it an empty shell?
+ *
+ * `g_file_query_info()` does NOT fail when the kernel refuses to stat a name.
+ * A path under a directory the process cannot search comes back as a non-NULL
+ * `GFileInfo` carrying NO attributes at all — measured directly:
+ * `list_attributes(null)` is `[]` and `has_attribute('standard::type')` is
+ * `false`, where an ordinary lookup returns `['standard::type']`.
+ *
+ * Two things follow, and this package got both wrong. Reading the type off
+ * that shell logs `GFileInfo created without standard::type` plus
+ * `g_file_info_get_file_type: should not be reached` — two `GLib-GIO-CRITICAL`
+ * lines that `G_DEBUG=fatal-criticals` (standard in GNOME CI, and the exact
+ * condition {@link isSeekableFd} below exists to satisfy) turns into a
+ * SIGABRT before the caller's `catch` can run. And taking the shell as proof
+ * the name EXISTS answered EEXIST — "the name is taken" — for a plain
+ * permission denial, which sends an `openSync(lock,'wx')` retry loop round
+ * forever and makes the ubiquitous
+ * `try { mkdirSync(d) } catch (e) { if (e.code !== 'EEXIST') throw }`
+ * swallow a hard EACCES and carry on as if the directory were there.
+ *
+ * So every read of an attribute in this module is gated on this, and a
+ * `false` means "no answer" — never "no".
+ */
+function answered(info: Gio.FileInfo | null): boolean {
+    return info !== null && info.has_attribute('standard::type');
 }
 
 /** `NAME_MAX` / `PATH_MAX`, counted in BYTES — the limits are on the encoded name, not on code points. */
-function nameTooLong(path: string): NodeJS.ErrnoException | null {
+function nameTooLong(path: string, syscall: string): NodeJS.ErrnoException | null {
     const encoder = new TextEncoder();
-    if (encoder.encode(path).length > 4096) return fsError('ENAMETOOLONG', 'open', path);
+    if (encoder.encode(path).length > 4096) return fsError('ENAMETOOLONG', syscall, path);
     for (const component of path.split('/')) {
-        if (encoder.encode(component).length > 255) return fsError('ENAMETOOLONG', 'open', path);
+        if (encoder.encode(component).length > 255) return fsError('ENAMETOOLONG', syscall, path);
     }
     return null;
 }
@@ -280,6 +366,12 @@ function walkSymlinkChain(start: Gio.File): 'loop' | 'dangling' | 'too-long' | '
         } catch {
             return 'dangling';
         }
+        // No answer ends the walk: the kernel would not describe this hop, so
+        // it is neither a loop nor a dangling link — and reading the type off
+        // the empty info it handed back is the `GLib-GIO-CRITICAL` that
+        // {@link answered} documents. The caller then reaches the permission
+        // answer, which is the one `open(2)` gave.
+        if (!answered(info)) return 'resolved';
         if (info.get_file_type() !== Gio.FileType.SYMBOLIC_LINK) return 'resolved';
         const target = info.get_symlink_target();
         if (!target) return 'dangling';
@@ -301,7 +393,12 @@ function walkSymlinkChain(start: Gio.File): 'loop' | 'dangling' | 'too-long' | '
  * the codes that were collapsed: EMFILE is the one a caller is expected to back
  * off and retry on, and EACCES tells it to give up instead.
  */
-function refusalNotAboutThePath(path: string, spec: OpenSpec, file: Gio.File): NodeJS.ErrnoException {
+function refusalNotAboutThePath(
+    path: string,
+    spec: OpenSpec,
+    file: Gio.File,
+    existing: Gio.FileInfo | null,
+): NodeJS.ErrnoException {
     // Ask for a descriptor that cannot be refused for any reason of its own. If
     // even that fails, the table is full and the caller's path was never the
     // problem. One fd, closed immediately.
@@ -319,15 +416,61 @@ function refusalNotAboutThePath(path: string, spec: OpenSpec, file: Gio.File): N
         }
     }
 
+    if (existing && nothingOnTheOtherEnd(spec, existing)) return fsError('ENXIO', 'open', path);
+
     return fsError('EACCES', 'open', path);
+}
+
+/**
+ * Is this "the device exists but there is nothing on the other end" (ENXIO)
+ * rather than "you may not" (EACCES)?
+ *
+ * Both arrive here as the same bare `-1`, and the two tell a caller opposite
+ * things: a writer that retries on ENXIO until a reader attaches gives up
+ * permanently when it is told "permission denied" instead. Two ordinary paths
+ * reach it — `open('/dev/tty')` with no controlling terminal, and a FIFO opened
+ * `O_WRONLY | O_NONBLOCK` with no reader (measured against Node v24.15.0: both
+ * ENXIO, errno -6).
+ *
+ * The discriminator is `access(2)`, which GIO exposes as `access::can-*`: if
+ * the kernel grants the access the caller asked for and the open STILL failed,
+ * permission was not the obstruction. Narrowed to devices and FIFOs on purpose
+ * — those are the only objects `open(2)` raises ENXIO for, so an ordinary file
+ * keeps the EACCES answer whatever `access(2)` says about it.
+ */
+function nothingOnTheOtherEnd(spec: OpenSpec, existing: Gio.FileInfo): boolean {
+    if (!existing.has_attribute('unix::mode')) return false;
+    const format = existing.get_attribute_uint32('unix::mode') & 0o170000;
+    const isDeviceOrFifo =
+        format === 0o020000 /* S_IFCHR */ || format === 0o060000 /* S_IFBLK */ || format === 0o010000; /* S_IFIFO */
+    if (!isDeviceOrFifo) return false;
+
+    const permits = (attribute: string) =>
+        existing.has_attribute(attribute) && existing.get_attribute_boolean(attribute);
+    if (spec.readable && !permits('access::can-read')) return false;
+    if (spec.writable && !permits('access::can-write')) return false;
+    return true;
 }
 
 /** The same reconstruction for `mkdir(2)`, which also returns a bare `-1`. */
 export function classifyMkdirFailure(path: string): NodeJS.ErrnoException {
+    // Same order as `classifyOpenFailure`, and for the same reason: the kernel
+    // rejects an over-long name before it looks anything up. This call was
+    // missing entirely, so `mkdirSync(<500-char name>)` reported "permission
+    // denied" for a length the open-side sibling already named correctly —
+    // the two halves of one failure disagreeing inside one release.
+    const tooLong = nameTooLong(path, 'mkdir');
+    if (tooLong) return tooLong;
+
     const file = Gio.File.new_for_path(path);
     try {
-        file.query_info('standard::type', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
-        return fsError('EEXIST', 'mkdir', path);
+        const info = file.query_info('standard::type', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+        if (answered(info)) return fsError('EEXIST', 'mkdir', path);
+        // No answer means the search bit on some parent, not a taken name —
+        // see {@link answered}. Reporting EEXIST here is what made
+        // `try { mkdirSync(d) } catch (e) { if (e.code !== 'EEXIST') throw }`
+        // swallow a hard permission denial.
+        return fsError('EACCES', 'mkdir', path);
     } catch {
         // Not there — so the obstruction is above it.
     }
@@ -336,7 +479,9 @@ export function classifyMkdirFailure(path: string): NodeJS.ErrnoException {
     if (!parent) return fsError('ENOENT', 'mkdir', path);
     try {
         const parentInfo = parent.query_info('standard::type', Gio.FileQueryInfoFlags.NONE, null);
-        if (parentInfo.get_file_type() !== Gio.FileType.DIRECTORY) return fsError('ENOTDIR', 'mkdir', path);
+        if (answered(parentInfo) && parentInfo.get_file_type() !== Gio.FileType.DIRECTORY) {
+            return fsError('ENOTDIR', 'mkdir', path);
+        }
     } catch {
         return fsError('ENOENT', 'mkdir', path);
     }
@@ -418,8 +563,26 @@ const seekableFds = new Map<number, boolean>();
  * v24.15.0). Refusing those would have turned a stray log line into an ESPIPE
  * that Node never raises.
  *
- * What is left uncovered, stated plainly: a TTY opened BY PATH is `S_IFCHR`
- * with `no_llseek`, so it is called seekable here and still logs the CRITICAL.
+ * The type test alone is NOT the whole answer, and a TTY is where it runs out:
+ * `/dev/pts/N` is `S_IFCHR` exactly like `/dev/zero`, but it has `no_llseek`.
+ * So after the type test the DESCRIPTOR ITSELF is asked, with the same
+ * `lseek(fd, 0, SEEK_CUR)` `GIOChannel` uses internally — a pure query that
+ * moves nothing. Measured under gjs 1.88.1: it returns `G_IO_STATUS_NORMAL` on
+ * a regular file, on `/dev/zero` and on `/dev/null`, and THROWS
+ * `GLib.IOChannelError` ("Illegal seek") on a pty slave — cleanly, with no
+ * CRITICAL, because a `GIOChannel` over a tty is `is_seekable` and the failure
+ * comes from the kernel rather than from an assertion. Order matters: the type
+ * test runs FIRST because a FIFO / socket channel is NOT `is_seekable`, and
+ * asking one to seek is the `g_io_channel_seek_position: assertion failed`
+ * CRITICAL this function exists to avoid.
+ *
+ * Without the second test, writing to a terminal by path was impossible: the
+ * unconditional `seekFd` threw a RAW `Gio.IOErrorEnum` — `code === 8` as a
+ * NUMBER, `instanceof Error === false` — straight out of `writeFileSync`,
+ * `writeSync` and `createWriteStream`, so `catch (e) { if (e.code === 'ESPIPE') }`
+ * could not see it and the classic "write to the terminal even when stdout is
+ * redirected" idiom simply failed.
+ *
  * The process's own stdin/stdout/stderr — the overwhelmingly common tty case —
  * never reach this code: `isStdFd()` intercepts them first.
  *
@@ -443,14 +606,24 @@ function probeSeekable(fd: number, fallbackPath: string): boolean {
             Gio.FileQueryInfoFlags.NONE,
             null,
         );
-        const format = info.get_attribute_uint32('unix::mode') & 0o170000;
-        return format !== 0o010000 /* S_IFIFO */ && format !== 0o140000 /* S_IFSOCK */;
+        if (info.has_attribute('unix::mode')) {
+            const format = info.get_attribute_uint32('unix::mode') & 0o170000;
+            // The two the CHANNEL refuses to be asked about at all.
+            if (format === 0o010000 /* S_IFIFO */ || format === 0o140000 /* S_IFSOCK */) return false;
+        }
     } catch {
-        // No answer is not the same as "no". Assuming NOT seekable would make
-        // every positional read on an ordinary file fail with ESPIPE, which is
-        // far worse than the CRITICAL this check exists to avoid; assuming
-        // seekable is exactly the behaviour of the code this replaces.
+        // No answer is not the same as "no" — fall through and ask the
+        // descriptor, which answers about the object rather than about a name.
+    }
+
+    try {
+        seekHandle(fd).seek_position(0, GLib.SeekType.CUR);
         return true;
+    } catch {
+        // `lseek(fd, 0, SEEK_CUR)` failing IS the definition of a
+        // non-seekable descriptor, and it is the only definition available
+        // here: `GIOChannel.is_seekable` is not introspectable.
+        return false;
     }
 }
 
