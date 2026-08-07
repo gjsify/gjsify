@@ -149,6 +149,13 @@ jobs:
             cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1
             "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}"
             cd - >/dev/null
+            # Point the workspace shim at the published CLI too. `build:infra`
+            # runs PACKAGE SCRIPTS, and those call bare `gjsify`, which resolves
+            # through `node_modules/.bin/gjsify` — a workspace symlink to the
+            # very `packages/infra/cli/lib/index.js` this step exists to create.
+            # Without this the child dies on MODULE_NOT_FOUND for that path.
+            ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+            echo "Node bootstrap CLI: $(node_modules/.bin/gjsify --version)"
             node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js run build:infra
           fi
 
