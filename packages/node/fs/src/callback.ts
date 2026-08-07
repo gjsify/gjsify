@@ -799,10 +799,23 @@ export function writeFile(
     maybeCb?: NoParamCallback,
 ): void {
     const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
-    const pathStr = normalizePath(path);
+    // `options` used to be located only to find the callback behind it, and
+    // then DROPPED — the body was `writeFileSync(pathStr, data)`, two
+    // arguments. So the most idiomatic async spelling silently lost every one
+    // of them while `writeFileSync`, `promises.writeFile` and the `appendFile`
+    // two hundred lines up all honoured theirs: `{mode: 0o600}` produced a
+    // world-readable file, `{flag: 'wx'}` clobbered the lock it was meant to
+    // refuse, `{flag: 'a'}` truncated the log it was meant to extend, and
+    // `{encoding: 'base64'}` wrote the base64 TEXT. Before this redesign all
+    // four spellings dropped `mode`, so they were at least uniformly wrong;
+    // fixing three of them is what turned this one into a divergence.
+    const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
     Promise.resolve().then(() => {
         try {
-            writeFileSync(pathStr, data);
+            // Deliberately NOT `normalizePath(path)` first: `path` may be a
+            // descriptor, and `writeFileSync` is the single place that decides
+            // between a name and a descriptor.
+            writeFileSync(path, data, options);
             callback(null);
         } catch (err: unknown) {
             callback(err as NodeJS.ErrnoException);
