@@ -69,4 +69,9 @@ export {
 export { osAxisRule, decidesOnOs, osDecisionSites, TARGET_OSES, OS_CLAIMS } from './rules/os-axis.mjs';
 export { portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
 export { storybookRule, auditStorybook, countStoryFiles } from './rules/storybook.mjs';
+export {
+    nativescriptPlatformsRule,
+    auditNativescriptPlatforms,
+    collectPlatformVariants,
+} from './rules/nativescript-platforms.mjs';
 export { fieldCoverageRule, declaredGjsifyFields } from './rules/field-coverage.mjs';
