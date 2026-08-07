@@ -1,0 +1,867 @@
+<?xml version="1.0"?>
+<!-- This file was automatically generated from C sources - DO NOT EDIT!
+To affect the contents of this file, edit the original C definitions,
+and/or use gtk-doc annotations.  -->
+<repository version="1.2"
+            xmlns="http://www.gtk.org/introspection/core/1.0"
+            xmlns:c="http://www.gtk.org/introspection/c/1.0"
+            xmlns:doc="http://www.gtk.org/introspection/doc/1.0"
+            xmlns:glib="http://www.gtk.org/introspection/glib/1.0">
+  <include name="GObject" version="2.0"/>
+  <include name="Gdk" version="4.0"/>
+  <include name="Gio" version="2.0"/>
+  <include name="Gtk" version="4.0"/>
+  <c:include name="gjsify-webkit.h"/>
+  <doc:format name="unknown"/>
+  <namespace name="WebKit"
+             version="6.0"
+             shared-library="libgjsifywebkit.dylib"
+             c:identifier-prefixes="GjsifyWebKit"
+             c:symbol-prefixes="gjsify_webkit">
+    <enumeration name="LoadEvent" c:type="GjsifyWebKitLoadEvent">
+      <doc xml:space="preserve"
+           filename="src/objc/gjsify-webkit.h"
+           line="24">Mirrors `WebKitLoadEvent`. The numeric values match WebKitGTK's so a
+consumer that (wrongly) compares integers still agrees across backends.</doc>
+      <source-position filename="src/objc/gjsify-webkit.h" line="39"/>
+      <member name="started"
+              value="0"
+              c:identifier="GJSIFY_WEBKIT_LOAD_STARTED">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="26">a new load request has started.</doc>
+      </member>
+      <member name="redirected"
+              value="1"
+              c:identifier="GJSIFY_WEBKIT_LOAD_REDIRECTED">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="27">a load request has been redirected.</doc>
+      </member>
+      <member name="committed"
+              value="2"
+              c:identifier="GJSIFY_WEBKIT_LOAD_COMMITTED">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="28">the content is being loaded.</doc>
+      </member>
+      <member name="finished"
+              value="3"
+              c:identifier="GJSIFY_WEBKIT_LOAD_FINISHED">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="29">the load finished.</doc>
+      </member>
+    </enumeration>
+    <class name="Settings"
+           c:symbol-prefix="settings"
+           c:type="GjsifyWebKitSettings"
+           parent="GObject.Object"
+           final="1"
+           glib:type-name="GjsifyWebKitSettings"
+           glib:get-type="gjsify_webkit_settings_get_type"
+           glib:type-struct="SettingsClass">
+      <source-position filename="src/objc/gjsify-webkit.h" line="201"/>
+      <constructor name="new" c:identifier="gjsify_webkit_settings_new">
+        <source-position filename="src/objc/gjsify-webkit.h" line="208"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="206">settings with WebKitGTK's defaults.</doc>
+          <type name="Settings" c:type="GjsifyWebKitSettings*"/>
+        </return-value>
+      </constructor>
+      <property name="allow-file-access-from-file-urls"
+                writable="1"
+                transfer-ownership="none"
+                default-value="FALSE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+      <property name="enable-developer-extras"
+                writable="1"
+                transfer-ownership="none"
+                default-value="FALSE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+      <property name="enable-javascript"
+                writable="1"
+                transfer-ownership="none"
+                default-value="TRUE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+      <property name="enable-write-console-messages-to-stdout"
+                writable="1"
+                transfer-ownership="none"
+                default-value="FALSE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+    </class>
+    <record name="SettingsClass"
+            c:type="GjsifyWebKitSettingsClass"
+            glib:is-gtype-struct-for="Settings">
+      <source-position filename="src/objc/gjsify-webkit.h" line="201"/>
+      <field name="parent_class">
+        <type name="GObject.ObjectClass" c:type="GObjectClass"/>
+      </field>
+    </record>
+    <bitfield name="SnapshotOptions" c:type="GjsifyWebKitSnapshotOptions">
+      <source-position filename="src/objc/gjsify-webkit.h" line="61"/>
+      <member name="none"
+              value="0"
+              c:identifier="GJSIFY_WEBKIT_SNAPSHOT_OPTIONS_NONE">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="53">no special options.</doc>
+      </member>
+      <member name="include_selection_highlighting"
+              value="1"
+              c:identifier="GJSIFY_WEBKIT_SNAPSHOT_OPTIONS_INCLUDE_SELECTION_HIGHLIGHTING">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="54">include the selection highlight.</doc>
+      </member>
+      <member name="transparent_background"
+              value="2"
+              c:identifier="GJSIFY_WEBKIT_SNAPSHOT_OPTIONS_TRANSPARENT_BACKGROUND">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="55">do not paint the page background.</doc>
+      </member>
+    </bitfield>
+    <enumeration name="SnapshotRegion" c:type="GjsifyWebKitSnapshotRegion">
+      <source-position filename="src/objc/gjsify-webkit.h" line="49"/>
+      <member name="visible"
+              value="0"
+              c:identifier="GJSIFY_WEBKIT_SNAPSHOT_REGION_VISIBLE">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="43">the visible viewport.</doc>
+      </member>
+      <member name="full_document"
+              value="1"
+              c:identifier="GJSIFY_WEBKIT_SNAPSHOT_REGION_FULL_DOCUMENT">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="44">the whole scrollable document.</doc>
+      </member>
+    </enumeration>
+    <enumeration name="UserContentInjectedFrames"
+                 c:type="GjsifyWebKitUserContentInjectedFrames">
+      <source-position filename="src/objc/gjsify-webkit.h" line="71"/>
+      <member name="all_frames"
+              value="0"
+              c:identifier="GJSIFY_WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="65">inject into every frame.</doc>
+      </member>
+      <member name="top_frame"
+              value="1"
+              c:identifier="GJSIFY_WEBKIT_USER_CONTENT_INJECT_TOP_FRAME">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="66">inject into the main frame only.</doc>
+      </member>
+    </enumeration>
+    <class name="UserContentManager"
+           c:symbol-prefix="user_content_manager"
+           c:type="GjsifyWebKitUserContentManager"
+           parent="GObject.Object"
+           final="1"
+           glib:type-name="GjsifyWebKitUserContentManager"
+           glib:get-type="gjsify_webkit_user_content_manager_get_type"
+           glib:type-struct="UserContentManagerClass">
+      <source-position filename="src/objc/gjsify-webkit.h" line="156"/>
+      <constructor name="new"
+                   c:identifier="gjsify_webkit_user_content_manager_new">
+        <source-position filename="src/objc/gjsify-webkit.h" line="168"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="166">a new user content manager.</doc>
+          <type name="UserContentManager"
+                c:type="GjsifyWebKitUserContentManager*"/>
+        </return-value>
+      </constructor>
+      <method name="add_script"
+              c:identifier="gjsify_webkit_user_content_manager_add_script">
+        <source-position filename="src/objc/gjsify-webkit.h" line="170"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="UserContentManager"
+                  c:type="GjsifyWebKitUserContentManager*"/>
+          </instance-parameter>
+          <parameter name="script" transfer-ownership="none">
+            <type name="UserScript" c:type="GjsifyWebKitUserScript*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="register_script_message_handler"
+              c:identifier="gjsify_webkit_user_content_manager_register_script_message_handler">
+        <source-position filename="src/objc/gjsify-webkit.h" line="187"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="185">%TRUE if the handler was registered.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="178">the manager.</doc>
+            <type name="UserContentManager"
+                  c:type="GjsifyWebKitUserContentManager*"/>
+          </instance-parameter>
+          <parameter name="name" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="179">the handler name, reachable from the page as
+  `window.webkit.messageHandlers.&lt;name&gt;.postMessage()`.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="world_name"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="181">reserved for script-world parity with WebKitGTK; the
+  Apple backend has no public isolated-world API, so a non-%NULL value is
+  rejected loudly rather than silently ignored.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="remove_all_scripts"
+              c:identifier="gjsify_webkit_user_content_manager_remove_all_scripts">
+        <source-position filename="src/objc/gjsify-webkit.h" line="173"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="UserContentManager"
+                  c:type="GjsifyWebKitUserContentManager*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="unregister_script_message_handler"
+              c:identifier="gjsify_webkit_user_content_manager_unregister_script_message_handler">
+        <source-position filename="src/objc/gjsify-webkit.h" line="190"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="UserContentManager"
+                  c:type="GjsifyWebKitUserContentManager*"/>
+          </instance-parameter>
+          <parameter name="name" transfer-ownership="none">
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="world_name" transfer-ownership="none">
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <glib:signal name="script-message-received" when="last" detailed="1">
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <parameter name="object" transfer-ownership="none">
+            <type name="Value"/>
+          </parameter>
+        </parameters>
+      </glib:signal>
+    </class>
+    <record name="UserContentManagerClass"
+            c:type="GjsifyWebKitUserContentManagerClass"
+            glib:is-gtype-struct-for="UserContentManager">
+      <source-position filename="src/objc/gjsify-webkit.h" line="156"/>
+      <field name="parent_class">
+        <type name="GObject.ObjectClass" c:type="GObjectClass"/>
+      </field>
+    </record>
+    <record name="UserScript"
+            c:type="GjsifyWebKitUserScript"
+            opaque="1"
+            glib:type-name="GjsifyWebKitUserScript"
+            glib:get-type="gjsify_webkit_user_script_get_type"
+            c:symbol-prefix="user_script">
+      <source-position filename="src/objc/gjsify-webkit.h" line="119"/>
+      <constructor name="new" c:identifier="gjsify_webkit_user_script_new">
+        <source-position filename="src/objc/gjsify-webkit.h" line="144"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="142">a new script.</doc>
+          <type name="UserScript" c:type="GjsifyWebKitUserScript*"/>
+        </return-value>
+        <parameters>
+          <parameter name="source" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="136">the script source.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="injected_frames" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="137">which frames to inject into.</doc>
+            <type name="UserContentInjectedFrames"
+                  c:type="GjsifyWebKitUserContentInjectedFrames"/>
+          </parameter>
+          <parameter name="injection_time" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="138">when to inject.</doc>
+            <type name="UserScriptInjectionTime"
+                  c:type="GjsifyWebKitUserScriptInjectionTime"/>
+          </parameter>
+          <parameter name="allow_list"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="139">URI patterns to allow, or %NULL for all.</doc>
+            <array c:type="const gchar* const*">
+              <type name="utf8" c:type="gchar*"/>
+            </array>
+          </parameter>
+          <parameter name="block_list"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="140">URI patterns to block, or %NULL for none.</doc>
+            <array c:type="const gchar* const*">
+              <type name="utf8" c:type="gchar*"/>
+            </array>
+          </parameter>
+        </parameters>
+      </constructor>
+      <method name="ref" c:identifier="gjsify_webkit_user_script_ref">
+        <source-position filename="src/objc/gjsify-webkit.h" line="130"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="128">@self with its reference count increased.</doc>
+          <type name="UserScript" c:type="GjsifyWebKitUserScript*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="126">a script.</doc>
+            <type name="UserScript" c:type="GjsifyWebKitUserScript*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="unref" c:identifier="gjsify_webkit_user_script_unref">
+        <source-position filename="src/objc/gjsify-webkit.h" line="132"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="UserScript" c:type="GjsifyWebKitUserScript*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+    </record>
+    <enumeration name="UserScriptInjectionTime"
+                 c:type="GjsifyWebKitUserScriptInjectionTime">
+      <source-position filename="src/objc/gjsify-webkit.h" line="81"/>
+      <member name="start"
+              value="0"
+              c:identifier="GJSIFY_WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="75">run before the document loads.</doc>
+      </member>
+      <member name="end"
+              value="1"
+              c:identifier="GJSIFY_WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="76">run after the document loads.</doc>
+      </member>
+    </enumeration>
+    <class name="Value"
+           c:symbol-prefix="value"
+           c:type="GjsifyWebKitValue"
+           parent="GObject.Object"
+           final="1"
+           glib:type-name="GjsifyWebKitValue"
+           glib:get-type="gjsify_webkit_value_get_type"
+           glib:type-struct="ValueClass">
+      <source-position filename="src/objc/gjsify-webkit.h" line="94"/>
+      <method name="is_null" c:identifier="gjsify_webkit_value_is_null">
+        <source-position filename="src/objc/gjsify-webkit.h" line="105"/>
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="Value" c:type="GjsifyWebKitValue*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="is_string" c:identifier="gjsify_webkit_value_is_string">
+        <source-position filename="src/objc/gjsify-webkit.h" line="104"/>
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="Value" c:type="GjsifyWebKitValue*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="is_undefined"
+              c:identifier="gjsify_webkit_value_is_undefined">
+        <source-position filename="src/objc/gjsify-webkit.h" line="106"/>
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="Value" c:type="GjsifyWebKitValue*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="to_string" c:identifier="gjsify_webkit_value_to_string">
+        <source-position filename="src/objc/gjsify-webkit.h" line="103"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="100">the value rendered as a string, matching what
+  `JSCValue.to_string()` produces for the same script under WebKitGTK.</doc>
+          <type name="utf8" c:type="gchar*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="98">a value.</doc>
+            <type name="Value" c:type="GjsifyWebKitValue*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+    </class>
+    <record name="ValueClass"
+            c:type="GjsifyWebKitValueClass"
+            glib:is-gtype-struct-for="Value">
+      <source-position filename="src/objc/gjsify-webkit.h" line="94"/>
+      <field name="parent_class">
+        <type name="GObject.ObjectClass" c:type="GObjectClass"/>
+      </field>
+    </record>
+    <class name="WebView"
+           c:symbol-prefix="web_view"
+           c:type="GjsifyWebKitWebView"
+           parent="Gtk.Widget"
+           glib:type-name="GjsifyWebKitWebView"
+           glib:get-type="gjsify_webkit_web_view_get_type"
+           glib:type-struct="WebViewClass">
+      <source-position filename="src/objc/gjsify-webkit.h" line="235"/>
+      <implements name="Gtk.Accessible"/>
+      <implements name="Gtk.Buildable"/>
+      <implements name="Gtk.ConstraintTarget"/>
+      <constructor name="new" c:identifier="gjsify_webkit_web_view_new">
+        <source-position filename="src/objc/gjsify-webkit.h" line="242"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="240">a new web view.</doc>
+          <type name="Gtk.Widget" c:type="GtkWidget*"/>
+        </return-value>
+      </constructor>
+      <method name="evaluate_javascript"
+              c:identifier="gjsify_webkit_web_view_evaluate_javascript"
+              glib:finish-func="evaluate_javascript_finish">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-webkit.h"
+             line="278">The argument list is WebKitGTK's verbatim so `Gio._promisify` produces the
+identical Promise signature on both backends.</doc>
+        <source-position filename="src/objc/gjsify-webkit.h" line="293"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="280">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+          <parameter name="script" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="281">the source to evaluate.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="length" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="282">length of @script in bytes, or -1 if nul-terminated.</doc>
+            <type name="gssize" c:type="gssize"/>
+          </parameter>
+          <parameter name="world_name"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="283">reserved for parity; must be %NULL on this backend.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="source_uri"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="284">a URI attributed to the script in errors.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="cancellable"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="285">a #GCancellable.</doc>
+            <type name="Gio.Cancellable" c:type="GCancellable*"/>
+          </parameter>
+          <parameter name="callback"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1"
+                     scope="async"
+                     closure="6">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="286">called when the
+  evaluation completes.</doc>
+            <type name="Gio.AsyncReadyCallback" c:type="GAsyncReadyCallback"/>
+          </parameter>
+          <parameter name="user_data"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="288">data for @callback.</doc>
+            <type name="gpointer" c:type="gpointer"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="evaluate_javascript_finish"
+              c:identifier="gjsify_webkit_web_view_evaluate_javascript_finish"
+              throws="1"
+              glib:async-func="evaluate_javascript">
+        <source-position filename="src/objc/gjsify-webkit.h" line="311"/>
+        <return-value transfer-ownership="full" nullable="1">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="309">the value the script evaluated to.</doc>
+          <type name="Value" c:type="GjsifyWebKitValue*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="305">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+          <parameter name="result" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="306">the #GAsyncResult.</doc>
+            <type name="Gio.AsyncResult" c:type="GAsyncResult*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_settings"
+              c:identifier="gjsify_webkit_web_view_get_settings"
+              glib:get-property="settings">
+        <source-position filename="src/objc/gjsify-webkit.h" line="276"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="274">the settings this view was constructed with.</doc>
+          <type name="Settings" c:type="GjsifyWebKitSettings*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="272">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_snapshot"
+              c:identifier="gjsify_webkit_web_view_get_snapshot"
+              glib:finish-func="get_snapshot_finish">
+        <source-position filename="src/objc/gjsify-webkit.h" line="324"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="316">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+          <parameter name="region" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="317">which region to capture.</doc>
+            <type name="SnapshotRegion" c:type="GjsifyWebKitSnapshotRegion"/>
+          </parameter>
+          <parameter name="options" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="318">snapshot options.</doc>
+            <type name="SnapshotOptions" c:type="GjsifyWebKitSnapshotOptions"/>
+          </parameter>
+          <parameter name="cancellable"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="319">a #GCancellable.</doc>
+            <type name="Gio.Cancellable" c:type="GCancellable*"/>
+          </parameter>
+          <parameter name="callback"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1"
+                     scope="async"
+                     closure="4">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="320">called when the
+  snapshot completes.</doc>
+            <type name="Gio.AsyncReadyCallback" c:type="GAsyncReadyCallback"/>
+          </parameter>
+          <parameter name="user_data"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="322">data for @callback.</doc>
+            <type name="gpointer" c:type="gpointer"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_snapshot_finish"
+              c:identifier="gjsify_webkit_web_view_get_snapshot_finish"
+              throws="1"
+              glib:async-func="get_snapshot">
+        <source-position filename="src/objc/gjsify-webkit.h" line="341"/>
+        <return-value transfer-ownership="full" nullable="1">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="338">the captured content. A real
+  #GdkTexture, so `save_to_png_bytes()` and friends work unchanged.</doc>
+          <type name="Gdk.Texture" c:type="GdkTexture*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="334">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+          <parameter name="result" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="335">the #GAsyncResult.</doc>
+            <type name="Gio.AsyncResult" c:type="GAsyncResult*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_uri"
+              c:identifier="gjsify_webkit_web_view_get_uri"
+              glib:get-property="uri">
+        <source-position filename="src/objc/gjsify-webkit.h" line="257"/>
+        <return-value transfer-ownership="none">
+          <type name="utf8" c:type="const gchar*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_user_content_manager"
+              c:identifier="gjsify_webkit_web_view_get_user_content_manager"
+              glib:get-property="user-content-manager">
+        <source-position filename="src/objc/gjsify-webkit.h" line="267"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/objc/gjsify-webkit.h"
+               line="265">the manager this view was constructed with.</doc>
+          <type name="UserContentManager"
+                c:type="GjsifyWebKitUserContentManager*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="263">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="is_loading"
+              c:identifier="gjsify_webkit_web_view_is_loading"
+              glib:get-property="is-loading">
+        <source-position filename="src/objc/gjsify-webkit.h" line="259"/>
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="load_html" c:identifier="gjsify_webkit_web_view_load_html">
+        <source-position filename="src/objc/gjsify-webkit.h" line="252"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="248">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+          <parameter name="content" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="249">the HTML to load.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="base_uri"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/objc/gjsify-webkit.h"
+                 line="250">the base URI for relative resolution.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="load_uri" c:identifier="gjsify_webkit_web_view_load_uri">
+        <source-position filename="src/objc/gjsify-webkit.h" line="244"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+          <parameter name="uri" transfer-ownership="none">
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="reload" c:identifier="gjsify_webkit_web_view_reload">
+        <source-position filename="src/objc/gjsify-webkit.h" line="255"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="WebView" c:type="GjsifyWebKitWebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <property name="is-loading"
+                transfer-ownership="none"
+                getter="is_loading"
+                default-value="FALSE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+      <property name="settings"
+                writable="1"
+                construct-only="1"
+                transfer-ownership="none"
+                getter="get_settings">
+        <type name="Settings"/>
+      </property>
+      <property name="uri"
+                transfer-ownership="none"
+                getter="get_uri"
+                default-value="NULL">
+        <type name="utf8" c:type="gchar*"/>
+      </property>
+      <property name="user-content-manager"
+                writable="1"
+                construct-only="1"
+                transfer-ownership="none"
+                getter="get_user_content_manager">
+        <type name="UserContentManager"/>
+      </property>
+      <field name="parent_instance">
+        <type name="Gtk.Widget" c:type="GtkWidget"/>
+      </field>
+      <glib:signal name="load-changed" when="last">
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <parameter name="object" transfer-ownership="none">
+            <type name="gint" c:type="gint"/>
+          </parameter>
+        </parameters>
+      </glib:signal>
+      <glib:signal name="load-failed" when="last">
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <parameter name="object" transfer-ownership="none">
+            <type name="gint" c:type="gint"/>
+          </parameter>
+          <parameter name="p0" transfer-ownership="none">
+            <type name="utf8" c:type="gchar*"/>
+          </parameter>
+          <parameter name="p1" transfer-ownership="none">
+            <type name="GLib.Error"/>
+          </parameter>
+        </parameters>
+      </glib:signal>
+    </class>
+    <record name="WebViewClass"
+            c:type="GjsifyWebKitWebViewClass"
+            glib:is-gtype-struct-for="WebView">
+      <source-position filename="src/objc/gjsify-webkit.h" line="235"/>
+      <field name="parent_class">
+        <type name="Gtk.WidgetClass" c:type="GtkWidgetClass"/>
+      </field>
+      <field name="padding" readable="0" private="1">
+        <array zero-terminated="0" fixed-size="8">
+          <type name="gpointer" c:type="gpointer"/>
+        </array>
+      </field>
+    </record>
+  </namespace>
+</repository>

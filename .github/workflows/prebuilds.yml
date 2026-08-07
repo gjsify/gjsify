@@ -85,6 +85,8 @@ on:
       - 'packages/node/tls-native/meson.build'
       - 'packages/node/terminal-native/src/vala/**'
       - 'packages/node/terminal-native/meson.build'
+      - 'packages/framework/webkit-native/src/objc/**'
+      - 'packages/framework/webkit-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -139,6 +141,8 @@ on:
       - 'packages/node/tls-native/meson.build'
       - 'packages/node/terminal-native/src/vala/**'
       - 'packages/node/terminal-native/meson.build'
+      - 'packages/framework/webkit-native/src/objc/**'
+      - 'packages/framework/webkit-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -1213,6 +1217,43 @@ jobs:
         # #832 failure — a missing FILE that reads exactly like a broken rpath — and a
         # hand-written `cp` list is precisely where it went missing.
         run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      # -------- @gjsify/webkit-native (WebKit-6.0, darwin only) --------
+      # The one bridge with NO Linux counterpart: it binds Apple's
+      # WebKit.framework, which is why it appears here and in no other job. Its
+      # typelib deliberately claims the `WebKit-6.0` namespace so `@gjsify/iframe`
+      # keeps `gi://WebKit?version=6.0` verbatim on both platforms (ADR 0022).
+      #
+      # No `refs/` submodule and no Rust: the source is one Objective-C file and
+      # a pure-C header, and the toolchain is clang + meson + gobject-introspection,
+      # all of which this runner already has for the rows above.
+      - name: Build @gjsify/webkit-native (Objective-C → GObject shim)
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        working-directory: packages/framework/webkit-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/webkit-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        working-directory: packages/framework/webkit-native
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      # NOT optional, for two reasons that are easy to miss. Without an upload
+      # the build is thrown away, so a `ci:macos` run would prove the shim
+      # compiles and produce nothing to commit. And `changed-packages.mjs`
+      # discovers the package table from exactly these `path:` lines — a bridge
+      # with no upload step is invisible to it, so every edit under its
+      # directory is classified as "shared input changed" and rebuilds all ten
+      # other bridges on all five legs, QEMU included.
+      - name: Upload @gjsify/webkit-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: webkit-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/framework/webkit-native/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
 
       # -------- @gjsify/terminal-native (GjsifyTerminal) --------
       # Plain POSIX; the only Linux dependency it had was Vala's `linux.vapi`
