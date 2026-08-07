@@ -1172,18 +1172,25 @@ static void gjsify_webkit_send_button(GjsifyWebKitWebView *self,
             break;
     }
 
-    NSEvent *event = gjsify_webkit_mouse_event(self, type, x, y, state, click_count);
-    if (event == nil) {
-        return;
-    }
+    /* Every ObjC allocation in the input path is pooled, as everywhere else in
+     * this file. It matters more here than elsewhere: motion arrives at pointer
+     * rate, and a `+…EventWithType:` factory returns an autoreleased object, so
+     * an unpooled handler defers every one of them to a pool that a GTK main
+     * loop never drains. */
+    @autoreleasepool {
+        NSEvent *event = gjsify_webkit_mouse_event(self, type, x, y, state, click_count);
+        if (event == nil) {
+            return;
+        }
 
-    switch (type) {
-        case NSEventTypeLeftMouseDown: [web_view mouseDown:event]; break;
-        case NSEventTypeLeftMouseUp: [web_view mouseUp:event]; break;
-        case NSEventTypeRightMouseDown: [web_view rightMouseDown:event]; break;
-        case NSEventTypeRightMouseUp: [web_view rightMouseUp:event]; break;
-        case NSEventTypeOtherMouseDown: [web_view otherMouseDown:event]; break;
-        default: [web_view otherMouseUp:event]; break;
+        switch (type) {
+            case NSEventTypeLeftMouseDown: [web_view mouseDown:event]; break;
+            case NSEventTypeLeftMouseUp: [web_view mouseUp:event]; break;
+            case NSEventTypeRightMouseDown: [web_view rightMouseDown:event]; break;
+            case NSEventTypeRightMouseUp: [web_view rightMouseUp:event]; break;
+            case NSEventTypeOtherMouseDown: [web_view otherMouseDown:event]; break;
+            default: [web_view otherMouseUp:event]; break;
+        }
     }
 }
 
@@ -1241,18 +1248,20 @@ static void gjsify_webkit_on_motion(
 
     /* A move with a button held is a DRAG to WebKit, and reporting it as a plain
      * move breaks text selection and HTML5 drag-and-drop. */
-    if (PRIV(self)->buttons_down & (1u << GDK_BUTTON_PRIMARY)) {
-        [web_view mouseDragged:gjsify_webkit_mouse_event(
-                                   self, NSEventTypeLeftMouseDragged, x, y, state, 1)];
-    } else if (PRIV(self)->buttons_down & (1u << GDK_BUTTON_SECONDARY)) {
-        [web_view rightMouseDragged:gjsify_webkit_mouse_event(
-                                        self, NSEventTypeRightMouseDragged, x, y, state, 1)];
-    } else if (PRIV(self)->buttons_down != 0) {
-        [web_view otherMouseDragged:gjsify_webkit_mouse_event(
-                                        self, NSEventTypeOtherMouseDragged, x, y, state, 1)];
-    } else {
-        [web_view mouseMoved:gjsify_webkit_mouse_event(
-                                 self, NSEventTypeMouseMoved, x, y, state, 0)];
+    @autoreleasepool {
+        if (PRIV(self)->buttons_down & (1u << GDK_BUTTON_PRIMARY)) {
+            [web_view mouseDragged:gjsify_webkit_mouse_event(
+                                       self, NSEventTypeLeftMouseDragged, x, y, state, 1)];
+        } else if (PRIV(self)->buttons_down & (1u << GDK_BUTTON_SECONDARY)) {
+            [web_view rightMouseDragged:gjsify_webkit_mouse_event(
+                                            self, NSEventTypeRightMouseDragged, x, y, state, 1)];
+        } else if (PRIV(self)->buttons_down != 0) {
+            [web_view otherMouseDragged:gjsify_webkit_mouse_event(
+                                            self, NSEventTypeOtherMouseDragged, x, y, state, 1)];
+        } else {
+            [web_view mouseMoved:gjsify_webkit_mouse_event(
+                                     self, NSEventTypeMouseMoved, x, y, state, 0)];
+        }
     }
 }
 
@@ -1269,20 +1278,22 @@ static void gjsify_webkit_on_leave(GtkEventControllerMotion *controller, gpointe
      * because nothing else ever tells the page the pointer went away. A
      * tracking number of 0 is correct for a synthesized event: WebKit reads the
      * type and the location, not the tracking area it did not install. */
-    NSEvent *event = [NSEvent enterExitEventWithType:NSEventTypeMouseExited
-                                            location:gjsify_webkit_event_location(
-                                                         self,
-                                                         PRIV(self)->pointer_x,
-                                                         PRIV(self)->pointer_y)
-                                       modifierFlags:0
-                                           timestamp:gjsify_webkit_event_timestamp()
-                                        windowNumber:0
-                                             context:nil
-                                         eventNumber:0
-                                        trackingNumber:0
-                                            userData:NULL];
-    if (event != nil) {
-        [web_view mouseExited:event];
+    @autoreleasepool {
+        NSEvent *event = [NSEvent enterExitEventWithType:NSEventTypeMouseExited
+                                                location:gjsify_webkit_event_location(
+                                                             self,
+                                                             PRIV(self)->pointer_x,
+                                                             PRIV(self)->pointer_y)
+                                           modifierFlags:0
+                                               timestamp:gjsify_webkit_event_timestamp()
+                                            windowNumber:0
+                                                 context:nil
+                                             eventNumber:0
+                                          trackingNumber:0
+                                                userData:NULL];
+        if (event != nil) {
+            [web_view mouseExited:event];
+        }
     }
     gjsify_webkit_web_view_request_refresh(self);
 }
@@ -1313,9 +1324,11 @@ static gboolean gjsify_webkit_on_scroll(
     /* windowNumber stays 0, i.e. the location stays in the view's own space.
      * Pointing it at a window is what broke scrolling in the offscreen-window
      * design the probe threw away. */
-    NSEvent *event = [NSEvent eventWithCGEvent:cg];
-    if (event != nil) {
-        [web_view scrollWheel:event];
+    @autoreleasepool {
+        NSEvent *event = [NSEvent eventWithCGEvent:cg];
+        if (event != nil) {
+            [web_view scrollWheel:event];
+        }
     }
     CFRelease(cg);
 
@@ -1373,44 +1386,48 @@ static gboolean gjsify_webkit_send_key(
         return GDK_EVENT_PROPAGATE;
     }
 
-    NSString *characters = gjsify_webkit_characters_for_keyval(keyval);
-    NSEventModifierFlags flags = gjsify_webkit_modifier_flags(state);
+    @autoreleasepool {
+        NSString *characters = gjsify_webkit_characters_for_keyval(keyval);
+        NSEventModifierFlags flags = gjsify_webkit_modifier_flags(state);
 
-    /* GDK's hardware keycode IS the Carbon virtual keycode on the macOS backend,
-     * which is the only backend this file compiles for — so it passes through
-     * rather than being translated. WebKit needs it for layout-independent
-     * shortcuts, where the character is the wrong key to match on. */
-    NSEvent *event = [NSEvent keyEventWithType:pressed ? NSEventTypeKeyDown : NSEventTypeKeyUp
-                                      location:gjsify_webkit_event_location(
-                                                   self, PRIV(self)->pointer_x, PRIV(self)->pointer_y)
-                                 modifierFlags:flags
-                                     timestamp:gjsify_webkit_event_timestamp()
-                                  windowNumber:0
-                                       context:nil
-                                    characters:characters
-                   charactersIgnoringModifiers:characters
-                                     isARepeat:NO
-                                       keyCode:(unsigned short) keycode];
-    if (event == nil) {
-        return GDK_EVENT_PROPAGATE;
-    }
+        /* GDK's hardware keycode IS the Carbon virtual keycode on the macOS
+         * backend, which is the only backend this file compiles for — so it
+         * passes through rather than being translated. WebKit needs it for
+         * layout-independent shortcuts, where the character is the wrong key to
+         * match on. */
+        NSEvent *event = [NSEvent keyEventWithType:pressed ? NSEventTypeKeyDown : NSEventTypeKeyUp
+                                          location:gjsify_webkit_event_location(
+                                                       self,
+                                                       PRIV(self)->pointer_x,
+                                                       PRIV(self)->pointer_y)
+                                     modifierFlags:flags
+                                         timestamp:gjsify_webkit_event_timestamp()
+                                      windowNumber:0
+                                           context:nil
+                                        characters:characters
+                       charactersIgnoringModifiers:characters
+                                         isARepeat:NO
+                                           keyCode:(unsigned short) keycode];
+        if (event == nil) {
+            return GDK_EVENT_PROPAGATE;
+        }
 
-    /* A Command chord is a key EQUIVALENT on macOS, not a key down — that is the
-     * path Cmd+C/V/A/Z travel, and WebKit only implements the editing commands
-     * behind it. Sending one as a plain keyDown: types nothing and copies
-     * nothing. It answers whether it consumed the chord, so an unhandled one
-     * still falls through to the normal path. */
-    if (pressed && (flags & NSEventModifierFlagCommand) != 0) {
-        if ([web_view performKeyEquivalent:event]) {
+        /* A Command chord is a key EQUIVALENT on macOS, not a key down — that is
+         * the path Cmd+C/V/A/Z travel, and WebKit only implements the editing
+         * commands behind it. Sending one as a plain keyDown: types nothing and
+         * copies nothing. It answers whether it consumed the chord, so an
+         * unhandled one still falls through to the normal path. */
+        if (pressed && (flags & NSEventModifierFlagCommand) != 0 &&
+            [web_view performKeyEquivalent:event]) {
             gjsify_webkit_web_view_request_refresh(self);
             return GDK_EVENT_STOP;
         }
-    }
 
-    if (pressed) {
-        [web_view keyDown:event];
-    } else {
-        [web_view keyUp:event];
+        if (pressed) {
+            [web_view keyDown:event];
+        } else {
+            [web_view keyUp:event];
+        }
     }
 
     gjsify_webkit_web_view_request_refresh(self);
