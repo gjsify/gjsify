@@ -36,6 +36,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const VERIFY = join(MONOREPO_ROOT, 'packages', 'node-gi', 'scripts', 'verify-bundle-manifest.mjs');
 const GUARD = join(MONOREPO_ROOT, 'scripts', 'check-workflow-inline-scripts.mjs');
+const IMAGE_GUARD = join(MONOREPO_ROOT, 'scripts', 'check-ci-image-packages.mjs');
 
 /** The measured shape of a good v0.28.0 darwin-arm64 bundle manifest. */
 function goodManifest(overrides = {}) {
@@ -213,6 +214,159 @@ describe('check-workflow-inline-scripts: the regrow guard', () => {
 
     it("holds for this repo's own workflows", () => {
         const result = spawnSync(process.execPath, [GUARD, '--root', MONOREPO_ROOT], { encoding: 'utf8' });
+        assert.equal(result.status, 0, result.output);
+    });
+});
+
+// The third script that only a real release used to exercise. `release.yml`'s
+// `napi-prebuild-linux` ran `node scripts/stage-prebuild.mjs` on an image whose
+// Dockerfile says, in those words, "no nodejs/npm baked in". On the v0.31.0 publish
+// meson built all 16 targets and the step then died on `node: command not found`
+// (exit 127); `publish-napi` needs that artifact, so it was skipped and `@gjsify/napi`
+// alone stayed at 0.30.0 while the other 60 packages went out. Same suite, same
+// reason: this is where its failure path runs before a release finds it.
+describe('check-ci-image-packages: the node-availability guard', () => {
+    const dockerfileWith = (packages) =>
+        ['FROM fedora:44', 'RUN dnf install -y \\', `    ${packages} \\`, '    && dnf clean all', ''].join('\n');
+    const BAKED_DOCKERFILE = dockerfileWith('gjs meson vala');
+
+    function runImageGuard(workflowFiles, dockerfile = BAKED_DOCKERFILE) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-image-guard-'));
+        mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+        mkdirSync(join(root, '.docker'), { recursive: true });
+        writeFileSync(join(root, '.docker', 'ci-fedora.Dockerfile'), dockerfile);
+        writeFileSync(
+            join(root, '.github', 'workflows', 'build-ci-image.yml'),
+            [
+                'jobs:',
+                '  image:',
+                '    steps:',
+                '      - uses: docker/build-push-action@v6',
+                '        with:',
+                '          platforms: linux/amd64',
+                '',
+            ].join('\n'),
+        );
+        for (const [name, body] of Object.entries(workflowFiles)) {
+            writeFileSync(join(root, '.github', 'workflows', name), body);
+        }
+        const result = spawnSync(process.execPath, [IMAGE_GUARD, '--root', root], { encoding: 'utf8' });
+        return { ...result, output: `${result.stdout}${result.stderr}` };
+    }
+
+    it('rejects the exact step that stranded @gjsify/napi at 0.30.0', () => {
+        const result = runImageGuard({
+            'release.yml': [
+                'jobs:',
+                '  napi-prebuild-linux:',
+                '    runs-on: ubuntu-latest',
+                '    container:',
+                '      image: ghcr.io/gjsify/ci-fedora:44',
+                '    steps:',
+                '      - uses: actions/checkout@v4',
+                '      - name: Build the shim + stage prebuild',
+                '        run: |',
+                '          meson setup build .',
+                '          node ../../../scripts/stage-prebuild.mjs .',
+                '',
+            ].join('\n'),
+        });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /release\.yml\/napi-prebuild-linux/);
+        assert.match(result.stderr, /which ships no node, and invokes it anyway/);
+        assert.match(result.stderr, /release\.yml:11/);
+    });
+
+    it('accepts the same job once it provides node', () => {
+        const result = runImageGuard({
+            'release.yml': [
+                'jobs:',
+                '  napi-prebuild-linux:',
+                '    runs-on: ubuntu-latest',
+                '    container:',
+                '      image: ghcr.io/gjsify/ci-fedora:44',
+                '    steps:',
+                '      - uses: actions/setup-node@v6',
+                '        with:',
+                "          node-version: '26.x'",
+                '      - run: |',
+                '          node ../../../scripts/stage-prebuild.mjs .',
+                '',
+            ].join('\n'),
+        });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /provided by actions\/setup-node@v6 step/);
+    });
+
+    // The false positive a naive rule produces. `prebuilds.yml` installs nodejs
+    // itself, in a FOLDED (`run: >`) block whose package list is on the lines after
+    // `dnf install -y` — invisible to a scanner that reads block scalars verbatim or
+    // only handles `|`. A check that fails here gets switched off, and then it guards
+    // nothing.
+    it('accepts a job that installs nodejs itself in a folded run block', () => {
+        const result = runImageGuard({
+            'prebuilds.yml': [
+                'jobs:',
+                '  build-prebuilds:',
+                '    runs-on: ubuntu-24.04-arm',
+                '    container:',
+                '      image: fedora:43',
+                '    steps:',
+                '      - run: >',
+                '          dnf install -y',
+                '          git tar xz',
+                '          nodejs',
+                '          meson vala',
+                '      - run: node ../../../scripts/stage-prebuild.mjs . --scratch',
+                '',
+            ].join('\n'),
+        });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /provided by its own nodejs install/);
+    });
+
+    it('does not mistake node-shaped words for an invocation', () => {
+        const result = runImageGuard({
+            'main.yml': [
+                'jobs:',
+                '  build:',
+                '    runs-on: ubuntu-latest',
+                '    container:',
+                '      image: ghcr.io/gjsify/ci-fedora:44',
+                '    steps:',
+                '      - run: |',
+                '          rm -rf node_modules',
+                '          gjsify build --app node',
+                '          gjs -m packages/node-gi/dist/test.mjs',
+                '',
+            ].join('\n'),
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    // The derivation, not a hardcoded fact about the image: bake nodejs in and the
+    // check stops asking for setup-node, with nothing to remember to delete.
+    it('stands down when the image itself bakes nodejs', () => {
+        const withNode = dockerfileWith('gjs meson nodejs');
+        const workflow = {
+            'release.yml': [
+                'jobs:',
+                '  napi-prebuild-linux:',
+                '    runs-on: ubuntu-latest',
+                '    container:',
+                '      image: ghcr.io/gjsify/ci-fedora:44',
+                '    steps:',
+                '      - run: |',
+                '          node ../../../scripts/stage-prebuild.mjs .',
+                '',
+            ].join('\n'),
+        };
+        assert.equal(runImageGuard(workflow).status, 1);
+        assert.equal(runImageGuard(workflow, withNode).status, 0);
+    });
+
+    it("holds for this repo's own workflows", () => {
+        const result = spawnSync(process.execPath, [IMAGE_GUARD, '--root', MONOREPO_ROOT], { encoding: 'utf8' });
         assert.equal(result.status, 0, result.output);
     });
 });
