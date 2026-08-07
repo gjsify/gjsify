@@ -24,6 +24,9 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Command } from '../types/index.js';
 import { detectNativePackages, buildNativeEnv } from '../utils/detect-native-packages.js';
+import { isOnPath } from '../utils/check-system-deps.js';
+import { existsSync } from 'node:fs';
+import { forceExit } from '../utils/force-exit.js';
 import { nodeBinary } from '../utils/run-node.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 
@@ -115,9 +118,12 @@ export const tscCommand: Command<unknown, TscOptions> = {
         if (!bundlePath && !nodeTscPath) {
             console.error('gjsify tsc: neither @gjsify/tsc (GJS bundle) nor npm `typescript` (Node) is installed.');
             console.error('  Install with: gjsify install --save-dev @gjsify/tsc   (or add `typescript`).');
-            // `return` — a bare `process.exit()` is deferred under GJS and the
-            // handler would try to spawn a compiler that is not there.
-            return process.exit(1);
+            // `return` — the handler must not fall through and try to spawn a
+            // compiler that is not there. `forceExit` and not `process.exit`
+            // because the latter is idle-scheduled under GJS, and NOTHING here
+            // armed a main loop to deliver it: the process would reach natural
+            // shutdown and report 0 while printing the message above.
+            return forceExit(1);
         }
 
         // Mirror `gjsify run`'s native-env composition so any future
@@ -147,8 +153,31 @@ export const tscCommand: Command<unknown, TscOptions> = {
         // `run-node.ts` owns the one correct answer; every other spawn site in
         // this CLI already routes through it.
         const runNodeTsc = (): void => {
-            const child = spawn(nodeBinary(), [nodeTscPath as string, ...tscArgs], { env, stdio: 'inherit' });
-            child.on('close', (code) => process.exit(code ?? 1));
+            const nodeBin = nodeBinary();
+            // PRE-FLIGHT, deliberately NOT the spawn's `'error'` event.
+            //
+            // Under the GJS bundle that event is not delivered when the program
+            // is missing: the handler below never runs, the command returns
+            // normally, and `gjsify tsc` exits **0 in total silence** having
+            // compiled nothing. Measured in CI by `tests/e2e/tsc-node-fallback`'s
+            // "FAILS LOUDLY …" case, whose assertion printed an EMPTY captured
+            // output — no stderr at all, so nothing had reported anything.
+            //
+            // Deciding it here, synchronously, is what makes the failure
+            // reportable: the exit happens on the caller's own stack rather than
+            // in a continuation that may never be scheduled.
+            const runnable = nodeBin.includes('/') || nodeBin.includes('\\') ? existsSync(nodeBin) : isOnPath(nodeBin);
+            if (!runnable) {
+                console.error(
+                    `gjsify tsc: the @gjsify/tsc GJS bundle is unavailable and \`${nodeBin}\` cannot be run, ` +
+                        'so upstream `typescript` cannot run either.',
+                );
+                console.error('  Build the bundle with: gjsify workspace @gjsify/tsc build');
+                console.error('  …or install Node.js so the upstream `typescript` fallback can be spawned.');
+                return forceExit(1);
+            }
+            const child = spawn(nodeBin, [nodeTscPath as string, ...tscArgs], { env, stdio: 'inherit' });
+            child.on('close', (code) => forceExit(code ?? 1));
             child.on('error', (err: NodeJS.ErrnoException) => {
                 if (err.code === 'ENOENT') {
                     console.error(
@@ -159,7 +188,7 @@ export const tscCommand: Command<unknown, TscOptions> = {
                 } else {
                     console.error(`gjsify tsc (node typescript): ${err.message}`);
                 }
-                process.exit(1);
+                forceExit(1);
             });
         };
 
@@ -179,7 +208,7 @@ export const tscCommand: Command<unknown, TscOptions> = {
             await new Promise<void>((resolvePromise) => {
                 child.on('close', (code) => {
                     if (gjsSpawnFailed) return;
-                    process.exit(code ?? 1);
+                    forceExit(code ?? 1);
                 });
                 child.on('error', (err: NodeJS.ErrnoException) => {
                     gjsSpawnFailed = true;
@@ -189,10 +218,10 @@ export const tscCommand: Command<unknown, TscOptions> = {
                     } else if (err.code === 'ENOENT') {
                         console.error('gjsify tsc: `gjs` not found on PATH and no npm `typescript` fallback.');
                         console.error('  Install GJS (e.g. `dnf install gjs`), or add `typescript` to the project.');
-                        process.exit(1);
+                        forceExit(1);
                     } else {
                         console.error(`gjsify tsc: ${err.message}`);
-                        process.exit(1);
+                        forceExit(1);
                     }
                 });
                 // Never resolves naturally — process.exit() above terminates the

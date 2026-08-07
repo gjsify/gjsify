@@ -62,7 +62,7 @@ function tryExecFile(binary: string, args: string[]): string | null {
  * reason. It stays a second copy on purpose: it is `.mjs` under `tests/` and
  * cannot be imported from the shipped CLI.
  */
-function isOnPath(cmd: string): boolean {
+export function isOnPath(cmd: string): boolean {
     const pathVar = process.env.PATH;
     if (!pathVar) return false;
     const sep = process.platform === 'win32' ? ';' : ':';

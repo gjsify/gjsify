@@ -32,7 +32,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, syml
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { forceExit } from '../utils/force-exit.js';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
@@ -406,21 +406,6 @@ function isAbortedFromOverallTimeout(err: unknown): boolean {
     // the overall budget but typically the symptom the overall timer reports.
     if (name === 'RegistryTimeoutError') return true;
     return false;
-}
-
-/**
- * Force a non-zero process exit that is honored on BOTH runtimes.
- *
- * Node exits at natural shutdown once `process.exitCode` is set, but GJS has
- * no atexit hook, so `imports.system.exit` is called directly there —
- * SpiderMonkey raises its uncatchable exit exception from any context,
- * including the `setTimeout` continuation the backstop timer runs in. Mirrors
- * the entry wrapper (`index.ts`) and `setOxcExitCode` (`oxc-resolve.ts`).
- */
-function forceExit(code: number): void {
-    process.exitCode = code;
-    if (gjsExit(code)) return;
-    process.exit(code);
 }
 
 const CLI_PACKAGE_NAME = '@gjsify/cli';
