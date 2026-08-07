@@ -41,7 +41,18 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, readFileSync, cpSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createTestEnvironment, cleanupTestEnvironment, setupProjectYarnPnp, hasCommand } from '../helpers.mjs';
+import {
+    createTestEnvironment,
+    cleanupTestEnvironment,
+    setupProjectYarnPnp,
+    hasCommand,
+    pnpRegistryGapSkipReason,
+} from '../helpers.mjs';
+
+// Top-level await: the reason has to exist before `describe` is called, because
+// `{ skip }` is read when the suite is DEFINED, not when it runs.
+const registryGap = await pnpRegistryGapSkipReason();
+if (registryGap) console.log(`  SKIP pnp-zip-static-reads: ${registryGap}`);
 
 /**
  * Pack a tiny `@fixture/pnp-zip-reads` package into `tarballsDir` so the
@@ -114,7 +125,7 @@ function gjsRunnable() {
     }
 }
 
-describe('PnP zip-resident static reads E2E', { timeout: 10 * 60 * 1000 }, () => {
+describe('PnP zip-resident static reads E2E', { timeout: 10 * 60 * 1000, skip: registryGap }, () => {
     let tmpDir;
     let tarballsDir;
     let tarballMap;
