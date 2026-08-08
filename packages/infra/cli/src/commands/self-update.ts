@@ -11,9 +11,18 @@
 // `defaultGlobalLayout().prefix` (i.e. via `gjsify install -g` or via the
 // `install.mjs` bootstrap). Installs from `npm install -g @gjsify/cli` land
 // elsewhere and we don't try to chase them — we print a warning and exit.
+//
+// AND THE WARNING IS NOT ENOUGH ON ITS OWN (#1064). This command's whole job is
+// to change which binary the user's next `gjsify` runs, so success has to be
+// measured on PATH, not on the prefix it wrote. Reported from a Windows host:
+// the pre-install warning fired, the install succeeded, `Updated @gjsify/cli to
+// v0.31.0` printed — and the shell kept resolving a v0.26.0 npm-global install,
+// so the very next command re-hit the `dlx` EPERM fixed three releases earlier.
+// A silent no-op that reports success is worse than a clean failure, so the
+// post-link verification below is fatal.
 
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, posix, resolve, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchPackument, type Packument } from '@gjsify/npm-registry';
 import type { Argv } from 'yargs';
@@ -21,9 +30,11 @@ import type { Command } from '../types/index.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import {
     defaultGlobalLayout,
+    globalLayoutIsDefault,
     hasBundlerEngineInstalled,
     installGjsEnginePackages,
     linkGlobalBins,
+    resolveBinOnPath,
 } from '../utils/install-global.js';
 
 interface SelfUpdateOptions {
@@ -196,6 +207,29 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
                 console.log(`  • ${bin.link}  →  ${bin.target}`);
             }
         }
+
+        // Did the update change what `gjsify` RUNS? Everything above only proves
+        // we wrote the prefix. See the #1064 note at the top of this file.
+        //
+        // Only for the user's OWN layout: a caller that redirected the install
+        // with GJSIFY_GLOBAL_PREFIX/_BIN_DIR manages placement itself, and
+        // telling a harness that installed into a temp prefix "your PATH still
+        // points elsewhere" is true and useless.
+        if (globalLayoutIsDefault()) {
+            const verdict = verifyPathResolution({
+                binName: BIN_NAME,
+                binDir: layout.binDir,
+                resolvedBin: resolveBinOnPath(BIN_NAME),
+                runningVersion: currentVersion,
+                targetVersion: target,
+            });
+            if (!verdict.ok) {
+                console.error(`\nInstalled ${PACKAGE_NAME} v${target} at ${layout.prefix}`);
+                console.error(verdict.message);
+                return process.exit(1);
+            }
+        }
+
         console.log(`\nUpdated ${PACKAGE_NAME} to v${target}.`);
         if (pullDeps) {
             console.log('Runtime dependencies were resolved alongside the bundle.');
@@ -204,6 +238,68 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
         }
     },
 };
+
+/** The bin `@gjsify/cli` installs, and the name a user types. */
+const BIN_NAME = 'gjsify';
+
+/** Verdict of the post-install "did this change what runs?" check. */
+export type PathVerdict = { ok: true } | { ok: false; message: string };
+
+/**
+ * Compare where PATH sends `binName` against the `binDir` we just linked into.
+ *
+ * Pure so the three outcomes are unit-testable off-host — the interesting two
+ * are exactly the ones a developer's own machine never produces, since a working
+ * install resolves to its own `binDir` by definition.
+ *
+ * Path comparison is case-INSENSITIVE on win32: `C:\Users\X\.local\bin` and
+ * `c:\users\x\.local\bin` are one directory there, and a case-sensitive compare
+ * would report a correct install as shadowed.
+ */
+export function verifyPathResolution(opts: {
+    binName: string;
+    binDir: string;
+    resolvedBin: string | null;
+    /** `null` is what `readCurrentVersion()` returns when it cannot tell. */
+    runningVersion: string | null | undefined;
+    targetVersion: string;
+    platform?: NodeJS.Platform;
+}): PathVerdict {
+    const platform = opts.platform ?? process.platform;
+    // The TARGET platform's path module, never the host's — see `pathFor` in
+    // `utils/install-global.ts` for why (`resolve('C:\\x')` on posix is wrong).
+    const p = platform === 'win32' ? win32 : posix;
+    const norm = (v: string) => (platform === 'win32' ? p.resolve(v).toLowerCase() : p.resolve(v));
+
+    if (opts.resolvedBin === null) {
+        return {
+            ok: false,
+            message:
+                `BUT nothing named \`${opts.binName}\` is on PATH, so the update cannot take effect.\n\n` +
+                `  Add the bin dir to PATH:\n    ${opts.binDir}`,
+        };
+    }
+
+    if (norm(p.dirname(opts.resolvedBin)) === norm(opts.binDir)) return { ok: true };
+
+    // Deliberately NOT split into "a rival install" vs "a transient runner"
+    // (npx/dlx, whose temp bin wins PATH for the length of the run). Both are the
+    // same fact — `gjsify` does not currently mean the tree we just wrote — and
+    // guessing which one it is would be a heuristic that can only be wrong. So
+    // the finding is stated and both remedies are offered.
+    const running = opts.runningVersion ? ` (v${opts.runningVersion})` : '';
+    return {
+        ok: false,
+        message:
+            `BUT \`${opts.binName}\` on PATH resolves to\n    ${opts.resolvedBin}${running}\n` +
+            `which is NOT the install that was just updated, so the next \`${opts.binName}\`\n` +
+            `you run will not be v${opts.targetVersion}.\n\n` +
+            `  If that is another install, remove it (e.g. \`npm uninstall -g ${PACKAGE_NAME}\`)\n` +
+            `  or put ${opts.binDir} ahead of it on PATH.\n` +
+            `  If you ran this through npx/dlx, that temporary copy owns the name only for\n` +
+            `  this run — open a new shell and check \`${opts.binName} --version\`.`,
+    };
+}
 
 /**
  * Resolve the CLI's own `package.json#version`. Walks up from

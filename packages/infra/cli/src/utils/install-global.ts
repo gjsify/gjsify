@@ -350,12 +350,119 @@ function readJson(file: string): Record<string, unknown> {
     return JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, unknown>;
 }
 
+/**
+ * Is the global layout the user's own, or has a caller redirected it?
+ *
+ * `GJSIFY_GLOBAL_PREFIX` / `GJSIFY_GLOBAL_BIN_DIR` are the escape hatches
+ * {@link defaultGlobalLayout} documents for tests, and a caller that sets them
+ * has taken over placement — so "which `gjsify` will PATH resolve next" stops
+ * being a question about THEIR intent. `self-update` gates its fatal PATH check
+ * on this: without it, every harness installing into a temp prefix it never put
+ * on PATH is told its update did not take effect, which is true and useless.
+ * Caught by `tests/e2e/global-install-engine`.
+ *
+ * @param env injectable so both answers are testable without mutating the real
+ *   environment mid-suite.
+ */
+export function globalLayoutIsDefault(env: NodeJS.ProcessEnv = process.env): boolean {
+    return !env.GJSIFY_GLOBAL_PREFIX && !env.GJSIFY_GLOBAL_BIN_DIR;
+}
+
+/**
+ * The path module for a TARGET platform, not for the host.
+ *
+ * Load-bearing for every function below that takes a `platform`. `path.resolve`
+ * is host-bound: on Linux `path.resolve('C:\\tools')` returns
+ * `<cwd>/C:\tools`, because posix has no notion of a drive letter. So a function
+ * that accepts `platform` and then calls the host's `path` is only pretending to
+ * be portable — it silently mangles Windows input everywhere except Windows,
+ * which is exactly the class of bug an injected platform is supposed to expose.
+ * Caught by `resolve-bin-on-path.spec.ts`, which asserts real `C:\…` semantics
+ * from Linux.
+ */
+function pathFor(platform: NodeJS.Platform): typeof path.win32 {
+    return platform === 'win32' ? path.win32 : path.posix;
+}
+
+/** PATH split into resolved directory entries, in search order. */
+function searchPathEntries(pathValue: string, platform: NodeJS.Platform): string[] {
+    const p = pathFor(platform);
+    const sep = platform === 'win32' ? ';' : ':';
+    return pathValue
+        .split(sep)
+        .filter(Boolean)
+        .map((entry) => p.resolve(entry));
+}
+
 /** Returns `true` if `binDir` is on the user's PATH. */
 export function binDirOnPath(binDir: string): boolean {
-    const PATH = process.env.PATH ?? '';
-    const sep = process.platform === 'win32' ? ';' : ':';
-    const want = path.resolve(binDir);
-    return PATH.split(sep).some((entry) => entry && path.resolve(entry) === want);
+    const want = pathFor(process.platform).resolve(binDir);
+    return searchPathEntries(process.env.PATH ?? '', process.platform).includes(want);
+}
+
+/** Injection points for {@link resolveBinOnPath} — see its `platform` note. */
+export interface ResolveBinOnPathOptions {
+    /** PATH to search. Defaults to `process.env.PATH`. */
+    pathValue?: string;
+    /** PATHEXT to honour on win32. Defaults to `process.env.PATHEXT` or cmd.exe's set. */
+    pathExt?: string;
+    /** Host platform. Defaults to `process.platform`. */
+    platform?: NodeJS.Platform;
+    /** File-existence probe. Defaults to a real `fs.existsSync`. */
+    exists?: (file: string) => boolean;
+}
+
+/** cmd.exe's default when PATHEXT is unset. `.CMD` is the one npm-style shims need. */
+const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.JS;.WS;.MSC';
+
+/**
+ * Resolve `binName` the way the user's shell will: the FIRST hit in PATH order.
+ *
+ * WHY THIS IS NOT `binDirOnPath`. That answers "is our dir on PATH", which is
+ * necessary but not sufficient for anything that CHANGES which binary runs:
+ * `~/.local/bin` can be on PATH and still lose to an npm-global `gjsify` earlier
+ * in it. `self-update` reported "Updated to v0.31.0" on exactly that host while
+ * the shell kept resolving a v0.26.0 install five releases behind — and the user
+ * then re-hit a bug fixed three releases earlier and reported it as new (#1064).
+ * "Which one wins" is the question, so this returns the winning PATH.
+ *
+ * WINDOWS. An extension-less name is not executable there; cmd.exe and pwsh
+ * append each `PATHEXT` entry, which is how the `.cmd` shim `bin-shim.ts` writes
+ * gets found. The bare name is probed LAST so a git-bash/MSYS `sh` shim is still
+ * reported rather than missed. `platform`/`pathExt`/`exists` are injectable for
+ * the same reason `dirLinkTarget` takes `linkType`: nothing in CI resolves a bin
+ * on a Windows host, so an injected `'win32'` is the ONLY way that branch is ever
+ * EXECUTED — and an unexecutable Windows branch is exactly how the `'dir'` bug in
+ * `dir-link.ts` shipped.
+ *
+ * @returns the absolute path of the winning candidate, or `null` when PATH holds none.
+ */
+export function resolveBinOnPath(binName: string, opts: ResolveBinOnPathOptions = {}): string | null {
+    const platform = opts.platform ?? process.platform;
+    const pathValue = opts.pathValue ?? process.env.PATH ?? '';
+    const exists = opts.exists ?? fs.existsSync;
+
+    // On win32 the extensions come FIRST (what cmd.exe/pwsh actually launch) and
+    // the bare name last (git-bash). Elsewhere there is only the bare name.
+    const suffixes =
+        platform === 'win32'
+            ? [
+                  ...(opts.pathExt ?? process.env.PATHEXT ?? DEFAULT_PATHEXT)
+                      .split(';')
+                      .filter(Boolean)
+                      .map((ext) => (ext.startsWith('.') ? ext : `.${ext}`)),
+                  '',
+              ]
+            : [''];
+
+    const p = pathFor(platform);
+    for (const dir of searchPathEntries(pathValue, platform)) {
+        for (const suffix of suffixes) {
+            const candidate = p.join(dir, `${binName}${suffix}`);
+            if (exists(candidate)) return candidate;
+        }
+    }
+    return null;
 }
 
 /**

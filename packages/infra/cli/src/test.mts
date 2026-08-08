@@ -20,6 +20,8 @@ import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
 import dirLinkSuite from './utils/dir-link.spec.js';
+import resolveBinOnPathSuite from './utils/resolve-bin-on-path.spec.js';
+import showcasePreflightSuite from './commands/showcase-preflight.spec.js';
 import checkSystemDepsSuite from './utils/check-system-deps.spec.js';
 import dlxCacheSuite from './utils/dlx-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
@@ -193,6 +195,8 @@ run(
         authNpmrcSuite,
         promptKeySuite,
         dirLinkSuite,
+        resolveBinOnPathSuite,
+        showcasePreflightSuite,
         checkSystemDepsSuite,
         dlxCacheSuite,
         installCacheFsSuite,
