@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { ADW_SPINNER_MIN_SIZE, spinnerGeometry } from '@gjsify/adwaita-core';
+import { ADW_SPINNER_MIN_SIZE, resolveSpinnerSize, spinnerGeometry } from '@gjsify/adwaita-core';
 import {
     CLAMP_ALLOCATE_VECTORS,
     CLAMP_PROPERTY_VECTORS,
@@ -145,10 +145,24 @@ export default async () => {
             expect(spinnerDiameter(null)).toBe(16);
         });
 
-        await it('caps an oversized request at 64 instead of applying it', () => {
-            // `size = 200` used to produce a 200 DIP indicator.
+        await it('caps the RING at 64 while the BOX keeps the request', () => {
+            // The two are different numbers, which is the split `AdwSpinner`
+            // renders: a `GridLayout` of `resolveSpinnerSize` DIPs holding an
+            // `ActivityIndicator` of `spinnerDiameter` DIPs, centred. The widget
+            // used to be the ring alone, so `size = 200` occupied 64 DIPs of
+            // layout where GTK occupies 200 (adw-spinner.c:78-81 reports MIN_SIZE
+            // as minimum AND natural with no upper bound; only the radius caps).
             expect(spinnerDiameter(200)).toBe(64);
             expect(spinnerDiameter(1000)).toBe(64);
+            expect(resolveSpinnerSize(200)).toBe(200);
+            expect(resolveSpinnerSize(1000)).toBe(1000);
+            // ...and they agree wherever the cap does not bite.
+            for (const size of [16, 24, 48, 64]) expect(spinnerDiameter(size)).toBe(resolveSpinnerSize(size));
+        });
+
+        await it('floors the BOX at the measured minimum, so a tiny request is not representable', () => {
+            expect(resolveSpinnerSize(4)).toBe(ADW_SPINNER_MIN_SIZE);
+            expect(resolveSpinnerSize(null)).toBe(ADW_SPINNER_MIN_SIZE);
         });
     });
 

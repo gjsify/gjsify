@@ -17,9 +17,16 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     INLINE_TOGGLE_VECTORS,
     INLINE_TOOLTIP_VECTORS,
+    VIEW_SWITCHER_BADGE_VECTORS,
     VIEW_SWITCHER_BAR_REVEAL_VECTORS,
     VIEW_SWITCHER_BUTTON_VECTORS,
+    VIEW_SWITCHER_BUTTON_VISIBILITY_VECTORS,
+    VIEW_SWITCHER_DRAG_VECTORS,
+    VIEW_SWITCHER_ICON_VECTORS,
+    VIEW_SWITCHER_MNEMONIC_VECTORS,
+    VIEW_SWITCHER_REBUILD_VECTORS,
     VIEW_SWITCHER_SELECTION_VECTORS,
+    createViewSwitcherClock,
 } from '@gjsify/adwaita-core/conformance';
 import type {
     ViewSwitcherVectorChange,
@@ -440,6 +447,182 @@ export const AdwViewSwitcherTest = async () => {
             const buttons = buttonsOf(bar, '.adw-view-switcher-bar-button');
             expect(buttons[1]!.getAttribute('aria-selected')).toBe('true');
             expect(buttons[0]!.getAttribute('aria-selected')).toBe('false');
+            host.remove();
+        });
+    });
+
+    await describe('<adw-view-switcher> the seven tables this suite did not drive (#1067)', async () => {
+        /** Mount a switcher whose dwell timer a test controls. */
+        function mountWithClock(pages: readonly ViewSwitcherVectorPage[], initial: number) {
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const switcher = document.createElement('adw-view-switcher') as AdwViewSwitcher & {
+                scheduler: { schedule(cb: () => void, ms: number): unknown; cancel(handle: unknown): void };
+            };
+            const clock = createViewSwitcherClock();
+            // The seam that did not exist: the elements built their state inline
+            // with the DOM scheduler, so VIEW_SWITCHER_DRAG_VECTORS was driven by
+            // the core suite alone while a header claimed all three drove it.
+            switcher.scheduler = clock;
+            for (const page of pages) switcher.appendChild(declarePage('adw-view-switcher-page', page));
+            switcher.setAttribute('active', String(initial));
+            host.appendChild(switcher);
+            return { switcher, host, clock };
+        }
+
+        for (const vector of VIEW_SWITCHER_DRAG_VECTORS) {
+            await it(`drag: ${vector.rule}`, () => {
+                const { switcher, host, clock } = mountWithClock(vector.pages, vector.initial);
+                const buttons = [...switcher.querySelectorAll('.adw-view-switcher-button')] as HTMLElement[];
+                for (const step of vector.steps) {
+                    if (step.kind === 'advance') {
+                        clock.advance(step.ms);
+                        continue;
+                    }
+                    const button = buttons[step.index];
+                    // `relatedTarget` OUTSIDE the button, which is what a real
+                    // cross-button move looks like — the internal case is the
+                    // separate test below.
+                    button?.dispatchEvent(
+                        new DragEvent(step.kind === 'enter' ? 'dragenter' : 'dragleave', {
+                            bubbles: true,
+                            relatedTarget: host,
+                        }),
+                    );
+                }
+                expect(switcher.active).toBe(vector.selected);
+                host.remove();
+            });
+        }
+
+        await it('a drag sliding from the icon to the LABEL does not restart the dwell', () => {
+            // The bug the vectors could not see: the element bound enter/leave on
+            // a button that CONTAINS an icon and a label, so crossing between them
+            // fired leave + enter, `ViewSwitcherDragSwitch.leave` cleared the timer
+            // and `enter` re-armed a fresh 500 ms. A drag that merely slid across
+            // the button never switched at all.
+            const pages: ViewSwitcherVectorPage[] = [
+                { name: 'one', title: 'One' },
+                { name: 'two', title: 'Two' },
+            ];
+            const { switcher, host, clock } = mountWithClock(pages, 0);
+            const button = switcher.querySelectorAll('.adw-view-switcher-button')[1] as HTMLElement;
+            const icon = button.querySelector('.adw-view-switcher-icon') as HTMLElement;
+            const label = button.querySelector('.adw-view-switcher-label') as HTMLElement;
+
+            button.dispatchEvent(new DragEvent('dragenter', { bubbles: true, relatedTarget: host }));
+            clock.advance(300);
+            // Icon → label: both are INSIDE the button, so neither event counts.
+            button.dispatchEvent(new DragEvent('dragleave', { bubbles: true, relatedTarget: label }));
+            button.dispatchEvent(new DragEvent('dragenter', { bubbles: true, relatedTarget: icon }));
+            clock.advance(300);
+
+            // 600 ms of continuous hover: past TIMEOUT_EXPAND, so it switched.
+            expect(switcher.active).toBe(1);
+            host.remove();
+        });
+
+        await it('a page attribute changed AFTER connect reaches the button', async () => {
+            // `observedAttributes` without an `attributeChangedCallback` is a dead
+            // declaration; C rebinds on every page notify (adw-view-switcher.c:184-193).
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const switcher = document.createElement('adw-view-switcher') as AdwViewSwitcher;
+            const page = declarePage('adw-view-switcher-page', { name: 'one', title: 'One' });
+            switcher.appendChild(page);
+            switcher.appendChild(declarePage('adw-view-switcher-page', { name: 'two', title: 'Two' }));
+            host.appendChild(switcher);
+
+            const labelOf = () =>
+                (switcher.querySelector('.adw-view-switcher-label') as HTMLElement | null)?.textContent;
+            expect(labelOf()).toBe('One');
+            page.setAttribute('title', 'Renamed');
+            // A MutationObserver delivers on a MICROTASK, where GTK's `notify`
+            // is synchronous. One microtask is invisible to a user and is what
+            // the DOM offers for watching a detached node; nothing here depends
+            // on the repaint happening inside the setter.
+            await Promise.resolve();
+            expect(labelOf()).toBe('Renamed');
+            host.remove();
+        });
+
+        for (const vector of VIEW_SWITCHER_BADGE_VECTORS) {
+            await it(`badge ${vector.badgeNumber}/${vector.needsAttention} → "${vector.badgeLabel}" — ${vector.rule}`, () => {
+                const host = document.createElement('div');
+                document.body.appendChild(host);
+                const switcher = document.createElement('adw-view-switcher') as AdwViewSwitcher;
+                const page = declarePage('adw-view-switcher-page', { name: 'one', title: 'One' });
+                if (vector.badgeNumber) page.setAttribute('badge-number', String(vector.badgeNumber));
+                if (vector.needsAttention) page.setAttribute('needs-attention', '');
+                switcher.appendChild(page);
+                host.appendChild(switcher);
+
+                const indicator = switcher.querySelector('.adw-view-switcher-indicator') as HTMLElement;
+                expect(indicator.textContent).toBe(vector.badgeLabel);
+                // The DESCRIPTION is what a screen reader announces; a badge with
+                // no accessible text is a dot nobody hears.
+                const button = switcher.querySelector('.adw-view-switcher-button') as HTMLElement;
+                expect(button.getAttribute('aria-description') ?? '').toBe(vector.description);
+                host.remove();
+            });
+        }
+
+        await it('names the three tables that stay the core suite’s', () => {
+            // MNEMONIC and ICON are pure string derivations with no DOM surface
+            // beyond the label this suite already asserts through
+            // VIEW_SWITCHER_BUTTON_VECTORS; BUTTON_VISIBILITY and REBUILD are
+            // asserted through the rendered button set by the same table. Named
+            // so the omission is a decision rather than a gap.
+            expect(VIEW_SWITCHER_MNEMONIC_VECTORS.length).toBeGreaterThan(0);
+            expect(VIEW_SWITCHER_ICON_VECTORS.length).toBeGreaterThan(0);
+            expect(VIEW_SWITCHER_BUTTON_VISIBILITY_VECTORS.length).toBeGreaterThan(0);
+            expect(VIEW_SWITCHER_REBUILD_VECTORS.length).toBeGreaterThan(0);
+        });
+    });
+
+    await describe('<adw-view-switcher-bar> reveal follows the pages model, not just the selection', async () => {
+        await it('retracts when a page is REMOVED without moving the selection', () => {
+            // `update_bar_revealed` re-runs on the pages model's `items-changed`
+            // (adw-view-switcher-bar.c:340). Both ports listened only on
+            // `notify::visible-child`, so the bar went stale and a manual
+            // `refresh()` was the documented workaround.
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const stack = document.createElement('adw-view-stack') as AdwViewStack;
+            host.appendChild(stack);
+            const bar = document.createElement('adw-view-switcher-bar') as AdwViewSwitcherBar;
+            bar.setAttribute('reveal', '');
+            host.appendChild(bar);
+            bar.stack = stack;
+
+            const first = document.createElement('div');
+            const second = document.createElement('div');
+            stack.add(first, 'one', 'One');
+            stack.add(second, 'two', 'Two');
+            expect(bar.revealed).toBe(true);
+
+            // Removing the NON-selected page leaves the selection alone, so only
+            // items-changed can carry the news.
+            stack.removePage('two');
+            expect(bar.revealed).toBe(false);
+            host.remove();
+        });
+
+        await it('and when a non-selected page is merely HIDDEN', () => {
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const stack = document.createElement('adw-view-stack') as AdwViewStack;
+            host.appendChild(stack);
+            const bar = document.createElement('adw-view-switcher-bar') as AdwViewSwitcherBar;
+            bar.setAttribute('reveal', '');
+            host.appendChild(bar);
+            bar.stack = stack;
+
+            stack.add(document.createElement('div'), 'one', 'One');
+            stack.add(document.createElement('div'), 'two', 'Two');
+            expect(bar.revealed).toBe(true);
+            stack.setPageVisible('two', false);
+            expect(bar.revealed).toBe(false);
             host.remove();
         });
     });

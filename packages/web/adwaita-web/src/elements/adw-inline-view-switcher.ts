@@ -53,6 +53,7 @@ import {
     isInlineViewSwitcherDisplayMode,
     toggleIndexForPage,
 } from '@gjsify/adwaita-core';
+import type { ViewSwitcherScheduler } from '@gjsify/adwaita-core';
 import type {
     AdwInlineViewSwitcherDisplayMode,
     AdwViewSwitcherPage,
@@ -75,21 +76,43 @@ export class AdwViewStackPage extends HTMLElement {
 }
 
 export class AdwInlineViewSwitcher extends HTMLElement {
-    private readonly _state = new ViewSwitcherState({ scheduler: domViewSwitcherScheduler });
+    /**
+     * The dwell timer, injectable.
+     *
+     * It used to be `new ViewSwitcherState({ scheduler: domViewSwitcherScheduler })`
+     * inline, which left NOWHERE to hand a clock in — so
+     * `VIEW_SWITCHER_DRAG_VECTORS` was driven by the core suite alone, and the
+     * conformance header claimed all three suites drove it. `scheduler` is a
+     * property so a test can replace it before the element connects; the DOM one
+     * is the default, exactly as before.
+     */
+    scheduler: ViewSwitcherScheduler = domViewSwitcherScheduler;
+    private _stateInstance: ViewSwitcherState | null = null;
+
+    /** Built on first access, so a `scheduler` set before connect is the one used. */
+    private get _state(): ViewSwitcherState {
+        if (!this._stateInstance) {
+            this._stateInstance = new ViewSwitcherState({ scheduler: this.scheduler });
+            this._stateInstance.subscribe((change) => this._onStateChange(change));
+        }
+        return this._stateInstance;
+    }
     private _groupEl!: HTMLDivElement;
     private _pagesEl!: HTMLDivElement;
     private _panels: HTMLDivElement[] = [];
     private _toggles: HTMLButtonElement[] = [];
     private _displayMode: AdwInlineViewSwitcherDisplayMode = 'labels';
     private _initialized = false;
+    /** The page ELEMENTS, kept because this element detaches them from the tree. */
+    private _declared: HTMLElement[] = [];
+    private _pageObserver: MutationObserver | undefined;
 
     static get observedAttributes() {
-        return ['active', 'display-mode', 'flat', 'round'];
+        return ['active', 'display-mode', 'flat', 'round', 'osd'];
     }
 
     constructor() {
         super();
-        this._state.subscribe((change) => this._onStateChange(change));
     }
 
     /** Zero-based index of the visible PAGE, `-1` when nothing is selected. */
@@ -176,6 +199,8 @@ export class AdwInlineViewSwitcher extends HTMLElement {
         this._displayMode = this._readDisplayModeAttr();
         this._initialized = true;
 
+        this._declared = declared;
+        this._watchPages();
         this._state.setPages(declared.map((pageEl) => readSwitcherPage(pageEl)));
         if (declaredActive !== null) {
             const index = Number.parseInt(declaredActive, 10);
@@ -186,6 +211,37 @@ export class AdwInlineViewSwitcher extends HTMLElement {
 
     disconnectedCallback() {
         this._state.cancelDrag();
+        this._pageObserver?.disconnect();
+        this._pageObserver = undefined;
+    }
+
+    /**
+     * Re-read every declared page and push it into the state.
+     *
+     * Driven by {@link _watchPages}, which is what makes a runtime
+     * `badge-number` or `icon-name` change reach the toggle — C rebinds on every
+     * page `notify` (adw-view-switcher.c:184-193) and this element did not.
+     */
+    refreshPages(): void {
+        if (!this._initialized) return;
+        this._state.setPages(this._declared.map((pageEl) => readSwitcherPage(pageEl)));
+        this._rebuildToggles();
+    }
+
+    /**
+     * Watch the declared pages for attribute changes — the DOM's `notify::` on
+     * `AdwViewStackPage`, which C binds per page (adw-view-switcher.c:184-193).
+     *
+     * A `MutationObserver` rather than an `attributeChangedCallback`: this
+     * element consumes the page elements at connect and `replaceChildren`s them
+     * out of the tree, so a detached page cannot find its owner. It delivers on
+     * a MICROTASK where GTK's notify is synchronous — invisible to a user, and
+     * nothing here reads the toggle back inside the setter.
+     */
+    private _watchPages(): void {
+        this._pageObserver?.disconnect();
+        this._pageObserver = new MutationObserver(() => this.refreshPages());
+        for (const pageEl of this._declared) this._pageObserver.observe(pageEl, { attributes: true });
     }
 
     attributeChangedCallback(name: string) {
@@ -265,8 +321,21 @@ export class AdwInlineViewSwitcher extends HTMLElement {
             toggle.addEventListener('click', () => {
                 this._state.setSelected(model.pageIndex);
             });
-            toggle.addEventListener('dragenter', () => this._state.dragEnter(model.pageIndex));
-            toggle.addEventListener('dragleave', () => this._state.dragLeave(model.pageIndex));
+            // The `relatedTarget` test is load-bearing: a toggle holds an icon,
+            // a label and an indicator, and the DOM fires `dragleave` +
+            // `dragenter` when the pointer crosses BETWEEN them — which cleared
+            // the dwell timer and re-armed a fresh 500ms, so a drag that merely
+            // slid across the toggle never switched the page. C has one
+            // `GtkDropControllerMotion` per BUTTON widget
+            // (adw-view-switcher-button.c:79-96), which has no internal edges.
+            toggle.addEventListener('dragenter', (event) => {
+                if (toggle.contains((event as DragEvent).relatedTarget as Node | null)) return;
+                this._state.dragEnter(model.pageIndex);
+            });
+            toggle.addEventListener('dragleave', (event) => {
+                if (toggle.contains((event as DragEvent).relatedTarget as Node | null)) return;
+                this._state.dragLeave(model.pageIndex);
+            });
 
             this._groupEl.appendChild(toggle);
             return toggle;
@@ -314,8 +383,16 @@ export class AdwInlineViewSwitcher extends HTMLElement {
     }
 
     private _applyStyleClasses(): void {
-        this.classList.toggle('flat', this.hasAttribute('flat'));
-        this.classList.toggle('round', this.hasAttribute('round'));
+        // `css_classes_changed_cb` (adw-inline-view-switcher.c:528-545) forwards
+        // THREE classes onto the toggle group, not two: `flat`, `round` and
+        // `osd`. This element carried the first two and only onto the host, so an
+        // `osd` inline switcher — the one in a floating overlay, where the class
+        // exists to make it legible — styled nothing at all.
+        for (const name of ['flat', 'round', 'osd'] as const) {
+            const present = this.hasAttribute(name);
+            this.classList.toggle(name, present);
+            this._groupEl?.classList.toggle(name, present);
+        }
         // The group carries the display-mode class, mirroring libadwaita's
         // inline-view-switcher > toggle-group.{labels,icons,both} (:826-850).
         for (const mode of INLINE_VIEW_SWITCHER_DISPLAY_MODES) {

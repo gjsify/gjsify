@@ -67,6 +67,22 @@ declare module '@nativescript/core' {
         /** Whether the view is currently loaded / attached to the visual tree.
          *  Off-screen (pre-load) transitions skip animation. */
         readonly isLoaded: boolean;
+        /** The view this one is mounted in, or `null` at the root — the walk a
+         *  nested widget offers an unhandled action up. */
+        readonly parent: View | null;
+        /** Accessibility role announced to the platform screen reader —
+         *  NS's counterpart to `gtk_widget_class_set_accessible_role`. */
+        accessibilityRole: string;
+        /** The view's resolved style. `direction` is an INHERITED CSS property
+         *  (`ui/styling/style-properties`: `new InheritedCssProperty({ name:
+         *  'direction', cssName: 'direction' })`, default null), which is the
+         *  text direction `start`/`end` are resolved against. */
+        readonly style: { direction?: 'ltr' | 'rtl' | null };
+        /** Accessibility state — NS's counterpart to `gtk_accessible_update_state`. */
+        accessibilityState: string;
+        /** The text a screen reader announces for this view — NS's counterpart
+         *  to `gtk_accessible_update_property (…, DESCRIPTION, …)`. */
+        accessibilityLabel: string;
         /** Animate one or more properties to their target values. Resolves when the
          *  animation finishes; the returned promise can also be `cancel()`ed. */
         animate(options: AnimationDefinition): AnimationPromise;
@@ -128,6 +144,8 @@ declare module '@nativescript/core' {
         /** Insert a child at a specific index (paint/stacking order). */
         insertChild(view: View, atIndex: number): void;
         removeChild(view: View): void;
+        /** Detach every child at once — `adw_wrap_box_remove_all`'s counterpart. */
+        removeChildren(): void;
         getChildAt(index: number): View;
         getChildrenCount(): number;
     }
@@ -230,6 +248,23 @@ declare module '@nativescript/core' {
         itemWidth: number;
         /** Fixed slot height for each item, in DIPs (optional). */
         itemHeight: number;
+    }
+
+    /**
+     * A flexbox container — `<FlexboxLayout>`. The wrapping container with real
+     * main-axis knobs, which is what `Adw.WrapBox` needs and `WrapLayout` (three
+     * properties, none of them about distribution) cannot give it.
+     */
+    export class FlexboxLayout extends LayoutBase {
+        flexDirection: 'row' | 'row-reverse' | 'column' | 'column-reverse';
+        flexWrap: 'nowrap' | 'wrap' | 'wrap-reverse';
+        justifyContent: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around';
+        alignItems: 'flex-start' | 'flex-end' | 'center' | 'baseline' | 'stretch';
+        alignContent: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'stretch';
+        /** Per-child: whether it absorbs a line's leftover space (`justify: fill`). */
+        static setFlexGrow(view: View, grow: number): void;
+        /** Per-child: whether an overflowing line may squeeze it (`wrap-policy`). */
+        static setFlexShrink(view: View, shrink: number): void;
     }
 
     /** A layout whose children are positioned by absolute left/top — `<AbsoluteLayout>`. */

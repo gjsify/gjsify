@@ -28,9 +28,10 @@
 // two forms disagreed on `0`, on `NaN` and on negatives — which is three of the
 // bugs this module removes, not a style difference.
 //
-// `adwLerp`, `easeOutCubic` and `inverseLerp` stay module-private on purpose:
-// they belong to whichever module lifts the animation family, and putting the
-// canonical copy here would put it in the wrong place.
+// `adwLerp`, `easeOutCubic` and `inverseLerp` used to be module-private here,
+// with a note saying they belonged to whichever module lifted the animation
+// family. `spinner.ts` lifted it, so they live in `easing.ts` now and this
+// module imports them.
 //
 // Reference: refs/libadwaita/src/adw-clamp-layout.c
 // Reference: refs/libadwaita/src/adw-toolbar-view.c
@@ -41,28 +42,11 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+// `inverseLerp` here is adw-clamp-layout.c:147-153 — given `a`, `b` and a
+// result, recover `t`. NOT the `inverse_lerp` in adw-view-stack.c, which solves
+// for `b`.
+import { adwLerp, easeOutCubic, inverseLerp } from './easing.js';
 import { glibClamp } from './glib.js';
-
-// --- Shared interpolation primitives -----------------------------------------
-
-/** `adw_lerp` (adw-animation-util.c:24-27). */
-function adwLerp(a: number, b: number, t: number): number {
-    return a * (1 - t) + b * t;
-}
-
-/**
- * `inverse_lerp` (adw-clamp-layout.c:147-153) — given `a`, `b` and a result,
- * recover `t`. NOT the `inverse_lerp` in adw-view-stack.c, which solves for `b`.
- */
-function inverseLerp(a: number, b: number, r: number): number {
-    return (r - a) / (b - a);
-}
-
-/** `ease_out_cubic` at duration 1 (adw-easing.c:176-182). */
-function easeOutCubic(t: number): number {
-    const p = t - 1;
-    return p * p * p + 1;
-}
 
 // --- Adw.Clamp / AdwClampLayout ----------------------------------------------
 

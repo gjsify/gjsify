@@ -13,6 +13,8 @@
 // `image-missing` (:355-356).
 import { describe, expect, it } from '@gjsify/unit';
 
+import { BUTTON_CONTENT_DEFAULT_VECTORS } from '@gjsify/adwaita-core/conformance';
+
 import { BUTTON_CONTENT_STYLE_CLASS, normalizeIconName } from '@gjsify/adwaita-core';
 import {
     BUTTON_CONTENT_ELLIPSIZE_VECTORS,
@@ -176,6 +178,28 @@ export const AdwButtonContentTest = async () => {
                 const { el, host } = mount(attributes);
                 expect(el.classList.contains('can-shrink')).toBe(canShrink);
                 expect(getComputedStyle(labelEl(el)).textOverflow).toBe(canShrink ? 'ellipsis' : 'clip');
+                host.remove();
+            });
+        }
+    });
+
+    await describe('<adw-button-content> the four GParamSpec defaults', async () => {
+        for (const { property, value, rule } of BUTTON_CONTENT_DEFAULT_VECTORS) {
+            await it(`${property} defaults to ${JSON.stringify(value)} — ${rule}`, () => {
+                const host = document.createElement('div');
+                document.body.appendChild(host);
+                const content = document.createElement('adw-button-content');
+                host.appendChild(content);
+
+                // A bare element must READ BACK the C's defaults. The table was
+                // driven by nobody, so an element that invented its own defaults
+                // — `use-underline` true, say, which is the banner button's — would
+                // have looked correct.
+                const actual =
+                    typeof value === 'boolean'
+                        ? content.hasAttribute(property)
+                        : (content.getAttribute(property) ?? '');
+                expect(actual).toStrictEqual(value);
                 host.remove();
             });
         }

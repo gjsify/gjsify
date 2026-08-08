@@ -141,8 +141,8 @@ export { RADIO_GROUP_VECTORS } from './checks.js';
 export type { RadioGroupStep, RadioGroupVector } from './checks.js';
 
 // --- Row state machines (Adw.ComboRow / Gtk.DropDown selection) vectors ---
-export { COMBO_SELECTION_VECTORS } from './rows.js';
-export type { ComboSelectionStep, ComboSelectionVector } from './rows.js';
+export { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS } from './rows.js';
+export type { ComboChooserVector, ComboSelectionStep, ComboSelectionVector } from './rows.js';
 
 // --- View stack selection (Adw.ViewStack) vectors ---
 export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';
@@ -473,20 +473,32 @@ export type {
 export { POPOVER_KEY_VECTORS, POPOVER_SURFACE_VECTORS } from './popover.js';
 export type { PopoverKeyVector, PopoverSurfaceVariant, PopoverSurfaceVector } from './popover.js';
 
-// --- Wrap box line layout + spacing (Adw.WrapBox) vectors ---
+// --- Adw.Spinner animation vectors ---
 export {
-    ADW_WRAP_BOX_DEFAULT_ALIGN,
-    ADW_WRAP_BOX_DEFAULT_JUSTIFY,
-    ADW_WRAP_BOX_DEFAULT_JUSTIFY_LAST_LINE,
-    ADW_WRAP_BOX_DEFAULT_SPACING,
+    SPINNER_ARC_ENVELOPE,
+    SPINNER_ARC_PHASE_VECTORS,
+    SPINNER_ARC_TOLERANCE,
+    SPINNER_CONSTANT_VECTORS,
+} from './spinner.js';
+export type { SpinnerArcShapeVector, SpinnerConstantVector } from './spinner.js';
+
+// --- Wrap box line layout, properties + child order (Adw.WrapBox) vectors ---
+export {
+    WRAP_BOX_CHILD_ORDER_VECTORS,
+    WRAP_BOX_LENGTH_VECTORS,
     WRAP_BOX_LINE_VECTORS,
+    WRAP_BOX_NATURAL_LENGTH_VECTORS,
+    WRAP_BOX_NOTIFY_PROPERTIES,
+    WRAP_BOX_POLICY_VECTORS,
     WRAP_BOX_SPACING_NOTIFY_VECTORS,
     WRAP_BOX_SPACING_VECTORS,
 } from './wrap-box.js';
 export type {
-    WrapBoxJustify,
-    WrapBoxLineLayout,
+    WrapBoxChildOrderVector,
+    WrapBoxLengthVector,
     WrapBoxLineVector,
+    WrapBoxNaturalLengthVector,
+    WrapBoxPolicyVector,
     WrapBoxSpacingNotifyVector,
     WrapBoxSpacingVector,
 } from './wrap-box.js';

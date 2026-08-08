@@ -143,19 +143,18 @@ adw-tab-view {
     }
   }
 
-  // `AdwTabPage:loading` swaps the icon image for a spinner in the same slot
-  // (adw-tab.c:178-183) — the arc geometry and the keyframes are adw-spinner's,
-  // not a second copy of them.
-  .adw-tab-icon.loading {
-    background: none;
-    mask-image: none;
-    border: 2px solid rgba(127, 127, 127, 0.25);
-    border-top-color: currentColor;
-    border-radius: 50%;
-    animation: adw-spinner-spin 0.8s linear infinite;
+  // `AdwTabPage:loading` swaps the icon image for an `AdwSpinnerPaintable`
+  // (`update_icons`, adw-tab.c:172-190) — the SAME paintable `Adw.Spinner` uses.
+  // So the tab mounts a real `<adw-spinner>` in the icon's slot and this block
+  // only places it. It used to restate `border: 2px`,
+  // `rgba(127, 127, 127, 0.25)` and `0.8s` under a comment claiming the geometry
+  // and keyframes were adw-spinner's and "not a second copy of them" — which is
+  // how it inherited every spinner defect independently.
+  .adw-tab-spinner {
+    flex: none;
 
-    @media (prefers-reduced-motion: reduce) {
-      animation: none;
+    &[hidden] {
+      display: none;
     }
   }
 

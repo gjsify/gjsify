@@ -83,6 +83,7 @@ export class AdwComboRow extends AdwActionRow {
         // notify::selected on an interactive pick.
         this._state.subscribe((change) => {
             this._valueLabel.text = change.label;
+            this._syncChooser();
             if (change.interactive) {
                 const data: NotifySelectedEventData = {
                     eventName: NOTIFY_SELECTED,
@@ -100,11 +101,26 @@ export class AdwComboRow extends AdwActionRow {
         });
         // ...and the row darkens while held, like an Adwaita activatable row.
         attachRowPressFeedback(this);
+        this._syncChooser();
+    }
+
+    /**
+     * `model_changed` (adw-combo-row.c:187-195) — one option or none is not a
+     * choice, so the chevron goes and the row stops being activatable.
+     *
+     * Both halves matter. Hiding the chevron alone would leave a row that still
+     * opens a one-entry `action()` sheet on tap; the tap guard is in
+     * {@link _openChooser}, which reads the same predicate.
+     */
+    private _syncChooser(): void {
+        this._chevron.visibility = this._state.presentsChooser ? 'visible' : 'collapse';
     }
 
     /** Open the native action chooser and apply the picked option. */
     private async _openChooser(): Promise<void> {
-        if (this._state.count === 0) return;
+        // `n_items > 1`: a single option is not a choice, and libadwaita makes
+        // the row non-activatable rather than opening a sheet with one entry.
+        if (!this._state.presentsChooser) return;
         const labels = this._state.options.map((o) => o.label);
         const chosen = await action({
             title: this.title || undefined,

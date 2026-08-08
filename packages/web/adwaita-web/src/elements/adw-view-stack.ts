@@ -168,6 +168,7 @@ export class AdwViewStack extends HTMLElement {
         this.appendChild(content);
         this._applyVisibility();
         this._reflectName();
+        this._emitItemsChanged();
         return page;
     }
 
@@ -188,6 +189,7 @@ export class AdwViewStack extends HTMLElement {
         content?.remove();
         this._applyVisibility();
         this._reflectName();
+        this._emitItemsChanged();
         return true;
     }
 
@@ -200,7 +202,26 @@ export class AdwViewStack extends HTMLElement {
     setPageVisible(name: string, visible: boolean): boolean {
         const moved = this._state.setPageVisible(name, visible);
         this._applyVisibility();
+        // A visibility flip changes what the pages MODEL reports, which is what
+        // `update_bar_revealed` counts (adw-view-switcher-bar.c:340) — hiding
+        // the second-to-last visible page must retract the bar.
+        this._emitItemsChanged();
         return moved;
+    }
+
+    /**
+     * The pages model's `items-changed`, which the DOM stack had no counterpart
+     * for at all.
+     *
+     * `AdwViewSwitcherBar` re-runs `update_bar_revealed` on it
+     * (adw-view-switcher-bar.c:340) and `AdwViewSwitcher` rebinds its buttons
+     * (adw-view-switcher.c:258-263). Both ports listened only on
+     * `notify::visible-child`, so adding a page or hiding a non-selected one
+     * left `revealed` — and the button row — stale, with a manual `refresh()`
+     * as the documented workaround.
+     */
+    private _emitItemsChanged(): void {
+        this.dispatchEvent(new CustomEvent('items-changed', { bubbles: true, detail: { count: this.pages.length } }));
     }
 
     private _onStateChange(change: ViewStackStateChange<HTMLElement>): void {

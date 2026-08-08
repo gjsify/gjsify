@@ -13,7 +13,11 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS, NAVIGATION_STACK_VECTORS } from '@gjsify/adwaita-core/conformance';
+import {
+    NAVIGATION_ACTION_VECTORS,
+    NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS,
+    NAVIGATION_STACK_VECTORS,
+} from '@gjsify/adwaita-core/conformance';
 import { OVERLAY_COLLAPSE_VECTORS } from '@gjsify/adwaita-core/conformance';
 import type { OverlaySplitViewSnapshot } from '@gjsify/adwaita-core/conformance';
 
@@ -352,13 +356,13 @@ export default async () => {
     });
 
     await describe('splitViewColumns against NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS', async () => {
+        // The RTL rows used to be skipped, with a note saying NativeScript
+        // surfaces no text direction. It does: `direction` is an inherited CSS
+        // property on `Style`, so the whole table is drivable now.
         for (const vector of NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS) {
-            // NativeScript surfaces no text direction, so the RTL rows are the
-            // documented `'ltr'` pin rather than something this port can answer.
-            if (vector.direction === 'rtl') continue;
-
-            await it(`${vector.sidebarPosition}: the sidebar takes the column at x=${vector.sidebar.x} — ${vector.rule}`, () => {
-                const columns = splitViewColumns(vector.sidebarPosition);
+            const label = `${vector.sidebarPosition} ${vector.direction}: the sidebar takes the column at x=${vector.sidebar.x}`;
+            await it(`${label} — ${vector.rule}`, () => {
+                const columns = splitViewColumns(vector.sidebarPosition, vector.direction);
                 // The vector's rects are pixels; the grid's equivalent is the
                 // ORDER — the sidebar is in the leading column exactly when it is
                 // allocated at x = 0.
@@ -367,14 +371,27 @@ export default async () => {
             });
         }
 
+        await it('MIRRORS under RTL — a start sidebar takes the trailing column', () => {
+            expect(splitViewColumns('start', 'ltr')).toStrictEqual({ sidebar: 0, content: 1 });
+            expect(splitViewColumns('start', 'rtl')).toStrictEqual({ sidebar: 1, content: 0 });
+            expect(splitViewColumns('end', 'ltr')).toStrictEqual({ sidebar: 1, content: 0 });
+            expect(splitViewColumns('end', 'rtl')).toStrictEqual({ sidebar: 0, content: 1 });
+        });
+
+        await it('defaults to ltr, which is what an unset NS direction means', () => {
+            expect(splitViewColumns('start')).toStrictEqual(splitViewColumns('start', 'ltr'));
+        });
+
         await it('never puts both panes in the same column', () => {
             // The inversion this closes: the navigation split view wrote the
             // sidebar into column 0 and the content into column 1 UNCONDITIONALLY,
             // while the base had already made column 0 the expanding one for an
             // `end` sidebar — so both the side AND the sizing mode were swapped.
             for (const position of ['start', 'end'] as const) {
-                const columns = splitViewColumns(position);
-                expect(columns.sidebar).not.toBe(columns.content);
+                for (const direction of ['ltr', 'rtl'] as const) {
+                    const columns = splitViewColumns(position, direction);
+                    expect(columns.sidebar).not.toBe(columns.content);
+                }
             }
         });
     });
@@ -385,6 +402,75 @@ export default async () => {
             expect(state.setPaneMounted('sidebar', true)).toBe(false);
             expect(state.setPaneMounted('content', true)).toBe(false);
             expect(host.calls).toStrictEqual([]);
+        });
+    });
+
+    await describe('NsNavigationSplitViewState tags + navigation.* actions', async () => {
+        // The class carried a note saying tags and the actions were "NOT wired on
+        // NativeScript", so NAVIGATION_ACTION_VECTORS had no consumer on this
+        // side and NAVIGATION_SPLIT_VIEW_CRITICALS none at all. They are wired
+        // through an explicit setTag rather than a `tag` read off a pane View —
+        // a View is not an Adw.NavigationPage.
+        for (const vector of NAVIGATION_ACTION_VECTORS) {
+            const label =
+                vector.action === 'push'
+                    ? `push "${vector.tag}" (sidebar=${vector.sidebarTag ?? 'none'}, content=${vector.contentTag ?? 'none'})`
+                    : `pop (sidebar=${vector.hasSidebar}, content=${vector.hasContent})`;
+            await it(`${label} → ${vector.result.kind} — ${vector.rule}`, () => {
+                const state = new NsNavigationSplitViewState({
+                    collapsed: vector.collapsed,
+                    showContent: vector.showContent,
+                    // `delegate` is the ROUTING's answer; whether it survives
+                    // depends on the ancestor. An ancestor that claims the tag is
+                    // the case the table describes — the unclaimed one becomes a
+                    // critical, which is the state's own step.
+                    onDelegate: () => true,
+                });
+                if (vector.action === 'pop') {
+                    state.setPaneMounted('sidebar', vector.hasSidebar ?? false);
+                    state.setPaneMounted('content', vector.hasContent ?? false);
+                    expect(state.pop().kind).toBe(vector.result.kind);
+                    return;
+                }
+                state.setPaneMounted('sidebar', true);
+                state.setPaneMounted('content', true);
+                // A colliding pair is refused by setTag, so the second tag is the
+                // one that does not stick — which is exactly why the shared-tag
+                // rows describe a state a real widget cannot reach.
+                const sidebarStuck = state.setTag('sidebar', vector.sidebarTag ?? null);
+                const contentStuck = state.setTag('content', vector.contentTag ?? null);
+                if (!sidebarStuck || !contentStuck) {
+                    expect(vector.sidebarTag).toBe(vector.contentTag);
+                    return;
+                }
+                expect(state.push(vector.tag as string).kind).toBe(vector.result.kind);
+            });
+        }
+
+        await it('REFUSES a colliding retag and clears it, keeping the pane', () => {
+            // `check_tags_cb` (:431-460) — a different failure from mounting a
+            // colliding page, which is refused outright (:1195-1201).
+            const state = new NsNavigationSplitViewState();
+            state.setPaneMounted('sidebar', true);
+            state.setPaneMounted('content', true);
+            expect(state.setTag('sidebar', 'same')).toBe(true);
+            expect(state.setTag('content', 'same')).toBe(false);
+            expect(state.sidebarTag).toBe('same');
+            expect(state.contentTag).toBe(null);
+        });
+
+        await it('a push that lands flips show-content, which the widget renders', () => {
+            const { state, host } = record(new NsNavigationSplitViewState({ collapsed: true }));
+            state.setPaneMounted('sidebar', true);
+            state.setPaneMounted('content', true);
+            state.setTag('sidebar', 'list');
+            state.setTag('content', 'detail');
+            host.calls.length = 0;
+            expect(state.push('detail').kind).toBe('set-show-content');
+            expect(state.showContent).toBe(true);
+            // The layout has to have been asked to re-run, or the pane swap is a
+            // property change nobody drew.
+            expect(host.calls.length).toBeGreaterThan(0);
         });
     });
 };

@@ -59,6 +59,12 @@ export interface AdwViewStackPageSpec<T = unknown> {
     content?: T;
     /** Whether the page participates in selection at all. Defaults to `true`. */
     visible?: boolean;
+    /** `AdwViewStackPage:badge-number`. Defaults to 0 — no badge. */
+    badgeNumber?: number;
+    /** `AdwViewStackPage:needs-attention`. Defaults to `false`. */
+    needsAttention?: boolean;
+    /** `AdwViewStackPage:use-underline`. Defaults to `false`. */
+    useUnderline?: boolean;
 }
 
 /**
@@ -80,6 +86,12 @@ export interface AdwViewStackPageInfo<T = unknown> {
     readonly content: T | undefined;
     /** Whether the page can be selected — `AdwViewStackPage:visible`. */
     readonly visible: boolean;
+    /** `AdwViewStackPage:badge-number`. 0 means no badge. */
+    readonly badgeNumber: number;
+    /** `AdwViewStackPage:needs-attention` — the bare dot, with or without a badge. */
+    readonly needsAttention: boolean;
+    /** `AdwViewStackPage:use-underline` — whether the title carries a mnemonic. */
+    readonly useUnderline: boolean;
 }
 
 /** Payload of a selection change. */
@@ -112,6 +124,9 @@ interface PageRecord<T> {
     icon: string;
     content: T | undefined;
     visible: boolean;
+    badgeNumber: number;
+    needsAttention: boolean;
+    useUnderline: boolean;
 }
 
 /**
@@ -232,6 +247,12 @@ export class ViewStackState<T = unknown> {
             icon: normalizeIconName(spec.icon),
             content: spec.content,
             visible: spec.visible ?? true,
+            // The three the record used to drop, which is what made a switcher
+            // BOUND to a stack structurally unable to show a badge — and both
+            // `ViewSwitcherBar`s go through that projection.
+            badgeNumber: Number.isFinite(spec.badgeNumber) ? Math.trunc(spec.badgeNumber as number) : 0,
+            needsAttention: spec.needsAttention === true,
+            useUnderline: spec.useUnderline === true,
         };
     }
 

@@ -1,32 +1,46 @@
-// _spinner.scss — adw-spinner styling (ring with a spinning arc).
+// _spinner.scss — adw-spinner styling.
+//
+// Almost nothing is left here on purpose. The ring is an SVG the element draws
+// per frame from `@gjsify/adwaita-core`'s `spinnerArc`, because the arc BREATHES
+// (2.7 to 102.8 degrees) and CSS cannot express that: the `border-top-color`
+// chase this file used to carry was a fixed 90-degree quarter-circle at 0.8s
+// against libadwaita's 1.2s, with a hardcoded grey track and square-cut ends.
+//
+// What CSS still owns is the box: the element is `size × size` and the ring is
+// centred inside it, which is how a 200px spinner shows a 64px ring
+// (adw-spinner.c:95-99 hands the widget's real size to the paintable, which caps
+// only the radius).
+//
+// There is deliberately NO `prefers-reduced-motion` rule. The C opts out of the
+// animation setting explicitly (`adw_animation_set_follow_enable_animations_setting
+// (…, FALSE)`, adw-spinner-paintable.c:537) — a frozen busy indicator reads as a
+// hang. This file used to stop the animation there.
+//
+// Reference: refs/libadwaita/src/adw-spinner.c
+// Reference: refs/libadwaita/src/adw-spinner-paintable.c
 // Reference: refs/adwaita-web/adwaita-web/scss/_spinner.scss
-// Reference: refs/libadwaita (Adw.Spinner)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
 adw-spinner {
-  display: inline-block;
+  // The element writes the measured box onto `style` when it upgrades; these are
+  // the values in force until then, which are Adwaita's own minimum
+  // (adw-spinner.c:14, reported as both minimum and natural at :78-81).
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
-  // Adw.Spinner measures 16 as BOTH its minimum and its natural size
-  // (adw-spinner.c:78-81), stroked at the documented "2px for 16px". The element
-  // overwrites both from `spinnerGeometry` when it upgrades; these are the values
-  // in force until then — the 24px/3px they replace were not from any source.
   width: 16px;
   height: 16px;
-  // Neutral arc (currentColor, theme-aware) over a faint track — Adw.Spinner
-  // is a neutral indicator, NOT accent-coloured.
-  border: 2px solid rgba(127, 127, 127, 0.25);
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: adw-spinner-spin 0.8s linear infinite;
+  // The arc strokes `currentColor` — `gtk_widget_get_color` (:432), the widget's
+  // TEXT colour, never the accent. The track is the same colour at 15%, which
+  // the SVG applies as `stroke-opacity`.
+  color: inherit;
 
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
-}
-
-@keyframes adw-spinner-spin {
-  to {
-    transform: rotate(360deg);
+  svg {
+    display: block;
+    // The ring never grows past its own diameter, so an over-large box centres
+    // it rather than stretching it.
+    flex: none;
   }
 }

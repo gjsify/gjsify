@@ -199,7 +199,14 @@ export type {
 } from './dialog.js';
 
 // --- Row interaction state machines (Adw.ExpanderRow/ComboRow/SpinRow/ToggleGroup) ---
-export { ComboState, ExpanderState, SpinState, ToggleGroupState, normalizeComboOptions } from './rows.js';
+export {
+    ADW_COMBO_NO_SELECTION,
+    ComboState,
+    ExpanderState,
+    SpinState,
+    ToggleGroupState,
+    normalizeComboOptions,
+} from './rows.js';
 export type {
     AdwComboOption,
     AdwComboOptionInput,
@@ -287,10 +294,39 @@ export type {
     PasswordEntryRowStateListener,
 } from './entry-row.js';
 
+// --- Interpolation + easing (adw_lerp, AdwEasing) ---
+export { adwLerp, easeInOutSine, easeOutCubic, inverseLerp } from './easing.js';
+
+// --- Adw.Spinner animation (AdwSpinnerPaintable's breathing arc) ---
+export {
+    ADW_SPINNER_CYCLES_PER_LOOP,
+    ADW_SPINNER_CYCLE_LENGTH,
+    ADW_SPINNER_CONTRACT_DISTANCE,
+    ADW_SPINNER_EXTEND_DISTANCE,
+    ADW_SPINNER_IDLE_DISTANCE,
+    ADW_SPINNER_MAX_ARC_LENGTH,
+    ADW_SPINNER_MIN_ARC_LENGTH,
+    ADW_SPINNER_N_CYCLES,
+    ADW_SPINNER_OVERLAP_DISTANCE,
+    ADW_SPINNER_SPIN_DURATION_MS,
+    ADW_SPINNER_START_ANGLE,
+    ADW_SPINNER_STILL_PROGRESS,
+    ADW_SPINNER_TRACK_OPACITY,
+    normalizeSpinnerAngle,
+    spinnerArc,
+    spinnerArcEnd,
+    spinnerArcStart,
+    spinnerProgressAt,
+} from './spinner.js';
+export type { SpinnerArc } from './spinner.js';
+
+// --- Length units (AdwLengthUnit — split views, wrap box, clamp) ---
+export { ADW_LENGTH_UNITS, DEFAULT_DPI, adwLengthToPx, normalizeLengthUnit } from './length-unit.js';
+export type { AdwLengthUnit } from './length-unit.js';
+
 // --- Split views (Adw.NavigationSplitView / Adw.OverlaySplitView) ---
 export {
     ADW_SWIPE_BORDER,
-    DEFAULT_DPI,
     DEFAULT_MAX_SIDEBAR_WIDTH,
     DEFAULT_MIN_SIDEBAR_WIDTH,
     DEFAULT_SIDEBAR_WIDTH_FRACTION,
@@ -299,7 +335,6 @@ export {
     NAVIGATION_SPLIT_VIEW_CRITICALS,
     NavigationSplitViewState,
     OverlaySplitViewState,
-    adwLengthToPx,
     isSidebarAtVisualStart,
     layoutNavigationSplitView,
     layoutOverlaySplitView,
@@ -318,7 +353,6 @@ export {
     tagsConflict,
 } from './split-view.js';
 export type {
-    AdwLengthUnit,
     AdwPackType,
     AdwTextDirection,
     NavigationActionInput,
@@ -564,3 +598,37 @@ export type {
     PopoverStateChange,
     PopoverStateListener,
 } from './popover.js';
+
+// --- Wrap box (Adw.WrapBox line decision, properties, child order) ---
+export {
+    ADW_WRAP_BOX_DEFAULT_ALIGN,
+    ADW_WRAP_BOX_DEFAULT_JUSTIFY,
+    ADW_WRAP_BOX_DEFAULT_JUSTIFY_LAST_LINE,
+    ADW_WRAP_BOX_DEFAULT_LENGTH_UNIT,
+    ADW_WRAP_BOX_DEFAULT_PACK_DIRECTION,
+    ADW_WRAP_BOX_DEFAULT_SPACING,
+    ADW_WRAP_BOX_DEFAULT_WRAP_POLICY,
+    ADW_WRAP_BOX_JUSTIFY_MODES,
+    ADW_WRAP_BOX_NATURAL_LINE_LENGTH_UNSET,
+    ADW_WRAP_BOX_PACK_DIRECTIONS,
+    ADW_WRAP_POLICIES,
+    normalizeNaturalLineLength,
+    normalizeWrapBoxAlign,
+    normalizeWrapBoxJustify,
+    normalizeWrapBoxLengthUnit,
+    normalizeWrapBoxPackDirection,
+    normalizeWrapBoxSpacing,
+    normalizeWrapPolicy,
+    resolveWrapBoxChildOrder,
+    resolveWrapBoxLine,
+    wrapBoxLengthToPx,
+    wrapPolicyFlexShrink,
+} from './wrap-box.js';
+export type {
+    AdwWrapBoxJustify,
+    AdwWrapBoxOrientation,
+    AdwWrapBoxPackDirection,
+    AdwWrapPolicy,
+    WrapBoxChildOrderOp,
+    WrapBoxLineLayout,
+} from './wrap-box.js';

@@ -411,6 +411,8 @@ export interface DataGridColumnNormalizeVector {
  * an entry WITHOUT a `key` is dropped (there is nothing to read from a row), and
  * a field of the wrong type is coerced (`key`, `label`, `width`) or discarded
  * (`flex`, `monospace`, `numeric`) rather than taking the whole entry down.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (DATA_GRID_TRACK_VECTORS)
  */
 export const DATA_GRID_COLUMN_NORMALIZE_VECTORS: ReadonlyArray<DataGridColumnNormalizeVector> = [
     {

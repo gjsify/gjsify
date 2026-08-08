@@ -38,7 +38,9 @@ export interface ClampThresholdsVector {
     rule: string;
 }
 
-/** `lower`/`max`/`upper` (adw-clamp-layout.c:173-176, :210-213). */
+/** `lower`/`max`/`upper` (adw-clamp-layout.c:173-176, :210-213).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CLAMP_ALLOCATE_VECTORS)
+ */
 export const CLAMP_THRESHOLD_VECTORS: ReadonlyArray<ClampThresholdsVector> = [
     {
         params: { maximumSize: 600, tighteningThreshold: 400, childMin: 0, childNat: 1000 },
@@ -96,7 +98,9 @@ const CLAMP_DEFAULT_PARAMS: ClampParams = {
     childNat: 1000,
 };
 
-/** `child_size_from_clamp` (adw-clamp-layout.c:193-232). */
+/** `child_size_from_clamp` (adw-clamp-layout.c:193-232).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CLAMP_ALLOCATE_VECTORS)
+ */
 export const CLAMP_CHILD_SIZE_VECTORS: ReadonlyArray<ClampChildSizeVector> = [
     {
         forSize: -1,
@@ -165,7 +169,9 @@ export interface ClampSizeFromChildVector {
     rule: string;
 }
 
-/** `clamp_size_from_child` (adw-clamp-layout.c:156-191) — the inverse ease. */
+/** `clamp_size_from_child` (adw-clamp-layout.c:156-191) — the inverse ease.  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CLAMP_ALLOCATE_VECTORS)
+ */
 export const CLAMP_SIZE_FROM_CHILD_VECTORS: ReadonlyArray<ClampSizeFromChildVector> = [
     { childSize: 300, params: CLAMP_DEFAULT_PARAMS, clampSize: 300, rule: 'below the threshold it is the identity' },
     { childSize: 400, params: CLAMP_DEFAULT_PARAMS, clampSize: 400, rule: 'the `<= lower` boundary is inclusive' },
@@ -339,7 +345,9 @@ export interface ToolbarViewAllocateVector {
     rule: string;
 }
 
-/** `adw_toolbar_view_size_allocate` (adw-toolbar-view.c:357-406). */
+/** `adw_toolbar_view_size_allocate` (adw-toolbar-view.c:357-406).  *
+ * CORE-ONLY: both renderers let the BROWSER and NativeScript lay the bars out rather than allocating by hand, so there is no allocation of theirs to compare — the rule they DO apply is TOOLBAR_VIEW_CLASS_VECTORS, which both drive. This reason used to live in the two `adw-toolbar-view.ts` files and nowhere a reader of this table would look
+ */
 export const TOOLBAR_VIEW_ALLOCATE_VECTORS: ReadonlyArray<ToolbarViewAllocateVector> = [
     {
         input: {
@@ -474,7 +482,9 @@ export interface ToolbarViewMeasureVector {
     rule: string;
 }
 
-/** `adw_toolbar_view_measure` (adw-toolbar-view.c:266-354). */
+/** `adw_toolbar_view_measure` (adw-toolbar-view.c:266-354).  *
+ * CORE-ONLY: same as TOOLBAR_VIEW_ALLOCATE_VECTORS — neither renderer measures the bars itself
+ */
 export const TOOLBAR_VIEW_MEASURE_VECTORS: ReadonlyArray<ToolbarViewMeasureVector> = [
     {
         input: {
@@ -604,7 +614,9 @@ export interface ToolbarViewContentForSizeVector {
     rule: string;
 }
 
-/** `adw_toolbar_view_measure`'s height-for-width branch (adw-toolbar-view.c:292-316). */
+/** `adw_toolbar_view_measure`'s height-for-width branch (adw-toolbar-view.c:292-316).  *
+ * CORE-ONLY: same as TOOLBAR_VIEW_ALLOCATE_VECTORS — neither renderer measures the bars itself
+ */
 export const TOOLBAR_VIEW_CONTENT_FOR_SIZE_VECTORS: ReadonlyArray<ToolbarViewContentForSizeVector> = [
     {
         forSize: 600,

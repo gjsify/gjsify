@@ -9,6 +9,8 @@
 // display silently.
 import { describe, expect, it } from '@gjsify/unit';
 
+import { COMBO_CHOOSER_VECTORS } from '@gjsify/adwaita-core/conformance';
+
 import type { AdwComboRow } from './elements/adw-combo-row.js';
 import type { AdwExpanderRow } from './elements/adw-expander-row.js';
 import type { AdwSpinRow } from './elements/adw-spin-row.js';
@@ -70,6 +72,53 @@ export const AdwRowStateTest = async () => {
                 'adw-combo-row',
             );
             expect((row.querySelector('.adw-row-value') as HTMLSpanElement).textContent).toBe('');
+            host.remove();
+        });
+
+        for (const { count, presentsChooser, rule } of COMBO_CHOOSER_VECTORS) {
+            await it(`${count} option(s) → ${presentsChooser ? 'a chooser' : 'not a chooser'}: ${rule}`, async () => {
+                const items = JSON.stringify(Array.from({ length: count }, (_, i) => `Item ${i}`));
+                const { el: row, host } = parse<AdwComboRow>(
+                    `<adw-combo-row title="Pick" items='${items}'></adw-combo-row>`,
+                    'adw-combo-row',
+                );
+                const value = row.querySelector('.adw-row-value') as HTMLSpanElement;
+                const select = row.querySelector('select') as HTMLSelectElement;
+
+                // The ARROW: `.adw-row-value::after` is masked in, and the
+                // `[data-presents-chooser='false']` block removes it. Asserted
+                // as "not none" rather than against the authored `inline-block`,
+                // because `.adw-row-value` is a flex container and blockifies
+                // its children's display.
+                expect(getComputedStyle(value, '::after').display === 'none').toBe(!presentsChooser);
+                // ...and the ROW being activatable, which on this port is the
+                // overlaid <select> taking clicks at all. Hiding the arrow
+                // without this leaves a row that still opens a one-entry popup.
+                expect(select.disabled).toBe(!presentsChooser);
+
+                host.remove();
+            });
+        }
+
+        await it('gains its arrow back when the model grows past one item', async () => {
+            const { el: row, host } = parse<AdwComboRow>(
+                `<adw-combo-row title="Pick" items='["Only"]'></adw-combo-row>`,
+                'adw-combo-row',
+            );
+            const select = row.querySelector('select') as HTMLSelectElement;
+            expect(select.disabled).toBe(true);
+
+            // `items` is read at connect only, so the model is replaced through
+            // the state the element composes — the same path a consumer has.
+            (
+                row as unknown as { _state: { setOptions(o: { label: string; value: string }[]): void } }
+            )._state.setOptions([
+                { label: 'One', value: 'a' },
+                { label: 'Two', value: 'b' },
+            ]);
+            expect(select.disabled).toBe(false);
+            expect(row.dataset.presentsChooser).toBe('true');
+
             host.remove();
         });
     });

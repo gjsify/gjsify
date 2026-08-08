@@ -31,18 +31,24 @@
 // that the mock agreed with itself, and every rule above went untested for the
 // widgets' whole life.
 //
-// TEXT DIRECTION is pinned to `'ltr'` throughout. `isSidebarAtVisualStart` mirrors
-// `start`/`end` under RTL, but NativeScript surfaces no text direction to read
-// here, so an RTL device lays a split view out as LTR. A known divergence, not a
-// decision — the core is ready for it the moment NS reports a direction.
+// TEXT DIRECTION is real here now. It used to be pinned to `'ltr'` with a note
+// saying "NativeScript surfaces no text direction to read" — which is false:
+// `@nativescript/core` ships `directionProperty`, an INHERITED CSS property on
+// `Style` (`ui/styling/style-properties`), valued `'ltr' | 'rtl'` and defaulting
+// to unset. So `view.style.direction ?? 'ltr'` is the direction, it inherits
+// from the Page the way GTK's inherits from the window, and
+// `isSidebarAtVisualStart` can finally do its job: under RTL a `start` sidebar
+// is drawn on the RIGHT (`get_start_or_end`, adw-overlay-split-view.c:227-234).
 //
 // Reference: refs/libadwaita/src/adw-overlay-split-view.c
 // Reference: refs/libadwaita/src/adw-navigation-split-view.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { NavigationSplitViewState, OverlaySplitViewState } from '@gjsify/adwaita-core';
+import { NavigationSplitViewState, OverlaySplitViewState, isSidebarAtVisualStart } from '@gjsify/adwaita-core';
 import type {
     AdwPackType,
+    AdwTextDirection,
+    NavigationActionResult,
     NavigationPageRef,
     NavigationSplitViewChange,
     NavigationStackPlan,
@@ -110,8 +116,14 @@ export interface NsSplitViewState {
  * already made column 0 the star column. libadwaita allocates an `end` sidebar at
  * `width - sidebar_width` (adw-navigation-split-view.c:306-316).
  */
-export function splitViewColumns(sidebarPosition: AdwPackType): { sidebar: number; content: number } {
-    return sidebarPosition === 'end' ? { sidebar: 1, content: 0 } : { sidebar: 0, content: 1 };
+export function splitViewColumns(
+    sidebarPosition: AdwPackType,
+    direction: AdwTextDirection = 'ltr',
+): { sidebar: number; content: number } {
+    // The grid's LEADING column is column 0, so the question is not which side
+    // the sidebar is packed on but which side it is DRAWN on — the one predicate
+    // `isSidebarAtVisualStart` answers, and the one an RTL layout inverts.
+    return isSidebarAtVisualStart(sidebarPosition, direction) ? { sidebar: 0, content: 1 } : { sidebar: 1, content: 0 };
 }
 
 /**
@@ -264,11 +276,13 @@ export class NsOverlaySplitViewState implements NsSplitViewState {
  * `sidebar-position` × `show-content` × which children exist, and whether
  * reaching it is a push or a pop.
  *
- * Tags and the `navigation.push`/`navigation.pop` actions are NOT wired on
- * NativeScript, so the panes are tracked by presence with a marker object rather
- * than by handing the core a `View` — a `View` is not a `NavigationPageRef` and
- * pretending otherwise would silently give a pane whatever `tag` property
- * NativeScript happens to put on a view.
+ * Tags and the `navigation.push`/`navigation.pop` actions ARE wired, through an
+ * explicit {@link setTag} rather than by handing the core a `View`: a `View` is
+ * not a `NavigationPageRef`, and reading a `tag` property off one would silently
+ * adopt whatever NativeScript happens to put there. The panes stay tracked by
+ * presence with a marker object, and the tag of record lives in the core — which
+ * is where it lives in the browser port too, because `setTag` CLEARS a colliding
+ * tag and mutating a caller's view to do that would be a surprise.
  */
 export class NsNavigationSplitViewState implements NsSplitViewState {
     private readonly _state: NavigationSplitViewState;
@@ -277,7 +291,17 @@ export class NsNavigationSplitViewState implements NsSplitViewState {
     private _host: NsSplitViewHost | null = null;
     private _plan: NavigationStackPlan;
 
-    constructor(options: { sidebarPosition?: AdwPackType; collapsed?: boolean; showContent?: boolean } = {}) {
+    constructor(
+        options: {
+            sidebarPosition?: AdwPackType;
+            collapsed?: boolean;
+            showContent?: boolean;
+            /** Where a `g_critical` goes on this port. */
+            onCritical?: (message: string) => void;
+            /** Offer an unmatched `navigation.*` to the parent — how nesting forwards a push. */
+            onDelegate?: (action: 'push' | 'pop', tag?: string) => boolean;
+        } = {},
+    ) {
         this._state = new NavigationSplitViewState(options);
         this._plan = this._state.stack;
         this._state.subscribe((change) => this._apply(change));
@@ -285,6 +309,53 @@ export class NsNavigationSplitViewState implements NsSplitViewState {
 
     bind(host: NsSplitViewHost): void {
         this._host = host;
+    }
+
+    /**
+     * Retag a mounted pane — `check_tags_cb` (adw-navigation-split-view.c:431-460).
+     *
+     * On a collision the pane KEEPS its page and loses the tag, which is a
+     * different failure from mounting a colliding page (that one is refused
+     * outright). Returns whether the tag stuck.
+     */
+    setTag(pane: SplitViewPane, tag: string | null): boolean {
+        return this._state.setTag(pane, tag);
+    }
+
+    /** The sidebar page's tag of record, or `null`. */
+    get sidebarTag(): string | null {
+        return this._state.sidebarTag;
+    }
+
+    /** The content page's tag of record, or `null`. */
+    get contentTag(): string | null {
+        return this._state.contentTag;
+    }
+
+    /** `navigation.push` with `tag` — `navigation_push_cb` (:644-685). */
+    push(tag: string): NavigationActionResult {
+        return this._state.push(tag);
+    }
+
+    /** `navigation.pop` — `navigation_pop_cb` (:687-702). */
+    pop(): NavigationActionResult {
+        return this._state.pop();
+    }
+
+    /**
+     * `Adw.NavigationSplitView:show-content` under ITS OWN NAME.
+     *
+     * This port spells the visible pane `showSidebar`, which is the negation —
+     * and that costs every consumer a `!(…)`, including the storybook, which
+     * carries one purely to bind a shared story arg. Both spellings are here now
+     * and neither is derived from a second copy of the flag.
+     */
+    get showContent(): boolean {
+        return !this.showSidebar;
+    }
+
+    set showContent(value: boolean) {
+        this.setShowSidebar(!value);
     }
 
     // --- Read-only derivations ---

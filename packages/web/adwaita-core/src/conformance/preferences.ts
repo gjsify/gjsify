@@ -233,6 +233,8 @@ export interface CaseFoldVector {
  * silently fails to match — in German, Greek and any text with a typographic
  * ligature. None of it is visible in an ASCII test suite, which is exactly why
  * the rows are here.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
  */
 export const CASE_FOLD_VECTORS: ReadonlyArray<CaseFoldVector> = [
     { text: 'Dark Style', folded: 'dark style', naiveLowerCase: 'dark style', rule: 'ASCII is unaffected' },
@@ -287,6 +289,8 @@ export interface StripMarkupVector {
  * `null` is not an error case to be smoothed over: it is the branch where C
  * logs a `g_critical` and KEEPS the unparsed string, so every `null` row below
  * is a row that must stay searchable under its literal spelling.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
  */
 export const STRIP_MARKUP_VECTORS: ReadonlyArray<StripMarkupVector> = [
     { markup: 'Dark Style', plain: 'Dark Style', rule: 'plain text passes through' },
@@ -335,6 +339,8 @@ export interface StripMnemonicVector {
 /**
  * `adw_strip_mnemonic` (adw-widget-utils.c:685-703) — `g_markup_escape_text`
  * followed by `pango_parse_markup` with `accel_marker = '_'`.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
  */
 export const STRIP_MNEMONIC_VECTORS: ReadonlyArray<StripMnemonicVector> = [
     { text: 'Appearance', stripped: 'Appearance', rule: 'no marker, no change' },
@@ -374,6 +380,8 @@ export interface MakeComparableVector {
  * The defaults matter as much as the rows: `use-markup` defaults to TRUE
  * (adw-preferences-row.c:185-188) and `use-underline` to FALSE (:155-158), so
  * an ordinary row's title IS markup-parsed and is NOT mnemonic-stripped.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
  */
 export const MAKE_COMPARABLE_VECTORS: ReadonlyArray<MakeComparableVector> = [
     {
@@ -451,7 +459,9 @@ export interface RowMatchVector {
     rule: string;
 }
 
-/** `filter_search_results` (adw-preferences-dialog.c:125-153). */
+/** `filter_search_results` (adw-preferences-dialog.c:125-153).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
+ */
 export const ROW_MATCH_VECTORS: ReadonlyArray<RowMatchVector> = [
     {
         row: { title: 'Dark Style' },
@@ -552,6 +562,8 @@ export interface SearchCorpusVector {
  * Dropping any clause is invisible — nothing errors, the search just quietly
  * indexes the wrong set — which is why these rows are separate from the
  * end-to-end ones.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
  */
 export const SEARCH_CORPUS_VECTORS: ReadonlyArray<SearchCorpusVector> = [
     {
@@ -620,7 +632,9 @@ export interface SearchRowSubtitleVector {
     rule: string;
 }
 
-/** `create_search_row_subtitle` (adw-preferences-dialog.c:168-234). */
+/** `create_search_row_subtitle` (adw-preferences-dialog.c:168-234).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
+ */
 export const SEARCH_ROW_SUBTITLE_VECTORS: ReadonlyArray<SearchRowSubtitleVector> = [
     {
         input: { groupTitle: 'Appearance', pageTitle: 'General', nVisiblePages: 1 },

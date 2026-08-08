@@ -147,11 +147,13 @@ export class AdwViewSwitcherBar extends HTMLElement {
     }
 
     /**
-     * Rebuild the buttons — needed after pages were added to the bound stack
-     * WITHOUT changing its selection. A page add that does move the selection
-     * (the first one) notifies and rebuilds on its own. libadwaita rebuilds on
-     * the pages model's `items-changed` (adw-view-switcher.c:258-263), which the
-     * DOM stack has no counterpart for yet.
+     * Rebuild the buttons by hand.
+     *
+     * Kept as public API — a consumer that mutates a page in place still has a
+     * way to say so — but no longer the ONLY way: the stack emits
+     * `items-changed` now and this bar binds it, which is the mechanism
+     * libadwaita uses (adw-view-switcher-bar.c:340,
+     * adw-view-switcher.c:258-263).
      */
     refresh(): void {
         this._rebuild();
@@ -163,10 +165,16 @@ export class AdwViewSwitcherBar extends HTMLElement {
 
     private _bindStack(): void {
         this._stack?.addEventListener('notify::visible-child', this._onStackNotify);
+        // `update_bar_revealed` runs on the pages model's `items-changed` too
+        // (adw-view-switcher-bar.c:340), which is the half that was missing: a
+        // page added without moving the selection, or a non-selected page
+        // hidden, changes the COUNT the reveal is decided from.
+        this._stack?.addEventListener('items-changed', this._onStackNotify);
     }
 
     private _unbindStack(): void {
         this._stack?.removeEventListener('notify::visible-child', this._onStackNotify);
+        this._stack?.removeEventListener('items-changed', this._onStackNotify);
     }
 
     private _resolveStack(value: AdwViewStack | string | null): AdwViewStack | null {

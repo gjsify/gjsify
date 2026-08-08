@@ -14,7 +14,7 @@
 // faking one.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { ADW_SPINNER_MIN_SIZE, spinnerGeometry } from '@gjsify/adwaita-core';
+import { ADW_SPINNER_MIN_SIZE, ADW_SPINNER_TRACK_OPACITY, spinnerGeometry } from '@gjsify/adwaita-core';
 import {
     CLAMP_ALLOCATE_VECTORS,
     CLAMP_PROPERTY_VECTORS,
@@ -201,57 +201,156 @@ export const AdwChromeTest = async () => {
     });
 
     await describe('adw-spinner geometry (AdwSpinnerPaintable conformance vectors)', async () => {
+        /** The `<svg>` the element draws its ring into. */
+        const ringOf = (spinner: HTMLElement) => spinner.querySelector('svg') as SVGSVGElement;
+
         for (const { width, height, diameter, lineWidth, rule } of SPINNER_GEOMETRY_VECTORS) {
-            // The element is the ring itself, so only the square, allocatable
-            // boxes describe what a `size` attribute can produce.
+            // Only square, allocatable boxes describe what a `size` attribute
+            // can produce; the rectangular rows exercise the paintable directly.
             if (width !== height || width < ADW_SPINNER_MIN_SIZE) continue;
 
             await it(`size ${width} draws a ${diameter}px ring stroked ${lineWidth}px — ${rule}`, () => {
-                const { host } = mountSized(200);
+                const { host } = mountSized(400);
                 const spinner = document.createElement('adw-spinner');
                 spinner.setAttribute('size', String(width));
                 host.appendChild(spinner);
 
-                expect(spinner.offsetWidth).toBe(diameter);
-                expect(spinner.offsetHeight).toBe(diameter);
-                expect(Number.parseFloat(spinner.style.borderWidth)).toBe(lineWidth);
+                const svg = ringOf(spinner);
+                expect(svg.getAttribute('width')).toBe(String(diameter));
+                expect(svg.getAttribute('height')).toBe(String(diameter));
+                const arc = svg.querySelectorAll('circle')[1] as SVGCircleElement;
+                expect(Number(arc.getAttribute('stroke-width'))).toBe(lineWidth);
                 host.remove();
             });
         }
 
         await it('strokes 3px at 24 and 6px at 48, where it used to stroke 2 and 4', () => {
-            const { host } = mountSized(200);
+            const { host } = mountSized(400);
             const spinner = document.createElement('adw-spinner');
             host.appendChild(spinner);
             const strokeAt = (size: number) => {
                 spinner.setAttribute('size', String(size));
-                return Number.parseFloat(spinner.style.borderWidth);
+                return Number(ringOf(spinner).querySelector('circle')?.getAttribute('stroke-width'));
             };
             expect(strokeAt(24)).toBe(3);
             expect(strokeAt(48)).toBe(6);
             expect(strokeAt(64)).toBe(8);
             host.remove();
         });
+
+        await it('rounds its arc ends — GSK_LINE_CAP_ROUND, square-cut before', () => {
+            const { host } = mountSized(400);
+            const spinner = document.createElement('adw-spinner');
+            spinner.setAttribute('size', '64');
+            host.appendChild(spinner);
+            const [track, arc] = [...ringOf(spinner).querySelectorAll('circle')];
+            expect(arc.getAttribute('stroke-linecap')).toBe('round');
+            // The TRACK is the widget colour at CIRCLE_OPACITY, not a grey.
+            expect(track.getAttribute('stroke')).toBe('currentColor');
+            expect(Number(track.getAttribute('stroke-opacity'))).toBe(ADW_SPINNER_TRACK_OPACITY);
+            host.remove();
+        });
     });
 
-    await describe('adw-spinner sizing (adw_spinner_measure minimum = natural)', async () => {
+    await describe('adw-spinner sizing — the BOX and the RING are different things', async () => {
         for (const { value, size, rule } of SPINNER_SIZE_VECTORS) {
-            await it(`size ${JSON.stringify(value ?? null)} → a ${spinnerGeometry(size, size).diameter}px ring — ${rule}`, () => {
+            await it(`size ${JSON.stringify(value ?? null)} → a ${size}px box — ${rule}`, () => {
                 const { host } = mountSized(400);
                 const spinner = document.createElement('adw-spinner');
                 if (value !== null && value !== undefined) spinner.setAttribute('size', String(value));
                 host.appendChild(spinner);
 
-                expect(spinner.offsetWidth).toBe(spinnerGeometry(size, size).diameter);
+                // THE BOX takes the whole request — this suite used to assert the
+                // ring's diameter here, contradicting the core table it drives.
+                expect(spinner.offsetWidth).toBe(size);
+                expect(spinner.offsetHeight).toBe(size);
+                // THE RING is capped and centred inside it.
+                const svg = spinner.querySelector('svg') as SVGSVGElement;
+                expect(Number(svg.getAttribute('width'))).toBe(spinnerGeometry(size, size).diameter);
                 host.remove();
             });
         }
+
+        await it('a 200px spinner occupies 200px and draws a 64px ring', () => {
+            const { host } = mountSized(400);
+            const spinner = document.createElement('adw-spinner');
+            spinner.setAttribute('size', '200');
+            host.appendChild(spinner);
+            expect(spinner.offsetWidth).toBe(200);
+            expect(Number((spinner.querySelector('svg') as SVGSVGElement).getAttribute('width'))).toBe(64);
+            host.remove();
+        });
 
         await it('defaults to the measured 16, not the invented 24', () => {
             const { host } = mountSized(400);
             const spinner = document.createElement('adw-spinner');
             host.appendChild(spinner);
             expect(spinner.offsetWidth).toBe(ADW_SPINNER_MIN_SIZE);
+            host.remove();
+        });
+    });
+
+    await describe('adw-spinner animation + accessibility (#1066)', async () => {
+        await it('announces itself — role progressbar, aria-busy (zero hits before)', () => {
+            const { host } = mountSized(400);
+            const spinner = document.createElement('adw-spinner');
+            host.appendChild(spinner);
+            expect(spinner.getAttribute('role')).toBe('progressbar');
+            expect(spinner.getAttribute('aria-busy')).toBe('true');
+            host.remove();
+        });
+
+        await it('BREATHES — the drawn arc length changes across a turn', () => {
+            const { host } = mountSized(400);
+            const spinner = document.createElement('adw-spinner') as HTMLElement & { drawAt(now: number): void };
+            spinner.setAttribute('size', '64');
+            host.appendChild(spinner);
+            const arc = spinner.querySelectorAll('circle')[1] as SVGCircleElement;
+
+            const drawnAt = (ms: number) => {
+                spinner.drawAt(ms);
+                return Number.parseFloat((arc.getAttribute('stroke-dasharray') ?? '0').split(' ')[0]);
+            };
+            // `drawAt` takes the FIRST call as the origin, so these are offsets
+            // into one animation, sampled across a cycle.
+            const lengths = [0, 200, 500, 900, 1300, 1900].map(drawnAt);
+            const spread = Math.max(...lengths) - Math.min(...lengths);
+            // A fixed 90-degree border chase — what this element used to draw —
+            // has a spread of exactly zero.
+            expect(spread).toBeGreaterThan(0);
+            host.remove();
+        });
+
+        await it('KEEPS SPINNING under reduced motion — a frozen busy indicator reads as a hang', () => {
+            // libadwaita opts the spinner out of the animation setting on purpose
+            // (adw-spinner-paintable.c:537). The old stylesheet had
+            // `@media (prefers-reduced-motion: reduce) { animation: none }`, so
+            // this asserts the ABSENCE of any CSS animation to switch off: the
+            // arc is driven per frame from JS and cannot be disabled by a query.
+            const { host } = mountSized(400);
+            const spinner = document.createElement('adw-spinner');
+            host.appendChild(spinner);
+            expect(getComputedStyle(spinner).animationName).toBe('none');
+            host.remove();
+        });
+
+        await it('advances while mapped and stops when it is not', () => {
+            const { host } = mountSized(400);
+            const spinner = document.createElement('adw-spinner') as HTMLElement & { drawAt(now: number): void };
+            host.appendChild(spinner);
+            const arc = spinner.querySelectorAll('circle')[1] as SVGCircleElement;
+            spinner.drawAt(0);
+            const first = arc.getAttribute('stroke-dashoffset');
+            spinner.drawAt(400);
+            expect(arc.getAttribute('stroke-dashoffset')).not.toBe(first);
+
+            // Unmapping removes it from the shared ticker — `widget_map_cb`
+            // (adw-spinner-paintable.c:181-185) is what plays the animation, so
+            // an off-screen spinner burns nothing.
+            spinner.remove();
+            const parked = arc.getAttribute('stroke-dashoffset');
+            spinner.drawAt(800); // only reachable directly; the ticker has dropped it
+            expect(arc.getAttribute('stroke-dashoffset')).not.toBe(parked);
             host.remove();
         });
     });

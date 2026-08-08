@@ -28,6 +28,7 @@
 import { GridLayout, type View } from '@nativescript/core';
 import { AdwSplitViewBase } from './split-view-base.js';
 import { NsNavigationSplitViewState, splitViewColumns } from './split-view-state.js';
+import type { NavigationActionResult } from '@gjsify/adwaita-core';
 
 /** Push/pop duration (ms) — matches Adwaita's ~200 ms navigation transition. */
 const NAV_ANIM_MS = 200;
@@ -37,7 +38,25 @@ const FALLBACK_WIDTH = 1024;
 
 export class AdwNavigationSplitView extends AdwSplitViewBase<NsNavigationSplitViewState> {
     constructor() {
-        super('adw-navigation-split-view', 'navigation', new NsNavigationSplitViewState());
+        super(
+            'adw-navigation-split-view',
+            'navigation',
+            new NsNavigationSplitViewState({
+                onCritical: (message) => console.error(message),
+                // `navigation_push_cb` offers an unmatched tag to the PARENT
+                // before it may become a critical (:679-683) — the mechanism a
+                // nested split view forwards a push with. NativeScript has no
+                // bubbling events, so the walk up `parent` is the equivalent.
+                onDelegate: (action, tag) => {
+                    for (let node = this.parent; node; node = node.parent) {
+                        if (!(node instanceof AdwNavigationSplitView)) continue;
+                        const result = action === 'push' ? node.push(tag as string) : node.pop();
+                        return result.kind !== 'not-found';
+                    }
+                    return false;
+                },
+            }),
+        );
         this._applyLayout();
     }
 
@@ -48,7 +67,7 @@ export class AdwNavigationSplitView extends AdwSplitViewBase<NsNavigationSplitVi
             // one (`allocate_uncollapsed`, :306-316). Writing the sidebar into
             // column 0 unconditionally put an `end` sidebar in the EXPANDING column
             // and squeezed the content into the fixed one: a fully inverted layout.
-            const columns = splitViewColumns(this._state.sidebarPosition);
+            const columns = splitViewColumns(this._state.sidebarPosition, this.textDirection);
             if (this._sidebar) {
                 this._sidebar.visibility = 'visible';
                 this._sidebar.translateX = 0;
@@ -136,5 +155,57 @@ export class AdwNavigationSplitView extends AdwSplitViewBase<NsNavigationSplitVi
     private _paneWidth(): number {
         const size = this.getActualSize();
         return size && size.width > 0 ? size.width : FALLBACK_WIDTH;
+    }
+
+    // --- tags + the navigation.* actions ---
+    //
+    // Explicit setters rather than a `tag` property read off the pane `View`:
+    // a `View` is not an `Adw.NavigationPage`, and reading one would adopt
+    // whatever NativeScript happens to put there. The tag of record lives in the
+    // core, because a collision CLEARS it and silently mutating a caller's view
+    // to do that would be a surprise.
+
+    /** `Adw.NavigationPage:tag` for the sidebar pane, or `null` when untagged. */
+    get sidebarTag(): string | null {
+        return this._state.sidebarTag;
+    }
+
+    set sidebarTag(value: string | null) {
+        this._state.setTag('sidebar', value);
+    }
+
+    /** `Adw.NavigationPage:tag` for the content pane, or `null` when untagged. */
+    get contentTag(): string | null {
+        return this._state.contentTag;
+    }
+
+    set contentTag(value: string | null) {
+        this._state.setTag('content', value);
+    }
+
+    /**
+     * `navigation.push` with `tag` — `navigation_push_cb` (:644-685).
+     *
+     * An unmatched tag delegates to the parent before it may become a critical,
+     * which is how a nested split view forwards a push outwards. Returns what
+     * the routing decided; the ten-row NAVIGATION_ACTION_VECTORS table had no
+     * consumer in either renderer before this.
+     */
+    push(tag: string): NavigationActionResult {
+        return this._state.push(tag);
+    }
+
+    /** `navigation.pop` — `navigation_pop_cb` (:687-702). */
+    pop(): NavigationActionResult {
+        return this._state.pop();
+    }
+
+    /** `Adw.NavigationSplitView:show-content`, the C's own spelling of the flag. */
+    get showContent(): boolean {
+        return this._state.showContent;
+    }
+
+    set showContent(value: boolean) {
+        this._state.showContent = value;
     }
 }

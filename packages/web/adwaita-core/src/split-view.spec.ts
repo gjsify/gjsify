@@ -3,9 +3,10 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { adwLengthToPx } from './length-unit.js';
+
 import {
     ADW_SWIPE_BORDER,
-    adwLengthToPx,
     INSTANT_SPLIT_VIEW_ANIMATOR,
     isSidebarAtVisualStart,
     layoutNavigationSplitView,

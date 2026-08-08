@@ -59,6 +59,11 @@ adw-combo-row {
     // fill, making the icon theme-aware (matches libadwaita's dark theme).
     // Using background-image with a data-URI SVG would NOT resolve
     // `currentColor` in most browsers.
+    //
+    // `model_changed` (adw-combo-row.c:187-195) hides the arrow box entirely on
+    // a model of one item or none, so the row stops presenting itself as a
+    // chooser. `[data-presents-chooser='false']` below is that rule; the element
+    // publishes the attribute and disables the overlaid <select> alongside.
     &::after {
       content: "";
       display: inline-block;
@@ -74,5 +79,19 @@ adw-combo-row {
       -webkit-mask-position: center;
       mask-position: center;
     }
+  }
+}
+
+// A model with one item or none: no arrow, and the row is not activatable
+// (`model_changed`, adw-combo-row.c:187-195). Written as its own block rather
+// than a modifier inside `.adw-row-value` so the two selectors that draw the
+// arrow and the one that removes it read at the same specificity depth.
+adw-combo-row[data-presents-chooser='false'] {
+  .adw-row-value::after {
+    display: none;
+  }
+
+  select {
+    cursor: default;
   }
 }
