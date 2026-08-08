@@ -626,4 +626,40 @@ export const AdwViewSwitcherTest = async () => {
             host.remove();
         });
     });
+
+    // MOVING A SWITCHER MUST NOT MAKE IT DEAF.
+    //
+    // `disconnectedCallback` drops the page observer, and `connectedCallback`
+    // returned early once the element was built — so a switcher that had merely
+    // been moved between parents (a slideshow slide, a client-side route change)
+    // stopped tracking its pages permanently, and silently. Same shape as the
+    // overlay split view's ResizeObserver, and found with it.
+    await describe('adw-view-switcher — a moved switcher keeps watching its pages', async () => {
+        await it('still notices a page attribute change after being re-parented', async () => {
+            const from = document.createElement('div');
+            const to = document.createElement('div');
+            document.body.append(from, to);
+
+            const element = document.createElement('adw-view-switcher') as AdwViewSwitcher;
+            const page = declarePage('adw-view-switcher-page', {
+                name: 'one',
+                title: 'One',
+                iconName: 'go-next-symbolic',
+                visible: true,
+            } as ViewSwitcherVectorPage);
+            element.appendChild(page);
+            from.appendChild(element);
+
+            // Appending elsewhere is a disconnect followed by a connect.
+            to.appendChild(element);
+            page.setAttribute('title', 'Renamed');
+            // The observer delivers on a microtask; GTK's notify is synchronous.
+            await Promise.resolve();
+
+            const label = element.querySelector('.adw-view-switcher-label') as HTMLElement;
+            expect(label.textContent).toBe('Renamed');
+            from.remove();
+            to.remove();
+        });
+    });
 };

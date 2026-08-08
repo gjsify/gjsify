@@ -84,7 +84,17 @@ export class AdwActionRow extends HTMLElement {
     }
 
     connectedCallback() {
-        if (this._initialized) return;
+        if (this._initialized) {
+            // Re-entering a document. `disconnectedCallback` drops the
+            // sensitivity observer, and returning here without rebuilding it
+            // left a MOVED row permanently blind to its activatable widget
+            // becoming insensitive — the same shape that broke the overlay
+            // split view's ResizeObserver and both view switchers' page
+            // observers. Anything torn down on the way out has to be rebuilt
+            // on the way back in.
+            this._observeSensitivity(this._state.activatableWidget);
+            return;
+        }
         this._initialized = true;
 
         const prefixChildren = Array.from(this.querySelectorAll(':scope > [slot="prefix"]'));
