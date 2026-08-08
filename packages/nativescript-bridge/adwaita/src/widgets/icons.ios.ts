@@ -73,7 +73,7 @@ declare const CGAffineTransformMakeScale: ((sx: number, sy: number) => CGAffineT
 declare const UIGraphicsBeginImageContextWithOptions:
     | ((size: CGSize, opaque: boolean, scale: number) => void)
     | undefined;
-declare const UIGraphicsGetImageFromCurrentImageContext: (() => unknown) | undefined;
+declare const UIGraphicsGetImageFromCurrentImageContext: (() => unknown) | undefined; // UIImage
 declare const UIGraphicsEndImageContext: (() => void) | undefined;
 
 /**
@@ -150,7 +150,7 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
 
         if (!drew) return null;
         const image = UIGraphicsGetImageFromCurrentImageContext();
-        return image ? new ImageSource(image as never) : null;
+        return image ? new ImageSource(image) : null;
     } finally {
         // The context is process-global state: leaving one open corrupts every
         // later drawing call, so it is ended on the throwing path too.

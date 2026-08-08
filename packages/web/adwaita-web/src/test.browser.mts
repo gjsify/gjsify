@@ -13,6 +13,7 @@ import { AdwSidebarTest } from './adw-sidebar.spec.js';
 import { AdwEntryRowsTest } from './entry-rows.spec.js';
 import { AdwSplitButtonTest } from './split-button.spec.js';
 import { AdwAvatarTest } from './adw-avatar.spec.js';
+import { AdwOverlaySplitViewTest } from './overlay-split-view.spec.js';
 import { AdwButtonRowTest } from './adw-button-row.spec.js';
 import { AdwBreakpointsTest } from './breakpoints.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
@@ -26,6 +27,7 @@ import { AdwStyleIsolationTest } from './style-isolation.spec.js';
 
 run({
     AdwAvatarTest,
+    AdwOverlaySplitViewTest,
     AdwButtonRowTest,
     AdwBreakpointsTest,
     AdwDataGridTest,
