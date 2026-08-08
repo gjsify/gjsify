@@ -56,9 +56,11 @@ import {
     applyViewSwitcherVisibility,
     createViewSwitcherState,
     nsIconSvg,
+    switcherButtonVisible,
     viewSwitcherNotifyPayload,
     viewSwitcherPageSpecs,
     type AdwViewPage,
+    type ViewSwitcherKind,
     type ViewSwitcherNotifyPayload,
 } from './view-switcher-model.js';
 
@@ -226,6 +228,15 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         return { button, icon, label, badge };
     }
 
+    /**
+     * Which visibility rule this switcher follows — see
+     * {@link switcherButtonVisible}, which holds the rule itself so a spec can
+     * reach it.
+     */
+    protected get switcherKind(): ViewSwitcherKind {
+        return 'switcher';
+    }
+
     /** Paint the derived models: show only the selected page, mark its button active. */
     protected _applySelection(): void {
         applyViewSwitcherVisibility(this._pages, this._state.selected);
@@ -238,9 +249,10 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
             const nodes = this._nodes[index];
             if (!nodes) return;
 
-            // The button-visibility rule: a page with neither title nor icon has
-            // no button at all (adw-view-switcher.c:178).
-            nodes.button.visibility = model.visible ? 'visible' : 'collapse';
+            const pageVisible = this._state.pages[index]?.visible ?? false;
+            nodes.button.visibility = switcherButtonVisible(this.switcherKind, model.visible, pageVisible)
+                ? 'visible'
+                : 'collapse';
             nodes.button.orientation = model.orientation === 'horizontal' ? 'horizontal' : 'vertical';
             nodes.button.className = model.selected ? `${this.buttonClass} active` : this.buttonClass;
             nodes.icon.icon = nsIconSvg(model.iconName);

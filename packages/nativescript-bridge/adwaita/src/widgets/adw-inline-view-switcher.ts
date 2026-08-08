@@ -27,6 +27,7 @@
 import { isInlineViewSwitcherDisplayMode } from '@gjsify/adwaita-core';
 import type { AdwInlineViewSwitcherDisplayMode } from '@gjsify/adwaita-core';
 import { AdwViewSwitcherBase } from './view-switcher-base.js';
+import type { ViewSwitcherKind } from './view-switcher-model.js';
 
 export class AdwInlineViewSwitcher extends AdwViewSwitcherBase {
     // libadwaita's default, and the class the toggle group starts with
@@ -48,6 +49,21 @@ export class AdwInlineViewSwitcher extends AdwViewSwitcherBase {
 
     protected override get buttonDisplayMode(): AdwInlineViewSwitcherDisplayMode {
         return this._displayMode;
+    }
+
+    /**
+     * `populate_group` gates on the page's `visible` ALONE
+     * (adw-inline-view-switcher.c:370-378) — the title-or-icon rule the base
+     * follows belongs to `AdwViewSwitcher.update_button`
+     * (adw-view-switcher.c:178) and has no counterpart here, so a page with
+     * neither title nor icon still gets an (empty) toggle.
+     *
+     * Inheriting the stricter rule made this switcher drop toggles libadwaita
+     * draws. The rule itself lives in {@link switcherButtonVisible}, where a
+     * spec can reach it.
+     */
+    protected override get switcherKind(): ViewSwitcherKind {
+        return 'inline';
     }
 
     /** What the toggles display: `'labels'` (default), `'icons'` or `'both'`. */

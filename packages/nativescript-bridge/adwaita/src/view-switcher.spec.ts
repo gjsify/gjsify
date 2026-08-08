@@ -62,6 +62,7 @@ import {
     createViewSwitcherState,
     nsIconSvg,
     pageVisibilities,
+    switcherButtonVisible,
     viewSwitcherNotifyPayload,
     viewSwitcherPageSpecs,
     type AdwViewPage,
@@ -232,6 +233,32 @@ export const AdwViewSwitcherNsTest = async () => {
                 ).toBe(vector.tooltip);
             });
         }
+    });
+
+    await describe('switcherButtonVisible — the two switchers gate differently', async () => {
+        // `AdwViewSwitcher` needs a title or an icon ON TOP OF `visible`
+        // (adw-view-switcher.c:178); `AdwInlineViewSwitcher`'s `populate_group`
+        // gates on `visible` alone (adw-inline-view-switcher.c:370-378). The
+        // inline widget inherited the stricter rule and dropped toggles
+        // libadwaita draws, for its whole life, because the rule lived in a
+        // class that `extends GridLayout` and no spec could import it.
+        await it('drops a titleless, iconless page from the CLASSIC switcher', () => {
+            expect(switcherButtonVisible('switcher', false, true)).toBe(false);
+        });
+
+        await it('keeps that same page as an empty INLINE toggle', () => {
+            expect(switcherButtonVisible('inline', false, true)).toBe(true);
+        });
+
+        await it('hides a page marked invisible in both', () => {
+            expect(switcherButtonVisible('switcher', false, false)).toBe(false);
+            expect(switcherButtonVisible('inline', false, false)).toBe(false);
+        });
+
+        await it('shows an ordinary page in both', () => {
+            expect(switcherButtonVisible('switcher', true, true)).toBe(true);
+            expect(switcherButtonVisible('inline', true, true)).toBe(true);
+        });
     });
 
     await describe('AdwViewSwitcherBar reveal (libadwaita conformance vectors)', async () => {

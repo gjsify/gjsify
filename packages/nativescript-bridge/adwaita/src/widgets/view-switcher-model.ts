@@ -2,8 +2,10 @@
 // derivation.
 //
 // Everything that decides WHAT a switcher shows lives in `@gjsify/adwaita-core`
-// (ADR 0004) and is pinned by the conformance vectors: the button-visibility
-// rule `visible && (title != NULL || icon-name != NULL)`, the `image-missing`
+// (ADR 0004) and is pinned by the conformance vectors: the CLASSIC switcher's
+// button-visibility rule `visible && (title != NULL || icon-name != NULL)` —
+// the INLINE one gates on `visible` alone, see {@link switcherButtonVisible} —
+// the `image-missing`
 // fallback, the mnemonic-stripped label, the badge label + screen-reader
 // description, the inline switcher's two index spaces, the bar's
 // `reveal && more-than-one-visible-page` gate, and the selection machine itself
@@ -134,6 +136,33 @@ export function applyViewSwitcherVisibility(pages: readonly AdwViewPage[], selec
     pages.forEach((page, index) => {
         page.content.visibility = visibilities[index]!;
     });
+}
+
+/** Which switcher is asking — the two apply different visibility rules. */
+export type ViewSwitcherKind = 'switcher' | 'inline';
+
+/**
+ * Whether a page gets a button/toggle at all.
+ *
+ * The two switchers genuinely differ, and the difference is easy to miss because
+ * only one of them is documented where you would look:
+ *
+ * - `AdwViewSwitcher` needs a title or an icon ON TOP OF `visible` —
+ *   `gtk_widget_set_visible (button, visible && (title != NULL || icon_name !=
+ *   NULL))` (adw-view-switcher.c:178).
+ * - `AdwInlineViewSwitcher` does not. `populate_group` gates on `visible` alone
+ *   (adw-inline-view-switcher.c:370-378), so a page with neither still gets an
+ *   empty toggle.
+ *
+ * The inline widget inherited the stricter rule and silently dropped toggles
+ * libadwaita draws. `@gjsify/adwaita-core` had spelled this out in
+ * `buildInlineToggles`' doc and pinned it in `INLINE_TOGGLE_VECTORS` the whole
+ * time — the rule just lived in a class that `extends GridLayout`, which no
+ * spec can import, so nothing could reach it to check. That is why it is here
+ * and not there.
+ */
+export function switcherButtonVisible(kind: ViewSwitcherKind, modelVisible: boolean, pageVisible: boolean): boolean {
+    return kind === 'inline' ? pageVisible : modelVisible;
 }
 
 /** The data half of the `notify::selected` event (minus NS's `eventName`/`object`). */
