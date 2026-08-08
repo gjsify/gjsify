@@ -6,7 +6,13 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { AdwAlertResponses } from './dialog.js';
+import { AdwAlertResponses, BottomSheetPresentation, resolveBottomSheetClose } from './dialog.js';
+import type { BottomSheetTeardownCallback } from './dialog.js';
+import {
+    BOTTOM_SHEET_CLOSE_VECTORS,
+    BOTTOM_SHEET_PRESENTATION_VECTORS,
+    runBottomSheetSteps,
+} from './conformance/dialog.js';
 
 export default async () => {
     await describe('AdwAlertResponses registry (Adw.AlertDialog responses)', async () => {
@@ -125,6 +131,147 @@ export default async () => {
             expect(d.resolveById(o.ok?.id)).toBe('save');
             expect(d.resolveById(o.cancel?.id)).toBe('cancel');
             expect(d.resolveById(o.neutral?.id)).toBe('discard');
+        });
+    });
+
+    await describe('resolveBottomSheetClose (libadwaita conformance vectors)', async () => {
+        for (const { source, open, canClose, outcome, rule } of BOTTOM_SHEET_CLOSE_VECTORS) {
+            await it(`${source} · open=${open} · canClose=${canClose} → ${outcome} — ${rule}`, () => {
+                expect(resolveBottomSheetClose(source, { open, canClose })).toBe(outcome);
+            });
+        }
+
+        await it('gives the four sources four different answers on a locked open sheet', () => {
+            // The whole reason the source is a parameter: a renderer that routes
+            // every affordance through one `_attemptClose()` cannot produce this
+            // row, and both ports did exactly that.
+            const locked = { open: true, canClose: false };
+            expect([
+                resolveBottomSheetClose('dimming', locked),
+                resolveBottomSheetClose('escape', locked),
+                resolveBottomSheetClose('close-button', locked),
+                resolveBottomSheetClose('swipe', locked),
+                resolveBottomSheetClose('drag-handle', locked),
+            ]).toStrictEqual(['close-attempt', 'close-attempt', 'close-attempt', 'ignored', 'ignored']);
+        });
+
+        await it('never closes a sheet that is already closed', () => {
+            // Drive the IMPLEMENTATION with each closed-sheet row. Asserting only
+            // on the vector's own `outcome` would check the table against itself
+            // and could not fail for a code reason.
+            for (const { source, open, canClose, outcome } of BOTTOM_SHEET_CLOSE_VECTORS) {
+                if (open) continue;
+                expect(resolveBottomSheetClose(source, { open, canClose })).toBe(outcome);
+                expect(outcome).not.toBe('close');
+            }
+            expect(resolveBottomSheetClose('close-button', { open: false, canClose: true })).toBe('delegate');
+        });
+    });
+
+    await describe('BottomSheetPresentation (libadwaita conformance vectors)', async () => {
+        for (const vector of BOTTOM_SHEET_PRESENTATION_VECTORS) {
+            await it(vector.rule, () => {
+                const callbacks: BottomSheetTeardownCallback[] = [];
+                const state = new BottomSheetPresentation({
+                    onClosing: () => callbacks.push('closing'),
+                    onClosed: () => callbacks.push('closed'),
+                });
+                const notifications: boolean[] = [];
+                state.subscribe((open) => notifications.push(open));
+
+                const outcomes = runBottomSheetSteps(
+                    {
+                        setOpen: (open) => {
+                            state.setOpen(open);
+                        },
+                        setCanClose: (canClose) => {
+                            state.setCanClose(canClose);
+                        },
+                        requestClose: (source) => state.requestClose(source),
+                    },
+                    vector.steps,
+                );
+
+                expect(outcomes).toStrictEqual([...vector.outcomes]);
+                expect(notifications).toStrictEqual([...vector.notifications]);
+                expect(callbacks).toStrictEqual([...vector.callbacks]);
+                expect(state.open).toBe(vector.open);
+                expect(state.hasBeenOpen).toBe(vector.hasBeenOpen);
+            });
+        }
+    });
+
+    await describe('BottomSheetPresentation lifecycle details', async () => {
+        await it('setOpen reports whether it changed, so a renderer can skip its transition', () => {
+            const state = new BottomSheetPresentation();
+            expect(state.setOpen(true)).toBe(true);
+            expect(state.setOpen(true)).toBe(false);
+            expect(state.setOpen(false)).toBe(true);
+            expect(state.setOpen(false)).toBe(false);
+        });
+
+        await it('coerces a truthy/falsy argument like the C `open = !!open`', () => {
+            const state = new BottomSheetPresentation();
+            // adw-bottom-sheet.c:1670 — a gboolean is normalised before the
+            // idempotence check, so `1` and `true` are the same open.
+            expect(state.setOpen(1 as unknown as boolean)).toBe(true);
+            expect(state.setOpen(true)).toBe(false);
+        });
+
+        await it('lets a closing handler re-open the sheet, and does not notify twice', () => {
+            // adw-bottom-sheet.c:1697-1698 — the re-entrant call already emitted
+            // notify::open(true); the outer close must return without emitting
+            // its own notify::open(false), or a listener sees the sheet close.
+            const notifications: boolean[] = [];
+            let reopen = false;
+            const state: BottomSheetPresentation = new BottomSheetPresentation({
+                onClosing: () => {
+                    if (reopen) state.setOpen(true);
+                },
+            });
+            state.subscribe((open) => notifications.push(open));
+
+            state.setOpen(true);
+            reopen = true;
+            expect(state.setOpen(false)).toBe(false);
+            expect(state.open).toBe(true);
+            expect(notifications).toStrictEqual([true, true]);
+        });
+
+        await it('finishClose fires onClosed only once the sheet has settled closed', () => {
+            // open_animation_done_cb's `progress < 0.5` guard (adw-bottom-sheet.c:338).
+            const callbacks: BottomSheetTeardownCallback[] = [];
+            const state = new BottomSheetPresentation({
+                onClosing: () => callbacks.push('closing'),
+                onClosed: () => callbacks.push('closed'),
+            });
+            state.setOpen(true);
+            expect(state.finishClose()).toBe(false);
+            expect(callbacks).toStrictEqual([]);
+
+            state.setOpen(false);
+            expect(state.finishClose()).toBe(true);
+            expect(callbacks).toStrictEqual(['closing', 'closed']);
+        });
+
+        await it('setCanClose is idempotent and reports the change', () => {
+            const state = new BottomSheetPresentation();
+            expect(state.canClose).toBe(true);
+            expect(state.setCanClose(true)).toBe(false);
+            expect(state.setCanClose(false)).toBe(true);
+            expect(state.canClose).toBe(false);
+        });
+
+        await it('unsubscribing mid-fan-out does not skip the next listener', () => {
+            const state = new BottomSheetPresentation();
+            const seen: string[] = [];
+            const off = state.subscribe(() => {
+                seen.push('first');
+                off();
+            });
+            state.subscribe(() => seen.push('second'));
+            state.setOpen(true);
+            expect(seen).toStrictEqual(['first', 'second']);
         });
     });
 };

@@ -1,48 +1,87 @@
 // AdwViewSwitcherBase — shared base for the NativeScript view-switching widgets.
 //
-// `Adw.ViewSwitcher`, `Adw.InlineViewSwitcher`, and (the tab-bar half of)
-// `Adw.TabView` all reduce to the same primitive: a horizontal bar of mutually-
-// exclusive buttons, each bound to one page in a content stack, with exactly one
-// page visible at a time. This base captures that shared logic so the concrete
-// widgets only differ by CSS class (pill vs flat vs tab look) and chrome.
+// `Adw.ViewSwitcher`, `Adw.InlineViewSwitcher` and (the tab-bar half of)
+// `Adw.TabView` all reduce to the same primitive: a bar of mutually-exclusive
+// buttons, each bound to one page in a content stack, with exactly one page
+// visible at a time. This base is the NativeScript wiring for that; the
+// BEHAVIOUR — which button exists, what it shows, and which page is selected —
+// is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004), shared with the
+// `@gjsify/adwaita-web` twin and pinned by the conformance vectors. The
+// NS-specific projection (page `visibility`, the SVG icon, the page record) is
+// in `view-switcher-model.ts`, which the spec suite drives because a widget
+// module cannot be imported off-device.
 //
-// Each switcher button is a REAL tappable NS `StackLayout` holding an optional
-// Adwaita symbolic `AdwIcon` + a `Label` — matching the native view switchers,
-// whose buttons show icon + label (not text alone). Press feedback is wired with
-// {@link attachRowPressFeedback} (NS only auto-applies `:highlighted` to `Button`,
-// and these buttons are layouts). Subclasses can append per-button chrome (e.g. a
-// tab close button) via {@link _buildButtonExtras} / {@link _applyButtonState}.
+// What the lift fixed here, all of it C-derived:
+//   - a page with neither title nor icon rendered a zero-content but tappable,
+//     space-consuming button; libadwaita hides it (adw-view-switcher.c:178).
+//   - a page with no icon rendered no icon at all; C substitutes `image-missing`
+//     (adw-view-switcher-button.c:399-405).
+//   - `selected = 1.5` passed the `Number.isFinite` guard, matched no page, and
+//     collapsed every page at once while marking no button active; positions are
+//     `guint` (adw-view-stack.c:675-683).
+//   - `notify::selected` fired for a programmatic set as well as a tap with no
+//     way to tell them apart; the payload now carries `interactive`, the same
+//     tagging `ViewStackState` uses.
+//   - there was no per-page `visible` flag, so the auto-pick took the first page
+//     ADDED rather than the first VISIBLE one (adw-view-stack.c:1149-1151) and a
+//     hidden page could be selected (:2415).
+//   - `setViews` reset the selection to 0 whenever the index no longer fit;
+//     libadwaita's selection is a page POINTER and follows the page across a
+//     rebuild (adw-view-stack.c:660-672).
+//   - a stale comment claimed the out-of-range branch "still applies on first
+//     set"; it returned without applying anything.
 //
-// FIDELITY: approximated. NS has no `Adw.ViewStack`; pages are swapped by toggling
-// `visibility` (`collapse`/`visible`) — instant, no cross-fade (the CSS subset has
-// no transition). The selected button is marked with the `.active` class.
+// Each switcher button is a REAL tappable NS `StackLayout` holding an `AdwIcon`
+// + a `Label` + a badge `Label`. Press feedback is wired with
+// {@link attachRowPressFeedback} (NS only auto-applies `:highlighted` to
+// `Button`, and these buttons are layouts). The per-button chrome hooks this base
+// used to carry are gone with their only user: `AdwTabView` is an EDITABLE
+// ordered list, not a fixed bar of mutually-exclusive buttons, and now owns its
+// own model.
 //
+// FIDELITY: approximated. NS has no `Adw.ViewStack`; pages swap by toggling
+// `visibility` (`collapse`/`visible`) — instant, no cross-fade (the CSS subset
+// has no transition). The selected button is marked with the `.active` class.
+//
+// Reference: refs/libadwaita/src/adw-view-switcher.c (AdwViewSwitcher)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, Label, StackLayout, View, type EventData } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
+import { buildViewSwitcherButtons } from '@gjsify/adwaita-core';
+import type { AdwInlineViewSwitcherDisplayMode, AdwViewSwitcherPolicy, ViewSwitcherState } from '@gjsify/adwaita-core';
 import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
+import {
+    applyViewSwitcherVisibility,
+    createViewSwitcherState,
+    nsIconSvg,
+    viewSwitcherNotifyPayload,
+    viewSwitcherPageSpecs,
+    type AdwViewPage,
+    type ViewSwitcherNotifyPayload,
+} from './view-switcher-model.js';
+
+// Re-exported so the widget module stays the one import site for the page type,
+// as `widgets/index.ts` and every consumer already expect.
+export type { AdwViewPage };
 
 /** Event name emitted when the selected view changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
 
-/** Payload of the `notify::selected` event. */
-export interface NotifyViewSelectedEventData extends EventData {
-    /** The newly-selected view index. */
-    selected: number;
-    /** The newly-selected view's title. */
-    title: string;
-}
+/**
+ * Payload of the `notify::selected` event. `selected` is `-1` and `name`/`title`
+ * are `''` when nothing is selected — the state an empty switcher and a
+ * fully-hidden one both land in.
+ */
+export interface NotifyViewSelectedEventData extends EventData, ViewSwitcherNotifyPayload {}
 
-/** One page registered with a {@link AdwViewSwitcherBase}. */
-export interface AdwViewPage {
-    /** The switcher button label. */
-    title: string;
-    /** The page content view, shown when this page is selected. */
-    content: View;
-    /** Optional Adwaita symbolic SVG shown left of the label in the switcher button. */
-    icon?: string;
+/** The per-button NS nodes, so a selection change repaints instead of rebuilding. */
+interface ButtonNodes {
+    button: StackLayout;
+    icon: AdwIcon;
+    label: Label;
+    badge: Label;
 }
 
 /**
@@ -54,15 +93,37 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
     protected readonly _bar: StackLayout;
     /** The content area where the selected page is shown. */
     protected readonly _contentArea: GridLayout;
+    /** The registered pages, in bar order. */
     protected readonly _pages: AdwViewPage[] = [];
-    /** The tappable button containers (one per page), in bar order. */
-    protected readonly _buttons: StackLayout[] = [];
-    protected _selected = 0;
+    /** The headless selection + page model every derivation reads. */
+    protected readonly _state: ViewSwitcherState = createViewSwitcherState();
+    private _nodes: ButtonNodes[] = [];
 
     /** CSS class applied to the switcher bar — subclass-specific. */
     protected abstract get barClass(): string;
     /** CSS class applied to each switcher button — subclass-specific. */
     protected abstract get buttonClass(): string;
+    /**
+     * `AdwViewSwitcher:policy`, which decides the button orientation
+     * (adw-view-switcher.c:534-537). `'wide'` — icon beside label — because that
+     * is the layout all three NS switchers have always used; the icon-over-label
+     * narrow form lives in the separate `AdwViewSwitcherBar`. There is no policy
+     * PROPERTY on NS yet, so this is a constant a subclass can override rather
+     * than settable state.
+     */
+    protected get policy(): AdwViewSwitcherPolicy {
+        return 'wide';
+    }
+
+    /**
+     * What the buttons show. `'both'` for the classic switcher, whose buttons
+     * "always have an icon and a label" (adw-view-switcher.c class docs);
+     * `AdwInlineViewSwitcher` overrides it with the real
+     * `AdwInlineViewSwitcherDisplayMode`.
+     */
+    protected get buttonDisplayMode(): AdwInlineViewSwitcherDisplayMode {
+        return 'both';
+    }
 
     constructor(rootClass: string) {
         super();
@@ -85,6 +146,16 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         GridLayout.setRow(contentArea, 1);
         this.addChild(contentArea);
         this._contentArea = contentArea;
+
+        this._state.subscribe((change) => {
+            this._applySelection();
+            const data: NotifyViewSelectedEventData = {
+                eventName: NOTIFY_SELECTED,
+                object: this,
+                ...viewSwitcherNotifyPayload(change),
+            };
+            this.notify(data);
+        });
     }
 
     /** Initialise the bar class after the subclass fields are ready. */
@@ -92,84 +163,99 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         this._bar.className = this.barClass;
     }
 
-    /** Register the view pages. Rebuilds the switcher bar + content stack. */
+    /**
+     * Register the view pages. Rebuilds the switcher bar + content stack.
+     *
+     * The SELECTED PAGE survives the rebuild whenever a page of the same name
+     * does — libadwaita's selection is a page pointer, not an index
+     * (adw-view-stack.c:660-672) — and falls back to the first VISIBLE page
+     * otherwise (:1149-1151).
+     */
     setViews(pages: AdwViewPage[]): void {
-        // Clear existing.
-        for (const btn of this._buttons) this._bar.removeChild(btn);
-        this._buttons.length = 0;
+        for (const nodes of this._nodes) this._bar.removeChild(nodes.button);
+        this._nodes = [];
         for (const page of this._pages) this._contentArea.removeChild(page.content);
         this._pages.length = 0;
+        this._pages.push(...pages);
 
-        for (const page of pages) {
-            this._pages.push(page);
-
-            const index = this._buttons.length;
-            const btn = new StackLayout();
-            btn.orientation = 'horizontal';
-            btn.className = this.buttonClass;
-            btn.horizontalAlignment = 'center';
-
-            if (page.icon) {
-                const icon = new AdwIcon();
-                icon.className = `${icon.className} ${this.buttonClass}-icon`.trim();
-                icon.verticalAlignment = 'middle';
-                icon.icon = page.icon;
-                btn.addChild(icon);
-            }
-
-            const label = new Label();
-            label.text = page.title;
-            label.className = `${this.buttonClass}-label`;
-            label.verticalAlignment = 'middle';
-            btn.addChild(label);
-
-            // Let subclasses append per-button chrome (e.g. a tab close button).
-            this._buildButtonExtras(btn, page, index);
-
-            attachRowPressFeedback(btn);
-            btn.addEventListener('tap', () => {
-                this.selected = index;
-            });
-            this._bar.addChild(btn);
-            this._buttons.push(btn);
-
+        for (const [index, page] of this._pages.entries()) {
+            this._nodes.push(this._buildButton(index));
             GridLayout.setColumn(page.content, 0);
             GridLayout.setRow(page.content, 0);
             this._contentArea.addChild(page.content);
         }
 
-        if (this._selected >= this._pages.length) this._selected = 0;
+        // Emits at most one `notify::selected`, tagged non-interactive — the page
+        // set changed, the user did not tap.
+        this._state.setPages(viewSwitcherPageSpecs(this._pages));
         this._applySelection();
     }
 
-    /** Show only the selected page; mark its button active. */
+    /** Build one button's NS nodes. Painted by {@link _applySelection}. */
+    private _buildButton(index: number): ButtonNodes {
+        const button = new StackLayout();
+        // Overwritten from the derived model's orientation on every paint.
+        button.orientation = 'horizontal';
+        button.className = this.buttonClass;
+        button.horizontalAlignment = 'center';
+
+        // Icon and label always EXIST, exactly as AdwViewSwitcherButton's
+        // template does; what varies is what they carry. The icon holds the
+        // `image-missing` fallback when the page has none.
+        const icon = new AdwIcon();
+        icon.className = `${icon.className} ${this.buttonClass}-icon`.trim();
+        icon.verticalAlignment = 'middle';
+        button.addChild(icon);
+
+        const label = new Label();
+        label.className = `${this.buttonClass}-label`;
+        label.verticalAlignment = 'middle';
+        button.addChild(label);
+
+        // AdwIndicatorBin's badge (adw-indicator-bin.c:58-68).
+        const badge = new Label();
+        badge.className = `${this.buttonClass}-badge`;
+        badge.verticalAlignment = 'middle';
+        button.addChild(badge);
+
+        attachRowPressFeedback(button);
+        button.addEventListener('tap', () => {
+            this._state.setSelected(index);
+        });
+        this._bar.addChild(button);
+        return { button, icon, label, badge };
+    }
+
+    /** Paint the derived models: show only the selected page, mark its button active. */
     protected _applySelection(): void {
-        this._pages.forEach((page, i) => {
-            page.content.visibility = i === this._selected ? 'visible' : 'collapse';
-        });
-        this._buttons.forEach((btn, i) => {
-            const active = i === this._selected;
-            btn.className = active ? `${this.buttonClass} active` : this.buttonClass;
-            this._applyButtonState(btn, i, active);
-        });
-    }
+        applyViewSwitcherVisibility(this._pages, this._state.selected);
 
-    /**
-     * Hook: append extra chrome to a freshly-built button (after icon + label).
-     * Default no-op. Subclasses (e.g. {@link AdwTabView}) override to add a close
-     * button. The button is the tappable `StackLayout` container.
-     */
-    protected _buildButtonExtras(_button: StackLayout, _page: AdwViewPage, _index: number): void {
-        // no-op by default
-    }
+        const showIcon = this.buttonDisplayMode !== 'labels';
+        const showLabel = this.buttonDisplayMode !== 'icons';
 
-    /**
-     * Hook: react to a button's active/inactive state on every selection change.
-     * Default no-op. Subclasses override to e.g. show the close button only on the
-     * active tab.
-     */
-    protected _applyButtonState(_button: StackLayout, _index: number, _active: boolean): void {
-        // no-op by default
+        const models = buildViewSwitcherButtons(this._state.pages, this._state.selected, this.policy);
+        models.forEach((model, index) => {
+            const nodes = this._nodes[index];
+            if (!nodes) return;
+
+            // The button-visibility rule: a page with neither title nor icon has
+            // no button at all (adw-view-switcher.c:178).
+            nodes.button.visibility = model.visible ? 'visible' : 'collapse';
+            nodes.button.orientation = model.orientation === 'horizontal' ? 'horizontal' : 'vertical';
+            nodes.button.className = model.selected ? `${this.buttonClass} active` : this.buttonClass;
+            nodes.icon.icon = nsIconSvg(model.iconName);
+            nodes.icon.visibility = showIcon ? 'visible' : 'collapse';
+            nodes.label.text = model.label;
+            nodes.label.visibility = showLabel ? 'visible' : 'collapse';
+            nodes.badge.text = model.badgeLabel;
+            // A bare needs-attention dot has no text; the class paints it.
+            nodes.badge.visibility = model.badgeLabel.length > 0 || model.needsAttention ? 'visible' : 'collapse';
+            if (model.badgeLabel.length === 0 && model.needsAttention) {
+                nodes.badge.className = `${this.buttonClass}-badge needs-attention`;
+            } else {
+                nodes.badge.className = `${this.buttonClass}-badge`;
+            }
+        });
     }
 
     /** The registered view pages. */
@@ -181,25 +267,35 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         this.setViews(Array.isArray(pages) ? pages : []);
     }
 
-    /** The selected view index. Swaps the visible page + emits `notify::selected`. */
+    /**
+     * The selected view index, `-1` when nothing is selected. Swaps the visible
+     * page + emits `notify::selected`.
+     *
+     * Out-of-range, negative, fractional and hidden-page indices are all silent
+     * NO-OPS — refused, never clamped, exactly as
+     * `adw_view_stack_pages_select_item` refuses (adw-view-stack.c:682-684).
+     */
     get selected(): number {
-        return this._selected;
+        return this._state.selected;
     }
 
     set selected(value: number) {
-        const next = Number.isFinite(value) ? value : 0;
-        if (next === this._selected || next < 0 || next >= this._pages.length) {
-            // Still apply on first set (when pages just registered) but don't emit.
-            return;
-        }
-        this._selected = next;
+        this._state.setSelected(value);
+    }
+
+    /** Name of the selected page, `''` when nothing is selected. */
+    get selectedName(): string {
+        return this._state.selectedName;
+    }
+
+    /**
+     * Show or hide a page by name. Returns whether the SELECTION moved: hiding
+     * the selected page falls back to the first still-visible one
+     * (`update_child_visible`, adw-view-stack.c:1061-1082).
+     */
+    setPageVisible(name: string, visible: boolean): boolean {
+        const moved = this._state.setPageVisible(name, visible);
         this._applySelection();
-        const data: NotifyViewSelectedEventData = {
-            eventName: NOTIFY_SELECTED,
-            object: this,
-            selected: next,
-            title: this._pages[next]?.title ?? '',
-        };
-        this.notify(data);
+        return moved;
     }
 }

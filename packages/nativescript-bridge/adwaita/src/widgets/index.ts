@@ -69,9 +69,45 @@ export type { AdwViewPage, NotifyViewSelectedEventData } from './view-switcher-b
 export { AdwViewSwitcher } from './adw-view-switcher.js';
 export { AdwViewSwitcherBar } from './adw-view-switcher-bar.js';
 export { AdwInlineViewSwitcher } from './adw-inline-view-switcher.js';
-export { AdwTabView } from './adw-tab-view.js';
-export { AdwCarousel, DEFAULT_CAROUSEL_PAGE_WIDTH, NOTIFY_POSITION } from './adw-carousel.js';
-export type { NotifyPositionEventData } from './adw-carousel.js';
+// AdwTabView keeps the NS chrome (the top chip bar + the ✕ close button); the
+// MODEL — the pinned partition, the parent-aware close successor, the two-phase
+// close protocol and the ordering rules — is headless (`@gjsify/adwaita-core`,
+// ADR 0004), with the NS-specific projection in `tab-view-state.ts`.
+export { AdwTabView, CLOSE_PAGE, NOTIFY_SELECTED_PAGE, PAGES_CHANGED } from './adw-tab-view.js';
+export type { ClosePageEventData, NotifySelectedPageEventData, PagesChangedEventData } from './adw-tab-view.js';
+export {
+    applyTabViewVisibility,
+    createTabViewState,
+    tabBarVisibility,
+    tabCloseVisibilities,
+    tabLabelText,
+    tabPageVisibilities,
+    tabTooltipText,
+    tabViewNotifyPayload,
+} from './tab-view-state.js';
+export type { AdwTabPage, NsVisibility, TabViewNotifyPayload } from './tab-view-state.js';
+export {
+    AdwCarousel,
+    DEFAULT_CAROUSEL_PAGE_WIDTH,
+    NOTIFY_N_PAGES,
+    NOTIFY_POSITION,
+    PAGE_CHANGED,
+} from './adw-carousel.js';
+export type { NotifyPositionEventData, PageChangedEventData } from './adw-carousel.js';
+// The carousel's NS-specific projection — scroll offsets, dot classes and the
+// scroll/model sync. Free of `@nativescript/core` VALUE imports, so the spec
+// suite exercises the shipping code instead of a transcription of it.
+export {
+    CarouselScrollSync,
+    applyCarouselDots,
+    carouselDotClasses,
+    carouselNotifyPayload,
+    carouselPositionAtOffset,
+    carouselScrollOffset,
+    createCarouselState,
+    normalizeCarouselPageWidth,
+} from './carousel-state.js';
+export type { CarouselNotifyPayload, NsCarouselStateOptions } from './carousel-state.js';
 
 // --- Navigation ---
 export { AdwNavigationView, NOTIFY_VISIBLE_PAGE } from './adw-navigation-view.js';
@@ -82,7 +118,7 @@ export { AdwNavigationSplitView } from './adw-navigation-split-view.js';
 export { AdwOverlaySplitView } from './adw-overlay-split-view.js';
 export { AdwSidebar, NOTIFY_SELECTED as NOTIFY_SIDEBAR_SELECTED } from './adw-sidebar.js';
 export type { NotifySidebarSelectedEventData } from './adw-sidebar.js';
-export { AdwBottomSheet, NOTIFY_OPEN } from './adw-bottom-sheet.js';
+export { AdwBottomSheet, CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE } from './adw-bottom-sheet.js';
 export type { NotifyOpenEventData } from './adw-bottom-sheet.js';
 
 // --- Feedback / dialogs ---

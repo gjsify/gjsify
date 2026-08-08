@@ -32,12 +32,34 @@ Page.adw-window {
     margin: 12 12 6 12;
 }
 
+/* The header box: title + description column, optional trailing suffix. The two
+ * metric rules below are libadwaita's, keyed off `is_single_line`
+ * (stylesheet/widgets/_preferences.scss:6-13): a header carrying a description
+ * is two lines and takes a 6 bottom gap, a title-only or suffix-only header is
+ * one line and takes a 34 height floor instead. Spelled as base + override
+ * rather than with `:not(.single-line)` — the NS CSS subset has no `:not()`. */
+.adw-preferences-group-header {
+    margin: 6 2 6 2;
+}
+
+.adw-preferences-group-header.single-line {
+    margin: 6 2 0 2;
+    min-height: 34;
+}
+
 .adw-preferences-group-title {
     font-size: 11;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.55);
-    margin: 6 2 6 2;
+    margin: 0;
     /* NS has no text-transform; author titles in upper-case in markup if desired. */
+}
+
+/* Dimmed description line below the title. */
+.adw-preferences-group-description {
+    font-size: 12;
+    color: rgba(0, 0, 0, 0.55);
+    margin: 2 0 0 0;
 }
 
 /* The boxed list: rounded card holding the rows. */
@@ -457,6 +479,30 @@ Page.adw-window {
     padding-bottom: var(--safeAreaInsetBottom, 0);
 }
 
+/* top-bar-style / bottom-bar-style = raised: an opaque background with a
+ * persistent separator. Adwaita uses a shadow there and swaps it for a subtler
+ * hairline under `.border` (adw-toolbar-view.c:1011-1024); the NS CSS subset has
+ * no shadow, so `raised` carries the hairline and `.border` darkens it — the same
+ * ordering of emphasis, in the vocabulary the platform has. */
+.adw-toolbar-view-top.raised {
+    background-color: #ffffff;
+    border-bottom-width: 1;
+    border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+.adw-toolbar-view-top.raised.border {
+    border-bottom-color: rgba(0, 0, 0, 0.24);
+}
+
+.adw-toolbar-view-bottom.raised {
+    background-color: #ffffff;
+    border-top-color: rgba(0, 0, 0, 0.1);
+}
+
+.adw-toolbar-view-bottom.raised.border {
+    border-top-color: rgba(0, 0, 0, 0.24);
+}
+
 /* ===== View stack (page container) ===== */
 
 .adw-view-stack {
@@ -504,6 +550,26 @@ Page.adw-window {
 
 .adw-viewswitcherbar-button.active .adw-viewswitcherbar-button-label {
     color: #3584e4;
+}
+
+/* AdwIndicatorBin's badge — the unread count, or (with .needs-attention and no
+ * count) a bare dot. Reference: refs/libadwaita/src/adw-indicator-bin.c */
+.adw-viewswitcherbar-button-badge {
+    font-size: 10;
+    font-weight: 700;
+    color: #ffffff;
+    background-color: #3584e4;
+    border-radius: 8;
+    padding: 0 4 0 4;
+    horizontal-align: center;
+    text-align: center;
+}
+
+.adw-viewswitcherbar-button-badge.needs-attention {
+    width: 6;
+    height: 6;
+    padding: 0;
+    border-radius: 3;
 }
 
 /* ===== Wrap box ===== */
@@ -751,6 +817,25 @@ Page.adw-window {
     vertical-align: center;
 }
 
+/* AdwIndicatorBin's badge on the classic switcher's buttons. */
+.adw-view-switcher-button-badge {
+    font-size: 10;
+    font-weight: 700;
+    color: #ffffff;
+    background-color: #3584e4;
+    border-radius: 8;
+    padding: 0 4 0 4;
+    margin: 0 0 0 5;
+    vertical-align: center;
+}
+
+.adw-view-switcher-button-badge.needs-attention {
+    width: 6;
+    height: 6;
+    padding: 0;
+    border-radius: 3;
+}
+
 /* ===== Inline view switcher (compact pill bar) ===== */
 
 .adw-inline-view-switcher-bar {
@@ -784,6 +869,25 @@ Page.adw-window {
 .adw-inline-view-switcher-button-icon {
     margin: 0 5 0 0;
     vertical-align: center;
+}
+
+/* AdwIndicatorBin's badge on the inline switcher's toggles. */
+.adw-inline-view-switcher-button-badge {
+    font-size: 10;
+    font-weight: 700;
+    color: #ffffff;
+    background-color: #3584e4;
+    border-radius: 8;
+    padding: 0 4 0 4;
+    margin: 0 0 0 5;
+    vertical-align: center;
+}
+
+.adw-inline-view-switcher-button-badge.needs-attention {
+    width: 6;
+    height: 6;
+    padding: 0;
+    border-radius: 3;
 }
 
 /* ===== Tab view (top tab strip) ===== */
@@ -1053,7 +1157,8 @@ Page.ns-dark.adw-window {
     color: #ffffff;
 }
 
-.ns-dark .adw-preferences-group-title {
+.ns-dark .adw-preferences-group-title,
+.ns-dark .adw-preferences-group-description {
     color: rgba(255, 255, 255, 0.55);
 }
 
@@ -1257,6 +1362,24 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-toolbar-view-bottom {
     background-color: #2e2e32;
     border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+.ns-dark .adw-toolbar-view-top.raised {
+    background-color: #2e2e32;
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.ns-dark .adw-toolbar-view-top.raised.border {
+    border-bottom-color: rgba(255, 255, 255, 0.28);
+}
+
+.ns-dark .adw-toolbar-view-bottom.raised {
+    background-color: #2e2e32;
+    border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+.ns-dark .adw-toolbar-view-bottom.raised.border {
+    border-top-color: rgba(255, 255, 255, 0.28);
 }
 
 /* ===== Dark: view switcher bar ===== */

@@ -107,6 +107,40 @@ adw-inline-view-switcher {
         white-space: nowrap;
     }
 
+    // AdwIndicatorBin's badge — the unread count, or a bare dot when only
+    // `needs-attention` is set.
+    // Reference: refs/libadwaita/src/adw-indicator-bin.c
+    .adw-inline-view-switcher-indicator {
+        display: inline-flex;
+        box-sizing: border-box;
+        align-items: center;
+        justify-content: center;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        border-radius: 8px;
+        background-color: var(--accent-bg-color);
+        color: var(--accent-fg-color);
+        font-size: 0.625rem;
+        font-weight: 700;
+        line-height: 1;
+
+        // Author rule, not the UA one: the `display: inline-flex` above is also
+        // an author rule and would otherwise keep an empty badge on screen
+        // (cascade ORIGIN beats specificity — the same trap the bar hit).
+        &[hidden] {
+            display: none;
+        }
+
+        &.needs-attention {
+            min-width: 6px;
+            width: 6px;
+            height: 6px;
+            padding: 0;
+            border-radius: 3px;
+        }
+    }
+
     // The stacked content area below the bar — exactly one page is visible.
     .adw-inline-view-switcher-pages {
         width: 100%;

@@ -44,6 +44,10 @@ export interface NotifyExpandedEventData extends EventData {
 }
 
 export class AdwExpanderRow extends AdwActionRow {
+    /** `AdwExpanderRow` derives from `AdwPreferencesRow` in C
+     *  (adw-expander-row.c:72), so the search does not consult a subtitle here. */
+    override readonly isActionRow: boolean = false;
+
     /** The disclosure chevron (suffix) — a plain symbolic icon, like Adw.ExpanderRow. */
     protected readonly _toggle: AdwIcon;
     /** The container of revealed child rows (second grid row). */

@@ -64,6 +64,14 @@ adw-view-switcher-bar {
         user-select: none;
         -webkit-user-select: none;
 
+        // Same cascade trap as the bar itself: a page with neither title nor
+        // icon has no button (adw-view-switcher.c:178), and the UA
+        // `[hidden] { display: none }` loses to this block's author
+        // `display: inline-flex` unless it is re-asserted here.
+        &[hidden] {
+            display: none;
+        }
+
         .adw-view-switcher-bar-icon {
             width: 16px;
             height: 16px;
@@ -76,6 +84,35 @@ adw-view-switcher-bar {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        // AdwIndicatorBin's badge — see refs/libadwaita/src/adw-indicator-bin.c.
+        .adw-view-switcher-bar-indicator {
+            display: inline-flex;
+            box-sizing: border-box;
+            align-items: center;
+            justify-content: center;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            border-radius: 8px;
+            background-color: var(--accent-bg-color);
+            color: var(--accent-fg-color);
+            font-size: 0.625rem;
+            font-weight: 700;
+            line-height: 1;
+
+            &[hidden] {
+                display: none;
+            }
+
+            &.needs-attention {
+                min-width: 6px;
+                width: 6px;
+                height: 6px;
+                padding: 0;
+                border-radius: 3px;
+            }
         }
 
         &:hover {

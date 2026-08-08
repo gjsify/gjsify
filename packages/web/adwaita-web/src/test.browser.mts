@@ -12,6 +12,12 @@ import { AdwNavigationViewTest } from './navigation-view.spec.js';
 import { AdwSidebarTest } from './adw-sidebar.spec.js';
 import { AdwEntryRowsTest } from './entry-rows.spec.js';
 import { AdwSplitButtonTest } from './split-button.spec.js';
+import { AdwCarouselTest } from './adw-carousel.spec.js';
+import { AdwBottomSheetTest } from './bottom-sheet.spec.js';
+import { AdwChromeTest } from './chrome.spec.js';
+import { AdwPreferencesTest } from './preferences.spec.js';
+import { AdwTabViewConformanceTest } from './tab-view.spec.js';
+import { AdwViewSwitcherTest } from './view-switcher.spec.js';
 import { AdwAvatarTest } from './adw-avatar.spec.js';
 import { AdwSplitViewsTest } from './split-views.spec.js';
 import { AdwButtonRowTest } from './adw-button-row.spec.js';
@@ -27,6 +33,13 @@ import { AdwStyleIsolationTest } from './style-isolation.spec.js';
 
 run({
     AdwAvatarTest,
+    AdwCarouselTest,
+    AdwBottomSheetTest,
+    AdwChromeTest,
+    AdwPreferencesTest,
+    AdwTabViewConformanceTest,
+    AdwViewSwitcherTest,
+
     AdwSplitViewsTest,
     AdwButtonRowTest,
     AdwBreakpointsTest,

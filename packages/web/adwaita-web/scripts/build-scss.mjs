@@ -38,7 +38,12 @@ import {
     folderSymbolic,
     userTrashSymbolic,
 } from '@gjsify/adwaita-icons/places';
-import { avatarDefaultSymbolic, mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
+import {
+    avatarDefaultSymbolic,
+    imageMissingSymbolic,
+    mailUnreadSymbolic,
+    starredSymbolic,
+} from '@gjsify/adwaita-icons/status';
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes';
@@ -98,6 +103,10 @@ const ICONS = {
     'emblem-system': emblemSystemSymbolic,
     'preferences-system': preferencesSystemSymbolic,
     'application-x-executable': applicationXExecutableSymbolic,
+    // The libadwaita fallback for a NULL/empty icon-name — every view switcher
+    // substitutes it (adw-view-switcher-button.c:405), so it has to resolve to a
+    // real glyph rather than to an empty mask.
+    'image-missing': imageMissingSymbolic,
 };
 
 const iconVars = Object.entries(ICONS)

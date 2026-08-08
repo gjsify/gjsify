@@ -5,11 +5,21 @@
 // shows the dialog title and a trailing close button.
 //
 // Pages are declared as <adw-preferences-page> children (each with optional
-// `title` / `icon-name` attributes + arbitrary group content); the dialog
-// snapshots them at connect time and stacks their content in the scrolled body.
+// `title` / `icon-name` / `name` / `use-underline` attributes + arbitrary group
+// content) and are moved — as ELEMENTS, keeping their identity — into the
+// scrolled body. `add(page)` accepts one at any later time, mirroring
+// adw_preferences_dialog_add.
 // (Adw shows a view-switcher when there is more than one page and the window is
-// wide; the web port renders the pages stacked, matching the single-page common
-// case the storybook exercises.)
+// wide, and shows exactly one page at a time; the web port renders the pages
+// stacked, matching the single-page common case the storybook exercises. The
+// page COLLECTION model — visible-page, visible-page-name, the auto-pick —
+// belongs to Adw.ViewStack and is available as `ViewStackState` in
+// @gjsify/adwaita-core when this port grows a switcher.)
+//
+// `search(query)` implements the dialog's search over those pages: the corpus,
+// the filter and the `page → group` result subtitles all come from
+// @gjsify/adwaita-core, so the browser and NativeScript dialogs return the same
+// results for the same tree.
 //
 // Like Adw.Dialog the dialog starts hidden; `present()` / setting the `open`
 // attribute reveals it. It is dismissed by Escape, by clicking the scrim, or by
@@ -42,16 +52,57 @@
 // Copyright (c) 2023-2024 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import type { PreferencesSearchResult, SearchPreferencesOptions } from '@gjsify/adwaita-core';
+import { searchPreferencesDom } from '../preferences-search.js';
+
 const DEFAULT_CONTENT_WIDTH = 640;
 
 /**
- * A single preferences page. Child of <adw-preferences-dialog>; consumed at
- * connect time. Carries optional `title` / `icon-name` attributes and any
+ * A single preferences page. Child of <adw-preferences-dialog>. Carries optional
+ * `title` / `icon-name` / `name` / `use-underline` attributes and any
  * <adw-preferences-group> content — mirrors Adw.PreferencesPage.
+ *
+ * The dialog keeps the page ELEMENT rather than hoisting its children out,
+ * because the page's identity is load-bearing: `adw_preferences_dialog_add`
+ * binds title / icon-name / name / use-underline / visible onto the view-stack
+ * page (adw-preferences-dialog.c:707-711), and `create_search_row_subtitle`
+ * needs the title back the moment a second page is visible.
  */
 export class AdwPreferencesPage extends HTMLElement {
     static get observedAttributes() {
-        return ['title', 'icon-name', 'open'];
+        return ['title', 'icon-name', 'name', 'use-underline', 'open'];
+    }
+
+    /** `adw_preferences_page_get_name` — the view-stack child name. */
+    get name(): string {
+        return this.getAttribute('name') ?? '';
+    }
+
+    set name(value: string) {
+        this.setAttribute('name', value);
+    }
+
+    /** `AdwPreferencesPage:icon-name`, shown by a view switcher. */
+    get iconName(): string {
+        return this.getAttribute('icon-name') ?? '';
+    }
+
+    set iconName(value: string) {
+        this.setAttribute('icon-name', value);
+    }
+
+    /** `AdwPreferencesPage:use-underline` — the title carries a mnemonic. */
+    get useUnderline(): boolean {
+        return this.hasAttribute('use-underline');
+    }
+
+    set useUnderline(value: boolean) {
+        this.toggleAttribute('use-underline', value);
+    }
+
+    /** The page's groups, in document order. */
+    get groups(): HTMLElement[] {
+        return Array.from(this.querySelectorAll('adw-preferences-group'));
     }
 }
 
@@ -61,6 +112,7 @@ export class AdwPreferencesDialog extends HTMLElement {
     private _dialogEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _bodyEl!: HTMLDivElement;
+    private _pagesEl!: HTMLDivElement;
     private _closeBtn!: HTMLButtonElement;
 
     static get observedAttributes() {
@@ -116,18 +168,66 @@ export class AdwPreferencesDialog extends HTMLElement {
         this.open = false;
     }
 
+    /**
+     * `adw_preferences_dialog_add` (adw-preferences-dialog.c:693-716) — add a
+     * page at ANY time.
+     *
+     * Before this the pages were snapshotted once, in `connectedCallback`; a
+     * page appended later stayed a sibling of the scrim and rendered OUTSIDE
+     * the dialog card. GTK and the NativeScript port both accept a page
+     * whenever it arrives.
+     */
+    add(page: AdwPreferencesPage): void {
+        this._pagesEl.appendChild(page);
+    }
+
+    /**
+     * `adw_preferences_dialog_remove` (:723-745). C logs
+     * `ADW_CRITICAL_CANNOT_REMOVE_CHILD` and no-ops for a page it does not own;
+     * returning `false` is the same contract without a console write.
+     *
+     * NOT named `remove`: `ChildNode.remove()` already exists on every element
+     * and takes no arguments, so overriding it with a different signature makes
+     * the class un-assignable to `HTMLElement` — which `customElements.define`
+     * requires.
+     */
+    removePage(page: AdwPreferencesPage): boolean {
+        if (page.parentNode !== this._pagesEl) return false;
+        this._pagesEl.removeChild(page);
+        return true;
+    }
+
+    /** The dialog's pages, in add order. */
+    get pages(): AdwPreferencesPage[] {
+        return Array.from(this._pagesEl.querySelectorAll('adw-preferences-page')) as AdwPreferencesPage[];
+    }
+
+    /**
+     * The preferences search (`filter_search_results` +
+     * `create_search_row_subtitle`), over this dialog's live page subtree.
+     *
+     * The whole pipeline is `@gjsify/adwaita-core`'s, so this dialog and the
+     * NativeScript one answer identically for the same tree — including the
+     * three corpus filters (visible page → visible group → titled visible row)
+     * and the case fold that makes `strasse` find `Straße`.
+     *
+     * An empty query returns the WHOLE corpus, which is what C does and what
+     * makes the results list non-empty before the user types.
+     */
+    search(query: string, options?: SearchPreferencesOptions): PreferencesSearchResult<Element>[] {
+        return searchPreferencesDom(this._pagesEl, query, options);
+    }
+
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Snapshot the declared pages before taking over the subtree. Each page's
-        // content (its groups) is stacked in the scrolled body; any unwrapped
-        // children fall back to the body too (Adw.PreferencesDialog's buildable
-        // default adds a child as a page).
-        const pages = Array.from(this.querySelectorAll(':scope > adw-preferences-page')) as AdwPreferencesPage[];
-        const pageContent = pages.flatMap((page) => Array.from(page.childNodes));
-        const claimed = new Set<Node>([...pages, ...pageContent]);
-        const unwrapped = Array.from(this.childNodes).filter((node) => !claimed.has(node));
+        // Snapshot the declared children before taking over the subtree. The
+        // page ELEMENTS move into the body intact — their title / name /
+        // icon-name are what a search result subtitle and a view switcher read
+        // — and any unwrapped children follow them (Adw.PreferencesDialog's
+        // buildable default adds a child as a page).
+        const declared = Array.from(this.childNodes);
 
         // Full-cover scrim — clicking it dismisses the dialog (or raises
         // close-attempt when locked).
@@ -169,15 +269,14 @@ export class AdwPreferencesDialog extends HTMLElement {
 
         header.append(leading, this._titleEl, trailing);
 
-        // Scrolled body — a clamped column of the declared pages' content.
+        // Scrolled body — a clamped column of the declared pages.
         this._bodyEl = document.createElement('div');
         this._bodyEl.className = 'adw-preferences-dialog-body';
 
-        const clamp = document.createElement('div');
-        clamp.className = 'adw-preferences-dialog-pages';
-        for (const child of pageContent) clamp.appendChild(child);
-        for (const child of unwrapped) clamp.appendChild(child);
-        this._bodyEl.appendChild(clamp);
+        this._pagesEl = document.createElement('div');
+        this._pagesEl.className = 'adw-preferences-dialog-pages';
+        for (const child of declared) this._pagesEl.appendChild(child);
+        this._bodyEl.appendChild(this._pagesEl);
 
         this._dialogEl.append(header, this._bodyEl);
 

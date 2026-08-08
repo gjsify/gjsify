@@ -1,31 +1,79 @@
 // adw-view-switcher-bar visibility regression (browser axis). Guards that the
-// `revealed` flag actually shows/hides the bar. The bar's base scss sets
+// derived reveal state actually shows/hides the bar. The bar's base scss sets
 // `display: block`, an AUTHOR rule that would defeat the UA `[hidden]{display:none}`
 // the component relies on (cascade origin beats specificity) — so an unrevealed
 // bar rendered visible until scss/_view_switcher_bar.scss re-asserted
 // `&[hidden] { display: none }`. This test pins that fix.
+//
+// It now stages the bar against a real two-page <adw-view-stack>, because the
+// request alone is no longer enough: `update_bar_revealed` reveals the bar only
+// when `reveal` is set AND MORE THAN ONE page is visible
+// (refs/libadwaita/src/adw-view-switcher-bar.c:104-126), a rule the port used to
+// skip entirely. The one-page case is asserted here too — it is the state the old
+// bar rendered as an empty strip. The full derivation is driven from the shared
+// conformance vectors in `view-switcher.spec.ts`.
 import { describe, expect, it } from '@gjsify/unit';
 
-export const AdwViewSwitcherBarTest = async () => {
-    await describe('adw-view-switcher-bar revealed → visibility', async () => {
-        await it('is display:none by default (not revealed) and block once revealed', async () => {
-            const bar = document.createElement('adw-view-switcher-bar');
-            document.body.appendChild(bar);
+import type { AdwViewStack } from './elements/adw-view-stack.js';
+import type { AdwViewSwitcherBar } from './elements/adw-view-switcher-bar.js';
 
-            // Default: `revealed` absent → the component sets `hidden`, and the
-            // scss `[hidden]` author rule must win over the base `display: block`.
-            expect(bar.hasAttribute('revealed')).toBe(false);
+/** A bar bound to a stack of `count` visible pages, both mounted. */
+function mountBar(count: number): { bar: AdwViewSwitcherBar; host: HTMLElement } {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const stack = document.createElement('adw-view-stack') as AdwViewStack;
+    for (let index = 0; index < count; index++) {
+        const page = document.createElement('adw-view-stack-page');
+        page.setAttribute('name', `p${index}`);
+        page.setAttribute('title', `P${index}`);
+        stack.appendChild(page);
+    }
+    host.appendChild(stack);
+
+    const bar = document.createElement('adw-view-switcher-bar') as AdwViewSwitcherBar;
+    host.appendChild(bar);
+    bar.setStack(stack);
+    return { bar, host };
+}
+
+export const AdwViewSwitcherBarTest = async () => {
+    await describe('adw-view-switcher-bar reveal → visibility', async () => {
+        await it('is display:none by default and block once revealed', () => {
+            const { bar, host } = mountBar(2);
+
+            // Default: `reveal` off → the component sets `hidden`, and the scss
+            // `[hidden]` author rule must win over the base `display: block`.
+            expect(bar.reveal).toBe(false);
             expect(getComputedStyle(bar).display).toBe('none');
 
-            // Reveal it → shown.
-            bar.setAttribute('revealed', '');
+            bar.setAttribute('reveal', '');
             expect(getComputedStyle(bar).display).toBe('block');
 
             // Hide it again → back to none (the round-trip, not a one-way latch).
-            bar.removeAttribute('revealed');
+            bar.removeAttribute('reveal');
             expect(getComputedStyle(bar).display).toBe('none');
 
-            bar.remove();
+            host.remove();
+        });
+
+        await it('still accepts the legacy `revealed` attribute as the request', () => {
+            const { bar, host } = mountBar(2);
+            bar.setAttribute('revealed', '');
+            expect(bar.reveal).toBe(true);
+            expect(getComputedStyle(bar).display).toBe('block');
+            host.remove();
+        });
+
+        await it('stays collapsed for a ONE-page stack, however loudly the layout asks', () => {
+            // `count > 1` (adw-view-switcher-bar.c:125). The old bar showed an
+            // empty strip here because it never consulted the page count.
+            const { bar, host } = mountBar(1);
+            bar.reveal = true;
+            expect(bar.reveal).toBe(true);
+            expect(bar.revealed).toBe(false);
+            expect(getComputedStyle(bar).display).toBe('none');
+            host.remove();
         });
     });
 };

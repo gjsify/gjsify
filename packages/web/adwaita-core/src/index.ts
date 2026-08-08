@@ -68,9 +68,20 @@ export type {
     ToastTimerHandle,
 } from './toast.js';
 
-// --- Alert-dialog response model (Adw.AlertDialog) ---
-export { AdwAlertResponses } from './dialog.js';
-export type { AdwAlertResponse, AdwResponseAppearance, AdwResponseOptions, OrderedConfirmResponses } from './dialog.js';
+// --- Dialogs: alert responses + bottom-sheet dismissal (Adw.AlertDialog / Adw.BottomSheet) ---
+export { AdwAlertResponses, BottomSheetPresentation, resolveBottomSheetClose } from './dialog.js';
+export type {
+    AdwAlertResponse,
+    AdwResponseAppearance,
+    AdwResponseOptions,
+    BottomSheetCloseOutcome,
+    BottomSheetCloseSource,
+    BottomSheetCloseState,
+    BottomSheetPresentationListener,
+    BottomSheetPresentationOptions,
+    BottomSheetTeardownCallback,
+    OrderedConfirmResponses,
+} from './dialog.js';
 
 // --- Row interaction state machines (Adw.ExpanderRow/ComboRow/SpinRow/ToggleGroup) ---
 export { ComboState, ExpanderState, SpinState, ToggleGroupState } from './rows.js';
@@ -244,3 +255,175 @@ export type {
     SplitButtonProperty,
     SplitButtonStyleClass,
 } from './split-button.js';
+
+// --- View switcher + bar (Adw.ViewSwitcher / Adw.InlineViewSwitcher) ---
+export {
+    DEFAULT_INDICATOR_DESCRIPTION_STRINGS,
+    INLINE_VIEW_SWITCHER_DISPLAY_MODES,
+    VIEW_SWITCHER_BADGE_LIMIT,
+    VIEW_SWITCHER_DRAG_SWITCH_DELAY,
+    VIEW_SWITCHER_FALLBACK_ICON,
+    VIEW_SWITCHER_NO_SELECTION,
+    VIEW_SWITCHER_POLICIES,
+    ViewSwitcherBarState,
+    ViewSwitcherDragSwitch,
+    ViewSwitcherState,
+    buildInlineToggles,
+    buildViewSwitcherButtons,
+    createViewSwitcherPage,
+    inlineToggleTooltip,
+    isInlineViewSwitcherDisplayMode,
+    isViewSwitcherButtonVisible,
+    isViewSwitcherPolicy,
+    pageIndexForToggle,
+    shouldRevealViewSwitcherBar,
+    stripMnemonic,
+    toggleIndexForPage,
+    viewSwitcherBadgeLabel,
+    viewSwitcherButtonOrientation,
+    viewSwitcherIconName,
+    viewSwitcherIndicatorDescription,
+    viewSwitcherLabel,
+    viewSwitcherPageFromStackPage,
+    viewSwitcherPagesFromStack,
+} from './view-switcher.js';
+export type {
+    AdwInlineViewSwitcherDisplayMode,
+    AdwViewSwitcherPage,
+    AdwViewSwitcherPageInit,
+    AdwViewSwitcherPolicy,
+    IndicatorDescriptionStrings,
+    InlineToggleModel,
+    ViewSwitcherBarChange,
+    ViewSwitcherBarListener,
+    ViewSwitcherButtonModel,
+    ViewSwitcherDragSwitchOptions,
+    ViewSwitcherScheduler,
+    ViewSwitcherStateChange,
+    ViewSwitcherStateListener,
+    ViewSwitcherStateOptions,
+    ViewSwitcherTimerHandle,
+} from './view-switcher.js';
+
+// --- Tab view (Adw.TabView) ---
+export {
+    DEFAULT_TAB_AUTOHIDE,
+    TabViewState,
+    isDescendantOfPage,
+    successorAfterClose,
+    tabCloseVisible,
+    tabIconState,
+    tabTooltip,
+    tabTooltipIsMarkup,
+    tabsRevealed,
+} from './tab-view.js';
+export type {
+    AdwTabPageSpec,
+    AdwTabPageState,
+    TabIconState,
+    TabViewHandlers,
+    TabViewPagesChange,
+    TabViewPagesChangeKind,
+    TabViewPagesListener,
+    TabViewSelectionChange,
+    TabViewSelectionListener,
+} from './tab-view.js';
+
+// --- Carousel position + paging (Adw.Carousel) ---
+export {
+    CAROUSEL_SCROLL_TIMEOUT_MS,
+    CAROUSEL_SETTLE_EPSILON,
+    CarouselState,
+    carouselClampPosition,
+    carouselClosestSnapPoint,
+    carouselNavigateTarget,
+    carouselPageAtPosition,
+    carouselRange,
+    carouselReorderShift,
+    carouselSizesFromSnapPoints,
+    carouselSnapPoints,
+    carouselWheelStep,
+} from './carousel.js';
+export type {
+    CarouselChangeReason,
+    CarouselDirection,
+    CarouselOrientation,
+    CarouselPageChangedListener,
+    CarouselRange,
+    CarouselReorderShiftInput,
+    CarouselScrollOptions,
+    CarouselScrollRequest,
+    CarouselScrollSource,
+    CarouselStateChange,
+    CarouselStateListener,
+    CarouselStateOptions,
+    CarouselWheelInput,
+} from './carousel.js';
+
+// --- Preferences group header + dialog search (Adw.PreferencesDialog) ---
+export {
+    UNTITLED_PAGE_LABEL,
+    collectSearchRows,
+    countVisiblePages,
+    createSearchRowSubtitle,
+    defaultCaseFolder,
+    derivePreferencesGroupHeader,
+    escapeMarkup,
+    makeComparable,
+    rowMatchesQuery,
+    searchPreferences,
+    stripMarkup,
+} from './preferences.js';
+export type {
+    CaseFolder,
+    MakeComparableOptions,
+    PreferencesGroupHeaderInput,
+    PreferencesGroupHeaderState,
+    PreferencesSearchEntry,
+    PreferencesSearchGroup,
+    PreferencesSearchPage,
+    PreferencesSearchResult,
+    PreferencesSearchRow,
+    SearchPreferencesOptions,
+    SearchRowSubtitleInput,
+} from './preferences.js';
+
+// --- Clamp / spinner / toolbar-view arithmetic ---
+export {
+    ADW_CLAMP_DEFAULTS,
+    ADW_CLAMP_SIZE_CLASSES,
+    ADW_SPINNER_MAX_SIZE,
+    ADW_SPINNER_MIN_SIZE,
+    ADW_TOOLBAR_BAR_CLASSES,
+    ADW_TOOLBAR_VIEW_CLASSES,
+    ADW_TOOLBAR_VIEW_DEFAULTS,
+    clampAllocate,
+    clampChildSize,
+    clampSizeFromChild,
+    clampThresholds,
+    normalizeClampSize,
+    parseToolbarStyle,
+    resolveSpinnerSize,
+    spinnerGeometry,
+    toolbarBarStyleClasses,
+    toolbarViewAllocate,
+    toolbarViewClasses,
+    toolbarViewContentForSize,
+    toolbarViewMeasure,
+} from './chrome.js';
+export type {
+    AdwClampSizeClass,
+    AdwMeasurement,
+    AdwToolbarStyle,
+    ClampAllocation,
+    ClampParams,
+    ClampThresholds,
+    SpinnerGeometry,
+    ToolbarViewAllocateInput,
+    ToolbarViewAllocation,
+    ToolbarViewClassInput,
+    ToolbarViewClasses,
+    ToolbarViewContentForSize,
+    ToolbarViewContentForSizeInput,
+    ToolbarViewMeasureInput,
+} from './chrome.js';

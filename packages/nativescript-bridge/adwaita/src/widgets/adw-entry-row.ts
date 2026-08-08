@@ -76,6 +76,10 @@ export interface EntryActivatedEventData extends EventData {
 }
 
 export class AdwEntryRow extends AdwActionRow {
+    /** `AdwEntryRow` derives from `AdwPreferencesRow` in C (adw-entry-row.c:90), so
+     *  the preferences search must NOT read the text typed into it. */
+    override readonly isActionRow: boolean = false;
+
     /** The headless `update_empty` derivation + apply latch (ADR 0004). */
     protected readonly _state = new EntryRowState();
     /** The TextField stacked below the title in column 0. */

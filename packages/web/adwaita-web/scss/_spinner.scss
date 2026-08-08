@@ -7,11 +7,15 @@
 adw-spinner {
   display: inline-block;
   box-sizing: border-box;
-  width: 24px;
-  height: 24px;
+  // Adw.Spinner measures 16 as BOTH its minimum and its natural size
+  // (adw-spinner.c:78-81), stroked at the documented "2px for 16px". The element
+  // overwrites both from `spinnerGeometry` when it upgrades; these are the values
+  // in force until then — the 24px/3px they replace were not from any source.
+  width: 16px;
+  height: 16px;
   // Neutral arc (currentColor, theme-aware) over a faint track — Adw.Spinner
   // is a neutral indicator, NOT accent-coloured.
-  border: 3px solid rgba(127, 127, 127, 0.25);
+  border: 2px solid rgba(127, 127, 127, 0.25);
   border-top-color: currentColor;
   border-radius: 50%;
   animation: adw-spinner-spin 0.8s linear infinite;

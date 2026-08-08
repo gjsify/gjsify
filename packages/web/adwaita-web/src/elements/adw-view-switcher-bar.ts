@@ -1,42 +1,69 @@
 // <adw-view-switcher-bar> — The narrow BOTTOM bar of icon-over-label buttons
 // bound to an <adw-view-stack>, the web counterpart of Adw.ViewSwitcherBar. It
-// owns no pages of its own: it reads the bound stack's `pages`, renders one
-// homogeneous icon-over-label button per page, and is two-way synced to the
-// stack's visible child — tapping a button sets the stack's visible page, and a
-// change to the stack (from anywhere) re-highlights the matching button. The
-// active button's label is accent-coloured (via the `.active` CSS class).
+// owns no pages: it reads the bound stack's `pages`, renders one homogeneous
+// button per page, and is two-way synced to the stack's visible child.
 //
-// A `revealed` flag lets an adaptive layout flip the bar on/off: shown on narrow
-// screens, hidden on wide ones where a header-bar <adw-view-switcher> takes over
-// (mirrors Adw.ViewSwitcherBar `reveal` driven by an Adw.Breakpoint).
+// The derivations are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004):
+// the per-button model (`buildViewSwitcherButtons`, so this bar and the header
+// switcher cannot disagree about what a page looks like) and — the rule this
+// port was missing entirely — `ViewSwitcherBarState`, which is `reveal` AND
+// MORE THAN ONE VISIBLE PAGE (`update_bar_revealed`,
+// adw-view-switcher-bar.c:104-126). A bar bound to a one-page stack used to show
+// an empty strip that libadwaita keeps collapsed.
+//
+// Also fixed here, from the same C: `disconnectedCallback` removed the stack
+// listener and `connectedCallback` only re-added it when `ref && !this._stack`,
+// so a bar that was detached and re-inserted never tracked its stack again. In
+// C the handlers are bound in `set_stack` and released only in `dispose`
+// (:330-341, :218-221) — realize/unrealize never touch them.
 //
 // Attributes:
-//   stack     — the id of the <adw-view-stack> to drive (like <label for>).
-//   revealed  — boolean; when absent the bar is hidden (matches `reveal`).
-// Properties (mirroring Adw.ViewSwitcherBar):
-//   stack     — the bound AdwViewStack element (get/set; set also accepts an id).
-//   revealed  — whether the bar is shown (get/set).
+//   stack    — the id of the <adw-view-stack> to drive (like <label for>).
+//   reveal   — boolean; the REQUEST (`Adw.ViewSwitcherBar:reveal`, default off).
+//   revealed — the legacy spelling of `reveal`, still accepted as the request.
+// Properties:
+//   stack    — the bound AdwViewStack element (get/set; set also accepts an id).
+//   reveal   — the request (get/set).
+//   revealed — READ-ONLY: whether the bar is actually shown, i.e. the request
+//              AND more than one visible page.
 // Methods:
 //   setStack(stack) — bind to a stack element (or null); rebuilds the buttons.
-//   refresh()       — rebuild the buttons after late page adds to the stack.
+//   refresh()       — rebuild after pages were added to the bound stack without
+//                     changing its selection (see the note in `_rebuild`).
 // Reference: refs/libadwaita/src/adw-view-switcher-bar.c (AdwViewSwitcherBar)
-// Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss (.narrow policy)
+// Reference: refs/libadwaita/src/adw-view-switcher.c (the switcher it embeds)
 // Reference: packages/nativescript-bridge/adwaita/src/widgets/adw-view-switcher-bar.ts (NS twin)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { ViewSwitcherBarState, buildViewSwitcherButtons, viewSwitcherPagesFromStack } from '@gjsify/adwaita-core';
+
 import type { AdwViewStack } from './adw-view-stack.js';
+import { applyDescription, applyIndicator, switcherIconClass } from './view-switcher-dom.js';
+
+/** The DOM nodes one bar button owns — the bar paints the derived model onto them. */
+interface BarButtonNodes {
+    button: HTMLButtonElement;
+    icon: HTMLSpanElement;
+    label: HTMLSpanElement;
+    indicator: HTMLSpanElement;
+}
 
 export class AdwViewSwitcherBar extends HTMLElement {
+    private readonly _barState = new ViewSwitcherBarState();
     private _barEl!: HTMLDivElement;
-    private _buttons: HTMLButtonElement[] = [];
+    private _nodes: BarButtonNodes[] = [];
     private _stack: AdwViewStack | null = null;
-    private _revealed = false;
     private _initialized = false;
-    private _onStackNotify = (): void => this._syncActive();
+    private readonly _onStackNotify = (): void => this._rebuild();
 
     static get observedAttributes() {
-        return ['stack', 'revealed'];
+        return ['stack', 'reveal', 'revealed'];
+    }
+
+    constructor() {
+        super();
+        this._barState.subscribe(() => this._applyRevealed());
     }
 
     /** The bound stack element, or null when unbound. */
@@ -48,14 +75,26 @@ export class AdwViewSwitcherBar extends HTMLElement {
         this.setStack(this._resolveStack(value));
     }
 
-    /** Whether the bar is revealed (shown). Hidden when false. */
-    get revealed(): boolean {
-        return this._revealed;
+    /** Whether the layout asked for the bar — `Adw.ViewSwitcherBar:reveal`. */
+    get reveal(): boolean {
+        return this._barState.reveal;
     }
 
-    set revealed(value: boolean) {
-        if (value) this.setAttribute('revealed', '');
-        else this.removeAttribute('revealed');
+    set reveal(value: boolean) {
+        if (value) this.setAttribute('reveal', '');
+        else {
+            this.removeAttribute('reveal');
+            this.removeAttribute('revealed');
+        }
+    }
+
+    /**
+     * Whether the bar is actually shown. READ-ONLY: a one-page stack keeps it
+     * collapsed however loudly the layout asks (adw-view-switcher-bar.c:125).
+     * Write {@link reveal} to make the request.
+     */
+    get revealed(): boolean {
+        return this._barState.revealed;
     }
 
     connectedCallback() {
@@ -66,25 +105,31 @@ export class AdwViewSwitcherBar extends HTMLElement {
             this._barEl.setAttribute('role', 'tablist');
             this.replaceChildren(this._barEl);
         }
-        this._revealed = this.hasAttribute('revealed');
-        this._applyRevealed();
-        // Resolve the `stack` id ref now that the element is in the document — the
-        // referenced stack is normally earlier in the DOM (content above a bottom
-        // bar), so its pages are ready.
+        this._barState.setReveal(this._readReveal());
+
+        // Resolve the `stack` id ref now that the element is in the document —
+        // the referenced stack is normally earlier in the DOM (content above a
+        // bottom bar), so its pages are ready.
         const ref = this.getAttribute('stack');
-        if (ref && !this._stack) this.setStack(this._resolveStack(ref));
-        else this._syncActive();
+        if (ref && !this._stack) {
+            this.setStack(this._resolveStack(ref));
+            return;
+        }
+        // Re-attaching must re-bind: `disconnectedCallback` released the
+        // listener, and the old `ref && !this._stack` guard could never take it
+        // back. In C the binding survives unrealize entirely.
+        this._bindStack();
+        this._rebuild();
     }
 
     disconnectedCallback() {
-        if (this._stack) this._stack.removeEventListener('notify::visible-child', this._onStackNotify);
+        this._unbindStack();
     }
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
         if (!this._initialized) return;
-        if (name === 'revealed') {
-            this._revealed = this.hasAttribute('revealed');
-            this._applyRevealed();
+        if (name === 'reveal' || name === 'revealed') {
+            this._barState.setReveal(this._readReveal());
             return;
         }
         if (name === 'stack') {
@@ -94,74 +139,111 @@ export class AdwViewSwitcherBar extends HTMLElement {
 
     /** Bind to a stack element (or null). Unbinds the previous one and rebuilds. */
     setStack(stack: AdwViewStack | null): void {
-        if (this._stack) this._stack.removeEventListener('notify::visible-child', this._onStackNotify);
+        this._unbindStack();
         this._stack = stack;
-        if (stack) stack.addEventListener('notify::visible-child', this._onStackNotify);
+        this._bindStack();
         this._rebuild();
     }
 
-    /** Rebuild the buttons — call after adding pages to the bound stack. */
+    /**
+     * Rebuild the buttons — needed after pages were added to the bound stack
+     * WITHOUT changing its selection. A page add that does move the selection
+     * (the first one) notifies and rebuilds on its own. libadwaita rebuilds on
+     * the pages model's `items-changed` (adw-view-switcher.c:258-263), which the
+     * DOM stack has no counterpart for yet.
+     */
     refresh(): void {
         this._rebuild();
     }
 
+    private _readReveal(): boolean {
+        return this.hasAttribute('reveal') || this.hasAttribute('revealed');
+    }
+
+    private _bindStack(): void {
+        this._stack?.addEventListener('notify::visible-child', this._onStackNotify);
+    }
+
+    private _unbindStack(): void {
+        this._stack?.removeEventListener('notify::visible-child', this._onStackNotify);
+    }
+
     private _resolveStack(value: AdwViewStack | string | null): AdwViewStack | null {
         if (value === null) return null;
-        if (typeof value === 'string') {
-            return (document.getElementById(value) as AdwViewStack | null) ?? null;
-        }
+        if (typeof value === 'string') return (document.getElementById(value) as AdwViewStack | null) ?? null;
         return value;
     }
 
     private _rebuild(): void {
         if (!this._initialized) return;
-        this._barEl.replaceChildren();
-        this._buttons = [];
-        const pages = this._stack?.pages ?? [];
 
-        pages.forEach((page, index) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'adw-view-switcher-bar-button';
-            button.setAttribute('role', 'tab');
+        const stackPages = this._stack?.pages ?? [];
+        // The page count is half the reveal derivation, so it is fed on every
+        // rebuild — `update_bar_revealed` is re-run from set_stack and from
+        // items-changed for exactly this reason (:340-343, :277).
+        this._barState.setPages(stackPages);
 
-            const iconEl = document.createElement('span');
-            iconEl.className = `adw-icon adw-view-switcher-bar-icon${page.icon ? ` adw-icon--${page.icon}` : ''}`;
-            iconEl.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
-            iconEl.hidden = page.icon.length === 0;
+        const pages = viewSwitcherPagesFromStack(stackPages);
+        const models = buildViewSwitcherButtons(pages, this._stack?.visibleChildIndex ?? -1, 'narrow');
 
-            const labelEl = document.createElement('span');
-            labelEl.className = 'adw-view-switcher-bar-label';
-            labelEl.textContent = page.title;
-            labelEl.hidden = page.title.length === 0;
+        // Nodes are recreated only when the page COUNT moves. A selection change
+        // must not replace the button the user is standing on — `selection_changed_cb`
+        // only re-marks the existing buttons (adw-view-switcher.c:265-295), and a
+        // wholesale replace would drop keyboard focus mid-interaction.
+        if (models.length !== this._nodes.length) {
+            this._barEl.replaceChildren();
+            this._nodes = models.map((model) => this._buildButton(model.pageIndex));
+            this._barEl.append(...this._nodes.map((nodes) => nodes.button));
+        }
 
-            button.append(iconEl, labelEl);
-            // An icon-only button (no title) needs an accessible name.
-            if (page.icon && !page.title) button.setAttribute('aria-label', page.icon);
+        models.forEach((model, index) => {
+            const nodes = this._nodes[index];
+            if (!nodes) return;
 
-            button.addEventListener('click', () => {
-                if (this._stack) this._stack.visibleChildIndex = index;
-            });
+            nodes.button.hidden = !model.visible;
+            nodes.button.classList.toggle('active', model.selected);
+            nodes.button.setAttribute('aria-selected', String(model.selected));
+            nodes.button.tabIndex = model.selected ? 0 : -1;
 
-            this._barEl.appendChild(button);
-            this._buttons.push(button);
+            nodes.icon.className = switcherIconClass(model.iconName, 'adw-view-switcher-bar-icon');
+            nodes.label.textContent = model.label;
+            nodes.label.hidden = model.label.length === 0;
+            applyIndicator(nodes.indicator, model.badgeLabel, model.needsAttention);
+            applyDescription(nodes.button, model.description);
+
+            if (model.label) nodes.button.removeAttribute('aria-label');
+            else nodes.button.setAttribute('aria-label', model.iconName);
         });
 
-        this._syncActive();
+        this._applyRevealed();
     }
 
-    private _syncActive(): void {
-        const selected = this._stack?.visibleChildIndex ?? -1;
-        this._buttons.forEach((button, index) => {
-            const isActive = index === selected;
-            button.classList.toggle('active', isActive);
-            button.setAttribute('aria-selected', String(isActive));
-            button.tabIndex = isActive ? 0 : -1;
+    private _buildButton(pageIndex: number): BarButtonNodes {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'adw-view-switcher-bar-button';
+        button.setAttribute('role', 'tab');
+
+        const icon = document.createElement('span');
+        icon.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
+
+        const label = document.createElement('span');
+        label.className = 'adw-view-switcher-bar-label';
+
+        const indicator = document.createElement('span');
+        indicator.className = 'adw-view-switcher-bar-indicator';
+        indicator.setAttribute('aria-hidden', 'true'); // announced via aria-description
+
+        button.append(icon, label, indicator);
+        button.addEventListener('click', () => {
+            if (this._stack) this._stack.visibleChildIndex = pageIndex;
         });
+
+        return { button, icon, label, indicator };
     }
 
     private _applyRevealed(): void {
-        this.hidden = !this._revealed;
+        this.hidden = !this._barState.revealed;
     }
 }
 

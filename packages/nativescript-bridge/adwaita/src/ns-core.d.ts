@@ -58,6 +58,8 @@ declare module '@nativescript/core' {
         opacity: number;
         /** Visibility (`'visible' | 'hidden' | 'collapse'`). */
         visibility: string;
+        /** Whether the view responds to touch at all — NS's `gtk_widget_set_can_target`. */
+        isUserInteractionEnabled: boolean;
         /** Horizontal translation offset in DIPs (animatable). */
         translateX: number;
         /** Vertical translation offset in DIPs (animatable). */

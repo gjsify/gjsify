@@ -25,6 +25,10 @@ const ADW_ACCENT = '#3584e4';
 export const ACTIVATED = 'activated';
 
 export class AdwButtonRow extends AdwActionRow {
+    /** `AdwButtonRow` derives from `AdwPreferencesRow` in C
+     *  (adw-button-row.c:74), so the search does not consult a subtitle here. */
+    override readonly isActionRow: boolean = false;
+
     /** The horizontal content box (leading icon + centered title). */
     protected readonly _contentBox: StackLayout;
     /** The leading symbolic icon (lazily added — only when an icon is set). */

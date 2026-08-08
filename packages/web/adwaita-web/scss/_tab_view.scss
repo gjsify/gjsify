@@ -127,7 +127,67 @@ adw-tab-view {
     min-width: 0;
   }
 
+  // --- Icon + indicator slots (AdwTab update_icons) ---
+  // Both are mask-image spans carrying `adw-icon adw-icon--<name>`; the element
+  // toggles `hidden` from `tabIconState`, whose rules decide which of the two
+  // shows — on a pinned tab the indicator REPLACES the icon.
+  // Reference: refs/libadwaita/src/adw-tab.c (update_icons, :171-198)
+  .adw-tab-icon,
+  .adw-tab-indicator {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // `AdwTabPage:loading` swaps the icon image for a spinner in the same slot
+  // (adw-tab.c:178-183) — the arc geometry and the keyframes are adw-spinner's,
+  // not a second copy of them.
+  .adw-tab-icon.loading {
+    background: none;
+    mask-image: none;
+    border: 2px solid rgba(127, 127, 127, 0.25);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: adw-spinner-spin 0.8s linear infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+
+  // A pinned tab is a single-glyph chip: libadwaita hides both the title and the
+  // close button at construction (refs/libadwaita/src/adw-tab.c:645-650). The
+  // close button is gated in JS by `tabCloseVisible`, which carries the same rule.
+  .adw-tab.pinned {
+    padding: 0 var(--spacing-xs);
+
+    .adw-tab-title {
+      display: none;
+    }
+  }
+
+  // `AdwTabPage:needs-attention` — the accent underline libadwaita animates in
+  // (refs/libadwaita/src/adw-tab.c update_needs_attention).
+  .adw-tab.needs-attention::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    width: 12px;
+    height: 2px;
+    transform: translateX(-50%);
+    border-radius: 1px;
+    background-color: var(--accent-bg-color);
+  }
+
   // --- Close affordance (CSS-drawn "×", no symbolic icon ships) ---
+  // Presence is decided in JS by `tabCloseVisible` — `(hovering && fullyVisible)
+  // || selected || dragging`, and never on a pinned tab (adw-tab.c:124, :645-650)
+  // — which is why the `[hidden]` rule below is load-bearing rather than cosmetic.
   .adw-tab-close {
     box-sizing: border-box;
     flex-shrink: 0;
@@ -145,6 +205,10 @@ adw-tab-view {
     transition:
       background-color 150ms ease-in-out,
       opacity 150ms ease-in-out;
+
+    &[hidden] {
+      display: none;
+    }
 
     &:hover {
       opacity: 1;

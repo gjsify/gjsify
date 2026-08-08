@@ -166,3 +166,172 @@ export type {
     SplitButtonStyleClassVector,
     SplitButtonTooltipVector,
 } from './split-button.js';
+
+// --- View switcher + bar (Adw.ViewSwitcher / Adw.InlineViewSwitcher) vectors ---
+export {
+    INLINE_TOGGLE_VECTORS,
+    INLINE_TOOLTIP_VECTORS,
+    VIEW_SWITCHER_BADGE_VECTORS,
+    VIEW_SWITCHER_BAR_REVEAL_VECTORS,
+    VIEW_SWITCHER_BAR_VECTORS,
+    VIEW_SWITCHER_BUTTON_VECTORS,
+    VIEW_SWITCHER_BUTTON_VISIBILITY_VECTORS,
+    VIEW_SWITCHER_DRAG_VECTORS,
+    VIEW_SWITCHER_ICON_VECTORS,
+    VIEW_SWITCHER_MNEMONIC_VECTORS,
+    VIEW_SWITCHER_REBUILD_VECTORS,
+    VIEW_SWITCHER_SELECTION_VECTORS,
+    createViewSwitcherClock,
+} from './view-switcher.js';
+export type {
+    ExpectedInlineToggle,
+    ExpectedViewSwitcherButton,
+    InlineToggleVector,
+    InlineTooltipVector,
+    MnemonicVector,
+    ViewSwitcherBadgeVector,
+    ViewSwitcherBarRevealVector,
+    ViewSwitcherBarSnapshot,
+    ViewSwitcherBarStep,
+    ViewSwitcherBarVector,
+    ViewSwitcherButtonVector,
+    ViewSwitcherButtonVisibilityVector,
+    ViewSwitcherClock,
+    ViewSwitcherDragStep,
+    ViewSwitcherDragVector,
+    ViewSwitcherIconVector,
+    ViewSwitcherRebuildVector,
+    ViewSwitcherSelectionVector,
+    ViewSwitcherVectorChange,
+    ViewSwitcherVectorOp,
+    ViewSwitcherVectorPage,
+} from './view-switcher.js';
+
+// --- Tab view (Adw.TabView) vectors ---
+export {
+    TABS_REVEALED_VECTORS,
+    TAB_CLOSE_VISIBLE_VECTORS,
+    TAB_DESCENDANT_VECTORS,
+    TAB_ICON_STATE_VECTORS,
+    TAB_PAGE_DESCRIPTOR_VECTORS,
+    TAB_SUCCESSOR_VECTORS,
+    TAB_TOOLTIP_VECTORS,
+    TAB_VIEW_VECTORS,
+    applyTabViewOp,
+    seedTabViewPages,
+    tabViewClosing,
+    tabViewOrder,
+} from './tab-view.js';
+export type {
+    TabCloseVisibleVector,
+    TabDescendantVector,
+    TabIconStateVector,
+    TabPageDescriptorVector,
+    TabSuccessorVector,
+    TabTooltipVector,
+    TabViewVector,
+    TabViewVectorHandler,
+    TabViewVectorOp,
+    TabViewVectorPage,
+    TabViewVectorPagesChange,
+    TabViewVectorSelection,
+    TabViewVectorTarget,
+    TabsRevealedVector,
+} from './tab-view.js';
+
+// --- Carousel position + paging (Adw.Carousel) vectors ---
+export {
+    CAROUSEL_CLAMP_VECTORS,
+    CAROUSEL_NAVIGATE_VECTORS,
+    CAROUSEL_PAGE_AT_POSITION_VECTORS,
+    CAROUSEL_PAGE_LIST_VECTORS,
+    CAROUSEL_PROPERTY_DEFAULT_VECTORS,
+    CAROUSEL_RANGE_VECTORS,
+    CAROUSEL_REORDER_SHIFT_VECTORS,
+    CAROUSEL_REVEAL_VECTORS,
+    CAROUSEL_SIZES_FROM_SNAP_POINTS_VECTORS,
+    CAROUSEL_SNAP_POINT_VECTORS,
+    CAROUSEL_WHEEL_LOCKOUT_VECTORS,
+    CAROUSEL_WHEEL_VECTORS,
+} from './carousel.js';
+export type {
+    CarouselClampVector,
+    CarouselNavigateVector,
+    CarouselPageAtPositionVector,
+    CarouselPageListVector,
+    CarouselPageOp,
+    CarouselPropertyDefaultVector,
+    CarouselRangeVector,
+    CarouselReorderShiftVector,
+    CarouselRevealOp,
+    CarouselRevealVector,
+    CarouselSizesFromSnapPointsVector,
+    CarouselSnapPointVector,
+    CarouselStateSnapshot,
+    CarouselWheelLockoutStep,
+    CarouselWheelLockoutVector,
+    CarouselWheelVector,
+} from './carousel.js';
+
+// --- Preferences group header + dialog search (Adw.PreferencesDialog) vectors ---
+export {
+    CASE_FOLD_VECTORS,
+    MAKE_COMPARABLE_VECTORS,
+    PREFERENCES_GROUP_HEADER_VECTORS,
+    PREFERENCES_SEARCH_PAGES,
+    PREFERENCES_SEARCH_VECTORS,
+    ROW_MATCH_VECTORS,
+    SEARCH_CORPUS_VECTORS,
+    SEARCH_ROW_SUBTITLE_VECTORS,
+    STRIP_MARKUP_VECTORS,
+    STRIP_MNEMONIC_VECTORS,
+} from './preferences.js';
+export type {
+    CaseFoldVector,
+    MakeComparableVector,
+    PreferencesGroupHeaderVector,
+    PreferencesSearchExpectation,
+    PreferencesSearchVector,
+    RowMatchVector,
+    SearchCorpusVector,
+    SearchRowSubtitleVector,
+    StripMarkupVector,
+    StripMnemonicVector,
+} from './preferences.js';
+
+// --- Clamp / spinner / toolbar-view arithmetic vectors ---
+export {
+    CLAMP_ALLOCATE_VECTORS,
+    CLAMP_CHILD_SIZE_VECTORS,
+    CLAMP_PROPERTY_VECTORS,
+    CLAMP_SIZE_FROM_CHILD_VECTORS,
+    CLAMP_THRESHOLD_VECTORS,
+    SPINNER_GEOMETRY_VECTORS,
+    SPINNER_SIZE_VECTORS,
+    TOOLBAR_VIEW_ALLOCATE_VECTORS,
+    TOOLBAR_VIEW_CLASS_VECTORS,
+    TOOLBAR_VIEW_CONTENT_FOR_SIZE_VECTORS,
+    TOOLBAR_VIEW_MEASURE_VECTORS,
+} from './chrome.js';
+export type {
+    ClampAllocateVector,
+    ClampChildSizeVector,
+    ClampPropertyVector,
+    ClampSizeFromChildVector,
+    ClampThresholdsVector,
+    SpinnerGeometryVector,
+    SpinnerSizeVector,
+    ToolbarViewAllocateVector,
+    ToolbarViewClassVector,
+    ToolbarViewContentForSizeVector,
+    ToolbarViewMeasureVector,
+} from './chrome.js';
+
+// --- Bottom-sheet dismissal (Adw.BottomSheet) vectors ---
+export { BOTTOM_SHEET_CLOSE_VECTORS, BOTTOM_SHEET_PRESENTATION_VECTORS, runBottomSheetSteps } from './dialog.js';
+export type {
+    BottomSheetCloseVector,
+    BottomSheetPresentationAdapter,
+    BottomSheetPresentationStep,
+    BottomSheetPresentationVector,
+} from './dialog.js';

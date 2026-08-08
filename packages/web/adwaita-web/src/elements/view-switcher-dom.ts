@@ -1,0 +1,101 @@
+// The DOM half of the view-switcher family — what `@gjsify/adwaita-core` cannot
+// decide because it is genuinely per-renderer.
+//
+// Everything that decides WHAT a switcher shows (the button-visibility rule, the
+// `image-missing` fallback, the badge label + screen-reader description, the
+// mnemonic-stripped label, the tooltip, the reveal gate, the two index spaces)
+// lives in `@gjsify/adwaita-core` and is pinned by the conformance vectors.
+// What is left, and lives here, is how a derived model becomes nodes: an icon
+// NAME turned into a CSS mask class, an indicator span, and a `setTimeout`
+// wrapped in the scheduler seam the core takes for the drag-hover dwell.
+//
+// Shared by all three switcher elements because it was three copies before:
+// `<adw-view-switcher>`, `<adw-inline-view-switcher>` and
+// `<adw-view-switcher-bar>` each built their own icon span and their own page
+// parsing, and the copies had already drifted (a titleless page rendered `''` in
+// one and `page-<index>` in another).
+//
+// Reference: refs/libadwaita/src/adw-view-switcher.c
+// Reference: refs/libadwaita/src/adw-indicator-bin.c
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Implemented for @gjsify/adwaita-web Web Components.
+
+import { normalizeIconName, viewSwitcherIconName } from '@gjsify/adwaita-core';
+import type { AdwViewSwitcherPageInit, ViewSwitcherScheduler, ViewSwitcherTimerHandle } from '@gjsify/adwaita-core';
+
+/**
+ * The browser's timer behind the core's scheduler seam.
+ *
+ * One shared instance rather than one per element: it holds no state, and the
+ * seam exists so the CORE stays free of a global timer, not so each element
+ * invents its own.
+ */
+export const domViewSwitcherScheduler: ViewSwitcherScheduler = {
+    schedule(callback: () => void, ms: number): ViewSwitcherTimerHandle {
+        return setTimeout(callback, ms);
+    },
+    cancel(handle: ViewSwitcherTimerHandle): void {
+        clearTimeout(handle as ReturnType<typeof setTimeout>);
+    },
+};
+
+/**
+ * The CSS class list for a resolved icon NAME.
+ *
+ * The core resolves NULL/empty to `image-missing` (which the stylesheet carries
+ * a real glyph for); the `-symbolic` strip is this package's own mask-class
+ * convention and has no counterpart in C, where the name reaches `GtkImage`
+ * untouched.
+ */
+export function switcherIconClass(iconName: string, extra = ''): string {
+    const name = normalizeIconName(viewSwitcherIconName(iconName));
+    return `adw-icon adw-icon--${name}${extra ? ` ${extra}` : ''}`;
+}
+
+/**
+ * Read a declared page element into the core's page init.
+ *
+ * `getAttribute` returns `null` for an absent attribute, which is EXACTLY C's
+ * NULL — so the values are passed through unchanged rather than defaulted to
+ * `''`. That `?? ''` is what made the button-visibility rule unimplementable in
+ * the old code: once an absent title has become the empty string, "the page has
+ * no title" is no longer expressible.
+ */
+export function readSwitcherPage(element: Element): AdwViewSwitcherPageInit {
+    const badge = Number.parseInt(element.getAttribute('badge-number') ?? '', 10);
+    return {
+        // A page with no `name` is the page named '' — the same choice
+        // `<adw-view-stack>` made, and for the same reason: C stores the name
+        // verbatim (adw-view-stack.c:1170) and an invented `page-<index>` is
+        // addressable by a name the author never wrote.
+        name: element.getAttribute('name') ?? '',
+        title: element.getAttribute('title'),
+        iconName: element.getAttribute('icon-name'),
+        // `hidden` is the DOM spelling of AdwViewStackPage:visible.
+        visible: !element.hasAttribute('hidden'),
+        useUnderline: element.hasAttribute('use-underline'),
+        badgeNumber: Number.isNaN(badge) ? 0 : badge,
+        needsAttention: element.hasAttribute('needs-attention'),
+    };
+}
+
+/**
+ * Paint `AdwIndicatorBin`'s badge/dot onto a span: the badge text when there is
+ * one, a bare dot when only `needs-attention` is set, nothing otherwise
+ * (adw-indicator-bin.c:58-68 + the `.needs-attention` style class).
+ */
+export function applyIndicator(indicator: HTMLElement, badgeLabel: string, needsAttention: boolean): void {
+    indicator.textContent = badgeLabel;
+    indicator.classList.toggle('needs-attention', needsAttention && badgeLabel.length === 0);
+    indicator.hidden = badgeLabel.length === 0 && !needsAttention;
+}
+
+/**
+ * Mirror the derived screen-reader description onto the element, REMOVING the
+ * attribute when there is none — `update_description_cb` resets the accessible
+ * property rather than setting it to `""` (adw-view-switcher-button.c:104-113).
+ */
+export function applyDescription(element: HTMLElement, description: string): void {
+    if (description) element.setAttribute('aria-description', description);
+    else element.removeAttribute('aria-description');
+}
