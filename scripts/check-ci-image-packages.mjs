@@ -21,6 +21,10 @@
 //      symmetric mistake — reaching for what was never there — is what shipped
 //      half of v0.31.0.
 //
+//   4. Does every `dnf install` under `.github/` disable the third-party
+//      openh264 repo? Same shape as the other three: a guard that two of four
+//      sites carried and two did not. See § THE INCIDENT BEHIND (4).
+//
 // THE INCIDENT BEHIND (3)
 //
 // `release.yml`'s `napi-prebuild-linux` runs on the baked image and ends in
@@ -67,6 +71,30 @@
 // linux/arm64 therefore deletes three exemptions at once, with nothing to
 // remember to update.
 //
+// THE INCIDENT BEHIND (4)
+//
+// `dnf install gdk-pixbuf2` (or `-devel`, or `gtk4-devel`) pulls openh264, via
+// libheif → libopenh264.so.8 → openh264, and every edge of that chain is a HARD
+// `Requires` — so `--setopt=install_weak_deps=False` does NOT drop it, which is
+// the assumption that made this look handled. The package does not come from
+// Fedora: it is served by the separately hosted `fedora-cisco-openh264` repo,
+// enabled by default in the base images, and an outage there fails the WHOLE
+// transaction — for a codec nothing in this repo decodes.
+// `--disablerepo=fedora-cisco-openh264` resolves the same soname to Fedora's own
+// `noopenh264` stub instead (#1057).
+//
+// Two of the four `dnf install` sites carried the flag and two did not, which is
+// the finding: a guard applied where somebody remembered is a guard that drifts
+// to exactly the sites nobody is looking at. So the rule here is UNIVERSAL —
+// every `dnf install` under `.github/`, no allowlist, no "which packages pull
+// openh264" table. A universal rule has nothing to keep in sync.
+//
+// `emulated-build.sh` was invisible for a second reason worth keeping: this
+// script read `.github/workflows/*.yml` only, so a `dnf install` in a shell
+// script one directory over was never a candidate at all. The corpus for (4) is
+// therefore the DIRECTORY, not a file-type list — a fifth site in a new
+// `.github/` subdirectory is checked the day it is written.
+//
 // Usage: node scripts/check-ci-image-packages.mjs [--json] [--root <dir>]
 //
 // `--root` exists so the checks can be run against a FIXTURE tree — the same
@@ -80,6 +108,7 @@ import { join } from 'node:path';
 const rootIndex = process.argv.indexOf('--root');
 const ROOT = rootIndex === -1 ? '.' : process.argv[rootIndex + 1];
 const WORKFLOW_DIR = join(ROOT, '.github/workflows');
+const CI_DIR = join(ROOT, '.github');
 const DOCKERFILE = join(ROOT, '.docker/ci-fedora.Dockerfile');
 const IMAGE_WORKFLOW = 'build-ci-image.yml';
 const BAKED_IMAGE = 'ghcr.io/gjsify/ci-fedora';
@@ -177,6 +206,41 @@ const NODE_CALL = new RegExp(
 );
 const COMMENT = /^\s*#/;
 
+// Question (4). See § THE INCIDENT BEHIND (4): a hard `Requires` chain, so this
+// is the only flag that drops it, and it must hold at EVERY site.
+const OPENH264_FLAG = '--disablerepo=fedora-cisco-openh264';
+
+/** Every file under `.github/`, recursively — the corpus a CI job executes. */
+function ciFiles(dir) {
+    const out = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...ciFiles(path));
+        else if (entry.isFile()) out.push(path);
+    }
+    return out;
+}
+
+/**
+ * `dnf install` commands in a file, as {line, text} with continuations joined.
+ *
+ * Lines are counted AS AUTHORED (the number an editor shows) while the text is
+ * the whole logical command, so a flag on a later `\`-continued line counts. A
+ * FOLDED `run: >` block has no continuations — YAML joins those lines itself —
+ * which is why the flag has to sit on the `dnf install -y` line there.
+ */
+function dnfCommands(body) {
+    const lines = body.split('\n');
+    const found = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (COMMENT.test(lines[i]) || !lines[i].includes('dnf install')) continue;
+        let text = lines[i];
+        for (let j = i; /\\\s*$/.test(lines[j]) && j + 1 < lines.length; j++) text += ` ${lines[j + 1]}`;
+        found.push({ line: i + 1, text });
+    }
+    return found;
+}
+
 /** A step that puts Node on PATH: setup-node itself, or a local composite action that does. */
 function providesNode(job, root) {
     for (const ref of job.uses) {
@@ -235,6 +299,7 @@ const bare = [];
 const excused = [];
 const nodeProvisioned = [];
 let bakedJobs = 0;
+let dnfLines = 0;
 
 for (const file of readdirSync(WORKFLOW_DIR).filter((f) => f.endsWith('.yml'))) {
     for (const job of scanWorkflow(file)) {
@@ -303,6 +368,29 @@ for (const file of readdirSync(WORKFLOW_DIR).filter((f) => f.endsWith('.yml'))) 
     }
 }
 
+// (4) Every `dnf install` under `.github/`, whatever kind of file it lives in
+// and whether or not the job scanner above understood the job around it — the
+// two ways `emulated-build.sh` and `prebuilds.yml` each stayed unchecked.
+for (const file of ciFiles(CI_DIR)) {
+    let body;
+    try {
+        body = readFileSync(file, 'utf8');
+    } catch {
+        continue;
+    }
+    for (const cmd of dnfCommands(body)) {
+        dnfLines += 1;
+        if (cmd.text.includes(OPENH264_FLAG)) continue;
+        problems.push(
+            `${file}:${cmd.line} runs \`dnf install\` without ${OPENH264_FLAG}. gdk-pixbuf2 pulls ` +
+                `openh264 through a HARD Requires chain (libheif → libopenh264.so.8), so ` +
+                `--setopt=install_weak_deps=False does not drop it, and the package comes from a ` +
+                `separately hosted repo whose outage fails the whole transaction (#1057). Add the flag — ` +
+                `on the \`dnf install\` line itself inside a folded \`run: >\` block.`,
+        );
+    }
+}
+
 for (const id of Object.keys(BARE_IMAGE_LEDGER)) {
     if (!bare.includes(id)) {
         problems.push(
@@ -312,16 +400,47 @@ for (const id of Object.keys(BARE_IMAGE_LEDGER)) {
     }
 }
 
+// The baked image's own Dockerfile installs gdk-pixbuf2 as well, so
+// `build-ci-image.yml` carries the same #1057 exposure — stated as a derived
+// number rather than left silent, the `unchecked-fields.mjs` idiom this file
+// already uses for question (2). It is outside the corpus for one reason:
+// adding the flag there CHANGES WHAT THE IMAGE CONTAINS (openh264 → the
+// noopenh264 stub) and so rebuilds the base every CI job runs on, which is a
+// decision to take on its own rather than as a side effect of a guard. Moving
+// it under the rule afterwards is this constant joining `ciFiles()`.
+const dockerfileUnguarded = dnfCommands(dockerfile).filter((c) => !c.text.includes(OPENH264_FLAG));
+
 if (process.argv.includes('--json')) {
     console.log(
-        JSON.stringify({ bakedJobs, bare, excused, nodeProvisioned, ledgered: BARE_IMAGE_LEDGER, problems }, null, 2),
+        JSON.stringify(
+            {
+                bakedJobs,
+                bare,
+                excused,
+                nodeProvisioned,
+                dnfLines,
+                dockerfileUnguarded: dockerfileUnguarded.map((c) => c.line),
+                ledgered: BARE_IMAGE_LEDGER,
+                problems,
+            },
+            null,
+            2,
+        ),
     );
 } else {
     console.log(
         `ci-image: ${bakedJobs} job(s) on ${BAKED_IMAGE}, ${bare.length} still on a bare fedora image ` +
             `(${excused.length} with no image to move to, ${Object.keys(BARE_IMAGE_LEDGER).length} ledgered); ` +
-            `${nodeProvisioned.length} container job(s) invoke node and provide it.`,
+            `${nodeProvisioned.length} container job(s) invoke node and provide it; ` +
+            `${dnfLines} \`dnf install\` line(s) under ${CI_DIR} carry ${OPENH264_FLAG}.`,
     );
+    if (dockerfileUnguarded.length) {
+        console.log(
+            `  · ${DOCKERFILE} has ${dockerfileUnguarded.length} \`dnf install\` line(s) ` +
+                `(${dockerfileUnguarded.map((c) => c.line).join(', ')}) without ${OPENH264_FLAG} — ` +
+                `same #1057 exposure, deliberately outside the rule: adding it rebuilds the base image.`,
+        );
+    }
     // Printed like the exemptions above, and for the same reason: the interesting
     // number is how many jobs depend on a provision step that is easy to drop when
     // a `run:` block is copied without the step above it.
