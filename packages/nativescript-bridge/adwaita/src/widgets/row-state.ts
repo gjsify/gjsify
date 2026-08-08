@@ -30,7 +30,13 @@
 // Reference: refs/libadwaita/src/adw-window-title.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { ActionRowState, ButtonRowState, SwitchRowState, WindowTitleState, deriveRowLabels } from '@gjsify/adwaita-core';
+import {
+    ActionRowState,
+    ButtonRowState,
+    SwitchRowState,
+    WindowTitleState,
+    deriveRowLabels,
+} from '@gjsify/adwaita-core';
 import type { AdwRowLabelInput, AdwRowLabels, ButtonRowRenderState } from '@gjsify/adwaita-core';
 import type { View } from '@nativescript/core';
 

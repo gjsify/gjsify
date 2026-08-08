@@ -377,9 +377,7 @@ export const BUTTON_ROW_ACTIVATABLE_VECTORS: ReadonlyArray<ButtonRowActivatableV
 // ---------------------------------------------------------------------------
 
 /** One step of a {@link WindowTitleVector}. */
-export type WindowTitleStep =
-    | { op: 'set-title'; value: string | null }
-    | { op: 'set-subtitle'; value: string | null };
+export type WindowTitleStep = { op: 'set-title'; value: string | null } | { op: 'set-subtitle'; value: string | null };
 
 /** One `Adw.WindowTitle` expectation. */
 export interface WindowTitleVector {

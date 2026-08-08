@@ -103,15 +103,15 @@ export default async () => {
         });
 
         await it('a suggested banner with a mnemonic button resolves all three derivations', () => {
-            expect(bannerRenderState({ buttonLabel: '_Resume', buttonStyle: 'suggested', revealed: true })).toStrictEqual(
-                {
-                    revealed: true,
-                    useMarkup: true,
-                    buttonVisible: true,
-                    buttonText: 'Resume',
-                    buttonClasses: ['suggested-action'],
-                },
-            );
+            expect(
+                bannerRenderState({ buttonLabel: '_Resume', buttonStyle: 'suggested', revealed: true }),
+            ).toStrictEqual({
+                revealed: true,
+                useMarkup: true,
+                buttonVisible: true,
+                buttonText: 'Resume',
+                buttonClasses: ['suggested-action'],
+            });
         });
 
         await it('an explicitly disabled use-markup survives the default merge', () => {

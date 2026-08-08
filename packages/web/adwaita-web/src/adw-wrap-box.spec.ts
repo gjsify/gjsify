@@ -179,19 +179,16 @@ export const AdwWrapBoxTest = async () => {
         });
 
         for (const vector of WRAP_BOX_SPACING_NOTIFY_VECTORS) {
-            await it(
-                `notify::child-spacing ${vector.from} → ${label(vector.value)} = ${vector.notifies}: ${vector.rule}`,
-                () => {
-                    const { box } = mountWrapBox({ 'child-spacing': String(vector.from) });
-                    let notified = 0;
-                    box.addEventListener('notify::child-spacing', () => {
-                        notified++;
-                    });
-                    box.setAttribute('child-spacing', String(vector.value));
-                    expect(notified).toBe(vector.notifies ? 1 : 0);
-                    unmountAll();
-                },
-            );
+            await it(`notify::child-spacing ${vector.from} → ${label(vector.value)} = ${vector.notifies}: ${vector.rule}`, () => {
+                const { box } = mountWrapBox({ 'child-spacing': String(vector.from) });
+                let notified = 0;
+                box.addEventListener('notify::child-spacing', () => {
+                    notified++;
+                });
+                box.setAttribute('child-spacing', String(vector.value));
+                expect(notified).toBe(vector.notifies ? 1 : 0);
+                unmountAll();
+            });
         }
     });
 };
