@@ -802,4 +802,92 @@ export const AdwSplitViewsTest = async () => {
             end.host.remove();
         });
     });
+
+    // A VIEW THAT WAS NEVER MEASURED, AND A VIEW THAT WAS MOVED.
+    //
+    // Both shipped broken in v0.32.0 and were visible on the docs site: its
+    // slideshow builds each slide inside `display: none` and moves it in, so the
+    // controls pane had no measurement when it first rendered and no live
+    // observer afterwards. A hidden sidebar was painted over the content at the
+    // wrong edge — the state was right the whole time, only the geometry never
+    // reached the DOM.
+    //
+    // These are placement assertions on purpose. Every other test here reads the
+    // state or a class, and every one of them PASSED while the widget was
+    // visibly wrong: nothing in the suite looked at where the pane actually
+    // ended up. That is the gap, not the individual bug.
+    await describe('AdwOverlaySplitView — geometry survives being unmeasured and moved', async () => {
+        /** Does the pane cover the view's own box? */
+        const covers = (view: AdwOverlaySplitView): boolean => {
+            const pane = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            const a = view.getBoundingClientRect();
+            const b = pane.getBoundingClientRect();
+            return b.width > 0 && b.right > a.left + 1 && b.left < a.right - 1;
+        };
+
+        await it('keeps a hidden sidebar off-screen when it is first laid out inside display:none', async () => {
+            const slide = document.createElement('div');
+            slide.style.display = 'none';
+            document.body.appendChild(slide);
+            slide.innerHTML =
+                '<div style="width:900px;height:300px;display:flex">' +
+                '<adw-overlay-split-view collapsed show-sidebar="false" sidebar-position="end">' +
+                '<div slot="content">c</div><div slot="sidebar">s</div>' +
+                '</adw-overlay-split-view></div>';
+            const view = slide.querySelector('adw-overlay-split-view') as AdwOverlaySplitView;
+            await settle();
+
+            // The slide becomes the visible one.
+            slide.style.display = '';
+            await settle();
+            expect(view.showSidebar).toBe(false);
+            expect(covers(view)).toBe(false);
+            slide.remove();
+        });
+
+        await it('re-measures after being moved to another parent', async () => {
+            const from = document.createElement('div');
+            from.style.display = 'none';
+            const to = document.createElement('div');
+            to.setAttribute('style', 'width:900px;height:300px;display:flex');
+            document.body.append(from, to);
+            from.innerHTML =
+                '<adw-overlay-split-view collapsed show-sidebar="false" sidebar-position="end">' +
+                '<div slot="content">c</div><div slot="sidebar">s</div>' +
+                '</adw-overlay-split-view>';
+            const view = from.querySelector('adw-overlay-split-view') as AdwOverlaySplitView;
+            await settle();
+
+            // Moving a node is a disconnect followed by a connect. The observer
+            // torn down by the first has to be rebuilt by the second.
+            to.appendChild(view);
+            await settle();
+            expect(covers(view)).toBe(false);
+
+            // And it must keep tracking: a resize after the move has to land.
+            to.style.width = '600px';
+            await settle();
+            const pane = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            expect(pane.style.left).toBe('600px');
+            from.remove();
+            to.remove();
+        });
+
+        await it('hands placement back to the stylesheet rather than stranding a stale offset', async () => {
+            const { view, host } = mount('collapsed show-sidebar="false" sidebar-position="end"');
+            host.setAttribute('style', 'width:900px;height:300px;display:flex');
+            await settle();
+            const pane = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            expect(pane.style.left).toBe('900px');
+
+            // Unmeasurable again: the inline offset must be CLEARED, because an
+            // absolutely-positioned box with `left` + `width` ignores `right`,
+            // so a leftover value would outrank the resting rule it falls back
+            // to and pin the pane wherever it last happened to be.
+            host.style.display = 'none';
+            await settle();
+            expect(pane.style.left).toBe('');
+            host.remove();
+        });
+    });
 };

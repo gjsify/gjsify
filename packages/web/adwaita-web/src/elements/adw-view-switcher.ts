@@ -185,7 +185,15 @@ export class AdwViewSwitcher extends HTMLElement {
     }
 
     connectedCallback() {
-        if (this._initialized) return;
+        if (this._initialized) {
+            // Re-entering a document. `disconnectedCallback` drops the page
+            // observer on the way out, and this early return used to skip
+            // rebuilding it — so a switcher that had merely been MOVED (a
+            // slideshow slide, a client-side route change) stopped noticing
+            // page attribute changes for good, and did it silently.
+            this._watchPages();
+            return;
+        }
 
         // `:scope >` rather than a subtree scan: an unscoped query let an outer
         // switcher adopt the pages of a nested one, since both use the same tag.
