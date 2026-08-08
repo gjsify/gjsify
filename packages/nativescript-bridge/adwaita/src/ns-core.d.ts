@@ -70,6 +70,11 @@ declare module '@nativescript/core' {
         /** Accessibility role announced to the platform screen reader —
          *  NS's counterpart to `gtk_widget_class_set_accessible_role`. */
         accessibilityRole: string;
+        /** The view's resolved style. `direction` is an INHERITED CSS property
+         *  (`ui/styling/style-properties`: `new InheritedCssProperty({ name:
+         *  'direction', cssName: 'direction' })`, default null), which is the
+         *  text direction `start`/`end` are resolved against. */
+        readonly style: { direction?: 'ltr' | 'rtl' | null };
         /** Accessibility state — NS's counterpart to `gtk_accessible_update_state`. */
         accessibilityState: string;
         /** Animate one or more properties to their target values. Resolves when the

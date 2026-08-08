@@ -1182,10 +1182,23 @@ Page.adw-window {
     background-color: #fafafb;
 }
 
+/* The divider is on the side the sidebar is DRAWN on, which is `:dir()` x `.end`
+ * in _sidebars.scss:21-39 — not a fixed right edge. The widget adds
+ * `.adw-sidebar-at-visual-start` when the pane leads, so an `end` sidebar, and a
+ * `start` one under RTL, get their divider on the correct edge instead of
+ * drawing it inside the content. */
 .adw-split-view-sidebar {
     background-color: #ebebed;
+}
+
+.adw-split-view-sidebar.adw-sidebar-at-visual-start {
     border-right-width: 1;
     border-right-color: rgba(0, 0, 0, 0.1);
+}
+
+.adw-split-view-sidebar.adw-sidebar-at-visual-end {
+    border-left-width: 1;
+    border-left-color: rgba(0, 0, 0, 0.1);
 }
 
 .adw-split-view-content {
@@ -1790,7 +1803,14 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-split-view-sidebar,
 .ns-dark .adw-overlay-active {
     background-color: #2a2a2e;
+}
+
+.ns-dark .adw-split-view-sidebar.adw-sidebar-at-visual-start {
     border-right-color: rgba(255, 255, 255, 0.12);
+}
+
+.ns-dark .adw-split-view-sidebar.adw-sidebar-at-visual-end {
+    border-left-color: rgba(255, 255, 255, 0.12);
 }
 
 .ns-dark .adw-split-view-content {

@@ -37,7 +37,9 @@ import {
     type SidebarWidthProps,
     type SplitViewWidthRule,
 } from './split-view-width.js';
+import { splitViewColumns } from './split-view-state.js';
 import type { AdwPackType, NsShowSidebarNotification, NsSplitViewState } from './split-view-state.js';
+import type { AdwTextDirection } from '@gjsify/adwaita-core';
 
 /** Event name emitted when the sidebar visibility changes. */
 export const NOTIFY_SHOW_SIDEBAR = 'notify::show-sidebar';
@@ -100,13 +102,48 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
      */
     protected _syncColumns(): void {
         this.removeColumns();
-        if (this._state.sidebarPosition === 'end') {
-            this.addColumn(new ItemSpec(1, 'star')); // col 0: content
-            this.addColumn(new ItemSpec(1, 'auto')); // col 1: sidebar
-        } else {
+        // The leading column is column 0, so the question is which side the
+        // sidebar is DRAWN on, not which side it is packed on — under RTL a
+        // `start` sidebar is drawn on the right (`get_start_or_end`,
+        // adw-overlay-split-view.c:227-234). `splitViewColumns` is that
+        // predicate; this method used to test `sidebarPosition` literally and
+        // laid every RTL device out as if it were LTR.
+        const columns = splitViewColumns(this._state.sidebarPosition, this.textDirection);
+        if (columns.sidebar === 0) {
             this.addColumn(new ItemSpec(1, 'auto')); // col 0: sidebar
             this.addColumn(new ItemSpec(1, 'star')); // col 1: content
+        } else {
+            this.addColumn(new ItemSpec(1, 'star')); // col 0: content
+            this.addColumn(new ItemSpec(1, 'auto')); // col 1: sidebar
         }
+    }
+
+    /**
+     * Publish which visual side the pane is on, so the theme can put the divider
+     * there — the CSS counterpart to `_sidebars.scss`'s `:dir()` x `.end`
+     * product. A fixed `border-right` drew it on the wrong edge for an `end`
+     * sidebar and for every RTL layout.
+     */
+    protected _syncSidebarSide(view: View | null = this._sidebar): void {
+        if (!view) return;
+        const atStart = splitViewColumns(this._state.sidebarPosition, this.textDirection).sidebar === 0;
+        const classes = (view.className ?? '')
+            .split(' ')
+            .filter((name) => name && name !== 'adw-sidebar-at-visual-start' && name !== 'adw-sidebar-at-visual-end');
+        classes.push(atStart ? 'adw-sidebar-at-visual-start' : 'adw-sidebar-at-visual-end');
+        view.className = classes.join(' ');
+    }
+
+    /**
+     * The reading direction `start` / `end` resolve against.
+     *
+     * `direction` is an INHERITED CSS property on NativeScript's `Style`, so a
+     * `direction: rtl` on the Page reaches every split view under it — the same
+     * way GTK's text direction reaches a widget from its window. It defaults to
+     * unset, which is `ltr`.
+     */
+    get textDirection(): AdwTextDirection {
+        return this.style?.direction === 'rtl' ? 'rtl' : 'ltr';
     }
 
     /** Re-emit `notify::show-sidebar` for a state change. */
@@ -177,6 +214,7 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         this._sidebar = view;
         if (view) {
             view.className = `${view.className ?? ''} adw-split-view-sidebar`.trim();
+            this._syncSidebarSide(view);
             view.width = this.sidebarWidth;
             this.addChild(view);
         }
@@ -314,6 +352,7 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         // The fixed/expanding column order depends on the side, so re-declare them
         // BEFORE the panes are written into their columns.
         this._syncColumns();
+        this._syncSidebarSide();
         this._applyLayout();
     }
 

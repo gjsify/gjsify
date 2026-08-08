@@ -31,18 +31,23 @@
 // that the mock agreed with itself, and every rule above went untested for the
 // widgets' whole life.
 //
-// TEXT DIRECTION is pinned to `'ltr'` throughout. `isSidebarAtVisualStart` mirrors
-// `start`/`end` under RTL, but NativeScript surfaces no text direction to read
-// here, so an RTL device lays a split view out as LTR. A known divergence, not a
-// decision — the core is ready for it the moment NS reports a direction.
+// TEXT DIRECTION is real here now. It used to be pinned to `'ltr'` with a note
+// saying "NativeScript surfaces no text direction to read" — which is false:
+// `@nativescript/core` ships `directionProperty`, an INHERITED CSS property on
+// `Style` (`ui/styling/style-properties`), valued `'ltr' | 'rtl'` and defaulting
+// to unset. So `view.style.direction ?? 'ltr'` is the direction, it inherits
+// from the Page the way GTK's inherits from the window, and
+// `isSidebarAtVisualStart` can finally do its job: under RTL a `start` sidebar
+// is drawn on the RIGHT (`get_start_or_end`, adw-overlay-split-view.c:227-234).
 //
 // Reference: refs/libadwaita/src/adw-overlay-split-view.c
 // Reference: refs/libadwaita/src/adw-navigation-split-view.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { NavigationSplitViewState, OverlaySplitViewState } from '@gjsify/adwaita-core';
+import { NavigationSplitViewState, OverlaySplitViewState, isSidebarAtVisualStart } from '@gjsify/adwaita-core';
 import type {
     AdwPackType,
+    AdwTextDirection,
     NavigationPageRef,
     NavigationSplitViewChange,
     NavigationStackPlan,
@@ -110,8 +115,14 @@ export interface NsSplitViewState {
  * already made column 0 the star column. libadwaita allocates an `end` sidebar at
  * `width - sidebar_width` (adw-navigation-split-view.c:306-316).
  */
-export function splitViewColumns(sidebarPosition: AdwPackType): { sidebar: number; content: number } {
-    return sidebarPosition === 'end' ? { sidebar: 1, content: 0 } : { sidebar: 0, content: 1 };
+export function splitViewColumns(
+    sidebarPosition: AdwPackType,
+    direction: AdwTextDirection = 'ltr',
+): { sidebar: number; content: number } {
+    // The grid's LEADING column is column 0, so the question is not which side
+    // the sidebar is packed on but which side it is DRAWN on — the one predicate
+    // `isSidebarAtVisualStart` answers, and the one an RTL layout inverts.
+    return isSidebarAtVisualStart(sidebarPosition, direction) ? { sidebar: 0, content: 1 } : { sidebar: 1, content: 0 };
 }
 
 /**
