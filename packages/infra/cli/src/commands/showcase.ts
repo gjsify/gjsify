@@ -5,6 +5,8 @@ import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { ensurePkgDir } from './dlx.js';
+import { fetchPackument, type Packument } from '@gjsify/npm-registry';
+import { loadNpmrc } from '../utils/load-npmrc.js';
 import { parseSpec } from '../utils/parse-spec.js';
 import { resolveNodeEntry } from '../utils/resolve-gjs-entry.js';
 import { runRuntimeBundle } from '../utils/run-node.js';
@@ -251,13 +253,8 @@ async function resolveShowcaseDir(
     extraSpecs: readonly string[] = [],
 ): Promise<string> {
     // Local-first: a workspace showcase resolves via its own package name.
-    try {
-        const req = createRequire(import.meta.url);
-        const localPkgJson = req.resolve(`${showcase.packageName}/package.json`);
-        if (existsSync(localPkgJson)) return dirname(localPkgJson);
-    } catch {
-        // Not resolvable locally — fall through to dlx install.
-    }
+    const local = resolveLocalShowcaseDir(showcase);
+    if (local) return local;
 
     const spec = cliVersion ? `${showcase.packageName}@${cliVersion}` : showcase.packageName;
     const { pkgDir } = await ensurePkgDir(parseSpec(spec), {
@@ -267,6 +264,94 @@ async function resolveShowcaseDir(
         extraSpecs,
     });
     return pkgDir;
+}
+
+/**
+ * The LOCAL (workspace / node_modules) directory of a showcase, or `null`.
+ *
+ * Factored out because two callers need the same question answered: the resolver
+ * below, and the pre-flight, which must know whether an install is even going to
+ * happen before deciding to spend a registry request avoiding it.
+ */
+function resolveLocalShowcaseDir(showcase: ShowcaseInfo): string | null {
+    try {
+        const req = createRequire(import.meta.url);
+        const localPkgJson = req.resolve(`${showcase.packageName}/package.json`);
+        if (existsSync(localPkgJson)) return dirname(localPkgJson);
+    } catch {
+        // Not resolvable locally — the caller falls back to a dlx install.
+    }
+    return null;
+}
+
+/**
+ * Read a showcase's declared runtimes from the REGISTRY, with no install (#1069).
+ *
+ * WHY. `--runtime node` on a gjs-only showcase used to resolve and download the
+ * whole dlx tree — plus the pinned native `@gjsify/node-gi` bridge, added
+ * BECAUSE `--runtime node` was requested — and only then read the declaration
+ * that rejects the run. Measured for `adwaita-storybook`: a 310 KB showcase with
+ * no runtime deps, and 3.77 MB of `node-gi` fetched to support a runtime the
+ * package was about to refuse. The full packument carries
+ * `gjsify.example.runtimes` verbatim, so one metadata GET answers it.
+ *
+ * NOT solved by putting `runtimes` in `showcases.json`: that is a second copy of
+ * a declaration the package already owns, maintained by hand. See the
+ * `needsWebgl` post-mortem in `utils/discover-showcases.ts` — "a field nobody
+ * reads is a field nobody maintains", proven by a showcase that shipped
+ * `"needsWebgl": false` while its engine was WebGL2-only.
+ *
+ * FAIL-SAFE DIRECTION, and it is the whole contract: this may only ever turn a
+ * run that WOULD have failed into a faster failure. It must never fail a run
+ * that would have worked, so every uncertain branch — offline, unpublished
+ * version, missing field, malformed document — returns `undefined` and lets the
+ * install proceed to the authoritative on-disk check.
+ *
+ * @returns the declared list, `null` for a package that declares none
+ *   (unconstrained), or `undefined` when the question could not be answered.
+ */
+async function preflightDeclaredRuntimes(
+    showcase: ShowcaseInfo,
+    cliVersion: string | undefined,
+): Promise<ExampleRuntime[] | null | undefined> {
+    try {
+        // `fullMetadata` is REQUIRED: the abbreviated (corgi) document omits
+        // custom fields, so `gjsify.example` is simply absent there — the same
+        // shape as the `libc` note in `@gjsify/npm-registry`'s PackumentVersion.
+        const packument = await fetchPackument(showcase.packageName, {
+            npmrc: await loadNpmrc(process.cwd()),
+            fullMetadata: true,
+        });
+        return declaredRuntimesFromPackument(packument, cliVersion);
+    } catch {
+        // Offline, private registry, auth failure, 404 — all "cannot say".
+        return undefined;
+    }
+}
+
+/**
+ * The pure half of {@link preflightDeclaredRuntimes}: pick the version whose
+ * declaration decides, and read it.
+ *
+ * Separate from the fetch so the fail-safe direction is unit-testable — that
+ * contract ("never fail a run that would have worked") is the only thing that
+ * makes a pre-install check safe, and it lives entirely in which branches return
+ * `undefined`.
+ *
+ * @param cliVersion the CLI's own version; `showcase` pins the showcase to it.
+ */
+export function declaredRuntimesFromPackument(
+    packument: Packument,
+    cliVersion: string | undefined,
+): ExampleRuntime[] | null | undefined {
+    // A pinned version that is NOT published is "cannot say", never "ask latest":
+    // a different version's declaration is a different answer, and a wrong
+    // "unsupported" is precisely the failure this must not introduce. (A dev or
+    // pre-release CLI is the normal way to reach this.)
+    const version = cliVersion ?? packument['dist-tags']?.latest;
+    const entry = version ? packument.versions?.[version] : undefined;
+    if (!entry) return undefined;
+    return readDeclaredRuntimes(entry as { gjsify?: { example?: { runtimes?: unknown } } });
 }
 
 /**
@@ -280,6 +365,20 @@ async function runShowcaseOnRuntime(
     runtime: Exclude<ExampleRuntime, 'gjs'>,
     cliVersion: string | undefined,
 ): Promise<void> {
+    // PRE-FLIGHT, before anything is downloaded. Only for the dlx path: a local
+    // showcase resolves with no network and no install, so there is nothing to
+    // pre-empt there and the on-disk check below is already free.
+    if (resolveLocalShowcaseDir(showcase) === null) {
+        const preflight = await preflightDeclaredRuntimes(showcase, cliVersion);
+        if (preflight !== undefined) {
+            const support = checkRuntimeSupported(runtime, preflight, showcase.name);
+            if (!support.ok) {
+                console.error(support.message);
+                return process.exit(1);
+            }
+        }
+    }
+
     let pkgDir: string;
     try {
         // `@gjsify/node-gi` is the `gi://` bridge the `--app node` bundle

@@ -173,15 +173,21 @@ jobs:
       # release that fixes it, with no edit here and no hand-maintained
       # "currently skipped" list to drift.
       #
-      # LOWEST_FIXED is a BOUND, not a prediction of the next version number:
-      # the fix merged after 0.25.1, and every later release compares >= 0.25.2
-      # in semver order (0.26.0 included).
+      # TWO bounds, because this step now gates TWO fixes that shipped in
+      # DIFFERENT releases — the node-gi step below learned the same lesson the
+      # hard way ("one bound served both and therefore lied about one of them").
+      # Each is a BOUND, not a prediction of the next version number:
+      #   * LOWEST_FIXED — the runtime gate must not demand gjs for
+      #     `--runtime node`. Merged after 0.25.1, so >= 0.25.2 (#889).
+      #   * LOWEST_PREFLIGHT_FIXED — the declaration check must run BEFORE the
+      #     install, not after it. Merged after 0.31.0, so >= 0.31.1 (#1069).
       - name: 'Showcase: --runtime node does not demand gjs'
         id: showcase
         continue-on-error: true
         working-directory: gjsify-diag
         env:
           LOWEST_FIXED: '0.25.2'
+          LOWEST_PREFLIGHT_FIXED: '0.31.1'
         run: |
           set -eux
           out="$(npx gjsify showcase webrtc-loopback --runtime node 2>&1 || true)"
@@ -190,12 +196,19 @@ jobs:
           # Compared in node (present by definition here); `sort -V` is not
           # portable across git-bash and BSD userland. Values travel through
           # the environment, never through string interpolation.
-          HAS_FIX="$(INSTALLED="$INSTALLED" node -e '
-            const parse = (v) => v.split("-")[0].split(".").map(Number);
-            const [a, b] = [process.env.INSTALLED, process.env.LOWEST_FIXED].map(parse);
-            const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-            process.stdout.write(cmp >= 0 ? "1" : "0");
-          ')"
+          #
+          # One comparison, two call sites — a shell function for the same reason
+          # the node-gi step below uses one: two inline copies serving two
+          # different bounds is how the wrong fix got demanded of a release.
+          has_fix() {
+            INSTALLED="$1" BOUND="$2" node -e '
+              const parse = (v) => v.split("-")[0].split(".").map(Number);
+              const [a, b] = [process.env.INSTALLED, process.env.BOUND].map(parse);
+              const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+              process.stdout.write(cmp >= 0 ? "1" : "0");
+            '
+          }
+          HAS_FIX="$(has_fix "$INSTALLED" "$LOWEST_FIXED")"
           if echo "$out" | grep -q "Missing system dependencies"; then
             if [ "$HAS_FIX" = "1" ]; then
               echo "::error::@gjsify/cli $INSTALLED demanded gjs for --runtime node — the runtime gate ran too early"
@@ -205,6 +218,24 @@ jobs:
             exit 0
           fi
           echo "$out" | grep -q "does not support --runtime node"
+
+          # The error being RIGHT is not the whole property (#1069). It used to be
+          # produced only AFTER a full resolve + download of the showcase tree and
+          # the pinned native `@gjsify/node-gi` bridge — the bridge fetched
+          # BECAUSE `--runtime node` was requested, to support a runtime the
+          # package was about to refuse. The declaration is in the registry
+          # packument, so it must be answered with one metadata GET and no
+          # install. Asserting the ABSENCE of the install lines is what turns
+          # "the error is right" into "the error is right and nothing was
+          # downloaded to produce it" — the part that actually regressed.
+          if [ "$(has_fix "$INSTALLED" "$LOWEST_PREFLIGHT_FIXED")" = "1" ]; then
+            if echo "$out" | grep -q "gjsify install:"; then
+              echo "::error::@gjsify/cli $INSTALLED installed the showcase tree before the declaration check rejected the run"
+              exit 1
+            fi
+          elif echo "$out" | grep -q "gjsify install:"; then
+            echo "::warning::@gjsify/cli $INSTALLED predates the showcase pre-flight (< $LOWEST_PREFLIGHT_FIXED) — known gap, not failing"
+          fi
 
       # The PUBLISH-side question no other gate asks. `audit-runtimes --check` holds
       # "a declared target is produced by a CI job", and `node-gi.yml` genuinely
