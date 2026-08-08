@@ -8,6 +8,16 @@ export class AdwHeaderBar extends HTMLElement {
     private _startEl: HTMLDivElement | null = null;
     private _centerEl: HTMLDivElement | null = null;
     private _endEl: HTMLDivElement | null = null;
+    /**
+     * The generated title span, or `null` when a `slot="center"` title-widget
+     * took the centre. `Adw.HeaderBar` has the same either/or: setting
+     * `title-widget` replaces the derived `AdwWindowTitle` outright.
+     */
+    private _titleEl: HTMLSpanElement | null = null;
+
+    static get observedAttributes() {
+        return ['title'];
+    }
 
     /** The start (left) section container — append buttons/widgets here. */
     get startSection(): HTMLDivElement | null {
@@ -29,8 +39,6 @@ export class AdwHeaderBar extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        const title = this.getAttribute('title') || '';
-
         // Capture any pre-existing slotted children before clearing
         const startChildren = Array.from(this.querySelectorAll(':scope > [slot="start"]'));
         const centerChildren = Array.from(this.querySelectorAll(':scope > [slot="center"]'));
@@ -48,10 +56,9 @@ export class AdwHeaderBar extends HTMLElement {
         if (centerChildren.length > 0) {
             for (const child of centerChildren) this._centerEl.appendChild(child);
         } else {
-            const titleEl = document.createElement('span');
-            titleEl.className = 'adw-header-bar-title';
-            titleEl.textContent = title;
-            this._centerEl.appendChild(titleEl);
+            this._titleEl = document.createElement('span');
+            this._titleEl.className = 'adw-header-bar-title';
+            this._centerEl.appendChild(this._titleEl);
         }
 
         // End section
@@ -61,6 +68,24 @@ export class AdwHeaderBar extends HTMLElement {
 
         // Replace all children atomically
         this.replaceChildren(this._startEl, this._centerEl, this._endEl);
+        this._renderTitle();
+    }
+
+    /**
+     * `title` used to be read ONCE, in `connectedCallback`, so every later write
+     * was a silent no-op — a header bar whose title tracked the open document
+     * kept whatever it was created with. `Adw.HeaderBar`'s derived title widget
+     * is bound to the property and re-renders on every change.
+     */
+    attributeChangedCallback(name: string) {
+        if (this._initialized && name === 'title') this._renderTitle();
+    }
+
+    private _renderTitle() {
+        // A `slot="center"` widget replaced the derived title, so there is
+        // nothing for the attribute to write to — the same either/or as
+        // `Adw.HeaderBar:title-widget`.
+        if (this._titleEl) this._titleEl.textContent = this.getAttribute('title') ?? '';
     }
 }
 

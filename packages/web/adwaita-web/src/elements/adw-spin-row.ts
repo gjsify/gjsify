@@ -17,7 +17,7 @@
 //   title/subtitle text column added to match Adw.SpinRow; the adjustment state
 //   machine composed from @gjsify/adwaita-core.
 
-import { SpinState } from '@gjsify/adwaita-core';
+import { SpinState, deriveRowLabels } from '@gjsify/adwaita-core';
 
 export class AdwSpinRow extends HTMLElement {
     private _input!: HTMLInputElement;
@@ -123,10 +123,16 @@ export class AdwSpinRow extends HTMLElement {
     }
 
     private _renderText() {
-        this._titleEl.textContent = this.getAttribute('title') ?? '';
-        const subtitle = this.getAttribute('subtitle') ?? '';
-        this._subtitleEl.textContent = subtitle;
-        this._subtitleEl.hidden = subtitle.length === 0;
+        // The `string_is_not_empty` label rule, from core — this block was one of
+        // six hand-rolled copies, all of which omitted the TITLE half.
+        const labels = deriveRowLabels({
+            title: this.getAttribute('title'),
+            subtitle: this.getAttribute('subtitle'),
+        });
+        this._titleEl.textContent = labels.title;
+        this._titleEl.hidden = !labels.titleVisible;
+        this._subtitleEl.textContent = labels.subtitle;
+        this._subtitleEl.hidden = !labels.subtitleVisible;
     }
 
     /** A stepper press — the interactive path, so it emits `notify::value`. */

@@ -42,5 +42,18 @@ adw-banner {
     &:hover {
       background: var(--button-hover-color);
     }
+
+    // `button-style` (Since 1.7). ADW_BANNER_BUTTON_SUGGESTED adds
+    // `.suggested-action` to the banner button (adw-banner.c:769), which is the
+    // shared accent appearance — the same declaration `.adw-button.suggested-action`
+    // carries, restated here because the banner button is not an `.adw-button`.
+    &.suggested-action {
+      background: var(--accent-bg-color);
+      color: var(--accent-fg-color);
+
+      &:hover {
+        background: var(--accent-color);
+      }
+    }
   }
 }

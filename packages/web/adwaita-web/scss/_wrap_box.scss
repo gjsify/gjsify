@@ -5,16 +5,66 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
-// Layout (flex-direction, gaps, justify-content, align-items, align-content) is
-// driven imperatively by the component from its attributes — these are the
-// libadwaita defaults (horizontal, packed to the start of each line, lines
-// wrapping downwards from the top). A wrap box is a pure layout container, so it
-// carries no background of its own; children handle their own theming.
+// Direction, gaps, `justify-content` and `align-content` are driven imperatively
+// by the component from its attributes — these are the libadwaita defaults
+// (horizontal, packed to the start of each line, lines wrapping downwards from
+// the top). A wrap box is a pure layout container, so it carries no background
+// of its own; children handle their own theming.
 adw-wrap-box {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: flex-start;
-  align-items: flex-start;
+  // Each child is allocated the FULL cross extent of its line — `h = line_size`
+  // in adw-wrap-layout.c:746-751 — which is `stretch`, the flexbox default. The
+  // port used to write `flex-start` here and drive it from `align`, which is a
+  // MAIN-axis property in libadwaita and belongs on `justify-content`.
+  align-items: stretch;
   align-content: flex-start;
+}
+
+// FILL grows the children and keeps the spacing constant
+// (adw-wrap-layout.c:317-319, :326-341); SPREAD deliberately does NOT, so the
+// gaps take the leftover instead. `data-line-justify` is the mode the component
+// resolved for a COMPLETE line.
+//
+// A lone child is excluded because it is not on a complete line: a box with one
+// element child has exactly one line, and that line is the final one — see
+// below.
+adw-wrap-box[data-line-justify='fill'] > *:not(:only-child) {
+  flex-grow: 1;
+}
+
+// `:only-child` is the one line-membership fact CSS knows without a layout pass,
+// and libadwaita treats that line as the LAST one. Both justified modes stretch
+// it: FILL by definition, SPREAD because its "keep the children at their minimum
+// size" branch is guarded by `n_children > 1` (adw-wrap-layout.c:338), so a lone
+// child is stretched regardless (adw-wrap-box.c:349-352).
+adw-wrap-box[data-last-line-justify='fill'] > :only-child,
+adw-wrap-box[data-last-line-justify='spread'] > :only-child {
+  flex-grow: 1;
+}
+
+// The final line, when it is NOT justified (`justify-last-line` unset — the C
+// default, adw-wrap-box.c:379-381): a generated flex item absorbs that line's
+// leftover space, so it packs at the start of the main axis the way an
+// un-justified line does, while `justify-content: space-between` keeps spreading
+// the complete lines above it. `::after` is the only per-line hook flexbox
+// offers, and it lands on the final line by construction.
+//
+// The negative main-axis margin cancels exactly the one gap the filler would
+// otherwise add, so an exactly-full line can never be pushed into a new one.
+adw-wrap-box[data-line-justify='spread'][data-last-line-justify='none']::after {
+  content: '';
+  flex: 1 0 0;
+  min-width: 0;
+  min-height: 0;
+  margin-left: calc(-1 * var(--adw-wrap-box-child-spacing, 0px));
+}
+
+// A vertical box packs along the block axis, so the gap to cancel is the one
+// before the filler in that direction.
+adw-wrap-box[orientation='vertical'][data-line-justify='spread'][data-last-line-justify='none']::after {
+  margin-left: 0;
+  margin-top: calc(-1 * var(--adw-wrap-box-child-spacing, 0px));
 }

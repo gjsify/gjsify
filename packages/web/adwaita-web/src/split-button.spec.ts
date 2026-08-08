@@ -13,6 +13,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { DEFAULT_DROPDOWN_TOOLTIP } from '@gjsify/adwaita-core';
 import {
+    POPOVER_SURFACE_VECTORS,
     SPLIT_BUTTON_CONTENT_VECTORS,
     SPLIT_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_MENU_PARSE_VECTORS,
@@ -324,6 +325,145 @@ export const AdwSplitButtonTest = async () => {
             expect(el.classList.contains('checked')).toBe(true);
             el.popdown();
             expect(el.classList.contains('checked')).toBe(false);
+            host.remove();
+        });
+    });
+
+    // The two behaviours this element NEVER HAD. Its hand-rolled popover carried
+    // an outside-click handler and nothing else — a menu you could open from the
+    // keyboard and then only leave with the mouse, whose items the arrow keys
+    // could not reach at all. Both arrive with `<adw-popover>`; these are the
+    // cases that prove the lift was a lift and not a move.
+    await describe('adw-split-button menu keyboard (gained with <adw-popover>)', async () => {
+        await it('Escape dismisses the menu and returns focus to the dropdown half', () => {
+            const { el, host } = mount({ menu: '[{"label":"Print"},{"label":"Export"}]' });
+            dropdownHalf(el).click();
+            expect(el.active).toBe(true);
+
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+            expect(el.active).toBe(false);
+            // SplitButtonState stays the source of truth — a dismissal the
+            // popover owns is fed back into it, not held only in the popover.
+            expect(el.classList.contains('checked')).toBe(false);
+            expect(document.activeElement).toBe(dropdownHalf(el));
+            host.remove();
+        });
+
+        await it('Escape reaches notify::active, so the dismissal is a real state change', () => {
+            const { el, host } = mount({ menu: '[{"label":"Print"}]' });
+            const seen: boolean[] = [];
+            el.addEventListener('notify::active', (event) => seen.push((event as CustomEvent).detail.active));
+
+            dropdownHalf(el).click();
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+            expect(seen).toStrictEqual([true, false]);
+            host.remove();
+        });
+
+        await it('the arrow keys walk the menu items and wrap, from the row focused on open', () => {
+            const { el, host } = mount({ menu: '[{"label":"Print"},{"label":"Export"},{"label":"Share"}]' });
+            dropdownHalf(el).click();
+
+            // Queried AFTER opening on purpose: `_renderMenu` runs on every state
+            // change and `replaceChildren()`s the rows, so nodes captured before
+            // the click are detached and `document.activeElement` can never be one
+            // of them. The popover ELEMENT survives — only its children are rebuilt.
+            const items = [...el.querySelectorAll<HTMLButtonElement>('.adw-split-button-menu-item')];
+            expect(items.length).toBe(3);
+            // Opening focuses the first row — without that there is nothing to move from.
+            expect(document.activeElement).toBe(items[0]);
+
+            const menu = el.querySelector('adw-popover') as HTMLElement;
+            const press = (key: string) => menu.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+
+            press('ArrowDown');
+            expect(document.activeElement).toBe(items[1]);
+            press('ArrowDown');
+            expect(document.activeElement).toBe(items[2]);
+            press('ArrowDown');
+            expect(document.activeElement).toBe(items[0]); // wraps past the end
+            press('ArrowUp');
+            expect(document.activeElement).toBe(items[2]); // wraps past the start
+            press('End');
+            expect(document.activeElement).toBe(items[2]);
+            press('Home');
+            expect(document.activeElement).toBe(items[0]);
+
+            el.popdown();
+            host.remove();
+        });
+
+        await it('Enter on a focused row activates it BY POSITION, exactly once', () => {
+            const { el, host } = mount({ menu: '[{"label":"Copy"},{"label":"Copy"}]' });
+            const seen: number[] = [];
+            el.addEventListener('menu-activated', (event) => seen.push((event as CustomEvent).detail.index));
+
+            dropdownHalf(el).click();
+            const menu = el.querySelector('adw-popover') as HTMLElement;
+            menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+            menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+            // Two entries share a label, so only the position tells them apart —
+            // and `preventDefault()` before the synthetic click keeps a focused
+            // <button> from ALSO activating natively, which would fire twice.
+            expect(seen).toStrictEqual([1]);
+            host.remove();
+        });
+    });
+
+    // The assertion that would have CAUGHT the original bug. The core vectors pin
+    // the numbers against the vendored stylesheet; nothing pinned the numbers the
+    // browser actually paints, which is how a 9px surface under a two-layer shadow
+    // shipped here (and a 12px one under the right shadow shipped twice more).
+    // Computed style, not the SCSS text: a rule that loses the cascade reads fine
+    // in the source and renders wrong.
+    await describe('adw-split-button menu surface (libadwaita popover vectors)', async () => {
+        /** The `popover.menu` row of the shared table — what this element renders. */
+        const menuVector = POPOVER_SURFACE_VECTORS.find((vector) => vector.variant === 'menu');
+        const itemVector = POPOVER_SURFACE_VECTORS.find((vector) => vector.variant === 'menu-item');
+
+        await it('the vectors this suite drives are present', () => {
+            // A `find` that missed would make every assertion below vacuous.
+            expect(menuVector !== undefined).toBe(true);
+            expect(itemVector !== undefined).toBe(true);
+        });
+
+        await it(`draws a ${menuVector?.borderRadius}px surface with ${menuVector?.padding}px padding and a THREE-layer shadow`, () => {
+            const { el, host } = mount({ menu: '[{"label":"Print"}]' });
+            dropdownHalf(el).click();
+            const surface = el.querySelector('adw-popover') as HTMLElement;
+            const style = getComputedStyle(surface);
+
+            expect(style.paddingTop).toBe(`${menuVector?.padding}px`);
+            expect(style.paddingLeft).toBe(`${menuVector?.padding}px`);
+            // $popover_radius = $menu_radius + 6 = 15px. This element drew 9px.
+            expect(style.borderTopLeftRadius).toBe(`${menuVector?.borderRadius}px`);
+
+            for (const geometry of menuVector?.shadow ?? []) {
+                expect(style.boxShadow.includes(geometry)).toBe(true);
+            }
+            // Every layer carries exactly one colour function, so counting them
+            // counts the layers — this element shipped two where GTK has three.
+            expect((style.boxShadow.match(/rgba?\(/g) ?? []).length).toBe(menuVector?.shadow.length);
+
+            el.popdown();
+            host.remove();
+        });
+
+        await it(`draws menu rows at the ${itemVector?.borderRadius}px modelbutton radius`, () => {
+            const { el, host } = mount({ menu: '[{"label":"Print"}]' });
+            dropdownHalf(el).click();
+            const row = el.querySelector('.adw-split-button-menu-item') as HTMLElement;
+            const style = getComputedStyle(row);
+
+            // $menu_radius, not the `calc(var(--button-radius) - 2px)` (7px) this
+            // element and the menu button each invented separately.
+            expect(style.borderTopLeftRadius).toBe(`${itemVector?.borderRadius}px`);
+            expect(style.paddingLeft).toBe(`${itemVector?.padding}px`);
+
+            el.popdown();
             host.remove();
         });
     });

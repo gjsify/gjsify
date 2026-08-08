@@ -43,13 +43,19 @@ export const AdwButtonRowTest = async () => {
             host.remove();
         });
 
-        await it('honours activatable="false"', async () => {
-            const { row, host } = parseRow('<adw-button-row title="Locked" activatable="false"></adw-button-row>');
-            expect(row.classList.contains('activatable')).toBe(false);
-            host.remove();
-        });
+        // DELETED: `honours activatable="false"`. It was green, and what it
+        // pinned was an INVENTION — `Adw.ButtonRow` is always activatable
+        // (`<property name="activatable">True</property>`, adw-button-row.ui:5;
+        // "AdwButtonRow is always activatable.", adw-button-row.c:31), and the
+        // class exposes no property, no setter and no getter for it. The opt-out
+        // also gave one markup two opposite meanings inside one package, because
+        // <adw-action-row> reads `activatable` by PRESENCE — so
+        // `activatable="false"` deactivated a button row and ACTIVATED an action
+        // row. Its replacement is BUTTON_ROW_ACTIVATABLE_VECTORS, driven from
+        // adw-action-rows.spec.ts, which asserts that every spelling of the
+        // attribute leaves the row activatable.
 
-        await it('emits `activated` on click when activatable', async () => {
+        await it('emits `activated` on click', async () => {
             const { row, host } = parseRow('<adw-button-row title="Add account"></adw-button-row>');
             let activated = false;
             row.addEventListener('activated', () => {

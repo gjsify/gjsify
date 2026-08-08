@@ -33,6 +33,14 @@
 // outlived the lift and drew the `open-menu` hamburger for `direction="none"`.
 // Only the glyph→mask-class mapping is a renderer concern; see ARROW_MASK_CLASSES.
 //
+// THE POPOVER WENT THE SAME WAY, and it was the worst of the three copies: a
+// 9px (`--button-radius`) surface where libadwaita's is 15px, under a two-layer
+// shadow nothing in the vendored stylesheet has, with NO Escape dismissal and NO
+// arrow-key navigation at all — a menu you could open with the keyboard and then
+// only leave with the mouse. It is now `<adw-popover>`, so those two behaviours
+// arrive with the surface rather than having to be written a third time; the
+// spec cases for exactly them are in `src/split-button.spec.ts`.
+//
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
 // Reference: refs/adwaita-web/adwaita-web/scss/_split_button.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -45,9 +53,20 @@ import {
     parseMenuEntries,
     resolveDropdownTooltip,
     splitButtonArrowIcon,
+    splitButtonPopupDirection,
     splitButtonRootState,
 } from '@gjsify/adwaita-core';
 import type { AdwArrowIcon, AdwMenuEntry, SplitButtonChange, SplitButtonDirection } from '@gjsify/adwaita-core';
+
+// SIDE-EFFECT import, deliberately separate from the type import below: it is
+// what guarantees `adw-popover` is defined before this module's own
+// `customElements.define` can upgrade a server-rendered `<adw-split-button>` and
+// build one. A combined `import { AdwPopover }` would NOT do it — the binding is
+// only ever used in type position here, and this package compiles without
+// `verbatimModuleSyntax`, so TypeScript would elide the whole statement and take
+// the registration with it.
+import './adw-popover.js';
+import type { AdwPopover } from './adw-popover.js';
 
 const VARIANT_CLASSES: Record<string, string> = {
     flat: 'flat',
@@ -92,20 +111,30 @@ function iconClass(name: string): string {
     return /^[A-Za-z0-9_-]+$/.test(base) ? ` adw-icon--${base}` : '';
 }
 
+/**
+ * Direction → the CSS axis `<adw-popover>` places the surface on. WHICH
+ * direction applies is not decided here — {@link splitButtonPopupDirection}
+ * folds `none` onto `down` (GtkMenuButton's rule, not the split button's), and
+ * this table is keyed by its output for the same reason ARROW_MASK_CLASSES is.
+ */
+const POPOVER_POSITIONS = {
+    down: 'bottom',
+    up: 'top',
+    left: 'start',
+    right: 'end',
+} as const;
+
 export class AdwSplitButton extends HTMLElement {
     private readonly _state = new SplitButtonState();
     private _actionEl!: HTMLButtonElement;
     private _dropdownEl!: HTMLButtonElement;
     private _arrowEl!: HTMLSpanElement;
-    private _menuEl!: HTMLDivElement;
+    private _menuEl!: AdwPopover;
     /** Inline text content, captured before we take over the subtree. */
     private _inlineLabel = '';
     /** Last `open` value reflected as `notify::active`, so the event fires once per flip. */
     private _openReflected = false;
     private _initialized = false;
-    private _onDocumentPointerDown = (event: Event): void => {
-        if (!this.contains(event.target as Node)) this._state.closeMenu();
-    };
 
     static get observedAttributes() {
         return [
@@ -226,12 +255,27 @@ export class AdwSplitButton extends HTMLElement {
         this._arrowEl.setAttribute('aria-hidden', 'true');
         this._dropdownEl.appendChild(this._arrowEl);
 
-        this._menuEl = document.createElement('div');
-        this._menuEl.className = 'adw-split-button-menu';
+        this._menuEl = document.createElement('adw-popover') as AdwPopover;
+        this._menuEl.classList.add('adw-split-button-menu');
         this._menuEl.setAttribute('role', 'menu');
-        this._menuEl.hidden = true;
+        // The dropdown half IS a GtkMenuButton (adw-split-button.c:997 passes
+        // straight through to it), so its popover is a `popover.menu`.
+        this._menuEl.setAttribute('menu', '');
+        this._menuEl.setAttribute('align', 'end');
 
         this.replaceChildren(this._actionEl, this._dropdownEl, this._menuEl);
+        // The DROPDOWN half is the anchor, not the whole control: the popover
+        // must not treat the half that toggles it as "outside" (it would close
+        // and immediately reopen), and Escape returns focus to the half that
+        // opened the menu.
+        this._menuEl.anchor = this._dropdownEl;
+        // The popover is a MIRROR of `SplitButtonState.open`, which stays the
+        // single source of truth (`dropdownEnabled`, the root `checked` fold and
+        // `notify::active` all read it). A dismissal the popover owns — outside
+        // click, Escape — is fed back in here rather than diverging.
+        this._menuEl.subscribe((open) => {
+            if (!open) this._state.closeMenu();
+        });
 
         this._actionEl.addEventListener('click', () => {
             if (this.hasAttribute('disabled')) return;
@@ -248,10 +292,6 @@ export class AdwSplitButton extends HTMLElement {
         this._syncStateFromAttributes();
         this._state.subscribe((change) => this._onStateChange(change));
         this._render();
-    }
-
-    disconnectedCallback() {
-        document.removeEventListener('pointerdown', this._onDocumentPointerDown);
     }
 
     attributeChangedCallback(name: string, _previous: string | null, value: string | null) {
@@ -325,13 +365,16 @@ export class AdwSplitButton extends HTMLElement {
         for (const property of change.notified) {
             this.dispatchEvent(new CustomEvent(`notify::${property}`, { bubbles: true }));
         }
+        const opened = change.open && !this._openReflected;
         if (change.open !== this._openReflected) {
             this._openReflected = change.open;
-            if (change.open) document.addEventListener('pointerdown', this._onDocumentPointerDown);
-            else document.removeEventListener('pointerdown', this._onDocumentPointerDown);
             this.dispatchEvent(new CustomEvent('notify::active', { bubbles: true, detail: { active: change.open } }));
         }
         this._render();
+        // Focus lands in the menu on open, AFTER _render has built the rows —
+        // without it the arrow keys the popover now provides would have nothing
+        // to move from, which is half of why this element had none.
+        if (opened) this._menuEl.items[0]?.focus();
     }
 
     private _render(): void {
@@ -391,6 +434,9 @@ export class AdwSplitButton extends HTMLElement {
         // No pan-up mask ships yet, so it is the down arrow turned over. Keyed off
         // the GLYPH, not the direction: the flip belongs to the mask substitution.
         this._arrowEl.style.transform = glyph === 'pan-up-symbolic' ? 'rotate(180deg)' : '';
+        // Where the popup goes is core's call (`none` → `down`); only the
+        // direction → CSS-axis mapping is ours.
+        this._menuEl.position = POPOVER_POSITIONS[splitButtonPopupDirection(direction)];
 
         // An empty value RESTORES the translated default (adw-split-button.c:1044-1051)
         // instead of leaving the button without an accessible name.
@@ -416,13 +462,17 @@ export class AdwSplitButton extends HTMLElement {
     /** The popover contents, one button per menu entry, dispatched BY POSITION. */
     private _renderMenu(): void {
         this._menuEl.replaceChildren();
-        this._menuEl.hidden = !this._state.open;
+        this._menuEl.open = this._state.open;
 
         for (const [index, entry] of (this._state.menuModel ?? []).entries()) {
             const item = document.createElement('button');
             item.type = 'button';
-            item.className = 'adw-split-button-menu-item';
+            // `.adw-popover-item` is what makes the row navigable: it is the
+            // selector `<adw-popover>` walks for arrow/Home/End/Enter, which this
+            // element never had.
+            item.className = 'adw-popover-item adw-split-button-menu-item';
             item.setAttribute('role', 'menuitem');
+            item.tabIndex = -1;
             item.textContent = entry.label;
             item.addEventListener('click', () => {
                 // By position, never by label: two entries called "Copy" are

@@ -24,7 +24,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // disclosure state machine composed from @gjsify/adwaita-core.
 
-import { ExpanderState } from '@gjsify/adwaita-core';
+import { ExpanderState, deriveRowLabels } from '@gjsify/adwaita-core';
 
 export class AdwExpanderRow extends HTMLElement {
     private _headerEl!: HTMLDivElement;
@@ -182,11 +182,16 @@ export class AdwExpanderRow extends HTMLElement {
     }
 
     private _render() {
-        const title = this.getAttribute('title') ?? '';
-        const subtitle = this.getAttribute('subtitle') ?? '';
-        this._titleEl.textContent = title;
-        this._subtitleEl.textContent = subtitle;
-        this._subtitleEl.hidden = subtitle.length === 0;
+        // The `string_is_not_empty` label rule, from core — this block was one of
+        // six hand-rolled copies, all of which omitted the TITLE half.
+        const labels = deriveRowLabels({
+            title: this.getAttribute('title'),
+            subtitle: this.getAttribute('subtitle'),
+        });
+        this._titleEl.textContent = labels.title;
+        this._titleEl.hidden = !labels.titleVisible;
+        this._subtitleEl.textContent = labels.subtitle;
+        this._subtitleEl.hidden = !labels.subtitleVisible;
 
         const showSwitch = this.hasAttribute('show-enable-switch');
         this._enableLabel.hidden = !showSwitch;

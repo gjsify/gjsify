@@ -18,6 +18,9 @@
 @use 'window_title';
 @use 'button';
 @use 'button_content';
+// The ONE popover surface. Emitted BEFORE the widgets that host one, so a
+// consumer's (or a widget's) own higher-specificity rule still wins over it.
+@use 'popover';
 @use 'split_button';
 @use 'menu_button';
 @use 'drop_down';

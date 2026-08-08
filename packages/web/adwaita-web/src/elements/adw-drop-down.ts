@@ -12,6 +12,14 @@
 // Escape and supports arrow-key navigation, Home/End, Enter to pick, and
 // type-ahead (typing jumps to the next matching option).
 //
+// The popover is `<adw-popover>` and the dismissal/keyboard machine is
+// `@gjsify/adwaita-core`'s (ADR 0004). What stays here is what is genuinely a
+// DROP-DOWN: the selection model, the search filter and the type-ahead buffer.
+// The arrow/Home/End wrap arithmetic left with the lift — it was a second copy
+// of `<adw-menu-button>`'s, and both had the same bug (ArrowUp from an
+// unfocused list landed on the SECOND-TO-LAST option, which `enable-search` hit
+// on every single open because it focuses the entry).
+//
 // Attributes:
 //   options / items — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
 //   selected        — the selected index (number).
@@ -34,6 +42,16 @@
 // Copyright (c) GNOME contributors (libadwaita) / the GTK team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+// SIDE-EFFECT import, deliberately separate from the type import below: it is
+// what guarantees `adw-popover` is defined before this module's own
+// `customElements.define` can upgrade a server-rendered `<adw-drop-down>` and
+// build one. A combined `import { AdwPopover }` would NOT do it — the binding is
+// only ever used in type position here, and this package compiles without
+// `verbatimModuleSyntax`, so TypeScript would elide the whole statement and take
+// the registration with it.
+import './adw-popover.js';
+import type { AdwPopover } from './adw-popover.js';
+
 /** A dropdown option — `value` is the stable id, `label` the shown text. */
 export interface AdwDropDownOption {
     value: string;
@@ -45,27 +63,15 @@ type RawOption = string | { value?: unknown; label?: unknown };
 export class AdwDropDown extends HTMLElement {
     private _buttonEl!: HTMLButtonElement;
     private _labelEl!: HTMLSpanElement;
-    private _popoverEl!: HTMLDivElement;
+    private _popoverEl!: AdwPopover;
     private _listEl!: HTMLDivElement;
     private _searchEl: HTMLInputElement | null = null;
     private _options: AdwDropDownOption[] = [];
     private _itemButtons: HTMLButtonElement[] = [];
     private _selected = 0;
-    private _active = false;
     private _initialized = false;
     private _typeAheadBuffer = '';
     private _typeAheadTimer: ReturnType<typeof setTimeout> | null = null;
-
-    private _onDocumentPointerDown = (event: Event): void => {
-        if (!this.contains(event.target as Node)) this._setActive(false);
-    };
-    private _onDocumentKeyDown = (event: KeyboardEvent): void => {
-        if (event.key === 'Escape') {
-            event.stopPropagation();
-            this._setActive(false);
-            this._buttonEl.focus();
-        }
-    };
 
     static get observedAttributes() {
         return ['options', 'items', 'selected', 'enable-search', 'disabled'];
@@ -127,7 +133,7 @@ export class AdwDropDown extends HTMLElement {
 
     /** Whether the popover is currently open. */
     get active(): boolean {
-        return this._active;
+        return this._popoverEl?.open ?? false;
     }
 
     connectedCallback() {
@@ -152,15 +158,19 @@ export class AdwDropDown extends HTMLElement {
         this._buttonEl.append(this._labelEl, arrow);
         this._buttonEl.addEventListener('click', () => {
             if (this.hasAttribute('disabled')) return;
-            this._setActive(!this._active);
+            if (!this._popoverEl.open && this._options.length === 0) return;
+            this._popoverEl.open = !this._popoverEl.open;
         });
         this._buttonEl.addEventListener('keydown', (event) => this._onButtonKeyDown(event));
 
-        this._popoverEl = document.createElement('div');
-        this._popoverEl.className = 'adw-drop-down-popover';
+        this._popoverEl = document.createElement('adw-popover') as AdwPopover;
+        this._popoverEl.classList.add('adw-drop-down-popover');
         this._popoverEl.setAttribute('role', 'listbox');
-        this._popoverEl.hidden = true;
-        this._popoverEl.addEventListener('keydown', (event) => this._onPopoverKeyDown(event));
+        // A dropdown's popover is a `popover.menu` too — `dropdown { popover.menu
+        // { … } }` (_dropdowns.scss:22) — even though its rows are ARIA `option`s
+        // rather than `menuitem`s. The style class and the role answer different
+        // questions, so neither is derived from the other.
+        this._popoverEl.setAttribute('menu', '');
 
         this._listEl = document.createElement('div');
         this._listEl.className = 'adw-drop-down-list';
@@ -174,12 +184,13 @@ export class AdwDropDown extends HTMLElement {
         }
 
         this.replaceChildren(this._buttonEl, this._popoverEl);
+        this._popoverEl.anchor = this._buttonEl;
+        this._popoverEl.subscribe((open) => this._onPopoverToggled(open));
+        // Type-ahead is the ONE key class the shared popover deliberately leaves
+        // to the renderer (`resolvePopoverKey` returns 'none' for printables), so
+        // it needs a listener of its own alongside the popover's.
+        this._popoverEl.addEventListener('keydown', (event) => this._onPopoverTypeAhead(event));
         this._renderAll();
-    }
-
-    disconnectedCallback() {
-        document.removeEventListener('pointerdown', this._onDocumentPointerDown);
-        document.removeEventListener('keydown', this._onDocumentKeyDown, true);
     }
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
@@ -195,7 +206,7 @@ export class AdwDropDown extends HTMLElement {
             this._renderPopover();
         } else if (name === 'disabled') {
             this._buttonEl.disabled = this.hasAttribute('disabled');
-            if (this.hasAttribute('disabled')) this._setActive(false);
+            if (this.hasAttribute('disabled')) this._popoverEl.popdown();
         }
     }
 
@@ -242,27 +253,17 @@ export class AdwDropDown extends HTMLElement {
         }
     }
 
-    private _setActive(active: boolean): void {
-        if (this._active === active) return;
-        if (active && (this._options.length === 0 || this.hasAttribute('disabled'))) return;
-        this._active = active;
-        this._popoverEl.hidden = !active;
-        this.classList.toggle('active', active);
-        this._buttonEl.setAttribute('aria-expanded', String(active));
-        if (active) {
-            this._filter('');
-            document.addEventListener('pointerdown', this._onDocumentPointerDown);
-            // Capture Escape before it reaches the button/popover handlers.
-            document.addEventListener('keydown', this._onDocumentKeyDown, true);
-            if (this._searchEl) {
-                this._searchEl.value = '';
-                this._searchEl.focus();
-            } else {
-                (this._visibleItems()[this._selected] ?? this._visibleItems()[0])?.focus();
-            }
+    private _onPopoverToggled(open: boolean): void {
+        this.classList.toggle('active', open);
+        this._buttonEl.setAttribute('aria-expanded', String(open));
+        if (!open) return;
+        this._filter('');
+        if (this._searchEl) {
+            this._searchEl.value = '';
+            this._searchEl.focus();
         } else {
-            document.removeEventListener('pointerdown', this._onDocumentPointerDown);
-            document.removeEventListener('keydown', this._onDocumentKeyDown, true);
+            const visible = this._visibleItems();
+            (visible[this._selected] ?? visible[0])?.focus();
         }
     }
 
@@ -270,35 +271,18 @@ export class AdwDropDown extends HTMLElement {
         if (this.hasAttribute('disabled')) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            this._setActive(true);
-        } else if (event.key.length === 1 && !this._active) {
+            if (this._options.length > 0) this._popoverEl.popup();
+        } else if (event.key.length === 1 && !this._popoverEl.open) {
             // Type-ahead directly on the closed button (Gtk.DropDown behaviour).
             this._typeAhead(event.key);
         }
     }
 
-    private _onPopoverKeyDown(event: KeyboardEvent): void {
-        const items = this._visibleItems();
-        if (items.length === 0) return;
-        const current = items.indexOf(document.activeElement as HTMLButtonElement);
-        if (event.key === 'ArrowDown') {
-            event.preventDefault();
-            items[(current + 1 + items.length) % items.length]?.focus();
-        } else if (event.key === 'ArrowUp') {
-            event.preventDefault();
-            items[(current - 1 + items.length) % items.length]?.focus();
-        } else if (event.key === 'Home') {
-            event.preventDefault();
-            items[0]?.focus();
-        } else if (event.key === 'End') {
-            event.preventDefault();
-            items[items.length - 1]?.focus();
-        } else if ((event.key === 'Enter' || event.key === ' ') && current >= 0) {
-            event.preventDefault();
-            items[current]?.click();
-        } else if (!this._searchEl && event.key.length === 1) {
-            this._typeAhead(event.key);
-        }
+    /** Printable keys inside an OPEN popover, when there is no search entry to type into. */
+    private _onPopoverTypeAhead(event: KeyboardEvent): void {
+        if (this._searchEl) return;
+        if (event.key.length !== 1) return;
+        this._typeAhead(event.key);
     }
 
     /** Type-ahead: accumulate keys, focus/select the next matching option. */
@@ -308,7 +292,7 @@ export class AdwDropDown extends HTMLElement {
         this._typeAheadTimer = setTimeout(() => (this._typeAheadBuffer = ''), 800);
         const match = this._options.findIndex((o) => o.label.toLowerCase().startsWith(this._typeAheadBuffer));
         if (match < 0) return;
-        if (this._active) this._itemButtons[match]?.focus();
+        if (this._popoverEl.open) this._itemButtons[match]?.focus();
         else this._selectIndex(match, { fromUser: true });
     }
 
@@ -370,7 +354,7 @@ export class AdwDropDown extends HTMLElement {
         for (const [index, option] of this._options.entries()) {
             const item = document.createElement('button');
             item.type = 'button';
-            item.className = 'adw-drop-down-item';
+            item.className = 'adw-popover-item adw-drop-down-item';
             item.setAttribute('role', 'option');
             item.tabIndex = -1;
 
@@ -386,7 +370,7 @@ export class AdwDropDown extends HTMLElement {
             item.append(label, check);
             item.addEventListener('click', () => {
                 this._selectIndex(index, { fromUser: true });
-                this._setActive(false);
+                this._popoverEl.popdown();
                 this._buttonEl.focus();
             });
             this._listEl.appendChild(item);
@@ -394,7 +378,7 @@ export class AdwDropDown extends HTMLElement {
         }
 
         this._updateSelectedStates();
-        if (this._options.length === 0) this._setActive(false);
+        if (this._options.length === 0) this._popoverEl.popdown();
     }
 }
 

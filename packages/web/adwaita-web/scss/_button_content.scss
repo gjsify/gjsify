@@ -7,6 +7,34 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
+// The class <adw-button-content> stamps on the button hosting it
+// (adw-button-content.c:115), removed again on unroot (:126).
+//
+// libadwaita: `button.image-text-button { padding-left: 9px; padding-right: 9px }`
+// (_buttons.scss:77-80) — against the 17px a plain `.text-button` gets (:72-75).
+// This rule lived in NEITHER renderer, so every icon+label button was drawn with
+// the wrong horizontal padding.
+//
+// Only the PADDING half of that block applies here. The same selector also
+// declares `> box, > box > box { border-spacing: 4px }` (:82-84), and neither
+// matches: the node tree is `button > buttoncontent > box` (:47-52), so the
+// button's direct child is the `buttoncontent`, not a box. The icon↔label gap
+// stays the 6px `buttoncontent > box` gives it (:626-628), which is the `gap`
+// below. It lives in this file rather than in `_button.scss` because the class
+// belongs to this widget, and `.adw-button.image-text-button` beats `.adw-button`
+// on specificity regardless of order.
+.adw-button.image-text-button {
+  padding-left: 9px;
+  padding-right: 9px;
+}
+
+// Inside a split button the class sits on the `splitbutton` node instead, and a
+// DIFFERENT block wins: `splitbutton.image-text-button > button` (:499-502).
+.adw-split-button.image-text-button > .adw-split-button-action {
+  padding-left: 9px;
+  padding-right: 9px;
+}
+
 adw-button-content {
   display: inline-flex;
   align-items: center;
