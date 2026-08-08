@@ -1681,6 +1681,9 @@ async function main() {
         const headless = byId.get('headless');
         const portableScripts = byId.get('portable-scripts');
         const osAxis = byId.get('os-axis');
+        const storybook = byId.get('storybook');
+        const nativescriptPlatforms = byId.get('nativescript-platforms');
+        const releaseTrain = byId.get('release-train');
         const coverage = byId.get('field-coverage');
         const statusData = byId.get('status-data');
         // `platform-packages` is selected by CHECK_RULES, so its failures set the
@@ -1703,6 +1706,9 @@ async function main() {
             console.log(headless.summary);
             console.log(portableScripts.summary);
             console.log(osAxis.summary);
+            console.log(storybook.summary);
+            console.log(nativescriptPlatforms.summary);
+            console.log(releaseTrain.summary);
             console.log(coverage.summary);
             console.log(statusData.summary);
             console.log(platformPackages.summary);
@@ -1880,6 +1886,55 @@ async function main() {
             );
             console.error('');
         }
+        if ((storybook.failures ?? []).length > 0) {
+            console.error(`STORYBOOK-DECLARATION FAILURES on ${storybook.failures.length} package(s):`);
+            for (const line of storybook.failures) {
+                console.error(`  - ${line.split('\n').join('\n    ')}`);
+            }
+            console.error('');
+            console.error(
+                '`gjsify.storybook.stories` is the directory `gjsify storybook` globs for `*.story.{ts,js,mts,mjs}` ' +
+                    '(default `src`). A path that does not exist, or holds no story, produces an empty storybook at ' +
+                    'RUN time — and nothing in CI runs the command reliably (the only job that does is path-filtered, ' +
+                    'so it is advisory). Fix by pointing `stories` at the directory that actually holds them, or by ' +
+                    'dropping the declaration if the package no longer ships stories.',
+            );
+            console.error('');
+        }
+        if ((nativescriptPlatforms.failures ?? []).length > 0) {
+            console.error(
+                `NATIVESCRIPT-PLATFORM FAILURES on ${nativescriptPlatforms.failures.length} declaration(s)/module(s):`,
+            );
+            for (const line of nativescriptPlatforms.failures) {
+                console.error(`  - ${line.split('\n').join('\n    ')}`);
+            }
+            console.error('');
+            console.error(
+                'A `gjsify.nativescriptPlatforms` entry promises that every platform-resolved module has a variant for ' +
+                    'that platform. There is no iOS CI anywhere in this repo, so "does the declared platform have an ' +
+                    'implementation at all" is the only half any machine here can hold — and it is the half that fails ' +
+                    'SILENTLY: the NS build resolves `foo.<platform>.ts` before `foo.ts`, so a missing variant falls ' +
+                    'back to the base module and renders nothing, with no crash and no warning (icons.ios.ts, for the ' +
+                    'whole life of the declaration). Fix by adding the variant, or by narrowing the declared list.',
+            );
+            console.error('');
+        }
+        if ((releaseTrain.failures ?? []).length > 0) {
+            console.error(`RELEASE-TRAIN FAILURES (ADR 0008) on ${releaseTrain.failures.length} dependency range(s):`);
+            for (const line of releaseTrain.failures) {
+                console.error(`  - ${line.split('\n').join('\n    ')}`);
+            }
+            console.error('');
+            console.error(
+                'The apps EXCLUDED from `workspaces` (the NativeScript ones under `showcases/`) resolve their ' +
+                    '`@gjsify/*` deps through npm, not through the workspace, so their ranges are the one place a ' +
+                    'stale version survives unnoticed — nothing installs them in CI and `gjsify upgrade --check` ' +
+                    'never sees them. Fix by naming the current workspace version in every range; during a RELEASE ' +
+                    'that is done for you by `scripts/bump-release-train-ranges.mjs` in the `after:bump` hook, so a ' +
+                    'finding here on a bumped tree means that hook did not run or did not reach these files.',
+            );
+            console.error('');
+        }
         if ((coverage.failures ?? []).length > 0) {
             console.error(`MANIFEST FIELD-COVERAGE FAILURES on ${coverage.failures.length} declaration kind(s):`);
             for (const line of coverage.failures) {
@@ -1951,6 +2006,15 @@ async function main() {
             'headless',
             'portable-scripts',
             'os-axis',
+            // All three were selected by CHECK_RULES with no print block, so all
+            // three could set the exit code while naming nothing — the same
+            // defect as `platform-packages` above, times three. `release-train`
+            // is the one that was actually hit: it fired inside the v0.32.0
+            // `after:bump` hook and the accountant below is the only reason its
+            // 11 findings were visible at all.
+            'storybook',
+            'nativescript-platforms',
+            'release-train',
             'field-coverage',
             'status-data',
             'platform-packages',

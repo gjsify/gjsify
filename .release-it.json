@@ -16,7 +16,7 @@
     "publish": false
   },
   "hooks": {
-    "after:bump": "node scripts/bump-docs-version.mjs ${latestVersion} ${version} && node scripts/generate-platform-packages.mjs --write && node scripts/audit-runtimes.mjs --check --strict && node scripts/verify-committed-bundles.mjs --rebuild",
+    "after:bump": "node scripts/bump-docs-version.mjs ${latestVersion} ${version} && node scripts/generate-platform-packages.mjs --write && node scripts/bump-release-train-ranges.mjs ${latestVersion} ${version} && node scripts/audit-runtimes.mjs --check --strict && node scripts/verify-committed-bundles.mjs --rebuild",
     "before:git:beforeRelease": "node scripts/check-changelog-references.mjs --write"
   },
   "plugins": {

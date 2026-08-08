@@ -188,23 +188,36 @@ jobs:
       #
       #   1. bump-docs-version.mjs           — docs follow the version
       #   2. generate-platform-packages --write — RE-DERIVE what the bumper cannot
-      #   3. audit-runtimes --check --strict  — REFUSE to commit an inconsistent tree
-      #   4. verify-committed-bundles --rebuild — bundles reproduce at the new version
+      #   3. bump-release-train-ranges.mjs   — the same, for workspace-EXCLUDED apps
+      #   4. audit-runtimes --check --strict  — REFUSE to commit an inconsistent tree
+      #   5. verify-committed-bundles --rebuild — bundles reproduce at the new version
       #
-      # Step 2 exists because `@release-it/bumper` rewrites ONLY the `version`
-      # field. That is enough for a workspace member, whose siblings are pinned
-      # `workspace:^` and resolved at pack time — but `@gjsify/napi` is NOT a
-      # workspace member (its own CI, its own carve-out), so its
-      # `optionalDependencies` on `@gjsify/napi-{linux-x64,darwin-arm64}` carry
-      # LITERAL versions that nothing rewrote. v0.27.0 was cut with the parent at
-      # 0.27.0 and both children pinned 0.26.1; `main` went red on
-      # `platform-packages` and the tag would have published a bridge pinned to
-      # the previous release's binaries. Measured: simulating the bumper's
-      # version-only rewrite reproduces exactly those two findings, and
-      # `--write` clears them.
+      # Steps 2 AND 3 exist for one reason: `@release-it/bumper` rewrites ONLY the
+      # `version` field. Never a dependency RANGE. That is enough for a workspace
+      # member, whose siblings are pinned `workspace:^` and resolved at pack time
+      # — and it has now cost a release twice, in the two places that are not
+      # workspace members.
       #
-      # Step 3 is the mechanism, not a belt-and-braces repeat: step 2 fixes what
-      # is DERIVABLE, and anything it cannot fix must stop the cut rather than
+      # Step 2: `@gjsify/napi` is NOT a workspace member (its own CI, its own
+      # carve-out), so its `optionalDependencies` on
+      # `@gjsify/napi-{linux-x64,darwin-arm64}` carry LITERAL versions that
+      # nothing rewrote. v0.27.0 was cut with the parent at 0.27.0 and both
+      # children pinned 0.26.1; `main` went red on `platform-packages` and the tag
+      # would have published a bridge pinned to the previous release's binaries.
+      # Measured: simulating the bumper's version-only rewrite reproduces exactly
+      # those two findings, and `--write` clears them.
+      #
+      # Step 3: the NativeScript apps under `showcases/` are excluded from
+      # `workspaces` too, so their `@gjsify/*` deps are ordinary npm ranges. The
+      # `release-train` rule (ADR 0008) requires them to name the CURRENT version
+      # — which, between the bump and step 4, they never did: the rule was
+      # unsatisfiable inside a cut from the day it landed, and the v0.32.0 attempt
+      # (the first cut since) died on 11 findings across three apps. The rewriter
+      # shares its edge selection with the rule it satisfies, so the two cannot
+      # drift apart.
+      #
+      # Step 4 is the mechanism, not a belt-and-braces repeat: steps 2-3 fix what
+      # is DERIVABLE, and anything they cannot fix must stop the cut rather than
       # ride a tag out to npm. The audit already runs on every PR — it just never
       # ran on the tree the bump creates, which exists for only these few seconds.
       #
