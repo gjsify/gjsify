@@ -54,6 +54,11 @@ export class ButtonContentNsStory extends StoryView {
         button.horizontalAlignment = 'center';
         button.className = 'adw-button suggested-action pill';
         button.addChild(this._content);
+        // NS has no rooting protocol, so the view playing the GtkButton role is
+        // named explicitly. That is what stamps `image-text-button` on it
+        // (adw-button-content.c:115) — i.e. the 9px horizontal padding the class
+        // carries (_buttons.scss:77-80), which no renderer applied before.
+        this._content.hostButton = button;
 
         this.addContent(button);
     }
@@ -66,8 +71,10 @@ export class ButtonContentNsStory extends StoryView {
         if (!this._content) return;
         this._content.label = this.args.label as string;
         this._content.icon = iconSvg(this.args.iconName as string);
-        // `canShrink` has no NS equivalent (no ellipsize in the CSS subset);
-        // the control is presented but does not alter the static layout.
+        // `canShrink` round-trips and reports its PangoEllipsizeMode, but the NS
+        // CSS subset has no ellipsize — the control reflects the state rather
+        // than truncating the label. See AdwButtonContent.canShrink.
+        this._content.canShrink = this.args.canShrink as boolean;
     }
 }
 

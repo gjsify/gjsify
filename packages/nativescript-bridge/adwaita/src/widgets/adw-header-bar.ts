@@ -97,14 +97,25 @@ export class AdwHeaderBar extends GridLayout {
         this.className = this._flat ? 'adw-header-bar flat' : 'adw-header-bar';
     }
 
-    /** Append a widget to the start (left) slot. */
+    /** Pack a widget at the start (left) of the bar — `gtk_box_append`. */
     packStart(view: View): void {
+        // adw-header-bar.c:1083 — appended, so successive children run left to
+        // right and the first one packed sits furthest from the centre.
         this._startBox.addChild(view);
     }
 
-    /** Append a widget to the end (right) slot. */
+    /**
+     * Pack a widget at the end (right) of the bar.
+     *
+     * `adw_header_bar_pack_end` PREPENDS (`gtk_box_prepend`,
+     * adw-header-bar.c:1106): "packed with reference to the end" means the FIRST
+     * widget packed is the one nearest the end of the bar, and each later one
+     * goes in front of it. The port appended instead, so every end slot came out
+     * mirrored — `packEnd(menu); packEnd(search)` drew `menu | search` where
+     * libadwaita draws `search | menu`, with the menu button in the corner.
+     */
     packEnd(view: View): void {
-        this._endBox.addChild(view);
+        this._endBox.insertChild(view, 0);
     }
 
     /** Replace the centered title widget with a custom one (e.g. a URL entry). */

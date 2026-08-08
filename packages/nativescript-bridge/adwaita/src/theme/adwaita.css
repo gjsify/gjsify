@@ -390,6 +390,14 @@ Page.adw-window {
     margin: 0 0 0 8;
 }
 
+/* `button-style` (Since 1.7). ADW_BANNER_BUTTON_SUGGESTED adds `.suggested-action`
+ * to the banner button (adw-banner.c:769) — the accent appearance, restated here
+ * because the banner button is not an `.adw-button`. */
+.adw-banner-button.suggested-action {
+    background-color: #3584e4;
+    color: #ffffff;
+}
+
 /* ===== Avatar (circular initials) ===== */
 
 .adw-avatar {
@@ -574,9 +582,12 @@ Page.adw-window {
 
 /* ===== Wrap box ===== */
 
-.adw-wrap-box {
-    margin: 6;
-}
+/* Adw.WrapBox has NO margin of its own — it is a bare layout container whose
+ * only spacing is `child-spacing` / `line-spacing`, both defaulting to 0
+ * (adw-wrap-box.c:285-287, :393-395). The 6 DIP margin that used to sit here was
+ * invented, and stacked on top of the port's equally invented 6 DIP spacing
+ * default, so an EMPTY wrap box occupied 12 DIPs. Spacing comes from the child
+ * margins the widget applies (widgets/wrap-box-layout.ts), never from here. */
 
 /* ===== Spinner ===== */
 
@@ -656,6 +667,23 @@ Page.adw-window {
 }
 
 /* ===== Button content (icon + label) ===== */
+
+/* The class AdwButtonContent stamps on the button hosting it
+ * (adw-button-content.c:115), removed again on unroot (:126).
+ *
+ * libadwaita: `button.image-text-button { padding-left: 9px; padding-right: 9px }`
+ * (_buttons.scss:77-80) — against the 17px a plain `.text-button` gets (:72-75),
+ * which this theme approximates as the 16 on `.adw-button` above. The rule lived
+ * in NEITHER renderer, so every icon+label button was drawn with the wrong
+ * horizontal padding.
+ *
+ * Only the PADDING half of that block applies: the same selector also declares
+ * `> box, > box > box { border-spacing: 4px }` (:82-84) and neither matches
+ * through the `buttoncontent` node (:47-52). The icon↔label gap stays the 6 from
+ * `buttoncontent > box` (:626-628), which is the icon's right margin below. */
+.adw-button.image-text-button {
+    padding: 5 9 5 9;
+}
 
 .adw-button-content {
     margin: 0;

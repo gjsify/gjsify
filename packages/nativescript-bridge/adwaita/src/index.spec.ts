@@ -87,38 +87,14 @@ function registerAdwaitaElementsNoopProbe(): void {
     if (typeof g.registerElement !== 'function') return;
 }
 
-// Standalone re-implementation of AdwSwitchRow's active<->checked binding, kept
-// in lockstep with src/widgets/adw-switch-row.ts. Lets us assert the accessor
-// semantics without instantiating the @nativescript/core-backed class.
-interface MockSwitch {
-    checked: boolean;
-}
-
-class MockSwitchRow {
-    private _switch: MockSwitch;
-    public notified: boolean[] = [];
-
-    constructor(sw: MockSwitch = { checked: false }) {
-        this._switch = sw;
-    }
-
-    get active(): boolean {
-        return this._switch.checked;
-    }
-
-    set active(value: boolean) {
-        const next = !!value;
-        if (this._switch.checked !== next) {
-            this._switch.checked = next;
-        }
-    }
-
-    // Emulates the checkedChange -> notify::active re-emit.
-    flip(): void {
-        this._switch.checked = !this._switch.checked;
-        this.notified.push(this._switch.checked);
-    }
-}
+// DELETED: `MockSwitchRow`, a standalone re-implementation of the switch row's
+// active<->checked binding, and the four green tests over it. A mock that
+// respells the setters can only ever confirm that the mock agrees with itself —
+// and it did, right up to shipping the wrong rule: it emitted on every flip and
+// nothing on a programmatic set, where libadwaita emits on both and drops only
+// the no-op set (adw-switch-row.c:216-228 -> :66-77). The binding now lives in
+// `SwitchRowState` (`@gjsify/adwaita-core`), which `row-state.spec.ts` drives
+// through the shared conformance vectors as the SHIPPING code it is.
 
 // --- Mocks for the new Tier-1 widgets (mirror the real accessor logic, kept in
 // lockstep with the corresponding src/widgets/adw-*.ts modules). Importing the
@@ -434,36 +410,6 @@ export default async () => {
 
         await it('hasAdwaitaSans is false off NativeScript and never throws', () => {
             expect(hasAdwaitaSans()).toBe(false);
-        });
-    });
-
-    await describe('AdwSwitchRow active<->checked binding (mock)', async () => {
-        await it('reads active from the underlying switch', () => {
-            const row = new MockSwitchRow({ checked: true });
-            expect(row.active).toBe(true);
-        });
-
-        await it('writes active through to the switch', () => {
-            const sw: MockSwitch = { checked: false };
-            const row = new MockSwitchRow(sw);
-            row.active = true;
-            expect(sw.checked).toBe(true);
-            expect(row.active).toBe(true);
-        });
-
-        await it('coerces truthy/falsy values to a boolean', () => {
-            const sw: MockSwitch = { checked: false };
-            const row = new MockSwitchRow(sw);
-            // @ts-expect-error — intentionally pass a non-boolean to test coercion
-            row.active = 1;
-            expect(sw.checked).toBe(true);
-        });
-
-        await it('flipping the switch records a notify::active-style emission', () => {
-            const row = new MockSwitchRow({ checked: false });
-            row.flip();
-            expect(row.notified).toStrictEqual([true]);
-            expect(row.active).toBe(true);
         });
     });
 
