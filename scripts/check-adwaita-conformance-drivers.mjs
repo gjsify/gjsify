@@ -44,8 +44,7 @@ import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
-const ROOT =
-    rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
+const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
 const CONFORMANCE_DIR = join(ROOT, 'packages/web/adwaita-core/src/conformance');
 /** Where the CORE drives its own tables. Not a renderer. */
@@ -85,7 +84,12 @@ function tablesIn(file) {
         const match = /^export const ([A-Z0-9_]+_VECTORS)\b/.exec(line);
         if (!match) continue;
         let start = index - 1;
-        while (start >= 0 && (lines[start].trim().startsWith('*') || lines[start].trim().startsWith('/') || lines[start].trim().startsWith('//'))) {
+        while (
+            start >= 0 &&
+            (lines[start].trim().startsWith('*') ||
+                lines[start].trim().startsWith('/') ||
+                lines[start].trim().startsWith('//'))
+        ) {
             start--;
         }
         found.push({ name: match[1], header: lines.slice(start + 1, index).join('\n'), file });
