@@ -1,15 +1,21 @@
 // AdwSpinner — a Libadwaita-style busy spinner for NativeScript.
 //
 // Extends the REAL NativeScript `ActivityIndicator`, defaulting it to `busy` and
-// applying the accent tint via the `adw-spinner` CSS class. Mirrors `Adw.Spinner`:
+// taking its colour from the `adw-spinner` CSS class. Mirrors `Adw.Spinner`:
 // a self-animating loading indicator. `spinning` get/set toggles `busy`; `size`
 // sets the diameter.
 //
 // FIDELITY: faithful — `ActivityIndicator` is the platform's native spinner and
 // already animates (the one native NS animation that fits the CSS-subset contract,
-// since the engine drives it, not CSS keyframes). The accent color tints the
-// platform indicator where the OS honours it (Android sets the indeterminate
-// drawable tint from `color`; iOS uses its standard style).
+// since the engine drives it, not CSS keyframes). The colour tints the platform
+// indicator where the OS honours it (Android sets the indeterminate drawable tint
+// from `color`; iOS uses its standard style).
+//
+// That colour is the widget's TEXT colour, NOT the accent: the paintable strokes
+// with `gtk_widget_get_color()` (adw-spinner-paintable.c:432). This port used
+// Adwaita's accent blue for its whole life while adwaita-web used `currentColor`
+// and documented the neutrality in a comment — the two ports contradicted each
+// other in the open, and no conformance vector covers colour, so nothing looked.
 //
 // The SIZE is Adwaita's, not an invention: the indicator fills its view, so the
 // view is the ring, and `spinnerDiameter` floors it at the measured minimum 16

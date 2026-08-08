@@ -580,8 +580,14 @@ Page.adw-window {
 
 /* ===== Spinner ===== */
 
+/* Adw.Spinner is a NEUTRAL indicator, not an accent-coloured one: the paintable
+   strokes with `gtk_widget_get_color()` — the widget's TEXT colour
+   (adw-spinner-paintable.c:432). This carried the Adwaita accent blue, which put
+   the two ports in open disagreement: adwaita-web's `_spinner.scss` uses
+   `currentColor` and says so in a comment. Nothing compared them, because no
+   conformance vector covers colour. */
 .adw-spinner {
-    color: #3584e4;
+    color: rgba(0, 0, 0, 0.8);
 }
 
 /* ===== Status page (empty state) ===== */
@@ -1404,7 +1410,7 @@ Page.ns-dark.adw-window {
 /* ===== Dark: spinner ===== */
 
 .ns-dark .adw-spinner {
-    color: #78aeed;
+    color: #ffffff;
 }
 
 /* ===== Dark: status page ===== */
