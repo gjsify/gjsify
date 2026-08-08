@@ -104,12 +104,18 @@ satisfy it. `packages/node/fs/src/capabilities.spec.ts` is the worked example,
 including when to MEASURE a capability and when keying on the platform is the
 honest choice (a probe running under `test.gjs.mjs` asks the implementation
 under test whether the implementation is right).
-|**A `when` may need the LEG, not just the host.** A limitation that is ours
-(`@gjsify/fs` reaching a descriptor through `/proc/self/fd`) does not exist for
-native Node, so an unscoped marker fires on a Node leg where the test SUCCEEDS —
-and `it.failing` fails a run for succeeding. Conversely, where the REFERENCE
-diverges from POSIX (darwin's `pwrite` ignoring `O_APPEND`), the marker belongs
-on the Node leg and the GJS leg must pass. `IS_GJS` in `capabilities.spec.ts`.
+|**`it.failing` fails a run for SUCCEEDING, so a `when` that is too broad is
+itself a red build.** Two ways to get it too broad, both paid for in #1039:
+|— *reasoning about the mechanism instead of measuring it.* The
+descriptor-identity rules were gated on `/proc/self/fd` because that is how GJS
+reaches a descriptor — but on darwin, which has none, the GJS leg passes them
+anyway. A gate is a claim about a host; if you have not run it there, you have
+not checked it.
+|— *forgetting that a `when` may need the LEG.* Where the divergence is OURS the
+marker must carry `IS_GJS`, or it fires on a Node leg that passes. Where the
+REFERENCE diverges from the standard — darwin's `pwrite` ignoring POSIX's
+`O_APPEND` clause, which `@gjsify/fs` implements correctly everywhere — it must
+carry `!IS_GJS` instead, and the GJS leg must pass.
 
 Incident: #1039 merged ~100 POSIX-semantics rules with a green Linux pipeline
 and put 45 failures on `main` across the two legs — 9 on darwin, 36 on win32.
