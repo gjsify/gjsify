@@ -67,6 +67,11 @@ declare module '@nativescript/core' {
         /** Whether the view is currently loaded / attached to the visual tree.
          *  Off-screen (pre-load) transitions skip animation. */
         readonly isLoaded: boolean;
+        /** Accessibility role announced to the platform screen reader —
+         *  NS's counterpart to `gtk_widget_class_set_accessible_role`. */
+        accessibilityRole: string;
+        /** Accessibility state — NS's counterpart to `gtk_accessible_update_state`. */
+        accessibilityState: string;
         /** Animate one or more properties to their target values. Resolves when the
          *  animation finishes; the returned promise can also be `cancel()`ed. */
         animate(options: AnimationDefinition): AnimationPromise;

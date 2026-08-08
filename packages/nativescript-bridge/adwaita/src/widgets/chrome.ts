@@ -152,11 +152,13 @@ export function clampAllocationFor(availableWidth: number, props: ClampProps): C
 export const DEFAULT_SPINNER_SIZE = ADW_SPINNER_MIN_SIZE;
 
 /**
- * The diameter an `ActivityIndicator` is sized to for a requested `size`.
+ * The RING diameter for a requested BOX size — floored at the measured minimum
+ * 16 and capped at Adwaita's 64, with the odd-size flooring (`31` draws a 30 DIP
+ * ring) coming from the paintable rather than from here.
  *
- * The platform indicator fills its view, so the view IS the ring: floored at the
- * measured minimum 16 and capped at Adwaita's 64, with the odd-size flooring
- * (`31` draws a 30 DIP ring) coming from the paintable rather than from here.
+ * The two are different numbers, which is the whole point: `AdwSpinner` sizes
+ * its BOX to the request and its `ActivityIndicator` to this. They used to be
+ * one, so `size = 200` occupied 64 DIPs of layout where GTK occupies 200.
  */
 export function spinnerDiameter(value: number | string | null | undefined): number {
     const size = resolveSpinnerSize(value);

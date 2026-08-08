@@ -1,11 +1,16 @@
 // `Adw.Spinner` / `AdwSpinnerPaintable` — the animation, headless (ADR 0004).
 //
-// The spinner is not a rotating quarter-circle. The arc BREATHES: it extends
-// from 2.7° to 162°, overlaps, contracts, and idles, all while the whole figure
-// turns — a four-phase cycle whose length is deliberately chosen so that a whole
-// number of arc cycles fits a whole number of turns. `_spinner.scss` drew a
-// fixed 90° `border-top-color` chase at 0.8s, which is a different animation
-// with a different period, and the NativeScript port draws the platform's.
+// The spinner is not a rotating quarter-circle. The arc BREATHES: it extends,
+// overlaps, contracts and idles, all while the whole figure turns — a four-phase
+// cycle whose length is deliberately chosen so that a whole number of arc cycles
+// fits a whole number of turns. `_spinner.scss` drew a fixed 90° `border-top-color`
+// chase at 0.8s, which is a different animation with a different period, and the
+// NativeScript port draws the platform's.
+//
+// The DRAWN arc spans 2.7° to 102.8°, not to `MAX_ARC_LENGTH`'s 162°: both ends
+// lerp towards it and then subtract the same drift term, which is what advances
+// the figure. `SPINNER_ARC_ENVELOPE` in the conformance table is the measured
+// answer — reading the constant as the drawn length is the obvious mistake.
 //
 // Every number here is a `#define` in the C. They are exported rather than
 // inlined because the browser renderer needs the geometry per frame and the
@@ -43,7 +48,7 @@ export const ADW_SPINNER_TRACK_OPACITY = 0.15;
 /** `MIN_ARC_LENGTH` (:24) — GSK refuses to draw an arc shorter than this. */
 export const ADW_SPINNER_MIN_ARC_LENGTH = Math.PI * 0.015;
 
-/** `MAX_ARC_LENGTH` (:25) — the widest the arc ever gets, 162°. */
+/** `MAX_ARC_LENGTH` (:25) — the LERP TARGET, 162°. The drawn arc peaks at 102.8°. */
 export const ADW_SPINNER_MAX_ARC_LENGTH = Math.PI * 0.9;
 
 /** `IDLE_DISTANCE` (:26). */

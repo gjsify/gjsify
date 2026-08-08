@@ -513,6 +513,19 @@ export class AdwTabView extends HTMLElement {
         const icon = createAdwIcon(null, 'adw-tab-icon');
         tab.appendChild(icon);
 
+        // `AdwTabPage:loading` swaps the icon image for an `AdwSpinnerPaintable`
+        // — the SAME paintable `Adw.Spinner` uses (`update_icons`,
+        // adw-tab.c:172-190). So this is a real `<adw-spinner>` in the icon's
+        // slot, not a ring drawn again in CSS: the stylesheet used to restate
+        // the border, the grey and the 0.8s under a comment claiming it was
+        // "not a second copy of them", and it inherited every spinner defect
+        // independently.
+        const spinner = document.createElement('adw-spinner');
+        spinner.className = 'adw-tab-spinner';
+        spinner.setAttribute('size', '16');
+        spinner.hidden = true;
+        tab.appendChild(spinner);
+
         const label = document.createElement('span');
         label.className = 'adw-tab-title';
         tab.appendChild(label);
@@ -588,9 +601,14 @@ export class AdwTabView extends HTMLElement {
         const icon = tab.querySelector('.adw-tab-icon') as AdwIcon | null;
         if (icon) {
             icon.iconName = icons.icon;
-            icon.classList.toggle('loading', icons.spinner);
-            icon.hidden = !icons.iconVisible;
+            // The two occupy the same slot and are never both visible: C
+            // REPLACES the image's contents rather than stacking a second node.
+            icon.hidden = !icons.iconVisible || icons.spinner;
         }
+        const spinner = tab.querySelector('.adw-tab-spinner') as HTMLElement | null;
+        // The spinner is mounted only while it spins, so an idle tab holds no
+        // element in the shared rAF ticker.
+        if (spinner) spinner.hidden = !(icons.spinner && icons.iconVisible);
         const indicator = tab.querySelector('.adw-tab-indicator') as AdwIcon | null;
         if (indicator) {
             indicator.iconName = page.indicatorIcon;

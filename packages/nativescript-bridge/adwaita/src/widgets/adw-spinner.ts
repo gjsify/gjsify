@@ -1,77 +1,129 @@
 // AdwSpinner — a Libadwaita-style busy spinner for NativeScript.
 //
-// Extends the REAL NativeScript `ActivityIndicator`, defaulting it to `busy` and
-// taking its colour from the `adw-spinner` CSS class. Mirrors `Adw.Spinner`:
-// a self-animating loading indicator. `spinning` get/set toggles `busy`; `size`
-// sets the diameter.
+// A `GridLayout` BOX holding the platform's own `ActivityIndicator`, centred.
+// The box is the requested size and the indicator is the RING, capped at 64 —
+// which is the split `Adw.Spinner` makes and this port did not: the view WAS the
+// ring, so `size = 200` reported 64 back and occupied 64 DIPs of layout where
+// GTK occupies 200 (`adw_spinner_measure` reports MIN_SIZE as minimum AND
+// natural with no upper bound, adw-spinner.c:78-81, while the paintable caps
+// only the radius and still centres on the box, adw-spinner-paintable.c:343-351).
 //
-// FIDELITY: faithful — `ActivityIndicator` is the platform's native spinner and
-// already animates (the one native NS animation that fits the CSS-subset contract,
-// since the engine drives it, not CSS keyframes). The colour tints the platform
-// indicator where the OS honours it (Android sets the indeterminate drawable tint
-// from `color`; iOS uses its standard style).
+// FIDELITY: the ARC is the platform's, deliberately. `ActivityIndicator` is the
+// native spinner and the engine drives it, which is the one animation that fits
+// the CSS-subset contract; hand-drawing libadwaita's breathing arc here would
+// mean a per-frame JS animation on a phone to replace an animation the OS
+// already runs. What IS ported is everything around it: the size split, the
+// colour, the accessibility role, and the map gating.
 //
-// That colour is the widget's TEXT colour, NOT the accent: the paintable strokes
+// The colour is the widget's TEXT colour, NOT the accent: the paintable strokes
 // with `gtk_widget_get_color()` (adw-spinner-paintable.c:432). This port used
 // Adwaita's accent blue for its whole life while adwaita-web used `currentColor`
 // and documented the neutrality in a comment — the two ports contradicted each
 // other in the open, and no conformance vector covers colour, so nothing looked.
 //
-// The SIZE is Adwaita's, not an invention: the indicator fills its view, so the
-// view is the ring, and `spinnerDiameter` floors it at the measured minimum 16
-// and caps it at 64 — the documented "never smaller than 16×16 and never larger
-// than 64×64" (adw-spinner.c:27-28). This widget used to default to 32, which is
-// in no libadwaita source, and applied `size = 200` unclamped.
-//
-// Reference: refs/libadwaita/src/adw-spinner.c (MIN_SIZE, adw_spinner_measure)
-// Reference: refs/libadwaita/src/adw-spinner-paintable.c (MAX_RADIUS)
+// Reference: refs/libadwaita/src/adw-spinner.c (MIN_SIZE, adw_spinner_measure, the a11y role)
+// Reference: refs/libadwaita/src/adw-spinner-paintable.c (MAX_RADIUS, widget_map_cb)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_spinner.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { ActivityIndicator } from '@nativescript/core';
+import { ActivityIndicator, GridLayout, ItemSpec } from '@nativescript/core';
 
-import { DEFAULT_SPINNER_SIZE, spinnerDiameter } from './chrome.js';
+import { resolveSpinnerSize, spinnerGeometry } from '@gjsify/adwaita-core';
+
+import { DEFAULT_SPINNER_SIZE } from './chrome.js';
 
 export { DEFAULT_SPINNER_SIZE };
 
-export class AdwSpinner extends ActivityIndicator {
+export class AdwSpinner extends GridLayout {
+    /** The platform indicator — the RING, capped at 64 DIPs. */
+    private readonly _indicator: ActivityIndicator;
+    /** The requested BOX size, floored at the measured minimum 16. */
     private _size = DEFAULT_SPINNER_SIZE;
+    /** Whether the consumer wants it spinning, independent of whether it is mapped. */
+    private _spinning = true;
 
     constructor() {
         super();
 
         this.className = 'adw-spinner';
-        // Adwaita spinners spin as soon as they are shown.
-        this.busy = true;
+        this.addRow(new ItemSpec(1, 'star'));
+        this.addColumn(new ItemSpec(1, 'star'));
+
+        const indicator = new ActivityIndicator();
+        indicator.className = 'adw-spinner-ring';
+        indicator.horizontalAlignment = 'center';
+        indicator.verticalAlignment = 'center';
+        this._indicator = indicator;
+        this.addChild(indicator);
+
+        // `gtk_widget_class_set_accessible_role (…, PROGRESS_BAR)`
+        // (adw-spinner.c:124) plus `GTK_ACCESSIBLE_STATE_BUSY, TRUE` (:139-141).
+        // A repo-wide grep for either found ZERO hits across both ports before
+        // this, so screen readers announced nothing at all.
+        this.accessibilityRole = 'progressbar';
+        this.accessibilityState = 'busy';
+
+        // `widget_map_cb` (adw-spinner-paintable.c:181-185, :542-543) plays the
+        // animation on MAP and only then. This widget used to set `busy = true`
+        // in its constructor, so an off-screen spinner burned its animation for
+        // as long as it existed.
+        this.addEventListener('loaded', () => this._applySpinning());
+        this.addEventListener('unloaded', () => {
+            this._indicator.busy = false;
+        });
+
         this._applySize();
+        this._applySpinning();
     }
 
     private _applySize(): void {
+        // THE BOX: what was asked for.
         this.width = this._size;
         this.height = this._size;
+        // THE RING: capped at 64, centred by the grid.
+        const { diameter } = spinnerGeometry(this._size, this._size);
+        this._indicator.width = diameter;
+        this._indicator.height = diameter;
     }
 
-    /** Whether the spinner is animating. Two-way bound to the indicator's `busy`. */
+    private _applySpinning(): void {
+        // Off-device (`isLoaded` undefined in the mock view tree) the gate is
+        // inert, so a spec still sees the requested state rather than a widget
+        // that never maps.
+        const mapped = this.isLoaded !== false;
+        this._indicator.busy = this._spinning && mapped;
+    }
+
+    /** Whether the spinner is animating. Gated on being mapped, as in GTK. */
     get spinning(): boolean {
-        return this.busy;
+        return this._spinning;
     }
 
     set spinning(value: boolean) {
-        this.busy = !!value;
+        this._spinning = !!value;
+        this._applySpinning();
     }
 
     /**
-     * The spinner diameter in DIPs — the DRAWN one, so reading it back after
-     * `size = 200` reports 64 and after `size = 8` reports 16. Adwaita's ring is
-     * bounded on both ends, and a getter that echoed the request would be
-     * describing something that is not on screen.
+     * The BOX size in DIPs — what was requested, floored at the measured
+     * minimum 16 and NOT capped.
+     *
+     * Reading it back after `size = 200` reports 200, because that is what the
+     * widget occupies. {@link ringDiameter} is the drawn ring, which is where
+     * the 64 cap lives. The two used to be one number, so an oversized spinner
+     * silently took 64 DIPs of layout instead of the 200 it was given.
      */
     get size(): number {
         return this._size;
     }
 
     set size(value: number) {
-        this._size = spinnerDiameter(value);
+        this._size = resolveSpinnerSize(value);
         this._applySize();
+    }
+
+    /** The drawn ring diameter — `spinnerGeometry`, capped at 64. */
+    get ringDiameter(): number {
+        return spinnerGeometry(this._size, this._size).diameter;
     }
 }
