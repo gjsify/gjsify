@@ -112,10 +112,12 @@ export type { CarouselNotifyPayload, NsCarouselStateOptions } from './carousel-s
 // --- Navigation ---
 export { AdwNavigationView, NOTIFY_VISIBLE_PAGE } from './adw-navigation-view.js';
 export type { NotifyVisiblePageEventData } from './adw-navigation-view.js';
-export { AdwSplitViewBase, DEFAULT_SIDEBAR_WIDTH, NOTIFY_SHOW_SIDEBAR } from './split-view-base.js';
+export { AdwSplitViewBase, NOTIFY_SHOW_SIDEBAR } from './split-view-base.js';
 export type { NotifyShowSidebarEventData } from './split-view-base.js';
 export { AdwNavigationSplitView } from './adw-navigation-split-view.js';
 export { AdwOverlaySplitView } from './adw-overlay-split-view.js';
+export { NsNavigationSplitViewState, NsOverlaySplitViewState, splitViewColumns } from './split-view-state.js';
+export type { NsShowSidebarNotification, NsSplitViewHost, NsSplitViewState } from './split-view-state.js';
 export { AdwSidebar, NOTIFY_SELECTED as NOTIFY_SIDEBAR_SELECTED } from './adw-sidebar.js';
 export type { NotifySidebarSelectedEventData } from './adw-sidebar.js';
 export { AdwBottomSheet, CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE } from './adw-bottom-sheet.js';

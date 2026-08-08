@@ -353,28 +353,6 @@ class MockNavigationView {
     }
 }
 
-// Mirrors AdwSplitViewBase's show/collapse state + the don't-emit-on-no-change guard.
-class MockSplitView {
-    private _collapsed = false;
-    private _showSidebar = true;
-    notified: boolean[] = [];
-    get collapsed(): boolean {
-        return this._collapsed;
-    }
-    set collapsed(v: boolean) {
-        this._collapsed = !!v;
-    }
-    get showSidebar(): boolean {
-        return this._showSidebar;
-    }
-    set showSidebar(v: boolean) {
-        const next = !!v;
-        if (next === this._showSidebar) return;
-        this._showSidebar = next;
-        this.notified.push(next);
-    }
-}
-
 // A deterministic scheduler stand-in for the AdwToastQueue re-export smoke test —
 // the injected timing seam a renderer supplies (NS wraps `setTimeout`).
 class FakeToastScheduler implements ToastScheduler {
@@ -770,16 +748,10 @@ export default async () => {
         });
     });
 
-    await describe('AdwNavigationSplitView / AdwOverlaySplitView state (mock)', async () => {
-        await it('toggles showSidebar, emitting only on change', () => {
-            const sv = new MockSplitView();
-            sv.collapsed = true;
-            sv.showSidebar = false;
-            sv.showSidebar = false; // no change
-            sv.showSidebar = true;
-            expect(sv.notified).toStrictEqual([false, true]);
-        });
-    });
+    // The split-view state lives in `split-view-state.spec.ts`, against the real
+    // adapters the widgets run on. The `MockSplitView` that stood here
+    // reimplemented the two setters, so it could only confirm that it agreed with
+    // itself — and the widgets' four divergences from libadwaita went untested.
 
     await describe('AdwToggleGroup selection (core ToggleGroupState re-export)', async () => {
         // The selection/bounds/notify matrix is specced in @gjsify/adwaita-core;

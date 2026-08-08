@@ -86,10 +86,6 @@ export default async () => {
 
     await describe('sidebarWidthFor against the shared conformance vectors', async () => {
         for (const vector of SIDEBAR_WIDTH_VECTORS) {
-            // The collapsed rows are the overlay's own special case (it clamps
-            // the VIEW width rather than a fraction) and belong to the state
-            // machine, not to this width helper.
-            if (vector.collapsed) continue;
             // `sp`-at-another-dpi has no NativeScript surface — DIPs are the
             // unit here — so those rows stay in the core suite.
             if (vector.spec.sidebarWidthUnit !== undefined || vector.spec.dpi !== undefined) continue;
@@ -99,16 +95,47 @@ export default async () => {
                 maxSidebarWidth: vector.spec.maxSidebarWidth ?? DEFAULT_MAX_SIDEBAR_WIDTH,
                 sidebarWidthFraction: vector.spec.sidebarWidthFraction ?? DEFAULT_SIDEBAR_WIDTH_FRACTION,
             };
+            const mode = vector.collapsed ? 'collapsed' : 'uncollapsed';
 
-            await it(`${vector.widget} ${vector.totalWidth} DIP → ${vector.width} — ${vector.rule}`, () => {
+            await it(`${vector.widget} ${mode} ${vector.totalWidth} DIP → ${vector.width} — ${vector.rule}`, () => {
                 expect(
                     sidebarWidthFor(vector.totalWidth, props, vector.widget, {
                         contentMin: vector.contentMin,
                         sidebarChildMin: vector.sidebarChildMin,
+                        collapsed: vector.collapsed,
                     }),
                 ).toBe(vector.width);
             });
         }
+    });
+
+    await describe('the collapsed overlay ignores the fraction (get_sidebar_width :462-463)', async () => {
+        await it('draws 280 on a 360 DIP phone where the fraction would give 180', () => {
+            // The divergence this parameter closes: COLLAPSED, libadwaita clamps
+            // the VIEW width instead of a share of it, so the overlay keeps its
+            // natural size on a phone. Without the flag NativeScript drew 180
+            // where GTK draws 280 — the whole point of an overlay is that it is
+            // not a quarter of the screen.
+            const props = defaultSidebarWidthProps();
+            expect(sidebarWidthFor(360, props, 'overlay', { collapsed: true })).toBe(280);
+            expect(sidebarWidthFor(360, props, 'overlay', { collapsed: false })).toBe(180);
+        });
+
+        await it('may end up WIDER than a very narrow view', () => {
+            const props = defaultSidebarWidthProps();
+            expect(sidebarWidthFor(150, props, 'overlay', { collapsed: true })).toBe(180);
+        });
+
+        await it('leaves the navigation rule alone — its collapsed pane takes no derived width', () => {
+            // `appliesDerivedSidebarWidth` already stops the write, so the flag
+            // must not quietly change the number the navigation rule computes.
+            const props = defaultSidebarWidthProps();
+            for (const width of [150, 360, 800, 1200]) {
+                expect(sidebarWidthFor(width, props, 'navigation', { collapsed: true })).toBe(
+                    sidebarWidthFor(width, props, 'navigation', { collapsed: false }),
+                );
+            }
+        });
     });
 
     await describe('the two widgets differ once a pane has a minimum', async () => {

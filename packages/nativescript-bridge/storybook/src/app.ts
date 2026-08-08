@@ -3,8 +3,10 @@
 // panel (the live-bound Adwaita rows for the selected story). The NS counterpart
 // of @gjsify/adwaita-storybook's StorybookWebApp and @gjsify/storybook's
 // StorybookWindow, built from REAL @gjsify/adwaita-nativescript widgets so it
-// looks + behaves like the native GTK / browser storybooks (screenshot-comparable
-// 1:1).
+// looks + behaves like the native GTK / browser storybooks. Nothing compares the
+// three renderers' rendered OUTPUT — a screenshot harness is NOT implemented
+// (#1052); their behaviour is held by the @gjsify/adwaita-core/conformance
+// vectors both renderer suites assert against.
 //
 // The app state machine (register/instantiate, category grouping, show + wire
 // controls, the MCP control surface) lives in @gjsify/storybook-core's
@@ -153,21 +155,17 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         if (collapsed === this._collapsed && this.root.collapsed === collapsed) return;
         this._collapsed = collapsed;
         this.root.collapsed = collapsed;
+        // Collapsing hides the controls overlay and uncollapsing brings it back —
+        // `Adw.OverlaySplitView`'s own unpinned collapse coupling
+        // (adw-overlay-split-view.c:1457-1458). This app used to hand-roll it with a
+        // show/hide call beside every `collapsed` assignment, because the widget did
+        // not have it.
         this._controlsSplit.collapsed = collapsed;
-        if (collapsed) {
-            // Phone: show the master list, hide the controls overlay. The back
-            // button lives in the detail header, so it only actually shows once the
-            // user navigates into the detail pane (the master view hides that pane).
-            this.root.showSidebarPane();
-            this._controlsSplit.hideSidebarPane();
-            this._backButton.visibility = 'visible';
-        } else {
-            // Wide: sidebar + preview + controls all visible, and no back button
-            // (there is nothing to navigate back from — the sidebar is always up).
-            this.root.showSidebarPane();
-            this._controlsSplit.showSidebarPane();
-            this._backButton.visibility = 'collapse';
-        }
+        // Either way, start on the master list. The back button only makes sense on
+        // the phone layout — it lives in the detail header, so it shows once the user
+        // navigates into the detail pane; wide, there is nothing to navigate back from.
+        this.root.showSidebarPane();
+        this._backButton.visibility = collapsed ? 'visible' : 'collapse';
     }
 
     // --- control surface (delegates to the controller; driven by the host
@@ -381,10 +379,9 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         controlsScroll.className = 'sb-controls-scroll';
         controlsScroll.content = this._controlsGroup;
         this._controlsSplit.setSidebar(controlsScroll);
-        // Phone: controls start hidden (full-width preview), revealed by the toggle —
-        // the collapsed OverlaySplitView. Wide: controls are a permanent right pane.
-        if (this._collapsed) this._controlsSplit.hideSidebarPane();
-        else this._controlsSplit.showSidebarPane();
+        // No show/hide call here either: `collapsed = true` above already left the
+        // controls hidden (phone — full-width preview, revealed by the toggle) and
+        // `collapsed = false` left them up as a permanent right pane.
 
         detail.setContent(this._controlsSplit);
         this.root.setContent(detail);

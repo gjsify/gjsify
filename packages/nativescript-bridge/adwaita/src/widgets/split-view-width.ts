@@ -53,12 +53,19 @@ export function defaultSidebarWidthProps(): SidebarWidthProps {
 /** Which split view is asking — the two answer the same input differently. */
 export type SplitViewWidthRule = 'navigation' | 'overlay';
 
-/** The pane minimums, when the renderer knows them. */
-export interface SidebarPaneMinimums {
+/** What the renderer knows about the layout the width is being derived for. */
+export interface SplitViewWidthContext {
     /** The content pane's own minimum width. */
     contentMin?: number;
     /** The sidebar child's own minimum width. */
     sidebarChildMin?: number;
+    /**
+     * Whether the view is collapsed. Overlay only, and not a detail: COLLAPSED
+     * `get_sidebar_width` IGNORES the fraction and clamps the VIEW width instead
+     * (adw-overlay-split-view.c:462-463), so on a 360 DIP phone GTK draws 280
+     * where a fraction would give 180.
+     */
+    collapsed?: boolean;
 }
 
 /**
@@ -71,6 +78,10 @@ export interface SidebarPaneMinimums {
  * container with no content minimum at all already splits them: navigation
  * answers 180 (its minimum), overlay answers 100 (all there is).
  *
+ * `collapsed` only reaches the overlay rule, because only the overlay has a
+ * collapsed sidebar to size — a collapsed NAVIGATION pane fills the view and
+ * takes no derived width at all ({@link appliesDerivedSidebarWidth}).
+ *
  * `totalWidth <= 0` means the view has not been laid out yet — NativeScript
  * reports a zero size before the first pass — so the MINIMUM is returned rather
  * than a fraction of nothing. That is the smallest thing libadwaita would ever
@@ -80,7 +91,7 @@ export function sidebarWidthFor(
     totalWidth: number,
     props: SidebarWidthProps,
     rule: SplitViewWidthRule = 'overlay',
-    panes: SidebarPaneMinimums = {},
+    context: SplitViewWidthContext = {},
 ): number {
     if (!(totalWidth > 0)) return Math.max(props.minSidebarWidth, 0);
     const input = {
@@ -88,10 +99,11 @@ export function sidebarWidthFor(
         minSidebarWidth: props.minSidebarWidth,
         maxSidebarWidth: props.maxSidebarWidth,
         sidebarWidthFraction: props.sidebarWidthFraction,
-        contentMin: panes.contentMin ?? 0,
-        sidebarChildMin: panes.sidebarChildMin ?? 0,
+        contentMin: context.contentMin ?? 0,
+        sidebarChildMin: context.sidebarChildMin ?? 0,
     };
-    return rule === 'navigation' ? resolveNavigationSidebarWidth(input) : resolveOverlaySidebarWidth(input);
+    if (rule === 'navigation') return resolveNavigationSidebarWidth(input);
+    return resolveOverlaySidebarWidth({ ...input, collapsed: context.collapsed ?? false });
 }
 
 /**
