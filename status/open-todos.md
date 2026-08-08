@@ -4,6 +4,31 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `@gjsify/sqlite` reads three value shapes back wrong
+
+Found while adding the parameter-binding regression suite; all three are in the READ
+path (`data-model-reader.ts` / libgda's data model), none of them in what gets bound, so
+they were deliberately left out of the binding fix rather than bundled into it.
+
+1. **An integral REAL past 2^53 throws instead of reading.** `convertValue()` treats any
+   integral JS number over `Number.MAX_SAFE_INTEGER` as an out-of-range INTEGER and raises
+   `OutOfRangeError`, but a SQLite REAL that happens to be integral — `1e21` — is not one.
+   Telling them apart needs the column's storage class, which the reader never consults.
+   Declared as `it.failing` in `param-binding.spec.ts`, so it retires itself when fixed.
+   Node returns `1e21` here.
+
+2. **A typeless column holding mixed types reads back as strings.** libgda types a data
+   model column ONCE, so a column holding `'text'`, `42.0` and `NULL` comes back with the
+   number as the string `"42.0"`. Node reads each value with its own storage class. The
+   affected spec asserts `typeof(a)` per row instead, which is a homogeneous text column
+   and therefore reads the same on both runtimes.
+
+3. **`CAST(x AS TEXT)` yields an unconverted `Gda.Text` boxed value.** `convertValue()`
+   has no branch for it, so it falls through and the caller gets `{}` instead of a string.
+
+None of the three is reachable from `postbote`'s index today, which is why the binding fix
+did not wait for them.
+
 ### `foreach build` can read a workspace package's `lib/` while another job is writing it
 
 The parallel sweep rebuilds packages that the RUNNING CLI imports at runtime, so
