@@ -67,6 +67,9 @@ declare module '@nativescript/core' {
         /** Whether the view is currently loaded / attached to the visual tree.
          *  Off-screen (pre-load) transitions skip animation. */
         readonly isLoaded: boolean;
+        /** The view this one is mounted in, or `null` at the root — the walk a
+         *  nested widget offers an unhandled action up. */
+        readonly parent: View | null;
         /** Accessibility role announced to the platform screen reader —
          *  NS's counterpart to `gtk_widget_class_set_accessible_role`. */
         accessibilityRole: string;

@@ -13,7 +13,11 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS, NAVIGATION_STACK_VECTORS } from '@gjsify/adwaita-core/conformance';
+import {
+    NAVIGATION_ACTION_VECTORS,
+    NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS,
+    NAVIGATION_STACK_VECTORS,
+} from '@gjsify/adwaita-core/conformance';
 import { OVERLAY_COLLAPSE_VECTORS } from '@gjsify/adwaita-core/conformance';
 import type { OverlaySplitViewSnapshot } from '@gjsify/adwaita-core/conformance';
 
@@ -398,6 +402,75 @@ export default async () => {
             expect(state.setPaneMounted('sidebar', true)).toBe(false);
             expect(state.setPaneMounted('content', true)).toBe(false);
             expect(host.calls).toStrictEqual([]);
+        });
+    });
+
+    await describe('NsNavigationSplitViewState tags + navigation.* actions', async () => {
+        // The class carried a note saying tags and the actions were "NOT wired on
+        // NativeScript", so NAVIGATION_ACTION_VECTORS had no consumer on this
+        // side and NAVIGATION_SPLIT_VIEW_CRITICALS none at all. They are wired
+        // through an explicit setTag rather than a `tag` read off a pane View —
+        // a View is not an Adw.NavigationPage.
+        for (const vector of NAVIGATION_ACTION_VECTORS) {
+            const label =
+                vector.action === 'push'
+                    ? `push "${vector.tag}" (sidebar=${vector.sidebarTag ?? 'none'}, content=${vector.contentTag ?? 'none'})`
+                    : `pop (sidebar=${vector.hasSidebar}, content=${vector.hasContent})`;
+            await it(`${label} → ${vector.result.kind} — ${vector.rule}`, () => {
+                const state = new NsNavigationSplitViewState({
+                    collapsed: vector.collapsed,
+                    showContent: vector.showContent,
+                    // `delegate` is the ROUTING's answer; whether it survives
+                    // depends on the ancestor. An ancestor that claims the tag is
+                    // the case the table describes — the unclaimed one becomes a
+                    // critical, which is the state's own step.
+                    onDelegate: () => true,
+                });
+                if (vector.action === 'pop') {
+                    state.setPaneMounted('sidebar', vector.hasSidebar ?? false);
+                    state.setPaneMounted('content', vector.hasContent ?? false);
+                    expect(state.pop().kind).toBe(vector.result.kind);
+                    return;
+                }
+                state.setPaneMounted('sidebar', true);
+                state.setPaneMounted('content', true);
+                // A colliding pair is refused by setTag, so the second tag is the
+                // one that does not stick — which is exactly why the shared-tag
+                // rows describe a state a real widget cannot reach.
+                const sidebarStuck = state.setTag('sidebar', vector.sidebarTag ?? null);
+                const contentStuck = state.setTag('content', vector.contentTag ?? null);
+                if (!sidebarStuck || !contentStuck) {
+                    expect(vector.sidebarTag).toBe(vector.contentTag);
+                    return;
+                }
+                expect(state.push(vector.tag as string).kind).toBe(vector.result.kind);
+            });
+        }
+
+        await it('REFUSES a colliding retag and clears it, keeping the pane', () => {
+            // `check_tags_cb` (:431-460) — a different failure from mounting a
+            // colliding page, which is refused outright (:1195-1201).
+            const state = new NsNavigationSplitViewState();
+            state.setPaneMounted('sidebar', true);
+            state.setPaneMounted('content', true);
+            expect(state.setTag('sidebar', 'same')).toBe(true);
+            expect(state.setTag('content', 'same')).toBe(false);
+            expect(state.sidebarTag).toBe('same');
+            expect(state.contentTag).toBe(null);
+        });
+
+        await it('a push that lands flips show-content, which the widget renders', () => {
+            const { state, host } = record(new NsNavigationSplitViewState({ collapsed: true }));
+            state.setPaneMounted('sidebar', true);
+            state.setPaneMounted('content', true);
+            state.setTag('sidebar', 'list');
+            state.setTag('content', 'detail');
+            host.calls.length = 0;
+            expect(state.push('detail').kind).toBe('set-show-content');
+            expect(state.showContent).toBe(true);
+            // The layout has to have been asked to re-run, or the pane swap is a
+            // property change nobody drew.
+            expect(host.calls.length).toBeGreaterThan(0);
         });
     });
 };
