@@ -22,6 +22,7 @@
 import { type Cancelable, type EventData, GridLayout, ItemSpec, type View } from '@nativescript/core';
 
 import {
+    appliesDerivedSidebarWidth,
     defaultSidebarWidthProps,
     normalizeWidthFraction,
     normalizeWidthProp,
@@ -269,7 +270,13 @@ export abstract class AdwSplitViewBase extends GridLayout {
     protected _applySidebarWidth(): void {
         const size = this.getActualSize?.();
         if (size && size.width > 0) this._measuredWidth = size.width;
-        if (this._sidebar) this._sidebar.width = this.sidebarWidth;
+        if (!this._sidebar) return;
+        // The rule lives in the pure sibling so a spec can pin it: this class
+        // `extends GridLayout`, so no test can import it. Writing the derived
+        // width unconditionally undid the collapsed pane's `'auto'` ONE FRAME
+        // LATER, and nothing was positioned to notice.
+        if (!appliesDerivedSidebarWidth(this._collapsed, this._widthRule)) return;
+        this._sidebar.width = this.sidebarWidth;
     }
 
     /** Which side the sidebar sits on — `'start'` (leading / left) or `'end'`

@@ -95,6 +95,26 @@ export function sidebarWidthFor(
 }
 
 /**
+ * Whether the sidebar pane takes a DERIVED width at all, or sizes itself.
+ *
+ * Only one case says no, and it is the one that cost a frame-late regression:
+ * a COLLAPSED navigation split view has no sidebar column. Its visible page
+ * fills the whole view (`gtk_bin_layout_new`,
+ * adw-navigation-split-view.c:538), which NativeScript expresses as
+ * `width = 'auto'` spanning both columns — so writing a number over it, as the
+ * post-layout re-measure did, snapped the full-screen pane back to 180-280 DIP
+ * one frame after the collapse.
+ *
+ * The overlay is deliberately NOT exempt. Its collapsed sidebar really is a
+ * clamped-width overlay drawn above the content
+ * (adw-overlay-split-view.c:462-463), so it still wants a number — a shared
+ * "collapsed means auto" rule would have been wrong for half the callers.
+ */
+export function appliesDerivedSidebarWidth(collapsed: boolean, rule: SplitViewWidthRule): boolean {
+    return !(collapsed && rule === 'navigation');
+}
+
+/**
  * Normalise one width property, keeping a nonsense value from reaching layout.
  *
  * A non-finite or negative input falls back to the default rather than to zero:

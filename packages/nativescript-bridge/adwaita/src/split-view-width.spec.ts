@@ -10,6 +10,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { SIDEBAR_WIDTH_VECTORS } from '@gjsify/adwaita-core/conformance';
 
 import {
+    appliesDerivedSidebarWidth,
     DEFAULT_MAX_SIDEBAR_WIDTH,
     DEFAULT_MIN_SIDEBAR_WIDTH,
     DEFAULT_SIDEBAR_WIDTH_FRACTION,
@@ -124,6 +125,32 @@ export default async () => {
             for (const width of [360, 411, 800, 1000, 1200]) {
                 expect(sidebarWidthFor(width, props, 'navigation')).toBe(sidebarWidthFor(width, props, 'overlay'));
             }
+        });
+    });
+
+    await describe('appliesDerivedSidebarWidth (the collapsed navigation exemption)', async () => {
+        await it('stops the post-layout re-measure overwriting a full-screen pane', () => {
+            // The regression this exists for: `_applySidebarWidth` is bound to
+            // `layoutChanged`, which fires AFTER a collapse. The collapsed
+            // navigation split view had just set its pane to `'auto'` spanning
+            // both columns (adw-navigation-split-view.c:538 — the visible page
+            // fills the view), and the re-measure wrote 180-280 DIP over it one
+            // frame later. Nothing failed, because no vector said a collapsed
+            // pane is full-width.
+            expect(appliesDerivedSidebarWidth(true, 'navigation')).toBe(false);
+        });
+
+        await it('still sizes a collapsed OVERLAY sidebar', () => {
+            // Not the same case, and a shared "collapsed means auto" rule would
+            // have been wrong here: the overlay's collapsed sidebar really is a
+            // clamped-width pane drawn above the content
+            // (adw-overlay-split-view.c:462-463).
+            expect(appliesDerivedSidebarWidth(true, 'overlay')).toBe(true);
+        });
+
+        await it('derives the width for both widgets while uncollapsed', () => {
+            expect(appliesDerivedSidebarWidth(false, 'navigation')).toBe(true);
+            expect(appliesDerivedSidebarWidth(false, 'overlay')).toBe(true);
         });
     });
 
