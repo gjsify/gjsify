@@ -1,5 +1,16 @@
 // _navigation_split_view.scss — adw-navigation-split-view styling (docked sidebar).
+//
+// Visibility is `data-pane-visible`, written by the element from
+// `update_navigation_stack` (adw-navigation-split-view.c:342-405), not from the
+// two flags. Two of that table's rules are not expressible as
+// `.collapsed.show-content`: a LONE child stays visible whatever `show-content`
+// says (:389-401), and with `sidebar-position: end` the CONTENT is the root page
+// so the sidebar is pushed ON TOP of it rather than replacing it. This file used
+// to key off the flags and got both wrong — a collapsed view with only a sidebar
+// rendered blank.
+//
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/navigationsplitview.md
+// Reference: refs/libadwaita/src/adw-navigation-split-view.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
@@ -16,33 +27,61 @@ adw-navigation-split-view {
     flex-direction: column;
     min-height: 0;
     flex-shrink: 0;
-    border-right: 1px solid var(--separator-color);
     background-color: var(--sidebar-bg-color);
   }
 
+  // The container MINIMUM, as CSS spells it: `measure_uncollapsed`
+  // (adw-navigation-split-view.c:264-267) is `sidebar_min + content_min`, which
+  // a flex row reaches by itself once the content may claim its own minimum.
+  // `min-width: 0` — the flex idiom for "let this be crushed" — was here, which
+  // is how the content pane could be squeezed to nothing while the sidebar,
+  // being `flex-shrink: 0`, kept its whole width.
   .adw-nsv-content {
     display: flex;
     flex-direction: column;
-    min-width: 0;
+    min-width: min-content;
     min-height: 0;
     flex: 1 1 auto;
     background-color: var(--window-bg-color);
   }
 
-  // Collapsed (narrow): one pane at a time.
-  &.collapsed.show-content .adw-nsv-sidebar {
-    display: none;
-  }
-
-  &.collapsed:not(.show-content) {
+  // `sidebar-position: end` docks the sidebar past the content. flex `order`
+  // flips the visual order without changing the slotting DOM order.
+  &.sidebar-end {
     .adw-nsv-content {
-      display: none;
+      order: 1;
     }
 
     .adw-nsv-sidebar {
+      order: 2;
+    }
+  }
+
+  // THE DIVIDER FOLLOWS THE VISUAL SIDE. `_sidebars.scss:1293-1302` makes it
+  // `:dir()` × `.end`, which is the product `.sidebar-at-visual-start` carries:
+  // under RTL a `start` sidebar is drawn on the right and its divider belongs on
+  // its left edge. A fixed `border-right` drew it on the wrong side for half the
+  // four combinations.
+  &.sidebar-at-visual-start .adw-nsv-sidebar {
+    border-right: 1px solid var(--separator-color);
+  }
+
+  &:not(.sidebar-at-visual-start) .adw-nsv-sidebar {
+    border-left: 1px solid var(--separator-color);
+  }
+
+  // Collapsed: whichever pane the STACK puts on top fills the view, and the
+  // other is not rendered at all.
+  &.collapsed {
+    [data-pane-visible='false'] {
+      display: none;
+    }
+
+    .adw-nsv-sidebar[data-pane-visible='true'] {
       flex: 1 1 auto;
       max-width: none;
       border-right: none;
+      border-left: none;
     }
   }
 }

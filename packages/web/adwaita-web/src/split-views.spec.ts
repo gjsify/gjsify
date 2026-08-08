@@ -19,6 +19,8 @@ import {
     OVERLAY_SWIPE_RELEASE_VECTORS,
     OVERLAY_SWIPE_SNAP_POINT_VECTORS,
     OVERLAY_SWIPE_START_VECTORS,
+    NAVIGATION_ACTION_VECTORS,
+    NAVIGATION_STACK_VECTORS,
     SIDEBAR_BOUNDS_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 
@@ -572,6 +574,190 @@ export const AdwSplitViewsTest = async () => {
             // OUTCOME, not the rule. The core suite drives every row.
             expect(OVERLAY_SWIPE_CANCEL_VECTORS.length).toBeGreaterThan(0);
             expect(OVERLAY_SWIPE_START_VECTORS.length).toBeGreaterThan(0);
+        });
+    });
+
+    await describe('<adw-navigation-split-view> stack, tags and navigation.* actions', async () => {
+        /** Mount a navigation split view with the given panes and attributes. */
+        function mountNav(attrs = '', panes = { sidebar: true, content: true, sidebarTag: '', contentTag: '' }) {
+            const host = document.createElement('div');
+            host.style.width = '800px';
+            host.style.height = '400px';
+            document.body.appendChild(host);
+            const sidebar = panes.sidebar
+                ? `<div slot="sidebar"${panes.sidebarTag ? ` tag="${panes.sidebarTag}"` : ''}>s</div>`
+                : '';
+            const content = panes.content
+                ? `<div slot="content"${panes.contentTag ? ` tag="${panes.contentTag}"` : ''}>c</div>`
+                : '';
+            host.innerHTML = `<adw-navigation-split-view ${attrs}>${sidebar}${content}</adw-navigation-split-view>`;
+            return {
+                view: host.querySelector('adw-navigation-split-view') as AdwNavigationSplitView,
+                host,
+            };
+        }
+
+        /** Which pane the element says is on top, read off the DOM. */
+        const visiblePane = (view: AdwNavigationSplitView) => {
+            const sidebar = view.querySelector('.adw-nsv-sidebar') as HTMLElement;
+            const content = view.querySelector('.adw-nsv-content') as HTMLElement;
+            return {
+                sidebar: sidebar?.dataset.paneVisible === 'true',
+                content: content?.dataset.paneVisible === 'true',
+            };
+        };
+
+        for (const vector of NAVIGATION_STACK_VECTORS) {
+            // Only the STATIC rows: the animated branch reaches the same stack by
+            // a push or a pop, and a DOM renderer that has no transition cannot
+            // tell them apart. The core suite drives the direction.
+            if (vector.changingPage) continue;
+            const label =
+                `${vector.hasSidebar ? 'sidebar' : '-'}/${vector.hasContent ? 'content' : '-'} ` +
+                `${vector.sidebarPosition} show-content=${vector.showContent}`;
+            await it(`${label} → [${vector.plan.stack.join(', ')}] — ${vector.rule}`, async () => {
+                const attrs =
+                    'collapsed ' +
+                    (vector.showContent ? 'show-content ' : '') +
+                    (vector.sidebarPosition === 'end' ? 'sidebar-position="end"' : '');
+                const { view, host } = mountNav(attrs, {
+                    sidebar: vector.hasSidebar,
+                    content: vector.hasContent,
+                    sidebarTag: '',
+                    contentTag: '',
+                });
+                await settle();
+                const top = vector.plan.stack[vector.plan.stack.length - 1] ?? null;
+                const panes = visiblePane(view);
+                // A LONE child stays visible whatever `show-content` says — the
+                // rule two CSS classes could not express, and the reason a
+                // collapsed sidebar-only view used to render blank.
+                if (vector.hasSidebar) expect(panes.sidebar).toBe(top === 'sidebar');
+                if (vector.hasContent) expect(panes.content).toBe(top === 'content');
+                host.remove();
+            });
+        }
+
+        for (const vector of NAVIGATION_ACTION_VECTORS) {
+            const label =
+                vector.action === 'push'
+                    ? `push "${vector.tag}" (sidebar=${vector.sidebarTag ?? 'none'}, content=${vector.contentTag ?? 'none'})`
+                    : `pop (sidebar=${vector.hasSidebar}, content=${vector.hasContent})`;
+            // A row whose two panes carry the SAME tag describes a state the
+            // duplicate-tag guard makes unreachable through a real widget: the
+            // second assignment is refused (:1195-1201), so the element can never
+            // hold both. Asserted below instead of driven here.
+            const collides =
+                vector.action === 'push' && vector.sidebarTag != null && vector.sidebarTag === vector.contentTag;
+            if (collides) continue;
+
+            await it(`${label} → ${vector.result.kind} — ${vector.rule}`, async () => {
+                const attrs = (vector.collapsed ? 'collapsed ' : '') + (vector.showContent ? 'show-content' : '');
+                const { view, host } = mountNav(attrs, {
+                    sidebar: vector.action === 'pop' ? (vector.hasSidebar ?? false) : true,
+                    content: vector.action === 'pop' ? (vector.hasContent ?? false) : true,
+                    sidebarTag: vector.sidebarTag ?? '',
+                    contentTag: vector.contentTag ?? '',
+                });
+                // `delegate` is the ROUTING's answer; whether it survives depends
+                // on the ancestor. An ancestor that claims the tag is the case the
+                // table describes — the unclaimed one becomes a critical, which
+                // is the state's own step and has its own test below.
+                host.addEventListener('navigation-push', (event) => {
+                    (event as CustomEvent<{ handled: boolean }>).detail.handled = true;
+                });
+                host.addEventListener('navigation-pop', (event) => {
+                    (event as CustomEvent<{ handled: boolean }>).detail.handled = true;
+                });
+                await settle();
+                const result = vector.action === 'push' ? view.push(vector.tag as string) : view.pop();
+                expect(result.kind).toBe(vector.result.kind);
+                if (result.kind === 'set-show-content' && vector.result.kind === 'set-show-content') {
+                    expect(view.showContent).toBe(vector.result.showContent);
+                    // The DOM has to agree, or a consumer reading the attribute
+                    // back after a push sees the pre-push answer.
+                    expect(view.hasAttribute('show-content')).toBe(vector.result.showContent);
+                }
+                host.remove();
+            });
+        }
+
+        await it('leaves out only the rows the tag guard makes unreachable', () => {
+            const collidingRows = NAVIGATION_ACTION_VECTORS.filter(
+                (v) => v.action === 'push' && v.sidebarTag != null && v.sidebarTag === v.contentTag,
+            );
+            // Exactly the shared-tag pushes. Their `rule` even says so — the C's
+            // routing tests the content tag first, which only matters in a
+            // collision the setters refuse to create.
+            expect(collidingRows.length).toBeGreaterThan(0);
+            for (const row of collidingRows) expect(row.contentTag).toBe(row.sidebarTag);
+        });
+
+        await it('an UNCLAIMED push becomes a critical, not a silent no-op', async () => {
+            // `navigation_push_cb` :683 — the parent gets first refusal, and only
+            // then is it an error. A pop walks off the end silently instead.
+            const { view, host } = mountNav('collapsed', {
+                sidebar: true,
+                content: true,
+                sidebarTag: 'list',
+                contentTag: 'detail',
+            });
+            await settle();
+            const pushed = view.push('nowhere');
+            expect(pushed.kind).toBe('not-found');
+            expect(view.showContent).toBe(false);
+            host.remove();
+        });
+
+        await it('delegates an unmatched push to an ancestor, which is how nesting forwards it', async () => {
+            const { view, host } = mountNav('collapsed', {
+                sidebar: true,
+                content: true,
+                sidebarTag: 'list',
+                contentTag: 'detail',
+            });
+            await settle();
+            const seen: string[] = [];
+            host.addEventListener('navigation-push', (event) => {
+                const detail = (event as CustomEvent<{ tag?: string; handled: boolean }>).detail;
+                seen.push(detail.tag ?? '');
+                // An ancestor that OWNS the tag says so, and the critical is
+                // never reached — `return TRUE` in the C's routing.
+                detail.handled = true;
+            });
+            const result = view.push('somewhere-else');
+            expect(seen).toStrictEqual(['somewhere-else']);
+            expect(result.kind).toBe('delegate');
+            host.remove();
+        });
+
+        await it('REFUSES a pane whose tag the other one already carries', async () => {
+            // `adw_navigation_split_view_set_content` :1195-1201 — the pane keeps
+            // what it had; the assignment does not happen. Neither port had a
+            // duplicate-tag guard at all.
+            const { view, host } = mountNav('', {
+                sidebar: true,
+                content: true,
+                sidebarTag: 'same',
+                contentTag: 'same',
+            });
+            await settle();
+            expect(view.sidebarTag).toBe('same');
+            // The content was refused, so it carries no tag of record.
+            expect(view.contentTag).toBe(null);
+            host.remove();
+        });
+
+        await it('puts the divider on the side the sidebar is DRAWN on', async () => {
+            const start = mountNav();
+            await settle();
+            expect(start.view.classList.contains('sidebar-at-visual-start')).toBe(true);
+            start.host.remove();
+
+            const end = mountNav('sidebar-position="end"');
+            await settle();
+            expect(end.view.classList.contains('sidebar-at-visual-start')).toBe(false);
+            end.host.remove();
         });
     });
 };
