@@ -473,20 +473,23 @@ export type {
 export { POPOVER_KEY_VECTORS, POPOVER_SURFACE_VECTORS } from './popover.js';
 export type { PopoverKeyVector, PopoverSurfaceVariant, PopoverSurfaceVector } from './popover.js';
 
-// --- Wrap box line layout + spacing (Adw.WrapBox) vectors ---
+// --- Wrap box line layout, properties + child order (Adw.WrapBox) vectors ---
 export {
-    ADW_WRAP_BOX_DEFAULT_ALIGN,
-    ADW_WRAP_BOX_DEFAULT_JUSTIFY,
-    ADW_WRAP_BOX_DEFAULT_JUSTIFY_LAST_LINE,
-    ADW_WRAP_BOX_DEFAULT_SPACING,
+    WRAP_BOX_CHILD_ORDER_VECTORS,
+    WRAP_BOX_LENGTH_VECTORS,
     WRAP_BOX_LINE_VECTORS,
+    WRAP_BOX_NATURAL_LENGTH_VECTORS,
+    WRAP_BOX_NOTIFY_PROPERTIES,
+    WRAP_BOX_POLICY_VECTORS,
     WRAP_BOX_SPACING_NOTIFY_VECTORS,
     WRAP_BOX_SPACING_VECTORS,
 } from './wrap-box.js';
 export type {
-    WrapBoxJustify,
-    WrapBoxLineLayout,
+    WrapBoxChildOrderVector,
+    WrapBoxLengthVector,
     WrapBoxLineVector,
+    WrapBoxNaturalLengthVector,
+    WrapBoxPolicyVector,
     WrapBoxSpacingNotifyVector,
     WrapBoxSpacingVector,
 } from './wrap-box.js';

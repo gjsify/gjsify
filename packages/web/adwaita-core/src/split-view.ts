@@ -32,20 +32,15 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { glibClamp } from './glib.js';
+import { type AdwLengthUnit, adwLengthToPx, DEFAULT_DPI } from './length-unit.js';
 
 // --- Units, direction, packing ---
-
-/** `AdwLengthUnit` — the unit min/max sidebar widths are written in. */
-export type AdwLengthUnit = 'px' | 'pt' | 'sp';
 
 /** `GtkPackType` — which side of the view a pane is packed on. */
 export type AdwPackType = 'start' | 'end';
 
 /** `GtkTextDirection` — the reading direction `start`/`end` are resolved against. */
 export type AdwTextDirection = 'ltr' | 'rtl';
-
-/** The dpi `adw_length_unit_to_px` falls back to when `gtk-xft-dpi` is unset. */
-export const DEFAULT_DPI = 96;
 
 /** `min-sidebar-width` default, in {@link DEFAULT_SIDEBAR_WIDTH_UNIT}. */
 export const DEFAULT_MIN_SIDEBAR_WIDTH = 180;
@@ -61,24 +56,6 @@ export const DEFAULT_SIDEBAR_WIDTH_UNIT: AdwLengthUnit = 'sp';
 
 /** The minimum grabbable edge width for the reveal gesture — `ADW_SWIPE_BORDER`. */
 export const ADW_SWIPE_BORDER = 32;
-
-/**
- * `adw_length_unit_to_px` (adw-length-unit.c:57-82) — convert `value` to pixels.
- *
- * `pt` and `sp` both scale with the text-scale factor, which GTK reads from
- * `gtk-xft-dpi`; a renderer that has no such setting passes the default 96, where
- * `sp` is a pixel passthrough and `pt` is the familiar 4/3 ratio.
- */
-export function adwLengthToPx(unit: AdwLengthUnit, value: number, dpi: number = DEFAULT_DPI): number {
-    switch (unit) {
-        case 'pt':
-            return (value * dpi) / 72;
-        case 'sp':
-            return (value * dpi) / 96;
-        default:
-            return value;
-    }
-}
 
 /**
  * GLib's `CLAMP` (gmacros.h) — `x > high ? high : x < low ? low : x`.

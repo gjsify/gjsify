@@ -18,8 +18,8 @@
 // Reference: refs/libadwaita/src/adw-length-unit.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import type { AdwLengthUnit } from '../length-unit.js';
 import type {
-    AdwLengthUnit,
     AdwPackType,
     AdwTextDirection,
     NavigationActionResult,

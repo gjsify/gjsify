@@ -32,6 +32,7 @@ import bannerTestSuite from './banner.spec.js';
 import buttonContentTestSuite from './button-content.spec.js';
 import aboutDialogTestSuite from './about-dialog.spec.js';
 import checksTestSuite from './checks.spec.js';
+import wrapBoxTestSuite from './wrap-box.spec.js';
 
 run({
     aboutDialogTestSuite,
@@ -58,4 +59,5 @@ run({
     preferencesTestSuite,
     chromeTestSuite,
     dataGridTestSuite,
+    wrapBoxTestSuite,
 });
