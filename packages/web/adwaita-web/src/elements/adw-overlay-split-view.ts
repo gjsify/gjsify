@@ -1,12 +1,20 @@
 // <adw-overlay-split-view> — Responsive sidebar that docks or overlays content.
 // Reference: Adw.OverlaySplitView from libadwaita.
 // Docs: refs/adwaita-web/adwaita-web/docs/widgets/overlaysplitview.md
+//
+// `breakpoint` takes an Adwaita condition (e.g. "max-width: 720px") and drives
+// `collapsed` from the element's own box — the browser counterpart to an
+// Adw.Breakpoint with an add_setter(), so the sidebar overlays on narrow widths
+// without the application wiring a media query itself.
+
+import { bindBreakpointSetter } from '../breakpoints.js';
 
 export class AdwOverlaySplitView extends HTMLElement {
     private _initialized = false;
     private _sidebarEl!: HTMLDivElement;
     private _contentEl!: HTMLDivElement;
     private _backdropEl!: HTMLDivElement;
+    private _disposeBreakpoint: (() => void) | undefined;
 
     static get observedAttributes() {
         return [
@@ -16,6 +24,7 @@ export class AdwOverlaySplitView extends HTMLElement {
             'min-sidebar-width',
             'max-sidebar-width',
             'sidebar-width-fraction',
+            'breakpoint',
         ];
     }
 
@@ -85,14 +94,32 @@ export class AdwOverlaySplitView extends HTMLElement {
         // Apply initial state
         this._syncClasses();
         this._syncSidebarWidth();
+        this._syncBreakpoint();
+    }
+
+    disconnectedCallback() {
+        this._disposeBreakpoint?.();
+        this._disposeBreakpoint = undefined;
     }
 
     attributeChangedCallback(_name: string, _old: string | null, _val: string | null) {
         if (!this._initialized) return;
+        if (_name === 'breakpoint') {
+            this._syncBreakpoint();
+            return;
+        }
         this._syncClasses();
         if (_name === 'min-sidebar-width' || _name === 'max-sidebar-width' || _name === 'sidebar-width-fraction') {
             this._syncSidebarWidth();
         }
+    }
+
+    /** (Re)bind the `breakpoint` condition to `collapsed`. */
+    private _syncBreakpoint() {
+        this._disposeBreakpoint?.();
+        this._disposeBreakpoint = bindBreakpointSetter(this, this.getAttribute('breakpoint'), (active) => {
+            this.collapsed = active;
+        });
     }
 
     openSidebar() {

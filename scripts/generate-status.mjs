@@ -207,6 +207,72 @@ function scanGnomeNamespaces(pkgDir) {
     return [...byBase.values()].sort();
 }
 
+/**
+ * Per-widget Adwaita coverage across the three renderers, DERIVED.
+ *
+ * The Adwaita identity ships as three parallel ports (GTK stories, browser
+ * Custom Elements, NativeScript views) plus the shared headless behaviour in
+ * `@gjsify/adwaita-core`. Which widget exists where, and which of them actually
+ * delegate to core, is fully readable from the tree — so it must never be
+ * maintained by hand. It WAS, in `status/sections/adwaita-web-roadmap.md`, and
+ * it drifted: twelve widgets sat under "Planned" long after they shipped.
+ *
+ * Widgets align by their `adw-<name>` filename across all three, so this needs
+ * no alias table. Upstream partials that no renderer has yet are a genuinely
+ * authored judgement (three different naming conventions) and stay in the
+ * roadmap section.
+ */
+function collectAdwaitaCoverage(root) {
+    const names = (dir, re) => {
+        if (!existsSync(dir)) return new Map();
+        const out = new Map();
+        for (const entry of readdirSync(dir)) {
+            const match = re.exec(entry);
+            if (match) out.set(match[1], join(dir, entry));
+        }
+        return out;
+    };
+
+    const web = names(join(root, 'packages/web/adwaita-web/src/elements'), /^adw-(.+)\.ts$/);
+    const ns = names(join(root, 'packages/nativescript-bridge/adwaita/src/widgets'), /^adw-(.+)\.ts$/);
+
+    // The GTK renderer's coverage IS its story set (one `.meta.ts` per widget).
+    const stories = new Set();
+    const storyDir = join(root, 'showcases/gtk/adwaita-storybook/src');
+    for (const file of listFiles(existsSync(storyDir) ? storyDir : root, /\.meta\.ts$/)) {
+        const base = file.split('/').pop() ?? '';
+        stories.add(base.replace(/\.meta\.ts$/, ''));
+    }
+
+    // "Backed by core" is not a claim — it is an import edge we can see.
+    const usesCore = (file) => {
+        try {
+            return /@gjsify\/adwaita-core/.test(readFileSync(file, 'utf8'));
+        } catch {
+            return false;
+        }
+    };
+    // A renderer may delegate through a sibling helper module (the NS ports do,
+    // because a spec cannot import a module that `extends GridLayout`), so a
+    // widget counts as core-backed when its own file or a same-named helper does.
+    const nsHelpers = names(join(root, 'packages/nativescript-bridge/adwaita/src/widgets'), /^(.+)\.ts$/);
+
+    const all = [...new Set([...web.keys(), ...ns.keys(), ...stories])].sort();
+    return all.map((name) => {
+        const webFile = web.get(name);
+        const nsFile = ns.get(name);
+        const nsHelper = nsHelpers.get(`${name}-color`) ?? nsHelpers.get(name);
+        return {
+            name,
+            story: stories.has(name),
+            web: Boolean(webFile),
+            ns: Boolean(nsFile),
+            webCore: Boolean(webFile && usesCore(webFile)),
+            nsCore: Boolean((nsFile && usesCore(nsFile)) || (nsHelper && usesCore(nsHelper))),
+        };
+    });
+}
+
 /** Statically count spec files + `it(` call sites — NOT runtime test totals. */
 function scanSpecStats(pkgDir) {
     const specs = listFiles(join(pkgDir, 'src'), /\.spec\.(m?ts|tsx)$/);
@@ -567,6 +633,7 @@ export function loadStatusData(root, facts) {
             todosMd: todosMd.trim(),
             upstreamMd: upstreamMd.trim(),
             sections,
+            adwaitaCoverage: collectAdwaitaCoverage(root),
         },
         failures,
     };
@@ -586,6 +653,42 @@ function table(header, rows) {
     const lines = [`| ${header.join(' | ')} |`, `|${header.map(() => '---').join('|')}|`];
     for (const row of rows) lines.push(`| ${row.map(cell).join(' | ')} |`);
     return lines.join('\n');
+}
+
+/**
+ * Render the derived per-widget coverage matrix.
+ *
+ * "Core" is not a claim about intent — it is whether that renderer's widget (or
+ * its NS-core-free helper) actually imports `@gjsify/adwaita-core`. A widget
+ * present on both sides with no core edge is a duplicated-behaviour candidate,
+ * which is precisely the ADR-0004 backlog, computed instead of remembered.
+ */
+function adwaitaCoverageSection(coverage) {
+    const mark = (present, core) => (present ? (core ? '✅ core' : '✅') : '—');
+    const rows = coverage.map((w) => [
+        `\`adw-${w.name}\``,
+        w.story ? '✅' : '—',
+        mark(w.web, w.webCore),
+        mark(w.ns, w.nsCore),
+    ]);
+    const both = coverage.filter((w) => w.web && w.ns);
+    const shared = both.filter((w) => w.webCore && w.nsCore);
+    const out = ['## Adwaita widget coverage', ''];
+    out.push(
+        'Derived from the tree at generation time — element files, NativeScript widget',
+        'files, storybook `*.meta.ts`, and the actual `@gjsify/adwaita-core` import edges.',
+        'None of it is maintained by hand; the table this replaced drifted twelve widgets',
+        'behind the code.',
+        '',
+    );
+    out.push(table(['Widget', 'GTK story', 'adwaita-web', 'adwaita-nativescript'], rows));
+    out.push('');
+    out.push(
+        `**${shared.length} of ${both.length}** widgets implemented on BOTH renderers share their behaviour ` +
+            'through `@gjsify/adwaita-core`. The remainder still carry two copies (ADR 0004 backlog).',
+    );
+    out.push('');
+    return out.join('\n');
 }
 
 const testsCell = (f) => (f.tests.specFiles === 0 ? '—' : `${f.tests.specFiles} specs · ${f.tests.itSites} it()`);
@@ -942,6 +1045,7 @@ export function renderStatus(root, facts, data) {
     if (data.sections['webrtc-status.md']) out.push(data.sections['webrtc-status.md'], '');
     out.push('---', '');
     out.push(pillarSection('Browser UI / Adwaita Packages (`packages/web/adwaita*`)', groups.adwaita));
+    out.push(adwaitaCoverageSection(data.adwaitaCoverage));
     if (data.sections['adwaita-web-roadmap.md']) out.push(data.sections['adwaita-web-roadmap.md'], '');
     out.push('---', '');
     out.push(pillarSection('DOM Packages (`packages/dom/`)', groups.dom));

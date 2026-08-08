@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.31.0](https://github.com/gjsify/gjsify/compare/v0.30.0...v0.31.0) (2026-08-07)
+
+### Features
+
+* **create-app:** modernise what the templates scaffold ([#1029](https://github.com/gjsify/gjsify/issues/1029)) ([de7f552](https://github.com/gjsify/gjsify/commit/de7f55254df7ca9189c8375d2a0f813f5c74d719)), closes [#1005](https://github.com/gjsify/gjsify/issues/1005)
+* finish the darwin WebKit backend ([#1036](https://github.com/gjsify/gjsify/issues/1036)) ([c5a8b4d](https://github.com/gjsify/gjsify/commit/c5a8b4dd5d40ecf4335ac8f9ff9b6b27b3668436))
+* make @gjsify/iframe run on macOS ([#1028](https://github.com/gjsify/gjsify/issues/1028)) ([8eb90f9](https://github.com/gjsify/gjsify/commit/8eb90f90eaefc91bbc47dc205c3301cec27d5590)), closes [#1025](https://github.com/gjsify/gjsify/issues/1025) [#1026](https://github.com/gjsify/gjsify/issues/1026) [#1025](https://github.com/gjsify/gjsify/issues/1025)
+* make macOS a measured platform, not a declared one ([#1022](https://github.com/gjsify/gjsify/issues/1022)) ([6ca23cc](https://github.com/gjsify/gjsify/commit/6ca23ccf6ff428b52ad24ad6de7391d0b6773f03)), closes [#1019](https://github.com/gjsify/gjsify/issues/1019) [#1020](https://github.com/gjsify/gjsify/issues/1020)
+* make Windows a declared, checked platform ([#1021](https://github.com/gjsify/gjsify/issues/1021)) ([5d2e4de](https://github.com/gjsify/gjsify/commit/5d2e4de219da9d34b15849494b68b1d6652c1d62)), closes [#997](https://github.com/gjsify/gjsify/issues/997)
+
+### Bug Fixes
+
+* **cli:** chdir before the in-process dispatch ([#1024](https://github.com/gjsify/gjsify/issues/1024)) ([a431350](https://github.com/gjsify/gjsify/commit/a431350043843b46733839c4c08519c1d11c9200)), closes [#1020](https://github.com/gjsify/gjsify/issues/1020)
+* **cli:** close [#1005](https://github.com/gjsify/gjsify/issues/1005) — a project install lays down the bundler engine ([#1020](https://github.com/gjsify/gjsify/issues/1020)) ([8551edd](https://github.com/gjsify/gjsify/commit/8551edd8e2055177e773e6540d62449d0dc7be36)), closes [#994](https://github.com/gjsify/gjsify/issues/994)
+* **cli:** escape raw NUL in the gjs bundle ([#1037](https://github.com/gjsify/gjsify/issues/1037)) ([e1ae299](https://github.com/gjsify/gjsify/commit/e1ae299c3816b5719d0e0905cf907486fcb641cb))
+* **cli:** make gjsify tsc fail when it fails ([#1038](https://github.com/gjsify/gjsify/issues/1038)) ([ed23d54](https://github.com/gjsify/gjsify/commit/ed23d54f674b275dc3c776a5748c79de6a47e7c0))
+* **cli:** resolve native prebuilds in-process ([#1026](https://github.com/gjsify/gjsify/issues/1026)) ([3b4a95b](https://github.com/gjsify/gjsify/commit/3b4a95b6f8fb65f550f136dff1262a53bafce89f))
+* **cli:** spawn node for the tsc fallback, not the host interpreter ([#1027](https://github.com/gjsify/gjsify/issues/1027)) ([f332905](https://github.com/gjsify/gjsify/commit/f3329058b92378c298e5c67fad444a356c927135))
+* close what the first post-outage CI run found ([#1032](https://github.com/gjsify/gjsify/issues/1032)) ([bad2d1a](https://github.com/gjsify/gjsify/commit/bad2d1aed105177306213827fec559a1a841625c)), closes [#1022](https://github.com/gjsify/gjsify/issues/1022) [#1021](https://github.com/gjsify/gjsify/issues/1021) [#1024](https://github.com/gjsify/gjsify/issues/1024) [#1031](https://github.com/gjsify/gjsify/issues/1031)
+* close what the macOS leg found, and unbreak the leg ([#1030](https://github.com/gjsify/gjsify/issues/1030)) ([dae079a](https://github.com/gjsify/gjsify/commit/dae079a098ad96457a763f800bc2b1aebc7b0561)), closes [#1022](https://github.com/gjsify/gjsify/issues/1022)
+* **fetch:** defer Soup link to first HTTP send ([1d11380](https://github.com/gjsify/gjsify/commit/1d113802e22e2f6f0c263e871a5779d0789152ec))
+* make the macOS and Windows suites green ([#1031](https://github.com/gjsify/gjsify/issues/1031)) ([04773c9](https://github.com/gjsify/gjsify/commit/04773c9c12856e24890d9930e634d3a4e82f279b)), closes [#1021](https://github.com/gjsify/gjsify/issues/1021) [#1022](https://github.com/gjsify/gjsify/issues/1022) [#1021](https://github.com/gjsify/gjsify/issues/1021) [#1021](https://github.com/gjsify/gjsify/issues/1021)
+* **os:** read internal off the loopback flag, not the address ([#1023](https://github.com/gjsify/gjsify/issues/1023)) ([df0f532](https://github.com/gjsify/gjsify/commit/df0f532068e44988dd06d8db513b7c4c1f74f52f))
+
+### Documentation
+
+* **release:** write the v0.31.0 preamble ([#1025](https://github.com/gjsify/gjsify/issues/1025)) ([c143d76](https://github.com/gjsify/gjsify/commit/c143d76a060c13b0700f5be8b811e67910f7134d))
+
+### Build System
+
+* finish ADR 0002 — untrack the CLI and tsc bundles ([#1019](https://github.com/gjsify/gjsify/issues/1019)) ([ab8b68a](https://github.com/gjsify/gjsify/commit/ab8b68a90760ae349112aceea3e0d41980609a7e)), closes [#1017](https://github.com/gjsify/gjsify/issues/1017) [#1005](https://github.com/gjsify/gjsify/issues/1005) [#821](https://github.com/gjsify/gjsify/issues/821) [#1017](https://github.com/gjsify/gjsify/issues/1017) [#1002](https://github.com/gjsify/gjsify/issues/1002) [#821](https://github.com/gjsify/gjsify/issues/821) [#821](https://github.com/gjsify/gjsify/issues/821) [#1005](https://github.com/gjsify/gjsify/issues/1005) [#821](https://github.com/gjsify/gjsify/issues/821)
+
+### Continuous Integration
+
+* bootstrap from the published gjsify ([2b8f297](https://github.com/gjsify/gjsify/commit/2b8f2971277c5c0bcf28f7d7b89cb988422ac18b))
+* **napi:** build the CLI bundle the matrix drives ([#1033](https://github.com/gjsify/gjsify/issues/1033)) ([7a040a2](https://github.com/gjsify/gjsify/commit/7a040a2b7faf36d937e1b7686004a8714fd556f1))
+* **release:** bootstrap a cold tree under Node ([#1040](https://github.com/gjsify/gjsify/issues/1040)) ([cd7b7a5](https://github.com/gjsify/gjsify/commit/cd7b7a5764b8d10684a451d85799c8a622c18db0)), closes [#1038](https://github.com/gjsify/gjsify/issues/1038)
+
+### Maintenance
+
+* close the declaration-hygiene backlog and re-ground the ledger ([#1014](https://github.com/gjsify/gjsify/issues/1014)) ([2279cbb](https://github.com/gjsify/gjsify/commit/2279cbb0ba2a445577a8ff1d36a6ebdc0a7e8e5f)), closes [#1000](https://github.com/gjsify/gjsify/issues/1000) [#1009](https://github.com/gjsify/gjsify/issues/1009) [#897](https://github.com/gjsify/gjsify/issues/897) [#1005](https://github.com/gjsify/gjsify/issues/1005) [#925](https://github.com/gjsify/gjsify/issues/925) [#1002](https://github.com/gjsify/gjsify/issues/1002) [#821](https://github.com/gjsify/gjsify/issues/821) [#879](https://github.com/gjsify/gjsify/issues/879) [#990](https://github.com/gjsify/gjsify/issues/990)
+* update native prebuilds [skip ci] ([c983290](https://github.com/gjsify/gjsify/commit/c983290ddc1a47ddd1e2b0c93565b45d2778d83e))
+* update native prebuilds [skip ci] ([9808e3c](https://github.com/gjsify/gjsify/commit/9808e3c82cc87fec828b7155b55ffe7d0a1bd8b7))
+* update native prebuilds [skip ci] ([d5c7bde](https://github.com/gjsify/gjsify/commit/d5c7bdecb24fd9e260df40ac4e7e0faebdd2b190))
+
+### Tests
+
+* **napi:** gate tsfn draining on claim owners ([#1034](https://github.com/gjsify/gjsify/issues/1034)) ([7274676](https://github.com/gjsify/gjsify/commit/7274676a3b294def98036b4097ffc412abfa9ee9))
+
 ## [0.30.0](https://github.com/gjsify/gjsify/compare/v0.29.0...v0.30.0) (2026-08-05)
 
 ### Features

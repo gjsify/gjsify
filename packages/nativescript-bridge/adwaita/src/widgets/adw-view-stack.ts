@@ -10,43 +10,50 @@
 // lets the switcher live in a header bar (wide) or a bottom bar (narrow) while the
 // stack fills the window body.
 //
+// The SELECTION is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// `ViewStackState`, shared with the `@gjsify/adwaita-web` twin and pinned by the
+// conformance vectors; `view-stack-state.ts` holds the NS-specific projection
+// onto `View.visibility`. This class is the `GridLayout` wiring only. What the
+// lift fixed here, all of it C-derived: a fractional `visibleChildIndex` used to
+// pass the `Number.isFinite` guard and collapse every page at once; the per-page
+// `visible` flag did not exist, so the auto-pick took the first page ADDED rather
+// than the first VISIBLE one (adw-view-stack.c:1149-1151), a hidden page could be
+// selected (:2415), and hiding the visible page re-picked nothing (:1061-1082);
+// `add()` notified nothing where C notifies (:1038-1039), which is why a bound
+// switcher needed a manual `refresh()`; and there was no way to remove a page.
+//
 // FIDELITY: approximated. NS has no native page stack; pages swap by toggling
 // `visibility` (`collapse`/`visible`) — instant, no cross-fade (the CSS subset has
 // no transition). The page model + selection semantics are faithful.
 //
-// Reference: refs/libadwaita/src/view-stack (Adw.ViewStack)
+// Reference: refs/libadwaita/src/adw-view-stack.c (Adw.ViewStack)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, View, type EventData } from '@nativescript/core';
+import {
+    applyViewStackVisibility,
+    createViewStackState,
+    viewStackNotifyPayload,
+    type AdwViewStackPage,
+    type ViewStackNotifyPayload,
+} from './view-stack-state.js';
+
+// Re-exported so the widget module stays the one import site for the page type,
+// as `widgets/index.ts` and every consumer already expect.
+export type { AdwViewStackPage };
 
 /** Event name emitted when the visible child changes. Mirrors GObject `notify::visible-child`. */
 export const NOTIFY_VISIBLE_CHILD = 'notify::visible-child';
 
-/** Payload of the {@link NOTIFY_VISIBLE_CHILD} event. */
-export interface NotifyVisibleChildEventData extends EventData {
-    /** The newly-visible page's index. */
-    index: number;
-    /** The newly-visible page's name. */
-    name: string;
-    /** The newly-visible page's title. */
-    title: string;
-}
-
-/** One page registered with an {@link AdwViewStack}. */
-export interface AdwViewStackPage {
-    /** Stable identifier used by `visibleChildName` / switcher binding. */
-    name: string;
-    /** Human-facing title shown in a bound switcher button. */
-    title: string;
-    /** Optional Adwaita symbolic SVG shown in a bound switcher button. */
-    icon?: string;
-    /** The page content view, shown when this page is selected. */
-    content: View;
-}
+/**
+ * Payload of the {@link NOTIFY_VISIBLE_CHILD} event. `index` is `-1` and
+ * `name`/`title` are `''` when nothing is selected — the state an empty stack, a
+ * fully-hidden stack and a removed visible page all land in.
+ */
+export interface NotifyVisibleChildEventData extends EventData, ViewStackNotifyPayload {}
 
 export class AdwViewStack extends GridLayout {
-    private readonly _pages: AdwViewStackPage[] = [];
-    private _visibleIndex = 0;
+    private readonly _state = createViewStackState();
 
     constructor() {
         super();
@@ -54,19 +61,30 @@ export class AdwViewStack extends GridLayout {
         this.className = 'adw-view-stack';
         this.addColumn(new ItemSpec(1, 'star'));
         this.addRow(new ItemSpec(1, 'star'));
+
+        this._state.subscribe((change) => {
+            applyViewStackVisibility(this._state);
+            const data: NotifyVisibleChildEventData = {
+                eventName: NOTIFY_VISIBLE_CHILD,
+                object: this,
+                ...viewStackNotifyPayload(change),
+            };
+            this.notify(data);
+        });
     }
 
     /**
-     * Register a page. The FIRST page added becomes visible automatically so the
-     * stack is never empty, matching `Adw.ViewStack`. Returns the page handle.
+     * Register a page. It becomes visible when nothing is selected yet — and,
+     * unlike before, that auto-pick NOTIFIES, so a bound switcher highlights the
+     * initial page without a manual `refresh()` (`add_page`,
+     * adw-view-stack.c:1149-1151 → the notify at :1038-1039). Returns the page handle.
      */
     add(content: View, name: string, title?: string, icon?: string): AdwViewStackPage {
-        const page: AdwViewStackPage = { name, title: title ?? name, icon, content };
-        content.visibility = this._pages.length === 0 ? 'visible' : 'collapse';
+        const page = this._state.addPage({ name, title, icon, content });
         GridLayout.setColumn(content, 0);
         GridLayout.setRow(content, 0);
         this.addChild(content);
-        this._pages.push(page);
+        applyViewStackVisibility(this._state);
         return page;
     }
 
@@ -75,52 +93,57 @@ export class AdwViewStack extends GridLayout {
         return this.add(content, name, title);
     }
 
-    /** All registered pages, in add order (a bound switcher reads this). */
-    get pages(): readonly AdwViewStackPage[] {
-        return this._pages;
+    /**
+     * Remove the first page named `name` and detach its content view. Returns
+     * whether anything was removed. When the removed page was the visible one the
+     * stack ends up showing NOTHING and emits no event — `stack_remove` clears
+     * `visible_child` without re-picking (adw-view-stack.c:1202-1203).
+     */
+    removePage(name: string): boolean {
+        const content = this._state.pages[this._state.indexOfName(name)]?.content;
+        if (!this._state.removePage(name)) return false;
+        if (content) this.removeChild(content);
+        applyViewStackVisibility(this._state);
+        return true;
     }
 
-    /** The visible page index. Swaps the visible page + emits `notify::visible-child`. */
+    /**
+     * Show or hide a page (`AdwViewStackPage:visible`). Returns whether the
+     * SELECTION moved: hiding the visible page falls back to the next visible one
+     * and making a page visible while nothing is selected selects it
+     * (`update_child_visible`, adw-view-stack.c:1061-1082).
+     */
+    setPageVisible(name: string, visible: boolean): boolean {
+        const moved = this._state.setPageVisible(name, visible);
+        applyViewStackVisibility(this._state);
+        return moved;
+    }
+
+    /** All registered pages, in add order (a bound switcher reads this). */
+    get pages(): readonly AdwViewStackPage[] {
+        return this._state.pages;
+    }
+
+    /** The visible page index, `-1` when nothing is selected. Swaps the visible page + emits. */
     get visibleChildIndex(): number {
-        return this._visibleIndex;
+        return this._state.visibleIndex;
     }
 
     set visibleChildIndex(value: number) {
-        if (!Number.isFinite(value) || value < 0 || value >= this._pages.length) return;
-        if (value === this._visibleIndex) return;
-        this._visibleIndex = value;
-        this._apply(true);
+        this._state.setVisibleIndex(value);
     }
 
-    /** The visible page name (`Adw.ViewStack.visible-child-name`). */
+    /** The visible page name (`Adw.ViewStack.visible-child-name`), `''` for none. */
     get visibleChildName(): string {
-        return this._pages[this._visibleIndex]?.name ?? '';
+        return this._state.visibleName;
     }
 
-    set visibleChildName(name: string) {
-        const idx = this._pages.findIndex((p) => p.name === name);
-        if (idx >= 0) this.visibleChildIndex = idx;
+    set visibleChildName(name: string | null | undefined) {
+        this._state.setVisibleName(name);
     }
 
     /** The visible page content view, or `null`. */
     get visibleChild(): View | null {
-        return this._pages[this._visibleIndex]?.content ?? null;
-    }
-
-    private _apply(emit: boolean): void {
-        this._pages.forEach((page, i) => {
-            page.content.visibility = i === this._visibleIndex ? 'visible' : 'collapse';
-        });
-        if (emit) {
-            const page = this._pages[this._visibleIndex];
-            const data: NotifyVisibleChildEventData = {
-                eventName: NOTIFY_VISIBLE_CHILD,
-                object: this,
-                index: this._visibleIndex,
-                name: page?.name ?? '',
-                title: page?.title ?? '',
-            };
-            this.notify(data);
-        }
+        return this._state.visiblePage?.content ?? null;
     }
 }

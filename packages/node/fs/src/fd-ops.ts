@@ -3,16 +3,23 @@
 
 import { FileHandle } from './file-handle.js';
 import type { Stats, BigIntStats } from './stats.js';
-import { statSync, truncateSync, chmodSync, chownSync, readFileSync } from './sync.js';
+import { statSync, chmodSync, chownSync, readFileSync } from './sync.js';
 import { utimesSync } from './utimes.js';
 import { normalizePath } from './utils.js';
 import { isStdFd, readStdFdSync, writeStdFdSync } from './std-fd.js';
 
 import type { PathLike, TimeLike, StatOptions } from 'node:fs';
 
-function getFH(fd: number | FileHandle): FileHandle {
-    if (fd instanceof FileHandle) return FileHandle.getInstance(fd.fd);
-    return FileHandle.getInstance(fd as number);
+/**
+ * The handle behind an fd, named by the syscall asking for it.
+ *
+ * The `syscall` is not decoration: an unknown or already-closed descriptor is
+ * EBADF, and Node puts the operation in the message (`EBADF: bad file
+ * descriptor, write`). Passing it from each call site is the only place that
+ * knows which one it is.
+ */
+function getFH(fd: number | FileHandle, syscall: string): FileHandle {
+    return FileHandle.getInstance(fd, syscall);
 }
 
 // ─── fstat ────────────────────────────────────────────────────────────────────
@@ -20,12 +27,16 @@ function getFH(fd: number | FileHandle): FileHandle {
 export function fstatSync(fd: number, options?: { bigint?: false }): Stats;
 export function fstatSync(fd: number, options: { bigint: true }): BigIntStats;
 export function fstatSync(fd: number, options?: { bigint?: boolean }): Stats | BigIntStats {
+    // fstat(2) describes the DESCRIPTOR. Resolving the fd back to the name it
+    // was opened from answers about whatever now holds that name — a different
+    // inode after a rename, and nothing at all after an unlink.
+    //
     // The `statSync` overload accepts a union of `{bigint?:false}` /
     // `{bigint:true}` literals; here `options.bigint` is `boolean` (loosened
     // by our entry-point overloads), so the call site needs a `StatOptions`
     // cast. Going through the public `StatOptions` type instead of `any`
     // preserves the rest of the option-bag's shape.
-    return statSync(normalizePath(getFH(fd).options.path), options as StatOptions);
+    return statSync(getFH(fd, 'fstat')._fdStatTarget(), options as StatOptions);
 }
 
 export function fstat(fd: number, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
@@ -58,7 +69,7 @@ export async function fstatAsync(fd: number, options?: StatOptions): Promise<Sta
 // ─── ftruncate ────────────────────────────────────────────────────────────────
 
 export function ftruncateSync(fd: number, len = 0): void {
-    truncateSync(normalizePath(getFH(fd).options.path), len);
+    getFH(fd, 'ftruncate')._truncateSync(len);
 }
 
 export function ftruncate(fd: number, callback: (err: NodeJS.ErrnoException | null) => void): void;
@@ -81,7 +92,7 @@ export async function ftruncateAsync(fd: number, len = 0): Promise<void> {
 // Best-effort: flush the IOChannel write buffer (equivalent to fdatasync on GJS).
 
 export function fdatasyncSync(fd: number): void {
-    getFH(fd)._flushSync();
+    getFH(fd, 'fdatasync')._flushSync();
 }
 export function fdatasync(fd: number, callback: (err: NodeJS.ErrnoException | null) => void): void {
     Promise.resolve()
@@ -93,7 +104,7 @@ export async function fdatasyncAsync(fd: number): Promise<void> {
 }
 
 export function fsyncSync(fd: number): void {
-    getFH(fd)._flushSync();
+    getFH(fd, 'fsync')._flushSync();
 }
 export function fsync(fd: number, callback: (err: NodeJS.ErrnoException | null) => void): void {
     Promise.resolve()
@@ -107,7 +118,8 @@ export async function fsyncAsync(fd: number): Promise<void> {
 // ─── fchmod / fchown / futimes ────────────────────────────────────────────────
 
 export function fchmodSync(fd: number, mode: number | string): void {
-    chmodSync(normalizePath(getFH(fd).options.path), mode);
+    // fchmod(2): the descriptor, so a swapped path cannot capture the change.
+    chmodSync(getFH(fd, 'fchmod')._fdStatTarget(), mode);
 }
 export function fchmod(fd: number, mode: number | string, callback: (err: NodeJS.ErrnoException | null) => void): void {
     Promise.resolve()
@@ -119,7 +131,7 @@ export async function fchmodAsync(fd: number, mode: number | string): Promise<vo
 }
 
 export function fchownSync(fd: number, uid: number, gid: number): void {
-    chownSync(normalizePath(getFH(fd).options.path), uid, gid);
+    chownSync(normalizePath(getFH(fd, 'fchown').options.path), uid, gid);
 }
 export function fchown(
     fd: number,
@@ -136,7 +148,7 @@ export async function fchownAsync(fd: number, uid: number, gid: number): Promise
 }
 
 export function futimesSync(fd: number, atime: TimeLike, mtime: TimeLike): void {
-    utimesSync(normalizePath(getFH(fd).options.path), atime, mtime);
+    utimesSync(normalizePath(getFH(fd, 'futimes').options.path), atime, mtime);
 }
 export function futimes(
     fd: number,
@@ -157,7 +169,7 @@ export async function futimesAsync(fd: number, atime: TimeLike, mtime: TimeLike)
 export function closeSync(fd: number): void {
     // Never close the process's own stdin/stdout/stderr underneath it.
     if (isStdFd(fd)) return;
-    getFH(fd)._closeSync();
+    getFH(fd, 'close')._closeSync();
 }
 
 // ─── readSync ─────────────────────────────────────────────────────────────────
@@ -184,14 +196,18 @@ export function readSync(
     let offset = 0;
     if (offsetOrOptions !== null && typeof offsetOrOptions === 'object') {
         offset = offsetOrOptions.offset ?? 0;
-        length = offsetOrOptions.length ?? buffer.byteLength;
+        // `byteLength - offset`, matching the positional form four lines down.
+        // These two spellings of one API disagreed, so the documented options
+        // form threw RangeError on `readSync(fd, Buffer.alloc(8), {offset: 4})`
+        // where the positional one read 4 bytes.
+        length = offsetOrOptions.length ?? buffer.byteLength - offset;
         position = offsetOrOptions.position ?? null;
     } else {
         offset = (offsetOrOptions as number | null | undefined) ?? 0;
         length = length ?? buffer.byteLength - offset;
     }
     if (isStdFd(fd)) return readStdFdSync(fd, buffer, offset, length!);
-    return getFH(fd)._readSync(buffer, offset, length!, position ?? null);
+    return getFH(fd, 'read')._readSync(buffer, offset, length!, position ?? null);
 }
 
 // ─── writeSync ────────────────────────────────────────────────────────────────
@@ -226,7 +242,7 @@ export function writeSync(
         data = new Uint8Array(bufferOrString.buffer as ArrayBuffer, bufferOrString.byteOffset + offset, len);
     }
     if (isStdFd(fd)) return writeStdFdSync(fd, data);
-    return getFH(fd)._writeSync(data, position ?? null);
+    return getFH(fd, 'write')._writeSync(data, position ?? null);
 }
 
 // ─── readvSync / readv ────────────────────────────────────────────────────────

@@ -7,69 +7,32 @@
 // `size` sets the diameter.
 //
 // The background COLOUR is derived from the name exactly like `Adw.Avatar`:
-// `g_str_hash(text) % 14` picks one of the 14 libadwaita avatar colours. The NS
-// CSS subset has no gradient, so the flat fill is the 50/50 blend of the
+// `(g_str_hash(text) % 14) + 1` picks one of the 14 libadwaita avatar colours.
+// The NS CSS subset has no gradient, so the flat fill is the 50/50 blend of the
 // palette's start→stop gradient (and the initials take the matching light `fg`).
-// Initials are derived (first letters of up to two words, uppercased).
 //
-// Reference: refs/libadwaita/src/stylesheet/widgets/_avatar.scss ($avatarcolorlist)
-// (palette + g_str_hash ported from @gjsify/adwaita-web's adw-avatar.ts).
+// Both derivations are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004);
+// the flat-fill wrapper sits in `avatar-color.ts` (NS-core-free, so the spec can
+// drive it off-device) and this module keeps only the GridLayout that paints the
+// result. The palette + hash used to be a local copy of the web renderer's copy,
+// and both hashed UTF-16 code units where GLib hashes UTF-8 bytes, so every
+// accented name got the wrong colour on both renderers. The shared vectors in
+// `@gjsify/adwaita-core/conformance` now pin this to the C source.
+//
+// Reference: refs/libadwaita/src/adw-avatar.c (set_class_color)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label } from '@nativescript/core';
 
+import { avatarMaxFontSize } from '@gjsify/adwaita-core';
+
+import { avatarColor, avatarInitials } from './avatar-color.js';
+
 /** Default avatar diameter in DIPs (Adwaita's common avatar size). */
 export const DEFAULT_AVATAR_SIZE = 48;
 
-/** The 14 libadwaita avatar colours: a light `fg` over a start→stop gradient. */
-const AVATAR_COLORS: ReadonlyArray<{ fg: string; start: string; stop: string }> = [
-    { fg: '#cfe1f5', start: '#83b6ec', stop: '#337fdc' }, // blue
-    { fg: '#caeaf2', start: '#7ad9f1', stop: '#0f9ac8' }, // cyan
-    { fg: '#cef8d8', start: '#8de6b1', stop: '#29ae74' }, // green
-    { fg: '#e6f9d7', start: '#b5e98a', stop: '#6ab85b' }, // lime
-    { fg: '#f9f4e1', start: '#f8e359', stop: '#d29d09' }, // yellow
-    { fg: '#ffead1', start: '#ffcb62', stop: '#d68400' }, // gold
-    { fg: '#ffe5c5', start: '#ffa95a', stop: '#ed5b00' }, // orange
-    { fg: '#f8d2ce', start: '#f78773', stop: '#e62d42' }, // raspberry
-    { fg: '#fac7de', start: '#e973ab', stop: '#e33b6a' }, // magenta
-    { fg: '#e7c2e8', start: '#cb78d4', stop: '#9945b5' }, // purple
-    { fg: '#d5d2f5', start: '#9e91e8', stop: '#7a59ca' }, // violet
-    { fg: '#f2eade', start: '#e3cf9c', stop: '#b08952' }, // beige
-    { fg: '#e5d6ca', start: '#be916d', stop: '#785336' }, // brown
-    { fg: '#d8d7d3', start: '#c0bfbc', stop: '#6e6d71' }, // gray
-];
-
-/** GLib `g_str_hash` (DJB2: h = h*33 + c, as uint32) — matches `Adw.Avatar` exactly. */
-function gStrHash(text: string): number {
-    let h = 5381;
-    for (let i = 0; i < text.length; i++) h = (Math.imul(h, 33) + text.charCodeAt(i)) >>> 0;
-    return h >>> 0;
-}
-
-/** Mix two `#rrggbb` colours 50/50 (the flat stand-in for the gradient). */
-function blendHex(a: string, b: string): string {
-    const pa = Number.parseInt(a.slice(1), 16);
-    const pb = Number.parseInt(b.slice(1), 16);
-    const mix = (shift: number) =>
-        Math.round((((pa >> shift) & 0xff) + ((pb >> shift) & 0xff)) / 2)
-            .toString(16)
-            .padStart(2, '0');
-    return `#${mix(16)}${mix(8)}${mix(0)}`;
-}
-
-/** The flat fill + initials colour `Adw.Avatar` would pick for `text`. */
-export function avatarColor(text: string): { fill: string; fg: string } {
-    const c = AVATAR_COLORS[gStrHash(text ?? '') % AVATAR_COLORS.length]!;
-    return { fill: blendHex(c.start, c.stop), fg: c.fg };
-}
-
-/** Derive up to two-letter initials from a name (`"Ada Lovelace"` → `"AL"`). */
-export function avatarInitials(text: string): string {
-    const words = (text ?? '').trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return '';
-    if (words.length === 1) return words[0]!.charAt(0).toUpperCase();
-    return (words[0]!.charAt(0) + words[words.length - 1]!.charAt(0)).toUpperCase();
-}
+// Re-exported so existing consumers keep importing both from this module.
+export { avatarColor, avatarInitials };
 
 export class AdwAvatar extends GridLayout {
     /** The centered initials label. */
@@ -104,10 +67,16 @@ export class AdwAvatar extends GridLayout {
         // NS exposes it on the style object; set via the public `set` to stay
         // within the ambient surface.
         this.set('borderRadius', this._size / 2);
-        // Scale the initials with the diameter (Adwaita ≈ 0.4 × size) — a single
-        // CSS rule can't size per-instance, so set fontSize inline. Without this
-        // the initials are too small to read at size 32 (action-bar avatar).
-        this._label.set('fontSize', Math.round(this._size * 0.4));
+        // Scale the initials with the diameter — a single CSS rule can't size
+        // per-instance, so set fontSize inline. Without this the initials are
+        // too small to read at size 32 (action-bar avatar).
+        //
+        // `update_font_size` derives the real value from the MEASURED label, and
+        // NativeScript exposes no text metrics here, so the 0.4 heuristic stays
+        // — but clamped to libadwaita's cap, which it exceeded above ~54 DIPs
+        // (at size 128 it asked for 51px against a 44px cap and the initials
+        // spilled out of the circle).
+        this._label.set('fontSize', Math.round(Math.min(this._size * 0.4, avatarMaxFontSize(this._size))));
     }
 
     /** The name the initials are derived from. */

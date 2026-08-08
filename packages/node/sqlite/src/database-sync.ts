@@ -10,6 +10,8 @@ import {
     InvalidUrlSchemeError,
     SqliteError,
 } from './errors.ts';
+import { convertParameterSyntax } from './parameter-syntax.ts';
+import { parseSql } from './parse-sql.ts';
 import { StatementSync } from './statement-sync.ts';
 import type { DatabaseSyncOptions, StatementSyncOptions } from './types.ts';
 
@@ -127,83 +129,8 @@ function validateOptions(options: unknown): DatabaseSyncOptions {
     return result;
 }
 
-// Convert SQLite native parameter syntax (?, ?NNN, $name, :name, @name)
-// to Gda's ##name::type syntax. Returns [convertedSql, parameterMap].
-// parameterMap maps Gda holder IDs back to original parameter info.
-interface ParamInfo {
-    gdaId: string;
-    originalName: string;
-    position: number;
-}
-
-function convertParameterSyntax(sql: string): [string, ParamInfo[]] {
-    const params: ParamInfo[] = [];
-    let positionalIndex = 0;
-    let result = '';
-    let i = 0;
-
-    while (i < sql.length) {
-        // Skip string literals
-        if (sql[i] === "'") {
-            const start = i;
-            i++;
-            while (i < sql.length && sql[i] !== "'") {
-                if (sql[i] === "'" && sql[i + 1] === "'") {
-                    i += 2;
-                    continue;
-                }
-                i++;
-            }
-            if (i < sql.length) i++; // closing quote
-            result += sql.substring(start, i);
-            continue;
-        }
-
-        // Positional parameter: ? or ?NNN
-        if (sql[i] === '?') {
-            i++;
-            let numStr = '';
-            while (i < sql.length && sql[i] >= '0' && sql[i] <= '9') {
-                numStr += sql[i];
-                i++;
-            }
-            const pos = numStr ? parseInt(numStr, 10) - 1 : positionalIndex;
-            positionalIndex = numStr ? positionalIndex : positionalIndex + 1;
-            const gdaId = `p${pos}`;
-            params.push({ gdaId, originalName: numStr ? `?${numStr}` : '?', position: pos });
-            result += `##${gdaId}::string`;
-            continue;
-        }
-
-        // Named parameter: $name, :name, @name
-        if (
-            (sql[i] === '$' || sql[i] === ':' || sql[i] === '@') &&
-            i + 1 < sql.length &&
-            /[a-zA-Z_]/.test(sql[i + 1])
-        ) {
-            const prefix = sql[i];
-            i++;
-            let name = '';
-            while (i < sql.length && /[a-zA-Z0-9_]/.test(sql[i])) {
-                name += sql[i];
-                i++;
-            }
-            const gdaId = name;
-            params.push({ gdaId, originalName: `${prefix}${name}`, position: -1 });
-            result += `##${gdaId}::string`;
-            continue;
-        }
-
-        result += sql[i];
-        i++;
-    }
-
-    return [result, params];
-}
-
 export class DatabaseSync {
     #connection: Gda.Connection | null = null;
-    #parser: Gda.SqlParser | null = null;
     #path: string;
     #options: DatabaseSyncOptions;
     #isMemory: boolean;
@@ -272,7 +199,8 @@ export class DatabaseSync {
             throw new SqliteError(e instanceof Error ? e.message : String(e));
         }
 
-        this.#parser = this.#connection!.create_parser() ?? new Gda.SqlParser();
+        // No Gda.SqlParser is kept: the connection parses its own SQL through parseSql(),
+        // which is the only entry point that cannot abort the process. See parse-sql.ts.
 
         // Apply configuration PRAGMAs
         this.#applyPragmas();
@@ -286,7 +214,6 @@ export class DatabaseSync {
         }
         this.#connection!.close();
         this.#connection = null;
-        this.#parser = null;
         this.#inTransaction = false;
         return undefined;
     }
@@ -303,14 +230,12 @@ export class DatabaseSync {
 
         try {
             // Split SQL into individual statements and parse each one.
-            // We can't use parse_string iteratively (double-free bug in GJS)
-            // or parse_string_as_batch (returns Batch objects, not Statements).
+            // parse_string_as_batch is not an alternative: it returns Batch objects rather
+            // than Statements — and it carries the same `remain` hazard (see #parseSql).
             const statements = this.#splitStatements(sql);
             for (const stmtSql of statements) {
-                const [stmt] = this.#parser!.parse_string(stmtSql);
-                if (stmt) {
-                    this.#executeStatement(stmt);
-                }
+                const [stmt] = this.#parseSql(stmtSql);
+                this.#executeStatement(stmt);
             }
         } catch (e: unknown) {
             if (e instanceof SqliteError || e instanceof InvalidStateError || e instanceof InvalidArgTypeError) {
@@ -331,19 +256,12 @@ export class DatabaseSync {
             throw new InvalidArgTypeError('The "sql" argument must be a string.');
         }
 
-        // Extract parameter info from the SQL
-        const [, paramMap] = convertParameterSyntax(sql);
-
-        // Validate the SQL by parsing it (with params replaced by literals)
+        // Validate the SQL by parsing it now, so a syntax error surfaces from prepare()
+        // rather than from the first run(). Parameters become string holders — the value
+        // types are not known yet, and libgda only needs the SHAPE to parse.
+        const [probeSql, paramMap] = convertParameterSyntax(sql);
         try {
-            const testSql =
-                paramMap.length > 0
-                    ? sql.replace(/\?(\d+)?/g, 'NULL').replace(/[$:@][a-zA-Z_][a-zA-Z0-9_]*/g, 'NULL')
-                    : sql;
-            const [stmt] = this.#parser!.parse_string(testSql);
-            if (!stmt) {
-                throw new SqliteError('Failed to parse SQL statement');
-            }
+            this.#parseSql(probeSql);
         } catch (e: unknown) {
             if (e instanceof SqliteError || e instanceof InvalidArgTypeError) {
                 throw e;
@@ -358,7 +276,7 @@ export class DatabaseSync {
             allowUnknownNamedParameters: this.#options.allowUnknownNamedParameters ?? false,
         };
 
-        return StatementSync._create(this.#connection!, sql, stmtOptions, paramMap, this.#parser!);
+        return StatementSync._create(this.#connection!, sql, stmtOptions, paramMap);
     }
 
     location(dbName?: unknown): string | null {
@@ -388,17 +306,18 @@ export class DatabaseSync {
         }
     }
 
+    #parseSql(sql: string): [Gda.Statement, Gda.Set | null] {
+        return parseSql(this.#connection!, sql);
+    }
+
     #applyPragmas(): void {
         const conn = this.#connection!;
 
         // PRAGMAs in Gda are treated as SELECT statements (type UNKNOWN=11).
         // Must use statement_execute_select, not execute_non_select_command.
         const runPragma = (pragma: string) => {
-            const parser = this.#parser!;
-            const [stmt] = parser.parse_string(pragma);
-            if (stmt) {
-                conn.statement_execute_select(stmt, null);
-            }
+            const [stmt] = this.#parseSql(pragma);
+            conn.statement_execute_select(stmt, null);
         };
 
         // Foreign keys: enabled by default
@@ -447,12 +366,12 @@ export class DatabaseSync {
         // so split-relevant tokens inside those regions never produce a spurious
         // boundary.
         //
-        // Comments are then DROPPED rather than handed to the parser. libgda's
-        // Gda.SqlParser.parse_string() corrupts the heap ("free(): invalid
-        // pointer", an abort that takes the whole process down) when it parses a
-        // statement that contains a /* … */ block comment, so passing comment
-        // text through is unsafe. Stripping is semantically transparent — SQL
-        // comments are inert except inside quoted regions, which we keep verbatim.
+        // Comments are then DROPPED rather than handed to the parser: libgda cannot parse
+        // a statement containing a /* … */ block comment. Under parseSql() that is a plain
+        // error rather than the process abort it used to be (see parse-sql.ts), but the
+        // statement would still fail — so the stripping stays load-bearing. It is
+        // semantically transparent: SQL comments are inert except inside quoted regions,
+        // which we keep verbatim.
         // A line comment is removed but its terminating newline is left in place;
         // a block comment is replaced by a single space so tokens that abutted it
         // stay separated (CREATE/**/TABLE → CREATE TABLE). A chunk that strips to
@@ -550,5 +469,3 @@ export class DatabaseSync {
 // Expose exec() as public API. Named sqlExec internally to avoid security hook
 // false positive on the string "exec" in method definitions.
 (DatabaseSync.prototype as unknown as Record<string, unknown>).exec = DatabaseSync.prototype.sqlExec;
-
-export type { ParamInfo };

@@ -77,6 +77,55 @@ export function extractPathData(svg: string): string {
         .join(' ');
 }
 
+/** A colour split into the 0..1 components UIKit and CoreGraphics take. */
+export interface IconColorComponents {
+    red: number;
+    green: number;
+    blue: number;
+    alpha: number;
+}
+
+/**
+ * Parse `#RGB` / `#RRGGBB` / `#AARRGGBB` into 0..1 components.
+ *
+ * Android does not need this — `android.graphics.Color.parseColor` takes the
+ * string directly — but UIKit has no hex constructor, so the iOS backend has to
+ * do the arithmetic. Note the ALPHA-FIRST order in the 8-digit form: that is the
+ * Android convention {@link SymbolicIconOptions.color} is documented in, and the
+ * two backends must read the same string the same way.
+ *
+ * Returns opaque black for anything unparsable, so a typo in a caller's colour
+ * yields a visible icon rather than an invisible one.
+ */
+export function parseHexColor(hex: string): IconColorComponents {
+    const black: IconColorComponents = { red: 0, green: 0, blue: 0, alpha: 1 };
+    const raw = hex.trim().replace(/^#/, '');
+    if (!/^[0-9a-fA-F]+$/.test(raw)) return black;
+
+    let alpha = 255;
+    let red: number;
+    let green: number;
+    let blue: number;
+    if (raw.length === 3) {
+        // `#abc` — each digit doubled.
+        red = Number.parseInt(raw[0]! + raw[0], 16);
+        green = Number.parseInt(raw[1]! + raw[1], 16);
+        blue = Number.parseInt(raw[2]! + raw[2], 16);
+    } else if (raw.length === 6) {
+        red = Number.parseInt(raw.slice(0, 2), 16);
+        green = Number.parseInt(raw.slice(2, 4), 16);
+        blue = Number.parseInt(raw.slice(4, 6), 16);
+    } else if (raw.length === 8) {
+        alpha = Number.parseInt(raw.slice(0, 2), 16);
+        red = Number.parseInt(raw.slice(2, 4), 16);
+        green = Number.parseInt(raw.slice(4, 6), 16);
+        blue = Number.parseInt(raw.slice(6, 8), 16);
+    } else {
+        return black;
+    }
+    return { red: red / 255, green: green / 255, blue: blue / 255, alpha: alpha / 255 };
+}
+
 /**
  * Space-separate the two single-digit ARC FLAGS (large-arc, sweep) in every
  * elliptical-arc command (`A`/`a`) of an SVG path-data string.

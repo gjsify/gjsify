@@ -93,12 +93,7 @@ jobs:
           echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
 
       - name: Bootstrap the build toolchain (cold trees only)
-        run: |
-          if [ -f packages/infra/cli/lib/index.js ]; then
-            echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
-          else
-            gjs -m "$GJSIFY_BOOTSTRAP" run build:infra
-          fi
+        run: .github/scripts/bootstrap-cold-tree.sh
 
       - name: Build packages
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build
@@ -1189,6 +1184,23 @@ jobs:
           echo "mozjs-140: $(pkg-config --modversion mozjs-140)"
           echo "gjs-1.0:   $(pkg-config --modversion gjs-1.0)"
           echo "valac:     $(valac --version)"
+
+      # `.docker/ci-fedora.Dockerfile` bakes NO nodejs/npm, deliberately and in
+      # those words — every job on that image brings its own via setup-node. The
+      # staging step below runs `node scripts/stage-prebuild.mjs`, so without
+      # this the leg dies with `node: command not found` (exit 127) AFTER a
+      # fully successful meson build. That is exactly how v0.31.0 shipped: 60
+      # packages and `@gjsify/node-gi` went out, `@gjsify/napi` did not, because
+      # this step was copied from napi.yml without the setup-node that precedes
+      # it there (napi.yml's three container jobs all carry one).
+      #
+      # Version matches `publish-napi` below rather than napi.yml's '24' — same
+      # image, same workflow, and the Dockerfile's `libatomic` note is written
+      # for setup-node >= 26.
+      - name: Setup Node.js (the baked image ships none)
+        uses: actions/setup-node@v6
+        with:
+          node-version: '26.x'
 
       - name: Checkout repository (the released tag)
         uses: actions/checkout@v4

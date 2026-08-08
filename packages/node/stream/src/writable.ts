@@ -73,12 +73,29 @@ export class Writable_ extends Stream_ {
     private _constructImpl: ((this: Writable_, cb: ErrCallback) => void) | undefined;
     private _decodeStrings: boolean;
     private _defaultEncoding = 'utf8';
+    /**
+     * Node's `autoDestroy`, default `true`.
+     *
+     * Without it a finished stream emitted `'close'` and stopped there, having
+     * never been destroyed — so `_destroy()` never ran, and every resource a
+     * subclass releases there was simply kept. `fs.createWriteStream` leaked one
+     * FILE DESCRIPTOR per stream that way, because its `close()` is reachable
+     * only from `_destroy`; at the 1024 soft limit that is EMFILE after about a
+     * thousand files. `destroyed` also stayed `false` after `'close'`, which is
+     * the opposite of what a `stream.finished()`-style check reads.
+     *
+     * Contained to the plain writable on purpose: `Duplex_` extends `Readable_`
+     * and re-implements its own writable half, so this cannot half-destroy a
+     * duplex whose read side is still live.
+     */
+    private _autoDestroy: boolean;
 
     constructor(opts?: WritableOptions) {
         super(opts);
         this.writableHighWaterMark = opts?.highWaterMark ?? getDefaultHighWaterMark(opts?.objectMode ?? false);
         this.writableObjectMode = opts?.objectMode ?? false;
         this._decodeStrings = opts?.decodeStrings !== false;
+        this._autoDestroy = opts?.autoDestroy !== false;
         if (opts?.write)
             this._writeImpl = opts.write as unknown as (
                 this: Writable_,
@@ -247,7 +264,13 @@ export class Writable_ extends Stream_ {
                     this.emit('error', err);
                 }
                 this.emit('finish');
-                nextTick(() => this.emit('close'));
+                // `destroy()` runs `_destroy()` and emits `'close'` from its
+                // completion callback, so the two paths must not both queue one.
+                if (this._autoDestroy) {
+                    this.destroy();
+                } else {
+                    nextTick(() => this.emit('close'));
+                }
                 if (this._endCallback) this._endCallback();
             });
         });

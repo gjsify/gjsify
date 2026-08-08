@@ -36,6 +36,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const VERIFY = join(MONOREPO_ROOT, 'packages', 'node-gi', 'scripts', 'verify-bundle-manifest.mjs');
 const GUARD = join(MONOREPO_ROOT, 'scripts', 'check-workflow-inline-scripts.mjs');
+const IMAGE_GUARD = join(MONOREPO_ROOT, 'scripts', 'check-ci-image-packages.mjs');
+const ORDER_GUARD = join(MONOREPO_ROOT, 'scripts', 'check-build-infra-order.mjs');
 
 /** The measured shape of a good v0.28.0 darwin-arm64 bundle manifest. */
 function goodManifest(overrides = {}) {
@@ -213,6 +215,252 @@ describe('check-workflow-inline-scripts: the regrow guard', () => {
 
     it("holds for this repo's own workflows", () => {
         const result = spawnSync(process.execPath, [GUARD, '--root', MONOREPO_ROOT], { encoding: 'utf8' });
+        assert.equal(result.status, 0, result.output);
+    });
+});
+
+// The third script that only a real release used to exercise. `release.yml`'s
+// `napi-prebuild-linux` ran `node scripts/stage-prebuild.mjs` on an image whose
+// Dockerfile says, in those words, "no nodejs/npm baked in". On the v0.31.0 publish
+// meson built all 16 targets and the step then died on `node: command not found`
+// (exit 127); `publish-napi` needs that artifact, so it was skipped and `@gjsify/napi`
+// alone stayed at 0.30.0 while the other 60 packages went out. Same suite, same
+// reason: this is where its failure path runs before a release finds it.
+describe('check-ci-image-packages: the node-availability guard', () => {
+    const dockerfileWith = (packages) =>
+        ['FROM fedora:44', 'RUN dnf install -y \\', `    ${packages} \\`, '    && dnf clean all', ''].join('\n');
+    const BAKED_DOCKERFILE = dockerfileWith('gjs meson vala');
+
+    function runImageGuard(workflowFiles, dockerfile = BAKED_DOCKERFILE) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-image-guard-'));
+        mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+        mkdirSync(join(root, '.docker'), { recursive: true });
+        writeFileSync(join(root, '.docker', 'ci-fedora.Dockerfile'), dockerfile);
+        writeFileSync(
+            join(root, '.github', 'workflows', 'build-ci-image.yml'),
+            [
+                'jobs:',
+                '  image:',
+                '    steps:',
+                '      - uses: docker/build-push-action@v6',
+                '        with:',
+                '          platforms: linux/amd64',
+                '',
+            ].join('\n'),
+        );
+        for (const [name, body] of Object.entries(workflowFiles)) {
+            writeFileSync(join(root, '.github', 'workflows', name), body);
+        }
+        const result = spawnSync(process.execPath, [IMAGE_GUARD, '--root', root], { encoding: 'utf8' });
+        return { ...result, output: `${result.stdout}${result.stderr}` };
+    }
+
+    it('rejects the exact step that stranded @gjsify/napi at 0.30.0', () => {
+        const result = runImageGuard({
+            'release.yml': [
+                'jobs:',
+                '  napi-prebuild-linux:',
+                '    runs-on: ubuntu-latest',
+                '    container:',
+                '      image: ghcr.io/gjsify/ci-fedora:44',
+                '    steps:',
+                '      - uses: actions/checkout@v4',
+                '      - name: Build the shim + stage prebuild',
+                '        run: |',
+                '          meson setup build .',
+                '          node ../../../scripts/stage-prebuild.mjs .',
+                '',
+            ].join('\n'),
+        });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /release\.yml\/napi-prebuild-linux/);
+        assert.match(result.stderr, /which ships no node, and invokes it anyway/);
+        assert.match(result.stderr, /release\.yml:11/);
+    });
+
+    it('accepts the same job once it provides node', () => {
+        const result = runImageGuard({
+            'release.yml': [
+                'jobs:',
+                '  napi-prebuild-linux:',
+                '    runs-on: ubuntu-latest',
+                '    container:',
+                '      image: ghcr.io/gjsify/ci-fedora:44',
+                '    steps:',
+                '      - uses: actions/setup-node@v6',
+                '        with:',
+                "          node-version: '26.x'",
+                '      - run: |',
+                '          node ../../../scripts/stage-prebuild.mjs .',
+                '',
+            ].join('\n'),
+        });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /provided by actions\/setup-node@v6 step/);
+    });
+
+    // The false positive a naive rule produces. `prebuilds.yml` installs nodejs
+    // itself, in a FOLDED (`run: >`) block whose package list is on the lines after
+    // `dnf install -y` — invisible to a scanner that reads block scalars verbatim or
+    // only handles `|`. A check that fails here gets switched off, and then it guards
+    // nothing.
+    it('accepts a job that installs nodejs itself in a folded run block', () => {
+        const result = runImageGuard({
+            'prebuilds.yml': [
+                'jobs:',
+                '  build-prebuilds:',
+                '    runs-on: ubuntu-24.04-arm',
+                '    container:',
+                '      image: fedora:43',
+                '    steps:',
+                '      - run: >',
+                '          dnf install -y',
+                '          git tar xz',
+                '          nodejs',
+                '          meson vala',
+                '      - run: node ../../../scripts/stage-prebuild.mjs . --scratch',
+                '',
+            ].join('\n'),
+        });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /provided by its own nodejs install/);
+    });
+
+    it('does not mistake node-shaped words for an invocation', () => {
+        const result = runImageGuard({
+            'main.yml': [
+                'jobs:',
+                '  build:',
+                '    runs-on: ubuntu-latest',
+                '    container:',
+                '      image: ghcr.io/gjsify/ci-fedora:44',
+                '    steps:',
+                '      - run: |',
+                '          rm -rf node_modules',
+                '          gjsify build --app node',
+                '          gjs -m packages/node-gi/dist/test.mjs',
+                '',
+            ].join('\n'),
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    // The derivation, not a hardcoded fact about the image: bake nodejs in and the
+    // check stops asking for setup-node, with nothing to remember to delete.
+    it('stands down when the image itself bakes nodejs', () => {
+        const withNode = dockerfileWith('gjs meson nodejs');
+        const workflow = {
+            'release.yml': [
+                'jobs:',
+                '  napi-prebuild-linux:',
+                '    runs-on: ubuntu-latest',
+                '    container:',
+                '      image: ghcr.io/gjsify/ci-fedora:44',
+                '    steps:',
+                '      - run: |',
+                '          node ../../../scripts/stage-prebuild.mjs .',
+                '',
+            ].join('\n'),
+        };
+        assert.equal(runImageGuard(workflow).status, 1);
+        assert.equal(runImageGuard(workflow, withNode).status, 0);
+    });
+
+    it("holds for this repo's own workflows", () => {
+        const result = spawnSync(process.execPath, [IMAGE_GUARD, '--root', MONOREPO_ROOT], { encoding: 'utf8' });
+        assert.equal(result.status, 0, result.output);
+    });
+});
+
+// The fourth script whose failure path only a release used to exercise. `build:infra`
+// must be bundler-free up to the clause that BUILDS the bundler; #1031 lost that while
+// fixing a real race, and it stayed green because Node loads the npm rolldown engine
+// and a warm cache skips `build:infra` entirely. v0.31.0's `publish-napi` runs on a
+// cold GJS tree, hit it, and `@gjsify/napi` did not publish.
+describe('check-build-infra-order: the bundler-free prefix', () => {
+    const FACADE = 'node scripts/bootstrap-native-facades.mjs';
+
+    function runOrderGuard(buildInfra, packages) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-infra-order-'));
+        writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { 'build:infra': buildInfra } }));
+        for (const [name, scripts] of Object.entries(packages)) {
+            const dir = join(root, 'packages', 'infra', name.replace('@gjsify/', ''));
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, scripts }));
+        }
+        const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', root], { encoding: 'utf8' });
+        return { ...result, output: `${result.stdout}${result.stderr}` };
+    }
+
+    // Verbatim the shape that failed: `build` resolves through `build:gjsify` to
+    // `gjsify build --library`, which is a bundler call the facade has not produced yet.
+    const FOUR = {
+        '@gjsify/semver': {
+            build: 'gjsify run build:gjsify && gjsify run build:types',
+            'build:gjsify': "gjsify build --library 'src/**/*.ts'",
+            'build:types': 'gjsify tsc -p tsconfig.build.json',
+        },
+        '@gjsify/cli': { build: 'tsc' },
+    };
+
+    it('rejects the clause order that failed to publish @gjsify/napi', () => {
+        const result = runOrderGuard(
+            `gjsify workspace @gjsify/semver build && gjsify workspace @gjsify/cli build && ${FACADE}`,
+            FOUR,
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /clause 1 runs `@gjsify\/semver build`/);
+        assert.match(result.stderr, /gjsify build --library/);
+        assert.match(result.stderr, /2 clause\(s\) before bootstrap-native-facades\.mjs/);
+    });
+
+    it('accepts declarations before the facade and the full build after it', () => {
+        const result = runOrderGuard(
+            `gjsify workspace @gjsify/semver build:types && gjsify workspace @gjsify/cli build && ` +
+                `${FACADE} && gjsify workspace @gjsify/semver build`,
+            FOUR,
+        );
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /2 pre-facade clause\(s\) are tsc-only/);
+    });
+
+    // Indirection is the whole point: the bundler call is two hops down, and a check
+    // that only read the named script would have cleared the shape that broke.
+    it('follows `gjsify run` into the script that actually calls the bundler', () => {
+        const result = runOrderGuard(`gjsify workspace @gjsify/semver build && ${FACADE}`, {
+            '@gjsify/semver': {
+                build: 'gjsify run inner',
+                inner: 'gjsify run deeper',
+                deeper: 'gjsify build --library',
+            },
+        });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /reaches `gjsify build --library`/);
+    });
+
+    // `build:gjsify` is not `build`; `--app build` is not a command. A check that
+    // counted substrings would flag both, and a flagged-wrongly check gets disabled.
+    it('does not mistake a bundler-shaped word for a bundler call', () => {
+        const result = runOrderGuard(`gjsify workspace @gjsify/tsc build && ${FACADE}`, {
+            '@gjsify/tsc': { build: 'node scripts/build-bundle.mjs --app build && gjsify tsc -p .' },
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it('fails loudly when it can resolve nothing rather than passing vacuously', () => {
+        const result = runOrderGuard(`echo hello && ${FACADE}`, {});
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /silently stopped reading it/);
+    });
+
+    it('fails when no clause runs the facade bootstrap at all', () => {
+        const result = runOrderGuard('gjsify workspace @gjsify/cli build', { '@gjsify/cli': { build: 'tsc' } });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /no `build:infra` clause runs bootstrap-native-facades\.mjs/);
+    });
+
+    it("holds for this repo's own build:infra", () => {
+        const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', MONOREPO_ROOT], { encoding: 'utf8' });
         assert.equal(result.status, 0, result.output);
     });
 });

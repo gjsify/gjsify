@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.30.0, ESM-only, GNOME libs. Bootstraps from the PUBLISHED gjsify (ADR 0002): `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. No committed bundle, no yarn, no Node-only npm CLI. `dist/{cli,tsc}.gjs.mjs` are build outputs; only `dist/affected.gjs.mjs` is tracked. Pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/` | **NativeScript bridge** `packages/nativescript-bridge/` | `packages/infra/` + `packages/gjs/` = supporting infra. Package counts, per-package status tables and metrics are DERIVED — authored status data in `status/`, rendered on demand by `npm run status:generate`, never here.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.31.0, ESM-only, GNOME libs. Bootstraps from the PUBLISHED gjsify (ADR 0002): `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. No committed bundle, no yarn, no Node-only npm CLI. `dist/{cli,tsc}.gjs.mjs` are build outputs; only `dist/affected.gjs.mjs` is tracked. Pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/` | **NativeScript bridge** `packages/nativescript-bridge/` | `packages/infra/` + `packages/gjs/` = supporting infra. Package counts, per-package status tables and metrics are DERIVED — authored status data in `status/`, rendered on demand by `npm run status:generate`, never here.
 
 ## Where the rules live — nearest AGENTS.md wins
 

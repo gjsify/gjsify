@@ -24,7 +24,7 @@ import testSuiteStatFs from './statfs.spec.js';
 import testSuiteUtimes from './utimes.spec.js';
 import testSuiteFdOps from './fd-ops.spec.js';
 import testSuiteRmSymlink from './rm-symlink.spec.js';
-import testSuiteCreationMode from './creation-mode.spec.js';
+import testSuiteFsSemantics from './fs-semantics.spec.js';
 
 run({
     testSuiteCallback,
@@ -46,5 +46,5 @@ run({
     testSuiteUtimes,
     testSuiteFdOps,
     testSuiteRmSymlink,
-    testSuiteCreationMode,
+    testSuiteFsSemantics,
 });

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-dom-adwaita-storybook-nativescript",
-    "version": "0.30.0",
+    "version": "0.31.0",
     "description": "The full Adwaita storybook as a real NativeScript-Android app — the SAME stories as the native GTK (@gjsify/storybook) and browser (@gjsify/adwaita-storybook) targets, rendered with REAL native @gjsify/adwaita-nativescript widgets via @gjsify/storybook-nativescript. Shares the renderer-agnostic *.meta.ts with the GTK showcase for 1:1 comparison. MCP-drivable via @gjsify/devtools-nativescript over the V8 CDP inspector.",
     "private": true,
     "main": "app/app.ts",

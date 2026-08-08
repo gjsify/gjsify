@@ -1,24 +1,36 @@
 ### Adwaita Web framework roadmap
 
-Long-term goal: complete `@gjsify/adwaita-web` so it can replace the styling layer of `refs/adwaita-web/scss/` while keeping our Web Components abstraction. Planned port order (each adds a custom element + SCSS partial + AGENTS attribution; each port must add a SPDX header citing `refs/adwaita-web/adwaita-web/scss/_<name>.scss` and/or `refs/libadwaita/src/stylesheet/widgets/_<name>.scss`):
+Long-term goal: complete `@gjsify/adwaita-web` so it can replace the styling layer of
+`refs/adwaita-web/scss/` while keeping our Web Components abstraction. Every port adds a custom
+element + SCSS partial + a SPDX header citing `refs/adwaita-web/adwaita-web/scss/_<name>.scss`
+and/or `refs/libadwaita/src/stylesheet/widgets/_<name>.scss`.
 
-| Status | Component | Source partial |
+**What already exists is NOT tracked here.** The per-widget matrix above — which widget has a GTK
+story, a browser element, a NativeScript view, and which of them actually delegate to
+`@gjsify/adwaita-core` — is derived from the tree on every generation. This section used to carry
+that table by hand, and it drifted twelve widgets behind the code: `<adw-button>`, `<adw-entry>`,
+`<adw-action-row>`, `<adw-banner>`, `<adw-bottom-sheet>`, `<adw-status-page>`,
+`<adw-toggle-group>`, `<adw-split-button>`, `<adw-expander-row>`, `<adw-carousel>`,
+`<adw-avatar>` and `<adw-wrap-box>` all sat under "Planned" long after they shipped. Nothing that
+a script can read belongs in this file.
+
+What DOES belong here is the judgement a script cannot make: which upstream partials we have no
+counterpart for at all. The three sources name things differently (`_headerbar.scss` vs
+`_header-bar.scss`, `_tabs.scss` vs our `_tab_view.scss`, `_spin_button.scss` vs `_spin_row.scss`),
+so a filename diff reports gaps that are not gaps. The list below was checked by hand against
+`src/elements/` (checked 2026-08-08) and holds only widgets with neither an element nor a partial:
+
+| Missing | Source partial | Note |
 |---|---|---|
-| ✅ Done | `<adw-window>`, `<adw-header-bar>`, `<adw-preferences-group>`, `<adw-card>`, `<adw-switch-row>`, `<adw-combo-row>`, `<adw-spin-row>`, `<adw-toast-overlay>`, `<adw-overlay-split-view>` | `_window.scss`, `_headerbar.scss`, `_preferences.scss`, `_card.scss`, `_switch_row.scss`, `_combo_row.scss`, `_spin_button.scss`, `_toast.scss`, (libadwaita C source) |
-| ✅ Done | `<adw-view-stack>`, `<adw-view-switcher-bar>`, `<adw-menu-button>` (phone-shell nav/shell trio for the Learn6502 web rewrite) | `_view_stack.scss`, `_view_switcher_bar.scss`, `_menu_button.scss` |
-| ✅ Done | `<adw-source-view>` — CodeMirror-6 editor at the opt-in subpath `@gjsify/adwaita-web/source-view` | self-injected CSS + CodeMirror theme (no SCSS partial) |
-| ✅ Done | `<adw-data-grid>` — slim aligned numeric grid for tabular financial data | `_data_grid.scss` |
-| ✅ Done | `<adw-dialog>` (generic adaptive dialog) + `<adw-drop-down>` (standalone `Gtk.DropDown` mirror) | `_dialog.scss`, `_drop_down.scss` |
-| Planned | `<adw-button>` (flat / suggested / destructive) | `_button.scss`, `_button_row.scss` |
-| Planned | `<adw-entry>` / `<adw-entry-row>` | `_entry.scss`, `_entry_row.scss` |
-| Planned | `<adw-action-row>` | `_action_row.scss` |
-| Planned | `<adw-checkbox>` / `<adw-radio>` | `_checkbox.scss`, `_radio.scss` |
-| Planned | `<adw-popover>` | `_popover.scss` |
-| Planned | `<adw-banner>` / `<adw-bottom-sheet>` | `_banner.scss`, `_bottom_sheet.scss` |
-| Planned | `<adw-tabs>` / `<adw-view-switcher>` | `_tabs.scss`, `_viewswitcher.scss` |
-| Planned | `<adw-progress-bar>` / `<adw-spinner>` | `_progressbar.scss`, `_spinner.scss` |
-| Planned | `<adw-status-page>` | `_status_page.scss` |
-| Planned | `<adw-toggle-group>` / `<adw-split-button>` | `_toggle_group.scss`, `_split_button.scss` |
-| Planned | `<adw-expander-row>` / `<adw-carousel>` | `_expander_row.scss`, `_carousel_indicators.scss` |
-| Planned | `<adw-avatar>` / `<adw-label>` / `<adw-icon>` | `_avatar.scss`, `_label.scss`, `_icon.scss` |
-| Planned | Utility classes & layout helpers | `_box.scss`, `_wrap_box.scss`, `_listbox.scss`, `_toolbar_view.scss`, `_utility_classes.scss` |
+| `<adw-checkbox>` / `<adw-radio>` | `_checkbox.scss`, `_radio.scss` | no form-control primitives yet |
+| `<adw-switch>` | `_switch.scss` | only `<adw-switch-row>` exists; the standalone control does not |
+| `<adw-popover>` | `_popover.scss` | `<adw-menu-button>` hand-rolls its own popup |
+| `<adw-progress-bar>` | `_progressbar.scss` | `<adw-spinner>` covers indeterminate only |
+| `<adw-label>` / `<adw-icon>` | `_label.scss`, `_icon.scss` | `.adw-icon` exists as a CLASS other widgets use, not as an element |
+| Utility classes & layout helpers | `_box.scss`, `_listbox.scss`, `_utility_classes.scss`, `_row_types.scss` | the pieces consumers reach for when composing their own rows |
+| `<adw-shortcut-label>` | `_shortcut_label.scss` | niche; only needed by a shortcuts window |
+
+Two gaps run the other way — NativeScript has widgets the browser does not (`adw-icon`,
+`adw-image-button`, `adw-preferences-page`, `adw-slider-row`), and the browser has some
+NativeScript lacks (`adw-data-grid`, `adw-drop-down`, standalone `adw-entry`). Those show up as
+asymmetric rows in the derived matrix, so they are not restated here either.

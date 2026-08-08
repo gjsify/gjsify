@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const script = fileURLToPath(new URL('../../../.github/prebuild-toolchain/changed-packages.mjs', import.meta.url));
 const workflow = fileURLToPath(new URL('../../../.github/workflows/prebuilds.yml', import.meta.url));
+
 const emulated = fileURLToPath(new URL('../../../.github/prebuild-toolchain/emulated-build.sh', import.meta.url));
 const muslScript = fileURLToPath(new URL('../../../.github/prebuild-toolchain/musl-build.sh', import.meta.url));
 // `release.yml` stages prebuilds too — its two `napi-prebuild-*` legs — and it was
@@ -97,6 +98,28 @@ function runAll() {
     return r.stdout;
 }
 
+/**
+ * How many native packages the gate owns, DERIVED from the classifier's own
+ * forced-everything key set — never written down.
+ *
+ * It used to be the literal `10`, in four assertions. ADR 0022 added an
+ * eleventh package and all four kept the old number, so this suite went red on
+ * a COUNT rather than on the contract it exists to hold — and it went red
+ * invisibly, because the E2E leg is path-filtered and skipped on the PR that
+ * caused it.
+ *
+ * `--all` is a different code path from the change-driven classification every
+ * caller below exercises, so this is a partition check ("the change-driven
+ * answer covers the same set the forced one does"), not `f(x) === f(x)`. That
+ * the key set itself matches the WORKFLOW is held separately, by
+ * `— package discovery` above, which is where a genuinely missing bridge fails.
+ */
+let packageCountCache;
+function packageCount() {
+    packageCountCache ??= JSON.parse(runAll()).build.length;
+    return packageCountCache;
+}
+
 /** Run the classifier over an explicit file list; returns its JSON report. */
 function classify(files) {
     // `--format=json` — this helper needs no GitHub outputs, so it does not ask
@@ -147,7 +170,7 @@ describe('prebuild change gate — package discovery', () => {
             if (!existsSync(join(repoRoot, 'packages', pillar, dir, 'meson.build'))) continue;
             assert.ok(all.build.includes(dir), `${dir} is built by the workflow but missing from the table`);
         }
-        assert.ok(all.build.length >= 10, 'the workflow owns ten native packages today');
+        assert.ok(all.build.length >= 10, 'the workflow owns at least ten native packages');
         assert.deepEqual(classify([]).build, [], 'an empty change set builds nothing');
     });
 
@@ -211,7 +234,7 @@ describe('prebuild change gate — what counts as changed', () => {
         const { build, skip } = classify(['packages/node/terminal-native/src/vala/terminal.vala']);
         assert.deepEqual(build, ['terminal-native']);
         assert.ok(skip.includes('lightningcss-native'), 'the expensive package must be skipped');
-        assert.equal(skip.length + build.length, 10);
+        assert.equal(skip.length + build.length, packageCount());
     });
 
     it('derives the same refs/ set as the conformance rule that owns it', async () => {
@@ -279,7 +302,7 @@ describe('prebuild change gate — what counts as changed', () => {
         ]) {
             const { build, skip } = classify([shared]);
             assert.deepEqual(skip, [], `${shared} must rebuild everything`);
-            assert.equal(build.length, 10);
+            assert.equal(build.length, packageCount());
         }
     });
 
@@ -322,7 +345,7 @@ describe('prebuild change gate — fail open', () => {
         assert.equal(r.status, 0, r.stderr);
         const { build, skip, reason } = JSON.parse(r.stdout);
         assert.deepEqual(skip, []);
-        assert.equal(build.length, 10);
+        assert.equal(build.length, packageCount());
         assert.match(reason, /not a commit/);
     });
 
@@ -337,12 +360,12 @@ describe('prebuild change gate — fail open', () => {
         const outputs = readOutputs(r.outputFile);
         assert.deepEqual(Object.keys(outputs).sort(), ['build', 'reason', 'report', 'skip']);
         assert.deepEqual(JSON.parse(outputs.build), ['terminal-native']);
-        assert.equal(JSON.parse(outputs.skip).length, 9);
-        assert.match(outputs.reason, /1 of 10/);
+        assert.equal(JSON.parse(outputs.skip).length, packageCount() - 1);
+        assert.match(outputs.reason, new RegExp(`1 of ${packageCount()}`));
         // `report` is what `prebuilds-summary` renders — it must be one line of
         // parseable JSON covering every package with a per-package reason.
         const report = JSON.parse(outputs.report);
-        assert.equal(report.length, 10);
+        assert.equal(report.length, packageCount());
         assert.ok(report.every((e) => typeof e.key === 'string' && typeof e.why === 'string'));
         assert.equal(report.find((e) => e.key === 'terminal-native').build, true);
         assert.equal(report.find((e) => e.key === 'lightningcss-native').build, false);

@@ -73,11 +73,12 @@ describe('gjsify tsc — Node fallback under a GJS-hosted CLI', { skip: SKIP, ti
     let bundleCopy;
 
     /** Run the GJS-hosted CLI: `gjs -m <copied bundle> tsc <args…>` in projectDir. */
-    function runGjsifyTsc(args) {
+    function runGjsifyTsc(args, env) {
         const r = spawnSync('gjs', ['-m', bundleCopy, 'tsc', ...args], {
             cwd: projectDir,
             encoding: 'utf-8',
             stdio: ['ignore', 'pipe', 'pipe'],
+            ...(env ? { env } : {}),
         });
         return { code: r.status, output: `${r.stdout ?? ''}${r.stderr ?? ''}` };
     }
@@ -164,5 +165,38 @@ describe('gjsify tsc — Node fallback under a GJS-hosted CLI', { skip: SKIP, ti
         // Bare code, not `error TS2322`: tsc inserts ANSI escapes between the
         // two when it detects colour support (see tests/e2e/self-host-tsc).
         assert.match(output, /TS2322/, `expected TS2322, got:\n${output}`);
+    });
+
+    // The path NOTHING covered before, and the one that shipped broken.
+    //
+    // The two cases above exercise `child.on('close')` — the child RAN, so the
+    // async spawn armed the GLib main loop and the idle-scheduled
+    // `process.exit()` was delivered. When the spawn itself FAILS there is no
+    // child and no armed loop, so that idle never runs: the CLI printed its
+    // diagnosis and then exited **0**.
+    //
+    // That is not a cosmetic exit code. `@gjsify/create-app`'s build is
+    // `node scripts/process-template.mjs && gjsify tsc && node scripts/set-bin-mode.mjs`,
+    // so a 0 here runs `set-bin-mode.mjs` against a `lib/index.js` tsc never
+    // wrote — which is how a release-cut on a cold tree failed pointing two
+    // steps past the real fault. `ci-fedora` ships no node, and the Node
+    // fallback is the NORMAL path on a cold tree, so this is reachable in CI.
+    it('FAILS LOUDLY when the compiler cannot be spawned at all (no node on PATH)', () => {
+        writeFileSync(join(projectDir, 'src', 'index.ts'), 'export const answer: number = 42;\n');
+        // A PATH that still resolves `gjs` (the host we are launching) but not
+        // `node` (the interpreter the fallback needs), so the spawn raises
+        // ENOENT instead of the child failing.
+        const gjsDir = dirname(spawnSync('sh', ['-c', 'command -v gjs'], { encoding: 'utf-8' }).stdout.trim());
+        const { code, output } = runGjsifyTsc(['-p', 'tsconfig.json'], { ...process.env, PATH: gjsDir });
+        assert.notEqual(
+            code,
+            0,
+            `gjsify tsc reported SUCCESS while producing nothing — the deferred exit was dropped:\n${output}`,
+        );
+        assert.match(
+            output,
+            /not on PATH|cannot (be )?run|not found/i,
+            `expected a diagnosis naming the missing interpreter, got:\n${output}`,
+        );
     });
 });

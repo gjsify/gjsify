@@ -85,6 +85,8 @@ on:
       - 'packages/node/tls-native/meson.build'
       - 'packages/node/terminal-native/src/vala/**'
       - 'packages/node/terminal-native/meson.build'
+      - 'packages/framework/webkit-native/src/objc/**'
+      - 'packages/framework/webkit-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -139,6 +141,8 @@ on:
       - 'packages/node/tls-native/meson.build'
       - 'packages/node/terminal-native/src/vala/**'
       - 'packages/node/terminal-native/meson.build'
+      - 'packages/framework/webkit-native/src/objc/**'
+      - 'packages/framework/webkit-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -1214,6 +1218,43 @@ jobs:
         # hand-written `cp` list is precisely where it went missing.
         run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
+      # -------- @gjsify/webkit-native (WebKit-6.0, darwin only) --------
+      # The one bridge with NO Linux counterpart: it binds Apple's
+      # WebKit.framework, which is why it appears here and in no other job. Its
+      # typelib deliberately claims the `WebKit-6.0` namespace so `@gjsify/iframe`
+      # keeps `gi://WebKit?version=6.0` verbatim on both platforms (ADR 0022).
+      #
+      # No `refs/` submodule and no Rust: the source is one Objective-C file and
+      # a pure-C header, and the toolchain is clang + meson + gobject-introspection,
+      # all of which this runner already has for the rows above.
+      - name: Build @gjsify/webkit-native (Objective-C → GObject shim)
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        working-directory: packages/framework/webkit-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/webkit-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        working-directory: packages/framework/webkit-native
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      # NOT optional, for two reasons that are easy to miss. Without an upload
+      # the build is thrown away, so a `ci:macos` run would prove the shim
+      # compiles and produce nothing to commit. And `changed-packages.mjs`
+      # discovers the package table from exactly these `path:` lines — a bridge
+      # with no upload step is invisible to it, so every edit under its
+      # directory is classified as "shared input changed" and rebuilds all ten
+      # other bridges on all five legs, QEMU included.
+      - name: Upload @gjsify/webkit-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: webkit-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/framework/webkit-native/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
       # -------- @gjsify/terminal-native (GjsifyTerminal) --------
       # Plain POSIX; the only Linux dependency it had was Vala's `linux.vapi`
       # (`Linux.winsize` / `Linux.Termios.TIOCGWINSZ`), now replaced by the
@@ -1399,13 +1440,28 @@ jobs:
             echo "--- ${ns}.${sym} from ${abs}"
             # GI_TYPELIB_PATH locates the typelib; DYLD_LIBRARY_PATH is what lets
             # dlopen resolve the BARE leaf the typelib records (dyld has no
-            # notion of "next to the typelib"). This mirrors exactly what the CLI
-            # exports via detectNativePackages()/buildNativeEnv() on darwin, so a
-            # pass here is a pass for a real `gjsify` run. The sibling cdylib is
+            # notion of "next to the typelib"). The sibling cdylib is
             # deliberately NOT covered by that variable — see the next step.
+            #
+            # DYLD_FALLBACK_LIBRARY_PATH carries the HOST's libdir, and the split
+            # between the two variables is the whole point rather than belt and
+            # braces: the override variable wins by LEAF for every dylib in the
+            # process, so a system libdir in it would shadow the very libraries a
+            # prebuild links against. That is exactly the division
+            # `buildNativeEnv()` makes on darwin — this step CLAIMED to mirror it
+            # and did not, carrying only the override half, which held for as
+            # long as no bridge here needed a host GNOME library by bare leaf.
+            # `@gjsify/webkit-native` is the first that does (its typelib
+            # references `libgtk-4.1.dylib`), and it failed with GJS's own Gtk
+            # override unable to load — the darwin bare-leaf gap in
+            # status/open-todos.md, surfacing in CI rather than in a consumer.
+            # `/usr/lib` is appended because setting the variable REPLACES dyld's
+            # default fallback list.
+            #
             # `< /dev/null`: the loop's stdin is the table rows, and a child that
             # reads it would eat the remaining ones.
-            if GI_TYPELIB_PATH="$abs" DYLD_LIBRARY_PATH="$abs" gjs -c \
+            if GI_TYPELIB_PATH="$abs" DYLD_LIBRARY_PATH="$abs" \
+               DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib:/usr/lib" gjs -c \
                  "const T = imports.gi.${ns}.${sym};
                   if (typeof T !== 'function') { throw new Error('${ns}.${sym} did not resolve to a class'); }
                   print('${ns}.${sym} resolved — shared library loaded');" < /dev/null
@@ -2969,8 +3025,21 @@ jobs:
           name: webgl-prebuilds-darwin-arm64
           path: packages/framework/webgl-darwin-arm64/prebuilds/darwin-arm64/
 
+      # THE ONLY WAY darwin-arm64 EVER GETS A WEBKIT BINARY. ADR 0022 added the
+      # build and the upload but not these two downloads, so the artifact was
+      # produced on every `ci:macos` run and thrown away — which is why
+      # `@gjsify/webkit-native-darwin-arm64` carried a `platformsUncommitted`
+      # entry blaming the authoring host's architecture. The host was never the
+      # blocker; the missing download was.
+      - name: Download webkit-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webkit-native-prebuilds-darwin-arm64
+          path: packages/framework/webkit-native-darwin-arm64/prebuilds/darwin-arm64/
+
       # -------- darwin-x64 (macOS, Intel) --------
-      # The SAME seven packages as the arm64 block above, because both come from
+      # The SAME eight packages as the arm64 block above, because both come from
       # the one matrixed `build-prebuilds-macos` job — the sets cannot drift.
       - name: Download lightningcss-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
@@ -3027,6 +3096,13 @@ jobs:
         with:
           name: webgl-prebuilds-darwin-x64
           path: packages/framework/webgl-darwin-x64/prebuilds/darwin-x64/
+
+      - name: Download webkit-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webkit-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webkit-native-prebuilds-darwin-x64
+          path: packages/framework/webkit-native-darwin-x64/prebuilds/darwin-x64/
 
       # Two scratch paths, named ONCE, both OUTSIDE the repository so nothing
       # parked in them can be staged by accident. Four steps and two scripts have

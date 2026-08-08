@@ -25,5 +25,5 @@
     "webtorrent": "^3.0.16"
   },
   "private": true,
-  "version": "0.30.0"
+  "version": "0.31.0"
 }

@@ -17,7 +17,7 @@ import type {
 } from 'node:fs';
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'node:buffer';
-import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { createNodeError } from './errors.js';
 import {
     realpathSync,
@@ -43,6 +43,36 @@ import type { OpenFlags } from './types/index.js';
 
 // --- helpers ---
 
+/**
+ * The handle behind `fd`, or `null` after handing EBADF to `deliver`.
+ *
+ * `FileHandle.getInstance()` raises a proper `EBADF` for a stale or bogus
+ * descriptor — but a CALLBACK api has to DELIVER that error, not throw it.
+ * Nobody wraps `fs.write(fd, buf, cb)` in try/catch, so the throw walked
+ * straight out of the callback machinery and terminated the GJS process. The
+ * six sibling fd callbacks (`fstat`, `ftruncate`, `fsync`, `fdatasync`,
+ * `futimes`, `fchmod`) all deliver correctly, so `write`/`read`/`close` were an
+ * inconsistency inside one file.
+ *
+ * It also unstalls `fs.WriteStream`. Its `_destroy()` closes through `close()`
+ * below, and with autoDestroy that now runs on the ORDINARY end path; the
+ * escaping throw meant the stream emitted neither `'close'` nor `'error'`, so
+ * `await once(ws,'close')`, `stream.finished(ws)` and `pipeline(…, ws)` waited
+ * forever.
+ *
+ * Delivery is deferred one microtask because Node's is: `fs.write(9999, buf, cb)`
+ * RETURNS before `cb` runs (measured against v24.15.0). Calling back inside the
+ * call would trade one divergence for another.
+ */
+function withHandle(fd: number, syscall: string, deliver: (err: NodeJS.ErrnoException) => void): FileHandle | null {
+    try {
+        return FileHandle.getInstance(fd, syscall);
+    } catch (err: unknown) {
+        Promise.resolve().then(() => deliver(err as NodeJS.ErrnoException));
+        return null;
+    }
+}
+
 function parseOptsCb(
     optionsOrCallback: unknown,
     maybeCallback?: Function,
@@ -64,7 +94,7 @@ function statImpl(
     file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
         try {
             const info = file.query_info_finish(res);
-            callback(null, options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr));
+            callback(null, statsFrom(info, pathStr, syscall, options?.bigint as boolean | undefined));
         } catch (err: unknown) {
             callback(createNodeError(err, syscall, pathStr));
         }
@@ -366,7 +396,13 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(
     data: string | TBuffer,
     ...args: (number | string | BufferEncoding | WriteStrCallback | WriteBufCallback | undefined | null)[]
 ): void {
-    const fileHandle = FileHandle.getInstance(fd);
+    const fileHandle = withHandle(fd, 'write', (err) => {
+        const cb = args[args.length - 1];
+        if (typeof cb !== 'function') return;
+        if (typeof data === 'string') (cb as WriteStrCallback)(err, 0, '');
+        else (cb as WriteBufCallback)(err, 0, Buffer.from([]) as unknown as TBuffer);
+    });
+    if (!fileHandle) return;
 
     if (typeof data === 'string') {
         const callback = args.pop() as WriteStrCallback;
@@ -483,9 +519,12 @@ export function read<TBuffer extends NodeJS.ArrayBufferView>(
 export function read(fd: number, callback: ReadCallback): void;
 
 export function read(fd: number, ...args: unknown[]): void {
-    const fileHandle = FileHandle.getInstance(fd);
-
     const callback: ReadCallback = args[args.length - 1] as ReadCallback;
+
+    const fileHandle = withHandle(fd, 'read', (err) => {
+        if (typeof callback === 'function') callback(err, 0, Buffer.from([]));
+    });
+    if (!fileHandle) return;
 
     let buffer: NodeJS.ArrayBufferView | undefined;
     let offset: number | null | undefined;
@@ -528,12 +567,25 @@ export function read(fd: number, ...args: unknown[]): void {
  * @since v0.0.2
  */
 export function close(fd: number, callback?: NoParamCallback): void {
-    FileHandle.getInstance(fd)
+    // `fs.close(fd)` with no callback is legal and SILENT in Node (measured
+    // against v24.15.0) — it is the one fd callback whose completion handler is
+    // genuinely optional; the six siblings all reject a missing one with
+    // ERR_INVALID_ARG_TYPE. The parameter was declared optional here too, and
+    // then called unconditionally on both settled paths: an absent callback
+    // became `callback is not a function` INSIDE the promise chain, i.e. an
+    // unhandled rejection that no `try`/`catch` around the call could see.
+    // `WriteStream.close()` reaches this from the same defect in its own
+    // optional-callback signature, so the ordinary `ws.close()` spelling
+    // printed a GJS warning and swallowed the real close error.
+    const done = (err: NodeJS.ErrnoException | null) => {
+        if (typeof callback === 'function') callback(err);
+    };
+    const fileHandle = withHandle(fd, 'close', done);
+    if (!fileHandle) return;
+    fileHandle
         .close()
-        .then(() => {
-            callback(null);
-        })
-        .catch((err) => callback(err));
+        .then(() => done(null))
+        .catch((err) => done(err));
 }
 
 /**
@@ -769,14 +821,20 @@ export function readFile(
 ): void {
     const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
     const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
-    const pathStr = normalizePath(path);
     Promise.resolve().then(() => {
         try {
             const readOpts =
                 typeof options === 'string'
                     ? { encoding: options as string | null, flag: 'r' }
                     : { encoding: (options?.encoding ?? null) as string | null, flag: options?.flag ?? 'r' };
-            callback(null, readFileSync(pathStr, readOpts) as unknown as Buffer);
+            // Deliberately NOT `normalizePath(path)` first: `path` may be a
+            // descriptor, and `readFileSync` is the single place that decides
+            // between a name and a descriptor — the same rule `writeFile` below
+            // carries. Stringifying it here is worse than the ENOENT it usually
+            // produces: `normalizePath(8)` is the RELATIVE name `'8'`, so if a
+            // file of that name exists in the process CWD the call SUCCEEDS and
+            // returns that file's contents instead of the descriptor's.
+            callback(null, readFileSync(path, readOpts) as unknown as Buffer);
         } catch (err: unknown) {
             callback(err as NodeJS.ErrnoException, null as unknown as Buffer);
         }
@@ -799,10 +857,23 @@ export function writeFile(
     maybeCb?: NoParamCallback,
 ): void {
     const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
-    const pathStr = normalizePath(path);
+    // `options` used to be located only to find the callback behind it, and
+    // then DROPPED — the body was `writeFileSync(pathStr, data)`, two
+    // arguments. So the most idiomatic async spelling silently lost every one
+    // of them while `writeFileSync`, `promises.writeFile` and the `appendFile`
+    // two hundred lines up all honoured theirs: `{mode: 0o600}` produced a
+    // world-readable file, `{flag: 'wx'}` clobbered the lock it was meant to
+    // refuse, `{flag: 'a'}` truncated the log it was meant to extend, and
+    // `{encoding: 'base64'}` wrote the base64 TEXT. Before this redesign all
+    // four spellings dropped `mode`, so they were at least uniformly wrong;
+    // fixing three of them is what turned this one into a divergence.
+    const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
     Promise.resolve().then(() => {
         try {
-            writeFileSync(pathStr, data);
+            // Deliberately NOT `normalizePath(path)` first: `path` may be a
+            // descriptor, and `writeFileSync` is the single place that decides
+            // between a name and a descriptor.
+            writeFileSync(path, data, options);
             callback(null);
         } catch (err: unknown) {
             callback(err as NodeJS.ErrnoException);

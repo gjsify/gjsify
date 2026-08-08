@@ -342,16 +342,25 @@ export class BuildAction {
                 for (const name of await readdir(outdir)) {
                     if (name.endsWith('.mjs') || name.endsWith('.js')) targets.push(resolve(outdir, name));
                 }
-            } catch {
-                return; // no outdir yet (first watch pass failed) — nothing to escape
+            } catch (err) {
+                // ENOENT alone is benign — a watch pass that failed before writing anything has
+                // no outdir yet, and there is nothing to escape. Anything ELSE (a permissions
+                // error, an I/O error, a wrong outdir) would silently skip the escape and let
+                // the build report success while emitting a bundle GJS cannot load, which is
+                // precisely the failure this hook exists to prevent.
+                if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return;
+                throw err;
             }
         }
         for (const target of targets) {
             let original: string;
             try {
                 original = await readFile(target, 'utf-8');
-            } catch {
-                continue; // a chunk the bundler reported but did not write is not this hook's problem
+            } catch (err) {
+                // Same split: a listed-but-unwritten chunk is not this hook's problem; a real
+                // read failure must not pass for "nothing to do".
+                if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') continue;
+                throw err;
             }
             const { code, replaced } = escapeRawNulForGjs(original);
             if (replaced === 0) continue; // the overwhelmingly common case — touch nothing

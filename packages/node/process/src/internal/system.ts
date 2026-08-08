@@ -88,3 +88,35 @@ export function cpuUsage(previousValue?: CpuUsage): CpuUsage {
     }
     return { user: 0, system: 0 };
 }
+
+/**
+ * The process's REAL file-creation mask.
+ *
+ * `process.umask()` returned a hardcoded `0o22`, which is right only on a
+ * 022 machine and silently wrong in the PERMISSIVE direction everywhere else:
+ * on a 002 host a consumer computing `0o666 & ~process.umask()` believes it
+ * produced 0644 while the file is actually 0664, i.e. group-writable.
+ *
+ * Linux publishes the truth race-free in `/proc/self/status`, so the getter can
+ * simply read it — there is no `umask(2)` binding to call, and the usual trick
+ * of "set it and set it back" would be a data race against every other thread
+ * creating a file. Off Linux there is no such file and the old constant is all
+ * that is left; it is returned as a documented last resort rather than as an
+ * answer.
+ */
+export function readUmask(): number {
+    try {
+        const GLib = getGjsGlobal().imports?.gi?.GLib;
+        if (GLib) {
+            const [ok, data] = GLib.file_get_contents('/proc/self/status');
+            if (ok) {
+                const match = /^Umask:\s*([0-7]+)/m.exec(new TextDecoder().decode(data));
+                if (match) return parseInt(match[1], 8);
+            }
+        }
+    } catch {
+        // No procfs, or a kernel too old to publish the field (it landed in
+        // 4.7). Both mean "cannot be read", and the fallback below says so.
+    }
+    return 0o022;
+}

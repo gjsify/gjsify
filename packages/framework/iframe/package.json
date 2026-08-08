@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/iframe",
-    "version": "0.30.0",
+    "version": "0.31.0",
     "description": "HTMLIFrameElement for GJS, backed by WebKit.WebView",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -16,7 +16,8 @@
         }
     },
     "sideEffects": [
-        "./lib/esm/register.js"
+        "./lib/esm/register.js",
+        "./lib/esm/promisify.js"
     ],
     "files": [
         "lib"
@@ -47,7 +48,8 @@
         "@girs/webkit-6.0": "^4.1.0",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
-        "@gjsify/message-channel": "workspace:^"
+        "@gjsify/message-channel": "workspace:^",
+        "@gjsify/webkit-native": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

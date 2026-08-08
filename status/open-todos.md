@@ -4,6 +4,31 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `@gjsify/sqlite` reads three value shapes back wrong
+
+Found while adding the parameter-binding regression suite; all three are in the READ
+path (`data-model-reader.ts` / libgda's data model), none of them in what gets bound, so
+they were deliberately left out of the binding fix rather than bundled into it.
+
+1. **An integral REAL past 2^53 throws instead of reading.** `convertValue()` treats any
+   integral JS number over `Number.MAX_SAFE_INTEGER` as an out-of-range INTEGER and raises
+   `OutOfRangeError`, but a SQLite REAL that happens to be integral — `1e21` — is not one.
+   Telling them apart needs the column's storage class, which the reader never consults.
+   Declared as `it.failing` in `param-binding.spec.ts`, so it retires itself when fixed.
+   Node returns `1e21` here.
+
+2. **A typeless column holding mixed types reads back as strings.** libgda types a data
+   model column ONCE, so a column holding `'text'`, `42.0` and `NULL` comes back with the
+   number as the string `"42.0"`. Node reads each value with its own storage class. The
+   affected spec asserts `typeof(a)` per row instead, which is a homogeneous text column
+   and therefore reads the same on both runtimes.
+
+3. **`CAST(x AS TEXT)` yields an unconverted `Gda.Text` boxed value.** `convertValue()`
+   has no branch for it, so it falls through and the caller gets `{}` instead of a string.
+
+None of the three is reachable from `postbote`'s index today, which is why the binding fix
+did not wait for them.
+
 ### `foreach build` can read a workspace package's `lib/` while another job is writing it
 
 The parallel sweep rebuilds packages that the RUNNING CLI imports at runtime, so
@@ -159,13 +184,23 @@ change, where a red macOS leg means what it says.
 
 ### `systemGiLibraryDirs()` lives in two places, pinned by a test rather than shared
 
-The darwin bare-leaf `dlopen` gap is one rule with two consumers now:
+The darwin bare-leaf `dlopen` gap is one rule with THREE consumers now:
 `@gjsify/node-gi` re-execs itself with the host's GI libdirs on
-`DYLD_FALLBACK_LIBRARY_PATH`, and `@gjsify/cli`'s `buildNativeEnv()` puts the same
+`DYLD_FALLBACK_LIBRARY_PATH`, `@gjsify/cli`'s `buildNativeEnv()` puts the same
 dirs on the gjs CHILD's copy of that variable (Homebrew's `gjs` has an rpath into
 GLIB's keg alone, so a plain `gjs -c "imports.gi.Gtk; Gtk.init()"` reproduced the
 failure with no gjsify in the process — the trace is in
-`packages/infra/cli/src/utils/system-gi.ts`).
+`packages/infra/cli/src/utils/system-gi.ts`), and — since ADR 0022's follow-up —
+`prebuilds.yml`'s macOS **load-test step**, which had CLAIMED in a comment to
+mirror `buildNativeEnv()` while carrying only the `DYLD_LIBRARY_PATH` half. The
+omission was invisible for as long as no bridge in that step needed a host GNOME
+library by bare leaf: every one of the eight either binds a portable C library or,
+like `Gwebgl`, reaches GL without Gtk. `@gjsify/webkit-native` is the first whose
+typelib references `libgtk-4.1.dylib`, and it failed on the arm64 leg with GJS's
+own `overrides/Gtk.js` unable to load — a THIRD hand-written copy of the same
+rule, found by adding coverage rather than by a consumer. It is now spelled the
+way the other two are; the shared-helper question this entry is about applies to
+it as well.
 
 The CLI cannot IMPORT node-gi's copy: ADR 0005 Decision 2 forbids a Tier-1 package
 taking a `dependencies`/`optionalDependencies` edge on `@gjsify/node-gi`, and the
@@ -443,6 +478,10 @@ v0.4.20 `@gjsify/tls-native` incident: 60+ packages stuck). One command:
 `gjsify onboard` (whoami-gated login, per-package state probe, publishes + trusts only the gaps,
 ONE shared OTP). The package itself, its builder and both CI chains are in place.
 
+### `gjsify onboard` for the three `@gjsify/webkit-native*` names — required before the release that ships them
+
+Same mechanism as the `gtk-runtime-darwin-x64` entry above, three names at once: `@gjsify/webkit-native`, `@gjsify/webkit-native-darwin-x64` and `@gjsify/webkit-native-darwin-arm64` are all published (none is `private`), all new as of ADR 0022, and none exists on npm. Trusted Publishing cannot CREATE a package, so an unbootstrapped name 404s the OIDC exchange and stalls every alphabetically-later package — the v0.4.20 incident left 60+ at 0.4.19, and `webkit-*` sits ahead of `websocket`, `webstorage` and `xmlhttprequest`. One `gjsify onboard` run covers all three (it probes per package and publishes only the gaps, one shared OTP).
+
 ### `@gjsify/webgl` renders on darwin-x64, but no WebGL2 CONTENT can
 
 First rendering proof on darwin, measured 2026-08-03 on the Intel macOS 15.7.8 test VM
@@ -687,6 +726,17 @@ Next step is instrumentation, not more bisecting: run under `GJS_DEBUG_ALL`/`G_D
 ### Two packages have no darwin target at all, and their specs say so by failing
 
 `@gjsify/webrtc` dies at `Requiring GjsifyWebrtc … Typelib file for namespace 'GjsifyWebrtc' not found` and `@gjsify/sab-native`'s positive control `hasNativeSab() returns true when prebuild is loaded` cannot pass, because no `webrtc-native-darwin-*` package exists and `@gjsify/sab-native`'s `gjsify.platforms` declares `linux-*` only. Both are honest failures of a promise nobody made — the declarations are correct and the artifacts genuinely do not exist. Recorded so a macOS run's red is READ correctly: it is a missing target, not a broken port. Closing either means adding the darwin legs to `prebuilds.yml` and the targets to the manifests, at which point the same specs become the check. The sibling bridges (`http2-native`, `tls-native`, `terminal-native`, `http-soup-bridge`, `webgl`, `lightningcss-native`, `oxfmt-native`, `rolldown-native`) all already ship `*-darwin-{x64,arm64}`, so the pattern is proven — these two were simply never extended.
+### `@gjsify/webkit-native` — what the darwin WebKit backend still owes
+
+ADR 0022 landed the backend and `@gjsify/iframe`'s 291 tests pass on darwin. **Input forwarding, named script worlds and user-script allow/block lists have since landed too**, and the two entries that stood here for the latter pair were not deferrals but MISTAKES OF FACT — the ADR asserted "WKWebView has no public isolated-world API" when `WKContentWorld` has been public since macOS 11, and it warned-and-ran a script whose allow/block list said not to. Both are worth remembering as a shape: an Apple API that looks absent deserves a check of its availability annotation before a design is built around its absence. What remains:
+
+**`darwin-arm64` is built on every `ci:macos` run and has never been committed, and the authoring host was never the reason.** `prebuilds.yml` built and uploaded the artifact from the day ADR 0022 landed, but `commit-prebuilds` had no matching download step, so every arm64 binary it produced was discarded — the `platformsUncommitted` note blaming an Intel VM was wrong about its own cause. The download exists now; closing this is one `ci:macos`-labelled run reaching `main`. The same PR is why the darwin-x64 artifact was refreshed: the shim now declares `-mmacosx-version-min=11.0`, so the committed binary's `LC_BUILD_VERSION` changed.
+
+**The namespace is squatted, and one host shape gets it wrong.** The shim's typelib IS `WebKit-6.0` (ADR 0022 decision 3, with the measurement that forced it). On a macOS host that built WebKitGTK 6.0 from source, two providers would compete on `GI_TYPELIB_PATH` and ours — a subset — could shadow the real one, where a missing class reads as `undefined` rather than as an error. Bounded today by the artifact shipping only in an `os: ["darwin"]` package and by macOS having no packaged provider; if that ever changes, the fix is a synchronous backend selector in `@gjsify/iframe`, which GJS does not currently offer in a form this repo permits.
+
+**Three things the input work reached the end of the public API on, all measured rather than assumed** (`docs/poc/webkit-input-darwin.m` prints each): `document.hasFocus()` is permanently `false`, so `window.onfocus`/`onblur` never fire and no caret blinks — it is derived from a responder chain the windowless view has no place in, and an offscreen `NSWindow` was built and does NOT fix it. The pointer cursor never changes over links, for the same reason. And App Sandbox stays unanswered: `webkit-hardened-runtime-darwin.sh` shows the hardened runtime working with `com.apple.security.cs.allow-jit`, while the sandbox case dies at process start because `com.apple.security.app-sandbox` needs a bundled app with an `application-identifier` an ad-hoc signature cannot issue. Answering it needs a real Developer ID, not more code.
+
+**The input path has no CI coverage on any platform, and that is the honest state.** It is held by two by-hand probes — `webkit-input-darwin.m` (NSEvent → WebKit → page) and `webkit-input-widget-darwin.m` (the widget's own controllers → page, driven by emitting the controller signals). Both need a display, which is the same wall as the DISPLAY-gated-GTK entry above, and `@gjsify/iframe`'s 291 unit tests instantiate no live WebView at all. Two routes into GTK's real event translation were tried and are dead ends worth not re-trying: `-[NSApplication postEvent:atStart:]` is never picked up (GTK4's macOS backend does not drain the posted-event queue — measured with a plain `GtkGestureClick` and no WebKit anywhere, 0 hits), and `CGEventPostToPid()` is dropped because `AXIsProcessTrusted()` is false and Accessibility is not a permission CI can grant itself.
 
 ### `@gjsify/rolldown-native` macOS prebuild — the last step to a Node-free toolchain on macOS
 
