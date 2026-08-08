@@ -413,7 +413,19 @@ function refusalNotAboutThePath(
     if (probe < 0) return fsError('EMFILE', 'open', path);
     GLib.close(probe);
 
-    if (spec.writable || spec.creat) {
+    // The FILE's own mode beats the MOUNT's claim, and the order matters. A
+    // mode with no write bit for anyone explains the refusal by itself, and no
+    // fact about the filesystem can make that answer EROFS — while the reverse
+    // is not true: a 0o644 file on a read-only mount is a genuine EROFS.
+    //
+    // Measured, and the reason this is not merely tidier: GitHub's macOS runners
+    // report `filesystem::readonly == true` for a volume they then happily write
+    // to (macOS synthesizes a read-only system root), so the mount branch fired
+    // first and answered EROFS for a plain chmod-0444 EACCES — on the darwin GJS
+    // leg only, where nothing on Linux could see it.
+    const deniedByMode = existing !== null && (existing.get_attribute_uint32('unix::mode') & 0o222) === 0;
+
+    if ((spec.writable || spec.creat) && !deniedByMode) {
         try {
             const fsInfo = file.query_filesystem_info('filesystem::readonly', null);
             if (fsInfo.get_attribute_boolean('filesystem::readonly')) return fsError('EROFS', 'open', path);

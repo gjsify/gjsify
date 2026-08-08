@@ -195,27 +195,12 @@ export const NO_FD_TRUNCATE_REASON =
     'tested; this marker covers only the file-mode half, and it retires the day a real binding exists.';
 
 /**
- * The `reason` for the rules whose OUR-SIDE implementation needs procfs.
- *
- * Pair it with `IS_GJS` at the call site, never with `!CAN_PROC_FD` alone. The
- * limitation described here is `@gjsify/fs`'s: native Node reaches the
- * descriptor through `fstat(2)` and passes these rules on a host with no procfs
- * at all. A marker that omits the leg therefore fires on the darwin and win32
- * NODE legs, where the test SUCCEEDS — and `it.failing` fails a run for
- * succeeding, which is exactly how it reddened `main` after #1039.
- */
-export const NO_PROC_FD_REASON =
-    'This host has no `/proc/self/fd` (measured at load — see `capabilities.spec.ts`), which is the only route ' +
-    'GJS has to act on an open descriptor rather than on the path it was opened from. Without it `fstat`/' +
-    '`ftruncate` fall back to the path and lose descriptor identity after a rename or an unlink. Scoped to the ' +
-    'GJS leg: native Node uses fstat(2) and needs no procfs.';
-
-/**
  * The `reason` for the rules whose TEST counts descriptors through procfs.
  *
- * Distinct from {@link NO_PROC_FD_REASON} and not interchangeable with it: these
- * rules fail on BOTH legs without `/proc/self/fd`, because the instrument they
- * measure a leak with is `readdirSync('/proc/self/fd')`.
+ * The one procfs gate that survived contact with darwin. The descriptor-IDENTITY
+ * rules turned out not to need it — the GJS leg passes them on a host with no
+ * `/proc/self/fd` at all — but these two fail on BOTH legs there, because the
+ * instrument they measure a leak with is `readdirSync('/proc/self/fd')` itself.
  */
 export const PROC_FD_COUNTING_REASON =
     'This rule counts open descriptors by reading `/proc/self/fd`, which this host does not have (measured at ' +

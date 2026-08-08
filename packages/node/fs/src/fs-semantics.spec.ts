@@ -78,7 +78,6 @@ import {
     CAN_SETGID,
     NO_SETGID_REASON,
     CAN_PROC_FD,
-    NO_PROC_FD_REASON,
     PROC_FD_COUNTING_REASON,
     CAN_FD_TRUNCATE_ANY_MODE,
     NO_FD_TRUNCATE_REASON,
@@ -489,40 +488,40 @@ export default async () => {
             }
         });
 
-        await it.failing(
-            'T4 an open fd follows the inode, not the name',
-            async () => {
-                // The structural regression guard for "positional I/O uses the
-                // fd". Any implementation that re-opens by path fails this:
-                // after the unlink there is no path left to re-open, and after
-                // an impostor takes the name the bytes would land in the wrong
-                // file.
-                const dir = scratch('t4');
+        await it('T4 an open fd follows the inode, not the name', async () => {
+            // No procfs marker, though this is the descriptor-IDENTITY rule and GJS has
+            // no fstat(2) binding. It carried one until the darwin leg ran it: on a host
+            // with NO `/proc/self/fd` the GJS leg PASSES, so the marker fired where the
+            // test succeeds — and `it.failing` fails a run for succeeding. The procfs
+            // dependence that remains is `ftruncate`'s, and that has its own gate.
+            // The structural regression guard for "positional I/O uses the
+            // fd". Any implementation that re-opens by path fails this:
+            // after the unlink there is no path left to re-open, and after
+            // an impostor takes the name the bytes would land in the wrong
+            // file.
+            const dir = scratch('t4');
+            try {
+                const f = join(dir, 'victim');
+                writeFileSync(f, 'ORIGINAL');
+                const fd = openSync(f, 'r+');
                 try {
-                    const f = join(dir, 'victim');
-                    writeFileSync(f, 'ORIGINAL');
-                    const fd = openSync(f, 'r+');
-                    try {
-                        unlinkSync(f);
-                        writeFileSync(f, 'IMPOSTOR');
+                    unlinkSync(f);
+                    writeFileSync(f, 'IMPOSTOR');
 
-                        writeSync(fd, B('XX'), 0, 2, 0);
-                        const buf = Buffer.alloc(8);
-                        const n = readSync(fd, buf, 0, 8, 0);
+                    writeSync(fd, B('XX'), 0, 2, 0);
+                    const buf = Buffer.alloc(8);
+                    const n = readSync(fd, buf, 0, 8, 0);
 
-                        expect(buf.slice(0, n).toString()).toBe('XXIGINAL');
-                        expect(fstatSync(fd).size).toBe(8);
-                        expect(readFileSync(f, 'utf8')).toBe('IMPOSTOR');
-                    } finally {
-                        closeSync(fd);
-                    }
+                    expect(buf.slice(0, n).toString()).toBe('XXIGINAL');
+                    expect(fstatSync(fd).size).toBe(8);
+                    expect(readFileSync(f, 'utf8')).toBe('IMPOSTOR');
                 } finally {
-                    drop(dir);
+                    closeSync(fd);
                 }
-            },
-            NO_PROC_FD_REASON,
-            { when: !CAN_PROC_FD && IS_GJS },
-        );
+            } finally {
+                drop(dir);
+            }
+        });
 
         await it('ftruncate keeps the inode and does not move the cursor', async () => {
             const dir = scratch('ftrunc');
@@ -2603,30 +2602,30 @@ export default async () => {
     });
 
     await describe('fs — a descriptor describes the object, not the name it was reached by', async () => {
-        await it.failing(
-            'K-12 fstat on a character device says so',
-            async () => {
-                // `fstatSync` stats `/proc/self/fd/<n>`, which IS a symlink, so
-                // the SPECIAL-file classifier's second lookup — the one that
-                // asked again with NOFOLLOW_SYMLINKS — saw `S_IFLNK`, matched
-                // none of its four cases and left EVERY predicate false. A
-                // caller classifying a descriptor got "none of the above".
-                if (!existsSync('/dev/null')) return;
-                const fd = fdOf(openSync('/dev/null', 'r'));
-                try {
-                    const viaFd = fstatSync(fd);
-                    expect(viaFd.isCharacterDevice()).toBe(true);
-                    expect(viaFd.isFile()).toBe(false);
-                    // The path spelling on the same build was always right,
-                    // which is what isolates the procfs indirection.
-                    expect(statSync('/dev/null').isCharacterDevice()).toBe(true);
-                } finally {
-                    closeSync(fd);
-                }
-            },
-            NO_PROC_FD_REASON,
-            { when: !CAN_PROC_FD && IS_GJS },
-        );
+        await it('K-12 fstat on a character device says so', async () => {
+            // No procfs marker, though this is the descriptor-IDENTITY rule and GJS has
+            // no fstat(2) binding. It carried one until the darwin leg ran it: on a host
+            // with NO `/proc/self/fd` the GJS leg PASSES, so the marker fired where the
+            // test succeeds — and `it.failing` fails a run for succeeding. The procfs
+            // dependence that remains is `ftruncate`'s, and that has its own gate.
+            // `fstatSync` stats `/proc/self/fd/<n>`, which IS a symlink, so
+            // the SPECIAL-file classifier's second lookup — the one that
+            // asked again with NOFOLLOW_SYMLINKS — saw `S_IFLNK`, matched
+            // none of its four cases and left EVERY predicate false. A
+            // caller classifying a descriptor got "none of the above".
+            if (!existsSync('/dev/null')) return;
+            const fd = fdOf(openSync('/dev/null', 'r'));
+            try {
+                const viaFd = fstatSync(fd);
+                expect(viaFd.isCharacterDevice()).toBe(true);
+                expect(viaFd.isFile()).toBe(false);
+                // The path spelling on the same build was always right,
+                // which is what isolates the procfs indirection.
+                expect(statSync('/dev/null').isCharacterDevice()).toBe(true);
+            } finally {
+                closeSync(fd);
+            }
+        });
 
         await it('K-13 a character device that CAN seek still seeks', async () => {
             // The seekability rule now asks the descriptor itself
