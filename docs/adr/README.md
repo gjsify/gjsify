@@ -43,6 +43,7 @@ the TODO records the *what's left*.
 | [0020](0020-engine-as-optional-dependency.md) | The GJS engine set becomes an `optionalDependencies` edge of `@gjsify/cli` | Proposed |
 | [0021](0021-launcher-free-prebuild-resolution.md) | Native prebuilds resolve in-process via girepository's own search paths; the launcher becomes an optimisation | Accepted |
 | [0022](0022-webkit-on-darwin.md) | `@gjsify/iframe` on macOS — Apple's WebKit behind a GObject shim that answers to `gi://WebKit` 6.0 | Accepted |
+| [0023](0023-gtk-source-precedence.md) | Which GTK a node-gi process uses: the app author installs a bundle, a per-OS policy decides, a from-source addon never gets one | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

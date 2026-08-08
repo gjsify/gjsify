@@ -44,6 +44,7 @@
     "gi.d.ts",
     "gtk-runtime.js",
     "gtk-runtime.d.ts",
+    "load-diagnostics.js",
     "system-gi.js",
     "system-gi.d.ts",
     "globals.js",

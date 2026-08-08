@@ -285,6 +285,34 @@ function resolveLocalShowcaseDir(showcase: ShowcaseInfo): string | null {
 }
 
 /**
+ * The batteries-included GTK runtime to add to a showcase's dlx tree, if any.
+ *
+ * WHY THE LAUNCHER AND NOT THE PACKAGE. `@gjsify/node-gi` deliberately declares
+ * no bundle: making one its dependency is #910, where a from-source addon met a
+ * foreign GTK and produced wrong method entries and a 29-minute timeout. The rule
+ * that replaced it is "whoever SHIPS an app declares the bundle" — and for a
+ * showcase, the shipper is this command, which assembles the dlx tree. Same
+ * reasoning, same place, as the `@gjsify/node-gi` spec beside it.
+ *
+ * Only where a system GTK is not a given, which is exactly where a bundle is
+ * built: Windows has none at all (#1063 — every `gi://` showcase died in
+ * `ERR_DLOPEN_FAILED` on a clean host), and macOS has Homebrew's, which is
+ * measurably not findable. On Linux the distribution's GTK is the tested
+ * combination and node-gi's own policy prefers it, so pulling ~80 MB nobody would
+ * use would be waste.
+ *
+ * The tree only ever holds the PUBLISHED PREBUILD, never a from-source build, so
+ * the mismatch #910 hit cannot arise here by construction.
+ */
+function gtkRuntimeSpecs(cliVersion: string | undefined): string[] {
+    const target = `${process.platform}-${process.arch}`;
+    const shipped = ['win32-x64', 'darwin-arm64', 'darwin-x64'];
+    if (!shipped.includes(target)) return [];
+    const name = `@gjsify/gtk-runtime-${target}`;
+    return [cliVersion ? `${name}@${cliVersion}` : name];
+}
+
+/**
  * Read a showcase's declared runtimes from the REGISTRY, with no install (#1069).
  *
  * WHY. `--runtime node` on a gjs-only showcase used to resolve and download the
@@ -390,7 +418,7 @@ async function runShowcaseOnRuntime(
         // it supplies the bridge. Pinned to the CLI's version like the showcase
         // itself, so the bridge and the bundle move together.
         const nodeGiSpec = cliVersion ? `@gjsify/node-gi@${cliVersion}` : '@gjsify/node-gi';
-        pkgDir = await resolveShowcaseDir(showcase, cliVersion, [nodeGiSpec]);
+        pkgDir = await resolveShowcaseDir(showcase, cliVersion, [nodeGiSpec, ...gtkRuntimeSpecs(cliVersion)]);
     } catch (err) {
         console.error(`Could not resolve showcase "${showcase.name}": ${(err as Error).message}`);
         return process.exit(1);

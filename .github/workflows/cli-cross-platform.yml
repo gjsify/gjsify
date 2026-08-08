@@ -345,6 +345,116 @@ jobs:
           fi
           echo "::warning::@gjsify/node-gi $INSTALLED ships no $TARGET prebuild (declares [$DECLARED]) and predates the shipping fix (< $LOWEST_PREBUILD_SHIPPED) — known gap, not failing"
 
+      # Does the addon LOAD? The step above asks only whether the FILE is there,
+      # and says so ("needs no GTK and no display"). File existence is exactly the
+      # assertion that stays green while `LoadLibrary` fails on the addon's
+      # dependency closure — which is what every `gi://` showcase did on a clean
+      # Windows host (#1063), with the file present the whole time:
+      #
+      #   Error: Das angegebene Modul wurde nicht gefunden.
+      #   \\?\C:\...\prebuilds\win32-x64\node_gi.node   code: ERR_DLOPEN_FAILED
+      #
+      # Nothing in this repository has ever executed that load off a Windows
+      # runner carrying gvsbuild, so nothing could see it. This step is the
+      # mechanism (#1065): install the published prebuild PLUS the published
+      # batteries-included bundle, and resolve a real namespace.
+      #
+      # THE RUNNER MUST STAY GTK-FREE. Installing gvsbuild here would make the
+      # step measure the runner instead of the artifact, which is the failure mode
+      # of the existence gate one level up. GLib alone is the probe: loading the
+      # addon and resolving one namespace exercises the entire DLL closure and the
+      # PATH-prepend in gtk-runtime.js, with no window and nothing to flake.
+      - name: 'node-gi: the addon LOADS with no system GTK'
+        id: nodegiload
+        continue-on-error: true
+        if: runner.os == 'Windows'
+        working-directory: gjsify-diag
+        env:
+          # The release from which the bundle is expected to make the addon
+          # loadable here. A BOUND, not a prediction: the policy that lets a
+          # shipped bundle serve a prebuild merged after 0.31.0.
+          LOWEST_BUNDLE_FIXED: '0.31.1'
+        run: |
+          set -eux
+          TARGET="$(node -p "process.platform + '-' + process.arch")"
+          has_fix() {
+            INSTALLED="$1" BOUND="$2" node -e '
+              const parse = (v) => v.split("-")[0].split(".").map(Number);
+              const [a, b] = [process.env.INSTALLED, process.env.BOUND].map(parse);
+              const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+              process.stdout.write(cmp >= 0 ? "1" : "0");
+            '
+          }
+          npm install --no-audit --no-fund --no-save "@gjsify/node-gi@latest" "@gjsify/gtk-runtime-$TARGET@latest" > npm-load.log 2>&1 || true
+          tail -20 npm-load.log
+          INSTALLED="$(node -p "require('./node_modules/@gjsify/node-gi/package.json').version" 2>/dev/null || echo 0.0.0)"
+          # `requireGi` is the consumer-facing entry, so this is the same code path
+          # a showcase takes. GLib.get_monotonic_time() proves the namespace is not
+          # merely present but callable — an unbacked typelib resolves and then
+          # dies in its first call, which is the failure shape the bundle gates
+          # exist to prevent.
+          load_ok=1
+          node -e '
+            const { requireGi } = await import("@gjsify/node-gi/gi");
+            const GLib = requireGi("GLib", "2.0");
+            const t = GLib.get_monotonic_time();
+            if (!(typeof t === "bigint" || typeof t === "number")) throw new Error("GLib call returned " + typeof t);
+            console.log("addon loaded and GLib is callable");
+          ' > load.log 2>&1 || load_ok=0
+          cat load.log
+          if [ "$load_ok" = "1" ]; then
+            echo "the addon loaded against the bundle, with no gvsbuild on this runner"
+            exit 0
+          fi
+          if [ "$(has_fix "$INSTALLED" "$LOWEST_BUNDLE_FIXED")" = "1" ]; then
+            echo "::error::@gjsify/node-gi $INSTALLED could not load on $TARGET with @gjsify/gtk-runtime-$TARGET installed — this is #1063"
+            exit 1
+          fi
+          echo "::warning::@gjsify/node-gi $INSTALLED predates the GTK-source policy (< $LOWEST_BUNDLE_FIXED) — known gap, not failing"
+
+      # And the same load WITHOUT the bundle must fail ACTIONABLY rather than with
+      # a raw OS string in the host's language. The diagnosis is the other half of
+      # #1063: the message a user actually meets has to name GTK, the package that
+      # supplies it, and the MSVC runtime.
+      - name: 'node-gi: a bundle-less load is diagnosed, not just failed'
+        id: nodegidiag
+        continue-on-error: true
+        if: runner.os == 'Windows'
+        working-directory: gjsify-diag
+        env:
+          LOWEST_BUNDLE_FIXED: '0.31.1'
+        run: |
+          set -eux
+          TARGET="$(node -p "process.platform + '-' + process.arch")"
+          rm -rf node_modules/@gjsify/gtk-runtime-$TARGET
+          INSTALLED="$(node -p "require('./node_modules/@gjsify/node-gi/package.json').version" 2>/dev/null || echo 0.0.0)"
+          out="$(node -e 'await import("@gjsify/node-gi/gi")' 2>&1 || true)"
+          echo "$out"
+          # If it loaded anyway the runner has a GTK we did not expect, and this
+          # step is measuring the machine rather than the message. Say so instead
+          # of reporting a pass.
+          if ! echo "$out" | grep -qi "could not be loaded\|Modul\|module could not be found\|ERR_DLOPEN_FAILED"; then
+            echo "::warning::no load failure to diagnose on this runner — a system GTK is present, so this step proved nothing"
+            exit 0
+          fi
+          if echo "$out" | grep -q "@gjsify/gtk-runtime-$TARGET" && echo "$out" | grep -q "vcruntime140"; then
+            echo "the failure names the bundle and the MSVC runtime"
+            exit 0
+          fi
+          has_fix() {
+            INSTALLED="$1" BOUND="$2" node -e '
+              const parse = (v) => v.split("-")[0].split(".").map(Number);
+              const [a, b] = [process.env.INSTALLED, process.env.BOUND].map(parse);
+              const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+              process.stdout.write(cmp >= 0 ? "1" : "0");
+            '
+          }
+          if [ "$(has_fix "$INSTALLED" "$LOWEST_BUNDLE_FIXED")" = "1" ]; then
+            echo "::error::@gjsify/node-gi $INSTALLED failed to load and the error names neither @gjsify/gtk-runtime-$TARGET nor the MSVC runtime — see #1063"
+            exit 1
+          fi
+          echo "::warning::@gjsify/node-gi $INSTALLED predates the load diagnosis (< $LOWEST_BUNDLE_FIXED) — known gap, not failing"
+
       # The FULL end-user journey, run to completion. The step above it asserts a
       # correct EARLY EXIT for a gjs-only showcase; that assertion is valuable and
       # stays, but it terminates before the dlx cache, before any install and before
@@ -430,6 +540,8 @@ jobs:
           echo "| .bin shim created + runnable | ${{ steps.binshim.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| showcase --runtime node (no gjs) | ${{ steps.showcase.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| node-gi prebuild for this platform | ${{ steps.nodegiprebuild.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| node-gi addon LOADS (no system GTK) | ${{ steps.nodegiload.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| bundle-less load is diagnosed | ${{ steps.nodegidiag.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| showcase --runtime node (full journey) | ${{ steps.journey.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "--- outcomes: version=${{ steps.version.outcome }} build=${{ steps.build.outcome }} run=${{ steps.run.outcome }} install=${{ steps.install.outcome }} binshim=${{ steps.binshim.outcome }}"
           # Every substantive step stays continue-on-error so ONE run still maps
@@ -472,6 +584,15 @@ jobs:
           # predating the fix and fail from the first release that carries it.
           if [ "${{ steps.nodegiprebuild.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.journey.outcome }}" != "success" ]; then FAILED=1; fi
+          # The two LOAD probes gate too. They are win32-only (`if: runner.os ==
+          # 'Windows'`), so on macOS their outcome is `skipped` — accepted there
+          # and ONLY there. Without these two lines both steps are
+          # continue-on-error forever: they would report a regression and leave
+          # the job green, which is the exact shape of the existence gate they
+          # were added to replace.
+          for OUTCOME in "${{ steps.nodegiload.outcome }}" "${{ steps.nodegidiag.outcome }}"; do
+            if [ "$OUTCOME" != "success" ] && [ "$OUTCOME" != "skipped" ]; then FAILED=1; fi
+          done
           if [ "$FAILED" = "0" ]; then
             echo "CLI PATH GREEN on ${{ matrix.os }} (toolchain + install backend)"
           else

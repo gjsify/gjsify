@@ -13,6 +13,7 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { hostTarget, nativeCandidates, packageRoot } from './native-paths.js';
+import { describeAddonLoadFailure } from './load-diagnostics.js';
 import {
     activateBundledGtkRuntime,
     maybePrependGtkRuntimeDllPath,
@@ -100,7 +101,20 @@ function gjsLoadAddon(path) {
 function loadNative() {
     for (const candidate of nativeCandidates()) {
         if (existsSync(candidate)) {
-            return RUNTIME === 'gjs' ? gjsLoadAddon(candidate) : require(candidate);
+            try {
+                return RUNTIME === 'gjs' ? gjsLoadAddon(candidate) : require(candidate);
+            } catch (err) {
+                // The addon FILE is here and still would not load. On win32 and
+                // darwin that means its GTK dependency closure was not found, and
+                // the raw error names only the .node — in the OS's language, about
+                // a file that plainly exists. Reported from a clean Windows host as
+                // `Error: Das angegebene Modul wurde nicht gefunden.` pointing at a
+                // present node_gi.node (#1063), which names nothing a user can act
+                // on. Same class as PR #994, where a missing load-time library
+                // surfaced as "Unsupported type void, deriving from fundamental
+                // void". The cause is knowable here, so say it.
+                throw new Error(describeAddonLoadFailure(candidate, err), { cause: err });
+            }
         }
     }
     throw new Error(
