@@ -79,10 +79,22 @@ import {
     NO_SETGID_REASON,
     CAN_PROC_FD,
     NO_PROC_FD_REASON,
+    PROC_FD_COUNTING_REASON,
     CAN_FD_TRUNCATE_ANY_MODE,
     NO_FD_TRUNCATE_REASON,
     CAN_DENY_SEARCH,
     NO_DENY_SEARCH_REASON,
+    IS_GJS,
+    CAN_EXPRESS_POSIX_MODE,
+    NO_POSIX_MODE_REASON,
+    HAS_POSIX_ERRNO,
+    NO_POSIX_ERRNO_REASON,
+    EXCL_REFUSES_SYMLINK,
+    NO_EXCL_SYMLINK_REASON,
+    CREATE_KEEPS_SPECIAL_BITS,
+    NO_SPECIAL_BITS_REASON,
+    PWRITE_OBEYS_APPEND,
+    NO_PWRITE_APPEND_REASON,
 } from './capabilities.spec.js';
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -272,23 +284,28 @@ export default async () => {
             }
         });
 
-        await it('O-4 a positional write on an append fd still appends', async () => {
-            // Under O_APPEND the kernel ignores `position` entirely. A fix that
-            // "honoured" it instead destroyed the head of the log — and gjsify's
-            // own WriteStream always passed position 0, so an append stream
-            // could only ever clobber. Strictly worse than the bug it replaced.
-            const dir = scratch('o4');
-            try {
-                const f = join(dir, 'log');
-                writeFileSync(f, 'HEAD');
-                const fd = openSync(f, 'a');
-                writeSync(fd, B('tail'), 0, 4, 0);
-                closeSync(fd);
-                expect(readFileSync(f, 'utf8')).toBe('HEADtail');
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'O-4 a positional write on an append fd still appends',
+            async () => {
+                // Under O_APPEND the kernel ignores `position` entirely. A fix that
+                // "honoured" it instead destroyed the head of the log — and gjsify's
+                // own WriteStream always passed position 0, so an append stream
+                // could only ever clobber. Strictly worse than the bug it replaced.
+                const dir = scratch('o4');
+                try {
+                    const f = join(dir, 'log');
+                    writeFileSync(f, 'HEAD');
+                    const fd = openSync(f, 'a');
+                    writeSync(fd, B('tail'), 0, 4, 0);
+                    closeSync(fd);
+                    expect(readFileSync(f, 'utf8')).toBe('HEADtail');
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_PWRITE_APPEND_REASON,
+            { when: !PWRITE_OBEYS_APPEND && !IS_GJS },
+        );
 
         await it("O-4b an append fd's reads still start at 0", async () => {
             const dir = scratch('o4b');
@@ -504,7 +521,7 @@ export default async () => {
                 }
             },
             NO_PROC_FD_REASON,
-            { when: !CAN_PROC_FD },
+            { when: !CAN_PROC_FD && IS_GJS },
         );
 
         await it('ftruncate keeps the inode and does not move the cursor', async () => {
@@ -529,17 +546,22 @@ export default async () => {
     // ─── 2. open() mode ──────────────────────────────────────────────────────
 
     await describe('fs — open() applies mode at creation', async () => {
-        await it('honours an explicit mode on the created file', async () => {
-            const dir = scratch('mode');
-            try {
-                const umask = measureUmask(dir);
-                const f = join(dir, 'secret');
-                closeSync(openSync(f, 'w', 0o600));
-                expect(modeOf(f)).toBe(fileModeFor(0o600, umask));
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'honours an explicit mode on the created file',
+            async () => {
+                const dir = scratch('mode');
+                try {
+                    const umask = measureUmask(dir);
+                    const f = join(dir, 'secret');
+                    closeSync(openSync(f, 'w', 0o600));
+                    expect(modeOf(f)).toBe(fileModeFor(0o600, umask));
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('masks the default 0o666 with the live umask', async () => {
             const dir = scratch('modedef');
@@ -568,56 +590,76 @@ export default async () => {
             }
         });
 
-        await it('accepts mode 0 — a falsy mode is still a mode', async () => {
-            const dir = scratch('mode0');
-            try {
-                const f = join(dir, 'zero');
-                closeSync(openSync(f, 'w', 0));
-                expect(modeOf(f)).toBe(0);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'accepts mode 0 — a falsy mode is still a mode',
+            async () => {
+                const dir = scratch('mode0');
+                try {
+                    const f = join(dir, 'zero');
+                    closeSync(openSync(f, 'w', 0));
+                    expect(modeOf(f)).toBe(0);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('parses a string mode as OCTAL', async () => {
-            const dir = scratch('modestr');
-            try {
-                const f = join(dir, 'octal');
-                closeSync(openSync(f, 'w', '600' as unknown as number));
-                // A JS numeric cast would give decimal 600 = 0o1130: sticky plus
-                // --x-wx---, so the caller could not read back its own new file.
-                expect(modeOf(f)).toBe(0o600);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'parses a string mode as OCTAL',
+            async () => {
+                const dir = scratch('modestr');
+                try {
+                    const f = join(dir, 'octal');
+                    closeSync(openSync(f, 'w', '600' as unknown as number));
+                    // A JS numeric cast would give decimal 600 = 0o1130: sticky plus
+                    // --x-wx---, so the caller could not read back its own new file.
+                    expect(modeOf(f)).toBe(0o600);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('keeps setuid/setgid requested on a FILE', async () => {
-            const dir = scratch('modesu');
-            try {
-                const umask = measureUmask(dir);
-                const f = join(dir, 'suid');
-                closeSync(openSync(f, 'w', 0o4755));
-                expect(modeOf(f)).toBe(fileModeFor(0o4755, umask));
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'keeps setuid/setgid requested on a FILE',
+            async () => {
+                const dir = scratch('modesu');
+                try {
+                    const umask = measureUmask(dir);
+                    const f = join(dir, 'suid');
+                    closeSync(openSync(f, 'w', 0o4755));
+                    expect(modeOf(f)).toBe(fileModeFor(0o4755, umask));
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_SPECIAL_BITS_REASON,
+            { when: !CREATE_KEEPS_SPECIAL_BITS },
+        );
 
-        await it('an intervening chmod survives close', async () => {
-            // Applying the mode at CLOSE reverts this, and loses the mode
-            // entirely if the process dies first.
-            const dir = scratch('modechmod');
-            try {
-                const f = join(dir, 'chmodded');
-                const fd = openSync(f, 'w', 0o600);
-                chmodSync(f, 0o640);
-                closeSync(fd);
-                expect(modeOf(f)).toBe(0o640);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'an intervening chmod survives close',
+            async () => {
+                // Applying the mode at CLOSE reverts this, and loses the mode
+                // entirely if the process dies first.
+                const dir = scratch('modechmod');
+                try {
+                    const f = join(dir, 'chmodded');
+                    const fd = openSync(f, 'w', 0o600);
+                    chmodSync(f, 0o640);
+                    closeSync(fd);
+                    expect(modeOf(f)).toBe(0o640);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('the creating handle can write a mode-0444 file', async () => {
             // open(2) checks permissions once, at open. An implementation that
@@ -637,16 +679,21 @@ export default async () => {
             }
         });
 
-        await it('writeFileSync honours { mode } on a new file', async () => {
-            const dir = scratch('wfmode');
-            try {
-                const f = join(dir, 'secret');
-                writeFileSync(f, 'x', { mode: 0o600 });
-                expect(modeOf(f)).toBe(0o600);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'writeFileSync honours { mode } on a new file',
+            async () => {
+                const dir = scratch('wfmode');
+                try {
+                    const f = join(dir, 'secret');
+                    writeFileSync(f, 'x', { mode: 0o600 });
+                    expect(modeOf(f)).toBe(0o600);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('writeFileSync honours { flag: "wx" }', async () => {
             const dir = scratch('wfflag');
@@ -660,61 +707,81 @@ export default async () => {
             }
         });
 
-        await it('appendFileSync honours { mode } on a new file', async () => {
-            const dir = scratch('afmode');
-            try {
-                const f = join(dir, 'secret-log');
-                appendFileSync(f, 'x', { mode: 0o600 });
-                appendFileSync(f, 'y', { mode: 0o600 });
-                expect(modeOf(f)).toBe(0o600);
-                expect(readFileSync(f, 'utf8')).toBe('xy');
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'appendFileSync honours { mode } on a new file',
+            async () => {
+                const dir = scratch('afmode');
+                try {
+                    const f = join(dir, 'secret-log');
+                    appendFileSync(f, 'x', { mode: 0o600 });
+                    appendFileSync(f, 'y', { mode: 0o600 });
+                    expect(modeOf(f)).toBe(0o600);
+                    expect(readFileSync(f, 'utf8')).toBe('xy');
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('promises.writeFile does not widen an existing file', async () => {
-            // `replace_async(REPLACE_DESTINATION)` explicitly discards the old
-            // permissions, so a 0600 file silently came back 0644.
-            const dir = scratch('pwf');
-            try {
-                const f = join(dir, 'secret');
-                writeFileSync(f, 'x', { mode: 0o600 });
-                await fsPromises.writeFile(f, 'y');
-                expect(modeOf(f)).toBe(0o600);
-                expect(readFileSync(f, 'utf8')).toBe('y');
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'promises.writeFile does not widen an existing file',
+            async () => {
+                // `replace_async(REPLACE_DESTINATION)` explicitly discards the old
+                // permissions, so a 0600 file silently came back 0644.
+                const dir = scratch('pwf');
+                try {
+                    const f = join(dir, 'secret');
+                    writeFileSync(f, 'x', { mode: 0o600 });
+                    await fsPromises.writeFile(f, 'y');
+                    expect(modeOf(f)).toBe(0o600);
+                    expect(readFileSync(f, 'utf8')).toBe('y');
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
     });
 
     // ─── 3. mkdir mode + special bits ────────────────────────────────────────
 
     await describe('fs — mkdir mode and special bits', async () => {
-        await it('honours { mode }', async () => {
-            const dir = scratch('mkmode');
-            try {
-                const umask = measureUmask(dir);
-                const d = join(dir, 'private');
-                mkdirSync(d, { mode: 0o700 });
-                expect(modeOf(d)).toBe(dirModeFor(0o700, umask));
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'honours { mode }',
+            async () => {
+                const dir = scratch('mkmode');
+                try {
+                    const umask = measureUmask(dir);
+                    const d = join(dir, 'private');
+                    mkdirSync(d, { mode: 0o700 });
+                    expect(modeOf(d)).toBe(dirModeFor(0o700, umask));
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('honours the legacy positional mode', async () => {
-            const dir = scratch('mkpos');
-            try {
-                const umask = measureUmask(dir);
-                const d = join(dir, 'private');
-                mkdirSync(d, 0o700);
-                expect(modeOf(d)).toBe(dirModeFor(0o700, umask));
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'honours the legacy positional mode',
+            async () => {
+                const dir = scratch('mkpos');
+                try {
+                    const umask = measureUmask(dir);
+                    const d = join(dir, 'private');
+                    mkdirSync(d, 0o700);
+                    expect(modeOf(d)).toBe(dirModeFor(0o700, umask));
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('defaults to 0o777 masked by the umask', async () => {
             const dir = scratch('mkdef');
@@ -728,74 +795,94 @@ export default async () => {
             }
         });
 
-        await it('applies the mode to EVERY level it creates recursively', async () => {
-            const dir = scratch('mkrec');
-            try {
-                const umask = measureUmask(dir);
-                const leaf = join(dir, 'a', 'b', 'c');
-                mkdirSync(leaf, { recursive: true, mode: 0o700 });
-                const want = dirModeFor(0o700, umask);
-                expect(modeOf(join(dir, 'a'))).toBe(want);
-                expect(modeOf(join(dir, 'a', 'b'))).toBe(want);
-                expect(modeOf(leaf)).toBe(want);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'applies the mode to EVERY level it creates recursively',
+            async () => {
+                const dir = scratch('mkrec');
+                try {
+                    const umask = measureUmask(dir);
+                    const leaf = join(dir, 'a', 'b', 'c');
+                    mkdirSync(leaf, { recursive: true, mode: 0o700 });
+                    const want = dirModeFor(0o700, umask);
+                    expect(modeOf(join(dir, 'a'))).toBe(want);
+                    expect(modeOf(join(dir, 'a', 'b'))).toBe(want);
+                    expect(modeOf(leaf)).toBe(want);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('promises.mkdir honours { mode }, recursive and not', async () => {
-            const dir = scratch('pmk');
-            try {
-                const umask = measureUmask(dir);
-                const want = dirModeFor(0o700, umask);
-                const flat = join(dir, 'flat');
-                await fsPromises.mkdir(flat, { mode: 0o700 });
-                expect(modeOf(flat)).toBe(want);
+        await it.failing(
+            'promises.mkdir honours { mode }, recursive and not',
+            async () => {
+                const dir = scratch('pmk');
+                try {
+                    const umask = measureUmask(dir);
+                    const want = dirModeFor(0o700, umask);
+                    const flat = join(dir, 'flat');
+                    await fsPromises.mkdir(flat, { mode: 0o700 });
+                    expect(modeOf(flat)).toBe(want);
 
-                // The direct-create success path, not just the parent retry:
-                // the parent already exists, so this is the common case that a
-                // retry-only fix silently skipped.
-                const deep = join(dir, 'deep');
-                await fsPromises.mkdir(deep, { recursive: true, mode: 0o700 });
-                expect(modeOf(deep)).toBe(want);
+                    // The direct-create success path, not just the parent retry:
+                    // the parent already exists, so this is the common case that a
+                    // retry-only fix silently skipped.
+                    const deep = join(dir, 'deep');
+                    await fsPromises.mkdir(deep, { recursive: true, mode: 0o700 });
+                    expect(modeOf(deep)).toBe(want);
 
-                const nested = join(dir, 'p', 'q');
-                await fsPromises.mkdir(nested, { recursive: true, mode: 0o700 });
-                expect(modeOf(join(dir, 'p'))).toBe(want);
-                expect(modeOf(nested)).toBe(want);
-            } finally {
-                drop(dir);
-            }
-        });
+                    const nested = join(dir, 'p', 'q');
+                    await fsPromises.mkdir(nested, { recursive: true, mode: 0o700 });
+                    expect(modeOf(join(dir, 'p'))).toBe(want);
+                    expect(modeOf(nested)).toBe(want);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('DROPS a setgid requested in mode — the kernel does', async () => {
-            // `vfs_mkdir()` masks to S_IRWXUGO|S_ISVTX. Node reproduces it, and
-            // so must we: "honouring" an explicit setgid would hand out setgid
-            // directories Node would never create.
-            const dir = scratch('mksg');
-            try {
-                const umask = measureUmask(dir);
-                const d = join(dir, 'sgid-request');
-                mkdirSync(d, { mode: 0o2770 });
-                expect(modeOf(d)).toBe(dirModeFor(0o2770, umask));
-                expect(modeOf(d) & 0o2000).toBe(0);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'DROPS a setgid requested in mode — the kernel does',
+            async () => {
+                // `vfs_mkdir()` masks to S_IRWXUGO|S_ISVTX. Node reproduces it, and
+                // so must we: "honouring" an explicit setgid would hand out setgid
+                // directories Node would never create.
+                const dir = scratch('mksg');
+                try {
+                    const umask = measureUmask(dir);
+                    const d = join(dir, 'sgid-request');
+                    mkdirSync(d, { mode: 0o2770 });
+                    expect(modeOf(d)).toBe(dirModeFor(0o2770, umask));
+                    expect(modeOf(d) & 0o2000).toBe(0);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('KEEPS a sticky bit requested in mode', async () => {
-            const dir = scratch('mkst');
-            try {
-                const umask = measureUmask(dir);
-                const d = join(dir, 'sticky');
-                mkdirSync(d, { mode: 0o1777 });
-                expect(modeOf(d)).toBe(dirModeFor(0o1777, umask));
-                expect(modeOf(d) & 0o1000).toBe(0o1000);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'KEEPS a sticky bit requested in mode',
+            async () => {
+                const dir = scratch('mkst');
+                try {
+                    const umask = measureUmask(dir);
+                    const d = join(dir, 'sticky');
+                    mkdirSync(d, { mode: 0o1777 });
+                    expect(modeOf(d)).toBe(dirModeFor(0o1777, umask));
+                    expect(modeOf(d) & 0o1000).toBe(0o1000);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_SPECIAL_BITS_REASON,
+            { when: !CREATE_KEEPS_SPECIAL_BITS },
+        );
 
         await it.failing(
             'preserves a setgid INHERITED from the parent',
@@ -870,39 +957,54 @@ export default async () => {
     // ─── 4. mkdtemp permissions ──────────────────────────────────────────────
 
     await describe('fs — mkdtemp is a PRIVATE scratch directory', async () => {
-        await it('never grants group or other any access', async () => {
-            // The one-line regression guard. `mkdtempSync` asked for 0o777 —
-            // inert while mode was ignored, world-readable the moment it worked.
-            const dir = scratch('mkdt');
-            try {
-                const t = mkdtempSync(join(dir, 't-'));
-                expect(modeOf(t) & 0o077).toBe(0);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'never grants group or other any access',
+            async () => {
+                // The one-line regression guard. `mkdtempSync` asked for 0o777 —
+                // inert while mode was ignored, world-readable the moment it worked.
+                const dir = scratch('mkdt');
+                try {
+                    const t = mkdtempSync(join(dir, 't-'));
+                    expect(modeOf(t) & 0o077).toBe(0);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('creates the directory 0700, whatever the umask', async () => {
-            const dir = scratch('mkdt700');
-            try {
-                // mkdtemp(3) is `mkdir(path, S_IRWXU)`; the umask can only make
-                // it tighter, never looser, so 0o700 is the ceiling on any host.
-                expect(modeOf(mkdtempSync(join(dir, 't-'))) & ~0o700).toBe(0);
-                expect(modeOf(mkdtempSync(join(dir, 'u-'))) & 0o700).toBe(0o700);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'creates the directory 0700, whatever the umask',
+            async () => {
+                const dir = scratch('mkdt700');
+                try {
+                    // mkdtemp(3) is `mkdir(path, S_IRWXU)`; the umask can only make
+                    // it tighter, never looser, so 0o700 is the ceiling on any host.
+                    expect(modeOf(mkdtempSync(join(dir, 't-'))) & ~0o700).toBe(0);
+                    expect(modeOf(mkdtempSync(join(dir, 'u-'))) & 0o700).toBe(0o700);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('promises.mkdtemp agrees with the sync half', async () => {
-            const dir = scratch('pmkdt');
-            try {
-                const t = await fsPromises.mkdtemp(join(dir, 't-'));
-                expect(modeOf(t as string) & 0o077).toBe(0);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'promises.mkdtemp agrees with the sync half',
+            async () => {
+                const dir = scratch('pmkdt');
+                try {
+                    const t = await fsPromises.mkdtemp(join(dir, 't-'));
+                    expect(modeOf(t as string) & 0o077).toBe(0);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('appends exactly six characters to the prefix', async () => {
             const dir = scratch('mkdtname');
@@ -949,7 +1051,12 @@ export default async () => {
                 expect(err?.code).toBe('EEXIST');
                 expect(err?.syscall).toBe('open');
                 expect(err?.path).toBe(f);
-                expect(err?.errno).toBe(-17);
+                // A libuv errno, not the Linux one: EEXIST is -17 on Linux and
+                // -4075 on win32, so asserting the number asserted the platform.
+                // What the rule is actually for is that a NUMBER is there at all
+                // — a bare `Gio.IOErrorEnum` has none, and callers branch on it.
+                expect(typeof err?.errno).toBe('number');
+                expect(err?.errno).toBeLessThan(0);
                 expect(readFileSync(f, 'utf8')).toBe('ORIGINAL CONTENT');
             } finally {
                 drop(dir);
@@ -980,8 +1087,8 @@ export default async () => {
                     drop(dir);
                 }
             },
-            NO_SYMLINK_REASON,
-            { when: !CAN_SYMLINK },
+            CAN_SYMLINK ? NO_EXCL_SYMLINK_REASON : NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK || !EXCL_REFUSES_SYMLINK },
         );
 
         await it.failing(
@@ -1037,40 +1144,50 @@ export default async () => {
             }
         });
 
-        await it('reports EACCES, not EEXIST, for an unwritable existing file', async () => {
-            // The failure classifier must gate EEXIST on O_EXCL. Reporting
-            // "file already exists" for a permission error is a silently wrong
-            // answer from the very mechanism added to remove silent wrongness.
-            const dir = scratch('wacc');
-            try {
-                const f = join(dir, 'locked');
-                writeFileSync(f, 'x');
-                chmodSync(f, 0o444);
-                let code: string | undefined;
+        await it.failing(
+            'reports EACCES, not EEXIST, for an unwritable existing file',
+            async () => {
+                // The failure classifier must gate EEXIST on O_EXCL. Reporting
+                // "file already exists" for a permission error is a silently wrong
+                // answer from the very mechanism added to remove silent wrongness.
+                const dir = scratch('wacc');
                 try {
-                    closeSync(openSync(f, 'w'));
-                } catch (err) {
-                    code = (err as NodeJS.ErrnoException).code;
+                    const f = join(dir, 'locked');
+                    writeFileSync(f, 'x');
+                    chmodSync(f, 0o444);
+                    let code: string | undefined;
+                    try {
+                        closeSync(openSync(f, 'w'));
+                    } catch (err) {
+                        code = (err as NodeJS.ErrnoException).code;
+                    }
+                    expect(code).toBe('EACCES');
+                } finally {
+                    drop(dir);
                 }
-                expect(code).toBe('EACCES');
-            } finally {
-                drop(dir);
-            }
-        });
+            },
+            NO_POSIX_ERRNO_REASON,
+            { when: !HAS_POSIX_ERRNO },
+        );
 
-        await it('creates a free path and honours the mode', async () => {
-            const dir = scratch('wxfresh');
-            try {
-                const f = join(dir, 'fresh');
-                const fd = openSync(f, 'wx', 0o600);
-                writeSync(fd, B('fresh'));
-                closeSync(fd);
-                expect(readFileSync(f, 'utf8')).toBe('fresh');
-                expect(modeOf(f)).toBe(0o600);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'creates a free path and honours the mode',
+            async () => {
+                const dir = scratch('wxfresh');
+                try {
+                    const f = join(dir, 'fresh');
+                    const fd = openSync(f, 'wx', 0o600);
+                    writeSync(fd, B('fresh'));
+                    closeSync(fd);
+                    expect(readFileSync(f, 'utf8')).toBe('fresh');
+                    expect(modeOf(f)).toBe(0o600);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('applies to wx+, ax and ax+ alike', async () => {
             const dir = scratch('wxall');
@@ -1089,9 +1206,11 @@ export default async () => {
         await it('applies to numeric O_CREAT|O_EXCL', async () => {
             const dir = scratch('wxnum');
             try {
-                const O_WRONLY = 1;
-                const O_CREAT = 64;
-                const O_EXCL = 128;
+                // From `fs.constants`, never the Linux numbers: O_CREAT is 0o100
+                // on Linux, 0x200 on darwin and 0x100 on win32. Spelling them
+                // literally opened a DIFFERENT flag set on every other host —
+                // which is how this rule came to assert ENOENT on Windows.
+                const { O_WRONLY, O_CREAT, O_EXCL } = fsConstants;
                 const f = join(dir, 'numeric');
                 closeSync(openSync(f, O_WRONLY | O_CREAT | O_EXCL, 0o600));
                 expect(modeOf(f)).toBe(0o600);
@@ -1113,8 +1232,7 @@ export default async () => {
             // opens fine today.
             const dir = scratch('wxbare');
             try {
-                const O_WRONLY = 1;
-                const O_EXCL = 128;
+                const { O_WRONLY, O_EXCL } = fsConstants;
                 const f = join(dir, 'bare');
                 writeFileSync(f, 'x');
                 closeSync(openSync(f, O_WRONLY | O_EXCL));
@@ -1128,8 +1246,11 @@ export default async () => {
             // the append and clobbered the log they were opened to extend.
             const dir = scratch('append-alias');
             try {
-                const O_RDWR = 2;
-                const O_APPEND = 1024;
+                // See the numeric O_CREAT|O_EXCL rule: O_APPEND is 0o2000 on
+                // Linux and 0x8 everywhere else, so the literal 1024 asked
+                // darwin and win32 for a flag that is not append at all, and the
+                // write landed at offset 0.
+                const { O_RDWR, O_APPEND } = fsConstants;
 
                 const a = join(dir, 'as');
                 writeFileSync(a, 'HEAD');
@@ -1185,20 +1306,25 @@ export default async () => {
             }
         });
 
-        await it('honours { mode }', async () => {
-            const dir = scratch('wsmode');
-            try {
-                const f = join(dir, 'secret');
-                await new Promise<void>((resolve, reject) => {
-                    const s = createWriteStream(f, { mode: 0o600 });
-                    s.on('error', reject);
-                    s.end('x', () => resolve());
-                });
-                expect(modeOf(f)).toBe(0o600);
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'honours { mode }',
+            async () => {
+                const dir = scratch('wsmode');
+                try {
+                    const f = join(dir, 'secret');
+                    await new Promise<void>((resolve, reject) => {
+                        const s = createWriteStream(f, { mode: 0o600 });
+                        s.on('error', reject);
+                        s.end('x', () => resolve());
+                    });
+                    expect(modeOf(f)).toBe(0o600);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('a handle-derived stream writes THROUGH the handle', async () => {
             // `fh.createWriteStream()` used to re-open the path with the class
@@ -1286,28 +1412,33 @@ export default async () => {
             }
         });
 
-        await it('M-3 a numeric mode out of range is refused; 0 and octal strings are not', async () => {
-            const dir = scratch('m3');
-            try {
-                expect(() => openSync(join(dir, 'a'), 'w', -1)).toThrow();
-                expect(() => openSync(join(dir, 'b'), 'w', 0.5)).toThrow();
-                expect(() => openSync(join(dir, 'c'), 'w', 2 ** 32)).toThrow();
+        await it.failing(
+            'M-3 a numeric mode out of range is refused; 0 and octal strings are not',
+            async () => {
+                const dir = scratch('m3');
+                try {
+                    expect(() => openSync(join(dir, 'a'), 'w', -1)).toThrow();
+                    expect(() => openSync(join(dir, 'b'), 'w', 0.5)).toThrow();
+                    expect(() => openSync(join(dir, 'c'), 'w', 2 ** 32)).toThrow();
 
-                // The two the guard must NOT reject. `'700'` is the documented
-                // octal-string form, and 0 is a valid mode that an earlier
-                // `||= 0o666` silently replaced with a readable file.
-                const umask = measureUmask(dir);
-                const ok = join(dir, 'ok');
-                closeSync(fdOf(openSync(ok, 'w', '700' as unknown as number)));
-                expect(modeOf(ok)).toBe(fileModeFor(0o700, umask));
+                    // The two the guard must NOT reject. `'700'` is the documented
+                    // octal-string form, and 0 is a valid mode that an earlier
+                    // `||= 0o666` silently replaced with a readable file.
+                    const umask = measureUmask(dir);
+                    const ok = join(dir, 'ok');
+                    closeSync(fdOf(openSync(ok, 'w', '700' as unknown as number)));
+                    expect(modeOf(ok)).toBe(fileModeFor(0o700, umask));
 
-                const zero = join(dir, 'zero');
-                closeSync(fdOf(openSync(zero, 'w', 0)));
-                expect(modeOf(zero)).toBe(0);
-            } finally {
-                drop(dir);
-            }
-        });
+                    const zero = join(dir, 'zero');
+                    closeSync(fdOf(openSync(zero, 'w', 0)));
+                    expect(modeOf(zero)).toBe(0);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
     });
 
     await describe('fs — open() names the reason it failed', async () => {
@@ -1355,83 +1486,98 @@ export default async () => {
                     drop(dir);
                 }
             },
-            NO_SYMLINK_REASON,
-            { when: !CAN_SYMLINK },
+            CAN_SYMLINK ? NO_EXCL_SYMLINK_REASON : NO_SYMLINK_REASON,
+            { when: !CAN_SYMLINK || !EXCL_REFUSES_SYMLINK },
         );
 
-        await it('C-3 an over-long name is ENAMETOOLONG, not EACCES', async () => {
-            const dir = scratch('c3');
-            try {
-                expectCode(() => openSync(join(dir, 'x'.repeat(500)), 'w'), 'ENAMETOOLONG');
-            } finally {
-                drop(dir);
-            }
-        });
-
-        await it('C-4 the codes that were already right stay right', async () => {
-            // The regression guard for the classifier rewrite: widening it must
-            // not move ENOTDIR / ENOENT / EACCES off their own cases.
-            const dir = scratch('c4');
-            try {
-                const file = join(dir, 'plain');
-                writeFileSync(file, 'x');
-                expectCode(() => openSync(join(file, 'child'), 'w'), 'ENOTDIR');
-                expectCode(() => openSync(join(dir, 'absent'), 'r'), 'ENOENT');
-
-                const locked = join(dir, 'locked');
-                mkdirSync(locked, { mode: 0o500 });
+        await it.failing(
+            'C-3 an over-long name is ENAMETOOLONG, not EACCES',
+            async () => {
+                const dir = scratch('c3');
                 try {
-                    let opened: unknown;
-                    try {
-                        opened = openSync(join(locked, 'nope'), 'w');
-                    } catch (err: unknown) {
-                        expect((err as NodeJS.ErrnoException).code).toBe('EACCES');
-                    }
-                    // A process with CAP_DAC_OVERRIDE (root in a container) is
-                    // not bound by the mode, so there is nothing to assert —
-                    // but the descriptor it just got still has to be released.
-                    if (opened !== undefined) closeSync(fdOf(opened));
+                    expectCode(() => openSync(join(dir, 'x'.repeat(500)), 'w'), 'ENAMETOOLONG');
                 } finally {
-                    chmodSync(locked, 0o700);
+                    drop(dir);
                 }
-            } finally {
-                drop(dir);
-            }
-        });
+            },
+            NO_POSIX_ERRNO_REASON,
+            { when: !HAS_POSIX_ERRNO },
+        );
+
+        await it.failing(
+            'C-4 the codes that were already right stay right',
+            async () => {
+                // The regression guard for the classifier rewrite: widening it must
+                // not move ENOTDIR / ENOENT / EACCES off their own cases.
+                const dir = scratch('c4');
+                try {
+                    const file = join(dir, 'plain');
+                    writeFileSync(file, 'x');
+                    expectCode(() => openSync(join(file, 'child'), 'w'), 'ENOTDIR');
+                    expectCode(() => openSync(join(dir, 'absent'), 'r'), 'ENOENT');
+
+                    const locked = join(dir, 'locked');
+                    mkdirSync(locked, { mode: 0o500 });
+                    try {
+                        let opened: unknown;
+                        try {
+                            opened = openSync(join(locked, 'nope'), 'w');
+                        } catch (err: unknown) {
+                            expect((err as NodeJS.ErrnoException).code).toBe('EACCES');
+                        }
+                        // A process with CAP_DAC_OVERRIDE (root in a container) is
+                        // not bound by the mode, so there is nothing to assert —
+                        // but the descriptor it just got still has to be released.
+                        if (opened !== undefined) closeSync(fdOf(opened));
+                    } finally {
+                        chmodSync(locked, 0o700);
+                    }
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_ERRNO_REASON,
+            { when: !HAS_POSIX_ERRNO },
+        );
     });
 
     await describe('fs — ftruncate obeys the descriptor', async () => {
-        await it('F-1 a READ-ONLY handle cannot truncate', async () => {
-            // ftruncate(2) checks the access mode and nothing else, so this is
-            // EINVAL. The re-open that truncation has to use asks the kernel for
-            // its own fresh permission and is GRANTED it, so without an explicit
-            // gate a handle opened 'r' silently destroyed the file.
-            // `_readCore`/`_writeCore` have carried the same gate since this
-            // redesign began; truncate was the one byte-mover left outside it.
-            const dir = scratch('f1');
-            try {
-                const f = join(dir, 'victim');
-                writeFileSync(f, '0123456789');
-
-                const fd = fdOf(openSync(f, 'r'));
+        await it.failing(
+            'F-1 a READ-ONLY handle cannot truncate',
+            async () => {
+                // ftruncate(2) checks the access mode and nothing else, so this is
+                // EINVAL. The re-open that truncation has to use asks the kernel for
+                // its own fresh permission and is GRANTED it, so without an explicit
+                // gate a handle opened 'r' silently destroyed the file.
+                // `_readCore`/`_writeCore` have carried the same gate since this
+                // redesign began; truncate was the one byte-mover left outside it.
+                const dir = scratch('f1');
                 try {
-                    expectCode(() => ftruncateSync(fd, 4), 'EINVAL');
-                    expect(readFileSync(f, 'utf8')).toBe('0123456789');
-                } finally {
-                    closeSync(fd);
-                }
+                    const f = join(dir, 'victim');
+                    writeFileSync(f, '0123456789');
 
-                const handle = await fsPromises.open(f, 'r');
-                try {
-                    await expectRejectedCode(() => handle.truncate(4), 'EINVAL');
-                    expect(readFileSync(f, 'utf8')).toBe('0123456789');
+                    const fd = fdOf(openSync(f, 'r'));
+                    try {
+                        expectCode(() => ftruncateSync(fd, 4), 'EINVAL');
+                        expect(readFileSync(f, 'utf8')).toBe('0123456789');
+                    } finally {
+                        closeSync(fd);
+                    }
+
+                    const handle = await fsPromises.open(f, 'r');
+                    try {
+                        await expectRejectedCode(() => handle.truncate(4), 'EINVAL');
+                        expect(readFileSync(f, 'utf8')).toBe('0123456789');
+                    } finally {
+                        await handle.close();
+                    }
                 } finally {
-                    await handle.close();
+                    drop(dir);
                 }
-            } finally {
-                drop(dir);
-            }
-        });
+            },
+            NO_POSIX_ERRNO_REASON,
+            { when: !HAS_POSIX_ERRNO },
+        );
 
         await it('F-2 a WRITE-ONLY file truncates through the handle that made it', async () => {
             // Mode 0o200 grants write and nothing else. Truncation used to
@@ -1816,41 +1962,60 @@ export default async () => {
                     drop(dir);
                 }
             },
-            NO_PROC_FD_REASON,
+            PROC_FD_COUNTING_REASON,
             { when: !CAN_PROC_FD },
         );
     });
 
     await describe('fs — the surfaces that answered without doing anything', async () => {
-        await it('U-1 process.umask() reports the mask the kernel actually applies', async () => {
-            // It returned a hardcoded 0o22, which is right only on a 022
-            // machine and wrong in the PERMISSIVE direction everywhere else: on
-            // a 002 host a caller computing `0o666 & ~process.umask()` believes
-            // it produced 0644 while the file is group-writable 0664. Measured
-            // against a real `mkdir(2)`, which is the only witness that cannot
-            // be wrong — the same instrument section 2 uses, and the reason
-            // this ledger never TRUSTS the API it is checking.
-            const dir = scratch('u1');
-            try {
-                expect(process.umask()).toBe(measureUmask(dir));
-            } finally {
-                drop(dir);
-            }
-        });
+        await it.failing(
+            'U-1 process.umask() reports the mask the kernel actually applies',
+            async () => {
+                // It returned a hardcoded 0o22, which is right only on a 022
+                // machine and wrong in the PERMISSIVE direction everywhere else: on
+                // a 002 host a caller computing `0o666 & ~process.umask()` believes
+                // it produced 0644 while the file is group-writable 0664. Measured
+                // against a real `mkdir(2)`, which is the only witness that cannot
+                // be wrong — the same instrument section 2 uses, and the reason
+                // this ledger never TRUSTS the API it is checking.
+                const dir = scratch('u1');
+                try {
+                    expect(process.umask()).toBe(measureUmask(dir));
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
-        await it('U-2 lchmod reports that it is not implemented', async () => {
+        await it('U-2 lchmod either changes the link or says it cannot', async () => {
             // The bodies were empty, so a request to RESTRICT permissions
             // returned normally having changed nothing — the quietest member of
             // the silent-non-restriction class this redesign exists to close,
             // since it does not even leave a wrong mode on disk to notice.
-            // Node has no `fs.lchmodSync` on Linux at all, and its
-            // `fsPromises.lchmod` throws; only the promise form can be asked
-            // the question on both legs.
+            // Only the promise form exists on every platform, so it is the one
+            // spelling that can be asked the question on both legs.
+            //
+            // "Reports ERR_METHOD_NOT_IMPLEMENTED" was the LINUX half of the
+            // answer, and asserting it failed on darwin — which has O_SYMLINK
+            // and a working lchmod. Silence is the thing being ruled out, so
+            // the rule is the disjunction: refuse the call, or do the work.
             const dir = scratch('u2');
             try {
                 const f = join(dir, 'f');
-                writeFileSync(f, 'x');
-                await expectRejectedCode(() => fsPromises.lchmod(f, 0o600), 'ERR_METHOD_NOT_IMPLEMENTED');
+                writeFileSync(f, 'x', { mode: 0o644 });
+                let code: string | undefined;
+                try {
+                    await fsPromises.lchmod(f, 0o600);
+                } catch (err) {
+                    code = (err as NodeJS.ErrnoException).code;
+                }
+                if (code === undefined) {
+                    expect(modeOf(f)).toBe(0o600);
+                } else {
+                    expect(code).toBe('ERR_METHOD_NOT_IMPLEMENTED');
+                }
             } finally {
                 drop(dir);
             }
@@ -1858,36 +2023,41 @@ export default async () => {
     });
 
     await describe('fs — writeFile(callback) is the same API as writeFileSync', async () => {
-        await it('A-1 the callback form honours mode, flag and encoding', async () => {
-            // The options bag was located only to find the callback behind it,
-            // and then dropped. Before this redesign all four spellings lost
-            // `mode`, so they were at least uniformly wrong; fixing the other
-            // three is what turned this one into a divergence.
-            const dir = scratch('a1');
-            try {
-                const umask = measureUmask(dir);
+        await it.failing(
+            'A-1 the callback form honours mode, flag and encoding',
+            async () => {
+                // The options bag was located only to find the callback behind it,
+                // and then dropped. Before this redesign all four spellings lost
+                // `mode`, so they were at least uniformly wrong; fixing the other
+                // three is what turned this one into a divergence.
+                const dir = scratch('a1');
+                try {
+                    const umask = measureUmask(dir);
 
-                const secret = join(dir, 'secret');
-                await callbackWriteFile(secret, 'data', { mode: 0o600 });
-                expect(modeOf(secret)).toBe(fileModeFor(0o600, umask));
+                    const secret = join(dir, 'secret');
+                    await callbackWriteFile(secret, 'data', { mode: 0o600 });
+                    expect(modeOf(secret)).toBe(fileModeFor(0o600, umask));
 
-                const lock = join(dir, 'lock');
-                writeFileSync(lock, 'first');
-                expect((await callbackWriteError(lock, 'second', { flag: 'wx' }))?.code).toBe('EEXIST');
-                expect(readFileSync(lock, 'utf8')).toBe('first');
+                    const lock = join(dir, 'lock');
+                    writeFileSync(lock, 'first');
+                    expect((await callbackWriteError(lock, 'second', { flag: 'wx' }))?.code).toBe('EEXIST');
+                    expect(readFileSync(lock, 'utf8')).toBe('first');
 
-                const log = join(dir, 'log');
-                writeFileSync(log, 'HEAD');
-                await callbackWriteFile(log, 'TAIL', { flag: 'a' });
-                expect(readFileSync(log, 'utf8')).toBe('HEADTAIL');
+                    const log = join(dir, 'log');
+                    writeFileSync(log, 'HEAD');
+                    await callbackWriteFile(log, 'TAIL', { flag: 'a' });
+                    expect(readFileSync(log, 'utf8')).toBe('HEADTAIL');
 
-                const encoded = join(dir, 'encoded');
-                await callbackWriteFile(encoded, 'QUJD', { encoding: 'base64' });
-                expect(readFileSync(encoded, 'utf8')).toBe('ABC');
-            } finally {
-                drop(dir);
-            }
-        });
+                    const encoded = join(dir, 'encoded');
+                    await callbackWriteFile(encoded, 'QUJD', { encoding: 'base64' });
+                    expect(readFileSync(encoded, 'utf8')).toBe('ABC');
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
     });
 
     // ─── 8. what the classifier is NOT allowed to invent ─────────────────────
@@ -2023,56 +2193,66 @@ export default async () => {
     });
 
     await describe('fs — the path walk decides before the name does', async () => {
-        await it('K-3 a child of a regular file is ENOTDIR for every spelling', async () => {
-            // `open(2)` ends the walk at a prefix component that is not a
-            // directory, whatever the caller asked for — so gating the check on
-            // O_CREAT made `openSync(file/child, 'r')` answer ENOENT ("not
-            // there, try the next candidate") while `'w'`, `readFileSync`,
-            // `accessSync` and `statSync` on the SAME name all answered
-            // ENOTDIR. A config loader walking candidate paths silently skipped
-            // a misconfigured base path.
-            const dir = scratch('r3');
-            try {
-                const file = join(dir, 'config');
-                writeFileSync(file, 'x');
-                expectCode(() => openSync(join(file, 'app.json'), 'r'), 'ENOTDIR');
-                expectCode(() => openSync(join(file, 'app.json'), 'w'), 'ENOTDIR');
-                // Deeper: the immediate parent cannot be looked up at all, so
-                // the first ancestor that ANSWERS is the one that decides.
-                expectCode(() => openSync(join(file, 'a', 'b.json'), 'r'), 'ENOTDIR');
-                expectCode(() => readFileSync(join(file, 'app.json')), 'ENOTDIR');
-                expectCode(() => accessSync(join(file, 'app.json')), 'ENOTDIR');
-                expectCode(() => statSync(join(file, 'app.json')), 'ENOTDIR');
+        await it.failing(
+            'K-3 a child of a regular file is ENOTDIR for every spelling',
+            async () => {
+                // `open(2)` ends the walk at a prefix component that is not a
+                // directory, whatever the caller asked for — so gating the check on
+                // O_CREAT made `openSync(file/child, 'r')` answer ENOENT ("not
+                // there, try the next candidate") while `'w'`, `readFileSync`,
+                // `accessSync` and `statSync` on the SAME name all answered
+                // ENOTDIR. A config loader walking candidate paths silently skipped
+                // a misconfigured base path.
+                const dir = scratch('r3');
+                try {
+                    const file = join(dir, 'config');
+                    writeFileSync(file, 'x');
+                    expectCode(() => openSync(join(file, 'app.json'), 'r'), 'ENOTDIR');
+                    expectCode(() => openSync(join(file, 'app.json'), 'w'), 'ENOTDIR');
+                    // Deeper: the immediate parent cannot be looked up at all, so
+                    // the first ancestor that ANSWERS is the one that decides.
+                    expectCode(() => openSync(join(file, 'a', 'b.json'), 'r'), 'ENOTDIR');
+                    expectCode(() => readFileSync(join(file, 'app.json')), 'ENOTDIR');
+                    expectCode(() => accessSync(join(file, 'app.json')), 'ENOTDIR');
+                    expectCode(() => statSync(join(file, 'app.json')), 'ENOTDIR');
 
-                // The control the rule above must not break: a name that is
-                // simply absent under a real directory is still ENOENT.
-                expectCode(() => openSync(join(dir, 'absent'), 'r'), 'ENOENT');
-                expectCode(() => openSync(join(dir, 'no', 'such', 'file'), 'r'), 'ENOENT');
-            } finally {
-                drop(dir);
-            }
-        });
+                    // The control the rule above must not break: a name that is
+                    // simply absent under a real directory is still ENOENT.
+                    expectCode(() => openSync(join(dir, 'absent'), 'r'), 'ENOENT');
+                    expectCode(() => openSync(join(dir, 'no', 'such', 'file'), 'r'), 'ENOENT');
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_ERRNO_REASON,
+            { when: !HAS_POSIX_ERRNO },
+        );
 
-        await it('K-4 mkdir names an over-long name, and O_DIRECTORY names a non-directory', async () => {
-            // Two halves of one failure that disagreed inside one release: the
-            // open side reported ENAMETOOLONG and the mkdir side, which had no
-            // length check at all, reported "permission denied" for it. And
-            // O_DIRECTORY was parsed and then never consulted, so asking for a
-            // directory and getting a file was EACCES instead of ENOTDIR.
-            const dir = scratch('r4');
-            try {
-                expectCode(() => mkdirSync(join(dir, 'x'.repeat(500))), 'ENAMETOOLONG');
-                expectCode(() => openSync(join(dir, 'x'.repeat(500)), 'w'), 'ENAMETOOLONG');
+        await it.failing(
+            'K-4 mkdir names an over-long name, and O_DIRECTORY names a non-directory',
+            async () => {
+                // Two halves of one failure that disagreed inside one release: the
+                // open side reported ENAMETOOLONG and the mkdir side, which had no
+                // length check at all, reported "permission denied" for it. And
+                // O_DIRECTORY was parsed and then never consulted, so asking for a
+                // directory and getting a file was EACCES instead of ENOTDIR.
+                const dir = scratch('r4');
+                try {
+                    expectCode(() => mkdirSync(join(dir, 'x'.repeat(500))), 'ENAMETOOLONG');
+                    expectCode(() => openSync(join(dir, 'x'.repeat(500)), 'w'), 'ENAMETOOLONG');
 
-                const file = join(dir, 'plain');
-                writeFileSync(file, 'x');
-                expectCode(() => openSync(file, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY), 'ENOTDIR');
-                // ...and a real directory still opens through the same flag.
-                closeSync(fdOf(openSync(dir, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY)));
-            } finally {
-                drop(dir);
-            }
-        });
+                    const file = join(dir, 'plain');
+                    writeFileSync(file, 'x');
+                    expectCode(() => openSync(file, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY), 'ENOTDIR');
+                    // ...and a real directory still opens through the same flag.
+                    closeSync(fdOf(openSync(dir, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY)));
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_ERRNO_REASON,
+            { when: !HAS_POSIX_ERRNO },
+        );
 
         await it('K-5 a device with nothing on the other end is not "permission denied"', async () => {
             // `open('/dev/tty')` with no controlling terminal is ENXIO, and a
@@ -2093,62 +2273,70 @@ export default async () => {
     });
 
     await describe('fs — chmod has no default mode', async () => {
-        await it('K-6 an absent mode is rejected, not treated as 0o666', async () => {
-            // The shared parser this redesign introduced gave chmod the
-            // open/writeFile default. Node's chmod takes a REQUIRED mode, so
-            // `chmodSync(p, cfg.mode)` with an absent `cfg.mode` silently made
-            // a 0600 secret WORLD-WRITABLE where Node throws and leaves it
-            // alone. Every spelling routes through the one parser, so every
-            // spelling is checked.
-            const dir = scratch('r6');
-            try {
-                const secret = join(dir, 'secret');
-                writeFileSync(secret, 'secret', { mode: 0o600 });
-                expect(modeOf(secret)).toBe(0o600);
-
-                for (const absent of [undefined, null]) {
-                    expect(caught(() => chmodSync(secret, absent as never)) instanceof TypeError).toBe(true);
+        await it.failing(
+            'K-6 an absent mode is rejected, not treated as 0o666',
+            async () => {
+                // The shared parser this redesign introduced gave chmod the
+                // open/writeFile default. Node's chmod takes a REQUIRED mode, so
+                // `chmodSync(p, cfg.mode)` with an absent `cfg.mode` silently made
+                // a 0600 secret WORLD-WRITABLE where Node throws and leaves it
+                // alone. Every spelling routes through the one parser, so every
+                // spelling is checked.
+                const dir = scratch('r6');
+                try {
+                    const secret = join(dir, 'secret');
+                    writeFileSync(secret, 'secret', { mode: 0o600 });
                     expect(modeOf(secret)).toBe(0o600);
-                }
 
-                const fd = fdOf(openSync(secret, 'r+'));
-                try {
-                    expect(caught(() => fchmodSync(fd, undefined as never)) instanceof TypeError).toBe(true);
-                } finally {
-                    closeSync(fd);
-                }
-                expect(modeOf(secret)).toBe(0o600);
-
-                await expectRejectedCode(() => fsPromises.chmod(secret, undefined as never), 'ERR_INVALID_ARG_TYPE');
-                const handle = await fsPromises.open(secret, 'r+');
-                try {
-                    await expectRejectedCode(() => handle.chmod(undefined as never), 'ERR_INVALID_ARG_TYPE');
-                } finally {
-                    await handle.close();
-                }
-                expect(modeOf(secret)).toBe(0o600);
-
-                // The callback half must not report SUCCESS. Node rejects it
-                // synchronously and gjsify reports through the callback; what
-                // both must never do is return `null` having widened the file,
-                // which is what this branch did.
-                const reported = await new Promise<string>((resolve) => {
-                    try {
-                        fsChmod(secret, undefined as never, (err) => resolve(err ? 'error' : 'SUCCESS'));
-                    } catch {
-                        resolve('threw');
+                    for (const absent of [undefined, null]) {
+                        expect(caught(() => chmodSync(secret, absent as never)) instanceof TypeError).toBe(true);
+                        expect(modeOf(secret)).toBe(0o600);
                     }
-                });
-                expect(reported === 'SUCCESS').toBe(false);
-                expect(modeOf(secret)).toBe(0o600);
 
-                // ...and a real mode still applies, through the same parser.
-                chmodSync(secret, 0o640);
-                expect(modeOf(secret)).toBe(0o640);
-            } finally {
-                drop(dir);
-            }
-        });
+                    const fd = fdOf(openSync(secret, 'r+'));
+                    try {
+                        expect(caught(() => fchmodSync(fd, undefined as never)) instanceof TypeError).toBe(true);
+                    } finally {
+                        closeSync(fd);
+                    }
+                    expect(modeOf(secret)).toBe(0o600);
+
+                    await expectRejectedCode(
+                        () => fsPromises.chmod(secret, undefined as never),
+                        'ERR_INVALID_ARG_TYPE',
+                    );
+                    const handle = await fsPromises.open(secret, 'r+');
+                    try {
+                        await expectRejectedCode(() => handle.chmod(undefined as never), 'ERR_INVALID_ARG_TYPE');
+                    } finally {
+                        await handle.close();
+                    }
+                    expect(modeOf(secret)).toBe(0o600);
+
+                    // The callback half must not report SUCCESS. Node rejects it
+                    // synchronously and gjsify reports through the callback; what
+                    // both must never do is return `null` having widened the file,
+                    // which is what this branch did.
+                    const reported = await new Promise<string>((resolve) => {
+                        try {
+                            fsChmod(secret, undefined as never, (err) => resolve(err ? 'error' : 'SUCCESS'));
+                        } catch {
+                            resolve('threw');
+                        }
+                    });
+                    expect(reported === 'SUCCESS').toBe(false);
+                    expect(modeOf(secret)).toBe(0o600);
+
+                    // ...and a real mode still applies, through the same parser.
+                    chmodSync(secret, 0o640);
+                    expect(modeOf(secret)).toBe(0o640);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('K-7 a mode that is not a number is a TypeError, not a RangeError', async () => {
             // `validateUint32`'s FIRST check is the type one. Dropping it moved
@@ -2416,7 +2604,7 @@ export default async () => {
                 }
             },
             NO_PROC_FD_REASON,
-            { when: !CAN_PROC_FD },
+            { when: !CAN_PROC_FD && IS_GJS },
         );
 
         await it('K-13 a character device that CAN seek still seeks', async () => {
@@ -2472,7 +2660,7 @@ export default async () => {
                     drop(dir);
                 }
             },
-            NO_PROC_FD_REASON,
+            PROC_FD_COUNTING_REASON,
             { when: !CAN_PROC_FD },
         );
 
