@@ -7,7 +7,14 @@
 // Adw.Breakpoint with an add_setter(), so the sidebar overlays on narrow widths
 // without the application wiring a media query itself.
 
-import { OverlaySplitViewState, type AdwPackType } from '@gjsify/adwaita-core';
+import {
+    DEFAULT_MAX_SIDEBAR_WIDTH,
+    DEFAULT_MIN_SIDEBAR_WIDTH,
+    DEFAULT_SIDEBAR_WIDTH_FRACTION,
+    OverlaySplitViewState,
+    resolveSidebarBounds,
+    type AdwPackType,
+} from '@gjsify/adwaita-core';
 
 import { bindBreakpointSetter } from '../breakpoints.js';
 
@@ -72,16 +79,23 @@ export class AdwOverlaySplitView extends HTMLElement {
         else this.removeAttribute('collapsed');
     }
 
+    // The three defaults come from the widget, not from an app's taste: 180 /
+    // 280 / 0.25 (adw-overlay-split-view.c:1036-1075). They used to be 280 /
+    // 400 / 0.30 here, which are the values the three.js and canvas2d showcases
+    // set EXPLICITLY in their `.blp` — so an app's preference had been copied
+    // into the widget. The visible cost was in the storybook, whose whole
+    // purpose is a 1:1 comparison: the GTK story takes the real defaults and the
+    // browser story took these, so the two sides showed different sidebars.
     get minSidebarWidth(): number {
-        return parseFloat(this.getAttribute('min-sidebar-width') || '280');
+        return parseFloat(this.getAttribute('min-sidebar-width') || String(DEFAULT_MIN_SIDEBAR_WIDTH));
     }
 
     get maxSidebarWidth(): number {
-        return parseFloat(this.getAttribute('max-sidebar-width') || '400');
+        return parseFloat(this.getAttribute('max-sidebar-width') || String(DEFAULT_MAX_SIDEBAR_WIDTH));
     }
 
     get sidebarWidthFraction(): number {
-        return parseFloat(this.getAttribute('sidebar-width-fraction') || '0.30');
+        return parseFloat(this.getAttribute('sidebar-width-fraction') || String(DEFAULT_SIDEBAR_WIDTH_FRACTION));
     }
 
     connectedCallback() {
@@ -254,8 +268,17 @@ export class AdwOverlaySplitView extends HTMLElement {
 
     private _syncSidebarWidth() {
         if (!this._sidebarEl) return;
-        this._sidebarEl.style.minWidth = `${this.minSidebarWidth}px`;
-        this._sidebarEl.style.maxWidth = `${this.maxSidebarWidth}px`;
+        // Normalise through the core rather than writing the raw attributes:
+        // libadwaita never lets `max` fall below `min`, and CSS resolves that
+        // conflict the other way round (min-width wins over max-width), so an
+        // inverted pair would render differently here than in GTK.
+        const bounds = resolveSidebarBounds(
+            { minSidebarWidth: this.minSidebarWidth, maxSidebarWidth: this.maxSidebarWidth },
+            0,
+            { ceil: true },
+        );
+        this._sidebarEl.style.minWidth = `${bounds.min}px`;
+        this._sidebarEl.style.maxWidth = `${bounds.max}px`;
         this._sidebarEl.style.width = `${this.sidebarWidthFraction * 100}%`;
     }
 }

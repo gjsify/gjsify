@@ -1,4 +1,4 @@
-// <adw-overlay-split-view> against the shared collapse vectors.
+// The two split views against the shared conformance vectors.
 //
 // The element now delegates the property interplay to
 // `OverlaySplitViewState`, so this suite asserts the half a DOM renderer owns:
@@ -12,8 +12,10 @@
 // sidebar where GTK shows one.
 import { describe, expect, it } from '@gjsify/unit';
 
+import { SIDEBAR_BOUNDS_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { OVERLAY_COLLAPSE_VECTORS } from '@gjsify/adwaita-core/conformance';
 
+import type { AdwNavigationSplitView } from './elements/adw-navigation-split-view.js';
 import type { AdwOverlaySplitView } from './elements/adw-overlay-split-view.js';
 
 /** Mount a split view from markup and return it. */
@@ -27,7 +29,7 @@ function mount(attrs = ''): { view: AdwOverlaySplitView; host: HTMLElement } {
     return { view: host.querySelector('adw-overlay-split-view') as AdwOverlaySplitView, host };
 }
 
-export const AdwOverlaySplitViewTest = async () => {
+export const AdwSplitViewsTest = async () => {
     await describe('adw-overlay-split-view defaults (Adw.OverlaySplitView properties)', async () => {
         await it('shows the sidebar with no attributes at all, like GTK does', () => {
             const { view, host } = mount();
@@ -118,6 +120,99 @@ export const AdwOverlaySplitViewTest = async () => {
             const { view, host } = mount();
             expect((view.querySelector('.adw-osv-sidebar') as HTMLElement).getAttribute('aria-hidden')).toBe('false');
             expect((view.querySelector('.adw-osv-content') as HTMLElement).getAttribute('aria-hidden')).toBe('false');
+            host.remove();
+        });
+    });
+    await describe('adw-overlay-split-view sidebar width (Adw.OverlaySplitView properties)', async () => {
+        await it('defaults to the WIDGET values, not to an app preference', () => {
+            // 180 / 280 / 0.25 — adw-overlay-split-view.c:1036-1075. These read
+            // 280 / 400 / 0.30 before, which are the values the three.js and
+            // canvas2d showcases set explicitly in their .blp, so the storybook's
+            // GTK and browser sides showed different sidebars.
+            const { view, host } = mount();
+            expect(view.minSidebarWidth).toBe(180);
+            expect(view.maxSidebarWidth).toBe(280);
+            expect(view.sidebarWidthFraction).toBe(0.25);
+            host.remove();
+        });
+
+        await it('writes the normalised bounds, not the raw attributes', () => {
+            const { view, host } = mount('min-sidebar-width="300" max-sidebar-width="200"');
+            const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            // libadwaita never lets max fall below min, so both land at 300.
+            // CSS on its own resolves the conflict the other way (min-width wins
+            // over max-width), which would render a different widget.
+            expect(sidebar.style.minWidth).toBe('300px');
+            expect(sidebar.style.maxWidth).toBe('300px');
+            host.remove();
+        });
+
+        for (const vector of SIDEBAR_BOUNDS_VECTORS) {
+            // Only the rows expressible in CSS pixels: the element has no dpi or
+            // length-unit attribute, so `sp`-at-another-dpi rows stay in core.
+            if (vector.spec.sidebarWidthUnit !== undefined || vector.spec.dpi !== undefined) continue;
+            if (vector.sidebarChildMin !== 0 || !vector.ceil) continue;
+
+            const attrs = [
+                vector.spec.minSidebarWidth !== undefined ? `min-sidebar-width="${vector.spec.minSidebarWidth}"` : '',
+                vector.spec.maxSidebarWidth !== undefined ? `max-sidebar-width="${vector.spec.maxSidebarWidth}"` : '',
+            ]
+                .filter(Boolean)
+                .join(' ');
+
+            await it(`bounds ${JSON.stringify(vector.spec)} → ${vector.min}/${vector.max} — ${vector.rule}`, () => {
+                const { view, host } = mount(attrs);
+                const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+                expect(sidebar.style.minWidth).toBe(`${vector.min}px`);
+                expect(sidebar.style.maxWidth).toBe(`${vector.max}px`);
+                host.remove();
+            });
+        }
+    });
+    await describe('adw-navigation-split-view sidebar width (Adw.NavigationSplitView)', async () => {
+        const mountNav = (attrs = '') => {
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            host.innerHTML =
+                `<adw-navigation-split-view ${attrs}>` +
+                '<div slot="sidebar">s</div><div slot="content">c</div>' +
+                '</adw-navigation-split-view>';
+            return {
+                view: host.querySelector('adw-navigation-split-view') as AdwNavigationSplitView,
+                host,
+            };
+        };
+
+        await it('bounds the sidebar even with no attributes', () => {
+            // An absent attribute used to mean "no bound at all"; the widget
+            // always has 180 / 280.
+            const { view, host } = mountNav();
+            const sidebar = view.querySelector('.adw-nsv-sidebar') as HTMLElement;
+            expect(sidebar.style.minWidth).toBe('180px');
+            expect(sidebar.style.maxWidth).toBe('280px');
+            host.remove();
+        });
+
+        await it('normalises an inverted pair the way GLib CLAMP does', () => {
+            const { view, host } = mountNav('min-sidebar-width="320" max-sidebar-width="200"');
+            const sidebar = view.querySelector('.adw-nsv-sidebar') as HTMLElement;
+            expect(sidebar.style.minWidth).toBe('320px');
+            expect(sidebar.style.maxWidth).toBe('320px');
+            host.remove();
+        });
+
+        await it('drops the caps while collapsed, so the pane fills the view', () => {
+            const { view, host } = mountNav('collapsed');
+            const sidebar = view.querySelector('.adw-nsv-sidebar') as HTMLElement;
+            expect(sidebar.style.minWidth).toBe('');
+            expect(sidebar.style.maxWidth).toBe('');
+            host.remove();
+        });
+
+        await it('falls back to the default when the attribute is not a number', () => {
+            const { view, host } = mountNav('min-sidebar-width="wide"');
+            const sidebar = view.querySelector('.adw-nsv-sidebar') as HTMLElement;
+            expect(sidebar.style.minWidth).toBe('180px');
             host.remove();
         });
     });
