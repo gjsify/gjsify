@@ -79,7 +79,9 @@ export interface SpinnerArcShapeVector {
     rule: string;
 }
 
-/** The moments worth naming in one arc cycle. */
+/** The moments worth naming in one arc cycle.  *
+ * CORE-ONLY: the arc is drawn per frame from `spinnerArc`, and a renderer can only show the RESULT — the browser suite asserts the drawn envelope and the round caps, which is the observable half
+ */
 export const SPINNER_ARC_PHASE_VECTORS: ReadonlyArray<SpinnerArcShapeVector> = [
     { phase: 0, rule: 'the cycle boundary — the arc is at MIN_ARC_LENGTH, its shortest' },
     { phase: 0.15, rule: 'extending: ease_in_out_sine is still accelerating' },
@@ -106,6 +108,8 @@ export interface SpinnerConstantVector {
  * `rule` column: five of these seven were WRONG or absent in a shipping port,
  * and a table is what makes "the port picked its own number" fail a test rather
  * than look like a design choice.
+ *
+ * CORE-ONLY: a table OF constants: what a renderer can show is the geometry they produce, which the browser suite asserts through SPINNER_GEOMETRY/SIZE_VECTORS
  */
 export const SPINNER_CONSTANT_VECTORS: ReadonlyArray<SpinnerConstantVector> = [
     {

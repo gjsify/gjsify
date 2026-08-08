@@ -121,6 +121,8 @@ export interface PopoverKeyVector {
  * The rows that matter are the ones where the copies were WRONG rather than
  * merely duplicated: ArrowUp from an unfocused list (both computed `n - 2`), and
  * Home/End while a search entry owns the caret (the drop-down stole both).
+ *
+ * CORE-ONLY: GAP — `adw-popover` calls `resolvePopoverKey` on keydown but publishes no readable outcome for a spec to compare. Tracked in #1072
  */
 export const POPOVER_KEY_VECTORS: ReadonlyArray<PopoverKeyVector> = [
     // --- ArrowDown ---

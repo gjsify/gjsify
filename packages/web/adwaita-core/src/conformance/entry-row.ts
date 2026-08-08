@@ -591,6 +591,8 @@ export interface EntryRowGuardVector {
  * setter early-outs on an unchanged value (C:984, :1198, :1247, :1339), while
  * the private `adw_entry_row_set_show_indicator` (C:1281-1296) deliberately has
  * NO equality check and re-derives unconditionally.
+ *
+ * CORE-ONLY: GAP — the browser element discards the setter’s boolean, so the guard has no observable answer. Tracked in #1072
  */
 export const ENTRY_ROW_GUARD_VECTORS: ReadonlyArray<EntryRowGuardVector> = [
     {

@@ -39,7 +39,9 @@ export interface CarouselSnapPointVector {
     rule: string;
 }
 
-/** `adw_carousel_size_allocate`'s accumulation (adw-carousel.c:777-789). */
+/** `adw_carousel_size_allocate`'s accumulation (adw-carousel.c:777-789).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
+ */
 export const CAROUSEL_SNAP_POINT_VECTORS: ReadonlyArray<CarouselSnapPointVector> = [
     { sizes: [1, 1, 1], snapPoints: [0, 1, 2], rule: 'settled pages sit one unit apart, starting at 0' },
     { sizes: [1], snapPoints: [0], rule: 'a single page is always at position 0' },
@@ -67,6 +69,8 @@ export interface CarouselSizesFromSnapPointsVector {
  * The inverse both indicators reconstruct sizes with
  * (adw-carousel-indicator-dots.c:189-191, :248-250) — the only channel through
  * which an indicator can learn per-page reveal state.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
  */
 export const CAROUSEL_SIZES_FROM_SNAP_POINTS_VECTORS: ReadonlyArray<CarouselSizesFromSnapPointsVector> = [
     { snapPoints: [0, 1, 2], sizes: [1, 1, 1], rule: 'settled pages round-trip to size 1' },
@@ -92,7 +96,9 @@ export interface CarouselRangeVector {
     rule: string;
 }
 
-/** `get_range` (adw-carousel.c:207-220). */
+/** `get_range` (adw-carousel.c:207-220).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
+ */
 export const CAROUSEL_RANGE_VECTORS: ReadonlyArray<CarouselRangeVector> = [
     { snapPoints: [0, 1, 2], positionShift: 0, lower: 0, upper: 2, rule: 'the last snap point is the upper bound' },
     { snapPoints: [], positionShift: 0, lower: 0, upper: 0, rule: 'an empty carousel cannot scroll (:212-219)' },
@@ -125,7 +131,9 @@ export interface CarouselClampVector {
     rule: string;
 }
 
-/** `set_position`'s guard (adw-carousel.c:269). */
+/** `set_position`'s guard (adw-carousel.c:269).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
+ */
 export const CAROUSEL_CLAMP_VECTORS: ReadonlyArray<CarouselClampVector> = [
     { position: 5, snapPoints: [0, 1, 2], clamped: 2, rule: 'past the end clamps to the last snap point' },
     { position: -3, snapPoints: [0, 1, 2], clamped: 0, rule: 'below the start clamps to 0' },
@@ -255,7 +263,9 @@ export interface CarouselWheelVector {
     rule: string;
 }
 
-/** `scroll_cb`'s axis/source rules (adw-carousel.c:537-559). */
+/** `scroll_cb`'s axis/source rules (adw-carousel.c:537-559).  *
+ * CORE-ONLY: GAP — the browser carousel handles `wheel` without routing it through `resolveCarouselWheel`, and the NativeScript one has no wheel at all. Tracked in #1072
+ */
 export const CAROUSEL_WHEEL_VECTORS: ReadonlyArray<CarouselWheelVector> = [
     {
         deltaX: 0,
@@ -355,6 +365,8 @@ export interface CarouselWheelLockoutVector {
  * The web port replaced this with a non-decaying delta accumulator, so +30 then
  * −30 cancelled out where libadwaita pages twice, and a slow wheel never
  * reached the threshold at all.
+ *
+ * CORE-ONLY: GAP — the lockout is a real elapsed-time rule and neither element has a clock seam to drive it with. Tracked in #1072
  */
 export const CAROUSEL_WHEEL_LOCKOUT_VECTORS: ReadonlyArray<CarouselWheelLockoutVector> = [
     {
@@ -402,7 +414,9 @@ export interface CarouselReorderShiftVector {
     rule: string;
 }
 
-/** The three branches of `adw_carousel_reorder`'s compensation (adw-carousel.c:1488-1495). */
+/** The three branches of `adw_carousel_reorder`'s compensation (adw-carousel.c:1488-1495).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
+ */
 export const CAROUSEL_REORDER_SHIFT_VECTORS: ReadonlyArray<CarouselReorderShiftVector> = [
     {
         closestPoint: 1,

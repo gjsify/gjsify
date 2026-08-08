@@ -9,6 +9,8 @@
 // them. This suite is that comparison.
 import { describe, expect, it } from '@gjsify/unit';
 
+import { AVATAR_MODE_VECTORS } from '@gjsify/adwaita-core/conformance';
+
 import { AVATAR_COLORS, avatarMaxFontSize } from '@gjsify/adwaita-core';
 import {
     AVATAR_COLOR_VECTORS,
@@ -134,6 +136,41 @@ export const AdwAvatarTest = async () => {
             expect(label.textContent).toBe('');
             expect(icon.hidden).toBe(true);
             host.remove();
+        });
+    });
+
+    await describe('<adw-avatar> mode (update_visibility, adw-avatar.c:117)', async () => {
+        // The `hasCustomImage` rows are not reachable through this element: it
+        // passes `hasCustomImage: false` unconditionally, because it has no
+        // custom-image support at all — `Adw.Avatar:custom-image` is unported.
+        // Named below rather than silently filtered.
+        for (const { hasCustomImage, showInitials, text, mode, rule } of AVATAR_MODE_VECTORS) {
+            if (hasCustomImage) continue;
+            await it(`initials=${showInitials} "${text}" → ${mode} — ${rule}`, () => {
+                const host = document.createElement('div');
+                document.body.appendChild(host);
+                const avatar = document.createElement('adw-avatar');
+                if (showInitials) avatar.setAttribute('show-initials', '');
+                if (text) avatar.setAttribute('text', text);
+                host.appendChild(avatar);
+
+                // Exactly ONE of the two reachable modes is drawn — the point of
+                // the table is the precedence, and "both visible at once" is the
+                // failure it guards against.
+                const initials = (avatar.querySelector('.adw-avatar-text') as HTMLElement).hidden === false;
+                const icon = (avatar.querySelector('.adw-avatar-icon') as HTMLElement).hidden === false;
+                expect(initials).toBe(mode === 'initials');
+                expect(icon).toBe(mode === 'icon');
+                host.remove();
+            });
+        }
+
+        await it('leaves out only the custom-image rows, which this element cannot reach', () => {
+            const unreachable = AVATAR_MODE_VECTORS.filter((vector) => vector.hasCustomImage);
+            expect(unreachable.length).toBeGreaterThan(0);
+            // Every one of them is an `image` outcome, i.e. the whole mode is
+            // missing rather than a corner of it.
+            for (const vector of unreachable) expect(vector.mode).toBe('image');
         });
     });
 };

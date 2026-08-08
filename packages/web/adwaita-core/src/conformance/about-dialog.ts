@@ -348,6 +348,8 @@ export interface TranslatorCreditsVector {
  * is a ZERO-length vector, so `add_credits_section` bails at `!*people`
  * (:545-546) and no section is drawn; JS `''.split('\n')` is `['']`, which
  * draws the section with one blank row.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
  */
 export const TRANSLATOR_CREDITS_VECTORS: ReadonlyArray<TranslatorCreditsVector> = [
     { value: 'Ada Lovelace', people: ['Ada Lovelace'], rule: 'one translator, one row' },
@@ -906,6 +908,8 @@ export interface AboutDialogLabelVector {
  * on its own in the header revealer that fades in on scroll (.ui:29-31). A
  * renderer that titles the page "About <app>" AND labels the dialog "About
  * <app>" says the app's name three times on one screen.
+ *
+ * CORE-ONLY: a string table the renderers read THROUGH ADW_ABOUT_DIALOG_LABELS; the rendered text is asserted by ABOUT_DIALOG_HEADER/DETAILS_VECTORS
  */
 export const ABOUT_DIALOG_LABEL_VECTORS: ReadonlyArray<AboutDialogLabelVector> = [
     {
@@ -964,6 +968,8 @@ export interface LicenseInfoVector {
  * Index 18 is pinned because `G_STATIC_ASSERT (G_N_ELEMENTS (gtk_license_info)
  * - 1 == GTK_LICENSE_0BSD)` (:253-256) is the C's own check that the table and
  * the enum have not drifted; this is that assertion, ported.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
  */
 export const LICENSE_INFO_VECTORS: ReadonlyArray<LicenseInfoVector> = [
     { licenseType: 0, spdxId: null, url: null, rule: 'unknown carries nothing (:216)' },
@@ -1003,7 +1009,9 @@ export interface LicenseSpdxVector {
     rule: string;
 }
 
-/** The two lookup loops in `populate_from_appdata` (:1226-1239). */
+/** The two lookup loops in `populate_from_appdata` (:1226-1239).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (LICENSE_INFO_VECTORS → the legal section)
+ */
 export const LICENSE_SPDX_VECTORS: ReadonlyArray<LicenseSpdxVector> = [
     { spdxId: 'MIT', licenseType: 7, rule: 'an exact table match (:1227)' },
     { spdxId: 'GPL-3.0-or-later', licenseType: 3, rule: 'the -or-later variant is its own row' },
@@ -1028,7 +1036,9 @@ export interface LicenseTextVector {
     rule: string;
 }
 
-/** `get_license_text` (:635-651). */
+/** `get_license_text` (:635-651).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
+ */
 export const LICENSE_TEXT_VECTORS: ReadonlyArray<LicenseTextVector> = [
     {
         licenseType: 0,
@@ -1093,6 +1103,8 @@ export interface LicenseSetterVector {
  * would have set the type to custom, so re-assigning the same text after a
  * licence-type change does switch the type, while assigning `""` to an already
  * empty licence does not.
+ *
+ * CORE-ONLY: a property-ordering table with no rendered surface — the RESULT is ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, which both renderers drive
  */
 export const LICENSE_SETTER_VECTORS: ReadonlyArray<LicenseSetterVector> = [
     {
@@ -1187,7 +1199,9 @@ export interface LegalSectionVector {
     rule: string;
 }
 
-/** `append_legal_section`'s early-outs for the default section (:666-671, :740). */
+/** `append_legal_section`'s early-outs for the default section (:666-671, :740).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
+ */
 export const LEGAL_SECTION_VECTORS: ReadonlyArray<LegalSectionVector> = [
     { copyright: '', licenseType: 0, license: '', visible: false, rule: 'nothing set — no Legal page, no Legal row' },
     { copyright: '© 2026 Ada', licenseType: 0, license: '', visible: true, rule: 'a copyright alone is enough' },

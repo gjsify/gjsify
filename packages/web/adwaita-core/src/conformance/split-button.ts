@@ -507,6 +507,8 @@ export const SPLIT_BUTTON_DIRECTION_VECTORS: ReadonlyArray<SplitButtonDirectionV
  * demonstrated OVERRIDE rather than an assertion. Holding both means a reader can
  * see the two values and the two selectors side by side, and a renderer that
  * reaches for the wrong one fails a test that names which widget it is drawing.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (SPLIT_BUTTON_DIRECTION_VECTORS)
  */
 export const MENU_BUTTON_DIRECTION_VECTORS: ReadonlyArray<SplitButtonDirectionVector> = [
     {
@@ -563,6 +565,8 @@ const IDLE: SplitButtonHalfState = { active: false, checked: false, keyboardActi
  * `update_state` (adw-split-button.c:118-143) — an OR-fold of both halves onto
  * the root, which is what `splitbutton.flat:active/:checked` styles
  * (_buttons.scss:542-549).
+ *
+ * CORE-ONLY: GAP — two of its three axes are hardcoded in the renderer, so there is nothing to vary. Tracked in #1072
  */
 export const SPLIT_BUTTON_ROOT_STATE_VECTORS: ReadonlyArray<SplitButtonRootStateVector> = [
     { action: IDLE, dropdown: IDLE, active: false, checked: false, rule: 'idle folds to idle' },

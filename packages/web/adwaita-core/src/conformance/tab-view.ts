@@ -1158,6 +1158,8 @@ export interface TabSuccessorVector {
  *
  * These are the same rules the end-to-end rows exercise, stated as pure inputs
  * so a failure names the RULE rather than the script that reached it.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (TAB_VIEW_VECTORS)
  */
 export const TAB_SUCCESSOR_VECTORS: ReadonlyArray<TabSuccessorVector> = [
     {
@@ -1264,7 +1266,9 @@ export interface TabDescendantVector {
     descendant: boolean;
 }
 
-/** `is_descendant_of` (adw-tab-view.c:1735-1742). */
+/** `is_descendant_of` (adw-tab-view.c:1735-1742).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (TAB_VIEW_VECTORS)
+ */
 export const TAB_DESCENDANT_VECTORS: ReadonlyArray<TabDescendantVector> = [
     {
         rule: 'a page IS its own descendant — the loop condition fails before the first step',
@@ -1486,6 +1490,8 @@ export interface TabTooltipVector {
  * `tabTooltipText` (`widgets/tab-view-state.ts`), so BOTH renderers consume
  * these rows today and neither is held to them. Both surfaces are readable from
  * their own suites, so wiring them is a loop, not new capability.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (TAB_VIEW_VECTORS — both ports consume the derivation, which this header once denied)
  */
 export const TAB_TOOLTIP_VECTORS: ReadonlyArray<TabTooltipVector> = [
     {
@@ -1655,6 +1661,8 @@ export interface TabPageDescriptorVector {
  * (adw-tab-view.c:3021) and its tooltip twin (:3064). The icon fields do NOT
  * coerce: "no icon" is a state `tabIconState` branches on, so `null` has to
  * survive.
+ *
+ * CORE-ONLY: GAP — a descriptor normaliser neither element routes its page input through. Tracked in #1072
  */
 export const TAB_PAGE_DESCRIPTOR_VECTORS: ReadonlyArray<TabPageDescriptorVector> = [
     {

@@ -169,6 +169,13 @@ jobs:
       - name: Check adwaita-web's style-isolation list covers every element
         run: node scripts/check-adwaita-reset-components.mjs
 
+      # A conformance table with no RENDERER behind it asserts a derivation against
+      # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather
+      # than deliberate — and two headers in the same area were asserting coverage
+      # that did not exist, which reads as a reason not to look.
+      - name: Check every conformance table is driven or explains why not
+        run: node scripts/check-adwaita-conformance-drivers.mjs
+
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
       # fields the filter reads. That is how this repo installed every platform's
@@ -386,6 +393,13 @@ jobs:
       # and the spec ADR 0010 names as the guard instantiates exactly one element.
       - name: Check adwaita-web's style-isolation list covers every element
         run: node scripts/check-adwaita-reset-components.mjs
+
+      # A conformance table with no RENDERER behind it asserts a derivation against
+      # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather
+      # than deliberate — and two headers in the same area were asserting coverage
+      # that did not exist, which reads as a reason not to look.
+      - name: Check every conformance table is driven or explains why not
+        run: node scripts/check-adwaita-conformance-drivers.mjs
 
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform

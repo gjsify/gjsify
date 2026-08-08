@@ -20,6 +20,7 @@ import {
     OVERLAY_SWIPE_SNAP_POINT_VECTORS,
     OVERLAY_SWIPE_START_VECTORS,
     NAVIGATION_ACTION_VECTORS,
+    OVERLAY_SPLIT_VIEW_LAYOUT_VECTORS,
     NAVIGATION_STACK_VECTORS,
     SIDEBAR_BOUNDS_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
@@ -567,6 +568,35 @@ export const AdwSplitViewsTest = async () => {
             expect(getComputedStyle(content).minWidth).not.toBe('0px');
             host.remove();
         });
+
+        for (const vector of OVERLAY_SPLIT_VIEW_LAYOUT_VECTORS) {
+            // Its exact analogue NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS was driven
+            // from the NativeScript suite while this one was driven by nobody —
+            // two sibling tables in the same file, with no reason for the
+            // difference. The element writes the pane rect from
+            // `layoutOverlaySplitView` now, so the rects are readable.
+            const label = `${vector.collapsed ? 'collapsed' : 'docked'} ${vector.sidebarPosition}/${vector.direction} @${vector.showProgress}`;
+            await it(`${label} — ${vector.rule}`, async () => {
+                const attrs =
+                    (vector.collapsed ? 'collapsed ' : '') +
+                    (vector.sidebarPosition === 'end' ? 'sidebar-position="end" ' : '') +
+                    'pin-sidebar';
+                const { view, host } = mountSizedView(vector.totalWidth, attrs);
+                if (vector.direction === 'rtl') host.style.direction = 'rtl';
+                await settle();
+                const state = stateOf(view);
+                state.setShowProgress(vector.showProgress);
+
+                // The SHIELD and the paint gate are the element's to publish;
+                // the pixel rects depend on the measured sidebar width, which a
+                // real layout decides, so the shared half is what is compared.
+                const backdrop = view.querySelector('.adw-osv-backdrop') as HTMLElement;
+                expect(backdrop.hidden).toBe(!vector.layout.shieldVisible);
+                const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+                expect(sidebar.style.pointerEvents === 'none').toBe(!vector.layout.sidebarPainted);
+                host.remove();
+            });
+        }
 
         await it('names the cancel rows the core owns, so this suite is not read as covering them', () => {
             // `swipeCancelProgress`'s half-away-from-zero rounding is arithmetic

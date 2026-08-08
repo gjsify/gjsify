@@ -43,7 +43,9 @@ export interface AdwLengthUnitVector {
     rule: string;
 }
 
-/** `adw_length_unit_to_px` (adw-length-unit.c:72-81). */
+/** `adw_length_unit_to_px` (adw-length-unit.c:72-81).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (SIDEBAR_BOUNDS_VECTORS, which both renderers drive)
+ */
 export const ADW_LENGTH_UNIT_VECTORS: ReadonlyArray<AdwLengthUnitVector> = [
     { unit: 'px', value: 180, dpi: 96, px: 180, rule: 'px is a passthrough' },
     { unit: 'px', value: 180, dpi: 120, px: 180, rule: 'px ignores the text scale entirely' },
@@ -72,6 +74,8 @@ export interface GlibClampVector {
  * The inverted rows are the point: `Math.min(high, Math.max(low, x))` returns
  * `high` there, and `allocate_uncollapsed` reaches inverted bounds whenever the
  * content pane's own minimum leaves less room than `min-sidebar-width`.
+ *
+ * CORE-ONLY: GLib’s CLAMP itself — a primitive with no widget surface; every widget that reaches it does so through a table that IS driven
  */
 export const GLIB_CLAMP_VECTORS: ReadonlyArray<GlibClampVector> = [
     { x: 250, low: 180, high: 280, clamped: 250, rule: 'inside the range, untouched' },
@@ -349,6 +353,8 @@ export interface NaturalSidebarWidthVector {
 /**
  * `measure_uncollapsed`'s sidebar estimate (adw-navigation-split-view.c:260-262,
  * adw-overlay-split-view.c:554-556) — the sidebar's OWN natural width is ignored.
+ *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (SIDEBAR_WIDTH_VECTORS)
  */
 export const NATURAL_SIDEBAR_WIDTH_VECTORS: ReadonlyArray<NaturalSidebarWidthVector> = [
     { contentNatural: 800, min: 180, max: 280, fraction: 0.25, natural: 267, rule: 'ceil(800 * 0.25 / 0.75) = 267' },
@@ -401,6 +407,8 @@ export interface SplitViewMeasureVector {
  *
  * This is the container minimum neither renderer had — which is why in both of them
  * the content pane shrinks to nothing instead of the window refusing to get narrower.
+ *
+ * CORE-ONLY: the container minimum lands as `min-width: min-content` on the content pane, which is CSS’s own spelling of the same rule — there is no computed number of ours to compare. Asserted in the renderer as "the pane is not crushable" instead
  */
 export const SPLIT_VIEW_MEASURE_VECTORS: ReadonlyArray<SplitViewMeasureVector> = [
     {
@@ -690,7 +698,9 @@ export interface TagsConflictVector {
     rule: string;
 }
 
-/** `tags_equal` (adw-navigation-split-view.c:413-429). */
+/** `tags_equal` (adw-navigation-split-view.c:413-429).  *
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (the tag guard, driven through NAVIGATION_ACTION_VECTORS and the refusal tests in both renderer suites)
+ */
 export const TAGS_CONFLICT_VECTORS: ReadonlyArray<TagsConflictVector> = [
     { sidebarTag: null, contentTag: null, conflict: false, rule: 'two untagged pages never collide' },
     { sidebarTag: 'a', contentTag: null, conflict: false, rule: 'an absent tag never matches a present one' },
