@@ -170,7 +170,13 @@ export class AdwInlineViewSwitcher extends HTMLElement {
     }
 
     connectedCallback() {
-        if (this._initialized) return;
+        if (this._initialized) {
+            // Re-entering a document — same reason as `adw-view-switcher.ts`:
+            // the page observer is dropped on disconnect, so it has to be
+            // rebuilt here or a moved switcher goes deaf permanently.
+            this._watchPages();
+            return;
+        }
 
         // `:scope >` rather than a subtree scan — `<adw-view-stack>` uses the
         // same tag for its pages, so an unscoped query adopted a nested stack's.

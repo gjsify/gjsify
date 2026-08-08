@@ -168,6 +168,17 @@ export class AdwOverlaySplitView extends HTMLElement {
     }
 
     connectedCallback() {
+        this._buildOnce();
+        // EVERY connect, not only the first — see `_bindToDocument`.
+        this._bindToDocument();
+        this._reflectShowSidebar();
+        this._syncClasses();
+        this._syncSidebarWidth();
+        this._syncBreakpoint();
+    }
+
+    /** The DOM surgery and the state, which happen once per element lifetime. */
+    private _buildOnce() {
         if (this._initialized) return;
         this._initialized = true;
 
@@ -222,9 +233,37 @@ export class AdwOverlaySplitView extends HTMLElement {
             this._syncClasses();
         });
 
+        // `escape_shortcut_cb` (adw-overlay-split-view.c:705-716) — absent from
+        // BOTH ports, which made `OverlaySplitViewState.escape()` dead code.
+        // Bound on the element, so it only fires while focus is inside the view
+        // and still propagates when the state declines to consume it.
+        //
+        // Bound ONCE, here, and never removed: a listener on the element itself
+        // survives detaching and is collected with the element, so there is
+        // nothing to leak — while re-adding it per connect would stack a second
+        // handler on every move. Only the two bindings that reach OUTSIDE the
+        // element (the observer below and the breakpoint's media query) need a
+        // teardown, and they are re-established on every connect.
+        this.addEventListener('keydown', this._onKeyDown);
+        this._bindSwipe();
+    }
+
+    /**
+     * Everything that must be re-established every time the element enters a
+     * document — NOT once per lifetime.
+     *
+     * `connectedCallback` returns early on the second connect (the DOM is
+     * already built), so anything torn down in `disconnectedCallback` used to be
+     * gone for good: moving the view between parents — which is what a slideshow
+     * or a client-side route change does — killed the ResizeObserver and left
+     * `_measuredWidth` frozen at whatever it last saw, or at 0 if the view had
+     * never been visible. That is the other half of the docs-site regression.
+     */
+    private _bindToDocument() {
         // The view's own box is the size source, the same one the breakpoints
         // use: the sidebar width is a FRACTION of it and has to be recomputed
         // when it changes, which a one-shot read at connect could not do.
+        this._resizeObserver?.disconnect();
         this._resizeObserver = new ResizeObserver((entries) => {
             const entry = entries[entries.length - 1];
             if (!entry) return;
@@ -234,18 +273,12 @@ export class AdwOverlaySplitView extends HTMLElement {
             this._syncClasses();
         });
         this._resizeObserver.observe(this);
-
-        // `escape_shortcut_cb` (adw-overlay-split-view.c:705-716) — absent from
-        // BOTH ports, which made `OverlaySplitViewState.escape()` dead code.
-        // Bound on the element, so it only fires while focus is inside the view
-        // and still propagates when the state declines to consume it.
-        this.addEventListener('keydown', this._onKeyDown);
-        this._bindSwipe();
-
-        this._reflectShowSidebar();
-        this._syncClasses();
-        this._syncSidebarWidth();
-        this._syncBreakpoint();
+        // Seed synchronously so the FIRST paint after a connect is already
+        // placed. The observer's initial callback is a frame away, and on a
+        // re-connect there may be no size change at all for it to report.
+        // Zero is the honest answer while the view is in a `display: none`
+        // subtree, and `_syncGeometry` knows what to do with it.
+        this._measuredWidth = this.offsetWidth;
     }
 
     disconnectedCallback() {
@@ -253,7 +286,6 @@ export class AdwOverlaySplitView extends HTMLElement {
         this._disposeBreakpoint = undefined;
         this._resizeObserver?.disconnect();
         this._resizeObserver = undefined;
-        this.removeEventListener('keydown', this._onKeyDown);
     }
 
     /** `escape_shortcut_cb` — only a COLLAPSED view with a revealed sidebar consumes it. */
@@ -432,7 +464,40 @@ export class AdwOverlaySplitView extends HTMLElement {
      */
     private _syncGeometry() {
         const sidebar = this._sidebarEl;
-        if (!sidebar || this._measuredWidth <= 0) return;
+        if (!sidebar) return;
+        // NOTHING MEASURED YET — HAND THE PLACEMENT BACK TO THE STYLESHEET.
+        //
+        // This used to `return` and leave the inline styles alone, which is the
+        // one thing it must not do. The stylesheet no longer carries a
+        // `transform: translateX(±100%)` for the hidden end state (that is the
+        // point of driving the offset per frame), so an absolutely-positioned
+        // pane with no `left` resolves to `left: 0` at full opacity: a HIDDEN
+        // sidebar painted over the content at the wrong edge. Shipped that way
+        // in v0.32.0's `feat(adwaita)` commit and visible on the docs site,
+        // whose slideshow builds each slide hidden and moves it in — so the
+        // first measurement never arrived and the fallback was all there was.
+        //
+        // Clearing rather than skipping matters just as much: a STALE inline
+        // `left` from an earlier measurement outranks the resting rule (an
+        // absolutely-positioned box with `left` + `width` ignores `right`), so
+        // leaving the old value behind would defeat the stylesheet exactly when
+        // it is needed. `_resting.scss` carries the four end states.
+        if (this._measuredWidth <= 0) {
+            for (const prop of [
+                'left',
+                'marginLeft',
+                'marginRight',
+                'width',
+                'minWidth',
+                'maxWidth',
+                'opacity',
+                'pointerEvents',
+            ] as const) {
+                sidebar.style[prop] = '';
+            }
+            if (this._backdropEl) this._backdropEl.style.opacity = '';
+            return;
+        }
         const state = this._state;
         const measured = this._sidebarWidth;
         const layout = layoutOverlaySplitView({
