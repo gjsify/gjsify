@@ -188,6 +188,18 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
         assert.notEqual(gjsKey, nodeKey);
         // …and stays stable for the same input, or every launch re-installs.
         assert.equal(nodeKey, createCacheKey({ packages: [showcase, '@gjsify/node-gi@9.9.9'] }));
+
+        // The batteries-included GTK runtime is a THIRD spec the launcher adds,
+        // on the platforms where a system GTK is not a given (win32/darwin). It
+        // has to key separately for the same reason the bridge does: a tree that
+        // carries the bundle and one that does not are different trees, and a
+        // later "the bundle is implied by the platform, leave it out of the key"
+        // would quietly hand one of them to the other.
+        const bundleKey = createCacheKey({
+            packages: [showcase, '@gjsify/node-gi@9.9.9', '@gjsify/gtk-runtime-win32-x64@9.9.9'],
+        });
+        assert.notEqual(bundleKey, nodeKey);
+        assert.notEqual(bundleKey, gjsKey);
     });
 
     // The system-dependency gate is a question ABOUT the runtime, so it must be
