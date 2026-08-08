@@ -1,5 +1,21 @@
 // _overlay_split_view.scss — adw-overlay-split-view styling.
+//
+// The GEOMETRY is no longer here. It used to be four `transform: translateX(±100%)`
+// rules keyed on `.collapsed` / `.show-sidebar` / `.sidebar-end`, which can only
+// express the two END STATES of a reveal — so `show-progress` was 0 or 1, the
+// five `OVERLAY_SWIPE_*` conformance tables shipped unexercised, and the docked
+// hide slid the wrong way for an `end` sidebar because the JS wrote `marginRight`
+// whichever edge the pane was on.
+//
+// The element now writes the pane rect per frame from
+// `layoutOverlaySplitView`, which is continuous and knows the edge (including
+// under RTL, where a `start` sidebar is drawn on the RIGHT —
+// `get_start_or_end`, adw-overlay-split-view.c:227-234). What is left here is
+// what CSS genuinely owns: the box model, the stacking, and the transition that
+// smooths a programmatic toggle.
+//
 // Reference: refs/libadwaita/src/adw-overlay-split-view.c
+// Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as Web Component for @gjsify/adwaita-web.
 
@@ -15,34 +31,44 @@ adw-overlay-split-view {
     background-color: var(--sidebar-bg-color);
     overflow-y: auto;
     flex-shrink: 0;
-    transition: transform 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
     z-index: 10;
     align-self: stretch;
+    // Only `opacity` transitions. The offset is driven per frame, so animating
+    // it here would fight the swipe: a gesture would lag its own finger.
+    transition: opacity 0.2s ease;
   }
 
+  // THE CONTAINER MINIMUM, as CSS spells it. `measure_uncollapsed`
+  // (adw-overlay-split-view.c:558-563) is `trunc(sidebar_min * progress) +
+  // content_min`, and a flex row reaches exactly that on its own PROVIDED the
+  // content is allowed to claim its own minimum: the sidebar is `flex-shrink: 0`
+  // with a `min-width` of `sidebar_min`, so the sum is the container's floor.
+  //
+  // `min-width: 0` was here instead — the flex idiom for "let this be crushed so
+  // an ellipsis can happen" — which is precisely how the content pane could be
+  // squeezed to nothing while the sidebar kept its whole width. A child that
+  // needs to truncate can still ask for `min-width: 0` itself; the PANE may not.
+  //
+  // Not computed in JS: a measured number would need the content's min-content
+  // size, which the DOM does not expose without a reflow, and the first attempt
+  // used `scrollWidth` — the pane's CURRENT width — which pinned the view at
+  // whatever it happened to be and stopped it responding to its breakpoint.
   .adw-osv-content {
     flex: 1;
-    min-width: 0;
+    min-width: min-content;
     min-height: 0;
     display: flex;
     flex-direction: column;
     align-self: stretch;
   }
 
-  // Docked mode (not collapsed) — sidebar beside content
+  // Docked — the sidebar sits in the flex row and the hidden part is taken off
+  // its own edge by a negative margin the element computes.
   &:not(.collapsed) .adw-osv-sidebar {
     position: relative;
   }
 
-  // Docked hide: slide left and collapse via opacity. Sidebar keeps its
-  // intrinsic width so internal elements don't reflow.
-  &:not(.collapsed):not(.show-sidebar) .adw-osv-sidebar {
-    transform: translateX(-100%);
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  // Docked + sidebar-end — dock the sidebar to the RIGHT of the content
+  // Docked + sidebar-end — dock the sidebar to the far side of the content
   // (the Adw.OverlaySplitView { sidebar-position: end } layout). flex `order`
   // flips the visual order without changing the slotting DOM order.
   &:not(.collapsed).sidebar-end {
@@ -52,49 +78,52 @@ adw-overlay-split-view {
 
     .adw-osv-sidebar {
       order: 2;
-      border-inline-start: 1px solid var(--separator-color);
     }
   }
 
-  // Docked hide when the sidebar is on the end edge: slide RIGHT, not left.
-  &:not(.collapsed):not(.show-sidebar).sidebar-end .adw-osv-sidebar {
-    transform: translateX(100%);
+  // THE DIVIDER FOLLOWS THE VISUAL SIDE, not the logical one. `_sidebars.scss`
+  // makes it `:dir()` × `.end` (:21-39), which is exactly the product
+  // `.sidebar-at-visual-start` already carries: under RTL a `start` sidebar is
+  // drawn on the right and its divider belongs on its left edge.
+  &:not(.collapsed) {
+    .adw-osv-sidebar {
+      border-inline-end: none;
+      border-inline-start: none;
+    }
+
+    &.sidebar-at-visual-start .adw-osv-sidebar {
+      border-right: 1px solid var(--separator-color);
+    }
+
+    &:not(.sidebar-at-visual-start) .adw-osv-sidebar {
+      border-left: 1px solid var(--separator-color);
+    }
   }
 
-  // Overlay mode (collapsed) — sidebar on top of content
+  // Overlay (collapsed) — the sidebar floats above the content at the absolute
+  // offset the element writes into `left`, which is the only property that can
+  // carry a mid-swipe position.
   &.collapsed .adw-osv-sidebar {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 0;
-    transform: translateX(-100%);
-    opacity: 0;
-    pointer-events: none;
+    box-shadow: 0 0 12px rgb(0 0 0 / 25%);
   }
 
-  &.collapsed.sidebar-end .adw-osv-sidebar {
-    left: auto;
-    right: 0;
-    transform: translateX(100%);
-  }
-
-  &.collapsed.show-sidebar .adw-osv-sidebar {
-    transform: translateX(0);
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  // Backdrop — visible only in overlay mode when sidebar is open
+  // Backdrop — the click-outside shield. `hidden` is the element's, off
+  // `shieldVisible`; the OPACITY is the shadow-helper progress, so it fades with
+  // the reveal instead of appearing whole.
   .adw-osv-backdrop {
     display: none;
   }
 
-  &.collapsed.show-sidebar .adw-osv-backdrop {
+  &.collapsed .adw-osv-backdrop:not([hidden]) {
     display: block;
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgb(0 0 0 / 30%);
     z-index: 9;
+    transition: opacity 0.2s ease;
   }
 }
 

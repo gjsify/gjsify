@@ -12,11 +12,63 @@ import {
     DEFAULT_MIN_SIDEBAR_WIDTH,
     DEFAULT_SIDEBAR_WIDTH_FRACTION,
     OverlaySplitViewState,
+    isSidebarAtVisualStart,
+    layoutOverlaySplitView,
+    resolveOverlaySidebarWidth,
     resolveSidebarBounds,
+    resolveSwipeArea,
+    resolveSwipeSnapPoints,
+    resolveSwipeStart,
+    swipeCancelProgress,
     type AdwPackType,
+    type AdwTextDirection,
+    type SplitViewAnimator,
 } from '@gjsify/adwaita-core';
 
 import { bindBreakpointSetter } from '../breakpoints.js';
+
+/**
+ * The reveal spring, as a CSS-timed animator.
+ *
+ * libadwaita animates with a spring `(1, 0.5, 500)`
+ * (adw-overlay-split-view.c:1163-1165). A browser cannot be handed spring
+ * parameters, so this drives the progress from `requestAnimationFrame` on a
+ * critically-damped approximation and lets the element write the resulting
+ * geometry — which is the same seam the NativeScript port fills with
+ * `View.animate()`, and the same one a test fills with an instant fake.
+ */
+const CSS_SPLIT_VIEW_ANIMATOR: SplitViewAnimator = {
+    animate(request) {
+        let handle = 0;
+        let cancelled = false;
+        // 250ms is the visible settle time of libadwaita's spring at these
+        // parameters; the CURVE is an approximation and says so, the ENDPOINTS
+        // are exact because `onDone` writes `to`.
+        const duration = 250;
+        const start = performance.now();
+        const step = (now: number) => {
+            if (cancelled) return;
+            const t = Math.min((now - start) / duration, 1);
+            // ease-out: fast first, settling — the visible signature of a spring
+            // with no overshoot, which is what `clamp` asks for anyway.
+            const eased = 1 - (1 - t) * (1 - t);
+            request.onValue(request.from + (request.to - request.from) * eased);
+            if (t < 1) {
+                handle = requestAnimationFrame(step);
+                return;
+            }
+            request.onValue(request.to);
+            request.onDone();
+        };
+        handle = requestAnimationFrame(step);
+        return {
+            cancel() {
+                cancelled = true;
+                if (handle) cancelAnimationFrame(handle);
+            },
+        };
+    },
+};
 
 /**
  * Read a boolean attribute the way a GTK property with a TRUE default has to be
@@ -48,6 +100,13 @@ export class AdwOverlaySplitView extends HTMLElement {
     private _state = new OverlaySplitViewState();
     /** Re-entrancy guard for {@link _reflectShowSidebar}. */
     private _reflecting = false;
+    /** The view's own width in CSS px — the size the sidebar fraction is OF. */
+    private _measuredWidth = 0;
+    private _resizeObserver: ResizeObserver | undefined;
+    /** The pointer currently panning the sidebar, if any. */
+    private _swipePointer: number | null = null;
+    /** Where the pan started, and the progress it started from. */
+    private _swipeOrigin = { x: 0, progress: 0 };
 
     /**
      * Every attribute {@link _readAttribute} handles must be listed here — an
@@ -65,6 +124,8 @@ export class AdwOverlaySplitView extends HTMLElement {
             'min-sidebar-width',
             'max-sidebar-width',
             'sidebar-width-fraction',
+            'enable-show-gesture',
+            'enable-hide-gesture',
             'breakpoint',
         ];
     }
@@ -150,7 +211,37 @@ export class AdwOverlaySplitView extends HTMLElement {
             showSidebar: readTriStateAttr(this, 'show-sidebar', true),
             pinSidebar: this.hasAttribute('pin-sidebar'),
             sidebarPosition: this.getAttribute('sidebar-position') === 'end' ? 'end' : ('start' as AdwPackType),
+            enableShowGesture: readTriStateAttr(this, 'enable-show-gesture', true),
+            enableHideGesture: readTriStateAttr(this, 'enable-hide-gesture', true),
+            animator: CSS_SPLIT_VIEW_ANIMATOR,
         });
+        // Every progress step repaints — the reveal is a CONTINUUM now, not two
+        // end states, which is what the five OVERLAY_SWIPE_* tables describe.
+        this._state.subscribe(() => {
+            this._reflectShowSidebar();
+            this._syncClasses();
+        });
+
+        // The view's own box is the size source, the same one the breakpoints
+        // use: the sidebar width is a FRACTION of it and has to be recomputed
+        // when it changes, which a one-shot read at connect could not do.
+        this._resizeObserver = new ResizeObserver((entries) => {
+            const entry = entries[entries.length - 1];
+            if (!entry) return;
+            const box = entry.borderBoxSize?.[0];
+            this._measuredWidth = box ? box.inlineSize : entry.contentRect.width;
+            this._syncSidebarWidth();
+            this._syncClasses();
+        });
+        this._resizeObserver.observe(this);
+
+        // `escape_shortcut_cb` (adw-overlay-split-view.c:705-716) — absent from
+        // BOTH ports, which made `OverlaySplitViewState.escape()` dead code.
+        // Bound on the element, so it only fires while focus is inside the view
+        // and still propagates when the state declines to consume it.
+        this.addEventListener('keydown', this._onKeyDown);
+        this._bindSwipe();
+
         this._reflectShowSidebar();
         this._syncClasses();
         this._syncSidebarWidth();
@@ -160,7 +251,18 @@ export class AdwOverlaySplitView extends HTMLElement {
     disconnectedCallback() {
         this._disposeBreakpoint?.();
         this._disposeBreakpoint = undefined;
+        this._resizeObserver?.disconnect();
+        this._resizeObserver = undefined;
+        this.removeEventListener('keydown', this._onKeyDown);
     }
+
+    /** `escape_shortcut_cb` — only a COLLAPSED view with a revealed sidebar consumes it. */
+    private readonly _onKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        // The state decides: an uncollapsed view lets Escape through so an
+        // enclosing dialog still closes.
+        if (this._state.escape()) event.preventDefault();
+    };
 
     attributeChangedCallback(_name: string, _old: string | null, _val: string | null) {
         if (!this._initialized) return;
@@ -169,10 +271,20 @@ export class AdwOverlaySplitView extends HTMLElement {
             return;
         }
         this._readAttribute(_name);
-        this._syncClasses();
-        if (_name === 'min-sidebar-width' || _name === 'max-sidebar-width' || _name === 'sidebar-width-fraction') {
+        // `collapsed` is in the list because `get_sidebar_width` IGNORES the
+        // fraction while collapsed and clamps the VIEW width instead
+        // (adw-overlay-split-view.c:462-463) — a collapsed sidebar is a
+        // different number, not the same one drawn differently. Leaving it out
+        // is the frame-late bug the NativeScript port paid for.
+        if (
+            _name === 'min-sidebar-width' ||
+            _name === 'max-sidebar-width' ||
+            _name === 'sidebar-width-fraction' ||
+            _name === 'collapsed'
+        ) {
             this._syncSidebarWidth();
         }
+        this._syncClasses();
     }
 
     /**
@@ -196,6 +308,14 @@ export class AdwOverlaySplitView extends HTMLElement {
         }
         if (name === 'show-sidebar') {
             state.setShowSidebar(readTriStateAttr(this, 'show-sidebar', true));
+        }
+        // Both default TRUE (adw-overlay-split-view.c:1178-1210), so they read
+        // through the tri-state helper for the same reason `show-sidebar` does.
+        if (name === 'enable-show-gesture') {
+            state.setEnableShowGesture(readTriStateAttr(this, 'enable-show-gesture', true));
+        }
+        if (name === 'enable-hide-gesture') {
+            state.setEnableHideGesture(readTriStateAttr(this, 'enable-hide-gesture', true));
         }
         // Last: it can change `show-sidebar`, so it must not be overwritten after.
         if (name === 'collapsed') state.setCollapsed(this.hasAttribute('collapsed'));
@@ -248,12 +368,47 @@ export class AdwOverlaySplitView extends HTMLElement {
         );
     }
 
+    /**
+     * The reading direction `start` / `end` are resolved against.
+     *
+     * `get_start_or_end` (adw-overlay-split-view.c:227-234) returns
+     * `GTK_PACK_END` under RTL, so a `start` sidebar is drawn on the RIGHT.
+     * Neither renderer mirrored any of it; the browser has the direction for
+     * free and only had to read it.
+     */
+    private get _direction(): AdwTextDirection {
+        return getComputedStyle(this).direction === 'rtl' ? 'rtl' : 'ltr';
+    }
+
+    /** The sizing properties as the core takes them. */
+    private get _widthSpec() {
+        return {
+            minSidebarWidth: this.minSidebarWidth,
+            maxSidebarWidth: this.maxSidebarWidth,
+            sidebarWidthFraction: this.sidebarWidthFraction,
+        };
+    }
+
+    /** The sidebar's allocated width in px — `get_sidebar_width` (:441-466). */
+    private get _sidebarWidth(): number {
+        return resolveOverlaySidebarWidth({
+            ...this._widthSpec,
+            totalWidth: this._measuredWidth,
+            collapsed: this._state.collapsed,
+        });
+    }
+
     private _syncClasses() {
         const state = this._state;
         this.classList.toggle('collapsed', state.collapsed);
         this.classList.toggle('show-sidebar', state.showSidebar);
+        const atStart = isSidebarAtVisualStart(state.sidebarPosition, this._direction);
         this.classList.toggle('sidebar-start', state.sidebarPosition === 'start');
         this.classList.toggle('sidebar-end', state.sidebarPosition === 'end');
+        // The VISUAL side, which under RTL is the opposite of the logical one.
+        // The stylesheet needs it for the divider edge, which `border-inline-*`
+        // alone cannot get right: the divider follows where the pane is DRAWN.
+        this.classList.toggle('sidebar-at-visual-start', atStart);
 
         // Derived, not re-decided here: the shield only exists while collapsed
         // AND revealed, and each pane is reachable by keyboard only when it is
@@ -262,16 +417,57 @@ export class AdwOverlaySplitView extends HTMLElement {
         this._sidebarEl?.setAttribute('aria-hidden', String(!state.sidebarFocusable));
         this._contentEl?.setAttribute('aria-hidden', String(!state.contentFocusable));
 
-        // In docked mode, use negative margin to collapse sidebar space
-        // while keeping the sidebar's intrinsic width (slide animation).
-        if (this._sidebarEl && !this.collapsed) {
-            if (!this.showSidebar) {
-                const w = this._sidebarEl.offsetWidth;
-                this._sidebarEl.style.marginRight = `-${w}px`;
-            } else {
-                this._sidebarEl.style.marginRight = '';
-            }
+        this._syncGeometry();
+    }
+
+    /**
+     * Place the sidebar for the current progress — `allocate_uncollapsed`
+     * (:572-610) and `allocate_collapsed` (:653-703), through the core.
+     *
+     * The slide used to be `marginRight: -offsetWidth` REGARDLESS of which edge
+     * the sidebar is on, so an `end` sidebar slid the wrong way; and it was only
+     * two states, so a swipe had nothing to drive. `layoutOverlaySplitView`
+     * returns the pane rect for any progress including the overshoot, which is
+     * what makes a continuous gesture expressible at all.
+     */
+    private _syncGeometry() {
+        const sidebar = this._sidebarEl;
+        if (!sidebar || this._measuredWidth <= 0) return;
+        const state = this._state;
+        const measured = this._sidebarWidth;
+        const layout = layoutOverlaySplitView({
+            totalWidth: this._measuredWidth,
+            sidebarWidth: measured,
+            showProgress: state.showProgress,
+            collapsed: state.collapsed,
+            sidebarPosition: state.sidebarPosition,
+            direction: this._direction,
+        });
+        const atStart = isSidebarAtVisualStart(state.sidebarPosition, this._direction);
+
+        sidebar.style.width = `${layout.sidebar.width}px`;
+        if (state.collapsed) {
+            // Floating above the content: absolutely placed at the rect the core
+            // returned, so an overshoot widens the pane instead of detaching it.
+            sidebar.style.marginLeft = '';
+            sidebar.style.marginRight = '';
+            sidebar.style.insetInlineStart = '';
+            sidebar.style.left = `${layout.sidebar.x}px`;
+        } else {
+            // Docked: the pane keeps its place in the flex row and the hidden
+            // part is taken off the edge it is ON — the left one at visual
+            // start, the right one at visual end.
+            sidebar.style.left = '';
+            const hidden = measured - Math.trunc(measured * Math.min(state.showProgress, 1));
+            sidebar.style.marginLeft = atStart ? `${-hidden}px` : '';
+            sidebar.style.marginRight = atStart ? '' : `${-hidden}px`;
         }
+        sidebar.style.opacity = state.showProgress <= 0 ? '0' : '1';
+        // `sidebarPainted` is the snapshot gate (:757): below zero progress there
+        // is nothing on screen, and a pane that is not painted must not take
+        // pointer events either.
+        sidebar.style.pointerEvents = state.sidebarPainted ? '' : 'none';
+        if (this._backdropEl) this._backdropEl.style.opacity = String(1 - layout.shadowProgress);
     }
 
     private _syncSidebarWidth() {
@@ -280,14 +476,98 @@ export class AdwOverlaySplitView extends HTMLElement {
         // libadwaita never lets `max` fall below `min`, and CSS resolves that
         // conflict the other way round (min-width wins over max-width), so an
         // inverted pair would render differently here than in GTK.
-        const bounds = resolveSidebarBounds(
-            { minSidebarWidth: this.minSidebarWidth, maxSidebarWidth: this.maxSidebarWidth },
-            0,
-            { ceil: true },
-        );
+        const bounds = resolveSidebarBounds(this._widthSpec, 0, { ceil: true });
         this._sidebarEl.style.minWidth = `${bounds.min}px`;
         this._sidebarEl.style.maxWidth = `${bounds.max}px`;
-        this._sidebarEl.style.width = `${this.sidebarWidthFraction * 100}%`;
+        // NOT a CSS percentage. `(int)` truncates toward zero, and a percentage
+        // is fractional — core's own header forbids it in as many words, and
+        // this element carried one for its whole life.
+        this._syncGeometry();
+    }
+
+    // --- swipe (Adw.Swipeable) ---
+
+    /**
+     * The pan gesture the five `OVERLAY_SWIPE_*` tables describe.
+     *
+     * There was no gesture code in either renderer — grep for `pan` in both
+     * split views returned zero — so `showProgress` was only ever 0 or 1 and the
+     * tables shipped unexercised. Pointer events give the browser the whole
+     * gesture in three handlers; every DECISION in them is core's.
+     */
+    private _bindSwipe() {
+        this.addEventListener('pointerdown', (event) => {
+            if (this._swipePointer !== null || event.button !== 0) return;
+            const state = this._state;
+            const rect = this.getBoundingClientRect();
+            const area = resolveSwipeArea({
+                isDrag: true,
+                sidebarWidth: this._sidebarWidth,
+                showProgress: state.showProgress,
+                totalWidth: rect.width,
+                totalHeight: rect.height,
+                sidebarPosition: state.sidebarPosition,
+                direction: this._direction,
+            });
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            if (x < area.x || x > area.x + area.width || y < area.y || y > area.y + area.height) return;
+            this._swipePointer = event.pointerId;
+            this._swipeOrigin = { x: event.clientX, progress: state.showProgress };
+        });
+
+        this.addEventListener('pointermove', (event) => {
+            if (event.pointerId !== this._swipePointer) return;
+            const state = this._state;
+            const width = this._sidebarWidth || 1;
+            const atStart = isSidebarAtVisualStart(state.sidebarPosition, this._direction);
+            // Dragging AWAY from the sidebar's edge opens it, so the sign of the
+            // travel depends on which edge that is — the same `atStart` predicate
+            // the layout uses.
+            const travel = ((event.clientX - this._swipeOrigin.x) / width) * (atStart ? 1 : -1);
+            if (!state.swipeActive) {
+                if (
+                    !resolveSwipeStart({
+                        showProgress: state.showProgress,
+                        collapsed: state.collapsed,
+                        direction: travel >= 0 ? 'forward' : 'back',
+                        enableShowGesture: state.enableShowGesture,
+                        enableHideGesture: state.enableHideGesture,
+                    })
+                ) {
+                    this._swipePointer = null;
+                    return;
+                }
+                state.beginSwipe();
+                this.setPointerCapture(event.pointerId);
+            }
+            state.setShowProgress(this._swipeOrigin.progress + travel);
+        });
+
+        const release = (event: PointerEvent, cancelled: boolean) => {
+            if (event.pointerId !== this._swipePointer) return;
+            this._swipePointer = null;
+            const state = this._state;
+            if (!state.swipeActive) return;
+            if (this.hasPointerCapture(event.pointerId)) this.releasePointerCapture(event.pointerId);
+            // A cancelled gesture snaps back to where it came from
+            // (`get_cancel_progress`, :1253-1258); a released one settles on the
+            // NEAREST allowed snap point.
+            const points = resolveSwipeSnapPoints({
+                showProgress: state.showProgress,
+                enableShowGesture: state.enableShowGesture,
+                enableHideGesture: state.enableHideGesture,
+                swipeActive: true,
+            });
+            const target = cancelled
+                ? swipeCancelProgress(state.showProgress)
+                : points.reduce((best, point) =>
+                      Math.abs(point - state.showProgress) < Math.abs(best - state.showProgress) ? point : best,
+                  );
+            state.endSwipe(target);
+        };
+        this.addEventListener('pointerup', (event) => release(event, false));
+        this.addEventListener('pointercancel', (event) => release(event, true));
     }
 }
 

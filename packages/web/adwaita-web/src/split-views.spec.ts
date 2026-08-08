@@ -12,11 +12,25 @@
 // sidebar where GTK shows one.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { SIDEBAR_BOUNDS_VECTORS } from '@gjsify/adwaita-core/conformance';
-import { OVERLAY_COLLAPSE_VECTORS } from '@gjsify/adwaita-core/conformance';
+import {
+    OVERLAY_COLLAPSE_VECTORS,
+    OVERLAY_SWIPE_AREA_VECTORS,
+    OVERLAY_SWIPE_CANCEL_VECTORS,
+    OVERLAY_SWIPE_RELEASE_VECTORS,
+    OVERLAY_SWIPE_SNAP_POINT_VECTORS,
+    OVERLAY_SWIPE_START_VECTORS,
+    SIDEBAR_BOUNDS_VECTORS,
+} from '@gjsify/adwaita-core/conformance';
 
 import type { AdwNavigationSplitView } from './elements/adw-navigation-split-view.js';
 import type { AdwOverlaySplitView } from './elements/adw-overlay-split-view.js';
+
+/** Wait for a ResizeObserver delivery (it runs after layout, before paint). */
+function settle(): Promise<void> {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+}
 
 /** Mount a split view from markup and return it. */
 function mount(attrs = ''): { view: AdwOverlaySplitView; host: HTMLElement } {
@@ -304,6 +318,260 @@ export const AdwSplitViewsTest = async () => {
             const sidebar = view.querySelector('.adw-nsv-sidebar') as HTMLElement;
             expect(sidebar.style.minWidth).toBe('180px');
             host.remove();
+        });
+    });
+
+    await describe('<adw-overlay-split-view> reveal is a CONTINUUM, not two states', async () => {
+        /** Mount a view of a known width so the geometry is predictable. */
+        function mountSizedView(width: number, attrs = ''): { view: AdwOverlaySplitView; host: HTMLElement } {
+            const { view, host } = mount(attrs);
+            host.style.width = `${width}px`;
+            host.style.height = '400px';
+            (view as unknown as HTMLElement).style.height = '400px';
+            return { view, host };
+        }
+
+        /** The state the element composes — the same object the vectors describe. */
+        const stateOf = (view: AdwOverlaySplitView) =>
+            (view as unknown as { _state: import('@gjsify/adwaita-core').OverlaySplitViewState })._state;
+
+        await it('drives show-progress through the whole range, not 0 and 1', async () => {
+            const { view, host } = mountSizedView(800);
+            const state = stateOf(view);
+            const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            await settle();
+
+            const offsets = new Set<string>();
+            for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+                state.setShowProgress(progress);
+                offsets.add(sidebar.style.marginLeft || sidebar.style.left || '');
+            }
+            // Two end states would give at most two distinct offsets; the five
+            // OVERLAY_SWIPE_* tables need every value in between to mean something.
+            expect(offsets.size).toBeGreaterThan(2);
+            host.remove();
+        });
+
+        for (const vector of OVERLAY_SWIPE_SNAP_POINT_VECTORS) {
+            await it(`snap points [${vector.snapPoints.join(', ')}] — ${vector.rule}`, async () => {
+                const attrs =
+                    (vector.enableShowGesture ? '' : 'enable-show-gesture="false" ') +
+                    (vector.enableHideGesture ? '' : 'enable-hide-gesture="false"');
+                const { view, host } = mountSizedView(800, attrs);
+                const state = stateOf(view);
+                await settle();
+                state.setShowProgress(vector.showProgress);
+                if (vector.swipeActive) state.beginSwipe();
+                expect(state.snapPoints).toStrictEqual([...vector.snapPoints]);
+                host.remove();
+            });
+        }
+
+        await it('grabs only where the swipe area is — the ADW_SWIPE_BORDER strip when closed', async () => {
+            // The AREA itself is `resolveSwipeArea`, driven row by row in the
+            // core suite; what a DOM renderer owns is that a pointerdown OUTSIDE
+            // it starts nothing, which no unit test of the function can show.
+            const { view, host } = mountSizedView(800, 'collapsed show-sidebar="false"');
+            const state = stateOf(view);
+            await settle();
+            const rect = view.getBoundingClientRect();
+
+            const down = (offsetX: number) =>
+                view.dispatchEvent(
+                    new PointerEvent('pointerdown', {
+                        bubbles: true,
+                        pointerId: 1,
+                        button: 0,
+                        clientX: rect.left + offsetX,
+                        clientY: rect.top + 100,
+                    }),
+                );
+            const move = (offsetX: number) =>
+                view.dispatchEvent(
+                    new PointerEvent('pointermove', {
+                        bubbles: true,
+                        pointerId: 1,
+                        clientX: rect.left + offsetX,
+                        clientY: rect.top + 100,
+                    }),
+                );
+
+            // Far from the edge: outside the 32px strip, so nothing begins.
+            down(300);
+            move(400);
+            expect(state.swipeActive).toBe(false);
+
+            // On the edge: the gesture takes over and the progress follows.
+            down(8);
+            move(120);
+            expect(state.swipeActive).toBe(true);
+            expect(state.showProgress).toBeGreaterThan(0);
+            host.remove();
+        });
+
+        for (const vector of OVERLAY_SWIPE_RELEASE_VECTORS) {
+            await it(`release at ${vector.to} — ${vector.rule}`, async () => {
+                const { view, host } = mountSizedView(800, 'collapsed');
+                const state = stateOf(view);
+                await settle();
+                // Seed `show-sidebar` without animating, then take the gesture.
+                state.setShowSidebar(vector.showSidebar, { animate: false });
+                state.beginSwipe();
+                const plan = state.endSwipe(vector.to);
+                expect(plan.kind).toBe(vector.kind);
+                // A `set-show-sidebar` release is the one that notifies, so the
+                // property has to have MOVED, not just the animation settled.
+                if (plan.kind === 'set-show-sidebar') expect(state.showSidebar).toBe(vector.showSidebarAfter);
+                host.remove();
+            });
+        }
+
+        await it('a cancelled pointer snaps back where get_cancel_progress says', async () => {
+            const { view, host } = mountSizedView(800, 'collapsed show-sidebar="false"');
+            const state = stateOf(view);
+            await settle();
+            const rect = view.getBoundingClientRect();
+            view.dispatchEvent(
+                new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    pointerId: 2,
+                    button: 0,
+                    clientX: rect.left + 8,
+                    clientY: rect.top + 100,
+                }),
+            );
+            view.dispatchEvent(
+                new PointerEvent('pointermove', {
+                    bubbles: true,
+                    pointerId: 2,
+                    clientX: rect.left + 60,
+                    clientY: rect.top + 100,
+                }),
+            );
+            expect(state.swipeActive).toBe(true);
+            view.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 2 }));
+            expect(state.swipeActive).toBe(false);
+            // A short drag from closed rounds back to closed.
+            expect(state.showSidebar).toBe(false);
+            host.remove();
+        });
+
+        await it('Escape closes a collapsed revealed sidebar', async () => {
+            // `escape_shortcut_cb` (adw-overlay-split-view.c:705-716) was absent
+            // from both ports, which made `OverlaySplitViewState.escape()` dead
+            // code.
+            const { view, host } = mountSizedView(800, 'collapsed');
+            await settle();
+            // Parse-time attributes are CONSTRUCTION options, not sequential
+            // setters, so `collapsed` in the markup does not fire the auto-hide
+            // — the element documents that and OVERLAY_COLLAPSE_VECTORS covers
+            // the setter path. So the sidebar is already revealed here.
+            expect(view.showSidebar).toBe(true);
+
+            const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+            view.dispatchEvent(event);
+            expect(event.defaultPrevented).toBe(true);
+            expect(view.showSidebar).toBe(false);
+            host.remove();
+        });
+
+        await it('...and PROPAGATES from an uncollapsed one, so an enclosing dialog still closes', async () => {
+            const { view, host } = mountSizedView(800);
+            await settle();
+            expect(view.collapsed).toBe(false);
+            expect(view.showSidebar).toBe(true);
+
+            const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+            view.dispatchEvent(event);
+            // A docked sidebar is not something Escape closes, however revealed
+            // it is — the gate is `!collapsed`, checked before the progress.
+            expect(event.defaultPrevented).toBe(false);
+            expect(view.showSidebar).toBe(true);
+            host.remove();
+        });
+
+        await it('is gated on the PROGRESS, so it still consumes mid-close', async () => {
+            // Worth pinning because it looks like a bug: `escape_shortcut_cb`
+            // tests `show_progress`, not `show_sidebar`, so a second Escape
+            // during the closing animation is consumed too and the set inside is
+            // a no-op. Reading the gate as "is the sidebar shown" would make the
+            // key propagate for ~250ms after the first press and close a dialog
+            // behind the view.
+            const { view, host } = mountSizedView(800, 'collapsed');
+            await settle();
+            expect(view.showSidebar).toBe(true);
+
+            const escape = () => {
+                const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+                view.dispatchEvent(event);
+                return event.defaultPrevented;
+            };
+            expect(escape()).toBe(true);
+            expect(view.showSidebar).toBe(false);
+            // The reveal is still animating out, so the progress is above zero.
+            expect(escape()).toBe(true);
+            host.remove();
+        });
+
+        await it('slides off the edge the sidebar is ON, in both positions', async () => {
+            // `marginRight: -offsetWidth` regardless of `sidebarPosition` is what
+            // this used to do, so an `end` sidebar slid the wrong way.
+            const start = mountSizedView(800, 'show-sidebar="false"');
+            await settle();
+            const startBar = start.view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            expect(startBar.style.marginLeft.startsWith('-')).toBe(true);
+            expect(startBar.style.marginRight).toBe('');
+            start.host.remove();
+
+            const end = mountSizedView(800, 'sidebar-position="end" show-sidebar="false"');
+            await settle();
+            const endBar = end.view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            expect(endBar.style.marginRight.startsWith('-')).toBe(true);
+            expect(endBar.style.marginLeft).toBe('');
+            end.host.remove();
+        });
+
+        await it('mirrors under RTL — a start sidebar is drawn on the RIGHT', async () => {
+            const { view, host } = mountSizedView(800, 'show-sidebar="false"');
+            host.style.direction = 'rtl';
+            await settle();
+            // Re-run the geometry now the direction is readable.
+            view.setAttribute('sidebar-position', 'start');
+            await settle();
+            expect(view.classList.contains('sidebar-at-visual-start')).toBe(false);
+            const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            expect(sidebar.style.marginRight.startsWith('-')).toBe(true);
+            host.remove();
+        });
+
+        await it('does not write a CSS PERCENTAGE width — (int) truncates, a percentage is fractional', async () => {
+            const { view, host } = mountSizedView(800);
+            await settle();
+            const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            expect(sidebar.style.width.endsWith('%')).toBe(false);
+            expect(sidebar.style.width.endsWith('px')).toBe(true);
+            // 800 * 0.25 = 200, inside [180, 280], so it is the fraction exactly.
+            expect(sidebar.style.width).toBe('200px');
+            host.remove();
+        });
+
+        await it('keeps the content pane from being squeezed to nothing', async () => {
+            // `measure_uncollapsed` (:558-563) as CSS spells it: the pane claims
+            // its own min-content, where `min-width: 0` let the sidebar take
+            // everything.
+            const { view, host } = mountSizedView(800);
+            await settle();
+            const content = view.querySelector('.adw-osv-content') as HTMLElement;
+            expect(getComputedStyle(content).minWidth).not.toBe('0px');
+            host.remove();
+        });
+
+        await it('names the cancel rows the core owns, so this suite is not read as covering them', () => {
+            // `swipeCancelProgress`'s half-away-from-zero rounding is arithmetic
+            // with no DOM surface — a pointercancel can only show the rounded
+            // OUTCOME, not the rule. The core suite drives every row.
+            expect(OVERLAY_SWIPE_CANCEL_VECTORS.length).toBeGreaterThan(0);
+            expect(OVERLAY_SWIPE_START_VECTORS.length).toBeGreaterThan(0);
         });
     });
 };
