@@ -56,6 +56,7 @@ import {
     buildViewSwitcherButtons,
     isViewSwitcherPolicy,
 } from '@gjsify/adwaita-core';
+import type { ViewSwitcherScheduler } from '@gjsify/adwaita-core';
 // Aliased because `AdwViewSwitcherPage` is already this module's page ELEMENT —
 // the custom element the package has always exported under that name.
 import type {
@@ -82,18 +83,50 @@ interface PageNodes {
     body: HTMLDivElement;
 }
 
-/** A single page. Children of <adw-view-switcher>; consumed at connect time. */
-export class AdwViewSwitcherPage extends HTMLElement {
-    static get observedAttributes() {
-        return ['name', 'title', 'icon-name', 'badge-number', 'needs-attention', 'use-underline'];
-    }
-}
+/**
+ * A single page. Children of `<adw-view-switcher>`; consumed at connect time.
+ *
+ * Deliberately carries NO `observedAttributes`. It used to declare six of them
+ * and no `attributeChangedCallback`, which is a dead declaration — the browser
+ * computes the list and has nowhere to deliver to — so changing `badge-number`,
+ * `title`, `icon-name` or `needs-attention` after connect did nothing at all,
+ * where C rebinds on every page `notify` (adw-view-switcher.c:184-193, :223).
+ *
+ * A callback could not fix it either: the switcher consumes these elements at
+ * connect and `replaceChildren`s them away, so a detached page has no `closest`
+ * to reach its owner through. The switcher watches them with a `MutationObserver`
+ * instead, which keeps working after the detach and needs nothing from this class.
+ */
+export class AdwViewSwitcherPage extends HTMLElement {}
 
 export class AdwViewSwitcher extends HTMLElement {
-    private readonly _state = new ViewSwitcherState({ scheduler: domViewSwitcherScheduler });
+    /**
+     * The dwell timer, injectable.
+     *
+     * It used to be `new ViewSwitcherState({ scheduler: domViewSwitcherScheduler })`
+     * inline, which left NOWHERE to hand a clock in — so
+     * `VIEW_SWITCHER_DRAG_VECTORS` was driven by the core suite alone, and the
+     * conformance header claimed all three suites drove it. `scheduler` is a
+     * property so a test can replace it before the element connects; the DOM one
+     * is the default, exactly as before.
+     */
+    scheduler: ViewSwitcherScheduler = domViewSwitcherScheduler;
+    private _stateInstance: ViewSwitcherState | null = null;
+
+    /** Built on first access, so a `scheduler` set before connect is the one used. */
+    private get _state(): ViewSwitcherState {
+        if (!this._stateInstance) {
+            this._stateInstance = new ViewSwitcherState({ scheduler: this.scheduler });
+            this._stateInstance.subscribe((change) => this._onStateChange(change));
+        }
+        return this._stateInstance;
+    }
     private _barEl!: HTMLDivElement;
     private _contentEl!: HTMLDivElement;
     private _nodes: PageNodes[] = [];
+    /** The page ELEMENTS, kept because the switcher detaches them from the tree. */
+    private _declared: HTMLElement[] = [];
+    private _pageObserver: MutationObserver | undefined;
     private _policy: AdwViewSwitcherPolicy = 'narrow';
     private _initialized = false;
 
@@ -105,7 +138,6 @@ export class AdwViewSwitcher extends HTMLElement {
         super();
         // Subscribing touches no attributes and no children, so it is legal in a
         // custom element constructor — unlike anything DOM-shaped.
-        this._state.subscribe((change) => this._onStateChange(change));
     }
 
     /** The policy controlling the button layout ('wide' | 'narrow'). */
@@ -172,6 +204,8 @@ export class AdwViewSwitcher extends HTMLElement {
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-view-switcher-content';
 
+        this._declared = declared;
+        this._watchPages();
         this._nodes = declared.map((pageEl, index) => this._buildPage(pageEl, index));
         this._barEl.append(...this._nodes.map((nodes) => nodes.button));
         this._contentEl.append(...this._nodes.map((nodes) => nodes.body));
@@ -193,6 +227,41 @@ export class AdwViewSwitcher extends HTMLElement {
         // A drag that leaves with the element would otherwise switch pages after
         // the widget is gone; C drops the source in dispose the same way.
         this._state.cancelDrag();
+        this._pageObserver?.disconnect();
+        this._pageObserver = undefined;
+    }
+
+    /**
+     * Re-read every declared page and push it into the state.
+     *
+     * Called by `AdwViewSwitcherPage.attributeChangedCallback`, which is what
+     * makes a runtime `badge-number` change reach the button. `setPages` keeps
+     * the selection where it can, so this is a repaint and not a reset.
+     */
+    refreshPages(): void {
+        if (!this._initialized) return;
+        this._state.setPages(this._declared.map((pageEl) => readSwitcherPage(pageEl)));
+        this._render();
+    }
+
+    /**
+     * Watch the declared pages for attribute changes.
+     *
+     * A `MutationObserver` rather than an `attributeChangedCallback` on the page:
+     * the switcher consumes those elements at connect and `replaceChildren`s them
+     * out of the tree, so a detached page cannot find its owner — but an observer
+     * bound to it keeps firing. This is the DOM's `notify::` on
+     * `AdwViewStackPage`, which the C's `update_button` handler binds per page
+     * (adw-view-switcher.c:184-193).
+     *
+     * It delivers on a MICROTASK where GTK's notify is synchronous. That is the
+     * DOM's contract for watching a node, it is invisible to a user, and nothing
+     * in this element reads the button back inside the setter.
+     */
+    private _watchPages(): void {
+        this._pageObserver?.disconnect();
+        this._pageObserver = new MutationObserver(() => this.refreshPages());
+        for (const pageEl of this._declared) this._pageObserver.observe(pageEl, { attributes: true });
     }
 
     attributeChangedCallback(name: string) {
@@ -239,8 +308,23 @@ export class AdwViewSwitcher extends HTMLElement {
             this._state.setSelected(index);
         });
         // GtkDropControllerMotion's enter/leave, which drive TIMEOUT_EXPAND.
-        button.addEventListener('dragenter', () => this._state.dragEnter(index));
-        button.addEventListener('dragleave', () => this._state.dragLeave(index));
+        //
+        // The `relatedTarget` test is the whole point: this button contains an
+        // icon and a label, and the DOM fires `dragleave` + `dragenter` when the
+        // pointer crosses BETWEEN them. `ViewSwitcherDragSwitch.leave` clears the
+        // dwell timer and `enter` re-arms a fresh 500ms, so a drag that merely
+        // slid from the icon to the label restarted the countdown and the page
+        // never switched. C has one `GtkDropControllerMotion` per BUTTON
+        // (adw-view-switcher-button.c:79-96), which has no such internal edges —
+        // `relatedTarget` containment is that same "did we really leave" test.
+        button.addEventListener('dragenter', (event) => {
+            if (button.contains((event as DragEvent).relatedTarget as Node | null)) return;
+            this._state.dragEnter(index);
+        });
+        button.addEventListener('dragleave', (event) => {
+            if (button.contains((event as DragEvent).relatedTarget as Node | null)) return;
+            this._state.dragLeave(index);
+        });
 
         const body = document.createElement('div');
         body.className = 'adw-view-switcher-page';
