@@ -12,9 +12,10 @@
 // sidebar where GTK shows one.
 import { describe, expect, it } from '@gjsify/unit';
 
+import type { OverlaySplitViewState } from '@gjsify/adwaita-core';
+
 import {
     OVERLAY_COLLAPSE_VECTORS,
-    OVERLAY_SWIPE_AREA_VECTORS,
     OVERLAY_SWIPE_CANCEL_VECTORS,
     OVERLAY_SWIPE_RELEASE_VECTORS,
     OVERLAY_SWIPE_SNAP_POINT_VECTORS,
@@ -335,8 +336,7 @@ export const AdwSplitViewsTest = async () => {
         }
 
         /** The state the element composes — the same object the vectors describe. */
-        const stateOf = (view: AdwOverlaySplitView) =>
-            (view as unknown as { _state: import('@gjsify/adwaita-core').OverlaySplitViewState })._state;
+        const stateOf = (view: AdwOverlaySplitView) => (view as unknown as { _state: OverlaySplitViewState })._state;
 
         await it('drives show-progress through the whole range, not 0 and 1', async () => {
             const { view, host } = mountSizedView(800);
