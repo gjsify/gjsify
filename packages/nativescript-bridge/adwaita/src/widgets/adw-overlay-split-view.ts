@@ -34,7 +34,7 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
     private _scrim: GridLayout | null = null;
 
     constructor() {
-        super('adw-overlay-split-view');
+        super('adw-overlay-split-view', 'overlay');
         this._applyLayout();
     }
 
@@ -54,7 +54,7 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
                 this._sidebar.opacity = 1;
                 GridLayout.setColumn(this._sidebar, sidebarEnd ? 1 : 0);
                 GridLayout.setColumnSpan(this._sidebar, 1);
-                this._sidebar.width = this._sidebarWidth;
+                this._sidebar.width = this.sidebarWidth;
             }
             if (this._content) {
                 this._content.visibility = 'visible';
@@ -85,7 +85,7 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
         if (this._sidebar) {
             GridLayout.setColumn(this._sidebar, 0);
             GridLayout.setColumnSpan(this._sidebar, 2);
-            this._sidebar.width = this._sidebarWidth;
+            this._sidebar.width = this.sidebarWidth;
             this._sidebar.horizontalAlignment = sidebarEnd ? 'right' : 'left';
             this._sidebar.className =
                 `${this._stripOverlay(this._sidebar.className)} adw-split-view-sidebar adw-overlay-active`.trim();
@@ -157,7 +157,7 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
         if (this._sidebar) {
             GridLayout.setColumn(this._sidebar, 0);
             GridLayout.setColumnSpan(this._sidebar, 2);
-            this._sidebar.width = this._sidebarWidth;
+            this._sidebar.width = this.sidebarWidth;
             this._sidebar.horizontalAlignment = sidebarEnd ? 'right' : 'left';
             this._sidebar.className =
                 `${this._stripOverlay(this._sidebar.className)} adw-split-view-sidebar adw-overlay-active`.trim();
@@ -212,7 +212,8 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
 
     /** Off-screen sidebar offset: slides past the edge it's anchored to. */
     private _hiddenOffset(): number {
-        return this._sidebarPosition === 'end' ? this._sidebarWidth : -this._sidebarWidth;
+        const width = this.sidebarWidth;
+        return this._sidebarPosition === 'end' ? width : -width;
     }
 
     private _stripOverlay(className: string | undefined): string {

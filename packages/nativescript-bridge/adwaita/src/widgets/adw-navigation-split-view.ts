@@ -28,7 +28,7 @@ const FALLBACK_WIDTH = 1024;
 
 export class AdwNavigationSplitView extends AdwSplitViewBase {
     constructor() {
-        super('adw-navigation-split-view');
+        super('adw-navigation-split-view', 'navigation');
         this._applyLayout();
     }
 
@@ -40,7 +40,7 @@ export class AdwNavigationSplitView extends AdwSplitViewBase {
                 this._sidebar.translateX = 0;
                 GridLayout.setColumn(this._sidebar, 0);
                 GridLayout.setColumnSpan(this._sidebar, 1);
-                this._sidebar.width = this._sidebarWidth;
+                this._sidebar.width = this.sidebarWidth;
             }
             if (this._content) {
                 this._content.visibility = 'visible';

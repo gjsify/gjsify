@@ -21,6 +21,15 @@
 
 import { type Cancelable, type EventData, GridLayout, ItemSpec, type View } from '@nativescript/core';
 
+import {
+    defaultSidebarWidthProps,
+    normalizeWidthFraction,
+    normalizeWidthProp,
+    sidebarWidthFor,
+    type SidebarWidthProps,
+    type SplitViewWidthRule,
+} from './split-view-width.js';
+
 /** Event name emitted when the sidebar visibility changes. */
 export const NOTIFY_SHOW_SIDEBAR = 'notify::show-sidebar';
 
@@ -32,7 +41,14 @@ export interface NotifyShowSidebarEventData extends EventData {
     collapsed: boolean;
 }
 
-/** Default sidebar width, in DIPs. */
+/**
+ * Default sidebar width, in DIPs.
+ *
+ * @deprecated The widget has no single width — it has a FRACTION of the
+ * container clamped between a min and a max, recomputed on resize. Kept as an
+ * export so consumers pinning it keep compiling; `sidebarWidthFor` is the value
+ * the panes are actually laid out with.
+ */
 export const DEFAULT_SIDEBAR_WIDTH = 240;
 
 export abstract class AdwSplitViewBase extends GridLayout {
@@ -40,13 +56,26 @@ export abstract class AdwSplitViewBase extends GridLayout {
     protected _content: View | null = null;
     protected _collapsed = false;
     protected _showSidebar = true;
-    protected _sidebarWidth = DEFAULT_SIDEBAR_WIDTH;
+    /** The three width PROPERTIES; the drawn width is derived from them. */
+    protected _widthProps: SidebarWidthProps = defaultSidebarWidthProps();
+    /** The container width the sidebar was last sized against, in DIPs. */
+    protected _measuredWidth = 0;
+    /** An explicit `sidebarWidth` assignment, which overrides the derivation. */
+    protected _sidebarWidthOverride: number | null = null;
     protected _sidebarPosition: 'start' | 'end' = 'start';
 
-    constructor(rootClass: string) {
+    constructor(
+        rootClass: string,
+        /** Which widget's width rule applies — they differ once a pane has a minimum. */
+        protected readonly _widthRule: SplitViewWidthRule = 'overlay',
+    ) {
         super();
         this.className = rootClass;
         this.addRow(new ItemSpec(1, 'star'));
+        // NativeScript has no window-resize signal, so the container's own
+        // post-layout size is the size source — the same one `addBreakpoints`
+        // binds breakpoints to.
+        this.addEventListener('layoutChanged', () => this._applySidebarWidth());
         // Two columns; the SIDEBAR column is fixed-width ('auto', sized to the pane)
         // and the CONTENT column expands ('star'). _syncColumns places them per
         // sidebarPosition so a trailing (end) sidebar sits flush to the right edge.
@@ -128,7 +157,7 @@ export abstract class AdwSplitViewBase extends GridLayout {
         this._sidebar = view;
         if (view) {
             view.className = `${view.className ?? ''} adw-split-view-sidebar`.trim();
-            view.width = this._sidebarWidth;
+            view.width = this.sidebarWidth;
             this.addChild(view);
         }
         this._applyLayout();
@@ -184,14 +213,63 @@ export abstract class AdwSplitViewBase extends GridLayout {
         this.notify(data);
     }
 
-    /** The sidebar pane width, in DIPs. */
+    /**
+     * The sidebar pane width in DIPs, DERIVED from the container size unless a
+     * caller assigned one. `Adw.OverlaySplitView` has no stored width — see
+     * `split-view-width.ts` for why the old fixed 240 could not be right.
+     */
     get sidebarWidth(): number {
-        return this._sidebarWidth;
+        return this._sidebarWidthOverride ?? sidebarWidthFor(this._measuredWidth, this._widthProps, this._widthRule);
     }
 
     set sidebarWidth(value: number) {
-        this._sidebarWidth = Number.isFinite(value) && value > 0 ? value : DEFAULT_SIDEBAR_WIDTH;
-        if (this._sidebar) this._sidebar.width = this._sidebarWidth;
+        // An explicit assignment pins the width; anything nonsensical releases
+        // the pin rather than freezing the pane at a broken size.
+        this._sidebarWidthOverride = Number.isFinite(value) && value > 0 ? value : null;
+        this._applySidebarWidth();
+    }
+
+    /** Lower bound in DIPs (`Adw.OverlaySplitView:min-sidebar-width`, default 180). */
+    get minSidebarWidth(): number {
+        return this._widthProps.minSidebarWidth;
+    }
+
+    set minSidebarWidth(value: number) {
+        this._widthProps.minSidebarWidth = normalizeWidthProp(value, defaultSidebarWidthProps().minSidebarWidth);
+        this._applySidebarWidth();
+    }
+
+    /** Upper bound in DIPs (`Adw.OverlaySplitView:max-sidebar-width`, default 280). */
+    get maxSidebarWidth(): number {
+        return this._widthProps.maxSidebarWidth;
+    }
+
+    set maxSidebarWidth(value: number) {
+        this._widthProps.maxSidebarWidth = normalizeWidthProp(value, defaultSidebarWidthProps().maxSidebarWidth);
+        this._applySidebarWidth();
+    }
+
+    /** Share of the container the sidebar asks for (default 0.25). */
+    get sidebarWidthFraction(): number {
+        return this._widthProps.sidebarWidthFraction;
+    }
+
+    set sidebarWidthFraction(value: number) {
+        this._widthProps.sidebarWidthFraction = normalizeWidthFraction(value);
+        this._applySidebarWidth();
+    }
+
+    /**
+     * Re-measure the container and re-size the sidebar.
+     *
+     * Called from `layoutChanged`, the same size source `addBreakpoints` uses —
+     * NativeScript has no window-resize signal, so a view's post-layout size is
+     * the closest thing to the window size Adwaita evaluates against.
+     */
+    protected _applySidebarWidth(): void {
+        const size = this.getActualSize?.();
+        if (size && size.width > 0) this._measuredWidth = size.width;
+        if (this._sidebar) this._sidebar.width = this.sidebarWidth;
     }
 
     /** Which side the sidebar sits on — `'start'` (leading / left) or `'end'`
