@@ -8,8 +8,16 @@
 // real element (hover, hairline rules, activation) while columns stay aligned.
 // Reference: refs/libadwaita/src/stylesheet/_colors.scss (separator / card / dim tokens)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (boxed-list density)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss:13-15,81-88 (.dimmed / .monospace / .numeric)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented for @gjsify/adwaita-web Web Components.
+
+// `.dimmed` / `.monospace` / `.numeric`. This file used to declare
+// `font-variant-numeric: tabular-nums` twice, inline a whole monospace font
+// stack, and dim its header row with a raw `opacity: var(--dim-opacity)` — i.e.
+// three private copies of utilities libadwaita publishes. It composes them now,
+// the way upstream's own `_progress-bar.scss:17-21` composes the same two.
+@use 'labels';
 
 .adw-data-grid {
   display: block;
@@ -68,13 +76,12 @@
     }
 
     // Tabular figures are the WHOLE POINT vs a boxed list — numbers line up.
-    &.numeric {
-      font-variant-numeric: tabular-nums;
-    }
-
+    // `numeric` needs no rule at all: the cell carries the bare class, so
+    // libadwaita's own `.numeric` (_labels.scss:86-88) already applies.
+    // A mono cell is monospace AND tabular, so it composes both.
     &.mono {
-      font-family: 'Adwaita Mono', 'Cantarell', ui-monospace, 'SF Mono', 'Menlo', monospace;
-      font-variant-numeric: tabular-nums;
+      @extend .monospace;
+      @extend .numeric;
     }
   }
 
@@ -82,11 +89,12 @@
   // list-column headings), never sortable.
   .adw-data-grid-row.header {
     .adw-data-grid-cell {
+      @extend .dimmed;
+
       font-size: var(--font-size-small);
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      opacity: var(--dim-opacity);
       border-bottom: 1px solid var(--separator-color);
     }
   }

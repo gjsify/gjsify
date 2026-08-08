@@ -31,6 +31,16 @@
   --entry-border-hover-color: rgba(255, 255, 255, 0.26);
   --destructive-bg-color: #c01c28;
   --destructive-fg-color: #ffffff;
+  // Semantic states — libadwaita's dark overrides (_colors.scss:83-92): the
+  // backgrounds darken (green_5 / a hand-picked amber / red_4) and the
+  // standalone colour LIGHTENS instead of darkening, so it stays readable on a
+  // dark surface. Upstream does not re-declare the `*-fg-color`s here either.
+  --success-bg-color: #26a269;
+  --success-color: oklab(from var(--success-bg-color) max(l, 0.85) a b);
+  --warning-bg-color: #cd9309;
+  --warning-color: oklab(from var(--warning-bg-color) max(l, 0.85) a b);
+  --error-bg-color: #c01c28;
+  --error-color: oklab(from var(--error-bg-color) max(l, 0.85) a b);
   --switch-off-bg: rgba(255, 255, 255, 0.2);
   --switch-knob-bg: #deddda;
   // The active toggle is a raised near-white chip in both themes, so its text

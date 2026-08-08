@@ -51,46 +51,36 @@
 // Responsive: the grid scrolls horizontally within its OWN container on narrow
 //   viewports (it never overflows the page); it sits inside an <adw-card>/boxed
 //   surface and follows light + dark via the adwaita-web CSS variables.
+// The derivations are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004):
+// the column tracks, the cell classes, the two normalisers, the cell text and
+// the activation rule. `@gjsify/adwaita-nativescript` renders the same widget
+// over `GridLayout` `ItemSpec`s — NativeScript has no subgrid — so the TRACK
+// rule is emitted as a renderer-neutral descriptor and only the mapping onto
+// `grid-template-columns` stays here. `@gjsify/adwaita-core/conformance`'s
+// `DATA_GRID_*_VECTORS` is the table both ports are held to.
 // Reference: Gtk.Grid usage in the Buchhaltung BWA view (native financial grid).
 // Reference: refs/libadwaita/src/stylesheet/_colors.scss (separator / card tokens).
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-/** Horizontal alignment of a column's header + cells. */
-export type AdwDataGridAlign = 'start' | 'end' | 'center';
+import {
+    dataGridCellText,
+    dataGridColumnClasses,
+    dataGridRowInteractive,
+    dataGridTrackTemplate,
+    dataGridTracks,
+    normalizeDataGridColumns,
+    normalizeDataGridVariant,
+} from '@gjsify/adwaita-core';
+import type { AdwDataGridColumn, AdwDataGridRow } from '@gjsify/adwaita-core';
 
-/** Accounting row emphasis. `normal` is the default plain data row. */
-export type AdwDataGridRowVariant = 'normal' | 'section' | 'subtotal' | 'total';
-
-/** A column descriptor — what to read (`key`), how to label + align it. */
-export interface AdwDataGridColumn {
-    /** The row-object key this column renders. */
-    key: string;
-    /** Header text (defaults to `key`). */
-    label?: string;
-    /** 'start' | 'end' | 'center'. Defaults to 'start' (or 'end' when numeric). */
-    align?: AdwDataGridAlign;
-    /** Fixed CSS track size (e.g. '80px', '6rem') — pins the column width. */
-    width?: string;
-    /** Fractional track weight (→ `<flex>fr`) — lets the column grow. */
-    flex?: number;
-    /** Render cells in a monospace family (tabular figures apply regardless). */
-    monospace?: boolean;
-    /** Convenience: right-align + tabular-nums (numeric columns of figures). */
-    numeric?: boolean;
-}
-
-/** A row: cell values keyed by column key + optional accounting metadata. */
-export interface AdwDataGridRow {
-    /** Accounting emphasis. Default 'normal'. */
-    variant?: AdwDataGridRowVariant;
-    /** Make just this row clickable (overrides the element-level flag). */
-    interactive?: boolean;
-    /** Cell values keyed by column key (pre-formatted strings, or numbers). */
-    [key: string]: string | number | boolean | AdwDataGridRowVariant | undefined;
-}
-
-const VARIANTS: ReadonlySet<string> = new Set(['normal', 'section', 'subtotal', 'total']);
+export type {
+    AdwDataGridAlign,
+    AdwDataGridCellValue,
+    AdwDataGridColumn,
+    AdwDataGridRow,
+    AdwDataGridRowVariant,
+} from '@gjsify/adwaita-core';
 
 export class AdwDataGrid extends HTMLElement {
     private _captionEl!: HTMLDivElement;
@@ -110,7 +100,7 @@ export class AdwDataGrid extends HTMLElement {
     }
 
     set columns(value: ReadonlyArray<AdwDataGridColumn>) {
-        this._columns = normalizeColumns(value);
+        this._columns = normalizeDataGridColumns(value);
         if (this._initialized) this._render();
     }
 
@@ -163,7 +153,7 @@ export class AdwDataGrid extends HTMLElement {
         this._scrollEl.appendChild(this._tableEl);
 
         // Seed from JSON attributes only when the properties were not set.
-        if (this._columns.length === 0) this._columns = this._parseJsonAttr('columns', normalizeColumns);
+        if (this._columns.length === 0) this._columns = this._parseJsonAttr('columns', normalizeDataGridColumns);
         if (this._rows.length === 0) this._rows = this._parseJsonAttr('rows', (v) => (Array.isArray(v) ? v : []));
 
         this.replaceChildren(this._captionEl, this._scrollEl);
@@ -173,7 +163,7 @@ export class AdwDataGrid extends HTMLElement {
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
         if (!this._initialized) return;
         if (name === 'columns') {
-            this._columns = this._parseJsonAttr('columns', normalizeColumns);
+            this._columns = this._parseJsonAttr('columns', normalizeDataGridColumns);
             this._render();
         } else if (name === 'rows') {
             this._rows = this._parseJsonAttr('rows', (v) => (Array.isArray(v) ? (v as AdwDataGridRow[]) : []));
@@ -204,28 +194,21 @@ export class AdwDataGrid extends HTMLElement {
         this._captionEl.hidden = caption.length === 0;
     }
 
-    /** The CSS `grid-template-columns` value derived from the column descriptors. */
+    /**
+     * The CSS `grid-template-columns` value derived from the column descriptors.
+     *
+     * The DERIVATION is core's (`dataGridTracks`), because NativeScript needs the
+     * same one for its `ItemSpec`s and can do nothing with a CSS string; the
+     * mapping onto CSS text — including the `minmax(0px, 1fr)` slack track whose
+     * `0px` must keep its unit to round-trip through the CSSOM — is
+     * `dataGridTrackTemplate`.
+     */
     private _trackTemplate(): string {
-        const anyExplicit = this._columns.some((c) => c.width !== undefined || c.flex !== undefined);
-        return this._columns
-            .map((column, index) => {
-                if (column.width !== undefined) return column.width;
-                if (column.flex !== undefined) return `${column.flex}fr`;
-                // With no explicit sizing anywhere, the first (label) column
-                // absorbs slack so trailing numeric columns hug the right edge.
-                // `0px` (not `0`) is the CSSOM-canonical form so it round-trips.
-                if (!anyExplicit && index === 0) return 'minmax(0px, 1fr)';
-                return 'auto';
-            })
-            .join(' ');
+        return dataGridTrackTemplate(dataGridTracks(this._columns));
     }
 
     private _columnClasses(column: AdwDataGridColumn): string {
-        const align: AdwDataGridAlign = column.align ?? (column.numeric ? 'end' : 'start');
-        const classes = ['adw-data-grid-cell', `align-${align}`];
-        if (column.numeric) classes.push('numeric');
-        if (column.monospace) classes.push('mono');
-        return classes.join(' ');
+        return dataGridColumnClasses(column).join(' ');
     }
 
     private _render(): void {
@@ -253,7 +236,7 @@ export class AdwDataGrid extends HTMLElement {
         const elementInteractive = this.hasAttribute('interactive');
 
         this._rows.forEach((rowData, index) => {
-            const variant = normalizeVariant(rowData.variant);
+            const variant = normalizeDataGridVariant(rowData.variant);
             const row = document.createElement('div');
             row.className = `adw-data-grid-row variant-${variant}`;
             row.setAttribute('role', 'row');
@@ -266,25 +249,21 @@ export class AdwDataGrid extends HTMLElement {
                 cell.className = 'adw-data-grid-cell align-start section-cell';
                 cell.setAttribute('role', 'cell');
                 cell.style.gridColumn = '1 / -1';
-                cell.textContent = cellText(rowData[firstKey]);
+                cell.textContent = dataGridCellText(rowData[firstKey]);
                 row.appendChild(cell);
             } else {
                 for (const column of this._columns) {
                     const cell = document.createElement('div');
                     cell.className = this._columnClasses(column);
                     cell.setAttribute('role', 'cell');
-                    cell.textContent = cellText(rowData[column.key]);
+                    cell.textContent = dataGridCellText(rowData[column.key]);
                     row.appendChild(cell);
                 }
             }
 
             // A row is clickable only when it is a plain data row AND either the
             // element opts everything in or the row opts itself in.
-            const rowInteractive =
-                variant === 'normal' &&
-                rowData.interactive !== false &&
-                (rowData.interactive === true || elementInteractive);
-            if (rowInteractive) {
+            if (dataGridRowInteractive(variant, rowData.interactive, elementInteractive)) {
                 row.classList.add('interactive');
                 row.tabIndex = 0;
                 row.addEventListener('click', () => this._activate(index, rowData));
@@ -303,33 +282,6 @@ export class AdwDataGrid extends HTMLElement {
     private _activate(index: number, row: AdwDataGridRow): void {
         this.dispatchEvent(new CustomEvent('row-activated', { bubbles: true, detail: { index, row } }));
     }
-}
-
-/** Coerce a cell value to display text — pre-formatted strings pass through. */
-function cellText(value: string | number | boolean | AdwDataGridRowVariant | undefined): string {
-    if (value === undefined || value === null) return '';
-    return String(value);
-}
-
-/** Clamp an arbitrary variant to the known set (unknown → 'normal'). */
-function normalizeVariant(variant: unknown): AdwDataGridRowVariant {
-    return typeof variant === 'string' && VARIANTS.has(variant) ? (variant as AdwDataGridRowVariant) : 'normal';
-}
-
-/** Normalise raw column descriptors to a stable list (drops malformed entries). */
-function normalizeColumns(raw: unknown): AdwDataGridColumn[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
-        .filter((c): c is AdwDataGridColumn => typeof c === 'object' && c !== null && 'key' in c)
-        .map((c) => ({
-            key: String(c.key),
-            label: c.label !== undefined ? String(c.label) : undefined,
-            align: c.align,
-            width: c.width !== undefined ? String(c.width) : undefined,
-            flex: typeof c.flex === 'number' ? c.flex : undefined,
-            monospace: c.monospace === true,
-            numeric: c.numeric === true,
-        }));
 }
 
 customElements.define('adw-data-grid', AdwDataGrid);

@@ -49,9 +49,11 @@ export class AboutDialogWebStory extends StoryElement {
         if (!this._dialog) return;
         const dialog = this._dialog;
         dialog.setAttribute('application-name', (this.args.applicationName as string) ?? 'Adwaita Storybook');
-        // The native story uses `application-x-executable-symbolic`; that glyph
-        // does not ship in the web icon set, so leave it unset to fall back to
-        // the component's generic application icon (emblem-system).
+        // The native story uses `application-x-executable-symbolic`; the web icon
+        // set ships the same glyph under the unsuffixed name. It has to be named
+        // here: GTK draws NO icon for an application that set none
+        // (adw-about-dialog.c:2313-2314), so the element no longer invents one.
+        dialog.setAttribute('application-icon', 'application-x-executable');
         dialog.setAttribute('developer-name', 'A GJSify Project');
         dialog.setAttribute('version', (this.args.version as string) ?? '0.11.0');
         dialog.setAttribute('comments', 'A live catalogue of native GTK and Adwaita widgets, rendered under GJS.');

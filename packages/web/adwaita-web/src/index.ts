@@ -49,6 +49,13 @@ export { AdwButtonContent } from './elements/adw-button-content.js';
 // defined before a server-rendered host upgrades.
 export { AdwIcon, createAdwIcon } from './elements/adw-icon.js';
 export { AdwSwitch } from './elements/adw-switch.js';
+// The two form-control primitives. ONE module, because upstream merges their
+// stylesheet (`_checks.scss`; there is no `_radio.scss` in libadwaita) and
+// everything but the corner radius, the glyph and the group is shared.
+export { AdwCheckbox, AdwRadio } from './elements/adw-checks.js';
+// The determinate progress indicator — <adw-spinner> covers only the
+// indeterminate case.
+export { AdwProgressBar } from './elements/adw-progress-bar.js';
 // The ONE popover surface. Exported before its three hosts so the barrel's own
 // definition order matches theirs; each host ALSO imports it directly, which is
 // what actually guarantees `adw-popover` is defined before a server-rendered

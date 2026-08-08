@@ -1,0 +1,135 @@
+// _labels.scss — libadwaita's typography + semantic-colour UTILITY CLASSES.
+//
+// NO ELEMENT. `refs/libadwaita/src/stylesheet/widgets/_labels.scss` is a widget
+// partial in name only: `label { … }` is four lines of GtkLabel plumbing
+// (`caret-color`, `.separator`, `:disabled`) and everything else in it is a
+// CLASS a consumer puts on whatever node it already has. There is deliberately
+// no `<adw-label>` here to go with them — it would wrap a `<span>` and add
+// nothing a class does not, which is exactly ADR 0004's "a widget with
+// genuinely trivial behaviour does not need a core class" applied one level up,
+// and ADR 0010 already makes the token/class surface the public contract. An
+// element would only add a tag to `$adw-components` for no behaviour.
+//
+// This is also where the in-tree duplication ends: `_data_grid.scss` declared
+// `font-variant-numeric: tabular-nums` twice and inlined a whole monospace font
+// stack — i.e. `.numeric` and `.monospace` — and dimmed its header row with a
+// raw `opacity: var(--dim-opacity)` where `.dimmed` is the upstream spelling. It
+// composes these now.
+//
+// WHAT DIFFERS FROM UPSTREAM, AND WHY
+//
+//   - `font-size` percentages are upstream's (181% / 136% / 118% / 82%), which
+//     are relative to the INHERITED size. That is what libadwaita means by them
+//     and it composes with `--font-size-base`, so they are kept verbatim rather
+//     than resolved to pt values.
+//   - `.document` / `.monospace` read `--document-font-*` / `--monospace-font-*`.
+//     In GTK those four are written into `:root` at runtime by AdwStyleManager
+//     from the desktop's font settings (adw-style-manager.c:169-218), defaulting
+//     to `Sans 10` / `Monospace 10` (:50-56). There is no style manager in a
+//     browser, so `_variables.scss` supplies them as ordinary tokens — same
+//     names, so a consumer re-themes through the documented contract.
+//   - `refs/adwaita-web/adwaita-web/scss/_utility_classes.scss` carries its own
+//     version of this block (it puts these in `_utility_classes.scss`, NOT in
+//     `_label.scss`) and it disagrees with libadwaita on two points: it adds a
+//     `line-height` to every title/heading, and it dims `.caption` and
+//     `.caption-heading` by folding `--dim-opacity` into them. Neither is in
+//     libadwaita — a caption is small, not dim, and dimming is `.dimmed`'s job,
+//     composable onto anything. libadwaita is followed here.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss:13-88 (every class below)
+// Reference: refs/libadwaita/src/adw-style-manager.c:50-56,169-218 (the four font tokens)
+// Reference: refs/adwaita-web/adwaita-web/scss/_utility_classes.scss (the vendored port's variant, NOT followed — see above)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web; the `label {}` element rules
+//   are GtkLabel plumbing with no DOM counterpart and are not ported.
+
+// _labels.scss:13-15
+.dimmed {
+  opacity: var(--dim-opacity);
+}
+
+// _labels.scss:17-19
+.accent {
+  color: var(--accent-color);
+}
+
+// _labels.scss:21-29 — a semantic class does not just recolour the text, it
+// REBINDS the three accent tokens, so a button or switch inside it turns the
+// same colour without knowing which state it is in.
+@each $e_type in error, warning, success {
+  .#{$e_type} {
+    color: var(--accent-color);
+
+    --accent-bg-color: var(--#{$e_type}-bg-color);
+    --accent-fg-color: var(--#{$e_type}-fg-color);
+    --accent-color: var(--#{$e_type}-color);
+  }
+}
+
+/**********************
+ * General Typography *
+ **********************/
+
+// _labels.scss:35-53
+.title-1 {
+  font-weight: 800;
+  font-size: 181%;
+}
+
+.title-2 {
+  font-weight: 800;
+  font-size: 136%;
+}
+
+.title-3 {
+  font-weight: 700;
+  font-size: 136%;
+}
+
+.title-4 {
+  font-weight: 700;
+  font-size: 118%;
+}
+
+// _labels.scss:55-57
+.heading {
+  font-weight: 700;
+}
+
+// _labels.scss:59-62
+.body {
+  font-weight: 400;
+  line-height: 140%;
+}
+
+// _labels.scss:64-67
+.caption-heading {
+  font-weight: 700;
+  font-size: 82%;
+}
+
+// _labels.scss:69-73
+.caption {
+  font-weight: 400;
+  font-size: 82%;
+  line-height: 140%;
+}
+
+// _labels.scss:75-79
+.document {
+  font-family: var(--document-font-family);
+  font-size: var(--document-font-size);
+  line-height: 140%;
+}
+
+// _labels.scss:81-84
+.monospace {
+  font-family: var(--monospace-font-family);
+  font-size: var(--monospace-font-size);
+}
+
+// _labels.scss:86-88
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
