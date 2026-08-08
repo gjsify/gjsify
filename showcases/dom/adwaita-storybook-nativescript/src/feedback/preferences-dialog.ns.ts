@@ -42,6 +42,13 @@ export class PreferencesDialogNsStory extends StoryView {
         dialog.title = 'Preferences';
 
         const page = new AdwPreferencesPage();
+        // The page title is not painted by the page (GTK shows it in the view
+        // switcher, which no port has yet) — it is what a search result's
+        // `General → Appearance` subtitle is built from, so the shared
+        // `pageTitle` control is no longer inert here.
+        page.title = (this.args.pageTitle as string) ?? 'General';
+        page.name = 'general';
+        page.iconName = 'preferences-system-symbolic';
 
         const group = new AdwPreferencesGroup();
         group.title = (this.args.groupTitle as string) ?? 'Appearance';
