@@ -5,14 +5,21 @@
 import Gda from '@girs/gda-6.0';
 import { IllegalConstructorError, InvalidArgTypeError, InvalidArgValueError, SqliteError } from './errors.ts';
 import { readAllRows, readFirstRow, type ReadOptions } from './data-model-reader.ts';
+import { bindStringHolders } from './param-binding.ts';
+import { convertParameterSyntax, type ParamInfo } from './parameter-syntax.ts';
+import { parseSql } from './parse-sql.ts';
 import type { RunResult, StatementSyncOptions } from './types.ts';
-import type { ParamInfo } from './database-sync.ts';
 
 const MAX_INT64 = 9223372036854775807n;
 const MIN_INT64 = -9223372036854775808n;
 
 // Sentinel to prevent direct construction
 const INTERNAL = Symbol('StatementSync.internal');
+
+/** node:sqlite reads a leading plain object as the named-parameter bag. */
+function isNamedArgObject(arg: unknown): boolean {
+    return arg !== null && typeof arg === 'object' && !(arg instanceof Uint8Array) && !ArrayBuffer.isView(arg);
+}
 
 function validateBindValue(value: unknown, paramIndex: number): void {
     if (value === null) return;
@@ -23,12 +30,41 @@ function validateBindValue(value: unknown, paramIndex: number): void {
     throw new InvalidArgTypeError(`Provided value cannot be bound to SQLite parameter ${paramIndex}.`);
 }
 
-// Escape a JS value for inline SQL. This is safe because only values are
-// interpolated — the SQL structure comes from the user's original prepare() call.
-function sqlEscapeValue(value: unknown): string {
-    if (value === null) return 'NULL';
-    if (value === undefined) return 'NULL';
-    if (typeof value === 'number') return String(value);
+/**
+ * Render a NON-STRING value as a SQL literal.
+ *
+ * Every branch emits characters from a closed alphabet — digits, `-`, `.`, `e`, hex, or
+ * the bare words `NULL` / `X'…'` — so the result cannot end a quoted region or begin a
+ * second statement, whatever the caller passed. Strings are the one type that can, and
+ * they never reach here: `#buildStatement` binds them to a Gda holder instead.
+ *
+ * Do not add a string branch back. libgda's parser treats `\` as an escape inside `'…'`
+ * and SQLite does not, so a value ending in a backslash — or carrying `\'` — made the
+ * quoted region run past its intended end. The statement then finished early, libgda set
+ * its `remain` out-parameter, and GJS aborted the process freeing it (see parse-sql.ts).
+ */
+function sqlLiteral(value: unknown): string {
+    if (value === null || value === undefined) return 'NULL';
+    if (typeof value === 'number') {
+        // SQLite stores NaN as NULL and has no infinity literal; 9e999 overflows to one,
+        // which is what sqlite3_bind_double leaves behind. Matches node:sqlite.
+        if (Number.isNaN(value)) return 'NULL';
+        if (value === Infinity) return '9e999';
+        if (value === -Infinity) return '-9e999';
+        const text = String(value);
+        // A JS number is a double, and node:sqlite binds it with sqlite3_bind_double — so
+        // `42` lands in a typeless column as REAL, not INTEGER. Give an integral value a
+        // decimal point so the storage class agrees; affinity still converts it back where
+        // the column asks for an integer. Not for exponent form, where a trailing `.0`
+        // would be invalid SQL — and where SQLite reads REAL anyway.
+        if (Number.isInteger(value) && !text.includes('e') && !text.includes('E')) {
+            return `${text}.0`;
+        }
+        return text;
+    }
+    // A superset of node:sqlite, which REJECTS booleans outright ("Provided value cannot
+    // be bound to SQLite parameter N"). Kept because consumers rely on it; that is also
+    // why no test asserts it — the Node half of the suite would throw.
     if (typeof value === 'boolean') return value ? '1' : '0';
     if (typeof value === 'bigint') {
         if (value > MAX_INT64 || value < MIN_INT64) {
@@ -36,7 +72,6 @@ function sqlEscapeValue(value: unknown): string {
         }
         return String(value);
     }
-    if (typeof value === 'string') return "'" + value.replace(/'/g, "''") + "'";
     if (value instanceof Uint8Array) {
         // SQLite BLOB literal: X'hex'
         let hex = '';
@@ -46,7 +81,7 @@ function sqlEscapeValue(value: unknown): string {
         return "X'" + hex + "'";
     }
     if (ArrayBuffer.isView(value)) {
-        return sqlEscapeValue(new Uint8Array((value as ArrayBufferView).buffer));
+        return sqlLiteral(new Uint8Array((value as ArrayBufferView).buffer));
     }
     return 'NULL';
 }
@@ -59,7 +94,6 @@ export class StatementSync {
     #returnArrays: boolean;
     #allowBareNamedParameters: boolean;
     #allowUnknownNamedParameters: boolean;
-    #parser: Gda.SqlParser;
 
     constructor(
         sentinel: symbol,
@@ -67,7 +101,6 @@ export class StatementSync {
         sql: string,
         options: StatementSyncOptions,
         paramMap: ParamInfo[],
-        parser: Gda.SqlParser,
     ) {
         if (sentinel !== INTERNAL) {
             throw new IllegalConstructorError();
@@ -79,7 +112,6 @@ export class StatementSync {
         this.#returnArrays = options.returnArrays ?? false;
         this.#allowBareNamedParameters = options.allowBareNamedParameters ?? true;
         this.#allowUnknownNamedParameters = options.allowUnknownNamedParameters ?? false;
-        this.#parser = parser;
     }
 
     /** @internal */
@@ -88,9 +120,8 @@ export class StatementSync {
         sql: string,
         options: StatementSyncOptions,
         paramMap: ParamInfo[],
-        parser: Gda.SqlParser,
     ): StatementSync {
-        return new StatementSync(INTERNAL, connection, sql, options, paramMap, parser);
+        return new StatementSync(INTERNAL, connection, sql, options, paramMap);
     }
 
     get sourceSQL(): string {
@@ -108,42 +139,52 @@ export class StatementSync {
         };
     }
 
-    // Build the final SQL with parameter values substituted inline.
-    // Returns the SQL string ready for execution.
-    #buildSql(args: unknown[]): string {
+    /**
+     * Highest positional index used, or -1 for none.
+     *
+     * This — not the number of `?` occurrences — is how many positional arguments the
+     * statement takes. `?1` written twice is one parameter, and `?5` alone is five.
+     */
+    #highestPosition(): number {
+        let highest = -1;
+        for (const param of this.#paramMap) {
+            if (param.position > highest) highest = param.position;
+        }
+        return highest;
+    }
+
+    /**
+     * Resolve `args` against this statement's parameters and render the SQL for ONE
+     * execution.
+     *
+     * A string value becomes a `##id::string` placeholder and is returned for binding, so
+     * its text never enters the SQL. Every other type becomes a literal from a closed
+     * alphabet (see `sqlLiteral`). The rendering happens per execution rather than once at
+     * prepare() because the choice depends on the value: the same prepared statement can
+     * be run with a string one time and a number the next.
+     */
+    #buildStatement(args: unknown[]): { sql: string; strings: Map<string, string> } {
+        const strings = new Map<string, string>();
+
         if (this.#paramMap.length === 0) {
-            if (args.length > 0) {
-                const hasNamedArg =
-                    args.length > 0 &&
-                    args[0] !== null &&
-                    typeof args[0] === 'object' &&
-                    !(args[0] instanceof Uint8Array) &&
-                    !ArrayBuffer.isView(args[0]);
-                if (!hasNamedArg) {
-                    throw new SqliteError('column index out of range', 25, 'column index out of range');
-                }
+            if (args.length > 0 && !isNamedArgObject(args[0])) {
+                throw new SqliteError('column index out of range', 25, 'column index out of range');
             }
-            return this.#sql;
+            return { sql: this.#sql, strings };
         }
 
         // Determine if first arg is a named params object
         let namedArgs: Record<string, unknown> | null = null;
         let positionalArgs: unknown[] = args;
 
-        if (
-            args.length > 0 &&
-            args[0] !== null &&
-            typeof args[0] === 'object' &&
-            !(args[0] instanceof Uint8Array) &&
-            !ArrayBuffer.isView(args[0])
-        ) {
+        if (args.length > 0 && isNamedArgObject(args[0])) {
             namedArgs = args[0] as Record<string, unknown>;
             positionalArgs = args.slice(1);
         }
 
-        // Build maps: named params use Map<originalName, escaped>, positional use index-keyed object
-        const values = new Map<string, string>();
-        const positionalValues: Record<number, string> = {};
+        // gdaId → the value this execution supplies. A parameter left out stays absent and
+        // renders as NULL, which is what node:sqlite binds for a missing parameter.
+        const values = new Map<string, unknown>();
 
         if (namedArgs) {
             for (const param of this.#paramMap) {
@@ -180,9 +221,7 @@ export class StatementSync {
 
                 if (found) {
                     validateBindValue(value, this.#paramMap.indexOf(param) + 1);
-                    values.set(param.originalName, sqlEscapeValue(value));
-                } else {
-                    values.set(param.originalName, 'NULL');
+                    values.set(param.gdaId, value);
                 }
             }
 
@@ -207,107 +246,62 @@ export class StatementSync {
             }
 
             // Handle positional after named
-            const positionalParams = this.#paramMap.filter((p) => p.position >= 0);
             for (let i = 0; i < positionalArgs.length; i++) {
-                if (i >= positionalParams.length) {
+                if (i > this.#highestPosition()) {
                     throw new SqliteError('column index out of range', 25, 'column index out of range');
                 }
                 validateBindValue(positionalArgs[i], i + 1);
-                positionalValues[positionalParams[i].position] = sqlEscapeValue(positionalArgs[i]);
+                values.set(`p${i}`, positionalArgs[i]);
             }
         } else {
-            // Pure positional binding
-            const positionalParams = this.#paramMap.filter((p) => p.position >= 0);
-            if (positionalArgs.length > positionalParams.length && positionalParams.length > 0) {
+            // Pure positional binding. The Nth argument goes to the parameter at INDEX N —
+            // `?3` takes the third argument, wherever it stands in the SQL — so bind by
+            // index rather than by order of appearance. A parameter with no argument is
+            // left absent and renders as NULL, which is not an error.
+            const count = this.#highestPosition() + 1;
+            if (positionalArgs.length > count && count > 0) {
                 throw new SqliteError('column index out of range', 25, 'column index out of range');
             }
 
-            for (let i = 0; i < positionalParams.length; i++) {
-                if (i < positionalArgs.length) {
-                    validateBindValue(positionalArgs[i], i + 1);
-                    positionalValues[positionalParams[i].position] = sqlEscapeValue(positionalArgs[i]);
-                } else {
-                    // Not provided — bind as NULL (not an error)
-                    positionalValues[positionalParams[i].position] = 'NULL';
-                }
+            for (let i = 0; i < Math.min(positionalArgs.length, count); i++) {
+                validateBindValue(positionalArgs[i], i + 1);
+                values.set(`p${i}`, positionalArgs[i]);
             }
         }
 
-        // Substitute parameters in SQL
-        let result = this.#sql;
-
-        // Replace named params ($name, :name, @name) — longest first to avoid partial matches
-        const namedParams = this.#paramMap
-            .filter((p) => p.position < 0)
-            .sort((a, b) => b.originalName.length - a.originalName.length);
-        for (const param of namedParams) {
-            const escaped = values.get(param.originalName) ?? 'NULL';
-            result = result.split(param.originalName).join(escaped);
-        }
-
-        // Replace positional params (? or ?NNN) — scan left-to-right
-        if (Object.keys(positionalValues).length > 0) {
-            let out = '';
-            let pIdx = 0;
-            let i = 0;
-            while (i < result.length) {
-                if (result[i] === "'") {
-                    const start = i;
-                    i++;
-                    while (i < result.length && result[i] !== "'") {
-                        if (result[i] === "'" && result[i + 1] === "'") {
-                            i += 2;
-                            continue;
-                        }
-                        i++;
-                    }
-                    if (i < result.length) i++;
-                    out += result.substring(start, i);
-                    continue;
-                }
-                if (result[i] === '?') {
-                    i++;
-                    let numStr = '';
-                    while (i < result.length && result[i] >= '0' && result[i] <= '9') {
-                        numStr += result[i];
-                        i++;
-                    }
-                    const pos = numStr ? parseInt(numStr, 10) - 1 : pIdx;
-                    pIdx = numStr ? pIdx : pIdx + 1;
-                    out += pos in positionalValues ? positionalValues[pos] : 'NULL';
-                    continue;
-                }
-                out += result[i];
-                i++;
+        const [sql] = convertParameterSyntax(this.#sql, (param) => {
+            const value = values.get(param.gdaId);
+            if (typeof value === 'string') {
+                strings.set(param.gdaId, value);
+                return `##${param.gdaId}::string`;
             }
-            result = out;
-        }
+            return sqlLiteral(value);
+        });
 
-        return result;
+        return { sql, strings };
     }
 
-    #executeSql(sql: string): { model: Gda.DataModel | null; isSelect: boolean } {
-        const [stmt] = this.#parser.parse_string(sql);
-        if (!stmt) {
-            throw new SqliteError('Failed to parse SQL statement');
-        }
+    #executeSql(args: unknown[]): { model: Gda.DataModel | null; isSelect: boolean } {
+        const { sql, strings } = this.#buildStatement(args);
+        const [stmt, params] = parseSql(this.#connection, sql);
+        bindStringHolders(params, strings);
+
         const stmtType = stmt.get_statement_type();
         if (stmtType === Gda.SqlStatementType.SELECT) {
-            return { model: this.#connection.statement_execute_select(stmt, null), isSelect: true };
+            return { model: this.#connection.statement_execute_select(stmt, params), isSelect: true };
         }
         try {
-            this.#connection.statement_execute_non_select(stmt, null);
+            this.#connection.statement_execute_non_select(stmt, params);
             return { model: null, isSelect: false };
         } catch {
             // Might be PRAGMA or similar — try as select
-            const model = this.#connection.statement_execute_select(stmt, null);
+            const model = this.#connection.statement_execute_select(stmt, params);
             return { model, isSelect: true };
         }
     }
 
     run(...args: unknown[]): RunResult {
-        const sql = this.#buildSql(args);
-        this.#executeSql(sql);
+        this.#executeSql(args);
 
         let changes: number | bigint = 0;
         let lastInsertRowid: number | bigint = 0;
@@ -339,9 +333,8 @@ export class StatementSync {
     }
 
     get(...args: unknown[]): Record<string, unknown> | unknown[] | undefined {
-        const sql = this.#buildSql(args);
         try {
-            const { model } = this.#executeSql(sql);
+            const { model } = this.#executeSql(args);
             if (!model || model.get_n_rows() === 0) {
                 return undefined;
             }
@@ -352,9 +345,8 @@ export class StatementSync {
     }
 
     all(...args: unknown[]): (Record<string, unknown> | unknown[])[] {
-        const sql = this.#buildSql(args);
         try {
-            const { model } = this.#executeSql(sql);
+            const { model } = this.#executeSql(args);
             if (!model) {
                 return [];
             }
