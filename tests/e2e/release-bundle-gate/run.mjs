@@ -37,6 +37,7 @@ const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const VERIFY = join(MONOREPO_ROOT, 'packages', 'node-gi', 'scripts', 'verify-bundle-manifest.mjs');
 const GUARD = join(MONOREPO_ROOT, 'scripts', 'check-workflow-inline-scripts.mjs');
 const IMAGE_GUARD = join(MONOREPO_ROOT, 'scripts', 'check-ci-image-packages.mjs');
+const ORDER_GUARD = join(MONOREPO_ROOT, 'scripts', 'check-build-infra-order.mjs');
 
 /** The measured shape of a good v0.28.0 darwin-arm64 bundle manifest. */
 function goodManifest(overrides = {}) {
@@ -367,6 +368,99 @@ describe('check-ci-image-packages: the node-availability guard', () => {
 
     it("holds for this repo's own workflows", () => {
         const result = spawnSync(process.execPath, [IMAGE_GUARD, '--root', MONOREPO_ROOT], { encoding: 'utf8' });
+        assert.equal(result.status, 0, result.output);
+    });
+});
+
+// The fourth script whose failure path only a release used to exercise. `build:infra`
+// must be bundler-free up to the clause that BUILDS the bundler; #1031 lost that while
+// fixing a real race, and it stayed green because Node loads the npm rolldown engine
+// and a warm cache skips `build:infra` entirely. v0.31.0's `publish-napi` runs on a
+// cold GJS tree, hit it, and `@gjsify/napi` did not publish.
+describe('check-build-infra-order: the bundler-free prefix', () => {
+    const FACADE = 'node scripts/bootstrap-native-facades.mjs';
+
+    function runOrderGuard(buildInfra, packages) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-infra-order-'));
+        writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { 'build:infra': buildInfra } }));
+        for (const [name, scripts] of Object.entries(packages)) {
+            const dir = join(root, 'packages', 'infra', name.replace('@gjsify/', ''));
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, scripts }));
+        }
+        const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', root], { encoding: 'utf8' });
+        return { ...result, output: `${result.stdout}${result.stderr}` };
+    }
+
+    // Verbatim the shape that failed: `build` resolves through `build:gjsify` to
+    // `gjsify build --library`, which is a bundler call the facade has not produced yet.
+    const FOUR = {
+        '@gjsify/semver': {
+            build: 'gjsify run build:gjsify && gjsify run build:types',
+            'build:gjsify': "gjsify build --library 'src/**/*.ts'",
+            'build:types': 'gjsify tsc -p tsconfig.build.json',
+        },
+        '@gjsify/cli': { build: 'tsc' },
+    };
+
+    it('rejects the clause order that failed to publish @gjsify/napi', () => {
+        const result = runOrderGuard(
+            `gjsify workspace @gjsify/semver build && gjsify workspace @gjsify/cli build && ${FACADE}`,
+            FOUR,
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /clause 1 runs `@gjsify\/semver build`/);
+        assert.match(result.stderr, /gjsify build --library/);
+        assert.match(result.stderr, /2 clause\(s\) before bootstrap-native-facades\.mjs/);
+    });
+
+    it('accepts declarations before the facade and the full build after it', () => {
+        const result = runOrderGuard(
+            `gjsify workspace @gjsify/semver build:types && gjsify workspace @gjsify/cli build && ` +
+                `${FACADE} && gjsify workspace @gjsify/semver build`,
+            FOUR,
+        );
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /2 pre-facade clause\(s\) are tsc-only/);
+    });
+
+    // Indirection is the whole point: the bundler call is two hops down, and a check
+    // that only read the named script would have cleared the shape that broke.
+    it('follows `gjsify run` into the script that actually calls the bundler', () => {
+        const result = runOrderGuard(`gjsify workspace @gjsify/semver build && ${FACADE}`, {
+            '@gjsify/semver': {
+                build: 'gjsify run inner',
+                inner: 'gjsify run deeper',
+                deeper: 'gjsify build --library',
+            },
+        });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /reaches `gjsify build --library`/);
+    });
+
+    // `build:gjsify` is not `build`; `--app build` is not a command. A check that
+    // counted substrings would flag both, and a flagged-wrongly check gets disabled.
+    it('does not mistake a bundler-shaped word for a bundler call', () => {
+        const result = runOrderGuard(`gjsify workspace @gjsify/tsc build && ${FACADE}`, {
+            '@gjsify/tsc': { build: 'node scripts/build-bundle.mjs --app build && gjsify tsc -p .' },
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it('fails loudly when it can resolve nothing rather than passing vacuously', () => {
+        const result = runOrderGuard(`echo hello && ${FACADE}`, {});
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /silently stopped reading it/);
+    });
+
+    it('fails when no clause runs the facade bootstrap at all', () => {
+        const result = runOrderGuard('gjsify workspace @gjsify/cli build', { '@gjsify/cli': { build: 'tsc' } });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /no `build:infra` clause runs bootstrap-native-facades\.mjs/);
+    });
+
+    it("holds for this repo's own build:infra", () => {
+        const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', MONOREPO_ROOT], { encoding: 'utf8' });
         assert.equal(result.status, 0, result.output);
     });
 });
