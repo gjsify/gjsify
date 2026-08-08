@@ -59,8 +59,18 @@
 //
 // Wired into root package.json `build:infra` right after
 // `gjsify workspace @gjsify/cli build` (which produces the Node CLI entry
-// via plain tsc) and before the first `gjsify build --library` consumer
-// (`@gjsify/utils`).
+// via plain tsc) and before the first `gjsify build --library` consumer —
+// today `@gjsify/semver`, the first of the four this script also emits.
+//
+// That ordering is now MACHINE-CHECKED by `scripts/check-build-infra-order.mjs`,
+// because this comment was the only thing holding it and prose does not hold.
+// #1031 promoted those four from `build:types` to `build` for a real reason,
+// which silently moved the first bundler consumer FIVE clauses ahead of this
+// script. Invisible under Node (the npm rolldown engine loads there) and on a
+// warm cache (`build:infra` is skipped entirely), so it surfaced as v0.31.0
+// failing to publish `@gjsify/napi`. Both properties are kept now: the four are
+// declared with `build:types` before the CLI, and fully built immediately after
+// this script.
 //
 // Skips a facade (and a CLI runtime dep) when its lib/ output already exists
 // AND is newer than everything under its src/ — a full rebuild is only
