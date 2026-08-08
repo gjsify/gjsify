@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.32.0](https://github.com/gjsify/gjsify/compare/v0.31.0...v0.32.0) (2026-08-08)
+
+### Features
+
+* **adwaita:** add the missing primitives and lift the about dialog ([5063526](https://github.com/gjsify/gjsify/commit/5063526f98155518c00a65754fcf1702dace23b7)), closes [#1058](https://github.com/gjsify/gjsify/issues/1058)
+* **adwaita:** hold both renderers to the C source ([c7b56f5](https://github.com/gjsify/gjsify/commit/c7b56f53cd0471b8f5e3c7b81bd111c40a1b92bd))
+* **adwaita:** stop carrying second copies of widget behaviour ([4cb9354](https://github.com/gjsify/gjsify/commit/4cb9354573efd07302fd5d841f7336db48ff95df)), closes [#1048](https://github.com/gjsify/gjsify/issues/1048)
+* hold both Adwaita renderers to the C source ([#1054](https://github.com/gjsify/gjsify/issues/1054)) ([73bc8c5](https://github.com/gjsify/gjsify/commit/73bc8c5a5f238c59bc0017a07079bee4de024533)), closes [#1052](https://github.com/gjsify/gjsify/issues/1052)
+* **node-gi:** decide which GTK wins, per OS and on purpose ([#1075](https://github.com/gjsify/gjsify/issues/1075)) ([9e8b539](https://github.com/gjsify/gjsify/commit/9e8b5399591de75c25f964d1fe2460e565d8cffd)), closes [#910](https://github.com/gjsify/gjsify/issues/910) [#1063](https://github.com/gjsify/gjsify/issues/1063) [#910](https://github.com/gjsify/gjsify/issues/910) [#1063](https://github.com/gjsify/gjsify/issues/1063) [#1063](https://github.com/gjsify/gjsify/issues/1063) [#910](https://github.com/gjsify/gjsify/issues/910) [#1063](https://github.com/gjsify/gjsify/issues/1063) [#1063](https://github.com/gjsify/gjsify/issues/1063) [#1065](https://github.com/gjsify/gjsify/issues/1065)
+
+### Bug Fixes
+
+* **build:** keep build:infra bundler-free until the bundler ([#1055](https://github.com/gjsify/gjsify/issues/1055)) ([8fb83b6](https://github.com/gjsify/gjsify/commit/8fb83b6c697b9dde268f5cad309838eeebbdd269)), closes [#1031](https://github.com/gjsify/gjsify/issues/1031) [#1019](https://github.com/gjsify/gjsify/issues/1019) [#1031](https://github.com/gjsify/gjsify/issues/1031)
+* **cli:** check before acting, and report only what happened ([#1070](https://github.com/gjsify/gjsify/issues/1070)) ([5e83f16](https://github.com/gjsify/gjsify/commit/5e83f16c8f3b8b420d9ebfdcdf05069a058feec1)), closes [#1069](https://github.com/gjsify/gjsify/issues/1069) [#1064](https://github.com/gjsify/gjsify/issues/1064)
+* **e2e:** let Corepack download Yarn unprompted ([#1042](https://github.com/gjsify/gjsify/issues/1042)) ([bda8d9b](https://github.com/gjsify/gjsify/commit/bda8d9b8ff51f5f7c0e4331888b4acc0a4ebd4df))
+* **fs:** fd-first redesign — cursor, mode and wx ([#1039](https://github.com/gjsify/gjsify/issues/1039)) ([6321ad2](https://github.com/gjsify/gjsify/commit/6321ad22d71bccd25469b3cce72207c3da764a27))
+* **fs:** key the POSIX rules to the host that can answer them ([#1059](https://github.com/gjsify/gjsify/issues/1059)) ([411552a](https://github.com/gjsify/gjsify/commit/411552aef3dafac88607a91ac77653d2d5473ebf)), closes [#1039](https://github.com/gjsify/gjsify/issues/1039) [#1039](https://github.com/gjsify/gjsify/issues/1039) [#1039](https://github.com/gjsify/gjsify/issues/1039) [#1039](https://github.com/gjsify/gjsify/issues/1039) [#1039](https://github.com/gjsify/gjsify/issues/1039) [#1039](https://github.com/gjsify/gjsify/issues/1039)
+* **release:** bump the standalone apps' ranges, and name what fails ([#1077](https://github.com/gjsify/gjsify/issues/1077)) ([412a071](https://github.com/gjsify/gjsify/commit/412a071a6b78cc14d0cf422526b3f135dace04ec))
+* **release:** give the napi prebuild leg a node ([#1047](https://github.com/gjsify/gjsify/issues/1047)) ([d41a9cb](https://github.com/gjsify/gjsify/commit/d41a9cb9b1b48532d89b00b7acd1b03cb016f5e4))
+* **sqlite:** bind string parameters instead of splicing ([#1062](https://github.com/gjsify/gjsify/issues/1062)) ([a351b4d](https://github.com/gjsify/gjsify/commit/a351b4db8e50ee6693c1f3724a175c6ec511572b))
+
+### Continuous Integration
+
+* **release:** one cold-tree bootstrap, not two ([#1041](https://github.com/gjsify/gjsify/issues/1041)) ([04ac0fc](https://github.com/gjsify/gjsify/commit/04ac0fca16d0c575bde5d71e483d96554df67cb1)), closes [#1040](https://github.com/gjsify/gjsify/issues/1040)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([c48df6d](https://github.com/gjsify/gjsify/commit/c48df6dc3af854e271f6158a861fb4775e8a68f1))
+* update native prebuilds [skip ci] ([82f9313](https://github.com/gjsify/gjsify/commit/82f931304e16a4f008e2cd022b1b30df25f2864b))
+* update native prebuilds [skip ci] ([0eaaa77](https://github.com/gjsify/gjsify/commit/0eaaa778f592a3974003dc365f393d516b91c573))
+
 ## [0.31.0](https://github.com/gjsify/gjsify/compare/v0.30.0...v0.31.0) (2026-08-07)
 
 ### Features
