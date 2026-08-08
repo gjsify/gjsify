@@ -351,6 +351,24 @@ function readJson(file: string): Record<string, unknown> {
 }
 
 /**
+ * Is the global layout the user's own, or has a caller redirected it?
+ *
+ * `GJSIFY_GLOBAL_PREFIX` / `GJSIFY_GLOBAL_BIN_DIR` are the escape hatches
+ * {@link defaultGlobalLayout} documents for tests, and a caller that sets them
+ * has taken over placement — so "which `gjsify` will PATH resolve next" stops
+ * being a question about THEIR intent. `self-update` gates its fatal PATH check
+ * on this: without it, every harness installing into a temp prefix it never put
+ * on PATH is told its update did not take effect, which is true and useless.
+ * Caught by `tests/e2e/global-install-engine`.
+ *
+ * @param env injectable so both answers are testable without mutating the real
+ *   environment mid-suite.
+ */
+export function globalLayoutIsDefault(env: NodeJS.ProcessEnv = process.env): boolean {
+    return !env.GJSIFY_GLOBAL_PREFIX && !env.GJSIFY_GLOBAL_BIN_DIR;
+}
+
+/**
  * The path module for a TARGET platform, not for the host.
  *
  * Load-bearing for every function below that takes a `platform`. `path.resolve`

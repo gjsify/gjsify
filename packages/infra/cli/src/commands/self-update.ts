@@ -30,6 +30,7 @@ import type { Command } from '../types/index.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import {
     defaultGlobalLayout,
+    globalLayoutIsDefault,
     hasBundlerEngineInstalled,
     installGjsEnginePackages,
     linkGlobalBins,
@@ -209,17 +210,24 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
 
         // Did the update change what `gjsify` RUNS? Everything above only proves
         // we wrote the prefix. See the #1064 note at the top of this file.
-        const verdict = verifyPathResolution({
-            binName: BIN_NAME,
-            binDir: layout.binDir,
-            resolvedBin: resolveBinOnPath(BIN_NAME),
-            runningVersion: currentVersion,
-            targetVersion: target,
-        });
-        if (!verdict.ok) {
-            console.error(`\nInstalled ${PACKAGE_NAME} v${target} at ${layout.prefix}`);
-            console.error(verdict.message);
-            return process.exit(1);
+        //
+        // Only for the user's OWN layout: a caller that redirected the install
+        // with GJSIFY_GLOBAL_PREFIX/_BIN_DIR manages placement itself, and
+        // telling a harness that installed into a temp prefix "your PATH still
+        // points elsewhere" is true and useless.
+        if (globalLayoutIsDefault()) {
+            const verdict = verifyPathResolution({
+                binName: BIN_NAME,
+                binDir: layout.binDir,
+                resolvedBin: resolveBinOnPath(BIN_NAME),
+                runningVersion: currentVersion,
+                targetVersion: target,
+            });
+            if (!verdict.ok) {
+                console.error(`\nInstalled ${PACKAGE_NAME} v${target} at ${layout.prefix}`);
+                console.error(verdict.message);
+                return process.exit(1);
+            }
         }
 
         console.log(`\nUpdated ${PACKAGE_NAME} to v${target}.`);

@@ -16,7 +16,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { posix, win32 } from 'node:path';
 
-import { resolveBinOnPath } from './install-global.js';
+import { globalLayoutIsDefault, resolveBinOnPath } from './install-global.js';
 import { verifyPathResolution } from '../commands/self-update.js';
 
 export default async () => {
@@ -212,6 +212,28 @@ export default async () => {
                 platform: 'linux',
             });
             expect(verdict.ok).toBe(false);
+        });
+    });
+    await describe('globalLayoutIsDefault', async () => {
+        // The gate that keeps the PATH verdict from firing where it is useless.
+        // `tests/e2e/global-install-engine` installs into a temp prefix it never
+        // puts on PATH, and the first version of this change failed it — the
+        // verdict was TRUE ("PATH does not point here") and worthless, because
+        // the caller chose that location. CI caught it; this pins the rule.
+        await it('is true for the untouched user layout', async () => {
+            expect(globalLayoutIsDefault({})).toBe(true);
+        });
+
+        await it('is false once the prefix is redirected', async () => {
+            expect(globalLayoutIsDefault({ GJSIFY_GLOBAL_PREFIX: '/tmp/harness' })).toBe(false);
+        });
+
+        await it('is false once the bin dir is redirected', async () => {
+            expect(globalLayoutIsDefault({ GJSIFY_GLOBAL_BIN_DIR: '/tmp/harness/bin' })).toBe(false);
+        });
+
+        await it('ignores unrelated environment', async () => {
+            expect(globalLayoutIsDefault({ PATH: '/usr/bin', XDG_DATA_HOME: '/x' })).toBe(true);
         });
     });
 };
