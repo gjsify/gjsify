@@ -48,6 +48,61 @@ export {
 } from './avatar.js';
 export type { AvatarColorVector, AvatarFontSizeVector, AvatarInitialsVector, AvatarModeVector } from './avatar.js';
 
+// --- Action-row family (Adw.ActionRow/SwitchRow/ButtonRow/WindowTitle) vectors ---
+export {
+    ACTION_ROW_ACTIVATION_VECTORS,
+    BUTTON_ROW_ACTIVATABLE_VECTORS,
+    BUTTON_ROW_ICON_VECTORS,
+    LABEL_VISIBILITY_VECTORS,
+    SWITCH_ROW_NOTIFY_VECTORS,
+    WINDOW_TITLE_VECTORS,
+} from './action-row.js';
+export type {
+    ActionRowActivationVector,
+    ActionRowStep,
+    ButtonRowActivatableVector,
+    ButtonRowIconVector,
+    LabelVisibilityVector,
+    SwitchRowNotifyVector,
+    SwitchRowStep,
+    WindowTitleStep,
+    WindowTitleVector,
+} from './action-row.js';
+
+// --- Banner defaults + derivations (Adw.Banner) vectors ---
+export {
+    BANNER_BUTTON_STYLE_PARSE_VECTORS,
+    BANNER_BUTTON_STYLE_VECTORS,
+    BANNER_BUTTON_TEXT_VECTORS,
+    BANNER_BUTTON_VISIBLE_VECTORS,
+    BANNER_DEFAULT_VECTORS,
+} from './banner.js';
+export type {
+    BannerButtonStyleParseVector,
+    BannerButtonStyleVector,
+    BannerButtonTextVector,
+    BannerButtonVisibleVector,
+    BannerDefaultVector,
+} from './banner.js';
+
+// --- Button content slots + parent-button style class (Adw.ButtonContent) vectors ---
+export {
+    BUTTON_CONTENT_DEFAULT_VECTORS,
+    BUTTON_CONTENT_ELLIPSIZE_VECTORS,
+    BUTTON_CONTENT_ICON_VECTORS,
+    BUTTON_CONTENT_LABEL_VECTORS,
+    BUTTON_CONTENT_STYLE_TARGET_VECTORS,
+    BUTTON_CONTENT_TEXT_VECTORS,
+} from './button-content.js';
+export type {
+    ButtonContentDefaultVector,
+    ButtonContentEllipsizeVector,
+    ButtonContentIconVector,
+    ButtonContentLabelVector,
+    ButtonContentStyleTargetVector,
+    ButtonContentTextVector,
+} from './button-content.js';
+
 // --- View stack selection (Adw.ViewStack) vectors ---
 export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';
 export type {
@@ -354,3 +409,25 @@ export type {
     BottomSheetPresentationStep,
     BottomSheetPresentationVector,
 } from './dialog.js';
+
+// --- Popover surface + keyboard navigation (GtkPopover) vectors ---
+export { POPOVER_KEY_VECTORS, POPOVER_SURFACE_VECTORS } from './popover.js';
+export type { PopoverKeyVector, PopoverSurfaceVariant, PopoverSurfaceVector } from './popover.js';
+
+// --- Wrap box line layout + spacing (Adw.WrapBox) vectors ---
+export {
+    ADW_WRAP_BOX_DEFAULT_ALIGN,
+    ADW_WRAP_BOX_DEFAULT_JUSTIFY,
+    ADW_WRAP_BOX_DEFAULT_JUSTIFY_LAST_LINE,
+    ADW_WRAP_BOX_DEFAULT_SPACING,
+    WRAP_BOX_LINE_VECTORS,
+    WRAP_BOX_SPACING_NOTIFY_VECTORS,
+    WRAP_BOX_SPACING_VECTORS,
+} from './wrap-box.js';
+export type {
+    WrapBoxJustify,
+    WrapBoxLineLayout,
+    WrapBoxLineVector,
+    WrapBoxSpacingNotifyVector,
+    WrapBoxSpacingVector,
+} from './wrap-box.js';

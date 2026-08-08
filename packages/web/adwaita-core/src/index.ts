@@ -17,6 +17,23 @@
 // ported straight from the libadwaita C source and held to per-input vectors
 // that BOTH renderers assert against — see `@gjsify/adwaita-core/conformance`.
 
+// --- Action-row family (Adw.ActionRow/SwitchRow/ButtonRow/WindowTitle) ---
+export {
+    ActionRowState,
+    BUTTON_ROW_ACTIVATABLE,
+    ButtonRowState,
+    SwitchRowState,
+    WindowTitleState,
+    deriveRowLabels,
+} from './action-row.js';
+export type {
+    ActionRowRenderState,
+    AdwRowLabelInput,
+    AdwRowLabels,
+    ButtonRowRenderState,
+    WindowTitleRenderState,
+} from './action-row.js';
+
 // --- Avatar derivation (Adw.Avatar initials + colour) ---
 export {
     AVATAR_COLOR_COUNT,
@@ -32,6 +49,41 @@ export {
     randomAvatarColorClass,
 } from './avatar.js';
 export type { AdwAvatarColor, AdwAvatarMode } from './avatar.js';
+
+// --- Banner defaults + derivations (Adw.Banner) ---
+export {
+    ADW_BANNER_BUTTON_STYLES,
+    ADW_BANNER_BUTTON_STYLE_CLASSES,
+    ADW_BANNER_DEFAULTS,
+    bannerButtonStyleClasses,
+    bannerButtonText,
+    bannerButtonVisible,
+    bannerRenderState,
+    isBannerButtonStyle,
+    parseBannerButtonStyle,
+} from './banner.js';
+export type { AdwBannerButtonStyle, AdwBannerProps, AdwBannerRenderState } from './banner.js';
+
+// --- Button content: icon+label slots + the parent-button style class (Adw.ButtonContent) ---
+export {
+    ADW_BUTTON_CONTENT_DEFAULTS,
+    BUTTON_CONTENT_FALLBACK_ICON,
+    BUTTON_CONTENT_STYLE_CLASS,
+    buttonContentEllipsize,
+    buttonContentIconExpands,
+    buttonContentIconIsEmpty,
+    buttonContentIconName,
+    buttonContentLabelText,
+    buttonContentLabelVisible,
+    buttonContentRenderState,
+    buttonContentStyleTargetIndex,
+} from './button-content.js';
+export type {
+    AdwButtonContentProps,
+    AdwButtonContentRenderState,
+    ButtonContentAncestor,
+    ButtonContentEllipsize,
+} from './button-content.js';
 
 // --- Responsive breakpoints (Adw.Breakpoint / Adw.BreakpointCondition) ---
 export { AdwBreakpoint, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';
@@ -97,7 +149,7 @@ export type {
 } from './rows.js';
 
 // --- GLib primitives Adwaita arithmetic is written in ---
-export { glibClamp } from './glib.js';
+export { glibClamp, stringIsNotEmpty } from './glib.js';
 
 // --- View stack selection (Adw.ViewStack) ---
 export { ViewStackState, normalizeIconName, resolvePageTitle } from './view-stack.js';
@@ -430,3 +482,21 @@ export type {
     ToolbarViewContentForSizeInput,
     ToolbarViewMeasureInput,
 } from './chrome.js';
+
+// --- Popover dismissal + keyboard navigation (GtkPopover surface, shared by
+// --- the menu button, drop-down and split button) ---
+export {
+    POPOVER_ITEM_RADIUS,
+    POPOVER_MENU_PADDING,
+    POPOVER_PADDING,
+    POPOVER_RADIUS,
+    PopoverState,
+    resolvePopoverKey,
+} from './popover.js';
+export type {
+    PopoverKeyAction,
+    PopoverKeyContext,
+    PopoverKeyResolution,
+    PopoverStateChange,
+    PopoverStateListener,
+} from './popover.js';
