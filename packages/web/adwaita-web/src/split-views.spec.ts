@@ -21,6 +21,7 @@ import {
     OVERLAY_SWIPE_SNAP_POINT_VECTORS,
     OVERLAY_SWIPE_START_VECTORS,
     NAVIGATION_ACTION_VECTORS,
+    OVERLAY_SWIPE_AREA_VECTORS,
     OVERLAY_SPLIT_VIEW_LAYOUT_VECTORS,
     NAVIGATION_STACK_VECTORS,
     SIDEBAR_BOUNDS_VECTORS,
@@ -371,9 +372,20 @@ export const AdwSplitViewsTest = async () => {
         }
 
         await it('grabs only where the swipe area is — the ADW_SWIPE_BORDER strip when closed', async () => {
-            // The AREA itself is `resolveSwipeArea`, driven row by row in the
-            // core suite; what a DOM renderer owns is that a pointerdown OUTSIDE
-            // it starts nothing, which no unit test of the function can show.
+            // The row this probes: closed, start edge, LTR — the grabbable strip
+            // is `ADW_SWIPE_BORDER` wide and nothing outside it starts a gesture.
+            // What a DOM renderer owns is that second half, which no unit test of
+            // `resolveSwipeArea` can show.
+            const closedAtStart = OVERLAY_SWIPE_AREA_VECTORS.find(
+                (vector) =>
+                    vector.isDrag &&
+                    vector.showProgress === 0 &&
+                    vector.sidebarPosition === 'start' &&
+                    vector.direction === 'ltr',
+            );
+            if (!closedAtStart) throw new Error('OVERLAY_SWIPE_AREA_VECTORS lost its closed/start/ltr row');
+            const strip = closedAtStart.area.width;
+
             const { view, host } = mountSizedView(800, 'collapsed show-sidebar="false"');
             const state = stateOf(view);
             await settle();
@@ -399,14 +411,14 @@ export const AdwSplitViewsTest = async () => {
                     }),
                 );
 
-            // Far from the edge: outside the 32px strip, so nothing begins.
-            down(300);
-            move(400);
+            // Just OUTSIDE the strip, so nothing begins.
+            down(strip + 4);
+            move(strip + 120);
             expect(state.swipeActive).toBe(false);
 
-            // On the edge: the gesture takes over and the progress follows.
-            down(8);
-            move(120);
+            // Just inside it: the gesture takes over and the progress follows.
+            down(Math.max(strip - 4, 0));
+            move(strip + 120);
             expect(state.swipeActive).toBe(true);
             expect(state.showProgress).toBeGreaterThan(0);
             host.remove();
