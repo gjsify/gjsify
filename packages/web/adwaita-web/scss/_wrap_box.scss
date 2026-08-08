@@ -23,6 +23,15 @@ adw-wrap-box {
   align-content: flex-start;
 }
 
+// `wrap-policy`, published by the component as a custom property. The FALLBACK
+// is the load-bearing part: it is `ADW_WRAP_NATURAL`, libadwaita's default
+// (adw-wrap-box.c:491-495), where CSS defaults `flex-shrink` to 1 — so a wrap
+// box that has not upgraded yet, or one whose policy is unset, draws Adwaita's
+// choice rather than the cascade's.
+adw-wrap-box > * {
+  flex-shrink: var(--adw-wrap-box-child-shrink, 0);
+}
+
 // FILL grows the children and keeps the spacing constant
 // (adw-wrap-layout.c:317-319, :326-341); SPREAD deliberately does NOT, so the
 // gaps take the leftover instead. `data-line-justify` is the mode the component

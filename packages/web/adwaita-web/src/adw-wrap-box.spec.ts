@@ -23,7 +23,12 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    WRAP_BOX_CHILD_ORDER_VECTORS,
+    WRAP_BOX_LENGTH_VECTORS,
     WRAP_BOX_LINE_VECTORS,
+    WRAP_BOX_NATURAL_LENGTH_VECTORS,
+    WRAP_BOX_NOTIFY_PROPERTIES,
+    WRAP_BOX_POLICY_VECTORS,
     WRAP_BOX_SPACING_NOTIFY_VECTORS,
     WRAP_BOX_SPACING_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
@@ -49,7 +54,7 @@ function unmountAll(): void {
 }
 
 /** A vector value as it reads in a test name (`JSON.stringify` flattens NaN to null). */
-function label(value: number | string | null): string {
+function label(value: unknown): string {
     return typeof value === 'string' ? JSON.stringify(value) : String(value);
 }
 
@@ -190,5 +195,147 @@ export const AdwWrapBoxTest = async () => {
                 unmountAll();
             });
         }
+    });
+
+    await describe('<adw-wrap-box> the properties neither port had (#1048)', async () => {
+        for (const { value, policy, flexShrink, rule } of WRAP_BOX_POLICY_VECTORS) {
+            await it(`wrap-policy ${label(value)} → ${policy}: ${rule}`, () => {
+                const attrs: Record<string, string> = {};
+                if (value !== null) attrs['wrap-policy'] = String(value);
+                const { box, children } = mountWrapBox(attrs);
+                expect((box as HTMLElement & { wrapPolicy: string }).wrapPolicy).toBe(policy);
+                expect(getComputedStyle(children[0]).flexShrink).toBe(String(flexShrink));
+                unmountAll();
+            });
+        }
+
+        await it('a box with no wrap-policy forbids shrinking — CSS defaults to the OTHER one', () => {
+            const { children } = mountWrapBox({});
+            expect(getComputedStyle(children[0]).flexShrink).toBe('0');
+            unmountAll();
+        });
+
+        for (const { value, unit, dpi, px, rule } of WRAP_BOX_LENGTH_VECTORS) {
+            // The element resolves at the default dpi; the scaled rows are the
+            // core suite's, since a browser has no `gtk-xft-dpi` to report.
+            if (dpi !== 96 || value < 0) continue;
+            await it(`child-spacing ${value}${String(unit)} → ${px}px: ${rule}`, () => {
+                const attrs: Record<string, string> = { 'child-spacing': String(value) };
+                if (unit !== null) attrs['child-spacing-unit'] = String(unit);
+                const { box } = mountWrapBox(attrs);
+                expect(getComputedStyle(box).columnGap).toBe(`${px}px`);
+                unmountAll();
+            });
+        }
+
+        for (const { value, length, rule } of WRAP_BOX_NATURAL_LENGTH_VECTORS) {
+            await it(`natural-line-length ${label(value)} → ${length}: ${rule}`, () => {
+                const attrs: Record<string, string> = {};
+                if (value !== null) attrs['natural-line-length'] = String(value);
+                const { box } = mountWrapBox(attrs);
+                expect((box as HTMLElement & { naturalLineLength: number }).naturalLineLength).toBe(length);
+                // -1 is UNSET, not a length: it must not reach the style at all.
+                expect(box.style.maxWidth).toBe(length < 0 ? '' : `${length}px`);
+                unmountAll();
+            });
+        }
+
+        await it('a VERTICAL box caps the block axis, because that is where its lines run', () => {
+            const { box } = mountWrapBox({ orientation: 'vertical', 'natural-line-length': '400' });
+            expect(box.style.maxHeight).toBe('400px');
+            expect(box.style.maxWidth).toBe('');
+            unmountAll();
+        });
+
+        await it('pack-direction and wrap-reverse reverse the axes they own', () => {
+            const packed = mountWrapBox({ 'pack-direction': 'end-to-start' });
+            expect(getComputedStyle(packed.box).flexDirection).toBe('row-reverse');
+            unmountAll();
+
+            const reversed = mountWrapBox({ 'wrap-reverse': '' });
+            expect(getComputedStyle(reversed.box).flexWrap).toBe('wrap-reverse');
+            unmountAll();
+        });
+
+        await it('notifies for EVERY property, not just the two spacings', () => {
+            const { box } = mountWrapBox({});
+            const seen: string[] = [];
+            for (const property of WRAP_BOX_NOTIFY_PROPERTIES) {
+                box.addEventListener(`notify::${property}`, () => seen.push(property));
+            }
+            // One real change per property, each different from the default.
+            box.setAttribute('child-spacing', '6');
+            box.setAttribute('child-spacing-unit', 'sp');
+            box.setAttribute('pack-direction', 'end-to-start');
+            box.setAttribute('align', '1');
+            box.setAttribute('justify', 'fill');
+            box.toggleAttribute('justify-last-line', true);
+            box.setAttribute('line-spacing', '4');
+            box.setAttribute('line-spacing-unit', 'pt');
+            box.toggleAttribute('line-homogeneous', true);
+            box.setAttribute('natural-line-length', '400');
+            box.setAttribute('natural-line-length-unit', 'sp');
+            box.toggleAttribute('wrap-reverse', true);
+            box.setAttribute('wrap-policy', 'minimum');
+            box.setAttribute('orientation', 'vertical');
+
+            expect([...seen].sort()).toStrictEqual([...WRAP_BOX_NOTIFY_PROPERTIES].sort());
+            unmountAll();
+        });
+
+        await it('and stays silent for a value that normalises to what it already holds', () => {
+            const { box } = mountWrapBox({ 'wrap-policy': 'minimum' });
+            let notified = 0;
+            box.addEventListener('notify::wrap-policy', () => {
+                notified++;
+            });
+            box.setAttribute('wrap-policy', 'not-a-policy'); // → the default, a change
+            expect(notified).toBe(1);
+            box.setAttribute('wrap-policy', 'also-not-a-policy'); // → the default again
+            expect(notified).toBe(1);
+            unmountAll();
+        });
+    });
+
+    await describe('<adw-wrap-box> child list (insert/reorder after, remove_all)', async () => {
+        for (const { op, children, child, sibling, result, rule } of WRAP_BOX_CHILD_ORDER_VECTORS) {
+            const name = `${op} ${child} after ${sibling ?? 'NULL'} in [${children.join(',')}]`;
+            await it(`${name}: ${rule}`, () => {
+                const box = document.createElement('adw-wrap-box') as HTMLElement & {
+                    insertChildAfter(c: Element, s?: Element | null): boolean;
+                    reorderChildAfter(c: Element, s?: Element | null): boolean;
+                };
+                document.body.appendChild(box);
+                const byId = new Map<string, HTMLElement>();
+                const make = (id: string) => {
+                    const view = document.createElement('div');
+                    view.dataset.id = id;
+                    byId.set(id, view);
+                    return view;
+                };
+                for (const id of children) box.appendChild(make(id));
+                // The child being placed may be one of the mounted ones (a
+                // reorder, or the "already parented" refusal) or a fresh one.
+                const target = byId.get(child) ?? make(child);
+                // A sibling the box does not have still has to be a real element.
+                const after = sibling === null ? null : (byId.get(sibling) ?? make(sibling));
+
+                const ok =
+                    op === 'insert-after' ? box.insertChildAfter(target, after) : box.reorderChildAfter(target, after);
+                expect(ok).toBe(result !== null);
+                const order = [...box.children].map((view) => (view as HTMLElement).dataset.id);
+                expect(order).toStrictEqual(result === null ? [...children] : [...result]);
+                unmountAll();
+            });
+        }
+
+        await it('removeAll empties the box, leaving the box itself mounted', () => {
+            const { box } = mountWrapBox({}, 4);
+            expect(box.children.length).toBe(4);
+            (box as HTMLElement & { removeAll(): void }).removeAll();
+            expect(box.children.length).toBe(0);
+            expect(box.isConnected).toBe(true);
+            unmountAll();
+        });
     });
 };
