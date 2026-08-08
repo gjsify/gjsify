@@ -54,6 +54,24 @@ export { AdwClamp, DEFAULT_CLAMP_MAX_SIZE } from './adw-clamp.js';
 export { AdwHeaderBar } from './adw-header-bar.js';
 export { AdwToolbarView } from './adw-toolbar-view.js';
 export { AdwWrapBox } from './adw-wrap-box.js';
+// AdwDataGrid is ONE GridLayout with the cells as direct children — NativeScript
+// has no subgrid, and per-row grids would each resolve their own `auto` tracks
+// and stagger the columns. The derivations are headless (`@gjsify/adwaita-core`,
+// ADR 0004); the descriptor→ItemSpec mapping is the pure `data-grid-model.ts`.
+export { AdwDataGrid, ROW_ACTIVATED } from './adw-data-grid.js';
+export type { RowActivatedEventData } from './adw-data-grid.js';
+export {
+    DATA_GRID_HEADER_CELL_CLASS,
+    DATA_GRID_HEADER_ROW_CLASS,
+    DATA_GRID_SECTION_CELL_CLASS,
+    dataGridCellClass,
+    dataGridItemSpec,
+    dataGridRowClass,
+    dataGridShapeKey,
+    dataGridTracksKey,
+    parseDataGridWidth,
+} from './data-grid-model.js';
+export type { DataGridItemSpec } from './data-grid-model.js';
 export { AdwSpinner, DEFAULT_SPINNER_SIZE } from './adw-spinner.js';
 export { AdwStatusPage } from './adw-status-page.js';
 export { AdwButtonRow, ACTIVATED } from './adw-button-row.js';
@@ -232,6 +250,7 @@ import { AdwClamp } from './adw-clamp.js';
 import { AdwHeaderBar } from './adw-header-bar.js';
 import { AdwToolbarView } from './adw-toolbar-view.js';
 import { AdwWrapBox } from './adw-wrap-box.js';
+import { AdwDataGrid } from './adw-data-grid.js';
 import { AdwSpinner } from './adw-spinner.js';
 import { AdwStatusPage } from './adw-status-page.js';
 import { AdwButtonRow } from './adw-button-row.js';
@@ -279,6 +298,7 @@ const ELEMENTS = {
     AdwHeaderBar,
     AdwToolbarView,
     AdwWrapBox,
+    AdwDataGrid,
     AdwSpinner,
     AdwStatusPage,
     AdwButtonRow,

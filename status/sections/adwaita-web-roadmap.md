@@ -20,13 +20,25 @@ counterpart for at all. The three sources name things differently (`_headerbar.s
 so a filename diff reports gaps that are not gaps. The list below was checked by hand against
 `src/elements/` (checked 2026-08-08) and holds only widgets with neither an element nor a partial:
 
+Note the SOURCE-PARTIAL column names files in `refs/libadwaita/src/stylesheet/widgets/`, and the
+singular spellings (`_checkbox.scss`, `_radio.scss`, `_progressbar.scss`, `_label.scss`,
+`_icon.scss`, `_shortcut_label.scss`) are `refs/adwaita-web`'s, not libadwaita's — libadwaita
+merges check and radio into ONE `_checks.scss`, spells the others `_progress-bar.scss` /
+`_labels.scss`, and has no `_icon.scss` or `_shortcut_label.scss` at all. Verify a partial exists
+before citing it in an SPDX header; a header naming a file that is not there is worse than none.
+
 | Missing | Source partial | Note |
 |---|---|---|
-| `<adw-checkbox>` / `<adw-radio>` | `_checkbox.scss`, `_radio.scss` | no form-control primitives yet |
-| `<adw-progress-bar>` | `_progressbar.scss` | `<adw-spinner>` covers indeterminate only |
-| `<adw-label>` | `_label.scss` | no typography primitive; the widgets style their own text nodes |
-| Utility classes & layout helpers | `_box.scss`, `_listbox.scss`, `_utility_classes.scss`, `_row_types.scss` | the pieces consumers reach for when composing their own rows |
-| `<adw-shortcut-label>` | `_shortcut_label.scss` | niche; only needed by a shortcuts window |
+| layout helpers | `refs/adwaita-web`'s `_box.scss` / `_listbox.scss` / `_row_types.scss` — libadwaita has no `_box.scss`, and spells its list styling `_lists.scss` | the pieces consumers reach for when composing their own rows |
+| `<adw-shortcut-label>` | `refs/adwaita-web`'s `_shortcut_label.scss` (libadwaita has none) | niche; only needed by a shortcuts window |
+
+`<adw-label>` is NOT on that list and is not planned: `_labels.scss` is a widget partial in name
+only — four lines of GtkLabel plumbing plus a dozen UTILITY CLASSES. Those classes ship
+(`scss/_labels.scss`: `.dimmed`, `.accent`/`.error`/`.warning`/`.success`, `.title-1`…`.title-4`,
+`.heading`, `.body`, `.caption-heading`, `.caption`, `.document`, `.monospace`, `.numeric`), which
+is the gap consumers actually hit; an ELEMENT would wrap a `<span>`, add nothing a class does not,
+and put one more tag in `$adw-components` for no behaviour — ADR 0004's trivial-behaviour clause,
+and ADR 0010 already makes the token/class surface the public contract.
 
 Two gaps run the other way — NativeScript has widgets the browser does not (`adw-icon`,
 `adw-image-button`, `adw-preferences-page`, `adw-slider-row`), and the browser has one

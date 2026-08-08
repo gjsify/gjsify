@@ -151,6 +151,11 @@ declare module '@nativescript/core' {
         /** Remove every column definition (lets a layout re-declare its columns,
          *  e.g. to flip the fixed/expanding column for a trailing sidebar). */
         removeColumns(): void;
+        /** Remove every row definition — the row counterpart, for a layout whose
+         *  row COUNT is data-driven (one row per data-grid line). A child whose
+         *  row index exceeds the declared rows is clamped into the last one, so
+         *  a shrinking grid has to drop the rows it no longer fills. */
+        removeRows(): void;
         static setColumn(view: View, value: number): void;
         static setRow(view: View, value: number): void;
         static setColumnSpan(view: View, value: number): void;
