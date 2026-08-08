@@ -199,7 +199,14 @@ export type {
 } from './dialog.js';
 
 // --- Row interaction state machines (Adw.ExpanderRow/ComboRow/SpinRow/ToggleGroup) ---
-export { ComboState, ExpanderState, SpinState, ToggleGroupState, normalizeComboOptions } from './rows.js';
+export {
+    ADW_COMBO_NO_SELECTION,
+    ComboState,
+    ExpanderState,
+    SpinState,
+    ToggleGroupState,
+    normalizeComboOptions,
+} from './rows.js';
 export type {
     AdwComboOption,
     AdwComboOptionInput,

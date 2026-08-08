@@ -11,9 +11,16 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { ComboState, ExpanderState, SpinState, ToggleGroupState, normalizeComboOptions } from './rows.js';
+import {
+    ADW_COMBO_NO_SELECTION,
+    ComboState,
+    ExpanderState,
+    SpinState,
+    ToggleGroupState,
+    normalizeComboOptions,
+} from './rows.js';
 import type { ComboStateChange, SpinStateChange, ToggleGroupStateChange } from './rows.js';
-import { COMBO_SELECTION_VECTORS } from './conformance/rows.js';
+import { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS } from './conformance/rows.js';
 import type { ComboSelectionStep } from './conformance/rows.js';
 
 /** Replay one combo vector step against a headless combo state. */
@@ -131,7 +138,17 @@ export default async () => {
             expect(state.count).toBe(0);
             expect(state.selectedValue).toBe('');
             expect(state.select(0)).toBe(false); // nothing to interactively pick
-            expect(state.selectedIndex).toBe(0);
+            // GTK_INVALID_LIST_POSITION, not index 0: an empty model and a model
+            // whose first label is empty used to be the same state.
+            expect(state.selectedIndex).toBe(ADW_COMBO_NO_SELECTION);
+        });
+
+        await it('presentsChooser follows model_changed — one option is not a choice', () => {
+            const state = new ComboState();
+            for (const { count, presentsChooser, rule } of COMBO_CHOOSER_VECTORS) {
+                state.setOptions(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` })));
+                expect(state.presentsChooser, rule).toBe(presentsChooser);
+            }
         });
 
         await it('setSelectedIndex returns whether it changed', () => {

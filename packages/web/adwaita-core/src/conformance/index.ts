@@ -141,8 +141,8 @@ export { RADIO_GROUP_VECTORS } from './checks.js';
 export type { RadioGroupStep, RadioGroupVector } from './checks.js';
 
 // --- Row state machines (Adw.ComboRow / Gtk.DropDown selection) vectors ---
-export { COMBO_SELECTION_VECTORS } from './rows.js';
-export type { ComboSelectionStep, ComboSelectionVector } from './rows.js';
+export { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS } from './rows.js';
+export type { ComboChooserVector, ComboSelectionStep, ComboSelectionVector } from './rows.js';
 
 // --- View stack selection (Adw.ViewStack) vectors ---
 export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';

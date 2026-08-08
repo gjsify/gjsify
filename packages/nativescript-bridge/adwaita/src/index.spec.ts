@@ -21,7 +21,7 @@ import { describe, it, expect } from '@gjsify/unit';
 // before any guard could run. `@gjsify/native-platform` and `./fonts.js` are
 // pure-TS (no `@nativescript/core` value imports), so they load everywhere.
 import { AVATAR_COLORS, flattenAvatarGradient } from '@gjsify/adwaita-core';
-import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS, COMBO_CHOOSER_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
 import { avatarColor, avatarInitials } from './widgets/avatar-color.js';
 import {
@@ -464,6 +464,20 @@ export default async () => {
             expect(state.setSelectedValue('b')).toBe(true);
             expect(state.selectedIndex).toBe(1);
         });
+
+        // `model_changed` (adw-combo-row.c:187-195). The widget reads this
+        // predicate twice — once to collapse the chevron, once to refuse the tap
+        // — and it cannot be imported here, so the table is driven against the
+        // state it reads. Both halves matter: hiding the chevron alone leaves a
+        // row that still opens an `action()` sheet with one entry, which is what
+        // this port did.
+        for (const { count, presentsChooser, rule } of COMBO_CHOOSER_VECTORS) {
+            await it(`${count} option(s) → presentsChooser ${presentsChooser}: ${rule}`, () => {
+                const state = new ComboState();
+                state.setOptions(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` })));
+                expect(state.presentsChooser).toBe(presentsChooser);
+            });
+        }
     });
 
     await describe('AdwSpinRow numeric stepper (core SpinState re-export)', async () => {

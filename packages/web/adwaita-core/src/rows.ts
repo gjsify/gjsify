@@ -130,9 +130,25 @@ export function normalizeComboOptions(raw: ReadonlyArray<AdwComboOptionInput> | 
     });
 }
 
+/**
+ * The "no item is selected" index — the TS mirror of `GTK_INVALID_LIST_POSITION`
+ * (`AdwComboRow:selected`'s default and empty value, adw-combo-row.c:593-596,
+ * :809-810).
+ *
+ * libadwaita spells it `G_MAXUINT` because the property is a `guint`; `-1` is the
+ * idiomatic TS sentinel and the spelling {@link ADW_SIDEBAR_NO_SELECTION} already
+ * uses for the same GTK constant.
+ *
+ * It exists because an EMPTY model and a model whose first item happens to have
+ * an empty label were previously indistinguishable: both reported index 0 with
+ * `selectedValue === ''`. A renderer that wants to draw a placeholder had nothing
+ * to test.
+ */
+export const ADW_COMBO_NO_SELECTION = -1;
+
 /** Payload of a {@link ComboState} change. */
 export interface ComboStateChange {
-    /** The (new) selected index. */
+    /** The (new) selected index, or {@link ADW_COMBO_NO_SELECTION}. */
     selected: number;
     /** The selected option's `value` (or `''` when out of range). */
     value: string;
@@ -191,20 +207,51 @@ export class ComboState {
     }
 
     /**
-     * Replace the options. Resets the selection to 0 when the current index no
-     * longer fits (mirroring `Adw.ComboRow`), then notifies (`interactive: false`)
-     * so the renderer re-syncs the inline value label (the label may change even at
-     * the same index).
+     * Replace the options, then notify (`interactive: false`) so the renderer
+     * re-syncs the inline value label — which may change even at an unchanged
+     * index, because the label is read out of the MODEL.
+     *
+     * Replacing the model re-runs autoselect, so an index the new one does not
+     * have falls back to 0 — including the sentinel, which is how a row recovers
+     * a selection when its model grows. An EMPTY model has no 0 to fall back to
+     * and lands on {@link ADW_COMBO_NO_SELECTION}; that case is the one both
+     * ports used to spell as index 0.
+     *
+     * The check is `hasIndex`, not `selected >= length`: the sentinel is BELOW
+     * the range, so the one-sided comparison left a `-1` in place and a model
+     * that had been emptied and refilled came back with nothing selected.
      */
     setOptions(options: AdwComboOption[]): void {
         this._options = Array.isArray(options) ? options : [];
-        if (this._selected >= this._options.length) this._selected = 0;
+        if (!this.hasIndex(this._selected)) {
+            this._selected = this._options.length === 0 ? ADW_COMBO_NO_SELECTION : 0;
+        }
         this._emit(false);
     }
 
-    /** The selected option index (may sit past the options length — {@link selectedValue} then is `''`). */
+    /**
+     * The selected option index, or {@link ADW_COMBO_NO_SELECTION}.
+     *
+     * May also sit PAST the options length: {@link setSelectedIndex} is
+     * deliberately permissive, mirroring a `guint` property that takes any
+     * position. {@link selectedValue} reads `''` in both cases, which is why the
+     * sentinel is what distinguishes "nothing selected" from "an empty label".
+     */
     get selectedIndex(): number {
         return this._selected;
+    }
+
+    /**
+     * Whether the row presents itself as a CHOOSER — `model_changed`
+     * (adw-combo-row.c:187-195) makes the arrow visible and the row activatable
+     * on `n_items > 1` and hides both otherwise.
+     *
+     * One item or none is not a choice, so `Adw.ComboRow` stops looking like one:
+     * no chevron, and tapping does nothing. Neither port did this, so a
+     * single-option row showed its arrow and opened a chooser with one entry.
+     */
+    get presentsChooser(): boolean {
+        return this._options.length > 1;
     }
 
     /** Programmatic index set — notifies `interactive: false`. Returns whether it changed. */

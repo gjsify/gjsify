@@ -85,6 +85,7 @@ export class AdwComboRow extends HTMLElement {
         this._state.subscribe((change) => {
             this._valueEl.textContent = change.label;
             if (this._select.selectedIndex !== change.selected) this._select.selectedIndex = change.selected;
+            this._syncChooser();
             if (!change.interactive) return;
             this.setAttribute('selected', String(change.selected));
             this.dispatchEvent(
@@ -101,6 +102,7 @@ export class AdwComboRow extends HTMLElement {
             this._state.select(this._select.selectedIndex);
         });
 
+        this._syncChooser();
         this._renderText();
     }
 
@@ -113,6 +115,21 @@ export class AdwComboRow extends HTMLElement {
         } else {
             this._renderText();
         }
+    }
+
+    /**
+     * `model_changed` (adw-combo-row.c:187-195) — one option or none is not a
+     * choice, so the arrow goes and the row stops being activatable.
+     *
+     * Both halves have to be expressed: `data-presents-chooser` gates the
+     * `.adw-row-value::after` mask in the stylesheet, and DISABLING the overlaid
+     * `<select>` is what makes the row inert — hiding the arrow alone would leave
+     * a row that still opens a one-entry popup on click.
+     */
+    private _syncChooser() {
+        const presents = this._state.presentsChooser;
+        this.dataset.presentsChooser = presents ? 'true' : 'false';
+        this._select.disabled = !presents;
     }
 
     private _renderText() {

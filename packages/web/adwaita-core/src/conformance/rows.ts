@@ -22,13 +22,17 @@
 //      port rule. The vectors carry the flag so a renderer that mixes the two
 //      paths up fails a test, and this note so nobody reads the flag as GTK's.
 //
-//   2. "Nothing is selected" has no representation. `Adw.ComboRow:selected` is
-//      a `guint` whose default and empty value are `GTK_INVALID_LIST_POSITION`
-//      (= G_MAXUINT, :593-596; :809-810 returns it when there is no selection
-//      model at all). `ComboState` starts at index 0 and reports an empty
-//      `selectedValue`/`selectedLabel` instead, because both renderers paint a
-//      LABEL and `''` is what they can draw. The rows below pin `0` + `''`, and
-//      say so where it applies.
+//   2. "Nothing is selected" IS represented, as `ADW_COMBO_NO_SELECTION` (-1) —
+//      the TS spelling of `GTK_INVALID_LIST_POSITION` (= G_MAXUINT, :593-596;
+//      :809-810 returns it when there is no selection model at all), matching
+//      `ADW_SIDEBAR_NO_SELECTION`. It did not used to be: both ports reported
+//      index 0 with an empty `selectedValue`, so an EMPTY model and a model
+//      whose first item has an empty label were the same state, and a renderer
+//      wanting to draw a placeholder had nothing to test. What is still ours is
+//      that an index PAST the end is accepted rather than folded onto the
+//      sentinel — `setSelectedIndex` mirrors a guint property that takes any
+//      position, and `ComboState.hasIndex` is where each renderer states its own
+//      policy.
 //
 // WHO DRIVES THIS TABLE
 //
@@ -261,11 +265,11 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'an empty model',
         steps: [{ op: 'setOptions', options: [] }],
-        selected: 0,
+        selected: -1,
         value: '',
         label: '',
-        emitted: [{ selected: 0, value: '', label: '', interactive: false }],
-        rule: 'GTK reports GTK_INVALID_LIST_POSITION here (:593-596, :809-810); the ports report index 0 with an empty value — see the module header',
+        emitted: [{ selected: -1, value: '', label: '', interactive: false }],
+        rule: 'GTK_INVALID_LIST_POSITION (:593-596, :809-810) — an empty model has no index 0 to autoselect',
     },
     {
         name: 'picking from an empty model',
@@ -273,10 +277,85 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { op: 'setOptions', options: [] },
             { op: 'select', index: 0 },
         ],
-        selected: 0,
+        selected: -1,
         value: '',
         label: '',
-        emitted: [{ selected: 0, value: '', label: '', interactive: false }],
-        rule: 'index 0 is already held, so there is nothing to pick — the renderers never open a chooser over an empty model either',
+        emitted: [{ selected: -1, value: '', label: '', interactive: false }],
+        rule: 'there is no option 0 to pick — and the renderers never open a chooser over an empty model either',
     },
+    {
+        name: 'emptying a model that had a selection',
+        steps: [
+            { op: 'setOptions', options: AB },
+            { op: 'setSelectedIndex', index: 1 },
+            { op: 'setOptions', options: [] },
+        ],
+        selected: -1,
+        value: '',
+        label: '',
+        emitted: [
+            { selected: 0, value: 'a', label: 'One', interactive: false },
+            { selected: 1, value: 'b', label: 'Two', interactive: false },
+            { selected: -1, value: '', label: '', interactive: false },
+        ],
+        rule: 'the selection does NOT survive as index 0 — there is nothing at 0 any more',
+    },
+    {
+        name: 'a model that is emptied and refilled',
+        steps: [
+            { op: 'setOptions', options: AB },
+            { op: 'setOptions', options: [] },
+            { op: 'setOptions', options: AB },
+        ],
+        selected: 0,
+        value: 'a',
+        label: 'One',
+        emitted: [
+            { selected: 0, value: 'a', label: 'One', interactive: false },
+            { selected: -1, value: '', label: '', interactive: false },
+            { selected: 0, value: 'a', label: 'One', interactive: false },
+        ],
+        rule: 'autoselect runs again, so the sentinel recovers to 0 — it is BELOW the range, which a one-sided >= length check leaves in place',
+    },
+    {
+        name: 'a model with an empty first label is still a selection',
+        steps: [{ op: 'setOptions', options: [{ label: '', value: 'blank' }] }],
+        selected: 0,
+        value: 'blank',
+        label: '',
+        emitted: [{ selected: 0, value: 'blank', label: '', interactive: false }],
+        rule: 'the case the sentinel exists to separate: an empty LABEL, not an empty model',
+    },
+];
+
+// --- The chooser predicate (model_changed, adw-combo-row.c:187-195) -----------
+
+/** One `presentsChooser` expectation. */
+export interface ComboChooserVector {
+    /** How many options the model holds. */
+    count: number;
+    /** Whether the arrow is drawn and the row is activatable. */
+    presentsChooser: boolean;
+    /** The rule this row pins down. */
+    rule: string;
+}
+
+/**
+ * `model_changed` (adw-combo-row.c:187-195) — one predicate, `n_items > 1`,
+ * driving BOTH `gtk_widget_set_visible (arrow_box, …)` and
+ * `gtk_list_box_row_set_activatable (row, …)`.
+ *
+ * A row with one option or none has nothing to choose, so it stops presenting
+ * itself as a chooser. Neither port did this: a NativeScript `AdwComboRow` with
+ * a single option still showed its chevron and opened an `action()` sheet with
+ * one entry, and the browser element behaved the same way.
+ *
+ * `Gtk.DropDown` is deliberately NOT covered — it keeps its arrow at any count,
+ * which is why this lives on the combo ROW rather than in the shared chooser.
+ */
+export const COMBO_CHOOSER_VECTORS: ReadonlyArray<ComboChooserVector> = [
+    { count: 0, presentsChooser: false, rule: 'an empty model is not a chooser' },
+    { count: 1, presentsChooser: false, rule: 'ONE option is not a choice — the arrow goes and the row goes inert' },
+    { count: 2, presentsChooser: true, rule: 'two is the smallest real choice — the predicate is > 1, not >= 1' },
+    { count: 5, presentsChooser: true, rule: 'and anything above it' },
 ];
