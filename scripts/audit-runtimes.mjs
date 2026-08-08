@@ -1583,6 +1583,13 @@ const CHECK_RULES = [
     // exactly the half a single-OS runner can be trusted with.
     'os-axis',
     'storybook',
+    // Reads each manifest plus the package's own source tree — no install, no
+    // build — so it belongs here alongside `storybook`. It guards the axis a
+    // Linux runner is least able to exercise otherwise: there is no iOS CI
+    // anywhere in this repo, so "does the declared platform have an
+    // implementation at all" is the only half of that promise any machine here
+    // can hold.
+    'nativescript-platforms',
     'field-coverage',
     'status-data',
 ];

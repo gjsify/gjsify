@@ -3,12 +3,28 @@
 // a navigation stack controlled with push()/pop()/replace(); the visible page
 // fills the view. Only <adw-navigation-page> children are managed.
 //
+// The stack machine itself is NOT here: it lives in `@gjsify/adwaita-core`'s
+// `NavigationViewState` (ADR 0004), ported from the C and shared with the
+// NativeScript renderer, which used to carry its own near-identical copy. This
+// element is the DOM half — mount/unmount pages, toggle `hidden`, grow the
+// automatic back button, translate stack changes into CustomEvents, and route
+// Escape / Alt+Left into the core's shortcut handlers.
+//
+// The copy this replaces had drifted from libadwaita in ways nothing compared:
+// `pop()` refused to pop a `can-pop="false"` page (the C documents the exact
+// opposite at adw-navigation-view.c:2559-2561), `replace()` purged dynamic pages
+// BEFORE resolving string entries so `replace(['tag-of-a-pushed-page'])` blanked
+// the view outright, `popToTag()` was a loop of single pops that stopped early at
+// a `can-pop="false"` page, and the back-button tooltip was hardcoded to "Back"
+// where the C uses the previous page's title. See `navigation-view.spec.ts` for
+// the vectors this element is now held to.
+//
 // Pages are declared as <adw-navigation-page> children (each with a `title` and
 // optional `tag` attribute). The view snapshots them at connect time. Like
 // Adw.NavigationView, a statically-added page is kept around but not shown until
-// pushed (the first added page is pushed automatically). push() accepts a page
-// element OR an existing page's tag (push-by-tag); a dynamically-pushed page is
-// removed from the DOM again once it is popped.
+// pushed, and adding a page while the stack is EMPTY pushes it automatically.
+// push() accepts a page element OR an existing page's tag (push-by-tag); a
+// dynamically-pushed page is removed from the DOM again once it is popped.
 //
 // Header Bar integration: mirroring libadwaita, when the visible page is above
 // the root the view surfaces an automatic back button at the start of that
@@ -19,28 +35,42 @@
 // Attributes (on <adw-navigation-view>):
 //   animate-transitions (boolean, default present — slide animation on push/pop;
 //     mirrors Adw.NavigationView:animate-transitions)
+//   pop-on-escape ("false" disables Escape-to-pop; mirrors
+//     Adw.NavigationView:pop-on-escape, which defaults to TRUE)
 // Attributes (on <adw-navigation-page>):
-//   title (the page title — shown in the header bar's window title)
-//   tag (a unique identifier for push-by-tag)
-//   can-pop ("false" disables the back button / popping; mirrors
-//     AdwNavigationPage:can-pop)
+//   title (the page title — shown in the header bar's window title, and used as
+//     the NEXT page's back-button tooltip)
+//   tag (a unique identifier for push-by-tag; a duplicate is rejected)
+//   can-pop ("false" disables the back button and the keyboard shortcuts;
+//     mirrors AdwNavigationPage:can-pop — it does NOT disable pop())
 //   no-back-button (boolean — suppresses the automatic back button only)
-// Events (CustomEvent, bubbles):
-//   `pushed` (detail = { tag }) after a page is pushed — mirrors
-//     AdwNavigationView::pushed.
-//   `popped` (detail = { tag }) after a page is popped — mirrors
+// Events (CustomEvent, bubbles, detail = { page, tag }):
+//   `pushed` after a page is pushed — mirrors AdwNavigationView::pushed.
+//   `popped` after a page is popped, once per popped page, top-first — mirrors
 //     AdwNavigationView::popped.
-//   `replaced` after the whole stack is replaced — mirrors
-//     AdwNavigationView::replaced.
-//   `notify::visible-page` (detail = { tag }) whenever the visible page changes
-//     — mirrors the Adw.NavigationView:visible-page property.
+//   `replaced` (detail page/tag null) after the whole stack is replaced —
+//     mirrors AdwNavigationView::replaced.
+//   `notify::visible-page` whenever the visible page changes — mirrors the
+//     Adw.NavigationView:visible-page property.
 // Reference: refs/libadwaita/src/adw-navigation-view.c (AdwNavigationView behaviour)
+// Reference: refs/libadwaita/src/adw-back-button.c (the back button derivation)
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/navigationview.md
 // Copyright (c) 2022-2023 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { BACK_BUTTON_FALLBACK_TOOLTIP, NavigationViewState, describeNavigationDiagnostic } from '@gjsify/adwaita-core';
+import type { AdwNavigationPageProps, NavigationDiagnostic, NavigationStackChange } from '@gjsify/adwaita-core';
+
+/** The page properties the core owns, read off the element's attributes. */
+function readPageProps(page: AdwNavigationPage): AdwNavigationPageProps {
+    return { tag: page.tag, title: page.title, canPop: page.canPop };
+}
+
 /** A single navigation page. Children of <adw-navigation-view>. */
 export class AdwNavigationPage extends HTMLElement {
+    /** Set while the owning view writes an attribute back, so the sync cannot recurse. */
+    private _syncing = false;
+
     static get observedAttributes() {
         return ['title', 'tag', 'can-pop', 'no-back-button'];
     }
@@ -62,7 +92,7 @@ export class AdwNavigationPage extends HTMLElement {
         else this.setAttribute('tag', value);
     }
 
-    /** Whether the page can be popped (and thus shows a back button). */
+    /** Whether the page can be popped by a shortcut or the back button. */
     get canPop(): boolean {
         return this.getAttribute('can-pop') !== 'false';
     }
@@ -70,22 +100,42 @@ export class AdwNavigationPage extends HTMLElement {
     set canPop(value: boolean) {
         this.setAttribute('can-pop', value ? 'true' : 'false');
     }
+
+    attributeChangedCallback(name: string, previous: string | null): void {
+        if (this._syncing) return;
+        // The attributes are the authoring surface, but the view's tag index and
+        // back-button derivation read the CORE's copy — so a runtime change has to
+        // be pushed into it. Without this the back button only ever reflected the
+        // `can-pop` value it had at the last stack mutation.
+        const view = this.closest('adw-navigation-view') as AdwNavigationView | null;
+        view?.syncPageProperty(this, name, previous);
+    }
+
+    /** Put an attribute back the way it was, without re-entering the sync. */
+    revertAttribute(name: string, value: string | null): void {
+        this._syncing = true;
+        if (value === null) this.removeAttribute(name);
+        else this.setAttribute(name, value);
+        this._syncing = false;
+    }
 }
 
 export class AdwNavigationView extends HTMLElement {
     private _pagesEl!: HTMLDivElement;
-    // Every page known to the view (static + dynamically pushed), in DOM order.
-    private _pages: AdwNavigationPage[] = [];
-    // The navigation stack — references into _pages, bottom-first.
-    private _stack: AdwNavigationPage[] = [];
-    // Pages added dynamically via push() (destroyed when popped off).
-    private _dynamic = new Set<AdwNavigationPage>();
     // The back button injected into each visible page (so we can remove it).
-    private _backButtons = new WeakMap<AdwNavigationPage, HTMLElement>();
+    private readonly _backButtons = new WeakMap<AdwNavigationPage, HTMLElement>();
     private _initialized = false;
 
+    private readonly _diagnose = (diagnostic: NavigationDiagnostic): void => {
+        console.warn(`[adw-navigation-view] ${describeNavigationDiagnostic(diagnostic)}`);
+    };
+
+    // The whole stack machine. Declared AFTER `_diagnose` — class fields run in
+    // declaration order, so the sink has to exist first.
+    private readonly _state = new NavigationViewState<AdwNavigationPage>({ onDiagnostic: this._diagnose });
+
     static get observedAttributes() {
-        return ['animate-transitions'];
+        return ['animate-transitions', 'pop-on-escape'];
     }
 
     /** Whether push/pop transitions are animated. */
@@ -98,14 +148,48 @@ export class AdwNavigationView extends HTMLElement {
         this.setAttribute('animate-transitions', value ? 'true' : 'false');
     }
 
+    /** Whether pressing Escape pops the visible page (Adw.NavigationView:pop-on-escape). */
+    get popOnEscape(): boolean {
+        return this.getAttribute('pop-on-escape') !== 'false';
+    }
+
+    set popOnEscape(value: boolean) {
+        this.setAttribute('pop-on-escape', value ? 'true' : 'false');
+    }
+
     /** The currently-visible page (top of the stack), or null when empty. */
     get visiblePage(): AdwNavigationPage | null {
-        return this._stack.length > 0 ? this._stack[this._stack.length - 1] : null;
+        return this._state.visiblePage;
     }
 
     /** The tag of the visible page, or null. */
     get visiblePageTag(): string | null {
-        return this.visiblePage?.tag ?? null;
+        return this._state.visiblePageTag;
+    }
+
+    /** The number of pages on the navigation stack. */
+    get depth(): number {
+        return this._state.depth;
+    }
+
+    /** The navigation stack, bottom-first (Adw.NavigationView:navigation-stack). */
+    get navigationStack(): readonly AdwNavigationPage[] {
+        return this._state.stack;
+    }
+
+    /** Every page this view knows — static and dynamically pushed. */
+    get pages(): readonly AdwNavigationPage[] {
+        return this._state.pages;
+    }
+
+    /** Whether the automatic back button is shown (AdwBackButton's visibility rule). */
+    get canGoBack(): boolean {
+        return this._state.canGoBack();
+    }
+
+    /** The back button's tooltip — the previous page's title, or null when there is no button. */
+    get backButtonTooltip(): string | null {
+        return this._state.backButtonTooltip();
     }
 
     connectedCallback() {
@@ -113,37 +197,65 @@ export class AdwNavigationView extends HTMLElement {
         this._initialized = true;
 
         // Snapshot the declared <adw-navigation-page> children — they become the
-        // statically-added pages. The first one is pushed automatically.
-        const pages = Array.from(this.querySelectorAll(':scope > adw-navigation-page')) as AdwNavigationPage[];
+        // statically-added pages. Moving them into the stack wrapper BEFORE they
+        // are registered keeps their DOM order and avoids a detach/attach flash.
+        const declared = Array.from(this.querySelectorAll(':scope > adw-navigation-page')) as AdwNavigationPage[];
 
         this._pagesEl = document.createElement('div');
         this._pagesEl.className = 'adw-navigation-view-pages';
-
-        this._pages = [];
-        this._stack = [];
-
-        for (const page of pages) {
+        for (const page of declared) {
             page.classList.add('adw-navigation-page');
             this._pagesEl.appendChild(page);
-            this._pages.push(page);
         }
-
         this.replaceChildren(this._pagesEl);
 
-        // Auto-push the first added page (Adw.NavigationView behaviour).
-        if (this._pages.length > 0) {
-            this._stack.push(this._pages[0]);
+        this._state.subscribe((change) => this._onChange(change));
+        this._state.setAnimateTransitions(this.animateTransitions);
+        this._state.setPopOnEscape(this.popOnEscape);
+        this.addEventListener('keydown', this._onKeyDown);
+
+        // add_page:1284 auto-pushes into an EMPTY stack, so the first declared page
+        // becomes visible — and it does so through push_to_stack, which is why the
+        // `pushed` / `notify::visible-page` events fire for it.
+        for (const page of declared) this._state.add(page, readPageProps(page));
+        // A declared page the core REJECTED (a duplicate tag) is not one of ours:
+        // it must leave the DOM, or it would sit in the stack wrapper unmanaged and
+        // therefore permanently visible.
+        for (const page of declared) {
+            if (!this._state.isRegistered(page)) this._detach(page);
         }
 
         this._syncClasses();
         this._render();
     }
 
-    attributeChangedCallback() {
+    attributeChangedCallback(name: string) {
         if (!this._initialized) return;
-        // animate-transitions only affects future transitions; just keep the
-        // class in sync so CSS can gate the slide animation.
+        if (name === 'pop-on-escape') {
+            this._state.setPopOnEscape(this.popOnEscape);
+            return;
+        }
+        this._state.setAnimateTransitions(this.animateTransitions);
         this._syncClasses();
+    }
+
+    /**
+     * Push a page property change into the core. Called by
+     * {@link AdwNavigationPage.attributeChangedCallback}; a rename the core rejects
+     * (the tag is taken) is rolled back, because the attribute must not disagree
+     * with the tag index `push-by-tag` resolves against.
+     */
+    syncPageProperty(page: AdwNavigationPage, name: string, previous: string | null): void {
+        if (!this._state.isRegistered(page)) return;
+        if (name === 'tag') {
+            this._state.setTag(page, page.tag);
+            if (this._state.tagOf(page) !== page.tag) page.revertAttribute('tag', previous);
+        } else if (name === 'title') {
+            this._state.setTitle(page, page.title);
+        } else if (name === 'can-pop') {
+            this._state.setCanPop(page, page.canPop);
+        }
+        this._render();
     }
 
     /**
@@ -151,149 +263,157 @@ export class AdwNavigationView extends HTMLElement {
      * view keeps a reference; the page becomes reachable via push-by-tag. Named
      * `addPage` rather than `add` to avoid clashing with any DOM method.
      */
-    addPage(page: AdwNavigationPage): void {
-        if (this._pages.includes(page)) return;
-        page.classList.add('adw-navigation-page');
-        this._pagesEl.appendChild(page);
-        this._pages.push(page);
+    addPage(page: AdwNavigationPage): boolean {
+        const added = this._state.add(page, readPageProps(page));
         this._render();
+        return added;
     }
 
     /**
-     * Remove a static page (mirrors AdwNavigationView.remove). Named `removePage`
-     * to avoid overriding HTMLElement.remove() (which takes no arguments).
+     * Remove a page (mirrors AdwNavigationView.remove). A page that is on the
+     * stack is removed once it is POPPED, not now. Named `removePage` to avoid
+     * overriding HTMLElement.remove() (which takes no arguments).
      */
-    removePage(page: AdwNavigationPage): void {
-        if (this._stack.includes(page)) return; // can't remove a page on the stack
-        const index = this._pages.indexOf(page);
-        if (index === -1) return;
-        this._pages.splice(index, 1);
-        this._dynamic.delete(page);
-        if (page.parentNode === this._pagesEl) this._pagesEl.removeChild(page);
+    removePage(page: AdwNavigationPage): boolean {
+        const removed = this._state.remove(page);
+        if (removed && !this._state.isRegistered(page)) this._detach(page);
         this._render();
+        return removed;
     }
 
     /**
      * Push a page onto the navigation stack (mirrors AdwNavigationView.push).
      * Accepts a page element or, when given a string, the tag of a known page
-     * (push-by-tag, mirrors AdwNavigationView.push_by_tag). A page that is not
-     * already known is added dynamically and destroyed when it is popped.
+     * (push-by-tag). A page that is not already known is added dynamically and
+     * destroyed when it is popped.
      */
-    push(pageOrTag: AdwNavigationPage | string): void {
-        const page = this._resolvePage(pageOrTag);
-        if (!page) {
-            console.warn(`[adw-navigation-view] No page found for "${String(pageOrTag)}"`);
-            return;
-        }
-        if (this._stack.includes(page)) {
-            console.warn('[adw-navigation-view] Page is already in the navigation stack');
-            return;
-        }
-        if (!this._pages.includes(page)) {
-            // A brand-new dynamic page — keep a reference + mark for cleanup.
-            page.classList.add('adw-navigation-page');
-            this._pagesEl.appendChild(page);
-            this._pages.push(page);
-            this._dynamic.add(page);
-        }
-        this._stack.push(page);
+    push(pageOrTag: AdwNavigationPage | string): boolean {
+        if (typeof pageOrTag === 'string') return this.pushByTag(pageOrTag);
+        const pushed = this._state.push(pageOrTag, readPageProps(pageOrTag));
         this._render();
-        this.dispatchEvent(new CustomEvent('pushed', { bubbles: true, detail: { tag: page.tag } }));
-        this.dispatchEvent(new CustomEvent('notify::visible-page', { bubbles: true, detail: { tag: page.tag } }));
+        return pushed;
+    }
+
+    /** Push the page carrying `tag` (mirrors AdwNavigationView.push_by_tag). */
+    pushByTag(tag: string): boolean {
+        const pushed = this._state.pushByTag(tag);
+        this._render();
+        return pushed;
     }
 
     /**
      * Pop the visible page off the stack (mirrors AdwNavigationView.pop).
-     * Returns true when a page was popped. A dynamically-pushed page is removed
-     * from the DOM. The root page cannot be popped.
+     * Returns true when a page was popped. The root page cannot be popped.
+     * `can-pop` does NOT gate this — it gates the shortcuts and the back button.
      */
     pop(): boolean {
-        if (this._stack.length <= 1) return false;
-        const visible = this.visiblePage;
-        if (visible && !visible.canPop) return false;
-
-        const popped = this._stack.pop() as AdwNavigationPage;
-        // Destroy dynamically-pushed pages once they leave the stack.
-        if (this._dynamic.has(popped)) {
-            this._dynamic.delete(popped);
-            const index = this._pages.indexOf(popped);
-            if (index !== -1) this._pages.splice(index, 1);
-            if (popped.parentNode === this._pagesEl) this._pagesEl.removeChild(popped);
-        }
+        const popped = this._state.pop();
         this._render();
-        this.dispatchEvent(new CustomEvent('popped', { bubbles: true, detail: { tag: popped.tag } }));
-        const next = this.visiblePage;
-        this.dispatchEvent(
-            new CustomEvent('notify::visible-page', { bubbles: true, detail: { tag: next?.tag ?? null } }),
-        );
-        return true;
+        return popped;
     }
 
-    /** Pop every page down to (and including pushing) the given tag's page. */
+    /** Pop until `page` is visible, in ONE transition (mirrors AdwNavigationView.pop_to_page). */
+    popToPage(page: AdwNavigationPage): boolean {
+        const popped = this._state.popToPage(page);
+        this._render();
+        return popped;
+    }
+
+    /** Pop until the page carrying `tag` is visible (mirrors AdwNavigationView.pop_to_tag). */
     popToTag(tag: string): boolean {
-        const target = this._pages.find((p) => p.tag === tag);
-        if (!target) return false;
-        const index = this._stack.indexOf(target);
-        if (index === -1 || index === this._stack.length - 1) return false;
-        let popped = false;
-        while (this._stack.length - 1 > index) {
-            if (!this.pop()) break;
-            popped = true;
-        }
+        const popped = this._state.popToTag(tag);
+        this._render();
         return popped;
     }
 
     /**
-     * Replace the whole navigation stack with the given pages (mirrors
-     * AdwNavigationView.replace). The last page becomes visible.
+     * Replace the whole navigation stack (mirrors AdwNavigationView.replace). The
+     * last page becomes visible; the transition is never animated.
+     *
+     * String entries are resolved BEFORE anything is mutated — the C does the same
+     * in replace_with_tags:3136-3147, and resolving late is what used to lose a
+     * dynamically-pushed page and blank the view.
      */
-    replace(pages: Array<AdwNavigationPage | string>): void {
-        // Clear the current stack first (without firing popped events — replace
-        // is its own signal in libadwaita).
-        for (const page of this._stack) {
-            if (this._dynamic.has(page)) {
-                this._dynamic.delete(page);
-                const index = this._pages.indexOf(page);
-                if (index !== -1) this._pages.splice(index, 1);
-                if (page.parentNode === this._pagesEl) this._pagesEl.removeChild(page);
-            }
-        }
-        this._stack = [];
-
-        for (const entry of pages) {
-            const page = this._resolvePage(entry);
-            if (!page) continue;
-            if (!this._pages.includes(page)) {
-                page.classList.add('adw-navigation-page');
-                this._pagesEl.appendChild(page);
-                this._pages.push(page);
-                this._dynamic.add(page);
-            }
-            this._stack.push(page);
-        }
-
+    replace(pages: ReadonlyArray<AdwNavigationPage | string | null>): void {
+        const resolved = pages.map((entry) => {
+            if (typeof entry !== 'string') return entry ?? null;
+            const page = this._state.findPage(entry);
+            if (page === null) this._diagnose({ code: 'tag-not-found', tag: entry });
+            return page;
+        });
+        this._state.replace(resolved, readPageProps);
         this._render();
-        this.dispatchEvent(new CustomEvent('replaced', { bubbles: true }));
-        this.dispatchEvent(
-            new CustomEvent('notify::visible-page', { bubbles: true, detail: { tag: this.visiblePageTag } }),
-        );
     }
 
-    private _resolvePage(pageOrTag: AdwNavigationPage | string): AdwNavigationPage | null {
-        if (typeof pageOrTag === 'string') {
-            return this._pages.find((p) => p.tag === pageOrTag) ?? null;
-        }
-        return pageOrTag;
+    /** Replace the stack with the pages carrying `tags` (mirrors AdwNavigationView.replace_with_tags). */
+    replaceWithTags(tags: readonly string[]): void {
+        this._state.replaceWithTags(tags);
+        this._render();
     }
+
+    /** The page with this tag, or null (mirrors AdwNavigationView.find_page). */
+    findPage(tag: string): AdwNavigationPage | null {
+        return this._state.findPage(tag);
+    }
+
+    /** The page popping `page` would reveal (mirrors AdwNavigationView.get_previous_page). */
+    getPreviousPage(page: AdwNavigationPage): AdwNavigationPage | null {
+        return this._state.getPreviousPage(page);
+    }
+
+    private _onChange(change: NavigationStackChange<AdwNavigationPage>): void {
+        for (const page of change.removed) this._detach(page);
+        // The slide is a CSS animation on the incoming page, so there is no JS
+        // transition to wait for: settle the deferred destroy at once, exactly as
+        // adw_animation_skip does in the C when `animate` is FALSE.
+        for (const page of this._state.finishTransition()) this._detach(page);
+        this._render();
+
+        if (change.reason === 'add' || change.reason === 'push') {
+            this._dispatch('pushed', change.visiblePage);
+        } else if (change.reason === 'pop') {
+            for (const page of change.popped) this._dispatch('popped', page);
+        } else {
+            this._dispatch('replaced', null);
+        }
+        if (change.previousVisiblePage !== change.visiblePage) {
+            this._dispatch('notify::visible-page', change.visiblePage);
+        }
+    }
+
+    private _dispatch(type: string, page: AdwNavigationPage | null): void {
+        this.dispatchEvent(new CustomEvent(type, { bubbles: true, detail: { page, tag: page?.tag ?? null } }));
+    }
+
+    private readonly _onKeyDown = (event: KeyboardEvent): void => {
+        if (event.defaultPrevented) return;
+        let result: 'stop' | 'propagate';
+        if (event.key === 'Escape') {
+            result = this._state.popFromEscape();
+        } else if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+            // back_forward_shortcut_cb:1192-1193 swaps the arrows under RTL; only
+            // the BACK direction is handled, since forward needs ::get-next-page.
+            const back = getComputedStyle(this).direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
+            if (event.key !== back) return;
+            result = this._state.popFromShortcut();
+        } else {
+            return;
+        }
+        if (result === 'stop') {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    };
 
     private _syncClasses(): void {
         this.classList.toggle('animated', this.animateTransitions);
     }
 
     private _render(): void {
-        const visible = this.visiblePage;
+        const visible = this._state.visiblePage;
 
-        for (const page of this._pages) {
+        for (const page of this._state.pages) {
+            this._attach(page);
             const isVisible = page === visible;
             page.classList.toggle('visible-page', isVisible);
             page.hidden = !isVisible;
@@ -305,15 +425,33 @@ export class AdwNavigationView extends HTMLElement {
         if (visible) this._syncBackButton(visible);
     }
 
+    private _attach(page: AdwNavigationPage): void {
+        if (page.parentNode === this._pagesEl) return;
+        page.classList.add('adw-navigation-page');
+        this._pagesEl.appendChild(page);
+    }
+
+    private _detach(page: AdwNavigationPage): void {
+        this._removeBackButton(page);
+        page.classList.remove('visible-page');
+        if (page.parentNode === this._pagesEl) this._pagesEl.removeChild(page);
+    }
+
     /** Inject (or remove) the automatic back button on the visible page. */
     private _syncBackButton(page: AdwNavigationPage): void {
-        // Pop is possible only when there is a page below this one on the stack.
-        const poppable = this._stack.indexOf(page) > 0 && page.canPop && !page.hasAttribute('no-back-button');
-        if (!poppable) {
+        if (!this._state.canGoBack() || page.hasAttribute('no-back-button')) {
             this._removeBackButton(page);
             return;
         }
-        if (this._backButtons.has(page)) return;
+
+        // The tooltip is the title of the page the button REVEALS, so it can change
+        // while the button itself stays put (adw-back-button.c query_tooltip:411-417).
+        const tooltip = this._state.backButtonTooltip() ?? BACK_BUTTON_FALLBACK_TOOLTIP;
+        const existing = this._backButtons.get(page);
+        if (existing) {
+            existing.setAttribute('tooltip', tooltip);
+            return;
+        }
 
         // Find the page's header bar's start section. We surface the button into
         // the first <adw-header-bar> inside the page content, the way
@@ -327,7 +465,7 @@ export class AdwNavigationView extends HTMLElement {
         back.classList.add('adw-navigation-back-button');
         back.setAttribute('icon', 'go-previous');
         back.setAttribute('flat', '');
-        back.setAttribute('tooltip', 'Back');
+        back.setAttribute('tooltip', tooltip);
         back.addEventListener('click', () => this.pop());
         // Place the back button at the very start of the header.
         start.insertBefore(back, start.firstChild);

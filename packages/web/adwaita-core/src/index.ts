@@ -12,8 +12,26 @@
 // evaluator + the transition-only `AdwBreakpoint` apply/unapply state machine,
 // and the light/dark color-scheme observable. Step 2: the toast queue
 // (one-at-a-time + auto-dismiss lifecycle) and the alert-dialog response model.
-// Step 3 (this module set): the row interaction state machines — expander
-// disclosure, combo selection, spin clamp/step, toggle-group selection.
+// Step 3: the row interaction state machines — expander disclosure, combo
+// selection, spin clamp/step, toggle-group selection. Step 4: pure derivations
+// ported straight from the libadwaita C source and held to per-input vectors
+// that BOTH renderers assert against — see `@gjsify/adwaita-core/conformance`.
+
+// --- Avatar derivation (Adw.Avatar initials + colour) ---
+export {
+    AVATAR_COLOR_COUNT,
+    AVATAR_COLORS,
+    avatarColor,
+    avatarColorClass,
+    avatarFontSize,
+    avatarInitials,
+    avatarMaxFontSize,
+    avatarMode,
+    flattenAvatarGradient,
+    gStrHash,
+    randomAvatarColorClass,
+} from './avatar.js';
+export type { AdwAvatarColor, AdwAvatarMode } from './avatar.js';
 
 // --- Responsive breakpoints (Adw.Breakpoint / Adw.BreakpointCondition) ---
 export { AdwBreakpoint, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';
@@ -66,3 +84,163 @@ export type {
     ToggleGroupStateChange,
     ToggleGroupStateListener,
 } from './rows.js';
+
+// --- GLib primitives Adwaita arithmetic is written in ---
+export { glibClamp } from './glib.js';
+
+// --- View stack selection (Adw.ViewStack) ---
+export { ViewStackState, normalizeIconName, resolvePageTitle } from './view-stack.js';
+export type {
+    AdwViewStackPageInfo,
+    AdwViewStackPageSpec,
+    ViewStackStateChange,
+    ViewStackStateListener,
+} from './view-stack.js';
+
+// --- Navigation stack (Adw.NavigationView) ---
+export { BACK_BUTTON_FALLBACK_TOOLTIP, NavigationViewState, describeNavigationDiagnostic } from './navigation-view.js';
+export type {
+    AdwNavigationPageProps,
+    NavigationChangeReason,
+    NavigationDiagnostic,
+    NavigationDiagnosticCode,
+    NavigationDiagnosticListener,
+    NavigationPagePropsResolver,
+    NavigationShortcutResult,
+    NavigationStackChange,
+    NavigationStackListener,
+    NavigationViewOptions,
+} from './navigation-view.js';
+
+// --- Sidebar selection + sections (Adw.Sidebar) ---
+export {
+    ADW_SIDEBAR_NO_SELECTION,
+    SidebarState,
+    adjustSidebarSelection,
+    clampSidebarSelection,
+    flattenSidebarItems,
+    sidebarHeaders,
+} from './sidebar.js';
+export type {
+    AdwSidebarItemSpec,
+    AdwSidebarMode,
+    AdwSidebarSectionSpec,
+    SidebarActivation,
+    SidebarFlatItem,
+    SidebarHeaderSpec,
+    SidebarItemFilter,
+    SidebarSelectionChange,
+    SidebarStateListener,
+} from './sidebar.js';
+
+// --- Entry rows (Adw.EntryRow / Adw.PasswordEntryRow) ---
+export {
+    CAPS_LOCK_ICON_NAME,
+    CAPS_LOCK_TOOLTIP,
+    EMPTY_ANIMATION_DURATION_MS,
+    ENTRY_ROW_APPLY_ICON_NAME,
+    ENTRY_ROW_APPLY_TOOLTIP,
+    ENTRY_ROW_EDIT_ICON_NAME,
+    ENTRY_ROW_MAX_LENGTH_LIMIT,
+    ENTRY_ROW_TITLE_SPACING,
+    EntryRowState,
+    PASSWORD_CONCEAL_ICON_NAME,
+    PASSWORD_CONCEAL_LABEL,
+    PASSWORD_REVEAL_ICON_NAME,
+    PASSWORD_REVEAL_LABEL,
+    PasswordEntryRowState,
+    clampEntryText,
+    entryTextLength,
+} from './entry-row.js';
+export type {
+    EntryRowActivation,
+    EntryRowRenderState,
+    EntryRowStateListener,
+    PasswordEntryRowRenderState,
+    PasswordEntryRowStateListener,
+} from './entry-row.js';
+
+// --- Split views (Adw.NavigationSplitView / Adw.OverlaySplitView) ---
+export {
+    ADW_SWIPE_BORDER,
+    DEFAULT_DPI,
+    DEFAULT_MAX_SIDEBAR_WIDTH,
+    DEFAULT_MIN_SIDEBAR_WIDTH,
+    DEFAULT_SIDEBAR_WIDTH_FRACTION,
+    DEFAULT_SIDEBAR_WIDTH_UNIT,
+    INSTANT_SPLIT_VIEW_ANIMATOR,
+    NAVIGATION_SPLIT_VIEW_CRITICALS,
+    NavigationSplitViewState,
+    OverlaySplitViewState,
+    adwLengthToPx,
+    isSidebarAtVisualStart,
+    layoutNavigationSplitView,
+    layoutOverlaySplitView,
+    measureSplitViewHorizontal,
+    resolveNaturalSidebarWidth,
+    resolveNavigationAction,
+    resolveNavigationSidebarWidth,
+    resolveNavigationStack,
+    resolveOverlaySidebarWidth,
+    resolveSidebarBounds,
+    resolveSwipeArea,
+    resolveSwipeRelease,
+    resolveSwipeSnapPoints,
+    resolveSwipeStart,
+    swipeCancelProgress,
+    tagsConflict,
+} from './split-view.js';
+export type {
+    AdwLengthUnit,
+    AdwPackType,
+    AdwTextDirection,
+    NavigationActionInput,
+    NavigationActionResult,
+    NavigationPageRef,
+    NavigationSplitViewChange,
+    NavigationSplitViewHandlers,
+    NavigationSplitViewLayout,
+    NavigationSplitViewListener,
+    NavigationSplitViewOptions,
+    NavigationSplitViewProperty,
+    NavigationStackPlan,
+    OverlaySplitViewChange,
+    OverlaySplitViewLayout,
+    OverlaySplitViewListener,
+    OverlaySplitViewOptions,
+    OverlaySplitViewProperty,
+    SidebarBounds,
+    SidebarWidthInput,
+    SidebarWidthSpec,
+    SplitViewAnimation,
+    SplitViewAnimationRequest,
+    SplitViewAnimator,
+    SplitViewMeasureInput,
+    SplitViewPane,
+    SplitViewPaneRect,
+    SwipeReleasePlan,
+} from './split-view.js';
+
+// --- Split button + menu model (Adw.SplitButton) ---
+export {
+    DEFAULT_DROPDOWN_TOOLTIP,
+    SPLIT_BUTTON_DISABLED_OPACITY,
+    SplitButtonState,
+    isSplitButtonDirection,
+    parseMenuEntries,
+    resolveDropdownTooltip,
+    splitButtonArrowIcon,
+    splitButtonPopupDirection,
+    splitButtonRootState,
+    splitButtonStyleClasses,
+} from './split-button.js';
+export type {
+    AdwMenuEntry,
+    SplitButtonChange,
+    SplitButtonContentMode,
+    SplitButtonDirection,
+    SplitButtonHalfState,
+    SplitButtonListener,
+    SplitButtonProperty,
+    SplitButtonStyleClass,
+} from './split-button.js';

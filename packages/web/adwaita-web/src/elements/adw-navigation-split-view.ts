@@ -2,20 +2,25 @@
 // visible when expanded; when `collapsed` it shows one pane at a time
 // (`show-content` decides which), mirroring Adw.NavigationSplitView's
 // push-navigation on narrow widths.
-// Attributes: collapsed, show-content, min-sidebar-width, max-sidebar-width.
+// Attributes: collapsed, show-content, min-sidebar-width, max-sidebar-width,
+//   breakpoint (an Adwaita condition, e.g. "max-width: 720px", that collapses
+//   the view by itself — the counterpart to an Adw.Breakpoint add_setter()).
 // Slots: slot="sidebar", slot="content".
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/navigationsplitview.md
 // Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { bindBreakpointSetter } from '../breakpoints.js';
+
 export class AdwNavigationSplitView extends HTMLElement {
     private _sidebarEl!: HTMLDivElement;
     private _contentEl!: HTMLDivElement;
     private _initialized = false;
+    private _disposeBreakpoint: (() => void) | undefined;
 
     static get observedAttributes() {
-        return ['collapsed', 'show-content', 'min-sidebar-width', 'max-sidebar-width'];
+        return ['collapsed', 'show-content', 'min-sidebar-width', 'max-sidebar-width', 'breakpoint'];
     }
 
     get collapsed(): boolean {
@@ -53,11 +58,18 @@ export class AdwNavigationSplitView extends HTMLElement {
         this.replaceChildren(this._sidebarEl, this._contentEl);
         this._syncWidth();
         this._syncClasses();
+        this._syncBreakpoint();
+    }
+
+    disconnectedCallback() {
+        this._disposeBreakpoint?.();
+        this._disposeBreakpoint = undefined;
     }
 
     attributeChangedCallback(name: string) {
         if (!this._initialized) return;
-        if (name === 'min-sidebar-width' || name === 'max-sidebar-width') this._syncWidth();
+        if (name === 'breakpoint') this._syncBreakpoint();
+        else if (name === 'min-sidebar-width' || name === 'max-sidebar-width') this._syncWidth();
         else {
             this._syncClasses();
             // Collapsing flips whether the sidebar is width-capped, so re-apply.
@@ -83,6 +95,14 @@ export class AdwNavigationSplitView extends HTMLElement {
     private _syncClasses() {
         this.classList.toggle('collapsed', this.collapsed);
         this.classList.toggle('show-content', this.showContent);
+    }
+
+    /** (Re)bind the `breakpoint` condition to `collapsed`. */
+    private _syncBreakpoint() {
+        this._disposeBreakpoint?.();
+        this._disposeBreakpoint = bindBreakpointSetter(this, this.getAttribute('breakpoint'), (active) => {
+            this.collapsed = active;
+        });
     }
 }
 

@@ -1,46 +1,69 @@
 // AdwNavigationView — a Libadwaita-style navigation stack for NativeScript.
 //
 // Renders a REAL NativeScript `GridLayout` that overlays its pages and shows only
-// the top of a manual page stack. Mirrors `Adw.NavigationView`: `add(page, tag)`,
-// `push(pageOrTag)`, `pop()`, `visiblePage`, and a `notify::visible-page` event.
+// the top of the navigation stack. The stack machine itself is NOT here: it lives
+// in `@gjsify/adwaita-core` (ADR 0004) and is reached through `navigation-stack.ts`,
+// the `@nativescript/core`-free adapter that the spec suite can load off-device.
+// This file is only the view-tree half — grid children, `visibility`, and turning
+// stack changes into `notify()` events.
+//
+// That split is what closed the two bugs the previous copy carried: `push()` had
+// no already-in-stack guard, so `nav.push(v)` twice produced the stack `[v, v]`
+// and needed two pops to leave one page; and a dynamically-pushed page was never
+// destroyed, so it leaked and a later `push()` resurrected the old instance where
+// GTK treats it as a brand-new page. Both went unnoticed because the only test
+// asserted against a hand-written mock with different behaviour. The lift also
+// brings the half NS never had: `remove`, `pop_to_page`/`pop_to_tag`, `replace`/
+// `replace_with_tags`, `find_page`, `get_previous_page`, tags with uniqueness,
+// titles, `can-pop`, the back-button derivation, and the `pushed`/`popped`/
+// `replaced` signals.
 //
 // FIDELITY: approximated. An NS `Frame` gives real native push/pop with the
 // platform's slide animation but requires each page to be a `Page`/`Frame`-routed
 // module — too heavy for a drop-in widget and it imposes its own header chrome.
-// This instead keeps a manual stack of plain `View`s in a single `GridLayout`,
-// showing the top via `visibility` toggles. COMPROMISES: (1) no slide/back-swipe
-// animation or gesture (the CSS subset has no transition; a real app can wrap this
-// in `view.animate()` or use a `Frame` for gestures); (2) no automatic back
-// button — the consumer wires a button to `pop()`. The push/pop *stack semantics*
-// are faithful.
+// This instead overlays plain `View`s in a single `GridLayout`, showing the top
+// via `visibility` toggles. COMPROMISES: (1) no slide/back-swipe animation or
+// gesture (the CSS subset has no transition; a real app can wrap this in
+// `view.animate()` or use a `Frame` for gestures); (2) no automatic back button —
+// the consumer wires a button to `pop()`, using `canGoBack()` / `backButtonTooltip()`
+// for its visibility and label. The push/pop *stack semantics* are faithful.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-navigation-view`.
+// Reference: refs/libadwaita/src/adw-navigation-view.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_navigation-view.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, View, type EventData } from '@nativescript/core';
+import { GridLayout, ItemSpec, type EventData, type View } from '@nativescript/core';
+import { describeNavigationDiagnostic } from '@gjsify/adwaita-core';
+import type { AdwNavigationPageProps, NavigationShortcutResult } from '@gjsify/adwaita-core';
 
-/** Event name emitted when the visible page changes. Mirrors GObject `notify::visible-page`. */
-export const NOTIFY_VISIBLE_PAGE = 'notify::visible-page';
+import {
+    NOTIFY_VISIBLE_PAGE,
+    POPPED,
+    PUSHED,
+    REPLACED,
+    NsNavigationStack,
+    navigationPageClassName,
+} from './navigation-stack.js';
+import type { NsNavigationEvent } from './navigation-stack.js';
 
-/** Payload of the `notify::visible-page` event. */
-export interface NotifyVisiblePageEventData extends EventData {
-    /** The newly-visible page's tag, or `null`. */
+export { NOTIFY_VISIBLE_PAGE, POPPED, PUSHED, REPLACED };
+
+/** Payload of every navigation signal — `pushed`, `popped`, `replaced`, `notify::visible-page`. */
+export interface AdwNavigationEventData extends EventData {
+    /** The page the signal is about, or `null` (`replaced`, or an emptied view). */
+    page: View | null;
+    /** That page's tag, or `null`. */
     tag: string | null;
     /** The current navigation stack depth. */
     depth: number;
 }
 
-interface NavPage {
-    view: View;
-    tag: string | null;
-}
+/** Payload of the `notify::visible-page` event. */
+export type NotifyVisiblePageEventData = AdwNavigationEventData;
 
 export class AdwNavigationView extends GridLayout {
-    /** All registered pages (by tag), addressable by `push(tag)`. */
-    private readonly _pages: NavPage[] = [];
-    /** The live navigation stack (last entry = visible). */
-    private readonly _stack: NavPage[] = [];
+    private readonly _nav: NsNavigationStack;
 
     constructor() {
         super();
@@ -48,85 +71,187 @@ export class AdwNavigationView extends GridLayout {
         this.className = 'adw-navigation-view';
         this.addColumn(new ItemSpec(1, 'star'));
         this.addRow(new ItemSpec(1, 'star'));
+
+        this._nav = new NsNavigationStack(
+            {
+                attachPage: (view) => {
+                    view.className = navigationPageClassName(view.className);
+                    GridLayout.setColumn(view, 0);
+                    GridLayout.setRow(view, 0);
+                    this.addChild(view);
+                },
+                detachPage: (view) => this.removeChild(view),
+                setPageVisibility: (view, visibility) => {
+                    view.visibility = visibility;
+                },
+                emit: (event) => this._emit(event),
+            },
+            {
+                // The C prints these with g_critical; staying silent about a
+                // rejected push or a duplicate tag is how the old copy hid them.
+                onDiagnostic: (diagnostic) =>
+                    console.warn(`[AdwNavigationView] ${describeNavigationDiagnostic(diagnostic)}`),
+            },
+        );
     }
 
     /**
-     * Register a page (optionally with a tag for `push(tag)`). The FIRST page added
-     * is auto-pushed so the view is never empty, matching `Adw.NavigationView`.
+     * Register a page (optionally with a tag for `push(tag)`). A page added while
+     * the stack is EMPTY is pushed automatically, so the view is never blank —
+     * which also re-arms after `replace([])`.
      */
-    add(view: View, tag: string | null = null): void {
-        const page: NavPage = { view, tag };
-        view.className = `${view.className ?? ''} adw-navigation-page`.trim();
-        view.visibility = 'collapse';
-        GridLayout.setColumn(view, 0);
-        GridLayout.setRow(view, 0);
-        this.addChild(view);
-        this._pages.push(page);
+    add(view: View, tag: string | null = null, options: Omit<AdwNavigationPageProps, 'tag'> = {}): boolean {
+        return this._nav.add(view, tag, options);
+    }
 
-        if (this._stack.length === 0) {
-            this._stack.push(page);
-            this._applyVisible(false);
-        }
+    /**
+     * Remove a page (`AdwNavigationView.remove`). One that is on the stack is
+     * removed once it is POPPED. Named `removePage` rather than `remove` so the
+     * widget never shadows a member of NativeScript's own `ViewBase`, the same
+     * reason `@gjsify/adwaita-web` avoids `HTMLElement.remove()`.
+     */
+    removePage(view: View): boolean {
+        return this._nav.remove(view);
     }
 
     /** Push a page (a previously-registered tag, or a fresh view) onto the stack. */
-    push(pageOrTag: View | string): void {
-        let page: NavPage | undefined;
-        if (typeof pageOrTag === 'string') {
-            page = this._pages.find((p) => p.tag === pageOrTag);
-        } else {
-            page = this._pages.find((p) => p.view === pageOrTag);
-            if (!page) {
-                this.add(pageOrTag);
-                page = this._pages[this._pages.length - 1];
-                // add() may have auto-pushed it as the first page — avoid double push.
-                if (this._stack[this._stack.length - 1] === page) {
-                    this._applyVisible(true);
-                    return;
-                }
-            }
-        }
-        if (!page) return;
-        this._stack.push(page);
-        this._applyVisible(true);
+    push(viewOrTag: View | string, options: AdwNavigationPageProps = {}): boolean {
+        return this._nav.push(viewOrTag, options);
     }
 
-    /** Pop the top page. Returns `true` if a page was popped (stack keeps ≥1). */
+    /** Push the page carrying `tag`. */
+    pushByTag(tag: string): boolean {
+        return this._nav.pushByTag(tag);
+    }
+
+    /**
+     * Pop the top page. Returns `true` if a page was popped (the stack keeps ≥1).
+     * `can-pop` does NOT gate this — it gates {@link popFromShortcut} and the back
+     * button, exactly as libadwaita documents.
+     */
     pop(): boolean {
-        if (this._stack.length <= 1) return false;
-        this._stack.pop();
-        this._applyVisible(true);
-        return true;
+        return this._nav.pop();
     }
 
-    private _applyVisible(emit: boolean): void {
-        const top = this._stack[this._stack.length - 1];
-        for (const page of this._pages) {
-            page.view.visibility = page === top ? 'visible' : 'collapse';
-        }
-        if (emit) {
-            const data: NotifyVisiblePageEventData = {
-                eventName: NOTIFY_VISIBLE_PAGE,
-                object: this,
-                tag: top?.tag ?? null,
-                depth: this._stack.length,
-            };
-            this.notify(data);
-        }
+    /** Pop until `view` is visible, in ONE transition. */
+    popToPage(view: View): boolean {
+        return this._nav.popToPage(view);
+    }
+
+    /** Pop until the page carrying `tag` is visible. */
+    popToTag(tag: string): boolean {
+        return this._nav.popToTag(tag);
+    }
+
+    /** Replace the whole stack; the last entry becomes visible. Never animates. */
+    replace(entries: ReadonlyArray<View | string | null>): void {
+        this._nav.replace(entries);
+    }
+
+    /** Replace the stack with the pages carrying `tags`. */
+    replaceWithTags(tags: readonly string[]): void {
+        this._nav.replaceWithTags(tags);
+    }
+
+    /** The page with this tag, or `null`. */
+    findPage(tag: string): View | null {
+        return this._nav.findPage(tag);
+    }
+
+    /** The page popping `view` would reveal, or `null`. */
+    getPreviousPage(view: View): View | null {
+        return this._nav.getPreviousPage(view);
+    }
+
+    /** Set a page's tag. Rejected when another page already owns it. */
+    setPageTag(view: View, tag: string | null): boolean {
+        return this._nav.setTag(view, tag);
+    }
+
+    /** Set a page's title — used as the NEXT page's back-button tooltip. */
+    setPageTitle(view: View, title: string): boolean {
+        return this._nav.setTitle(view, title);
+    }
+
+    /** Set a page's `can-pop`, gating the shortcuts and a back button. */
+    setPageCanPop(view: View, canPop: boolean): boolean {
+        return this._nav.setCanPop(view, canPop);
+    }
+
+    /** Whether a back button belongs on the visible page. */
+    canGoBack(): boolean {
+        return this._nav.canGoBack();
+    }
+
+    /** The back button's label/tooltip — the previous page's title, or `null` when there is none. */
+    backButtonTooltip(fallback?: string): string | null {
+        return this._nav.backButtonTooltip(fallback);
+    }
+
+    /** The `can-pop`-aware pop, for a hardware/software back button. */
+    popFromShortcut(): NavigationShortcutResult {
+        return this._nav.popFromShortcut();
+    }
+
+    /** Escape-to-pop, gated on {@link popOnEscape}. */
+    popFromEscape(): NavigationShortcutResult {
+        return this._nav.popFromEscape();
     }
 
     /** The currently-visible page view, or `null`. */
     get visiblePage(): View | null {
-        return this._stack[this._stack.length - 1]?.view ?? null;
+        return this._nav.visiblePage;
     }
 
     /** The currently-visible page tag, or `null`. */
     get visiblePageTag(): string | null {
-        return this._stack[this._stack.length - 1]?.tag ?? null;
+        return this._nav.visiblePageTag;
     }
 
     /** The current navigation stack depth. */
     get depth(): number {
-        return this._stack.length;
+        return this._nav.depth;
+    }
+
+    /** The navigation stack, bottom-first. */
+    get navigationStack(): readonly View[] {
+        return this._nav.stack;
+    }
+
+    /** Every registered page — static and dynamically pushed. */
+    get pages(): readonly View[] {
+        return this._nav.pages;
+    }
+
+    /**
+     * `Adw.NavigationView:animate-transitions`. Kept for API parity: the NS CSS
+     * subset has no transition, so the swap is instant either way.
+     */
+    get animateTransitions(): boolean {
+        return this._nav.animateTransitions;
+    }
+
+    set animateTransitions(value: boolean) {
+        this._nav.setAnimateTransitions(value);
+    }
+
+    /** `Adw.NavigationView:pop-on-escape` — consulted by {@link popFromEscape}. */
+    get popOnEscape(): boolean {
+        return this._nav.popOnEscape;
+    }
+
+    set popOnEscape(value: boolean) {
+        this._nav.setPopOnEscape(value);
+    }
+
+    private _emit(event: NsNavigationEvent): void {
+        const data: AdwNavigationEventData = {
+            eventName: event.name,
+            object: this,
+            page: event.page,
+            tag: event.tag,
+            depth: event.depth,
+        };
+        this.notify(data);
     }
 }

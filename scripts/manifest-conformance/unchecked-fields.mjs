@@ -25,11 +25,6 @@ export const UNCHECKED_FIELDS = {
         'Build-time only: names package.json fields the bundler bakes into the bundle as defines. It promises nothing ' +
         'about a shipped artifact, so there is no on-disk fact a conformance rule could compare it against. Listed ' +
         'here rather than silently ignored so the judgement is reviewable.',
-    nativescriptPlatforms:
-        'FINDING (pre-existing). Declares the `ios`/`android` subset a NativeScript-axis package supports. Unlike ' +
-        '`gjsify.platforms` there is no committed artifact per platform to check it against today, so a rule would ' +
-        'have to assert something weaker (e.g. that a declared platform has a matching `*.ios.ts`/`*.android.ts` ' +
-        'variant where the package ships platform-resolved sources). Deferred.',
     flatpak:
         'Configuration for `gjsify flatpak` (manifest path, app id, runtime versions), consumed by that command and ' +
         'validated by the four flatpak e2e suites when it is used. Not a promise about a shipped file. Listed rather ' +

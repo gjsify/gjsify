@@ -20,6 +20,10 @@ if (typeof document !== 'undefined' && !document.getElementById('adwaita-web-sty
     document.head.appendChild(style);
 }
 
+// Responsive breakpoints: the browser size source for `@gjsify/adwaita-core`'s
+// `AdwBreakpoint`, and the `breakpoint="…"` attribute wiring the split views use.
+export { addBreakpoints, bindBreakpointSetter } from './breakpoints.js';
+
 // Register custom elements (side-effect imports)
 export { AdwAvatar } from './elements/adw-avatar.js';
 export { AdwBanner } from './elements/adw-banner.js';
