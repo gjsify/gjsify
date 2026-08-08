@@ -21,11 +21,12 @@
 // specifier at module-eval and is unresolvable on GJS/Node.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
-// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (menubutton arrow)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
+//            (menubutton arrow :451-469 — and the splitbutton override at :621-623)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { splitButtonArrowIcon } from '@gjsify/adwaita-core';
-import type { AdwMenuEntry, SplitButtonDirection, SplitButtonState } from '@gjsify/adwaita-core';
+import type { AdwArrowIcon, AdwMenuEntry, SplitButtonDirection, SplitButtonState } from '@gjsify/adwaita-core';
 import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
 import { panDownSymbolic, panEndSymbolic, panStartSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 
@@ -45,8 +46,14 @@ export const MENU_CANCEL_LABEL = 'Cancel';
  */
 const DISAMBIGUATOR = '\u200B';
 
-/** The libadwaita arrow glyph names mapped to real Adwaita symbolic SVGs. */
-const ARROW_SVGS: Readonly<Record<string, string>> = {
+/**
+ * The libadwaita arrow glyph names mapped to real Adwaita symbolic SVGs.
+ *
+ * Keyed by {@link AdwArrowIcon} and therefore TOTAL: which glyph a direction gets
+ * is decided in core, and a glyph this table has no SVG for is a compile error
+ * rather than a fallback arrow.
+ */
+export const ARROW_SVGS: Readonly<Record<AdwArrowIcon, string>> = {
     'open-menu-symbolic': openMenuSymbolic,
     'pan-down-symbolic': panDownSymbolic,
     'pan-up-symbolic': panUpSymbolic,
@@ -103,9 +110,13 @@ export function resolveMenuChoice(sheetActions: readonly string[], chosen: strin
     return sheetActions.indexOf(chosen);
 }
 
-/** The arrow SVG for a direction, keyed off the core's glyph map. */
+/**
+ * The arrow SVG for a direction, keyed off the SPLIT BUTTON's glyph map — so
+ * `none` is the down caret (_buttons.scss:621-623), not the hamburger this widget
+ * used to render for it.
+ */
 export function splitButtonArrowSvg(direction: SplitButtonDirection): string {
-    return ARROW_SVGS[splitButtonArrowIcon(direction)] ?? panDownSymbolic;
+    return ARROW_SVGS[splitButtonArrowIcon(direction)];
 }
 
 /**

@@ -29,6 +29,7 @@ import {
     SPLIT_BUTTON_TOOLTIP_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 import {
+    ARROW_SVGS,
     MENU_CANCEL_LABEL,
     menuSheetActions,
     resolveMenuChoice,
@@ -199,15 +200,25 @@ export const AdwSplitButtonNsTest = async () => {
             await it(`${direction} draws ${arrowIcon} — ${rule}`, () => {
                 const svg = splitButtonArrowSvg(direction);
                 expect(svg.startsWith('<svg')).toBe(true);
-                // `none` is the row that matters: it pops DOWN but must not draw
-                // the down arrow.
-                if (direction === 'none') expect(svg).not.toBe(splitButtonArrowSvg('down'));
+                expect(svg).toBe(ARROW_SVGS[arrowIcon]);
             });
         }
 
-        await it('gives all five directions distinct glyphs', () => {
+        await it('`none` draws the DOWN caret, not the open-menu hamburger (_buttons.scss:621-623)', () => {
+            // This widget rendered `openMenuSymbolic` here for its whole life,
+            // because core's glyph table was read off the PLAIN `menubutton
+            // arrow.none` rule (:454-456) and the `splitbutton` block overrides it.
+            expect(splitButtonArrowSvg('none')).toBe(splitButtonArrowSvg('down'));
+            expect(splitButtonArrowSvg('none')).not.toBe(ARROW_SVGS['open-menu-symbolic']);
+        });
+
+        await it('gives the five directions FOUR distinct glyphs — none and down coincide', () => {
             const svgs = SPLIT_BUTTON_DIRECTION_VECTORS.map((vector) => splitButtonArrowSvg(vector.direction));
-            expect(new Set(svgs).size).toBe(SPLIT_BUTTON_DIRECTION_VECTORS.length);
+            expect(new Set(svgs).size).toBe(4);
+            // The four that are NOT the override are still all different, so a
+            // collapsed map cannot hide behind the `none === down` row.
+            const directional = SPLIT_BUTTON_DIRECTION_VECTORS.filter((vector) => vector.direction !== 'none');
+            expect(new Set(directional.map((vector) => splitButtonArrowSvg(vector.direction))).size).toBe(4);
         });
     });
 

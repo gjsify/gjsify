@@ -66,6 +66,14 @@ function rootStyleClasses(el: AdwSplitButton): string[] {
     return ['image-button', 'text-button'].filter((cls) => el.classList.contains(cls));
 }
 
+/** The arrow node's mask class for a direction, mounted and read back off the DOM. */
+function arrowClass(direction: string): string {
+    const { el, host } = mount({ direction });
+    const className = (dropdownHalf(el).querySelector('.adw-icon') as HTMLElement).className;
+    host.remove();
+    return className;
+}
+
 export const AdwSplitButtonTest = async () => {
     await describe('adw-split-button content (libadwaita conformance vectors)', async () => {
         for (const vector of SPLIT_BUTTON_CONTENT_VECTORS) {
@@ -204,12 +212,20 @@ export const AdwSplitButtonTest = async () => {
                 expect(el.direction).toBe(direction);
                 const arrow = dropdownHalf(el).querySelector('.adw-icon') as HTMLElement;
                 expect(arrow.className.startsWith('adw-icon adw-icon--')).toBe(true);
-                // `none` pops down but must NOT draw the down arrow.
-                if (direction === 'none') expect(arrow.classList.contains('adw-icon--open-menu')).toBe(true);
                 if (direction === 'up') expect(arrow.style.transform).toBe('rotate(180deg)');
                 host.remove();
             });
         }
+
+        await it('`none` draws the DOWN caret, not the open-menu hamburger (_buttons.scss:621-623)', () => {
+            // The element used to key its mask table by DIRECTION and put
+            // `open-menu` on `none`, which is the PLAIN menubutton glyph
+            // (:454-456). Inside a `splitbutton` that rule is overridden, so the
+            // symbolic name now comes from `splitButtonArrowIcon` and only the
+            // glyph→mask mapping is still decided here.
+            expect(arrowClass('none')).toBe(arrowClass('down'));
+            expect(arrowClass('none').includes('adw-icon--open-menu')).toBe(false);
+        });
 
         await it('ignores a direction that is not a GtkArrowType', () => {
             const { el, host } = mount({ direction: 'sideways' });

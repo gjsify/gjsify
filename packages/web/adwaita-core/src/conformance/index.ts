@@ -17,6 +17,24 @@
 // units where GLib hashes UTF-8 bytes — so every accented name got the wrong
 // colour in both. Nothing in the build was in a position to notice.
 //
+// WRITING A VECTOR: CITE THE SELECTOR THAT WINS THE CASCADE
+//
+// A vector derived from the same reading of the source as the implementation
+// cannot catch a MISREADING of that source — it only pins the misreading down, and
+// then ships it under the word "conformance". So a `rule` that cites CSS must name
+// the most SPECIFIC selector that applies to the widget under test, and say so
+// when a less specific one is being beaten.
+//
+// The incident: `SPLIT_BUTTON_DIRECTION_VECTORS` pinned `direction="none"` to
+// `open-menu-symbolic`, citing `_buttons.scss:451-453`. That is the PLAIN
+// `menubutton arrow` block. 167 lines further down, inside `splitbutton { … }`,
+// `> menubutton > button > arrow.none` re-declares the glyph as
+// `pan-down-symbolic` (:621-623) — four element selectors plus a class, against
+// two plus a class, so the split button never drew the hamburger in GTK. Both
+// renderers drew it anyway, for the whole life of the module, and the vector
+// asserted they were right. Grep the whole stylesheet for the node you are
+// citing, not just the block you found it in first.
+//
 // Vectors are opt-in via this subpath rather than the package root so shipping
 // applications never bundle the test corpus.
 //
@@ -146,6 +164,7 @@ export type {
 
 // --- Split button + menu model (Adw.SplitButton) vectors ---
 export {
+    MENU_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_CONTENT_VECTORS,
     SPLIT_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_DROPDOWN_VECTORS,

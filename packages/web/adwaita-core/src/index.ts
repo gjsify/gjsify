@@ -238,6 +238,8 @@ export {
     SPLIT_BUTTON_DISABLED_OPACITY,
     SplitButtonState,
     isSplitButtonDirection,
+    menuButtonArrowIcon,
+    menuButtonPopupDirection,
     parseMenuEntries,
     resolveDropdownTooltip,
     splitButtonArrowIcon,
@@ -246,6 +248,7 @@ export {
     splitButtonStyleClasses,
 } from './split-button.js';
 export type {
+    AdwArrowIcon,
     AdwMenuEntry,
     SplitButtonChange,
     SplitButtonContentMode,

@@ -29,6 +29,10 @@
 // shared vectors in `@gjsify/adwaita-core/conformance` now pin this element to
 // the C source — see `src/split-button.spec.ts`.
 //
+// The last piece of that copy to go was the direction→arrow table, which
+// outlived the lift and drew the `open-menu` hamburger for `direction="none"`.
+// Only the glyph→mask-class mapping is a renderer concern; see ARROW_MASK_CLASSES.
+//
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
 // Reference: refs/adwaita-web/adwaita-web/scss/_split_button.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -40,9 +44,10 @@ import {
     isSplitButtonDirection,
     parseMenuEntries,
     resolveDropdownTooltip,
+    splitButtonArrowIcon,
     splitButtonRootState,
 } from '@gjsify/adwaita-core';
-import type { AdwMenuEntry, SplitButtonChange, SplitButtonDirection } from '@gjsify/adwaita-core';
+import type { AdwArrowIcon, AdwMenuEntry, SplitButtonChange, SplitButtonDirection } from '@gjsify/adwaita-core';
 
 const VARIANT_CLASSES: Record<string, string> = {
     flat: 'flat',
@@ -51,16 +56,27 @@ const VARIANT_CLASSES: Record<string, string> = {
 };
 
 /**
- * libadwaita's arrow glyphs mapped onto the mask classes `_icons.generated.scss`
- * actually ships. `pan-up-symbolic` has no mask here, so `up` reuses the
- * `go-down` mask flipped — the alternative is a blank arrow.
+ * libadwaita's arrow GLYPH NAMES mapped onto the mask classes
+ * `_icons.generated.scss` actually ships. Renderer-specific by nature: the icon
+ * set here is the `go-*` family, so no `pan-*` mask exists to map onto.
+ *
+ * WHICH glyph a direction gets is NOT decided here — {@link splitButtonArrowIcon}
+ * owns that, and this table is keyed by its output rather than by direction. That
+ * split is the point: keying by direction is how this element came to draw the
+ * `open-menu` hamburger for `direction="none"`, where a split button draws the
+ * down caret (`splitbutton > menubutton > button > arrow.none`,
+ * _buttons.scss:621-623). The mask mapping is a fact about our asset set; the
+ * glyph choice is a fact about libadwaita, and only one of them lives here.
+ *
+ * `pan-up-symbolic` has no mask at all, so it reuses `go-down` flipped by the
+ * caller — the alternative is a blank arrow.
  */
-const ARROW_CLASSES: Readonly<Record<SplitButtonDirection, string>> = {
-    none: 'open-menu',
-    down: 'go-down',
-    up: 'go-down',
-    left: 'go-previous',
-    right: 'go-next',
+const ARROW_MASK_CLASSES: Readonly<Record<AdwArrowIcon, string>> = {
+    'open-menu-symbolic': 'open-menu',
+    'pan-down-symbolic': 'go-down',
+    'pan-up-symbolic': 'go-down',
+    'pan-start-symbolic': 'go-previous',
+    'pan-end-symbolic': 'go-next',
 };
 
 /**
@@ -370,9 +386,11 @@ export class AdwSplitButton extends HTMLElement {
     /** The dropdown half: arrow glyph, tooltip/accessible name, expanded state. */
     private _renderDropdown(): void {
         const { direction, open } = this._state;
-        this._arrowEl.className = `adw-icon adw-icon--${ARROW_CLASSES[direction]}`;
-        // No pan-up mask ships yet, so `up` is the down arrow turned over.
-        this._arrowEl.style.transform = direction === 'up' ? 'rotate(180deg)' : '';
+        const glyph = splitButtonArrowIcon(direction);
+        this._arrowEl.className = `adw-icon adw-icon--${ARROW_MASK_CLASSES[glyph]}`;
+        // No pan-up mask ships yet, so it is the down arrow turned over. Keyed off
+        // the GLYPH, not the direction: the flip belongs to the mask substitution.
+        this._arrowEl.style.transform = glyph === 'pan-up-symbolic' ? 'rotate(180deg)' : '';
 
         // An empty value RESTORES the translated default (adw-split-button.c:1044-1051)
         // instead of leaving the button without an accessible name.
