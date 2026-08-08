@@ -29,6 +29,59 @@ function mount(attrs = ''): { view: AdwOverlaySplitView; host: HTMLElement } {
     return { view: host.querySelector('adw-overlay-split-view') as AdwOverlaySplitView, host };
 }
 
+/** The parts of `OverlaySplitViewSnapshot` a DOM renderer actually publishes. */
+interface DomSnapshot {
+    showSidebar: boolean;
+    collapsed: boolean;
+    shieldVisible: boolean;
+    sidebarFocusable: boolean;
+    contentFocusable: boolean;
+}
+
+/**
+ * Read the whole derived state back OUT of the DOM.
+ *
+ * Asserting only `showSidebar`/`collapsed` is what let `pin-sidebar` fall out of
+ * `observedAttributes` unnoticed: both of those still agreed, because the vectors
+ * only ever set the attribute in markup, where `connectedCallback` reads it
+ * directly. Every field the element publishes is checked here instead.
+ *
+ * `showProgress` is the one snapshot field with no DOM surface — the element
+ * paints the reveal from the `collapsed`/`show-sidebar` classes rather than a
+ * numeric progress (a continuous reveal is not implemented). `shieldVisible` is
+ * derived from it (`collapsed && showProgress > 0`), so a progress bug still
+ * shows up here.
+ */
+function domSnapshot(view: AdwOverlaySplitView): DomSnapshot {
+    const backdrop = view.querySelector('.adw-osv-backdrop') as HTMLElement;
+    const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+    const content = view.querySelector('.adw-osv-content') as HTMLElement;
+    return {
+        showSidebar: view.classList.contains('show-sidebar'),
+        collapsed: view.classList.contains('collapsed'),
+        shieldVisible: !backdrop.hidden,
+        sidebarFocusable: sidebar.getAttribute('aria-hidden') === 'false',
+        contentFocusable: content.getAttribute('aria-hidden') === 'false',
+    };
+}
+
+/** The same five fields, taken from a conformance snapshot. */
+function expectedSnapshot(snapshot: {
+    showSidebar: boolean;
+    collapsed: boolean;
+    shieldVisible: boolean;
+    sidebarFocusable: boolean;
+    contentFocusable: boolean;
+}): DomSnapshot {
+    return {
+        showSidebar: snapshot.showSidebar,
+        collapsed: snapshot.collapsed,
+        shieldVisible: snapshot.shieldVisible,
+        sidebarFocusable: snapshot.sidebarFocusable,
+        contentFocusable: snapshot.contentFocusable,
+    };
+}
+
 export const AdwSplitViewsTest = async () => {
     await describe('adw-overlay-split-view defaults (Adw.OverlaySplitView properties)', async () => {
         await it('shows the sidebar with no attributes at all, like GTK does', () => {
@@ -78,13 +131,50 @@ export const AdwSplitViewsTest = async () => {
                 const { view, host } = mount(attrs);
                 expect(view.showSidebar).toBe(before.showSidebar);
                 expect(view.collapsed).toBe(before.collapsed);
+                expect(domSnapshot(view)).toStrictEqual(expectedSnapshot(before));
 
                 view.collapsed = setCollapsed;
                 expect(view.showSidebar).toBe(after.showSidebar);
                 expect(view.collapsed).toBe(after.collapsed);
+                expect(domSnapshot(view)).toStrictEqual(expectedSnapshot(after));
                 host.remove();
             });
         }
+
+        await it('honours pin-sidebar set AFTER construction, not only in markup', () => {
+            // The regression the vector loop above cannot see: it only ever puts
+            // `pin-sidebar` in the markup, which `connectedCallback` reads directly.
+            // With the attribute missing from `observedAttributes` the
+            // `_readAttribute` branch was dead, so pinning a live element silently
+            // did nothing and the next collapse still hid the sidebar.
+            const { view, host } = mount();
+            view.setAttribute('pin-sidebar', '');
+
+            view.collapsed = true;
+            expect(domSnapshot(view)).toStrictEqual({
+                showSidebar: true,
+                collapsed: true,
+                shieldVisible: true,
+                sidebarFocusable: true,
+                contentFocusable: false,
+            });
+            host.remove();
+        });
+
+        await it('unpins again when the attribute is removed', () => {
+            const { view, host } = mount('pin-sidebar');
+            view.removeAttribute('pin-sidebar');
+
+            view.collapsed = true;
+            expect(domSnapshot(view)).toStrictEqual({
+                showSidebar: false,
+                collapsed: true,
+                shieldVisible: false,
+                sidebarFocusable: false,
+                contentFocusable: true,
+            });
+            host.remove();
+        });
     });
 
     await describe('adw-overlay-split-view derived state reaches the DOM', async () => {

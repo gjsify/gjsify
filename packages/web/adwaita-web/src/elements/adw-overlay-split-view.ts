@@ -49,10 +49,18 @@ export class AdwOverlaySplitView extends HTMLElement {
     /** Re-entrancy guard for {@link _reflectShowSidebar}. */
     private _reflecting = false;
 
+    /**
+     * Every attribute {@link _readAttribute} handles must be listed here — an
+     * unobserved attribute never reaches `attributeChangedCallback`, so its branch
+     * is DEAD after construction. `pin-sidebar` was missing, which made the
+     * property that suppresses the collapse coupling settable only in the markup
+     * a parser saw: `view.setAttribute('pin-sidebar', '')` did nothing at all.
+     */
     static get observedAttributes() {
         return [
             'show-sidebar',
             'collapsed',
+            'pin-sidebar',
             'sidebar-position',
             'min-sidebar-width',
             'max-sidebar-width',
