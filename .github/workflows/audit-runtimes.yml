@@ -106,6 +106,15 @@ jobs:
       - name: Check build:infra is bundler-free before the bundler
         run: node scripts/check-build-infra-order.mjs
 
+      # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
+      # asks a different question on darwin and win32, and CANNOT fail on Linux —
+      # so this pipeline is structurally blind to it and the OS legs pay for it on
+      # `main`. #1039 merged three of them and reddened macos-suites and
+      # windows-suites for eight hours. This is the part of that class a
+      # Linux-only run can see. Incident + rule in the script header.
+      - name: Check no spec spells a POSIX constant as a Linux number
+        run: node scripts/check-spec-posix-literals.mjs
+
       # Prose that a change resurrects after the base branch deleted it. Git
       # merges that WITHOUT a conflict — the merge base has neither wording, so
       # "replace these paragraphs with those" is an ordinary edit — which is how
@@ -323,6 +332,15 @@ jobs:
       # `@gjsify/napi` did not publish. Incident + rule in the script header.
       - name: Check build:infra is bundler-free before the bundler
         run: node scripts/check-build-infra-order.mjs
+
+      # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
+      # asks a different question on darwin and win32, and CANNOT fail on Linux —
+      # so this pipeline is structurally blind to it and the OS legs pay for it on
+      # `main`. #1039 merged three of them and reddened macos-suites and
+      # windows-suites for eight hours. This is the part of that class a
+      # Linux-only run can see. Incident + rule in the script header.
+      - name: Check no spec spells a POSIX constant as a Linux number
+        run: node scripts/check-spec-posix-literals.mjs
 
       - name: Check the PR-title type list still matches commitlint
         run: node scripts/check-pr-title-types.mjs
