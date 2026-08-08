@@ -43,6 +43,12 @@ export { AdwHeaderBar } from './elements/adw-header-bar.js';
 export { AdwWindowTitle } from './elements/adw-window-title.js';
 export { AdwButton } from './elements/adw-button.js';
 export { AdwButtonContent } from './elements/adw-button-content.js';
+// The ONE symbolic-icon node and the ONE toggle. Exported before the widgets
+// that build them so the barrel's definition order matches theirs; each host
+// ALSO imports them directly, which is what actually guarantees the tags are
+// defined before a server-rendered host upgrades.
+export { AdwIcon, createAdwIcon } from './elements/adw-icon.js';
+export { AdwSwitch } from './elements/adw-switch.js';
 // The ONE popover surface. Exported before its three hosts so the barrel's own
 // definition order matches theirs; each host ALSO imports it directly, which is
 // what actually guarantees `adw-popover` is defined before a server-rendered

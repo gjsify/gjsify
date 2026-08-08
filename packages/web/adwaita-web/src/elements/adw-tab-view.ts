@@ -61,17 +61,13 @@
 // Reference: refs/adwaita-web/adwaita-web/scss/_tabs.scss
 // Reference: packages/nativescript-bridge/adwaita/src/widgets/adw-tab-view.ts (NS twin)
 // Copyright (c) 2020-2022 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// tab icon + indicator nodes are <adw-icon>.
 
-import {
-    TabViewState,
-    normalizeIconName,
-    tabCloseVisible,
-    tabIconState,
-    tabTooltip,
-    tabsRevealed,
-} from '@gjsify/adwaita-core';
+import { TabViewState, tabCloseVisible, tabIconState, tabTooltip, tabsRevealed } from '@gjsify/adwaita-core';
 import type { AdwTabPageSpec, AdwTabPageState, TabViewPagesChange, TabViewSelectionChange } from '@gjsify/adwaita-core';
+
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 /** A page descriptor as `pages` exposes it. */
 export type AdwTabViewPage = AdwTabPageState<HTMLElement>;
@@ -81,16 +77,6 @@ export type AdwTabViewPageSpec = AdwTabPageSpec<HTMLElement>;
 
 /** The live `<adw-tab-page>` properties, each mapped onto a state setter. */
 const PAGE_ATTRIBUTES = ['title', 'tooltip', 'icon', 'indicator-icon', 'loading', 'needs-attention', 'pinned'];
-
-/**
- * The mask-image class list for an icon NAME, or `''` for none — the same
- * `adw-icon adw-icon--<name>` convention every other icon in this package uses.
- * The `-symbolic` strip is that convention, not C: the name reaches `GtkImage`
- * untouched there.
- */
-function iconClass(name: string | null): string {
-    return name === null || name === '' ? '' : ` adw-icon adw-icon--${normalizeIconName(name)}`;
-}
 
 /**
  * A single page. Declared as a child of <adw-tab-view>; the element itself
@@ -521,21 +507,17 @@ export class AdwTabView extends HTMLElement {
         tab.setAttribute('role', 'tab');
         tab.dataset.pageId = page.id;
 
-        // Decorative mask-image spans, the same convention every other icon in
-        // this package uses (`adw-icon adw-icon--<name>`).
-        const icon = document.createElement('span');
-        icon.className = 'adw-tab-icon';
-        icon.setAttribute('aria-hidden', 'true');
+        // Decorative mask-image nodes — <adw-icon> carries the convention (and
+        // the `-symbolic` strip, which is that convention and not C: the name
+        // reaches `GtkImage` untouched there).
+        const icon = createAdwIcon(null, 'adw-tab-icon');
         tab.appendChild(icon);
 
         const label = document.createElement('span');
         label.className = 'adw-tab-title';
         tab.appendChild(label);
 
-        const indicator = document.createElement('span');
-        indicator.className = 'adw-tab-indicator';
-        indicator.setAttribute('aria-hidden', 'true');
-        tab.appendChild(indicator);
+        tab.appendChild(createAdwIcon(null, 'adw-tab-indicator'));
 
         // Close affordance — a small flat button drawn with a CSS "×" glyph (no
         // symbolic close icon ships in @gjsify/adwaita-icons). `can-focus=False`
@@ -603,14 +585,15 @@ export class AdwTabView extends HTMLElement {
         tab.classList.toggle('closing', page.closing);
 
         const icons = tabIconState(page, this.getAttribute('default-icon'));
-        const icon = tab.querySelector('.adw-tab-icon') as HTMLElement | null;
+        const icon = tab.querySelector('.adw-tab-icon') as AdwIcon | null;
         if (icon) {
-            icon.className = `adw-tab-icon${iconClass(icons.icon)}${icons.spinner ? ' loading' : ''}`;
+            icon.iconName = icons.icon;
+            icon.classList.toggle('loading', icons.spinner);
             icon.hidden = !icons.iconVisible;
         }
-        const indicator = tab.querySelector('.adw-tab-indicator') as HTMLElement | null;
+        const indicator = tab.querySelector('.adw-tab-indicator') as AdwIcon | null;
         if (indicator) {
-            indicator.className = `adw-tab-indicator${iconClass(page.indicatorIcon)}`;
+            indicator.iconName = page.indicatorIcon;
             indicator.hidden = !icons.indicatorVisible;
         }
         this._refreshCloseVisibility(id);

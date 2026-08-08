@@ -17,7 +17,7 @@
 //   title/subtitle text column added to match Adw.ComboRow; the selection state
 //   machine composed from @gjsify/adwaita-core.
 
-import { ComboState, deriveRowLabels } from '@gjsify/adwaita-core';
+import { ComboState, deriveRowLabels, normalizeComboOptions } from '@gjsify/adwaita-core';
 
 export class AdwComboRow extends HTMLElement {
     private _select!: HTMLSelectElement;
@@ -46,8 +46,10 @@ export class AdwComboRow extends HTMLElement {
 
         const items: string[] = JSON.parse(this.getAttribute('items') || '[]');
         // Seed the headless state BEFORE subscribing, so building the initial DOM
-        // below is not driven by a change notification.
-        this._state.setOptions(items.map((item) => ({ label: item, value: item })));
+        // below is not driven by a change notification. The string→descriptor
+        // mapping is core's: `<adw-drop-down>` had its own, richer copy, so the
+        // two selectors accepted different option vocabularies.
+        this._state.setOptions(normalizeComboOptions(items));
         this._state.setSelectedIndex(parseInt(this.getAttribute('selected') || '0', 10));
         const selectedIdx = this._state.selectedIndex;
 

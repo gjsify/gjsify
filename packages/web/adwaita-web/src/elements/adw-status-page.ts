@@ -4,10 +4,13 @@
 // Reference: refs/adwaita-web/adwaita-web/scss/_status_page.scss
 // Reference: refs/libadwaita/src/stylesheet/widgets/_status-page.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// icon node is <adw-icon>.
+
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 export class AdwStatusPage extends HTMLElement {
-    private _iconEl!: HTMLSpanElement;
+    private _iconEl!: AdwIcon;
     private _titleEl!: HTMLSpanElement;
     private _descEl!: HTMLSpanElement;
     private _childEl!: HTMLDivElement;
@@ -23,9 +26,7 @@ export class AdwStatusPage extends HTMLElement {
 
         const children = Array.from(this.childNodes);
 
-        this._iconEl = document.createElement('span');
-        this._iconEl.className = 'adw-status-page-icon adw-icon';
-        this._iconEl.setAttribute('aria-hidden', 'true');
+        this._iconEl = createAdwIcon(null, 'adw-status-page-icon');
 
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-status-page-title';
@@ -46,10 +47,9 @@ export class AdwStatusPage extends HTMLElement {
     }
 
     private _render() {
-        const icon = (this.getAttribute('icon') ?? '').replace(/-symbolic$/, '');
-        // Swap the icon mask class (keep the base + size class).
-        this._iconEl.className = `adw-status-page-icon adw-icon${icon ? ` adw-icon--${icon}` : ''}`;
-        this._iconEl.hidden = icon.length === 0;
+        // The element swaps the mask class and keeps the size class.
+        this._iconEl.iconName = this.getAttribute('icon');
+        this._iconEl.hidden = this._iconEl.resolvedIconName === '';
 
         const title = this.getAttribute('title') ?? '';
         this._titleEl.textContent = title;

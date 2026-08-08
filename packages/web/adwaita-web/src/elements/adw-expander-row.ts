@@ -18,27 +18,50 @@
 // `notify::expanded` event. `@gjsify/adwaita-nativescript` composes the same
 // state machine, so both ports share one behaviour.
 //
+// The optional enable switch is `<adw-switch>`. Both the markup and the
+// stylesheet block behind it used to be hand-built copies of
+// `<adw-switch-row>`'s — `_expander_row.scss:73-121` was character-for-character
+// `_switch_row.scss:15-63` — because `.adw-switch` was nested inside
+// `adw-switch-row {` and unusable from here.
+//
 // Reference: refs/adwaita-web/adwaita-web/scss/_expander_row.scss
 // Reference: refs/libadwaita/src/stylesheet/widgets/_expander-row.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// disclosure state machine composed from @gjsify/adwaita-core.
+// disclosure state machine composed from @gjsify/adwaita-core, the enable
+// switch from <adw-switch> and the chevron from <adw-icon>.
 
 import { ExpanderState, deriveRowLabels } from '@gjsify/adwaita-core';
+
+// SIDE-EFFECT imports, deliberately separate from the type import below: they
+// are what guarantee `adw-switch` / `adw-icon` are defined before this module's
+// own `customElements.define` can upgrade a server-rendered `<adw-expander-row>`
+// and build them. A combined `import { AdwSwitch }` would NOT do it — the
+// binding is only ever used in type position here, and this package compiles
+// without `verbatimModuleSyntax`, so TypeScript would elide the whole statement
+// and take the registration with it.
+import './adw-switch.js';
+import type { AdwSwitch } from './adw-switch.js';
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 export class AdwExpanderRow extends HTMLElement {
     private _headerEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
-    private _enableSwitch!: HTMLInputElement;
-    private _enableLabel!: HTMLLabelElement;
-    private _chevronEl!: HTMLSpanElement;
+    private _enableSwitch!: AdwSwitch;
+    private _chevronEl!: AdwIcon;
     private _contentEl!: HTMLDivElement;
     private _prefixEl!: HTMLDivElement;
     private _suffixEl!: HTMLDivElement;
     /** The headless expanded/collapsed disclosure state machine (ADR 0004). */
     private readonly _state = new ExpanderState();
     private _initialized = false;
+    /**
+     * Guards the enable switch's `notify::active` while WE are the ones writing
+     * it. Only a user toggle publishes `notify::enable-expansion`; a programmatic
+     * `enableExpansion = …` re-syncs the control silently, as it always has.
+     */
+    private _reflectingEnable = false;
 
     constructor() {
         super();
@@ -114,17 +137,11 @@ export class AdwExpanderRow extends HTMLElement {
 
         // Optional enable switch (the same toggle Adw.ExpanderRow shows when
         // show-enable-switch is set). Clicking it does NOT toggle the disclosure.
-        this._enableLabel = document.createElement('label');
-        this._enableLabel.className = 'adw-switch adw-expander-row-enable-switch';
-        this._enableSwitch = document.createElement('input');
-        this._enableSwitch.type = 'checkbox';
-        this._enableSwitch.checked = this.enableExpansion;
-        const slider = document.createElement('span');
-        slider.className = 'adw-switch-slider';
-        this._enableLabel.append(this._enableSwitch, slider);
+        this._enableSwitch = document.createElement('adw-switch') as AdwSwitch;
+        this._enableSwitch.classList.add('adw-expander-row-enable-switch');
+        this._enableSwitch.active = this.enableExpansion;
 
-        this._chevronEl = document.createElement('span');
-        this._chevronEl.className = 'adw-icon adw-icon--go-down adw-expander-row-chevron';
+        this._chevronEl = createAdwIcon('go-down', 'adw-expander-row-chevron');
 
         // Header prefix / suffix widget slots (Adw.ExpanderRow add_prefix/add_suffix).
         this._prefixEl = document.createElement('div');
@@ -135,7 +152,7 @@ export class AdwExpanderRow extends HTMLElement {
         this._suffixEl.className = 'adw-expander-row-suffix';
         for (const child of suffixChildren) this._suffixEl.appendChild(child);
 
-        this._headerEl.append(this._prefixEl, textEl, this._suffixEl, this._enableLabel, this._chevronEl);
+        this._headerEl.append(this._prefixEl, textEl, this._suffixEl, this._enableSwitch, this._chevronEl);
 
         // Disclosed content — a nested listbox holding the rows.
         this._contentEl = document.createElement('div');
@@ -146,7 +163,7 @@ export class AdwExpanderRow extends HTMLElement {
 
         this._headerEl.addEventListener('click', (event) => {
             // Clicks on the enable switch toggle expansion-enable, not disclosure.
-            if (this._enableLabel.contains(event.target as Node)) return;
+            if (this._enableSwitch.contains(event.target as Node)) return;
             // The core state machine flips + reflects + re-renders; the event is
             // emitted here so only a USER disclosure notifies (a programmatic
             // `expanded = …` stays silent, as it always has on this port).
@@ -157,12 +174,19 @@ export class AdwExpanderRow extends HTMLElement {
             }
         });
 
-        this._enableSwitch.addEventListener('change', () => {
-            this.setAttribute('enable-expansion', this._enableSwitch.checked ? 'true' : 'false');
+        this._enableSwitch.addEventListener('notify::active', (event) => {
+            // The switch's own notify is stopped at the row: the row publishes
+            // `notify::enable-expansion`, and letting an identically-shaped
+            // `notify::active` past would put a second, differently-named event
+            // for the same user action on every ancestor listener.
+            event.stopPropagation();
+            if (this._reflectingEnable) return;
+            const enabled = this._enableSwitch.active;
+            this.setAttribute('enable-expansion', enabled ? 'true' : 'false');
             this.dispatchEvent(
                 new CustomEvent('notify::enable-expansion', {
                     bubbles: true,
-                    detail: { enableExpansion: this._enableSwitch.checked },
+                    detail: { enableExpansion: enabled },
                 }),
             );
         });
@@ -194,8 +218,11 @@ export class AdwExpanderRow extends HTMLElement {
         this._subtitleEl.hidden = !labels.subtitleVisible;
 
         const showSwitch = this.hasAttribute('show-enable-switch');
-        this._enableLabel.hidden = !showSwitch;
-        this._enableSwitch.checked = this.enableExpansion;
+        this._enableSwitch.hidden = !showSwitch;
+        // OUR write, not the user's — see `_reflectingEnable`.
+        this._reflectingEnable = true;
+        this._enableSwitch.active = this.enableExpansion;
+        this._reflectingEnable = false;
 
         this._prefixEl.hidden = this._prefixEl.childElementCount === 0;
         this._suffixEl.hidden = this._suffixEl.childElementCount === 0;

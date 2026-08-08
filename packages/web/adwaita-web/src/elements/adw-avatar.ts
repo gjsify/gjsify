@@ -4,7 +4,8 @@
 //   icon (symbolic fallback name, with or without -symbolic).
 // Reference: refs/adwaita-web/adwaita-web/scss/_avatar.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// fallback icon node is <adw-icon>.
 //
 // The two derivations — initials from the name, and the palette colour the name
 // hashes to — are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004) as
@@ -17,9 +18,11 @@
 
 import { avatarColor, avatarFontSize, avatarInitials, avatarMaxFontSize, avatarMode } from '@gjsify/adwaita-core';
 
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+
 export class AdwAvatar extends HTMLElement {
     private _textEl!: HTMLSpanElement;
-    private _iconEl!: HTMLSpanElement;
+    private _iconEl!: AdwIcon;
     private _initialized = false;
 
     static get observedAttributes() {
@@ -33,9 +36,7 @@ export class AdwAvatar extends HTMLElement {
         this._textEl = document.createElement('span');
         this._textEl.className = 'adw-avatar-text';
 
-        this._iconEl = document.createElement('span');
-        this._iconEl.className = 'adw-avatar-icon adw-icon';
-        this._iconEl.setAttribute('aria-hidden', 'true');
+        this._iconEl = createAdwIcon(null, 'adw-avatar-icon');
 
         this.replaceChildren(this._textEl, this._iconEl);
         this._render();
@@ -71,10 +72,11 @@ export class AdwAvatar extends HTMLElement {
             this.style.backgroundImage = '';
             this.style.color = '';
             this._textEl.hidden = true;
-            const icon = (this.getAttribute('icon') ?? 'avatar-default').replace(/-symbolic$/, '');
-            this._iconEl.className = `adw-avatar-icon adw-icon adw-icon--${icon}`;
-            this._iconEl.style.width = `${Math.round(size * 0.55)}px`;
-            this._iconEl.style.height = `${Math.round(size * 0.55)}px`;
+            this._iconEl.iconName = this.getAttribute('icon') ?? 'avatar-default';
+            // The glyph scales with the avatar: `size` sizes the BOX and the mask
+            // together, which is what `.adw-avatar-icon`'s `mask-size: contain`
+            // was there to approximate.
+            this._iconEl.size = Math.round(size * 0.55);
             this._iconEl.hidden = false;
         }
     }

@@ -28,6 +28,8 @@ import {
     WINDOW_TITLE_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 
+import { normalizeIconName } from '@gjsify/adwaita-core';
+
 import type { AdwActionRow } from './elements/adw-action-row.js';
 import type { AdwSwitchRow } from './elements/adw-switch-row.js';
 import type { AdwWindowTitle } from './elements/adw-window-title.js';
@@ -255,15 +257,25 @@ export const AdwActionRowsTest = async () => {
                 setAttr(row, 'start-icon-name', vector.startIconName);
                 setAttr(row, 'end-icon-name', vector.endIconName);
 
-                const icons = Array.from(row.querySelectorAll('span[aria-hidden="true"]')) as HTMLElement[];
+                // The two `image.icon.{start,end}` nodes are <adw-icon> now, not
+                // hand-rolled decorative spans.
+                const icons = Array.from(row.querySelectorAll('adw-icon')) as HTMLElement[];
                 expect(icons.length).toBe(2);
                 expect(!icons[0]!.hidden).toBe(vector.startIconVisible);
                 expect(!icons[1]!.hidden).toBe(vector.endIconVisible);
+                // The mask class is the NORMALIZED name: the generated classes
+                // never carry `-symbolic`, and this row used to interpolate the
+                // raw one — so `start-icon-name="list-add-symbolic"` asked for a
+                // class that has never existed and drew an empty box.
                 if (vector.startIconVisible) {
-                    expect(icons[0]!.classList.contains(`adw-icon--${vector.startIconName}`)).toBe(true);
+                    expect(icons[0]!.classList.contains(`adw-icon--${normalizeIconName(vector.startIconName)}`)).toBe(
+                        true,
+                    );
                 }
                 if (vector.endIconVisible) {
-                    expect(icons[1]!.classList.contains(`adw-icon--${vector.endIconName}`)).toBe(true);
+                    expect(icons[1]!.classList.contains(`adw-icon--${normalizeIconName(vector.endIconName)}`)).toBe(
+                        true,
+                    );
                 }
                 host.remove();
             });

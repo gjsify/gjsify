@@ -103,6 +103,10 @@ export type {
     ButtonContentTextVector,
 } from './button-content.js';
 
+// --- Row state machines (Adw.ComboRow / Gtk.DropDown selection) vectors ---
+export { COMBO_SELECTION_VECTORS } from './rows.js';
+export type { ComboSelectionStep, ComboSelectionVector } from './rows.js';
+
 // --- View stack selection (Adw.ViewStack) vectors ---
 export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';
 export type {

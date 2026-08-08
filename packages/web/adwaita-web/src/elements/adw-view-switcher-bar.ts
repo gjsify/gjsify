@@ -39,12 +39,13 @@
 import { ViewSwitcherBarState, buildViewSwitcherButtons, viewSwitcherPagesFromStack } from '@gjsify/adwaita-core';
 
 import type { AdwViewStack } from './adw-view-stack.js';
-import { applyDescription, applyIndicator, switcherIconClass } from './view-switcher-dom.js';
+import { applyDescription, applyIndicator, applySwitcherIcon } from './view-switcher-dom.js';
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 /** The DOM nodes one bar button owns — the bar paints the derived model onto them. */
 interface BarButtonNodes {
     button: HTMLButtonElement;
-    icon: HTMLSpanElement;
+    icon: AdwIcon;
     label: HTMLSpanElement;
     indicator: HTMLSpanElement;
 }
@@ -205,7 +206,7 @@ export class AdwViewSwitcherBar extends HTMLElement {
             nodes.button.setAttribute('aria-selected', String(model.selected));
             nodes.button.tabIndex = model.selected ? 0 : -1;
 
-            nodes.icon.className = switcherIconClass(model.iconName, 'adw-view-switcher-bar-icon');
+            applySwitcherIcon(nodes.icon, model.iconName);
             nodes.label.textContent = model.label;
             nodes.label.hidden = model.label.length === 0;
             applyIndicator(nodes.indicator, model.badgeLabel, model.needsAttention);
@@ -224,8 +225,7 @@ export class AdwViewSwitcherBar extends HTMLElement {
         button.className = 'adw-view-switcher-bar-button';
         button.setAttribute('role', 'tab');
 
-        const icon = document.createElement('span');
-        icon.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
+        const icon = createAdwIcon(null, 'adw-view-switcher-bar-icon');
 
         const label = document.createElement('span');
         label.className = 'adw-view-switcher-bar-label';

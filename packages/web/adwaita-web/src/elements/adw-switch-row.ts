@@ -17,17 +17,31 @@
 //     activatable-widget at the slider (C:160-162), so the title is part of the
 //     control; here only the handle itself worked.
 //
+// The TOGGLE itself is `<adw-switch>`. It used to be built here by hand —
+// `label.adw-switch > input[type=checkbox] + span.adw-switch-slider` — and
+// `<adw-expander-row>` built the identical thing, over a stylesheet block that
+// was a character-for-character copy of this row's.
+//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
 //   title/subtitle text column added to match Adw.SwitchRow; the active state
-//   composed from @gjsify/adwaita-core.
+//   composed from @gjsify/adwaita-core; the toggle markup from <adw-switch>.
 
 import { SwitchRowState, deriveRowLabels } from '@gjsify/adwaita-core';
 
+// SIDE-EFFECT import, deliberately separate from the type import below: it is
+// what guarantees `adw-switch` is defined before this module's own
+// `customElements.define` can upgrade a server-rendered `<adw-switch-row>` and
+// build one. A combined `import { AdwSwitch }` would NOT do it — the binding is
+// only ever used in type position here, and this package compiles without
+// `verbatimModuleSyntax`, so TypeScript would elide the whole statement and take
+// the registration with it.
+import './adw-switch.js';
+import type { AdwSwitch } from './adw-switch.js';
+
 export class AdwSwitchRow extends HTMLElement {
-    private _checkbox!: HTMLInputElement;
-    private _switchLabel!: HTMLLabelElement;
+    private _switchEl!: AdwSwitch;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
     /** The headless active flag + its notify rule (ADR 0004). */
@@ -60,32 +74,31 @@ export class AdwSwitchRow extends HTMLElement {
         this._subtitleEl.className = 'adw-row-subtitle';
         text.append(this._titleEl, this._subtitleEl);
 
-        const label = document.createElement('label');
-        label.className = 'adw-switch';
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        const slider = document.createElement('span');
-        slider.className = 'adw-switch-slider';
-        label.append(input, slider);
+        this._switchEl = document.createElement('adw-switch') as AdwSwitch;
 
-        this.replaceChildren(text, label);
+        this.replaceChildren(text, this._switchEl);
 
-        this._checkbox = input;
-        this._switchLabel = label;
         this._state.setActive(this.hasAttribute('active'));
-        this._checkbox.checked = this._state.active;
+        this._switchEl.active = this._state.active;
         // `gtk_widget_class_set_accessible_role (…, GTK_ACCESSIBLE_ROLE_SWITCH)`
         // plus the initial CHECKED state (adw-switch-row.c:147, :155-158).
         this.setAttribute('role', 'switch');
         this.setAttribute('aria-checked', String(this._state.active));
 
-        this._checkbox.addEventListener('change', () => this._apply(this._state.setActive(this._checkbox.checked)));
+        this._switchEl.addEventListener('notify::active', (event) => {
+            // The ROW is the public event surface — libadwaita has exactly one
+            // notify path for this property (`slider_notify_active_cb`, C:66-77).
+            // Letting the composed switch's own identically-named event escape
+            // would make every listener on the row see each toggle twice.
+            event.stopPropagation();
+            this._apply(this._state.setActive(this._switchEl.active));
+        });
 
         // Activating the row inverts the state (adw-switch-row.c:23-27). A click
-        // that landed on the switch itself is already handled by the checkbox —
+        // that landed on the switch itself is already handled by the switch —
         // toggling again here would immediately undo it.
         this.addEventListener('click', (event) => {
-            if (event.target instanceof Node && this._switchLabel.contains(event.target)) return;
+            if (event.target instanceof Node && this._switchEl.contains(event.target)) return;
             this._apply(this._state.activate());
         });
 
@@ -105,7 +118,9 @@ export class AdwSwitchRow extends HTMLElement {
      */
     private _apply(changed: boolean) {
         if (!changed) return;
-        this._checkbox.checked = this._state.active;
+        // Idempotent on the switch's side too, so this write does not bounce
+        // back through the `notify::active` listener as a second transition.
+        this._switchEl.active = this._state.active;
         this.toggleAttribute('active', this._state.active);
         // The a11y state libadwaita updates alongside the notify (C:71-74).
         this.setAttribute('aria-checked', String(this._state.active));

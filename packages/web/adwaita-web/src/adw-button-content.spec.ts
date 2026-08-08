@@ -13,7 +13,7 @@
 // `image-missing` (:355-356).
 import { describe, expect, it } from '@gjsify/unit';
 
-import { BUTTON_CONTENT_STYLE_CLASS } from '@gjsify/adwaita-core';
+import { BUTTON_CONTENT_STYLE_CLASS, normalizeIconName } from '@gjsify/adwaita-core';
 import {
     BUTTON_CONTENT_ELLIPSIZE_VECTORS,
     BUTTON_CONTENT_ICON_VECTORS,
@@ -114,11 +114,23 @@ export const AdwButtonContentTest = async () => {
 
     await describe('adw-button-content icon slot (libadwaita conformance vectors)', async () => {
         for (const { iconName, resolved, rule } of BUTTON_CONTENT_ICON_VECTORS) {
-            if (iconName === ' ') continue; // a space is not a usable CSS class token
             await it(`${JSON.stringify(iconName)} → ${JSON.stringify(resolved)} — ${rule}`, () => {
                 const { el, host } = mount({ 'icon-name': iconName, label: 'Download' });
                 const icon = iconEl(el);
-                expect(icon.classList.contains(`adw-icon--${resolved}`)).toBe(true);
+                // The core resolution (`resolved`) is the NAME; the mask class is
+                // this package's convention on top of it, and the two differ —
+                // the generated classes never carry `-symbolic`. This element used
+                // to interpolate the raw name, so `icon-name="folder-download-symbolic"`
+                // asked for `.adw-icon--folder-download-symbolic`, a class that has
+                // never existed, and drew an empty 16px box. `<adw-icon>` applies
+                // `normalizeIconName`, which also makes the `' '` row assertable
+                // instead of skipped: a space is not one CSS token, so it draws
+                // nothing rather than injecting a second class.
+                const maskName = normalizeIconName(resolved);
+                expect(icon.classList.contains(`adw-icon--${maskName}`)).toBe(maskName !== '');
+                expect([...icon.classList].filter((c) => c.startsWith('adw-icon--')).length).toBe(
+                    maskName === '' ? 0 : 1,
+                );
                 // The image node is never hidden — `gtk_widget_set_visible` is
                 // called on the LABEL only (:300, :398).
                 expect(icon.hidden).toBe(false);

@@ -68,6 +68,8 @@ import type { AdwArrowIcon, AdwMenuEntry, SplitButtonChange, SplitButtonDirectio
 import './adw-popover.js';
 import type { AdwPopover } from './adw-popover.js';
 
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+
 const VARIANT_CLASSES: Record<string, string> = {
     flat: 'flat',
     suggested: 'suggested-action',
@@ -98,18 +100,11 @@ const ARROW_MASK_CLASSES: Readonly<Record<AdwArrowIcon, string>> = {
     'pan-end-symbolic': 'go-next',
 };
 
-/**
- * The symbolic name as a single CSS class token.
- *
- * The `-symbolic` suffix is stripped (GTK names carry it, the mask classes do
- * not), and anything that is not a class token is dropped rather than
- * interpolated: `icon-name="a b"` used to inject a stray `b` class onto the icon
- * span.
- */
-function iconClass(name: string): string {
-    const base = name.replace(/-symbolic$/, '');
-    return /^[A-Za-z0-9_-]+$/.test(base) ? ` adw-icon--${base}` : '';
-}
+// The `-symbolic` strip AND the token guard that used to live here — as
+// `iconClass`, the ONLY copy of the guard in the package — are
+// `normalizeIconName`'s now, applied by <adw-icon>. Five other places built the
+// same class without the guard; keeping the correct one private is what let
+// them stay wrong.
 
 /**
  * Direction → the CSS axis `<adw-popover>` places the surface on. WHICH
@@ -128,7 +123,7 @@ export class AdwSplitButton extends HTMLElement {
     private readonly _state = new SplitButtonState();
     private _actionEl!: HTMLButtonElement;
     private _dropdownEl!: HTMLButtonElement;
-    private _arrowEl!: HTMLSpanElement;
+    private _arrowEl!: AdwIcon;
     private _menuEl!: AdwPopover;
     /** Inline text content, captured before we take over the subtree. */
     private _inlineLabel = '';
@@ -251,8 +246,7 @@ export class AdwSplitButton extends HTMLElement {
         this._dropdownEl.type = 'button';
         this._dropdownEl.className = 'adw-split-button-dropdown';
         this._dropdownEl.setAttribute('aria-haspopup', 'menu');
-        this._arrowEl = document.createElement('span');
-        this._arrowEl.setAttribute('aria-hidden', 'true');
+        this._arrowEl = createAdwIcon(null);
         this._dropdownEl.appendChild(this._arrowEl);
 
         this._menuEl = document.createElement('adw-popover') as AdwPopover;
@@ -409,10 +403,7 @@ export class AdwSplitButton extends HTMLElement {
         this._actionEl.classList.toggle('icon-only', mode === 'icon');
 
         if (mode === 'icon' && iconName !== null) {
-            const icon = document.createElement('span');
-            icon.className = `adw-icon${iconClass(iconName)}`;
-            icon.setAttribute('aria-hidden', 'true');
-            this._actionEl.appendChild(icon);
+            this._actionEl.appendChild(createAdwIcon(iconName));
         } else if (mode === 'label' && label !== null) {
             // Never trimmed: two spaces are a valid label and render as one.
             this._actionEl.appendChild(document.createTextNode(label));
@@ -430,7 +421,7 @@ export class AdwSplitButton extends HTMLElement {
     private _renderDropdown(): void {
         const { direction, open } = this._state;
         const glyph = splitButtonArrowIcon(direction);
-        this._arrowEl.className = `adw-icon adw-icon--${ARROW_MASK_CLASSES[glyph]}`;
+        this._arrowEl.iconName = ARROW_MASK_CLASSES[glyph];
         // No pan-up mask ships yet, so it is the down arrow turned over. Keyed off
         // the GLYPH, not the direction: the flip belongs to the mask substitution.
         this._arrowEl.style.transform = glyph === 'pan-up-symbolic' ? 'rotate(180deg)' : '';

@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { ComboState, ExpanderState, SpinState, ToggleGroupState } from './rows.js';
+import { ComboState, ExpanderState, SpinState, ToggleGroupState, normalizeComboOptions } from './rows.js';
 import type { ComboStateChange, SpinStateChange, ToggleGroupStateChange } from './rows.js';
 
 export default async () => {
@@ -145,6 +145,62 @@ export default async () => {
             expect(state.select(1)).toBe(false); // already selected → no-op
             expect(state.select(-1)).toBe(false); // negative → no-op
             expect(changes.length).toBe(1);
+        });
+
+        await it('an interactive select cannot pick past the end either', () => {
+            // A pick is a pick OF something. Only the negative half used to be
+            // guarded, so `select(99)` moved the index somewhere selectedValue
+            // calls "no selection" — an interactive path reaching a state the
+            // chooser has no row for.
+            const state = twoOptions();
+            const changes: ComboStateChange[] = [];
+            state.subscribe((c) => changes.push(c));
+            expect(state.select(2)).toBe(false); // one past the end
+            expect(state.select(99)).toBe(false);
+            expect(state.select(Number.NaN)).toBe(false);
+            expect(state.selectedIndex).toBe(0);
+            expect(changes.length).toBe(0);
+        });
+
+        await it('hasIndex answers the bounds question both renderers ask', () => {
+            const state = twoOptions();
+            expect(state.hasIndex(0)).toBe(true);
+            expect(state.hasIndex(1)).toBe(true);
+            expect(state.hasIndex(2)).toBe(false);
+            expect(state.hasIndex(-1)).toBe(false);
+            expect(state.hasIndex(Number.NaN)).toBe(false);
+            expect(state.hasIndex(Number.POSITIVE_INFINITY)).toBe(false);
+            // The permissive programmatic model is unchanged: setSelectedIndex
+            // still accepts a position hasIndex rejects, and the selection then
+            // reads empty (GTK's INVALID_LIST_POSITION spelling).
+            expect(state.setSelectedIndex(5)).toBe(true);
+            expect(state.hasIndex(state.selectedIndex)).toBe(false);
+            expect(state.selectedValue).toBe('');
+        });
+
+        await it('normalizeComboOptions takes strings, descriptors and half-descriptors', () => {
+            expect(normalizeComboOptions(['One', 'Two'])).toStrictEqual([
+                { value: 'One', label: 'One' },
+                { value: 'Two', label: 'Two' },
+            ]);
+            expect(normalizeComboOptions([{ value: 'a', label: 'Apple' }])).toStrictEqual([
+                { value: 'a', label: 'Apple' },
+            ]);
+            // Either half stands in for the missing other, so a label-only entry
+            // stays addressable by value instead of becoming `undefined`.
+            expect(normalizeComboOptions([{ label: 'Apple' }])).toStrictEqual([{ value: 'Apple', label: 'Apple' }]);
+            expect(normalizeComboOptions([{ value: 'a' }])).toStrictEqual([{ value: 'a', label: 'a' }]);
+            // Non-strings are coerced, not dropped — the JSON attribute path can
+            // deliver numbers.
+            expect(normalizeComboOptions([{ value: 7, label: 7 }])).toStrictEqual([{ value: '7', label: '7' }]);
+            // A neither-half entry is the empty option, not a crash.
+            expect(normalizeComboOptions([{}])).toStrictEqual([{ value: '', label: '' }]);
+        });
+
+        await it('normalizeComboOptions guards a non-array', () => {
+            expect(normalizeComboOptions(null)).toStrictEqual([]);
+            expect(normalizeComboOptions(undefined)).toStrictEqual([]);
+            expect(normalizeComboOptions({ length: 2 } as unknown as string[])).toStrictEqual([]);
         });
 
         await it('coerces a non-finite programmatic index to 0', () => {

@@ -114,32 +114,9 @@ adw-button {
   }
 }
 
-// Symbolic icon rendered via a CSS mask so `currentColor` drives the fill,
-// keeping it theme-aware (same technique as the combo-row dropdown arrow).
-.adw-icon {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  background-color: currentColor;
-  mask-size: 16px;
-  mask-repeat: no-repeat;
-  mask-position: center;
-  -webkit-mask-size: 16px;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-
-  // `display: inline-block` (author CSS) otherwise beats the UA `[hidden]`
-  // rule, so a hidden icon (e.g. an avatar's fallback icon while initials
-  // show) would still render as a solid maskless square. Honor `hidden`.
-  &[hidden] {
-    display: none;
-  }
-}
-
-// The per-name `.adw-icon--<name>` mask classes are generated into
-// scss/_icons.generated.scss by scripts/build-scss.mjs (one entry per icon in
-// its ICONS map), so adding an icon is a single map edit.
+// The symbolic icon (`.adw-icon`) used to be declared here, because the first
+// widget that needed one was the button. It is `scss/_icon.scss` now — every
+// other widget needs one too, and `<adw-icon>` is an element.
 
 // Linked group — adjacent buttons share edges (segmented control).
 .adw-linked {

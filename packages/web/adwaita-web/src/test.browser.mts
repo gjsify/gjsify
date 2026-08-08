@@ -35,10 +35,14 @@ import { AdwWrapBoxTest } from './adw-wrap-box.spec.js';
 import { AdwHeaderBarTest } from './adw-header-bar.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
+import { AdwIconTest } from './adw-icon.spec.js';
+import { AdwSwitchTest } from './adw-switch.spec.js';
 
 run({
     AdwBannerTest,
     AdwButtonContentTest,
+    AdwIconTest,
+    AdwSwitchTest,
     AdwAvatarTest,
     AdwCarouselTest,
     AdwBottomSheetTest,

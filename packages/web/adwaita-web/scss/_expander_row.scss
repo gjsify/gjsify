@@ -69,56 +69,11 @@ adw-expander-row {
     transform: rotate(180deg);
   }
 
-  // The optional enable switch reuses the shared .adw-switch markup.
-  .adw-expander-row-enable-switch {
-    position: relative;
-    display: inline-block;
-    width: 44px;
-    height: 24px;
-    flex-shrink: 0;
-
-    input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-      position: absolute;
-    }
-
-    .adw-switch-slider {
-      position: absolute;
-      cursor: pointer;
-      inset: 0;
-      background-color: var(--switch-off-bg);
-      border-radius: 12px;
-      transition: background-color 0.15s ease-out;
-
-      &::before {
-        content: "";
-        position: absolute;
-        height: 20px;
-        width: 20px;
-        left: 2px;
-        bottom: 2px;
-        background-color: var(--switch-knob-bg);
-        border-radius: 50%;
-        transition: transform 0.15s ease-out;
-        box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
-      }
-    }
-
-    input:checked + .adw-switch-slider {
-      background-color: var(--accent-bg-color);
-
-      &::before {
-        transform: translateX(20px);
-      }
-    }
-
-    input:focus-visible + .adw-switch-slider {
-      outline: 2px solid var(--accent-color);
-      outline-offset: 2px;
-    }
-  }
+  // The optional enable switch is `<adw-switch>` and needs no geometry of its
+  // own — `.adw-expander-row-enable-switch` is a query/override hook only. This
+  // block used to be a character-for-character copy of the switch row's toggle
+  // (44×24 box, hidden input, 20px knob, translateX(20px), focus ring), because
+  // `.adw-switch` was nested inside `adw-switch-row {` and unreachable from here.
 
   // Disclosed content — a nested listbox of rows, hidden until expanded. The
   // nested surface is slightly inset/recessed, the way libadwaita draws it.

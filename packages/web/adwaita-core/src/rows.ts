@@ -98,6 +98,38 @@ export interface AdwComboOption {
     value: string;
 }
 
+/**
+ * What an author may write for one option before {@link normalizeComboOptions}
+ * has seen it: a bare string (value === label, the `Gtk.StringList` case), or a
+ * partial descriptor where either half may stand in for the other.
+ */
+export type AdwComboOptionInput = string | { value?: unknown; label?: unknown };
+
+/**
+ * Raw authored options → the stable `{ value, label }` descriptors every combo
+ * surface works with.
+ *
+ * A bare string is both value and label (`Gtk.StringList`'s model, which is what
+ * `Adw.ComboRow` is fed in the common case). In a descriptor either half stands
+ * in for the missing other, so `{ label: 'Apple' }` is addressable by the value
+ * `'Apple'` rather than by `undefined`.
+ *
+ * ONE home, because there were two: `<adw-combo-row>` mapped `string[]` inline
+ * from its JSON attribute while `<adw-drop-down>` carried a private
+ * `normalizeOptions` that also handled descriptors — so the same widget family
+ * accepted two different option vocabularies depending on which element you
+ * reached for.
+ */
+export function normalizeComboOptions(raw: ReadonlyArray<AdwComboOptionInput> | null | undefined): AdwComboOption[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((entry) => {
+        if (typeof entry === 'string') return { value: entry, label: entry };
+        const value = entry?.value === undefined ? String(entry?.label ?? '') : String(entry.value);
+        const label = entry?.label === undefined ? value : String(entry.label);
+        return { value, label };
+    });
+}
+
 /** Payload of a {@link ComboState} change. */
 export interface ComboStateChange {
     /** The (new) selected index. */
@@ -197,12 +229,37 @@ export class ComboState {
     }
 
     /**
+     * Whether `index` addresses an option that exists.
+     *
+     * The bounds arithmetic lives here; the POLICY for a programmatic
+     * out-of-range set does not, because this tree cannot settle it:
+     * `adw_combo_row_set_selected` forwards the position straight to
+     * `gtk_single_selection_set_selected` (adw-combo-row.c:788) and documents
+     * `GTK_INVALID_LIST_POSITION` as a legal argument, but `refs/gtk` is EMPTY
+     * so what GtkSingleSelection does with it is not verifiable here. So each
+     * renderer states its own answer against this one predicate:
+     * {@link setSelectedIndex} keeps the permissive model (an index past the end
+     * is how "nothing selected" is spelled — {@link selectedValue} then reads
+     * `''`), while `<adw-drop-down>` rejects the set, as its published `selected`
+     * docs promise. Neither re-derives `index >= 0 && index < count`.
+     */
+    hasIndex(index: number): boolean {
+        return Number.isFinite(index) && index >= 0 && index < this._options.length;
+    }
+
+    /**
      * Select an option by index as a USER pick (the chooser result) — notifies
-     * `interactive: true`. A no-op (returns false) for a negative index or the
-     * already-selected one, matching the renderer's chooser guard.
+     * `interactive: true`. A no-op (returns false) for the already-selected index
+     * or one that addresses no option, matching the renderer's chooser guard.
+     *
+     * The upper bound is part of that guard: a pick is a pick OF something, so
+     * `select(99)` on a three-option model is not "select nothing", it is a
+     * chooser reporting an index the model does not have. Only the negative half
+     * used to be checked, which left the interactive path able to move the index
+     * somewhere {@link setSelectedIndex} would have called "no selection".
      */
     select(index: number): boolean {
-        if (index < 0 || index === this._selected) return false;
+        if (!this.hasIndex(index) || index === this._selected) return false;
         return this._setIndex(index, true);
     }
 

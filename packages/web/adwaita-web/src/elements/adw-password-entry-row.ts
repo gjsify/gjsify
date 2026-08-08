@@ -31,13 +31,15 @@
 
 import { PasswordEntryRowState, type PasswordEntryRowRenderState } from '@gjsify/adwaita-core';
 
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+
 import { AdwEntryRow } from './adw-entry-row.js';
 
 export class AdwPasswordEntryRow extends AdwEntryRow {
     /** The headless peek + caps-lock derivation, composing the parent row's state. */
     private readonly _password = new PasswordEntryRowState(this._state);
     private _toggle!: HTMLButtonElement;
-    private _toggleIcon!: HTMLSpanElement;
+    private _toggleIcon!: AdwIcon;
 
     static get observedAttributes(): string[] {
         return [...AdwEntryRow.observedAttributes, 'revealed'];
@@ -81,8 +83,7 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         this._toggle = document.createElement('button');
         this._toggle.type = 'button';
         this._toggle.className = `adw-button flat circular icon-only ${this._classPrefix}-toggle`;
-        this._toggleIcon = document.createElement('span');
-        this._toggleIcon.setAttribute('aria-hidden', 'true');
+        this._toggleIcon = createAdwIcon(null);
         this._toggle.append(this._toggleIcon);
         this._toggle.addEventListener('click', () => this._password.togglePeek());
         // C:152 — installed through add_suffix, so it is the FIRST suffix and a
@@ -130,7 +131,7 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         // The libadwaita name travels in `data-icon-name`; the mask class is the
         // curated @gjsify/adwaita-icons spelling of the same symbolic.
         this._toggleIcon.dataset.iconName = state.peekIconName;
-        this._toggleIcon.className = `adw-icon adw-icon--${state.peekIconName.replace('-symbolic', '')}`;
+        this._toggleIcon.iconName = state.peekIconName;
         this._toggle.title = state.peekLabel;
         this._toggle.setAttribute('aria-label', state.peekLabel);
         this._toggle.setAttribute('aria-pressed', String(state.revealed));

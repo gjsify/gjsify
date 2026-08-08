@@ -31,10 +31,12 @@
 
 import { BUTTON_ROW_ACTIVATABLE, ButtonRowState } from '@gjsify/adwaita-core';
 
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+
 export class AdwButtonRow extends HTMLElement {
     private _contentsEl!: HTMLDivElement;
-    private _startIconEl!: HTMLSpanElement;
-    private _endIconEl!: HTMLSpanElement;
+    private _startIconEl!: AdwIcon;
+    private _endIconEl!: AdwIcon;
     private _titleEl!: HTMLSpanElement;
     /** The headless title + start/end icon state (ADR 0004). */
     private readonly _state = new ButtonRowState();
@@ -50,14 +52,12 @@ export class AdwButtonRow extends HTMLElement {
         this._contentsEl = document.createElement('div');
         this._contentsEl.className = 'adw-button-row-contents';
 
-        this._startIconEl = document.createElement('span');
-        this._startIconEl.setAttribute('aria-hidden', 'true');
+        this._startIconEl = createAdwIcon(null, 'start');
 
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-button-row-title';
 
-        this._endIconEl = document.createElement('span');
-        this._endIconEl.setAttribute('aria-hidden', 'true');
+        this._endIconEl = createAdwIcon(null, 'end');
 
         this._contentsEl.append(this._startIconEl, this._titleEl, this._endIconEl);
         this.replaceChildren(this._contentsEl);
@@ -83,16 +83,21 @@ export class AdwButtonRow extends HTMLElement {
         this._titleEl.textContent = state.title;
         this._titleEl.hidden = !state.titleVisible;
 
-        this._paintIcon(this._startIconEl, state.startIconName, state.startIconVisible, 'start');
-        this._paintIcon(this._endIconEl, state.endIconName, state.endIconVisible, 'end');
+        this._paintIcon(this._startIconEl, state.startIconName, state.startIconVisible);
+        this._paintIcon(this._endIconEl, state.endIconName, state.endIconVisible);
 
         // Unconditional: an AdwButtonRow has no way to not be activatable.
         this.classList.toggle('activatable', BUTTON_ROW_ACTIVATABLE);
     }
 
-    /** Paint one of the two `image.icon.{start,end}` nodes (adw-button-row.c:39-40). */
-    private _paintIcon(el: HTMLSpanElement, iconName: string, visible: boolean, position: 'start' | 'end') {
-        el.className = visible ? `adw-icon adw-icon--${iconName} ${position}` : '';
+    /**
+     * Paint one of the two `image.icon.{start,end}` nodes (adw-button-row.c:39-40).
+     *
+     * The `start` / `end` position class is set once at construction — it is
+     * where the node sits, not what it draws — so only the name changes here.
+     */
+    private _paintIcon(el: AdwIcon, iconName: string, visible: boolean) {
+        el.iconName = visible ? iconName : null;
         el.hidden = !visible;
     }
 }

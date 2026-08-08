@@ -12,6 +12,13 @@
 // and two copies of the same `(current ± 1 + n) % n` arithmetic. This element
 // keeps only what is a menu button: the icon, the item model, the title.
 //
+// THE ICON WENT THE SAME WAY, and it is where the drift actually bit: this
+// element interpolated `class="adw-icon adw-menu-button-icon adw-icon--<name>"`
+// while `<adw-split-button>` — alone among six copies — first checked the name
+// was one CSS token. So `icon-name="a b"` shipped a stray `b` class here, and so
+// did every JSON menu entry's `icon`. Both are `<adw-icon>` now, and the guard
+// is `normalizeIconName`'s.
+//
 // Attributes:
 //   icon-name  — symbolic icon (no `-symbolic` suffix), default `open-menu`.
 //   menu-title — optional heading shown atop the popover.
@@ -49,6 +56,8 @@ import type { SplitButtonDirection } from '@gjsify/adwaita-core';
 // the registration with it.
 import './adw-popover.js';
 import type { AdwPopover } from './adw-popover.js';
+
+import { createAdwIcon } from './adw-icon.js';
 
 /** A menu entry. `id` defaults to `label` on activation; `icon` is optional. */
 export interface AdwMenuItem {
@@ -201,12 +210,10 @@ export class AdwMenuButton extends HTMLElement {
         this.classList.toggle('circular', this.hasAttribute('circular'));
         this._popoverEl.position = POPOVER_POSITIONS[menuButtonPopupDirection(this.direction)];
 
-        const icon = (this.getAttribute('icon-name') ?? 'open-menu').replace(/-symbolic$/, '');
         this._buttonEl.replaceChildren();
-        const iconEl = document.createElement('span');
-        iconEl.className = `adw-icon adw-menu-button-icon${icon ? ` adw-icon--${icon}` : ''}`;
-        iconEl.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
-        this._buttonEl.appendChild(iconEl);
+        this._buttonEl.appendChild(
+            createAdwIcon(this.getAttribute('icon-name') ?? 'open-menu', 'adw-menu-button-icon'),
+        );
         this._buttonEl.setAttribute('aria-label', this.getAttribute('menu-title') || 'Menu');
 
         this._renderMenu();
@@ -231,13 +238,11 @@ export class AdwMenuButton extends HTMLElement {
             item.setAttribute('role', 'menuitem');
             item.tabIndex = -1;
 
-            const iconName = (entry.icon ?? '').replace(/-symbolic$/, '');
-            if (iconName) {
-                const iconEl = document.createElement('span');
-                iconEl.className = `adw-icon adw-menu-button-item-icon adw-icon--${iconName}`;
-                iconEl.setAttribute('aria-hidden', 'true');
-                item.appendChild(iconEl);
-            }
+            // An entry with no USABLE icon gets no icon node at all, rather than
+            // an empty 16px box — the element itself answers whether the name
+            // resolved, so the `-symbolic`-only and bad-token cases agree.
+            const entryIcon = createAdwIcon(entry.icon ?? null, 'adw-menu-button-item-icon');
+            if (entryIcon.resolvedIconName !== '') item.appendChild(entryIcon);
             const labelEl = document.createElement('span');
             labelEl.className = 'adw-menu-button-item-label';
             labelEl.textContent = entry.label;

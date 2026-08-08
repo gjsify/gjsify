@@ -22,9 +22,12 @@
 //            (image-text-button :77-91 · splitbutton override :499-507 ·
 //             buttoncontent :626-645)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// icon node is <adw-icon>.
 
 import { BUTTON_CONTENT_STYLE_CLASS, buttonContentIconName, buttonContentLabelText } from '@gjsify/adwaita-core';
+
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 /**
  * What `gtk_widget_get_ancestor (…, GTK_TYPE_BUTTON)` (:95) looks like in the
@@ -39,7 +42,7 @@ const SPLIT_BUTTON_SELECTOR = 'adw-split-button, .adw-split-button';
 
 export class AdwButtonContent extends HTMLElement {
     private _boxEl!: HTMLDivElement;
-    private _iconEl!: HTMLSpanElement;
+    private _iconEl!: AdwIcon;
     private _labelEl!: HTMLSpanElement;
     private _initialized = false;
     /** The node currently carrying `image-text-button`, so unroot can find it. */
@@ -57,10 +60,10 @@ export class AdwButtonContent extends HTMLElement {
             this._boxEl = document.createElement('div');
             this._boxEl.className = 'adw-button-content-box';
 
-            this._iconEl = document.createElement('span');
             // The image node is GTK_ACCESSIBLE_ROLE_PRESENTATION in libadwaita —
-            // it is decorative, the label carries the accessible name.
-            this._iconEl.setAttribute('aria-hidden', 'true');
+            // it is decorative, the label carries the accessible name, which is
+            // what <adw-icon>'s own `aria-hidden` says.
+            this._iconEl = createAdwIcon(null);
 
             this._labelEl = document.createElement('span');
             this._labelEl.className = 'adw-button-content-label';
@@ -123,8 +126,7 @@ export class AdwButtonContent extends HTMLElement {
         // stays visible (:355-356). The docs at :228/:343 say the icon is not
         // shown; the code never hides it, and this follows the code — see the
         // `BUTTON_CONTENT_ICON_VECTORS` rule string.
-        const icon = buttonContentIconName(this.getAttribute('icon-name') ?? '');
-        this._iconEl.className = `adw-icon adw-icon--${icon}`;
+        this._iconEl.iconName = buttonContentIconName(this.getAttribute('icon-name') ?? '');
         this._iconEl.hidden = false;
 
         const label = this.getAttribute('label') ?? '';
