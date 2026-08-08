@@ -294,6 +294,32 @@ export type {
     PasswordEntryRowStateListener,
 } from './entry-row.js';
 
+// --- Interpolation + easing (adw_lerp, AdwEasing) ---
+export { adwLerp, easeInOutSine, easeOutCubic, inverseLerp } from './easing.js';
+
+// --- Adw.Spinner animation (AdwSpinnerPaintable's breathing arc) ---
+export {
+    ADW_SPINNER_CYCLES_PER_LOOP,
+    ADW_SPINNER_CYCLE_LENGTH,
+    ADW_SPINNER_CONTRACT_DISTANCE,
+    ADW_SPINNER_EXTEND_DISTANCE,
+    ADW_SPINNER_IDLE_DISTANCE,
+    ADW_SPINNER_MAX_ARC_LENGTH,
+    ADW_SPINNER_MIN_ARC_LENGTH,
+    ADW_SPINNER_N_CYCLES,
+    ADW_SPINNER_OVERLAP_DISTANCE,
+    ADW_SPINNER_SPIN_DURATION_MS,
+    ADW_SPINNER_START_ANGLE,
+    ADW_SPINNER_STILL_PROGRESS,
+    ADW_SPINNER_TRACK_OPACITY,
+    normalizeSpinnerAngle,
+    spinnerArc,
+    spinnerArcEnd,
+    spinnerArcStart,
+    spinnerProgressAt,
+} from './spinner.js';
+export type { SpinnerArc } from './spinner.js';
+
 // --- Length units (AdwLengthUnit — split views, wrap box, clamp) ---
 export { ADW_LENGTH_UNITS, DEFAULT_DPI, adwLengthToPx, normalizeLengthUnit } from './length-unit.js';
 export type { AdwLengthUnit } from './length-unit.js';

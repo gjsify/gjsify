@@ -473,6 +473,15 @@ export type {
 export { POPOVER_KEY_VECTORS, POPOVER_SURFACE_VECTORS } from './popover.js';
 export type { PopoverKeyVector, PopoverSurfaceVariant, PopoverSurfaceVector } from './popover.js';
 
+// --- Adw.Spinner animation vectors ---
+export {
+    SPINNER_ARC_ENVELOPE,
+    SPINNER_ARC_PHASE_VECTORS,
+    SPINNER_ARC_TOLERANCE,
+    SPINNER_CONSTANT_VECTORS,
+} from './spinner.js';
+export type { SpinnerArcShapeVector, SpinnerConstantVector } from './spinner.js';
+
 // --- Wrap box line layout, properties + child order (Adw.WrapBox) vectors ---
 export {
     WRAP_BOX_CHILD_ORDER_VECTORS,

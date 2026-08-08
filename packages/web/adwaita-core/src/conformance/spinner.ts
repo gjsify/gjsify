@@ -1,0 +1,146 @@
+// Spinner animation vectors — `AdwSpinnerPaintable`'s breathing arc.
+//
+// The geometry (`spinnerGeometry`, `resolveSpinnerSize`) lives in
+// `conformance/chrome.ts` and predates this file; what is here is the ANIMATION,
+// which issue #1066 found to be a different animation on every renderer:
+//
+//   - the browser turned in 0.8s where the C turns in 1.2, so a spinner beside
+//     a GTK one ran 1.5x too fast;
+//   - it drew a FIXED 90-degree arc (`border-top-color`) where the C's arc
+//     breathes (see the envelope below);
+//   - its track was `rgba(127, 127, 127, 0.25)` where the C strokes the WIDGET's
+//     colour at 15%, so the track was too dark and lost its hue;
+//   - the arc ends were square-cut where GSK uses `GSK_LINE_CAP_ROUND`;
+//   - `START_ANGLE` was in neither port — a constant rotation error;
+//   - `prefers-reduced-motion` STOPPED it, where the C explicitly opts out of
+//     the animation setting (`adw_animation_set_follow_enable_animations_setting
+//     (…, FALSE)`, :537). A frozen busy indicator reads as a hang.
+//
+// A SETTLED CONTRADICTION, recorded because these rows sit on top of it
+//
+// `SPINNER_SIZE_VECTORS` says a 200px request yields a 200px BOX, with the rule
+// "an oversized box stays oversized — spinnerGeometry caps the RING, not the
+// box". Both renderer suites used to assert the opposite, because their element
+// and their view WERE the ring. The C settles it: `adw_spinner_measure`
+// (adw-spinner.c:78-81) reports MIN_SIZE as both minimum and natural and has no
+// upper bound at all — `MAX_SIZE` at :15 is defined and never referenced —
+// while `adw_spinner_snapshot` (:95-99) hands the widget's real width and height
+// to the paintable, which caps only `radius` (adw-spinner-paintable.c:343) and
+// still centres on the box (:349-351). So a 200px spinner occupies 200px of
+// layout and draws a 64px ring in the middle. The core table was right; both
+// renderers now separate the box from the ring.
+//
+// Reference: refs/libadwaita/src/adw-spinner.c
+// Reference: refs/libadwaita/src/adw-spinner-paintable.c
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+
+/** How close two radian values have to be to count as equal. */
+export const SPINNER_ARC_TOLERANCE = 1e-9;
+
+/**
+ * The arc lengths actually DRAWN, in radians — measured over one cycle at 200k
+ * samples, not read off the constants.
+ *
+ * The distinction matters and is easy to get wrong: `MAX_ARC_LENGTH` is
+ * `pi * 0.9` (162 degrees), and both `get_arc_start` and `get_arc_end` lerp
+ * TOWARDS it — but each then subtracts the drift term
+ * `angle * MAX_ARC_LENGTH / cycle_length`, which is what makes the figure
+ * advance around the circle. The two ends drift together, so the visible arc
+ * peaks at **102.8 degrees**, not 162. Reading the constant as the drawn length
+ * is the obvious mistake; issue #1066 made it in its own summary table.
+ *
+ * The MINIMUM is exactly `MIN_ARC_LENGTH`, because the drift is zero at the
+ * cycle boundary where the arc is shortest.
+ */
+export const SPINNER_ARC_ENVELOPE = {
+    /** Exactly `MIN_ARC_LENGTH` — 2.7 degrees, at the cycle boundary. */
+    min: Math.PI * 0.015,
+    /** 102.815... degrees. Asserted to a tolerance, not to the last digit. */
+    max: 1.794463,
+    /** How far a measured extreme may sit from the value above. */
+    tolerance: 1e-4,
+} as const;
+
+/**
+ * `get_arc_start` / `get_arc_end` (adw-spinner-paintable.c:109-145) at the four
+ * corners of one cycle, plus the resting pose.
+ *
+ * The lengths are DERIVED from the C's own constants rather than typed in: the
+ * point of the rows is which MOMENT each is, and a hand-copied radian would be a
+ * second reading of the same arithmetic the implementation does. What they pin
+ * is the shape — that the arc is shortest at the cycle boundary, longest around
+ * the extend/contract handover, and never leaves `[MIN_ARC_LENGTH,
+ * MAX_ARC_LENGTH]`.
+ */
+export interface SpinnerArcShapeVector {
+    /** Fraction of one arc cycle, 0..1. */
+    phase: number;
+    /** What happens here. */
+    rule: string;
+}
+
+/** The moments worth naming in one arc cycle. */
+export const SPINNER_ARC_PHASE_VECTORS: ReadonlyArray<SpinnerArcShapeVector> = [
+    { phase: 0, rule: 'the cycle boundary — the arc is at MIN_ARC_LENGTH, its shortest' },
+    { phase: 0.15, rule: 'extending: ease_in_out_sine is still accelerating' },
+    { phase: 0.41, rule: 'the extend phase ends (EXTEND_DISTANCE / cycle) — the arc is at its longest' },
+    { phase: 0.6, rule: 'contracting: the leading end has started catching up' },
+    { phase: 0.66, rule: 'the contract phase ends and the idle one begins' },
+    { phase: 0.9, rule: 'idling: both ends move together, so the length holds' },
+];
+
+/** One "is this constant what the C says" expectation. */
+export interface SpinnerConstantVector {
+    /** The constant's name in the C. */
+    name: string;
+    /** Its value, as a multiple of pi where the C writes one. */
+    value: number;
+    /** Where it is defined and what the ports had instead. */
+    rule: string;
+}
+
+/**
+ * The `#define`s at adw-spinner-paintable.c:18-33 and adw-spinner.c:14-15.
+ *
+ * A constant table looks redundant next to the implementation until you read the
+ * `rule` column: five of these seven were WRONG or absent in a shipping port,
+ * and a table is what makes "the port picked its own number" fail a test rather
+ * than look like a design choice.
+ */
+export const SPINNER_CONSTANT_VECTORS: ReadonlyArray<SpinnerConstantVector> = [
+    {
+        name: 'SPIN_DURATION_MS',
+        value: 1200,
+        rule: ':20 — the browser used 0.8s, so its ring turned 1.5x too fast',
+    },
+    {
+        name: 'START_ANGLE',
+        value: Math.PI * 0.35,
+        rule: ':21 — added to both arc ends (:379-380); absent from both ports, a constant phase error',
+    },
+    {
+        name: 'CIRCLE_OPACITY',
+        value: 0.15,
+        rule: ':22 — of the WIDGET colour; the browser hardcoded rgba(127,127,127,0.25), darker and hue-independent',
+    },
+    {
+        name: 'MIN_ARC_LENGTH',
+        value: Math.PI * 0.015,
+        rule: ':24 — 2.7 degrees, the shortest arc GSK will still draw',
+    },
+    {
+        name: 'MAX_ARC_LENGTH',
+        value: Math.PI * 0.9,
+        rule: ':25 — 162 degrees; the browser drew a fixed 90 and never breathed',
+    },
+    {
+        name: 'N_CYCLES',
+        value: 53,
+        rule: ':33 — chosen so a whole number of arc cycles fits a whole number of turns',
+    },
+    {
+        name: 'MIN_SIZE',
+        value: 16,
+        rule: 'adw-spinner.c:14 — reported as BOTH minimum and natural (:78-81), so a spinner never grows on its own',
+    },
+];
