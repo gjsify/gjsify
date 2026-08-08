@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { pathCovers, splitSearchPath, systemGiLibraryDirs } from './system-gi.js';
+import { nativeCandidates, prebuildAddonPath } from './native-paths.js';
 
 // NB: node:child_process is intentionally NOT imported at module top level. It is
 // pulled in lazily (via `require` below) ONLY on the darwin re-exec path — importing
@@ -61,6 +62,167 @@ export function resolveGtkRuntimeBundle() {
         if (existsSync(libDir) && existsSync(typelibDir)) return { dir, libDir, typelibDir };
     }
     return null;
+}
+
+// ---- WHICH GTK WINS ---------------------------------------------------------
+//
+// Two GTKs can be reachable at once: a batteries-included bundle
+// (@gjsify/gtk-runtime-<os>-<arch>) and the host's own. Until now the answer was
+// implicit — "a bundle, if one is present" — and the rule keeping that safe was
+// "a bundle must NEVER be a dependency of @gjsify/node-gi", because #910 made it
+// one and a CI job that had COMPILED the addon against Homebrew GTK then re-exec'd
+// onto the BUNDLE's typelibs: wrong method entries, then a 29-minute timeout
+// (#920 reverted it). That rule protected the from-source case and left every end
+// user on Windows with no GTK at all (#1063) — nothing installs the bundle there
+// and Windows ships no system GTK.
+//
+// The repair separates two things that were tangled:
+//
+//   • WHO INSTALLS IT is not this package's business. node-gi still declares no
+//     bundle — whoever SHIPS an app declares it (for the showcases that is the
+//     gjsify CLI, which already supplies @gjsify/node-gi the same way). A
+//     from-source build therefore never receives a bundle it did not ask for,
+//     which is #910's accident removed at the source rather than caught later.
+//
+//   • WHICH ONE WINS when both are present is a POLICY — stated per-OS, and
+//     overridable.
+//
+// PER-OS DEFAULTS, and why they are spelled out rather than derived. The cheaper
+// rule "prefer a bundle wherever we ship one" gives identical answers today,
+// since bundles exist exactly for the platforms without a dependable system
+// stack. It is a trap: the day someone builds a Linux bundle (Flatpak, a CI
+// image) that rule would SILENTLY flip Linux from system-first to bundle-first
+// with nobody deciding it. Stating each default now means a new bundle cannot
+// move an existing platform's behaviour.
+//
+//   linux  → system first. dnf/apt/pacman resolve GTK *and* its typelibs
+//            correctly; that is the combination the distro tested.
+//   win32  → bundle first. There is no system GTK; a host with gvsbuild has it
+//            deliberately and stays reachable as the fallback.
+//   darwin → bundle first. Homebrew is usually present yet measurably NOT
+//            findable (gjs's own rpath points into glib's keg alone), which is
+//            the reason the darwin bundle exists at all.
+//
+// `GJSIFY_GTK_PREFER=bundle|system` overrides. Deliberately NOT the same knob as
+// `GJSIFY_GTK_RUNTIME`, which names a bundle DIRECTORY: where a bundle is and
+// which source wins are two questions, and one variable answering both leaves a
+// user unable to say "I have a bundle, use the system anyway".
+
+/** @typedef {'bundle' | 'system' | 'none'} GtkSource */
+/** @typedef {'prebuild' | 'source' | 'unknown'} AddonProvenance */
+
+/** Per-OS default: which source is consulted FIRST. See the note above. */
+export const DEFAULT_GTK_PREFERENCE = Object.freeze({
+    linux: 'system',
+    win32: 'bundle',
+    darwin: 'bundle',
+});
+
+/**
+ * Decide which GTK this process should use. PURE — every input is a parameter,
+ * so all three platforms' branches are executable from any host.
+ *
+ * The result is an ordered preference filtered by availability, never an
+ * exclusion: "prefer system" on a host with no system GTK still falls back to a
+ * bundle, because a preference that silently also means "and nothing else" turns
+ * a working setup into a hard failure.
+ *
+ * THE ONE HARD PART. A `source` addon was linked against whatever GTK the builder
+ * had, so pairing it with a bundle is not a preference but an ABI error — it is
+ * #910 exactly. The bundle is therefore dropped from the order for a from-source
+ * addon. `GJSIFY_GTK_PREFER=bundle` can still lift it, because building against a
+ * bundle on purpose is legitimate and an explicitly-set variable is consent;
+ * what #910 was is an accident nobody chose, and the DEFAULT must never
+ * reproduce it.
+ *
+ * @param {object} opts
+ * @param {NodeJS.Platform | string} opts.platform
+ * @param {boolean} opts.hasBundle a complete bundle is installed
+ * @param {boolean} opts.hasSystem a host GTK is worth trying (`hostGtkIsWorthTrying`)
+ * @param {AddonProvenance} [opts.provenance] which addon binary will load
+ * @param {string} [opts.override] raw `GJSIFY_GTK_PREFER` value, if any
+ * @returns {GtkSource}
+ */
+export function decideGtkSource({ platform, hasBundle, hasSystem, provenance = 'unknown', override }) {
+    const bundleFirst =
+        override === 'bundle' ? true : override === 'system' ? false : DEFAULT_GTK_PREFERENCE[platform] !== 'system';
+    let order = bundleFirst ? ['bundle', 'system'] : ['system', 'bundle'];
+
+    if (provenance === 'source' && override !== 'bundle') {
+        order = order.filter((source) => source !== 'bundle');
+    }
+
+    const available = { bundle: hasBundle, system: hasSystem };
+    for (const source of order) {
+        if (available[source]) return source;
+    }
+    return 'none';
+}
+
+/**
+ * Which binary `loadNative()` will pick, WITHOUT loading it.
+ *
+ * Load-bearing on Windows: the DLL search path must be set BEFORE the addon is
+ * dlopen'd, so the provenance question cannot wait until we hold the loaded
+ * module. `nativeCandidates()` is a pure, ordered list and the same one the
+ * loader walks, so probing it here cannot disagree with what actually loads.
+ *
+ * An explicit `NODE_GI_NATIVE=<path>` pin answers `unknown`, not `source`: the
+ * caller named a binary and we cannot tell what it was built against, so the safe
+ * reading is that a deliberate choice does not get the from-source veto.
+ * @returns {AddonProvenance}
+ */
+export function addonProvenance() {
+    const pinned = process.env.NODE_GI_NATIVE;
+    if (pinned && pinned !== 'build' && pinned !== 'prebuild') return 'unknown';
+    const prebuild = prebuildAddonPath();
+    for (const candidate of nativeCandidates()) {
+        if (!existsSync(candidate)) continue;
+        return candidate === prebuild ? 'prebuild' : 'source';
+    }
+    return 'unknown';
+}
+
+/**
+ * Is the HOST's own GI stack worth trying?
+ *
+ * Deliberately cheap and conservative rather than a probe that pretends to know.
+ * On linux and win32 "system" means "change nothing and let the OS loader do its
+ * job", which is always worth attempting — and on win32 the failure that follows
+ * is what produces the actionable diagnosis in `index.js` instead of a raw OS
+ * string. Only darwin has a real question, because there the loader needs the
+ * libdirs handed to it and `systemGiLibraryDirs()` is what finds them.
+ * @param {NodeJS.Platform | string} [platform]
+ * @returns {boolean}
+ */
+export function hostGtkIsWorthTrying(platform = process.platform) {
+    if (platform !== 'darwin') return true;
+    return systemGiLibraryDirs().length > 0;
+}
+
+let decidedSource = null;
+
+/**
+ * The decision for THIS process, memoized — every entry point below must reach
+ * the same answer, and re-deciding per call is how two of them drift apart.
+ * @returns {GtkSource}
+ */
+export function gtkSource() {
+    if (decidedSource === null) {
+        decidedSource = decideGtkSource({
+            platform: process.platform,
+            hasBundle: resolveGtkRuntimeBundle() !== null,
+            hasSystem: hostGtkIsWorthTrying(),
+            provenance: addonProvenance(),
+            override: process.env.GJSIFY_GTK_PREFER,
+        });
+    }
+    return decidedSource;
+}
+
+/** TEST-ONLY: drop the memoized decision so a spec can vary the environment. */
+export function resetGtkSourceForTests() {
+    decidedSource = null;
 }
 
 /**
@@ -127,9 +289,11 @@ export function maybeReexecForGtkRuntime() {
     if (typeof globalThis.imports !== 'undefined' && typeof globalThis.print === 'function') return;
     if (process.env[REEXEC_SENTINEL]) return; // already re-exec'd — the child path
 
-    // A bundle, when installed, is the whole answer and stays the ONLY entry (see
-    // the #920 note above). Without one, the host's own GI libdirs are the answer.
-    const bundle = resolveGtkRuntimeBundle();
+    // A bundle THE POLICY CHOSE is the whole answer and stays the ONLY entry (see
+    // the #920 note above). Otherwise the host's own GI libdirs are the answer —
+    // which is also what a from-source addon gets, since `gtkSource()` refuses it
+    // a bundle by default.
+    const bundle = gtkSource() === 'bundle' ? resolveGtkRuntimeBundle() : null;
     const libDirs = bundle ? [bundle.libDir] : systemGiLibraryDirs();
     if (libDirs.length === 0) return; // no bundle and no host GI stack — nothing to point at
 
@@ -180,6 +344,9 @@ export function maybeReexecForGtkRuntime() {
  */
 export function maybePrependGtkRuntimeDllPath() {
     if (process.platform !== 'win32') return; // strict no-op on every non-win32 runtime
+    // Gated on the POLICY, not on mere presence: an installed bundle does not win
+    // for a from-source addon, and `GJSIFY_GTK_PREFER=system` opts out entirely.
+    if (gtkSource() !== 'bundle') return;
     const bundle = resolveGtkRuntimeBundle();
     if (!bundle) return; // strict no-op when no bundle is present
     const binDir = bundle.libDir; // on win32 the native-code dir is gtk/bin (the DLLs)
@@ -213,6 +380,9 @@ export function maybeWireGtkWindowingEnv() {
     // so setting them in-process works on both. The only platform difference is the
     // XDG_DATA_DIRS separator (';' on win32, ':' on unix/darwin).
     if (process.platform !== 'win32' && process.platform !== 'darwin') return;
+    // Same gate as the DLL/dylib path: the runtime DATA belongs to the bundle, so
+    // it is wired only when the bundle is the source the policy picked.
+    if (gtkSource() !== 'bundle') return;
     const bundle = resolveGtkRuntimeBundle();
     if (!bundle) return; // strict no-op when no bundle is present
 
@@ -284,6 +454,7 @@ export function activateBundledGtkRuntime(native) {
     if (activated !== null) return activated || null;
     activated = false;
     if (process.platform !== 'darwin' && process.platform !== 'win32') return null;
+    if (gtkSource() !== 'bundle') return null; // the policy chose the host's GTK
 
     const bundle = resolveGtkRuntimeBundle();
     if (!bundle) return null;
