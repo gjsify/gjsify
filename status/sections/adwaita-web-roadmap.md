@@ -23,14 +23,12 @@ so a filename diff reports gaps that are not gaps. The list below was checked by
 | Missing | Source partial | Note |
 |---|---|---|
 | `<adw-checkbox>` / `<adw-radio>` | `_checkbox.scss`, `_radio.scss` | no form-control primitives yet |
-| `<adw-switch>` | `_switch.scss` | only `<adw-switch-row>` exists; the standalone control does not |
-| `<adw-popover>` | `_popover.scss` | `<adw-menu-button>` hand-rolls its own popup |
 | `<adw-progress-bar>` | `_progressbar.scss` | `<adw-spinner>` covers indeterminate only |
-| `<adw-label>` / `<adw-icon>` | `_label.scss`, `_icon.scss` | `.adw-icon` exists as a CLASS other widgets use, not as an element |
+| `<adw-label>` | `_label.scss` | no typography primitive; the widgets style their own text nodes |
 | Utility classes & layout helpers | `_box.scss`, `_listbox.scss`, `_utility_classes.scss`, `_row_types.scss` | the pieces consumers reach for when composing their own rows |
 | `<adw-shortcut-label>` | `_shortcut_label.scss` | niche; only needed by a shortcuts window |
 
 Two gaps run the other way — NativeScript has widgets the browser does not (`adw-icon`,
-`adw-image-button`, `adw-preferences-page`, `adw-slider-row`), and the browser has some
-NativeScript lacks (`adw-data-grid`, `adw-drop-down`, standalone `adw-entry`). Those show up as
-asymmetric rows in the derived matrix, so they are not restated here either.
+`adw-image-button`, `adw-preferences-page`, `adw-slider-row`), and the browser has one
+NativeScript lacks (`adw-data-grid`, whose column alignment is CSS subgrid — #1050). Those show
+up as asymmetric rows in the derived matrix, so they are not restated here either.

@@ -15,11 +15,20 @@ export type { NotifyActiveEventData } from './adw-switch-row.js';
 export { AdwEntryRow, NOTIFY_TEXT } from './adw-entry-row.js';
 export type { NotifyTextEventData } from './adw-entry-row.js';
 export { AdwPasswordEntryRow } from './adw-password-entry-row.js';
+// AdwEntry is the STANDALONE entry (the row's counterpart, not its base): no
+// core state machine — only the character arithmetic (`clampEntryText` /
+// `entryTextLength`) is shared, and it lives in `@gjsify/adwaita-core`.
+export { AdwEntry, ACTIVATE as ENTRY_ACTIVATE, NOTIFY_TEXT as NOTIFY_ENTRY_TEXT } from './adw-entry.js';
+export type { NotifyEntryTextEventData } from './adw-entry.js';
 // AdwComboRow keeps the NS render (inline value + chevron + native chooser); the
 // selection state machine (ComboState + AdwComboOption) is headless
 // (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
 export { AdwComboRow, ComboState, NOTIFY_SELECTED } from './adw-combo-row.js';
 export type { AdwComboOption, ComboStateChange, ComboStateListener, NotifySelectedEventData } from './adw-combo-row.js';
+// AdwDropDown is the STANDALONE dropdown (Gtk.DropDown's shape) over the very
+// same `ComboState` the row composes — one selection model, two surfaces.
+export { AdwDropDown, NOTIFY_SELECTED as NOTIFY_DROP_DOWN_SELECTED } from './adw-drop-down.js';
+export type { NotifyDropDownSelectedEventData } from './adw-drop-down.js';
 // AdwSpinRow keeps the NS stepper render; the clamp/step state machine (SpinState)
 // is headless (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
 export { AdwSpinRow, NOTIFY_VALUE, SpinState } from './adw-spin-row.js';
@@ -206,7 +215,9 @@ import { AdwActionRow } from './adw-action-row.js';
 import { AdwSwitchRow } from './adw-switch-row.js';
 import { AdwEntryRow } from './adw-entry-row.js';
 import { AdwPasswordEntryRow } from './adw-password-entry-row.js';
+import { AdwEntry } from './adw-entry.js';
 import { AdwComboRow } from './adw-combo-row.js';
+import { AdwDropDown } from './adw-drop-down.js';
 import { AdwSpinRow } from './adw-spin-row.js';
 import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
@@ -250,7 +261,9 @@ const ELEMENTS = {
     AdwSwitchRow,
     AdwEntryRow,
     AdwPasswordEntryRow,
+    AdwEntry,
     AdwComboRow,
+    AdwDropDown,
     AdwSpinRow,
     AdwSliderRow,
     AdwExpanderRow,
