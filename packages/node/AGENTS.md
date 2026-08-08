@@ -82,3 +82,40 @@ A bundled npm dep's `require('stream')` is resolved by rolldown (`__commonJSMin`
 Bundling wraps ESM with `__toCommonJS` → a namespace object, not a constructor; a bundled CJS `require('stream')` (pngjs, mute-stream, readable-stream, …) then dies at load with `Stream is not a constructor` / `superCtor.prototype … undefined`.
 |**Fix (active): the `"module.exports"` string-export** — for a pkg whose CJS `module.exports` must be a single callable (Node's dual shape — `stream`, `events`), add after `export default _default;`: `export { _default as 'module.exports' };` (ES2022 arbitrary-string export). Rolldown's `__toCommonJS` special-cases an OWN `"module.exports"` property on the namespace and returns it verbatim → a bundled `require('<name>')` yields the callable, normal ESM imports untouched. Engine-agnostic. Regression fixture: `packages/node/stream/src/cjs-interop.fixture.cjs` + `inheritance.spec.ts`.
 |Historical note: the esbuild-era "Fix 1" (output unwrap in `onEnd`) was NOT ported to Rolldown; "Fix 2" (`cjs-compat.cjs`) still ships but is only selected on `--app node` (above).
+
+## The OS axis — this pillar is what the macOS and Windows legs run
+
+`main.yml` is Linux-only. `macos-suites.yml` and `windows-suites.yml` run the
+Node-pillar suites (`path`, `os`, `process`, `util`, `fs`, `child_process`,
+`net`, …) and, by ADR 0018 § 5, run **on `main` and the nightly, not on your PR**.
+So a change here can be green everywhere you can see and still redden `main`.
+
+|**A POSIX literal cannot fail on Linux.** `O_CREAT` is 0o100 on Linux, 0x200 on
+darwin, 0x100 on win32; `O_APPEND` is 0o2000 vs 0x8; `EEXIST` is errno -17 vs
+libuv -4075. Take flags from `fs.constants`, assert an errno's `code`.
+`scripts/check-spec-posix-literals.mjs` gates the spellings it can see
+statically — it is a floor, not a proof.
+|**Before merging a change to a semantics spec here, ASK the OS legs** — they
+have `workflow_dispatch`: `gh workflow run "macOS suites" --ref <branch>` and
+the same for `"Windows suites"`. Two dispatches beat eight hours of red `main`.
+|**Gate a host difference with `it.failing(…, reason, { when })`, never an
+`if`** — it keeps the assertion whole and fails the run the day the host can
+satisfy it. `packages/node/fs/src/capabilities.spec.ts` is the worked example,
+including when to MEASURE a capability and when keying on the platform is the
+honest choice (a probe running under `test.gjs.mjs` asks the implementation
+under test whether the implementation is right).
+|**`it.failing` fails a run for SUCCEEDING, so a `when` that is too broad is
+itself a red build.** Two ways to get it too broad, both paid for in #1039:
+|— *reasoning about the mechanism instead of measuring it.* The
+descriptor-identity rules were gated on `/proc/self/fd` because that is how GJS
+reaches a descriptor — but on darwin, which has none, the GJS leg passes them
+anyway. A gate is a claim about a host; if you have not run it there, you have
+not checked it.
+|— *forgetting that a `when` may need the LEG.* Where the divergence is OURS the
+marker must carry `IS_GJS`, or it fires on a Node leg that passes. Where the
+REFERENCE diverges from the standard — darwin's `pwrite` ignoring POSIX's
+`O_APPEND` clause, which `@gjsify/fs` implements correctly everywhere — it must
+carry `!IS_GJS` instead, and the GJS leg must pass.
+
+Incident: #1039 merged ~100 POSIX-semantics rules with a green Linux pipeline
+and put 45 failures on `main` across the two legs — 9 on darwin, 36 on win32.
