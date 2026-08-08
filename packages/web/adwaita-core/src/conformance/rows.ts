@@ -30,6 +30,27 @@
 //      LABEL and `''` is what they can draw. The rows below pin `0` + `''`, and
 //      say so where it applies.
 //
+// WHO DRIVES THIS TABLE
+//
+// All three suites: the core (`rows.spec.ts`) against `ComboState` itself, the
+// NativeScript one (`drop-down.spec.ts`) likewise — its widgets cannot be
+// imported outside a NativeScript runtime and hold no logic beyond the
+// subscriber — and the browser one against a REAL `<adw-drop-down>`
+// (`adw-drop-down.spec.ts`), replaying each step through the element's public
+// API and reading back the painted label.
+//
+// `<adw-combo-row>` composes the same `ComboState` but is NOT a driver, and
+// cannot be one: two of the four step ops have no DOM spelling there. Its
+// options arrive through the `items` attribute at connect time only (`items` is
+// not in `observedAttributes`), and it publishes no select-by-value setter. The
+// day it grows either, it inherits these rows rather than a second reading.
+//
+// One row, `an index past the end`, is driven against `<adw-drop-down>`'s own
+// answer instead of the state's: the element REJECTS an out-of-range set, as its
+// published `selected` docs promise, where `setSelectedIndex` accepts it. That
+// split is deliberate and lives in `ComboState.hasIndex`'s doc comment — the
+// bounds predicate is shared, the policy is each renderer's.
+//
 // What the C DOES settle, and what the rows are derived from:
 //   - the no-op guard: the setter returns before touching the selection when
 //     the position already holds (:785-786), so no notify;

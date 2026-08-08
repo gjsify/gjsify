@@ -2,7 +2,20 @@
 // @gjsify/adwaita-web browser test axis. Asserts option parsing, selected↔value
 // sync, notify-on-change semantics, popover open/close, item selection, search
 // filtering and the disabled guard.
+//
+// The SELECTION half is driven by the SAME table the NativeScript renderer
+// asserts against (`COMBO_SELECTION_VECTORS`, `@gjsify/adwaita-core/conformance`)
+// — replayed against the real element through the API a consumer would use, and
+// read back as what a user would see: the button label, `selected`/`selectedValue`
+// and the `change` stream. `<adw-combo-row>` composes the same `ComboState` but
+// cannot drive the table, because two of its four step ops have no DOM spelling:
+// its options come from the `items` attribute at connect time only (`items` is not
+// even observed), and it publishes no select-by-value setter. So this element is
+// the browser's driver for both.
 import { describe, it, expect } from '@gjsify/unit';
+
+import { COMBO_SELECTION_VECTORS } from '@gjsify/adwaita-core/conformance';
+import type { ComboSelectionStep, ComboSelectionVector } from '@gjsify/adwaita-core/conformance';
 
 import type { AdwDropDown } from './elements/adw-drop-down.js';
 
@@ -12,7 +25,117 @@ function makeDropDown(): AdwDropDown {
     return el;
 }
 
+/** The text the closed button shows — the rendered `selectedLabel`. */
+function labelText(dd: AdwDropDown): string {
+    return dd.querySelector('.adw-drop-down-label')?.textContent ?? '';
+}
+
+/** Open the chooser the way a user does. A no-op over an empty model, as the element guards. */
+function openChooser(dd: AdwDropDown): void {
+    (dd.querySelector('.adw-drop-down-button') as HTMLButtonElement).click();
+}
+
+/**
+ * Replay one vector step against the real element — property sets for the
+ * programmatic ops, a popover gesture for the interactive one.
+ */
+function applyStep(dd: AdwDropDown, step: ComboSelectionStep): void {
+    switch (step.op) {
+        case 'setOptions':
+            dd.options = step.options;
+            return;
+        case 'setSelectedIndex':
+            dd.selected = step.index;
+            return;
+        case 'setSelectedValue':
+            dd.selectedValue = step.value;
+            return;
+        case 'select':
+            openChooser(dd);
+            if (step.index < 0) {
+                // The dismissed chooser: the popover closes with nothing picked,
+                // which here is an outside pointerdown rather than a cancelled
+                // native sheet.
+                document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                return;
+            }
+            (dd.querySelectorAll('.adw-drop-down-item')[step.index] as HTMLButtonElement | undefined)?.click();
+            return;
+    }
+}
+
+/**
+ * The ONE row this element answers differently, and does so on purpose: its
+ * published `selected` contract REJECTS an out-of-range set (`_selectIndex` gates
+ * on `ComboState.hasIndex`), where the core state accepts it and reports an empty
+ * value — the split `ComboState.hasIndex`'s doc comment records and
+ * `<adw-combo-row>` takes the other side of. The row is still driven below,
+ * against the element's answer rather than the state's, so neither policy can
+ * change silently.
+ */
+const DROP_DOWN_REJECTS = 'an index past the end';
+
+/** The named vector — a hard failure if the table renamed it out from under the carve-out. */
+function vectorNamed(name: string): ComboSelectionVector {
+    const vector = COMBO_SELECTION_VECTORS.find((v) => v.name === name);
+    if (!vector) throw new Error(`COMBO_SELECTION_VECTORS has no row "${name}" — this spec's carve-out is stale`);
+    return vector;
+}
+
+/** Mount a drop-down and record every `change` detail it dispatches. */
+function mountRecording(): { dd: AdwDropDown; changes: unknown[] } {
+    const dd = makeDropDown();
+    const changes: unknown[] = [];
+    dd.addEventListener('change', (event) => changes.push((event as CustomEvent).detail));
+    return { dd, changes };
+}
+
 export const AdwDropDownTest = async () => {
+    await describe('adw-drop-down selection (libadwaita conformance vectors)', async () => {
+        for (const vector of COMBO_SELECTION_VECTORS) {
+            if (vector.name === DROP_DOWN_REJECTS) continue;
+
+            await it(`${vector.name} — ${vector.rule}`, async () => {
+                const { dd, changes } = mountRecording();
+                for (const step of vector.steps) applyStep(dd, step);
+
+                expect(dd.selected).toBe(vector.selected);
+                expect(dd.selectedValue).toBe(vector.value);
+                expect(labelText(dd)).toBe(vector.label);
+                // `change` is this element's DOM spelling of the `interactive`
+                // flag: it fires for a user pick and never for a programmatic
+                // set, so the interactive frames of the emission stream ARE the
+                // events a listener sees.
+                expect(changes).toStrictEqual(
+                    vector.emitted
+                        .filter((change) => change.interactive)
+                        .map((change) => ({ index: change.selected, value: change.value, label: change.label })),
+                );
+                dd.remove();
+            });
+        }
+
+        await it(`${DROP_DOWN_REJECTS} — rejected here: the element's published contract, not the state's`, async () => {
+            const vector = vectorNamed(DROP_DOWN_REJECTS);
+            const { dd, changes } = mountRecording();
+
+            // Everything up to the out-of-range set…
+            for (const step of vector.steps.slice(0, -1)) applyStep(dd, step);
+            const before = { selected: dd.selected, value: dd.selectedValue, label: labelText(dd) };
+            // …and then the set itself, which the core state would accept and
+            // report as nothing-to-draw (`value`/`label` both empty below).
+            expect(vector.value).toBe('');
+            expect(vector.label).toBe('');
+            applyStep(dd, vector.steps[vector.steps.length - 1]);
+
+            // The element refused it: the selection did not move, and a refusal
+            // is not a change, so nothing was dispatched either.
+            expect({ selected: dd.selected, value: dd.selectedValue, label: labelText(dd) }).toStrictEqual(before);
+            expect(changes).toStrictEqual([]);
+            dd.remove();
+        });
+    });
+
     await describe('adw-drop-down options', async () => {
         await it('accepts a string[] (value === label)', async () => {
             const dd = makeDropDown();

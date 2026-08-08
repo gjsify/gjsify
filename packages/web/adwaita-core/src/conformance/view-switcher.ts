@@ -1480,13 +1480,21 @@ export interface ViewSwitcherClock extends ViewSwitcherScheduler {
 }
 
 /**
- * A fake clock the core, browser and NativeScript suites all drive the drag
- * vectors with.
+ * A fake clock for the drag vectors.
  *
- * Shared rather than copied three times on purpose — but note WHAT it is: a
- * clock, not a stand-in for any behaviour under test. It schedules and cancels
- * callbacks and nothing else, so it cannot transcribe the logic it is used to
- * exercise.
+ * Note WHAT it is: a clock, not a stand-in for any behaviour under test. It
+ * schedules and cancels callbacks and nothing else, so it cannot transcribe the
+ * logic it is used to exercise.
+ *
+ * WHO DRIVES THOSE VECTORS: the core suite, and only it. This said "the core,
+ * browser and NativeScript suites all" — a claim of coverage that was never
+ * true, which is worse than silence, because it reads as a reason to stop
+ * looking. The browser elements construct
+ * `new ViewSwitcherState({ scheduler: domViewSwitcherScheduler })` inline
+ * (`elements/adw-view-switcher.ts`, `elements/adw-inline-view-switcher.ts`), so
+ * there is no seam to hand this clock through, and the NativeScript port has no
+ * drag surface at all. Wiring the browser side means giving the elements a
+ * scheduler seam first.
  */
 export function createViewSwitcherClock(): ViewSwitcherClock {
     let now = 0;
