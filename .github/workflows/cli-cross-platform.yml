@@ -540,6 +540,8 @@ jobs:
           echo "| .bin shim created + runnable | ${{ steps.binshim.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| showcase --runtime node (no gjs) | ${{ steps.showcase.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| node-gi prebuild for this platform | ${{ steps.nodegiprebuild.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| node-gi addon LOADS (no system GTK) | ${{ steps.nodegiload.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| bundle-less load is diagnosed | ${{ steps.nodegidiag.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| showcase --runtime node (full journey) | ${{ steps.journey.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "--- outcomes: version=${{ steps.version.outcome }} build=${{ steps.build.outcome }} run=${{ steps.run.outcome }} install=${{ steps.install.outcome }} binshim=${{ steps.binshim.outcome }}"
           # Every substantive step stays continue-on-error so ONE run still maps
@@ -582,6 +584,15 @@ jobs:
           # predating the fix and fail from the first release that carries it.
           if [ "${{ steps.nodegiprebuild.outcome }}" != "success" ]; then FAILED=1; fi
           if [ "${{ steps.journey.outcome }}" != "success" ]; then FAILED=1; fi
+          # The two LOAD probes gate too. They are win32-only (`if: runner.os ==
+          # 'Windows'`), so on macOS their outcome is `skipped` — accepted there
+          # and ONLY there. Without these two lines both steps are
+          # continue-on-error forever: they would report a regression and leave
+          # the job green, which is the exact shape of the existence gate they
+          # were added to replace.
+          for OUTCOME in "${{ steps.nodegiload.outcome }}" "${{ steps.nodegidiag.outcome }}"; do
+            if [ "$OUTCOME" != "success" ] && [ "$OUTCOME" != "skipped" ]; then FAILED=1; fi
+          done
           if [ "$FAILED" = "0" ]; then
             echo "CLI PATH GREEN on ${{ matrix.os }} (toolchain + install backend)"
           else
