@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.33.0](https://github.com/gjsify/gjsify/compare/v0.32.0...v0.33.0) (2026-08-08)
+
+### Features
+
+* **adwaita:** put both renderers on the C source, and keep them there ([#1078](https://github.com/gjsify/gjsify/issues/1078)) ([44e6e01](https://github.com/gjsify/gjsify/commit/44e6e01e436003713a8956bf562e38ee78b02e89)), closes [#1048](https://github.com/gjsify/gjsify/issues/1048) [#1073](https://github.com/gjsify/gjsify/issues/1073) [#1066](https://github.com/gjsify/gjsify/issues/1066) [#1068](https://github.com/gjsify/gjsify/issues/1068) [#1067](https://github.com/gjsify/gjsify/issues/1067)
+
+### Bug Fixes
+
+* **adwaita-web:** place the sidebar even when nothing measured it ([#1079](https://github.com/gjsify/gjsify/issues/1079)) ([3393a74](https://github.com/gjsify/gjsify/commit/3393a742e4392d36a0464cec93f921148f552d49)), closes [#1078](https://github.com/gjsify/gjsify/issues/1078) [#1078](https://github.com/gjsify/gjsify/issues/1078) [#1078](https://github.com/gjsify/gjsify/issues/1078)
+
 ## [0.32.0](https://github.com/gjsify/gjsify/compare/v0.31.0...v0.32.0) (2026-08-08)
 
 ### Features
