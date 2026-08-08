@@ -1,0 +1,228 @@
+// _checks.scss — <adw-checkbox> AND <adw-radio>, in ONE partial.
+//
+// WHY ONE FILE FOR TWO ELEMENTS. `refs/libadwaita/src/stylesheet/widgets/
+// _checks.scss` merges them deliberately: everything but the corner radius and
+// the glyph is a shared `check, radio { … }` block (:20-65), and the
+// indeterminate dash is re-declared for BOTH at the end (:79-81). There is no
+// `_radio.scss` upstream to mirror. `refs/adwaita-web` does split them into
+// `_checkbox.scss` + `_radio.scss`, and the split is exactly where it drifted:
+// its two indicators grew different sizes, different border treatments and
+// different selection-mode rules, and only one of them has a hover state.
+//
+// TWO PLACES THE VENDORED WEB PORT DISAGREES WITH LIBADWAITA. libadwaita is
+// followed in both:
+//
+//   1. INDETERMINATE. `refs/adwaita-web/adwaita-web/scss/_checkbox.scss` has no
+//      indeterminate state at all — no dash, no third glyph, nothing. libadwaita
+//      paints it with the same accent fill as checked (:52-60) and its own dash
+//      glyph (:79-81). Ported.
+//   2. THE CHECKED RADIO. `refs/adwaita-web/adwaita-web/scss/_radio.scss:22-33`
+//      colours only the BORDER and the dot with `--accent-color`, leaving the
+//      indicator's background as the view colour. libadwaita FILLS the whole
+//      control with `--accent-bg-color` and draws the bullet in
+//      `--accent-fg-color` (:54-55) — the same treatment the checkbox gets, which
+//      is the point of the shared block. Ported.
+//
+// THE GLYPHS ARE LIBADWAITA'S OWN ASSETS. GTK draws them with
+// `-gtk-icon-source: -gtk-recolor(url("assets/check.svg"))` (:70, :76, :80),
+// which has no CSS spelling. The path data below is copied from
+// `refs/libadwaita/src/stylesheet/assets/{check,bullet,dash}.svg` and painted as
+// a mask filled with `currentColor` — the same technique `_icon.scss` already
+// uses, and what makes `-gtk-recolor` work here: the shared block sets
+// `color: var(--accent-fg-color)` on a checked indicator, so the glyph follows.
+// `bullet.svg` carries a `transform="translate(-381 -339)"` on a path whose
+// commands after the first are all relative, so the translation is folded into
+// the absolute `M` (388,342 → 7,3) and nothing else changes.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_checks.scss (all of it)
+// Reference: refs/libadwaita/src/stylesheet/assets/{check,bullet,dash}.svg (the three glyphs)
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss:280-286 (the trough colours)
+// Reference: refs/adwaita-web/adwaita-web/scss/{_checkbox,_radio}.scss (the vendored port's split, NOT followed — see above)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Implemented as Web Components for @gjsify/adwaita-web; the GTK
+//   icon sources are re-expressed as CSS masks.
+
+// assets/check.svg
+$check-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath fill='black' d='m 12.599609,2.1992188 a 1,1 0 0 0 -1.40039,0.2011718 L 5.890625,9.4765625 2.7070313,6.2929687 a 1,1 0 0 0 -1.4140626,0 1,1 0 0 0 0,1.4140625 l 4,3.9999998 A 1.0001,1.0001 0 0 0 6.8007812,11.599609 L 12.800781,3.5996094 A 1,1 0 0 0 12.599609,2.1992188 Z'/%3E%3C/svg%3E");
+// assets/bullet.svg
+$bullet-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath fill='black' d='M 7 3 c -2.207 0 -4 1.793 -4 4 s 1.793 4 4 4 c 2.208 0 4 -1.793 4 -4 s -1.792 -4 -4 -4 z'/%3E%3C/svg%3E");
+// assets/dash.svg
+$dash-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath fill='black' d='M 3 5 A 2 2 0 0 0 1 7 A 2 2 0 0 0 3 9 L 11 9 A 2 2 0 0 0 13 7 A 2 2 0 0 0 11 5 Z'/%3E%3C/svg%3E");
+
+// `checkbutton { … }` (:3-18) — the host is the button, not the indicator.
+adw-checkbox,
+adw-radio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px; // border-spacing: 4px (:4)
+  padding: 3px; // (:6)
+  border-radius: 9px; // $check_radius + 3px (:5)
+  cursor: pointer;
+  user-select: none;
+
+  // The real control: focusable and keyboard-operable, never painted. The
+  // indicator below is what the user sees; the host handles the pointer.
+  .adw-check-input {
+    position: absolute;
+    width: 0;
+    height: 0;
+    margin: 0;
+    opacity: 0;
+  }
+
+  // `check, radio { … }` (:20-31), shared by both elements.
+  .adw-check-indicator {
+    // GTK sizes the CONTENT box (`min-width`/`min-height: 14px`, :22-23) and
+    // grows the drawn control with `padding: 3px` (:26), i.e. 20x20. Opting out
+    // of the ADR-0010 descendant border-box pin keeps that arithmetic — and
+    // keeps `checkbutton.selection-mode`'s one-line `padding: 7px` (:87)
+    // working exactly as it does upstream instead of needing a second number.
+    box-sizing: content-box;
+    width: 14px;
+    height: 14px;
+    padding: 3px;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, currentColor 15%, transparent); // $trough_color
+    transition:
+      background 200ms ease-out,
+      box-shadow 200ms ease-out;
+
+    @media (prefers-contrast: more) {
+      // $trough_color_hc (_colors.scss:284) stands in for $border_color: this
+      // package defines no `--border-opacity`, and the two are the same 30%
+      // mix of currentColor in the light theme.
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent);
+    }
+
+    // The glyph layer. No mask until a state supplies one, so an unchecked
+    // control paints nothing here.
+    &::after {
+      content: '';
+      display: block;
+      width: 100%;
+      height: 100%;
+      background-color: currentColor;
+      mask-repeat: no-repeat;
+      mask-position: center;
+      mask-size: 14px; // -gtk-icon-size: 14px (:25)
+      -webkit-mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      -webkit-mask-size: 14px;
+    }
+  }
+
+  // `&:not(:checked):not(:indeterminate) { &:hover / &:active }` (:33-50).
+  // Hover and active live on the HOST here — the indicator is 20px inside a
+  // control whose label is part of the target, exactly as `checkbutton` is.
+  &:not([checked]):not([indeterminate]):not([disabled]) {
+    &:hover .adw-check-indicator {
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, currentColor 20%, transparent); // $trough_hover_color
+
+      @media (prefers-contrast: more) {
+        box-shadow: inset 0 0 0 2px color-mix(in srgb, currentColor 60%, transparent);
+      }
+    }
+
+    &:active .adw-check-indicator {
+      background-color: color-mix(in srgb, currentColor 25%, transparent); // $trough_active_color
+      box-shadow: none;
+
+      @media (prefers-contrast: more) {
+        background-color: color-mix(in srgb, currentColor 60%, transparent);
+      }
+    }
+  }
+
+  // `&:checked, &:indeterminate { … }` (:52-60) — ONE block for both states, so
+  // they differ only in the glyph.
+  &[checked] .adw-check-indicator,
+  &[indeterminate] .adw-check-indicator {
+    background-color: var(--accent-bg-color);
+    color: var(--accent-fg-color);
+    box-shadow: none;
+  }
+
+  // GTK's `background-image: image(<colour>)` (:58-59) is a flat fill; a
+  // two-stop gradient of one colour is its CSS spelling, as `_button_row.scss`
+  // already does.
+  &[checked]:not([disabled]),
+  &[indeterminate]:not([disabled]) {
+    &:hover .adw-check-indicator {
+      background-image: linear-gradient(
+        color-mix(in srgb, currentColor 10%, transparent),
+        color-mix(in srgb, currentColor 10%, transparent)
+      );
+    }
+
+    &:active .adw-check-indicator {
+      background-image: linear-gradient(rgb(0 0 6 / 20%), rgb(0 0 6 / 20%));
+    }
+  }
+
+  // `&:disabled { filter: Opacity(var(--disabled-opacity)) }` (:62-64). This
+  // package defines no `--disabled-opacity`, so `--dim-opacity` stands in — the
+  // same substitution `_switch.scss` documents.
+  &[disabled] {
+    cursor: not-allowed;
+    opacity: var(--dim-opacity);
+  }
+
+  // `@include focus-ring()` on `checkbutton` (:8). The ring follows the real
+  // control's focus, not the host's, so keyboard focus is what shows it.
+  .adw-check-input:focus-visible ~ .adw-check-indicator {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+  }
+}
+
+// `check { border-radius: $check_radius }` (:67-68)
+adw-checkbox .adw-check-indicator {
+  border-radius: 6px;
+}
+
+// `radio { border-radius: 100% }` (:73-74)
+adw-radio .adw-check-indicator {
+  border-radius: 100%;
+}
+
+// `check:checked` → check.svg (:70) / `radio:checked` → bullet.svg (:76)
+adw-checkbox[checked] .adw-check-indicator::after {
+  mask-image: $check-glyph;
+  -webkit-mask-image: $check-glyph;
+}
+
+adw-radio[checked] .adw-check-indicator::after {
+  mask-image: $bullet-glyph;
+  -webkit-mask-image: $bullet-glyph;
+}
+
+// `check, radio { &:indeterminate { … dash.svg } }` (:79-81). Upstream this is a
+// SEPARATE rule after both `:checked` blocks at equal specificity, so the dash
+// wins over the check/bullet on a control that is both. Same order, same
+// specificity, same outcome here — and the same precedence `resolveCheckState`
+// in `@gjsify/adwaita-core` encodes for the a11y value.
+adw-checkbox[indeterminate] .adw-check-indicator::after,
+adw-radio[indeterminate] .adw-check-indicator::after {
+  mask-image: $dash-glyph;
+  -webkit-mask-image: $dash-glyph;
+}
+
+// `checkbutton.selection-mode { … }` (:83-95) — the big round check used in a
+// selection-mode header bar.
+adw-checkbox.selection-mode,
+adw-radio.selection-mode {
+  border-radius: 100px;
+
+  .adw-check-indicator {
+    padding: 7px;
+    border-radius: 100px;
+  }
+
+  // `label { &:dir(ltr) { margin-right: 6px } &:dir(rtl) { margin-left: 6px } }`
+  // (:91-94) — one logical property covers both directions.
+  .adw-check-label {
+    margin-inline-end: 6px;
+  }
+}

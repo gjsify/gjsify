@@ -34,6 +34,42 @@ export type {
     WindowTitleRenderState,
 } from './action-row.js';
 
+// --- About dialog (Adw.AboutDialog licences, credits, page visibility) ---
+export {
+    ADW_ABOUT_DIALOG_LABELS,
+    ADW_CREDITS_SECTION_TITLES,
+    ADW_LICENSES,
+    ADW_LICENSE_ALIASES,
+    ADW_LICENSE_DEFAULTS,
+    ADW_LICENSE_WARRANTY_TEMPLATE,
+    ADW_TRANSLATOR_CREDITS_SENTINELS,
+    GTK_LICENSE,
+    aboutDialogVisibility,
+    creditsSections,
+    isLicenseType,
+    legalSectionVisible,
+    licenseText,
+    licenseTypeForSpdxId,
+    parseCreditPerson,
+    setLicense,
+    setLicenseType,
+    translatorCreditsPeople,
+} from './about-dialog.js';
+export type {
+    AdwAboutDialogProps,
+    AdwAboutDialogVisibility,
+    AdwCreditPerson,
+    AdwCreditsInput,
+    AdwCreditsSection,
+    AdwCreditsSectionInput,
+    AdwLicenseAlias,
+    AdwLicenseInfo,
+    AdwLicenseNotify,
+    AdwLicenseState,
+    AdwLicenseTransition,
+    AdwLicenseType,
+} from './about-dialog.js';
+
 // --- Avatar derivation (Adw.Avatar initials + colour) ---
 export {
     AVATAR_COLOR_COUNT,
@@ -85,6 +121,10 @@ export type {
     ButtonContentEllipsize,
 } from './button-content.js';
 
+// --- Checks + radio-group exclusivity (Adwaita check/radio) ---
+export { RadioGroupState, resolveCheckState } from './checks.js';
+export type { AdwCheckState, RadioGroupChange, RadioGroupListener } from './checks.js';
+
 // --- Responsive breakpoints (Adw.Breakpoint / Adw.BreakpointCondition) ---
 export { AdwBreakpoint, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';
 export type {
@@ -109,6 +149,29 @@ export {
     toggleAdwaitaColorScheme,
 } from './color-scheme.js';
 export type { AdwColorScheme } from './color-scheme.js';
+
+// --- Data grid (AdwDataGrid — the aligned numeric grid; ours, not upstream's) ---
+export {
+    ADW_DATA_GRID_ROW_VARIANTS,
+    DATA_GRID_CELL_CLASS,
+    DATA_GRID_ROW_CLASS,
+    dataGridCellText,
+    dataGridColumnAlign,
+    dataGridColumnClasses,
+    dataGridRowInteractive,
+    dataGridTrackTemplate,
+    dataGridTracks,
+    normalizeDataGridColumns,
+    normalizeDataGridVariant,
+} from './data-grid.js';
+export type {
+    AdwDataGridAlign,
+    AdwDataGridCellValue,
+    AdwDataGridColumn,
+    AdwDataGridRow,
+    AdwDataGridRowVariant,
+    DataGridTrack,
+} from './data-grid.js';
 
 // --- Toast queue (Adw.ToastOverlay / Adw.Toast) ---
 export { AdwToast, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from './toast.js';
@@ -150,7 +213,7 @@ export type {
 } from './rows.js';
 
 // --- GLib primitives Adwaita arithmetic is written in ---
-export { glibClamp, stringIsNotEmpty } from './glib.js';
+export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
 
 // --- View stack selection (Adw.ViewStack) ---
 export { ViewStackState, normalizeIconName, resolvePageTitle } from './view-stack.js';

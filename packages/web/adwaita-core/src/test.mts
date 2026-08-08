@@ -11,6 +11,7 @@ import tabViewTestSuite from './tab-view.spec.js';
 import carouselTestSuite from './carousel.spec.js';
 import preferencesTestSuite from './preferences.spec.js';
 import chromeTestSuite from './chrome.spec.js';
+import dataGridTestSuite from './data-grid.spec.js';
 import avatarTestSuite from './avatar.spec.js';
 import actionRowTestSuite from './action-row.spec.js';
 import breakpointTestSuite from './breakpoint.spec.js';
@@ -21,10 +22,14 @@ import toastTestSuite from './toast.spec.js';
 import popoverTestSuite from './popover.spec.js';
 import bannerTestSuite from './banner.spec.js';
 import buttonContentTestSuite from './button-content.spec.js';
+import aboutDialogTestSuite from './about-dialog.spec.js';
+import checksTestSuite from './checks.spec.js';
 
 run({
+    aboutDialogTestSuite,
     bannerTestSuite,
     buttonContentTestSuite,
+    checksTestSuite,
     breakpointTestSuite,
     colorSchemeTestSuite,
     toastTestSuite,
@@ -44,4 +49,5 @@ run({
     carouselTestSuite,
     preferencesTestSuite,
     chromeTestSuite,
+    dataGridTestSuite,
 });

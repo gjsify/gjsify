@@ -657,6 +657,114 @@ Page.adw-window {
  * default, so an EMPTY wrap box occupied 12 DIPs. Spacing comes from the child
  * margins the widget applies (widgets/wrap-box-layout.ts), never from here. */
 
+/* ===== Data grid (an aligned numeric grid — a financial statement) ===== */
+
+/* ONE GridLayout with the CELLS as direct children, because NativeScript has no
+ * subgrid: a per-row grid would resolve its own `auto` tracks from its own row's
+ * content and stagger the columns. So everything the browser paints on a row
+ * ELEMENT is painted here on a full-width StackLayout that sits UNDER that row's
+ * cells and spans every column — which is also why the two are styled by SIBLING
+ * selectors below rather than by a descendant one. */
+.adw-data-grid {
+    background-color: transparent;
+}
+
+/* Airy Adwaita cell density, matching the boxed-list row rhythm (the browser's
+ * --spacing-s / --spacing-m, 9 and 12). Single-line is set on the widget: a
+ * wrapped figure column stops being a column of figures. */
+.adw-data-grid-cell {
+    font-size: 15;
+    color: rgba(0, 0, 0, 0.8);
+    padding: 9 12 9 12;
+    vertical-align: center;
+}
+
+/* Alignment. NS has no logical `start`/`end` text alignment, so the two ends are
+ * spelled left/right — this port lays out LTR throughout (widgets/split-view-state.ts
+ * records the same limitation for the split views). */
+.adw-data-grid-cell.align-start {
+    text-align: left;
+}
+
+.adw-data-grid-cell.align-end {
+    text-align: right;
+}
+
+.adw-data-grid-cell.align-center {
+    text-align: center;
+}
+
+/* `.numeric` is `font-variant-numeric: tabular-nums` in libadwaita
+ * (_labels.scss:86-88) and the NS CSS subset has NO font-feature property at all,
+ * so a numeric column gets its right EDGE from the shared track and proportional
+ * digits INSIDE the number. `.mono` is the way to real tabular figures here,
+ * because a fixed-pitch face is tabular by construction. `@gjsify/adwaita-fonts`
+ * ships no mono TTF today, so unless the app installs one the generic tail is
+ * what resolves. */
+.adw-data-grid-cell.mono {
+    font-family: 'Adwaita Mono', 'AdwaitaMono-Regular', monospace;
+}
+
+/* Header row — dim and small with a hairline underline (the Adwaita list-column
+ * heading), never sortable. NS has no text-transform, so the labels are NOT
+ * upper-cased here; author them as you want them read. */
+.adw-data-grid-row.header {
+    border-bottom-width: 1;
+    border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+.adw-data-grid-cell.header-cell {
+    font-size: 12;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.55);
+}
+
+/* A section header spans all columns as a bold group title (a BWA's sections),
+ * with extra space above it to open the group. */
+.adw-data-grid-cell.section-cell {
+    font-weight: 700;
+    padding: 15 12 9 12;
+}
+
+/* A subtotal is bold with a hairline rule above it (Gesamtleistung, Rohertrag…).
+ * The rule is on the row background, the weight on the cells: siblings. */
+.adw-data-grid-row.variant-subtotal {
+    border-top-width: 1;
+    border-top-color: rgba(0, 0, 0, 0.1);
+}
+
+.adw-data-grid-cell.variant-subtotal {
+    font-weight: 700;
+}
+
+/* The final total is bold with a STRONGER rule above (the accounting result —
+ * Betriebsergebnis) plus a thin one below, evoking the ruled grand-total line. */
+.adw-data-grid-row.variant-total {
+    border-top-width: 2;
+    border-top-color: rgba(0, 0, 0, 0.1);
+    border-bottom-width: 1;
+    border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+.adw-data-grid-cell.variant-total {
+    font-weight: 800;
+}
+
+/* Optional interactive rows (master-detail). Hairline separators only where
+ * Adwaita would — NOT zebra striping — so no default row borders. NS has no
+ * hover, so the pressed shade is the whole affordance. */
+.adw-data-grid-row.interactive {
+    border-radius: 9;
+}
+
+/* Pressed — `$button_active_color`, the shade `.adw-button:highlighted` uses.
+ * `attachRowPressFeedback()` is wired on EVERY data row's background and gated
+ * HERE: a non-interactive row gets the `highlighted` pseudo-class and no rule
+ * claims it, so nothing lights up under a finger that cannot activate anything. */
+.adw-data-grid-row.interactive:highlighted {
+    background-color: rgba(0, 0, 0, 0.19);
+}
+
 /* ===== Spinner ===== */
 
 /* Adw.Spinner is a NEUTRAL indicator, not an accent-coloured one: the paintable
@@ -1523,6 +1631,36 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-viewswitcherbar-button.active .adw-viewswitcherbar-button-label {
     color: #78aeed;
+}
+
+/* ===== Dark: data grid ===== */
+
+.ns-dark .adw-data-grid-cell {
+    color: #ffffff;
+}
+
+/* Restated at three classes so it beats the two-class rule above — the light
+ * `.adw-data-grid-cell.header-cell` and this one would otherwise tie, and the
+ * later (dark) rule would repaint the dim heading in full white. */
+.ns-dark .adw-data-grid-cell.header-cell {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.ns-dark .adw-data-grid-row.header {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.ns-dark .adw-data-grid-row.variant-subtotal {
+    border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.ns-dark .adw-data-grid-row.variant-total {
+    border-top-color: rgba(255, 255, 255, 0.1);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.ns-dark .adw-data-grid-row.interactive:highlighted {
+    background-color: rgba(255, 255, 255, 0.22);
 }
 
 /* ===== Dark: spinner ===== */

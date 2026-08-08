@@ -18,6 +18,13 @@
 // split button's 14px arrows, the view switcher's 16px) still wins on ordinary
 // specificity.
 @use 'icon';
+// libadwaita's typography + semantic-colour UTILITY CLASSES (`.dimmed`,
+// `.numeric`, `.monospace`, `.title-1`…). Classes only — there is deliberately
+// no <adw-label>, see _labels.scss. Emitted BEFORE every widget so a widget's
+// own rule wins on ordinary specificity, and because two partials @extend from
+// it (`_progress_bar.scss`'s text node, `_data_grid.scss`'s cells) exactly as
+// libadwaita's own `_progress-bar.scss` does.
+@use 'labels';
 @use 'window';
 @use 'headerbar';
 @use 'window_title';
@@ -35,6 +42,10 @@
 // own copy of it until it was lifted out of `adw-switch-row {}`.
 @use 'switch';
 @use 'entry';
+// The two form-control primitives, in ONE partial because upstream merges them
+// (there is no `_radio.scss` in libadwaita) — see _checks.scss.
+@use 'checks';
+@use 'progress_bar';
 @use 'preferences';
 @use 'card';
 @use 'data_grid';

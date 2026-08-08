@@ -17,6 +17,7 @@ import { AdwSidebarNsTest } from './sidebar.spec.js';
 import { AdwEntryRowsNsTest } from './entry-rows.spec.js';
 import { AdwEntryNsTest } from './entry.spec.js';
 import { AdwDropDownNsTest } from './drop-down.spec.js';
+import { AdwDataGridNsTest } from './data-grid.spec.js';
 import { AdwSplitButtonNsTest } from './split-button.spec.js';
 import wrapBoxNsTestSuite from './wrap-box.spec.js';
 import statusPageNsTestSuite from './status-page.spec.js';
@@ -37,6 +38,7 @@ run({
     AdwEntryRowsNsTest,
     AdwEntryNsTest,
     AdwDropDownNsTest,
+    AdwDataGridNsTest,
     AdwSplitButtonNsTest,
     AdwBottomSheetNsTest,
     AdwCarouselNsTest,

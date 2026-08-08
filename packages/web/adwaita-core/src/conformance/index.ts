@@ -40,6 +40,39 @@
 //
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+// --- About dialog (Adw.AboutDialog) vectors ---
+export {
+    ABOUT_DIALOG_CREDITS_LEGAL_VECTORS,
+    ABOUT_DIALOG_DETAILS_VECTORS,
+    ABOUT_DIALOG_HEADER_VECTORS,
+    ABOUT_DIALOG_LABEL_VECTORS,
+    ABOUT_DIALOG_SUPPORT_VECTORS,
+    CREDITS_SECTIONS_VECTORS,
+    CREDIT_PERSON_VECTORS,
+    LEGAL_SECTION_VECTORS,
+    LICENSE_INFO_VECTORS,
+    LICENSE_SETTER_VECTORS,
+    LICENSE_SPDX_VECTORS,
+    LICENSE_TEXT_VECTORS,
+    TRANSLATOR_CREDITS_VECTORS,
+} from './about-dialog.js';
+export type {
+    AboutDialogCreditsLegalVector,
+    AboutDialogDetailsVector,
+    AboutDialogHeaderVector,
+    AboutDialogLabelVector,
+    AboutDialogSupportVector,
+    CreditPersonVector,
+    CreditsSectionsVector,
+    LegalSectionVector,
+    LicenseInfoVector,
+    LicenseSetterStep,
+    LicenseSetterVector,
+    LicenseSpdxVector,
+    LicenseTextVector,
+    TranslatorCreditsVector,
+} from './about-dialog.js';
+
 export {
     AVATAR_COLOR_VECTORS,
     AVATAR_FONT_SIZE_VECTORS,
@@ -102,6 +135,10 @@ export type {
     ButtonContentStyleTargetVector,
     ButtonContentTextVector,
 } from './button-content.js';
+
+// --- Radio-group exclusivity (Adwaita check/radio) vectors ---
+export { RADIO_GROUP_VECTORS } from './checks.js';
+export type { RadioGroupStep, RadioGroupVector } from './checks.js';
 
 // --- Row state machines (Adw.ComboRow / Gtk.DropDown selection) vectors ---
 export { COMBO_SELECTION_VECTORS } from './rows.js';
@@ -350,6 +387,24 @@ export type {
     CarouselWheelLockoutVector,
     CarouselWheelVector,
 } from './carousel.js';
+
+// --- Data grid (AdwDataGrid) vectors — derived from OUR widget, not from C ---
+export {
+    DATA_GRID_CELL_TEXT_VECTORS,
+    DATA_GRID_COLUMN_CLASS_VECTORS,
+    DATA_GRID_COLUMN_NORMALIZE_VECTORS,
+    DATA_GRID_INTERACTIVE_VECTORS,
+    DATA_GRID_TRACK_VECTORS,
+    DATA_GRID_VARIANT_VECTORS,
+} from './data-grid.js';
+export type {
+    DataGridCellTextVector,
+    DataGridColumnClassVector,
+    DataGridColumnNormalizeVector,
+    DataGridInteractiveVector,
+    DataGridTrackVector,
+    DataGridVariantVector,
+} from './data-grid.js';
 
 // --- Preferences group header + dialog search (Adw.PreferencesDialog) vectors ---
 export {

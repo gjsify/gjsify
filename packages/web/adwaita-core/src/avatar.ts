@@ -17,7 +17,7 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_avatar.scss ($avatarcolorlist)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { glibClamp } from './glib.js';
+import { glibClamp, gStrStrip } from './glib.js';
 
 /** How many colours `Adw.Avatar` picks between — libadwaita's `NUMBER_OF_COLORS`. */
 export const AVATAR_COLOR_COUNT = 14;
@@ -100,11 +100,6 @@ export function gStrHash(text: string): number {
     return h >>> 0;
 }
 
-// `g_strstrip` trims `g_ascii_isspace` only — space, \t, \n, \v, \f, \r. JS
-// `String.trim()` also eats NBSP and the Unicode space separators, which would
-// make a name starting with U+00A0 yield different initials than GTK.
-const ASCII_TRIM = /^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g;
-
 /**
  * The initials `Adw.Avatar` shows for `text`: the first character, plus the
  * character following the LAST space if there is one.
@@ -119,7 +114,7 @@ const ASCII_TRIM = /^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g;
  * empty string is the sane rendering of the same "no initials" state.
  */
 export function avatarInitials(text: string): string {
-    const normalized = (text ?? '').toUpperCase().replace(ASCII_TRIM, '').normalize('NFC');
+    const normalized = gStrStrip((text ?? '').toUpperCase()).normalize('NFC');
     if (normalized.length === 0) return '';
 
     const first = firstCodePoint(normalized);

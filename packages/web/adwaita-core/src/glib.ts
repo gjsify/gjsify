@@ -12,6 +12,26 @@
 // Reference: refs/libadwaita/src/adw-action-row.c:112-117 (string_is_not_empty)
 // Copyright (c) GNOME contributors (GLib, libadwaita). LGPLv2.1+.
 
+// `g_strstrip` is `g_strchomp (g_strchug (s))`, and both test `g_ascii_isspace`
+// — space, \t, \n, \v, \f, \r and nothing else.
+const ASCII_SPACE_TRIM = /^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g;
+
+/**
+ * GLib's `g_strstrip` — trim ASCII whitespace from both ends, and ONLY ASCII
+ * whitespace.
+ *
+ * NOT `String.prototype.trim()`, which also eats U+00A0 NBSP, U+FEFF and the
+ * Unicode space separators. Two widgets already depend on the difference:
+ * `Adw.Avatar` derives its initials from the stripped name, so a name that
+ * starts with U+00A0 keeps the NBSP as its initial in GTK, where a
+ * `trim()`-based port yields the first LETTER instead; and
+ * `Adw.AboutDialog`'s `parse_person` (adw-about-dialog.c:533) strips the credit
+ * name the same way, so an NBSP-padded contributor name keeps its padding.
+ */
+export function gStrStrip(value: string): string {
+    return value.replace(ASCII_SPACE_TRIM, '');
+}
+
 /**
  * libadwaita's `string_is_not_empty` template closure — the predicate EVERY
  * Adwaita label binds its `visible` property to.

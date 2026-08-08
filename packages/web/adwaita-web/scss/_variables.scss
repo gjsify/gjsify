@@ -60,6 +60,23 @@
   --destructive-bg-color: #e01b24;
   --destructive-fg-color: #ffffff;
 
+  // Semantic states. `.error` / `.warning` / `.success` (see _labels.scss) do
+  // not just recolour text — they REBIND the three accent tokens to these, so
+  // anything accent-coloured inside them follows. Values are libadwaita's
+  // (_colors.scss:16-29): red_3 / yellow_5 / green_4 from _palette.scss:106-121.
+  // The standalone `*-color` is upstream's own relative-colour derivation of the
+  // background, kept as an expression rather than resolved to a hex so it tracks
+  // a re-themed `*-bg-color`.
+  --success-bg-color: #2ec27e;
+  --success-fg-color: #ffffff;
+  --success-color: oklab(from var(--success-bg-color) min(l, 0.5) a b);
+  --warning-bg-color: #e5a50a;
+  --warning-fg-color: rgba(0, 0, 0, 0.8);
+  --warning-color: oklab(from var(--warning-bg-color) min(l, 0.5) a b);
+  --error-bg-color: #e01b24;
+  --error-fg-color: #ffffff;
+  --error-color: oklab(from var(--error-bg-color) min(l, 0.5) a b);
+
   // Switch
   --switch-off-bg: rgba(0, 0, 0, 0.2);
   --switch-knob-bg: #ffffff;
@@ -82,4 +99,21 @@
   --font-size-small: 9pt;
   --font-size-heading: 12pt;
   --dim-opacity: 0.55;
+
+  // Document + monospace families, behind `.document` / `.monospace`
+  // (_labels.scss:75-84). In GTK these four are written into `:root` at RUNTIME
+  // by AdwStyleManager from the desktop's font settings
+  // (adw-style-manager.c:169-218), defaulting to `Sans 10` / `Monospace 10`
+  // (:50-56). A browser has no style manager, so they are ordinary tokens here
+  // — same names, so re-theming goes through the documented contract. The
+  // monospace stack is the one `_data_grid.scss` used to inline; it has ONE home
+  // now, and Adwaita Mono heads it because `@gjsify/adwaita-fonts` ships it.
+  // `'Cantarell'` is dropped from that stack on the way here: Cantarell is
+  // GNOME's PROPORTIONAL UI font, so a monospace fallback chain that reaches it
+  // second lands on a font whose figures do not line up — the exact property
+  // `.monospace` exists for.
+  --document-font-family: var(--font-family);
+  --document-font-size: var(--font-size-base);
+  --monospace-font-family: 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace;
+  --monospace-font-size: var(--font-size-base);
 }

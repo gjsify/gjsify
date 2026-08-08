@@ -1,0 +1,161 @@
+// _progress_bar.scss — <adw-progress-bar>, the determinate partner to
+// <adw-spinner>.
+//
+// TWO SOURCES, AND WHICH HALF CAME FROM WHICH — the two disagree, so this is not
+// bookkeeping:
+//
+//   GEOMETRY + COLOUR + THE OSD VARIANT come from
+//   `refs/libadwaita/src/stylesheet/widgets/_progress-bar.scss`: an 8px trough
+//   (:6), the 99px `$_progress-radius` (:33-35), the `%scale_trough` /
+//   `%scale_highlight` placeholders it shares with the scale
+//   (`_scale.scss:1-17`), the `> trough.empty > progress { all: unset }` rule
+//   that makes a zero fraction draw NOTHING rather than a 0px sliver (:85), and
+//   the `.osd` variant — a 2px bar with no trough, for under a header bar
+//   (:59-83).
+//
+//   THE INDETERMINATE ANIMATION comes from
+//   `refs/adwaita-web/adwaita-web/scss/_progressbar.scss:25-66`, because
+//   libadwaita has NO CSS equivalent: GTK animates a pulsing block from C
+//   (`gtk_progress_bar_pulse`), so the stylesheet has nothing to copy. Its
+//   keyframes and its `prefers-reduced-motion` fallback are the only parts taken
+//   from there. Its GEOMETRY is NOT: it draws a 6px bar with a 3px radius and
+//   has no trough placeholder, no OSD variant and no text node, so copying its
+//   numbers would put a bar in this package that matches neither source.
+//
+// NOT PORTED, deliberately: `progressbar.vertical` (:10-15) and the four
+// `progress.{left,right,top,bottom}` corner-radius rules (:37-55). Both exist
+// for orientations and trough-splitting `<adw-progress-bar>` does not expose —
+// there is no `orientation` attribute — and a rule nothing can ever select is a
+// rule that rots.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_progress-bar.scss:5-6,17-21,23-25,27-35,59-85
+// Reference: refs/libadwaita/src/stylesheet/_scale.scss:1-17 (%scale_trough, %scale_highlight)
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss:280-286 (the trough colours)
+// Reference: refs/adwaita-web/adwaita-web/scss/_progressbar.scss:25-66 (indeterminate keyframes + reduced-motion fallback ONLY)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+
+// `.dimmed` / `.numeric`, which the text node @extends exactly as upstream does.
+@use 'labels';
+
+adw-progress-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  // `progressbar.horizontal > trough { min-width: 150px }` (:5) is a WIDGET
+  // minimum in GTK, so it belongs on the element rather than on the trough.
+  min-width: 150px;
+
+  .adw-progress-bar-trough {
+    // %scale_trough (_scale.scss:1-10)
+    position: relative;
+    display: flex;
+    overflow: hidden;
+    height: 8px; // :6 — `&, > progress { min-height: 8px }`
+    border-radius: 99px;
+    background-color: color-mix(in srgb, currentColor 15%, transparent);
+    transition: background 200ms ease-out;
+
+    @media (prefers-contrast: more) {
+      // $trough_color_hc (_colors.scss:284)
+      background-color: color-mix(in srgb, currentColor 30%, transparent);
+    }
+  }
+
+  .adw-progress-bar-progress {
+    // %scale_highlight (_scale.scss:12-17) + $_progress-radius (:33-35)
+    height: 100%;
+    border-radius: 99px;
+    background-color: var(--accent-bg-color);
+    color: var(--accent-fg-color);
+    transition:
+      width 200ms ease-out,
+      background 200ms ease-out;
+  }
+
+  // `> text { @extend .dimmed; @extend .numeric; font-size: smaller; }` (:17-21)
+  // — literally upstream's three lines, now that `.dimmed` and `.numeric` exist
+  // here as the same utility classes they are there.
+  .adw-progress-bar-text {
+    @extend .dimmed;
+    @extend .numeric;
+
+    font-size: smaller;
+  }
+
+  // `&:disabled { filter: Opacity(var(--disabled-opacity)) }` (:23-25). This
+  // package defines no `--disabled-opacity`, so `--dim-opacity` stands in — the
+  // same substitution `_switch.scss` documents, not a fourth invented token.
+  &[disabled] {
+    opacity: var(--dim-opacity);
+  }
+
+  // Fill from the far end. GTK spells this `:inverted`; flexbox handles the
+  // writing direction, so nothing here needs an RTL branch.
+  &[inverted] .adw-progress-bar-trough {
+    justify-content: flex-end;
+  }
+
+  // `> trough.empty > progress { all: unset }` (:85) — at fraction 0 the
+  // indicator DISAPPEARS instead of drawing a rounded 0px stub.
+  .adw-progress-bar-trough.empty .adw-progress-bar-progress {
+    all: unset;
+  }
+
+  // The `.osd` variant (:59-83): a hairline bar with no trough at all, the way
+  // it is drawn under a header bar.
+  &[osd] {
+    min-width: 2px;
+
+    .adw-progress-bar-trough {
+      height: 2px;
+      border-radius: 0;
+      background-color: transparent;
+      box-shadow: none;
+    }
+
+    .adw-progress-bar-progress {
+      border-radius: 0;
+    }
+  }
+
+  // Indeterminate. The block leaves the flex flow and bounces across the trough;
+  // this is the ONLY part of the widget taken from the vendored web port, since
+  // GTK pulses from C and its stylesheet has no equivalent to copy.
+  &[pulsing] .adw-progress-bar-progress {
+    position: absolute;
+    inset-block: 0;
+    width: 30%;
+    animation: adw-progress-bar-indeterminate 1.5s infinite ease-in-out;
+
+    // `_progressbar.scss:42-49` — with motion suppressed the block stops moving
+    // and fills the trough, so the bar still reads as "busy" and not as "0%".
+    @media (prefers-reduced-motion: reduce) {
+      left: 0;
+      width: 100%;
+      animation: none;
+    }
+  }
+}
+
+// refs/adwaita-web/adwaita-web/scss/_progressbar.scss:53-66, verbatim offsets.
+// `left` rather than `inset-inline-start`: the port animates a physical offset,
+// and a keyframe that flipped with the writing direction would no longer be the
+// animation being cited.
+@keyframes adw-progress-bar-indeterminate {
+  0% {
+    left: -35%;
+    width: 30%;
+  }
+
+  50% {
+    left: 50%;
+    width: 40%;
+  }
+
+  100% {
+    left: 105%;
+    width: 30%;
+  }
+}
