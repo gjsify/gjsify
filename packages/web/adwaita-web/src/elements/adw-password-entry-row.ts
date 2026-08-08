@@ -1,120 +1,141 @@
-// <adw-password-entry-row> — A boxed-list entry row tailored for secrets: the
-// title floats as a label, the editable text is masked, and a trailing peek
-// button toggles between hiding and revealing the contents. A specialization of
-// <adw-entry-row> (Adw.PasswordEntryRow extends Adw.EntryRow).
-// Attributes: title, text, revealed (boolean — show the contents in clear text).
-// Property: text (get/set, proxies the inner input); revealed (get/set).
-// Events: `changed` (CustomEvent) on every edit — mirrors Adw.EntryRow's
-//   `changed` signal so it drives the same code path as the GTK renderer.
-//   `notify::revealed` (CustomEvent) when the peek toggle flips visibility.
+// <adw-password-entry-row> — An entry row tailored for secrets: the value is
+// masked, a trailing peek button reveals it, and a warning shows while Caps Lock
+// is engaged.
+//
+// It now EXTENDS `<adw-entry-row>`, as `AdwPasswordEntryRow` extends
+// `AdwEntryRow` in the C (adw-password-entry-row.c:50). This file used to be a
+// near copy-paste of `adw-entry-row.ts` — a normalized diff showed the
+// connectedCallback and attributeChangedCallback bodies were the same code — so
+// every entry-row fix had to be made twice and one of the two always drifted.
+// What is left here is only what the C subclass adds: the masked input, the peek
+// toggle, and the caps-lock source.
+//
+// The reveal/caps-lock DERIVATION is HEADLESS and lives in
+// `@gjsify/adwaita-core` (ADR 0004) as {@link PasswordEntryRowState}, which
+// composes the parent's `EntryRowState` exactly like the C drives its
+// parent through `adw_entry_row_set_show_indicator`. Two rules fall out of it
+// that neither port had: peeking suppresses the caps-lock warning, and so does
+// losing focus.
+//
+// Attributes: everything `<adw-entry-row>` observes, plus `revealed`.
+// Properties: `revealed`, `capsLockOn` (+ everything inherited).
+// Events: `notify::revealed` — only on a REAL change. The old implementation
+//   fired it on every `setAttribute`, including a redundant one, because
+//   attributeChangedCallback runs for a same-value write; the core's setter
+//   guard (the house rule at adw-entry-row.c:984/:1198/:1247) is what fixes it.
+//
+// Reference: refs/libadwaita/src/adw-password-entry-row.c
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/passwordentryrow.md
-// Reference: refs/libadwaita/src/adw-password-entry-row.c (peek toggle: the
-//   view-reveal / view-conceal symbolic swap; CSS node `row` carries `.entry`
-//   and `.password` style classes).
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-export class AdwPasswordEntryRow extends HTMLElement {
-    private _input!: HTMLInputElement;
-    private _titleEl!: HTMLSpanElement;
+import { PasswordEntryRowState, type PasswordEntryRowRenderState } from '@gjsify/adwaita-core';
+
+import { AdwEntryRow } from './adw-entry-row.js';
+
+export class AdwPasswordEntryRow extends AdwEntryRow {
+    /** The headless peek + caps-lock derivation, composing the parent row's state. */
+    private readonly _password = new PasswordEntryRowState(this._state);
     private _toggle!: HTMLButtonElement;
     private _toggleIcon!: HTMLSpanElement;
-    private _initialized = false;
 
-    static get observedAttributes() {
-        return ['title', 'text', 'revealed'];
+    static get observedAttributes(): string[] {
+        return [...AdwEntryRow.observedAttributes, 'revealed'];
     }
 
-    get text(): string {
-        return this._input ? this._input.value : (this.getAttribute('text') ?? '');
+    // `_password_entry_row.scss` scopes its rules to `.adw-password-entry-row-*`,
+    // so the inherited DOM builder must name the parts that way.
+    protected override get _classPrefix(): string {
+        return 'adw-password-entry-row';
     }
 
-    set text(value: string) {
-        if (this._input) this._input.value = value;
-        else this.setAttribute('text', value);
-    }
-
-    /** Whether the contents are shown in clear text (peek toggle is engaged). */
+    /** Whether the contents are shown in clear text (`GtkText:visibility`). */
     get revealed(): boolean {
-        return this.hasAttribute('revealed');
+        return this._password.revealed;
     }
 
     set revealed(value: boolean) {
-        if (value) this.setAttribute('revealed', '');
-        else this.removeAttribute('revealed');
+        this._password.setRevealed(value);
     }
 
-    connectedCallback() {
-        if (this._initialized) return;
-        this._initialized = true;
+    /** Whether Caps Lock is engaged, as last observed from a keyboard event. */
+    get capsLockOn(): boolean {
+        return this._password.capsLockOn;
+    }
 
-        this._titleEl = document.createElement('span');
-        this._titleEl.className = 'adw-row-title';
-        this._titleEl.textContent = this.getAttribute('title') ?? '';
+    /**
+     * Feed the platform's Caps Lock state in — GDK gets it from the keyboard
+     * device (adw-password-entry-row.c:111-115). Public because a host that
+     * knows better than `KeyboardEvent.getModifierState` (a virtual keyboard, a
+     * test) can drive it directly.
+     */
+    setCapsLockOn(on: boolean): void {
+        this._password.setCapsLockOn(on);
+    }
 
-        this._input = document.createElement('input');
-        this._input.className = 'adw-password-entry-row-input';
-        // Masked by default — Adw.PasswordEntryRow sets GTK_INPUT_PURPOSE_PASSWORD
-        // and starts with visibility off.
-        this._input.type = this.hasAttribute('revealed') ? 'text' : 'password';
-        this._input.value = this.getAttribute('text') ?? '';
+    protected override _onConnected(): void {
+        // `gtk_text_set_visibility (…, FALSE)` + GTK_INPUT_PURPOSE_PASSWORD (C:158-160).
+        this._input.type = 'password';
         this._input.autocomplete = 'off';
-        this._input.addEventListener('input', () => {
-            this.dispatchEvent(new CustomEvent('changed', { bubbles: true, detail: { text: this._input.value } }));
-        });
 
-        // Title floats as a small label above the masked value, both left-aligned
-        // in a column (the filled Adw.EntryRow look).
-        const text = document.createElement('div');
-        text.className = 'adw-password-entry-row-text';
-        text.append(this._titleEl, this._input);
-
-        // Trailing peek toggle — a flat icon button, vertically centred. Swaps
-        // between the reveal / conceal symbolics like the native widget.
         this._toggle = document.createElement('button');
-        this._toggle.className = 'adw-button flat circular icon-only adw-password-entry-row-toggle';
         this._toggle.type = 'button';
+        this._toggle.className = `adw-button flat circular icon-only ${this._classPrefix}-toggle`;
         this._toggleIcon = document.createElement('span');
         this._toggleIcon.setAttribute('aria-hidden', 'true');
-        this._toggle.appendChild(this._toggleIcon);
-        this._toggle.addEventListener('click', () => {
-            this.revealed = !this.revealed;
-        });
+        this._toggle.append(this._toggleIcon);
+        this._toggle.addEventListener('click', () => this._password.togglePeek());
+        // C:152 — installed through add_suffix, so it is the FIRST suffix and a
+        // consumer's own suffix lands after it instead of replacing it.
+        this.addSuffix(this._toggle);
 
-        // Trailing edit pencil (before the peek toggle), mirroring native.
-        const edit = document.createElement('span');
-        edit.className = 'adw-row-edit adw-icon adw-icon--document-edit';
-        edit.setAttribute('aria-hidden', 'true');
-        edit.addEventListener('click', () => this._input.focus());
+        // GDK reads caps lock off the keyboard device; the browser exposes it
+        // only on keyboard events, so those are the source here.
+        const readCapsLock = (event: KeyboardEvent) => this._password.setCapsLockOn(event.getModifierState('CapsLock'));
+        this._input.addEventListener('keydown', readCapsLock);
+        this._input.addEventListener('keyup', readCapsLock);
 
-        this.replaceChildren(text, edit, this._toggle);
-        this._renderRevealed();
-    }
+        // The indicator icon + tooltip are set once at init (C:169-171); their
+        // canonical names come from the core so both ports spell them alike.
+        const initial = this._password.state;
+        this.setIndicatorIconName(initial.indicatorIconName);
+        this.setIndicatorTooltip(initial.indicatorTooltip);
 
-    attributeChangedCallback(name: string, _old: string | null, value: string | null) {
-        if (!this._initialized) return;
-        if (name === 'title') {
-            this._titleEl.textContent = value ?? '';
-        } else if (name === 'text') {
-            if (this._input.value !== (value ?? '')) this._input.value = value ?? '';
-        } else if (name === 'revealed') {
-            this._renderRevealed();
+        // Seed from the attribute BEFORE subscribing, so the first paint emits no
+        // `notify::revealed`.
+        if (this.hasAttribute('revealed')) this._password.setRevealed(this.getAttribute('revealed') !== 'false');
+        this._renderPassword(this._password.state);
+        this._password.subscribe((state) => {
+            this._renderPassword(state);
             this.dispatchEvent(
-                new CustomEvent('notify::revealed', { bubbles: true, detail: { revealed: this.revealed } }),
+                new CustomEvent('notify::revealed', { bubbles: true, detail: { revealed: state.revealed } }),
             );
-        }
+        });
     }
 
-    private _renderRevealed() {
-        const revealed = this.revealed;
-        this._input.type = revealed ? 'text' : 'password';
-        // view-conceal when revealed (offer to hide), view-reveal when masked.
-        const icon = revealed ? 'view-conceal' : 'view-reveal';
-        this._toggleIcon.className = `adw-icon adw-icon--${icon}`;
-        const labelText = revealed ? 'Hide Password' : 'Show Password';
-        this._toggle.title = labelText;
-        this._toggle.setAttribute('aria-label', labelText);
-        this._toggle.setAttribute('aria-pressed', String(revealed));
+    override attributeChangedCallback(name: string, oldValue: string | null, value: string | null) {
+        if (name !== 'revealed') {
+            super.attributeChangedCallback(name, oldValue, value);
+            return;
+        }
+        if (!this._initialized) return;
+        // The core guard makes this idempotent, which is what keeps the reflection
+        // in `_renderPassword` from bouncing back as a second notification.
+        this._password.setRevealed(value !== null && value !== 'false');
+    }
+
+    /** `notify_visibility_cb` (C:62-81), applied to the DOM. */
+    private _renderPassword(state: PasswordEntryRowRenderState): void {
+        this._input.type = state.revealed ? 'text' : 'password';
+        // The libadwaita name travels in `data-icon-name`; the mask class is the
+        // curated @gjsify/adwaita-icons spelling of the same symbolic.
+        this._toggleIcon.dataset.iconName = state.peekIconName;
+        this._toggleIcon.className = `adw-icon adw-icon--${state.peekIconName.replace('-symbolic', '')}`;
+        this._toggle.title = state.peekLabel;
+        this._toggle.setAttribute('aria-label', state.peekLabel);
+        this._toggle.setAttribute('aria-pressed', String(state.revealed));
+        if (state.revealed) this.setAttribute('revealed', '');
+        else this.removeAttribute('revealed');
     }
 }
 

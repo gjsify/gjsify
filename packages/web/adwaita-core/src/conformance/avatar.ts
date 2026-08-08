@@ -52,14 +52,6 @@ export interface AvatarColorVector {
     colorClass: number;
 }
 
-/**
- * `g_str_hash` + `set_class_color` (adw-avatar.c:143).
- *
- * The non-ASCII rows are the ones that matter: GLib hashes the UTF-8 bytes as
- * `signed char`, so a port reading UTF-16 code units picks a different colour
- * for every accented name. `"Jörg Schröder"` is the canary — it landed on
- * `color6` before this table existed, where GTK paints `color14`.
- */
 /** One `avatarMaxFontSize` expectation. */
 export interface AvatarFontSizeVector {
     /** `Adw.Avatar:size`, the circle diameter. */
@@ -103,7 +95,13 @@ export interface AvatarModeVector {
 /** `update_visibility` (adw-avatar.c:117). */
 export const AVATAR_MODE_VECTORS: ReadonlyArray<AvatarModeVector> = [
     { hasCustomImage: true, showInitials: true, text: 'Ada', mode: 'image', rule: 'a custom image wins outright' },
-    { hasCustomImage: false, showInitials: true, text: 'Ada', mode: 'initials', rule: 'asked for, and a name to derive from' },
+    {
+        hasCustomImage: false,
+        showInitials: true,
+        text: 'Ada',
+        mode: 'initials',
+        rule: 'asked for, and a name to derive from',
+    },
     { hasCustomImage: false, showInitials: false, text: 'Ada', mode: 'icon', rule: 'a name alone is not enough' },
     {
         hasCustomImage: false,
@@ -115,6 +113,14 @@ export const AVATAR_MODE_VECTORS: ReadonlyArray<AvatarModeVector> = [
     { hasCustomImage: false, showInitials: true, text: '', mode: 'icon', rule: 'an empty name falls back to the icon' },
 ];
 
+/**
+ * `g_str_hash` + `set_class_color` (adw-avatar.c:143).
+ *
+ * The non-ASCII rows are the ones that matter: GLib hashes the UTF-8 bytes as
+ * `signed char`, so a port reading UTF-16 code units picks a different colour
+ * for every accented name. `"Jörg Schröder"` is the canary — it landed on
+ * `color6` before this table existed, where GTK paints `color14`.
+ */
 export const AVATAR_COLOR_VECTORS: ReadonlyArray<AvatarColorVector> = [
     { text: 'Ada Lovelace', hash: 2497722230, colorClass: 11 },
     { text: 'Ada', hash: 193451179, colorClass: 6 },

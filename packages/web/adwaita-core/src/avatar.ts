@@ -17,6 +17,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_avatar.scss ($avatarcolorlist)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { glibClamp } from './glib.js';
+
 /** How many colours `Adw.Avatar` picks between — libadwaita's `NUMBER_OF_COLORS`. */
 export const AVATAR_COLOR_COUNT = 14;
 
@@ -223,19 +225,6 @@ export function avatarFontSize(size: number, measured: { width: number; height: 
     const max = avatarMaxFontSize(size);
     if (!(measured.width > 0)) return max;
     return glibClamp(measured.height * (max / measured.width), 0, max);
-}
-
-/**
- * GLib's `CLAMP`, which tests the HIGH bound FIRST:
- * `x > high ? high : (x < low ? low : x)`.
- *
- * Not interchangeable with `Math.min(high, Math.max(low, x))` — the two disagree
- * whenever the bounds are inverted, and Adwaita reaches inverted bounds in more
- * than one place (a split view's sidebar caps do it whenever the content
- * minimum exceeds what is left of the width).
- */
-export function glibClamp(x: number, low: number, high: number): number {
-    return x > high ? high : x < low ? low : x;
 }
 
 /**

@@ -28,9 +28,141 @@ export {
     AVATAR_INITIALS_VECTORS,
     AVATAR_MODE_VECTORS,
 } from './avatar.js';
+export type { AvatarColorVector, AvatarFontSizeVector, AvatarInitialsVector, AvatarModeVector } from './avatar.js';
+
+// --- View stack selection (Adw.ViewStack) vectors ---
+export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';
 export type {
-    AvatarColorVector,
-    AvatarFontSizeVector,
-    AvatarInitialsVector,
-    AvatarModeVector,
-} from './avatar.js';
+    ViewStackIconNameVector,
+    ViewStackPageDescriptorVector,
+    ViewStackVector,
+    ViewStackVectorChange,
+    ViewStackVectorOp,
+    ViewStackVectorPage,
+} from './view-stack.js';
+
+// --- Navigation stack (Adw.NavigationView) vectors ---
+export {
+    NAVIGATION_VIEW_VECTORS,
+    collectNavigationState,
+    navigationEventLog,
+    runNavigationSteps,
+} from './navigation-view.js';
+export type {
+    ExpectedNavigationChange,
+    ExpectedPageState,
+    NavigationEventRecord,
+    NavigationExpectation,
+    NavigationPageId,
+    NavigationStateCheck,
+    NavigationStep,
+    NavigationStepOutcome,
+    NavigationVector,
+    NavigationVectorAdapter,
+} from './navigation-view.js';
+
+// --- Sidebar selection + sections (Adw.Sidebar) vectors ---
+export {
+    SIDEBAR_ACTIVATION_VECTORS,
+    SIDEBAR_CLAMP_VECTORS,
+    SIDEBAR_FILTER_VECTORS,
+    SIDEBAR_ITEMS_CHANGED_VECTORS,
+    SIDEBAR_ITEM_FLAG_VECTORS,
+    SIDEBAR_MODEL_VECTORS,
+    SIDEBAR_MODE_VECTORS,
+} from './sidebar.js';
+export type {
+    SidebarActivationVector,
+    SidebarClampVector,
+    SidebarFilterVector,
+    SidebarItemFlagsVector,
+    SidebarItemsChangedVector,
+    SidebarModeVector,
+    SidebarModelVector,
+} from './sidebar.js';
+
+// --- Entry rows (Adw.EntryRow / Adw.PasswordEntryRow) vectors ---
+export {
+    ENTRY_MAX_LENGTH_VECTORS,
+    ENTRY_ROW_ACTIVATION_VECTORS,
+    ENTRY_ROW_GUARD_VECTORS,
+    ENTRY_ROW_STATE_VECTORS,
+    ENTRY_TEXT_LENGTH_VECTORS,
+    PASSWORD_ENTRY_ROW_VECTORS,
+    PASSWORD_REVEAL_GUARD_VECTORS,
+} from './entry-row.js';
+export type {
+    EntryMaxLengthVector,
+    EntryRowActivationVector,
+    EntryRowGuardVector,
+    EntryRowStateVector,
+    EntryRowStep,
+    EntryTextLengthVector,
+    PasswordEntryRowStep,
+    PasswordEntryRowVector,
+    PasswordRevealGuardVector,
+} from './entry-row.js';
+
+// --- Split views (Adw.NavigationSplitView / Adw.OverlaySplitView) vectors ---
+export {
+    ADW_LENGTH_UNIT_VECTORS,
+    GLIB_CLAMP_VECTORS,
+    NATURAL_SIDEBAR_WIDTH_VECTORS,
+    NAVIGATION_ACTION_VECTORS,
+    NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS,
+    NAVIGATION_STACK_VECTORS,
+    OVERLAY_COLLAPSE_VECTORS,
+    OVERLAY_SPLIT_VIEW_LAYOUT_VECTORS,
+    OVERLAY_SWIPE_AREA_VECTORS,
+    OVERLAY_SWIPE_CANCEL_VECTORS,
+    OVERLAY_SWIPE_RELEASE_VECTORS,
+    OVERLAY_SWIPE_SNAP_POINT_VECTORS,
+    OVERLAY_SWIPE_START_VECTORS,
+    SIDEBAR_BOUNDS_VECTORS,
+    SIDEBAR_WIDTH_VECTORS,
+    SPLIT_VIEW_MEASURE_VECTORS,
+    TAGS_CONFLICT_VECTORS,
+} from './split-view.js';
+export type {
+    AdwLengthUnitVector,
+    GlibClampVector,
+    NaturalSidebarWidthVector,
+    NavigationActionVector,
+    NavigationLayoutVector,
+    NavigationStackVector,
+    OverlayCollapseVector,
+    OverlayLayoutVector,
+    OverlaySplitViewSnapshot,
+    SidebarBoundsVector,
+    SidebarWidthVector,
+    SplitViewMeasureVector,
+    SwipeAreaVector,
+    SwipeCancelVector,
+    SwipeReleaseVector,
+    SwipeSnapPointVector,
+    SwipeStartVector,
+    TagsConflictVector,
+} from './split-view.js';
+
+// --- Split button + menu model (Adw.SplitButton) vectors ---
+export {
+    SPLIT_BUTTON_CONTENT_VECTORS,
+    SPLIT_BUTTON_DIRECTION_VECTORS,
+    SPLIT_BUTTON_DROPDOWN_VECTORS,
+    SPLIT_BUTTON_MENU_ACTIVATION_VECTORS,
+    SPLIT_BUTTON_MENU_PARSE_VECTORS,
+    SPLIT_BUTTON_ROOT_STATE_VECTORS,
+    SPLIT_BUTTON_STYLE_CLASS_VECTORS,
+    SPLIT_BUTTON_TOOLTIP_VECTORS,
+} from './split-button.js';
+export type {
+    SplitButtonContentStep,
+    SplitButtonContentVector,
+    SplitButtonDirectionVector,
+    SplitButtonDropdownVector,
+    SplitButtonMenuActivationVector,
+    SplitButtonMenuParseVector,
+    SplitButtonRootStateVector,
+    SplitButtonStyleClassVector,
+    SplitButtonTooltipVector,
+} from './split-button.js';

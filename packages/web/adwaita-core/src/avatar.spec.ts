@@ -13,10 +13,10 @@ import {
     avatarMaxFontSize,
     avatarMode,
     flattenAvatarGradient,
-    glibClamp,
     gStrHash,
     randomAvatarColorClass,
 } from './avatar.js';
+import { glibClamp } from './glib.js';
 import {
     AVATAR_COLOR_VECTORS,
     AVATAR_FONT_SIZE_VECTORS,
@@ -141,8 +141,9 @@ export default async () => {
         await it('tests the HIGH bound first, so inverted bounds differ', () => {
             // GLib returns the LOW bound here; Math.min(high, Math.max(low, x))
             // returns the high one. Adwaita reaches inverted bounds for real.
-            expect(glibClamp(5, 10, 8)).toBe(10);
-            expect(Math.min(8, Math.max(10, 5))).toBe(8);
+            const [x, low, high] = [5, 10, 8];
+            expect(glibClamp(x, low, high)).toBe(10);
+            expect(Math.min(high, Math.max(low, x))).toBe(8);
         });
     });
 
