@@ -1,7 +1,9 @@
 // Aggregated story list for the NativeScript Adwaita storybook. Each *.ns.ts
 // shares its metadata with the GTK *.story.ts + browser *.web.ts twins (via the
 // GTK showcase's `@gjsify/example-gtk-adwaita-storybook/metas` barrel), so the
-// three targets render the SAME stories and can be compared 1:1.
+// three targets render the SAME stories. Nothing COMPARES what they render — a
+// screenshot harness is not implemented (#1052); the parity that is held is
+// behavioural, via the @gjsify/adwaita-core/conformance vectors.
 //
 // Order MIRRORS the native GTK sidebar exactly: the GTK storybook discovers
 // `*.story.ts` by path glob, so its category + story order is alphabetical by

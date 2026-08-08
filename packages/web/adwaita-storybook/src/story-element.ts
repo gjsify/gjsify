@@ -3,7 +3,8 @@
 // builds DOM with @gjsify/adwaita-web components instead of GTK widgets, but
 // exposes the same authoring surface (getMetadata, initialize, updateArgs,
 // teardown, addContent, meta/story/args) so a story is a near-1:1 port of its
-// GTK twin and the two render identically.
+// GTK twin. That is a claim about the story SOURCE, which is readable here; that
+// the two then render identically is not measured anywhere (#1052).
 //
 // Thin DOM adapter over @gjsify/storybook-core's StoryViewBase: the
 // renderer-agnostic state (meta/story/args, onArgsChanged/setArg, the

@@ -3,7 +3,11 @@
 // @gjsify/adwaita-storybook (browser): author `*.ns.ts` files as StoryView
 // subclasses and render them in a generic Adwaita component browser built from
 // REAL @gjsify/adwaita-nativescript widgets, looking + behaving like the native
-// GTK / browser storybooks so all three targets can be screenshot-compared 1:1.
+// GTK / browser storybooks.
+//
+// A screenshot harness comparing the three renderers is NOT implemented (#1052).
+// What holds their behaviour together is the @gjsify/adwaita-core/conformance
+// vector tables, which both renderer suites assert their real widgets against.
 //
 // A thin NativeScript adapter over @gjsify/storybook-core — the
 // renderer-agnostic logic (story base, registry, control binding, app

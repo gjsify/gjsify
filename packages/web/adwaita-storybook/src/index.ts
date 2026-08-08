@@ -2,7 +2,11 @@
 // The web counterpart of @gjsify/storybook: author *.web.ts files as
 // StoryElement subclasses and render them in a generic Adwaita component browser
 // built from @gjsify/adwaita-web, looking and behaving like the native GTK
-// storybook so the two targets can be screenshot-compared 1:1.
+// storybook.
+//
+// A screenshot harness comparing the renderers is NOT implemented (#1052). What
+// holds their behaviour together is the @gjsify/adwaita-core/conformance vector
+// tables, which both renderer suites assert their real widgets against.
 //
 // A thin DOM adapter over @gjsify/storybook-core — the renderer-agnostic logic
 // (story base, registry, control binding, app controller) lives in core; this
