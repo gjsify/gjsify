@@ -118,7 +118,7 @@ for (const root of SEARCH_ROOTS) {
                     file,
                     line: i + 1,
                     text: line.trim(),
-                    fix: "a libuv errno differs per platform (EEXIST is -17 on Linux, -4075 on win32) — assert the `code`, or that an errno is present.",
+                    fix: 'a libuv errno differs per platform (EEXIST is -17 on Linux, -4075 on win32) — assert the `code`, or that an errno is present.',
                 });
             }
         });
