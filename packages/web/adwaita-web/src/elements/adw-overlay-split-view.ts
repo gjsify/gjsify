@@ -483,7 +483,16 @@ export class AdwOverlaySplitView extends HTMLElement {
         // leaving the old value behind would defeat the stylesheet exactly when
         // it is needed. `_resting.scss` carries the four end states.
         if (this._measuredWidth <= 0) {
-            for (const prop of ['left', 'marginLeft', 'marginRight', 'width', 'minWidth', 'maxWidth', 'opacity', 'pointerEvents'] as const) {
+            for (const prop of [
+                'left',
+                'marginLeft',
+                'marginRight',
+                'width',
+                'minWidth',
+                'maxWidth',
+                'opacity',
+                'pointerEvents',
+            ] as const) {
                 sidebar.style[prop] = '';
             }
             if (this._backdropEl) this._backdropEl.style.opacity = '';
