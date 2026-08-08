@@ -539,7 +539,18 @@ export class AdwOverlaySplitView extends HTMLElement {
                     return;
                 }
                 state.beginSwipe();
-                this.setPointerCapture(event.pointerId);
+                // Capture keeps the move/up events coming once the pointer
+                // leaves the element — an optimisation, not a precondition. It
+                // THROWS for a pointer id the browser has no active pointer for,
+                // which Firefox does strictly and Chromium tolerates: a synthetic
+                // event, or one whose pointer was already released, aborted the
+                // whole gesture before the progress was ever written. The swipe
+                // still works without it, so the failure is swallowed on purpose.
+                try {
+                    this.setPointerCapture(event.pointerId);
+                } catch {
+                    /* no active pointer for this id — the gesture does not need capture */
+                }
             }
             state.setShowProgress(this._swipeOrigin.progress + travel);
         });
@@ -549,6 +560,8 @@ export class AdwOverlaySplitView extends HTMLElement {
             this._swipePointer = null;
             const state = this._state;
             if (!state.swipeActive) return;
+            // Same asymmetry on the way out: `hasPointerCapture` is false when the
+            // capture above was refused, so the release is already conditional.
             if (this.hasPointerCapture(event.pointerId)) this.releasePointerCapture(event.pointerId);
             // A cancelled gesture snaps back to where it came from
             // (`get_cancel_progress`, :1253-1258); a released one settles on the
