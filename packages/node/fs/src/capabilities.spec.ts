@@ -376,8 +376,9 @@ export const NO_SPECIAL_BITS_REASON =
  *
  * POSIX requires it — XSH `pwrite`: "If the O_APPEND flag of the file status
  * flags is set, the file offset shall be set to the end of the file prior to
- * each write" — and Linux obeys. darwin and win32 write AT the offset instead,
- * so `writeSync(fd, buf, 0, n, 0)` on an append fd destroys the head of the log.
+ * each write". Linux obeys, and so does libuv on win32 (measured: the rule
+ * passes there). darwin is the outlier — BSD's pwrite writes AT the offset — so
+ * `writeSync(fd, buf, 0, n, 0)` on an append fd destroys the head of the log.
  *
  * `@gjsify/fs` implements the POSIX rule on every platform (it never passes a
  * position for an append descriptor at all — see `_writeCore`), so on a
@@ -385,10 +386,11 @@ export const NO_SPECIAL_BITS_REASON =
  * diverges from the standard. The marker therefore scopes to the Node leg; the
  * GJS leg runs the rule and must pass.
  */
-export const PWRITE_OBEYS_APPEND = process.platform === 'linux';
+export const PWRITE_OBEYS_APPEND = process.platform !== 'darwin';
 
 /** The `reason` string the positional-append rule carries. */
 export const NO_PWRITE_APPEND_REASON =
     "This host's pwrite(2) ignores POSIX XSH's O_APPEND clause and writes at the offset instead of at EOF " +
-    '(darwin and win32 both do; Linux obeys). The expectation is the POSIX one and `@gjsify/fs` implements it ' +
+    '(BSD does, and so darwin; Linux and libuv-on-win32 obey). The expectation is the POSIX one and ' +
+    '`@gjsify/fs` implements it ' +
     'everywhere, so this marker is scoped to the NODE leg: on the GJS leg the rule runs and must pass.';

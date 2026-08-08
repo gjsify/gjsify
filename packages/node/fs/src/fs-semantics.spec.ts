@@ -1213,7 +1213,6 @@ export default async () => {
                 const { O_WRONLY, O_CREAT, O_EXCL } = fsConstants;
                 const f = join(dir, 'numeric');
                 closeSync(openSync(f, O_WRONLY | O_CREAT | O_EXCL, 0o600));
-                expect(modeOf(f)).toBe(0o600);
                 let code: string | undefined;
                 try {
                     openSync(f, O_WRONLY | O_CREAT | O_EXCL, 0o600);
@@ -1225,6 +1224,28 @@ export default async () => {
                 drop(dir);
             }
         });
+
+        // Split from the rule above rather than folded into it: the exclusive
+        // create is verifiable on every host and must stay that way, while the
+        // mode half is not expressible on NTFS. One rule carrying both would
+        // have to be marked expected-failing on win32 as a whole, and would stop
+        // checking O_EXCL exactly where the flag NUMBERS differ most.
+        await it.failing(
+            'the numeric spelling carries the mode as well as the flags',
+            async () => {
+                const dir = scratch('wxnummode');
+                try {
+                    const { O_WRONLY, O_CREAT, O_EXCL } = fsConstants;
+                    const f = join(dir, 'numeric');
+                    closeSync(openSync(f, O_WRONLY | O_CREAT | O_EXCL, 0o600));
+                    expect(modeOf(f)).toBe(0o600);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
 
         await it('does NOT treat numeric O_EXCL without O_CREAT as exclusive', async () => {
             // POSIX leaves the combination undefined and Node simply opens the
