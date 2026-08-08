@@ -134,6 +134,7 @@ import './manifest-conformance/rules/tier.mjs';
 import './manifest-conformance/rules/refs-pin.mjs';
 import './manifest-conformance/rules/status-data.mjs';
 import './manifest-conformance/rules/platform-packages.mjs';
+import './manifest-conformance/rules/release-train.mjs';
 
 // `tests/e2e/prebuild-declaration-invariant` drives the prebuild invariant
 // against SYNTHETIC packages, because proving that a MISSING prebuild directory
@@ -1590,6 +1591,10 @@ const CHECK_RULES = [
     // implementation at all" is the only half of that promise any machine here
     // can hold.
     'nativescript-platforms',
+    // Reads only manifests already parsed by this job — no install, no
+    // network. It guards the apps EXCLUDED from `workspaces`, which is exactly
+    // the set no other check can see.
+    'release-train',
     'field-coverage',
     'status-data',
 ];

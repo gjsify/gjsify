@@ -2,40 +2,70 @@
 //
 // The "narrow policy" companion to {@link AdwViewSwitcher}: a full-width bar of
 // evenly-distributed buttons, each showing an Adwaita symbolic icon ABOVE its
-// label (the mobile/phone form), bound to an external {@link AdwViewStack} via the
-// `stack` property. Mirrors `Adw.ViewSwitcherBar`: it drives — and reflects — the
-// stack's `visible-child`, and a `revealed` property shows/hides it (an adaptive
-// layout reveals it only on narrow screens, hiding it when a wide `AdwViewSwitcher`
-// in the header bar takes over). Because it binds to a separate stack, it can sit
-// in an `AdwToolbarView`'s BOTTOM slot while the stack fills the content slot —
-// the canonical Adwaita phone shell.
+// label (the mobile/phone form), bound to an external {@link AdwViewStack} via
+// the `stack` property. Because it binds to a separate stack it can sit in an
+// `AdwToolbarView`'s BOTTOM slot while the stack fills the content slot — the
+// canonical Adwaita phone shell.
 //
-// Each button is a REAL tappable `StackLayout` (icon over label); press feedback is
-// wired with {@link attachRowPressFeedback} (NS only auto-highlights `Button`). The
-// active button's label is accent-coloured via CSS; its icon stays theme-coloured
-// (the CSS subset can't recolour a rasterised icon per-state without re-pinning it
-// off the light/dark scheme — a documented, minor fidelity gap).
+// The derivations are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004):
+// the per-button model (`buildViewSwitcherButtons`, so this bar and the header
+// switcher cannot disagree about what a page looks like) and — the rule this
+// port was missing entirely — `ViewSwitcherBarState`, which is `reveal` AND MORE
+// THAN ONE VISIBLE PAGE (`update_bar_revealed`, adw-view-switcher-bar.c:104-126).
 //
-// FIDELITY: approximated. Pages swap by `visibility` toggle in the bound stack (no
-// cross-fade). The bar/stack decoupling + icon-over-label layout + reveal semantics
-// are faithful.
+// What the lift fixed here, all of it C-derived:
+//   - `revealed` started as TRUE and the constructor never touched `visibility`,
+//     so a freshly built bar covered the screen bottom until someone set it
+//     false; `PROP_REVEAL` defaults to FALSE and `init` runs the derivation
+//     immediately (:256-259, :277).
+//   - the page count was never consulted, so a bar bound to a one-page stack
+//     showed an empty strip libadwaita keeps collapsed (:125).
+//   - a page with no icon rendered no icon (`image-missing`, :399-405 of
+//     adw-view-switcher-button.c) and a page with neither title nor icon still
+//     got a tappable button (adw-view-switcher.c:178).
+//   - the `NOTIFY_VISIBLE_CHILD` listener registered in `setStack` was never
+//     released; it is now dropped on `unloaded` and re-taken on `loaded`, which
+//     is where C's dispose-only teardown lands in a widget that really is
+//     detached and re-attached.
 //
+// Each button is a REAL tappable `StackLayout` (icon over label); press feedback
+// is wired with {@link attachRowPressFeedback} (NS only auto-highlights
+// `Button`). The active button's label is accent-coloured via CSS; its icon stays
+// theme-coloured (the CSS subset can't recolour a rasterised icon per-state
+// without re-pinning it off the light/dark scheme — a documented, minor fidelity
+// gap).
+//
+// FIDELITY: approximated. Pages swap by `visibility` toggle in the bound stack
+// (no cross-fade), and the bar rebuilds from the stack's pages on every
+// `notify::visible-child` plus an explicit `refresh()` — the NS stack has no
+// `items-changed` signal for C's rebuild-on-page-add (adw-view-switcher.c:258-263).
+//
+// Reference: refs/libadwaita/src/adw-view-switcher-bar.c (AdwViewSwitcherBar)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss (viewswitcherbar)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
+import { buildViewSwitcherButtons, viewSwitcherPagesFromStack } from '@gjsify/adwaita-core';
 import { AdwIcon } from './adw-icon.js';
 import { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
 import { attachRowPressFeedback } from './row-press.js';
+import { createViewSwitcherBarState, nsIconSvg } from './view-switcher-model.js';
+
+/** The per-button NS nodes, so a selection change repaints instead of rebuilding. */
+interface BarButtonNodes {
+    button: StackLayout;
+    icon: AdwIcon;
+    label: Label;
+    badge: Label;
+}
 
 export class AdwViewSwitcherBar extends GridLayout {
     /** The horizontal (homogeneous) row of buttons. */
     private readonly _bar: GridLayout;
-    /** The tappable button containers, one per stack page, in page order. */
-    private readonly _buttons: StackLayout[] = [];
+    private _nodes: BarButtonNodes[] = [];
     private _stack: AdwViewStack | null = null;
     private _stackListener: (() => void) | null = null;
-    private _revealed = true;
+    private readonly _barState = createViewSwitcherBarState();
 
     constructor() {
         super();
@@ -51,23 +81,26 @@ export class AdwViewSwitcherBar extends GridLayout {
         this.addChild(bar);
         this._bar = bar;
 
-        // Keep in sync if the stack changed selection while the bar was detached.
-        this.addEventListener('loaded', () => this._syncActive());
+        this._barState.subscribe(() => this._applyRevealed());
+        // `reveal` defaults to FALSE, and `adw_view_switcher_bar_init` runs the
+        // derivation right away — so a bar starts COLLAPSED, not on screen.
+        this._applyRevealed();
+
+        // Re-bind on attach and release on detach: the listener used to survive
+        // every detach with nothing dropping it.
+        this.addEventListener('loaded', () => {
+            this._bindStack();
+            this._rebuild();
+        });
+        this.addEventListener('unloaded', () => this._unbindStack());
     }
 
     /** Bind to an {@link AdwViewStack}: build buttons from its pages + two-way sync. */
     setStack(stack: AdwViewStack | null): void {
-        if (this._stack && this._stackListener) {
-            this._stack.removeEventListener(NOTIFY_VISIBLE_CHILD, this._stackListener);
-        }
+        this._unbindStack();
         this._stack = stack;
-        this._stackListener = null;
+        this._bindStack();
         this._rebuild();
-        if (stack) {
-            const listener = () => this._syncActive();
-            stack.addEventListener(NOTIFY_VISIBLE_CHILD, listener);
-            this._stackListener = listener;
-        }
     }
 
     /** The bound stack (`Adw.ViewSwitcherBar.stack`). */
@@ -80,72 +113,131 @@ export class AdwViewSwitcherBar extends GridLayout {
     }
 
     /**
-     * Whether the bar is shown (`Adw.ViewSwitcherBar.reveal`). An adaptive layout
-     * sets this `true` on narrow screens and `false` on wide ones (where a header-bar
-     * `AdwViewSwitcher` takes over).
+     * Whether the layout asked for the bar — `Adw.ViewSwitcherBar:reveal`. An
+     * adaptive layout sets it `true` on narrow screens and `false` on wide ones,
+     * where a header-bar `AdwViewSwitcher` takes over.
+     */
+    get reveal(): boolean {
+        return this._barState.reveal;
+    }
+
+    set reveal(value: boolean) {
+        this._barState.setReveal(value);
+    }
+
+    /**
+     * Whether the bar is actually shown. READ-ONLY: a one-page stack keeps it
+     * collapsed however loudly the layout asks (adw-view-switcher-bar.c:125).
+     * Write {@link reveal} to make the request.
      */
     get revealed(): boolean {
-        return this._revealed;
+        return this._barState.revealed;
     }
 
-    set revealed(value: boolean) {
-        this._revealed = !!value;
-        this.visibility = this._revealed ? 'visible' : 'collapse';
-    }
-
-    /** Rebuild the button row from the bound stack's pages (call after late page adds). */
+    /**
+     * Rebuild the button row from the bound stack's pages — needed after pages
+     * were added without changing the stack's selection. libadwaita rebuilds on
+     * the pages model's `items-changed` (adw-view-switcher.c:258-263), which the
+     * NS stack has no counterpart for.
+     */
     refresh(): void {
         this._rebuild();
     }
 
-    private _rebuild(): void {
-        for (const btn of this._buttons) this._bar.removeChild(btn);
-        this._buttons.length = 0;
-        this._bar.removeColumns();
-
-        const pages = this._stack?.pages ?? [];
-        pages.forEach((page, index) => {
-            // Homogeneous: every button gets an equal `star` column.
-            this._bar.addColumn(new ItemSpec(1, 'star'));
-
-            const btn = new StackLayout();
-            btn.orientation = 'vertical';
-            btn.className = 'adw-viewswitcherbar-button';
-            btn.horizontalAlignment = 'stretch';
-
-            if (page.icon) {
-                const icon = new AdwIcon();
-                icon.className = `${icon.className} adw-viewswitcherbar-button-icon`.trim();
-                icon.horizontalAlignment = 'center';
-                icon.icon = page.icon;
-                btn.addChild(icon);
-            }
-
-            const label = new Label();
-            label.text = page.title;
-            label.className = 'adw-viewswitcherbar-button-label';
-            label.horizontalAlignment = 'center';
-            label.textAlignment = 'center';
-            btn.addChild(label);
-
-            attachRowPressFeedback(btn);
-            btn.addEventListener('tap', () => {
-                if (this._stack) this._stack.visibleChildIndex = index;
-            });
-
-            GridLayout.setColumn(btn, index);
-            this._bar.addChild(btn);
-            this._buttons.push(btn);
-        });
-
-        this._syncActive();
+    private _bindStack(): void {
+        if (!this._stack || this._stackListener) return;
+        const listener = () => this._rebuild();
+        this._stack.addEventListener(NOTIFY_VISIBLE_CHILD, listener);
+        this._stackListener = listener;
     }
 
-    /** Mark the button for the stack's visible page active (accent label via CSS). */
-    private _syncActive(): void {
-        const selected = this._stack?.visibleChildIndex ?? -1;
-        this._buttons.forEach((btn, i) => {
-            btn.className = i === selected ? 'adw-viewswitcherbar-button active' : 'adw-viewswitcherbar-button';
+    private _unbindStack(): void {
+        if (!this._stack || !this._stackListener) return;
+        this._stack.removeEventListener(NOTIFY_VISIBLE_CHILD, this._stackListener);
+        this._stackListener = null;
+    }
+
+    private _rebuild(): void {
+        const stackPages = this._stack?.pages ?? [];
+        // The page count is half the reveal derivation, so it is fed on every
+        // rebuild — `update_bar_revealed` is re-run from set_stack and from
+        // items-changed for exactly this reason (:340-343, :277).
+        this._barState.setPages(stackPages);
+
+        const pages = viewSwitcherPagesFromStack(stackPages);
+        const models = buildViewSwitcherButtons(pages, this._stack?.visibleChildIndex ?? -1, 'narrow');
+
+        // Nodes are recreated only when the page COUNT moves: a selection change
+        // must not replace the button under the user's finger, and
+        // `selection_changed_cb` only re-marks the existing buttons
+        // (adw-view-switcher.c:265-295).
+        if (models.length !== this._nodes.length) {
+            for (const nodes of this._nodes) this._bar.removeChild(nodes.button);
+            this._nodes = [];
+            this._bar.removeColumns();
+            this._nodes = models.map((model, index) => {
+                // Homogeneous: every button gets an equal `star` column.
+                this._bar.addColumn(new ItemSpec(1, 'star'));
+                return this._buildButton(model.pageIndex, index);
+            });
+        }
+
+        models.forEach((model, index) => {
+            const nodes = this._nodes[index];
+            if (!nodes) return;
+            nodes.button.visibility = model.visible ? 'visible' : 'collapse';
+            nodes.button.className = model.selected
+                ? 'adw-viewswitcherbar-button active'
+                : 'adw-viewswitcherbar-button';
+            nodes.icon.icon = nsIconSvg(model.iconName);
+            nodes.label.text = model.label;
+            nodes.badge.text = model.badgeLabel;
+            nodes.badge.visibility = model.badgeLabel.length > 0 || model.needsAttention ? 'visible' : 'collapse';
+            nodes.badge.className =
+                model.badgeLabel.length === 0 && model.needsAttention
+                    ? 'adw-viewswitcherbar-button-badge needs-attention'
+                    : 'adw-viewswitcherbar-button-badge';
         });
+
+        this._applyRevealed();
+    }
+
+    private _buildButton(pageIndex: number, column: number): BarButtonNodes {
+        const button = new StackLayout();
+        button.orientation = 'vertical';
+        button.className = 'adw-viewswitcherbar-button';
+        button.horizontalAlignment = 'stretch';
+
+        // Icon and label always exist — the icon carries the `image-missing`
+        // fallback rather than disappearing.
+        const icon = new AdwIcon();
+        icon.className = `${icon.className} adw-viewswitcherbar-button-icon`.trim();
+        icon.horizontalAlignment = 'center';
+        button.addChild(icon);
+
+        const label = new Label();
+        label.className = 'adw-viewswitcherbar-button-label';
+        label.horizontalAlignment = 'center';
+        label.textAlignment = 'center';
+        button.addChild(label);
+
+        const badge = new Label();
+        badge.className = 'adw-viewswitcherbar-button-badge';
+        badge.horizontalAlignment = 'center';
+        badge.textAlignment = 'center';
+        button.addChild(badge);
+
+        attachRowPressFeedback(button);
+        button.addEventListener('tap', () => {
+            if (this._stack) this._stack.visibleChildIndex = pageIndex;
+        });
+
+        GridLayout.setColumn(button, column);
+        this._bar.addChild(button);
+        return { button, icon, label, badge };
+    }
+
+    private _applyRevealed(): void {
+        this.visibility = this._barState.revealed ? 'visible' : 'collapse';
     }
 }

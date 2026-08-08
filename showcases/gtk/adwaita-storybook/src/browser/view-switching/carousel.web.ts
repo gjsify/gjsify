@@ -38,6 +38,18 @@ function buildPage(title: string, accent: string): HTMLElement {
     return card;
 }
 
+/**
+ * Push the two boolean controls onto the element.
+ *
+ * `allow-scroll-wheel` defaults to TRUE (adw-carousel.c:1103-1106), so it cannot
+ * be a bare presence attribute — REMOVING it would turn the wheel back ON. The
+ * element reads the explicit string, which is what a `false` control must write.
+ */
+function syncCarouselArgs(carousel: HTMLElement, args: StoryArgs): void {
+    carousel.setAttribute('allow-scroll-wheel', args.allowScrollWheel ? 'true' : 'false');
+    carousel.setAttribute('allow-long-swipes', args.allowLongSwipes ? 'true' : 'false');
+}
+
 /** Shared body for both indicator variants — only the indicator tag differs. */
 abstract class CarouselWebStoryBase extends StoryElement {
     private _carousel: HTMLElement | null = null;
@@ -49,8 +61,7 @@ abstract class CarouselWebStoryBase extends StoryElement {
         const carousel = document.createElement('adw-carousel');
         carousel.id = `adw-carousel-${nextCarouselId++}`;
         carousel.style.cssText = 'width:480px;height:280px;';
-        carousel.toggleAttribute('allow-scroll-wheel', this.args.allowScrollWheel as boolean);
-        carousel.toggleAttribute('allow-long-swipes', this.args.allowLongSwipes as boolean);
+        syncCarouselArgs(carousel, this.args);
         for (const page of PAGES) {
             carousel.appendChild(buildPage(page.title, page.accent));
         }
@@ -68,8 +79,7 @@ abstract class CarouselWebStoryBase extends StoryElement {
 
     updateArgs(_args: StoryArgs): void {
         if (!this._carousel) return;
-        this._carousel.toggleAttribute('allow-scroll-wheel', this.args.allowScrollWheel as boolean);
-        this._carousel.toggleAttribute('allow-long-swipes', this.args.allowLongSwipes as boolean);
+        syncCarouselArgs(this._carousel, this.args);
     }
 }
 

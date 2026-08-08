@@ -4,8 +4,10 @@
 // NativeScript views with @gjsify/adwaita-nativescript components instead of
 // DOM/GTK widgets, but exposes the SAME authoring surface (meta/story/args,
 // initialize, updateArgs, teardown, addContent, onArgsChanged, setArg) so a
-// `*.ns.ts` story is a near-1:1 port of its `*.web.ts` / `*.story.ts` twin and
-// the three targets render identically (screenshot-comparable 1:1).
+// `*.ns.ts` story is a near-1:1 port of its `*.web.ts` / `*.story.ts` twin. That
+// the three targets then RENDER the same is an intention, not a measurement — no
+// screenshot harness exists (#1052); the parity that is actually held is
+// behavioural, through the @gjsify/adwaita-core/conformance vectors.
 //
 // Thin NativeScript adapter over @gjsify/storybook-core's StoryViewBase: the
 // renderer-agnostic state (meta/story/args, onArgsChanged/setArg, the

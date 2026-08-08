@@ -221,6 +221,23 @@ function scanGnomeNamespaces(pkgDir) {
  * no alias table. Upstream partials that no renderer has yet are a genuinely
  * authored judgement (three different naming conventions) and stay in the
  * roadmap section.
+ *
+ * TWO false gaps this used to score, both fixed by DERIVING harder rather than
+ * by an exception list — an allowlist here would reintroduce exactly the
+ * hand-maintenance that let the old table drift twelve widgets behind:
+ *
+ *   - `adw-toast` read as MISSING on both renderers. Upstream `Adw.Toast` is a
+ *     DATA object: it has no widget of its own, it is state that
+ *     `adw-toast-overlay` renders. The derivable signal is the shape itself — a
+ *     story exists, no renderer element does, and `@gjsify/adwaita-core` has a
+ *     module of that name — so it is reported as modelled-in-core instead of as
+ *     a hole in two ports.
+ *   - Widgets served by a SHARED helper read as not-core-backed. The lookup was
+ *     `<widget>.ts` / `<widget>-color.ts`, i.e. a naming convention, so
+ *     `chrome.ts` (which imports core and serves the spinner among others) was
+ *     invisible and `adw-spinner` scored as duplicated behaviour on NativeScript
+ *     while it was already sharing it. The edge is now followed instead of
+ *     guessed at, one hop through the package's own modules.
  */
 function collectAdwaitaCoverage(root) {
     const names = (dir, re) => {
@@ -244,31 +261,58 @@ function collectAdwaitaCoverage(root) {
         stories.add(base.replace(/\.meta\.ts$/, ''));
     }
 
-    // "Backed by core" is not a claim — it is an import edge we can see.
-    const usesCore = (file) => {
+    const read = (file) => {
         try {
-            return /@gjsify\/adwaita-core/.test(readFileSync(file, 'utf8'));
+            return readFileSync(file, 'utf8');
         } catch {
-            return false;
+            return null;
         }
     };
-    // A renderer may delegate through a sibling helper module (the NS ports do,
-    // because a spec cannot import a module that `extends GridLayout`), so a
-    // widget counts as core-backed when its own file or a same-named helper does.
-    const nsHelpers = names(join(root, 'packages/nativescript-bridge/adwaita/src/widgets'), /^(.+)\.ts$/);
+    // "Backed by core" is not a claim — it is an import edge we can see.
+    const importsCore = (src) => src !== null && /@gjsify\/adwaita-core/.test(src);
+
+    /**
+     * Does this widget reach `@gjsify/adwaita-core` — itself, or through a module
+     * of its own package that it imports?
+     *
+     * ONE HOP, deliberately. A renderer delegates through a helper for a reason
+     * the tree makes visible: an NS spec cannot import a module that
+     * `extends GridLayout`, so the pure half moves out (`chrome.ts`,
+     * `avatar-color.ts`, `split-view-width.ts`), and that helper is where the core
+     * edge lives. One hop is the delegation; a transitive walk would report a
+     * widget as core-backed because something four modules away happens to import
+     * core, which is not the same claim.
+     */
+    const reachesCore = (file) => {
+        const src = read(file);
+        if (src === null) return false;
+        if (importsCore(src)) return true;
+        for (const [, spec] of src.matchAll(/from\s+['"](\.[^'"]*)['"]/g)) {
+            // TS sources import the EMITTED `.js` sibling; the file on disk is `.ts`.
+            const helper = resolve(file, '..', spec.replace(/\.js$/, '.ts'));
+            if (importsCore(read(helper))) return true;
+        }
+        return false;
+    };
+
+    // Upstream data objects — `Adw.Toast` is state, not a widget, and the renderer
+    // that draws it is a different one (`adw-toast-overlay`). Derived from the
+    // shape rather than named: a story, no renderer element anywhere, and a core
+    // module of that name. Scored as a two-renderer hole it was pure noise.
+    const coreModule = (name) => existsSync(join(root, 'packages/web/adwaita-core/src', `${name}.ts`));
 
     const all = [...new Set([...web.keys(), ...ns.keys(), ...stories])].sort();
     return all.map((name) => {
         const webFile = web.get(name);
         const nsFile = ns.get(name);
-        const nsHelper = nsHelpers.get(`${name}-color`) ?? nsHelpers.get(name);
         return {
             name,
             story: stories.has(name),
             web: Boolean(webFile),
             ns: Boolean(nsFile),
-            webCore: Boolean(webFile && usesCore(webFile)),
-            nsCore: Boolean((nsFile && usesCore(nsFile)) || (nsHelper && usesCore(nsHelper))),
+            webCore: Boolean(webFile && reachesCore(webFile)),
+            nsCore: Boolean(nsFile && reachesCore(nsFile)),
+            dataObject: !webFile && !nsFile && stories.has(name) && coreModule(name),
         };
     });
 }
@@ -658,20 +702,27 @@ function table(header, rows) {
 /**
  * Render the derived per-widget coverage matrix.
  *
- * "Core" is not a claim about intent — it is whether that renderer's widget (or
- * its NS-core-free helper) actually imports `@gjsify/adwaita-core`. A widget
- * present on both sides with no core edge is a duplicated-behaviour candidate,
- * which is precisely the ADR-0004 backlog, computed instead of remembered.
+ * "Core" is not a claim about intent — it is whether that renderer's widget
+ * reaches `@gjsify/adwaita-core`, itself or one hop through a helper of its own
+ * package. A widget present on both sides with no core edge is a
+ * duplicated-behaviour candidate, which is precisely the ADR-0004 backlog,
+ * computed instead of remembered.
+ *
+ * Core-modelled DATA objects are listed apart from the widget table rather than
+ * inside it: an `Adw.Toast` has no renderer element on either side by design, so
+ * a row of two dashes would count a design decision as two missing ports.
  */
 function adwaitaCoverageSection(coverage) {
     const mark = (present, core) => (present ? (core ? '✅ core' : '✅') : '—');
-    const rows = coverage.map((w) => [
+    const widgets = coverage.filter((w) => !w.dataObject);
+    const dataObjects = coverage.filter((w) => w.dataObject);
+    const rows = widgets.map((w) => [
         `\`adw-${w.name}\``,
         w.story ? '✅' : '—',
         mark(w.web, w.webCore),
         mark(w.ns, w.nsCore),
     ]);
-    const both = coverage.filter((w) => w.web && w.ns);
+    const both = widgets.filter((w) => w.web && w.ns);
     const shared = both.filter((w) => w.webCore && w.nsCore);
     const out = ['## Adwaita widget coverage', ''];
     out.push(
@@ -687,6 +738,14 @@ function adwaitaCoverageSection(coverage) {
         `**${shared.length} of ${both.length}** widgets implemented on BOTH renderers share their behaviour ` +
             'through `@gjsify/adwaita-core`. The remainder still carry two copies (ADR 0004 backlog).',
     );
+    if (dataObjects.length) {
+        out.push('');
+        out.push(
+            `Modelled in \`@gjsify/adwaita-core\` as DATA rather than as a widget, and drawn by another ` +
+                `element on both renderers: ${dataObjects.map((w) => `\`adw-${w.name}\``).join(', ')}. ` +
+                'Not counted above — upstream has no such widget either.',
+        );
+    }
     out.push('');
     return out.join('\n');
 }

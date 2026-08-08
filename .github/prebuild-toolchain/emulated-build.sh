@@ -108,8 +108,16 @@ needs_rust() {
 # extension rather than by a hand-written name list), derive the target token
 # from the host instead of from `$ARCH`, and run `checkPrebuildDir()` over what
 # they wrote. None of those three held while this script copied by hand.
+#
+# `--disablerepo=fedora-cisco-openh264` is NOT covered by the weak-deps setting
+# and is not an optimisation: `gdk-pixbuf2-devel` reaches openh264 through a HARD
+# Requires chain (libheif → libopenh264.so.8), the package is served by a
+# separately hosted repo, and an outage there fails this whole transaction — for
+# a codec nothing here decodes. Disabling it resolves the same soname to Fedora's
+# `noopenh264` stub. Enforced at every site by
+# `scripts/check-ci-image-packages.mjs`, whose header carries the incident (#1057).
 if command -v dnf > /dev/null 2>&1; then
-    dnf install -y --setopt=install_weak_deps=False \
+    dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
         git tar xz findutils curl file nodejs \
         meson vala gcc pkgconf \
         glib2-devel gobject-introspection-devel \

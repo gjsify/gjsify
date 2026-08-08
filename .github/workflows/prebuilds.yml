@@ -383,8 +383,22 @@ jobs:
         # collect step below goes through, which is also what runs
         # `checkPrebuildDir()` on what it wrote. It is a build-time tool here,
         # not a runtime: nothing in this job executes JavaScript otherwise.
+        #
+        # `--disablerepo=fedora-cisco-openh264` is AVAILABILITY, not size:
+        # gdk-pixbuf2-devel reaches openh264 through a HARD Requires chain
+        # (libheif → libopenh264.so.8), the package is served by a separately
+        # hosted repo, and an outage there fails this whole transaction — for a
+        # codec nothing here decodes. Disabling it resolves the same soname to
+        # Fedora's `noopenh264` stub. `--setopt=install_weak_deps=False` is the
+        # size half and does NOT drop openh264, the chain being hard; measured in
+        # `fedora:43`, the two together cut this transaction from 565 packages
+        # (openh264, from fedora-cisco-openh264) to 385 (noopenh264, from fedora).
+        # Both flags must stay on THIS line: a folded `run: >` block has no
+        # continuations, and `scripts/check-ci-image-packages.mjs` — which holds
+        # every `dnf install` under .github/ to the first flag — reads a package
+        # list to end of line (#1057).
         run: >
-          dnf install -y
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264
           git tar xz findutils curl
           nodejs
           meson vala gcc pkgconf

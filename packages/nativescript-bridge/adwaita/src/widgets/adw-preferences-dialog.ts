@@ -11,13 +11,24 @@
 // page-hosting + present/close are faithful; an `AdwPreferencesPage` dropped in
 // renders exactly as it does standalone.
 //
+// `search(query)` implements the dialog's headline feature — "the preferences
+// are searchable by the user", the first paragraph of the C class docs. The
+// pipeline (case fold, markup parse, the three corpus filters, the
+// `page → group` subtitles) is `@gjsify/adwaita-core`'s, so this dialog and the
+// browser one answer identically for the same tree. A search UI (the toggle
+// button, the entry, the results list) is not built yet; the model is, and it is
+// what a UI would bind to.
+//
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-preferences-dialog`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dialog.scss
+// Reference: refs/libadwaita/src/adw-preferences-dialog.c (add/remove, search)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, StackLayout, View, type EventData } from '@nativescript/core';
 import { windowCloseSymbolic } from '@gjsify/adwaita-icons/ui';
+import type { SearchPreferencesOptions } from '@gjsify/adwaita-core';
 import { AdwImageButton } from './adw-image-button.js';
+import { searchNsPreferences, type NsPreferencesSearchResult, type NsSearchablePage } from './preferences-search.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
@@ -101,6 +112,34 @@ export class AdwPreferencesDialog extends GridLayout {
     /** Remove a previously-added page from the body. */
     remove(view: View): void {
         this._body.removeChild(view);
+    }
+
+    /**
+     * The pages this dialog searches, in add order.
+     *
+     * Reads the live body children, so a page added or removed after the dialog
+     * was built is indexed without an invalidation step. A plain view dropped
+     * into the body is not a page and contributes nothing.
+     */
+    get searchPages(): readonly NsSearchablePage[] {
+        const pages: NsSearchablePage[] = [];
+        const count = this._body.getChildrenCount();
+        for (let index = 0; index < count; index++) {
+            const child = this._body.getChildAt(index) as unknown as Partial<NsSearchablePage>;
+            if (typeof child.searchGroups === 'function') pages.push(child as NsSearchablePage);
+        }
+        return pages;
+    }
+
+    /**
+     * The preferences search (`filter_search_results` +
+     * `create_search_row_subtitle`) over this dialog's live pages.
+     *
+     * An empty query returns the WHOLE corpus, which is what C does and what
+     * keeps a results list populated before the user types.
+     */
+    search(query: string, options?: SearchPreferencesOptions): NsPreferencesSearchResult[] {
+        return searchNsPreferences(this.searchPages, query, options);
     }
 
     /** Reveal the preferences overlay. */

@@ -311,13 +311,14 @@ user flicks, scrolls or clicks a **page indicator** to move between them — a
 common onboarding or gallery pattern. Adwaita ships two indicator widgets that
 bind to a carousel: **dots** (shown here) and **lines**; both track the fractional
 scroll position and grow/brighten the marker nearest the current page. The
-carousel can allow the **scroll wheel** to page and **long swipes** to skip
-several pages in one flick.
+**scroll wheel** pages the carousel by default — pass `allow-scroll-wheel="false"`
+to leave wheel events to the page — while **long swipes**, off by default, let one
+flick skip several pages.
 
 <AdwWidget title="Adw.Carousel" padding="flush">
   <Fragment slot="preview">
     <div style="height: 220px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
-      <adw-carousel id="view-switching-carousel" allow-scroll-wheel style="width: 100%; max-width: 480px; height: 160px;">
+      <adw-carousel id="view-switching-carousel" style="width: 100%; max-width: 480px; height: 160px;">
         <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, var(--accent-bg-color) 14%, var(--window-bg-color));color:#ffffff;box-sizing:border-box;">
           <span style="font-size:24pt;font-weight:800;">Welcome</span>
         </adw-card>
@@ -361,7 +362,8 @@ several pages in one flick.
   </Fragment>
   <Fragment slot="web">
     ```html
-    <adw-carousel id="onboarding" allow-scroll-wheel>
+    <!-- The wheel pages the carousel by default; allow-scroll-wheel="false" opts out. -->
+    <adw-carousel id="onboarding">
         <adw-card>Welcome</adw-card>
         <adw-card>Discover</adw-card>
         <adw-card>Get started</adw-card>

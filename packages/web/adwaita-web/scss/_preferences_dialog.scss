@@ -150,5 +150,22 @@ adw-preferences-dialog {
     max-width: 600px;
     margin: 0 auto;
     padding: var(--spacing-xl) var(--spacing-m);
+
+    // The dialog keeps the <adw-preferences-page> ELEMENTS rather than hoisting
+    // their children out — the page's title / name / icon-name are what a
+    // search-result subtitle and a view switcher read. The page therefore has
+    // to be layout-transparent so its groups stay flex items of this column;
+    // a custom element's default `display: inline` would collapse it.
+    > adw-preferences-page {
+      display: contents;
+
+      // `display: contents` above beats the UA `[hidden] { display: none }`, so
+      // a page hidden through the DOM `hidden` property would keep rendering
+      // its groups while the search (which reads the same flag) had already
+      // dropped it from the corpus.
+      &[hidden] {
+        display: none;
+      }
+    }
   }
 }

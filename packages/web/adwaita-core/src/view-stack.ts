@@ -252,17 +252,83 @@ export class ViewStackState<T = unknown> {
      * {@link duplicateNames}.
      */
     addPage(spec: AdwViewStackPageSpec<T>): AdwViewStackPageInfo<T> {
-        const record = this._record(spec);
+        return this._insertRecord(this._record(spec), this._pages.length);
+    }
+
+    /**
+     * Insert a page at `position`, or `null` when `position` is not an integer in
+     * `[0, count]`.
+     *
+     * `Adw.ViewStack` has no insert-at-position API of its own — this is the
+     * generalisation of {@link addPage}, which is now `insertPage(spec, count)`,
+     * so there is ONE insertion path rather than two that can drift. It exists
+     * because `Adw.TabView` is an ordered page list with the same
+     * selection-follows-the-page semantics and needs it: `attach_page` is
+     * literally `g_list_store_insert (self->children, position, page)`
+     * (adw-tab-view.c:1748), and `insert_page` then auto-selects the new page
+     * when nothing is selected (:1953-1954) — the same rule `add_page` applies
+     * here (adw-view-stack.c:1149-1151).
+     *
+     * Inserting BEFORE the current selection shifts that selection's index up by
+     * one and notifies nothing: C holds a page pointer, so the selected page is
+     * unchanged and only its position moved.
+     */
+    insertPage(spec: AdwViewStackPageSpec<T>, position: number): AdwViewStackPageInfo<T> | null {
+        if (!Number.isInteger(position)) return null;
+        if (position < 0 || position > this._pages.length) return null;
+        return this._insertRecord(this._record(spec), position);
+    }
+
+    private _insertRecord(record: PageRecord<T>, position: number): AdwViewStackPageInfo<T> {
         if (this.indexOfName(record.name) >= 0) this._diagnostics.push(duplicateNameDiagnostic(record.name));
 
-        this._pages.push(record);
+        this._pages.splice(position, 0, record);
         this._pagesView = null;
 
-        if (this._visibleIndex < 0 && record.visible) {
-            this._visibleIndex = this._pages.length - 1;
-            this._emit(false);
+        if (this._visibleIndex < 0) {
+            if (record.visible) {
+                this._visibleIndex = position;
+                this._emit(false);
+            }
+            return record;
         }
+        // The selection is a PAGE, not a slot — an insert before it only moves it.
+        if (position <= this._visibleIndex) this._visibleIndex += 1;
         return record;
+    }
+
+    /**
+     * Move the page at `from` to index `to`, keeping the SELECTION on whichever
+     * page it was already on. Returns whether anything moved.
+     *
+     * Remove-then-insert, exactly as `adw_tab_view_reorder_page` does
+     * (adw-tab-view.c:4553-4556) and as `adw_tab_view_set_page_pinned` does when
+     * it re-orders a page across the pinned boundary (:4065-4073) — so `to` is an
+     * index in the list WITHOUT the moved page, which is what makes
+     * `set_page_pinned`'s `new_pos = n_pinned_pages` land where C lands.
+     *
+     * Emits NOTHING: C reorders without ever calling `set_selected_page`, and
+     * only the list model reports the change (`page-reordered`, :4561). A caller
+     * that needs to hear about it owns that observable.
+     */
+    movePage(from: number, to: number): boolean {
+        if (!Number.isInteger(from) || !Number.isInteger(to)) return false;
+        if (from < 0 || from >= this._pages.length) return false;
+        if (to < 0 || to >= this._pages.length) return false;
+        if (from === to) return false;
+
+        const [record] = this._pages.splice(from, 1);
+        this._pages.splice(to, 0, record!);
+        this._pagesView = null;
+
+        if (this._visibleIndex === from) this._visibleIndex = to;
+        else {
+            let index = this._visibleIndex;
+            if (index > from) index -= 1;
+            if (index >= to) index += 1;
+            this._visibleIndex = index;
+        }
+        return true;
     }
 
     /**

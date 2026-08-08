@@ -40,6 +40,10 @@ export class ClampNsStory extends StoryView {
     private _syncClamp(): void {
         if (!this._clamp) return;
         this._clamp.maximumSize = this.args.maximumSize as number;
+        // The story has exposed this control since it was written, but until the
+        // clamp curve moved into @gjsify/adwaita-core only the GTK pane responded
+        // to it — the storybook was comparing three panes of which two were deaf.
+        this._clamp.tighteningThreshold = this.args.tighteningThreshold as number;
     }
 }
 

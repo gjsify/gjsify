@@ -1,11 +1,17 @@
-// _clamp.scss — adw-clamp styling (max-width + centered).
+// _clamp.scss — adw-clamp styling.
+//
+// The element itself is deliberately UNCAPPED and full-width: it is the box the
+// tightening curve is evaluated against, so it has to keep reporting the
+// AVAILABLE width. The cap and the centring live on the children, written by the
+// element from `clampAllocate` (see src/elements/adw-clamp.ts) — an element that
+// capped itself would feed its own capped width back into its ResizeObserver.
+//
+// Reference: refs/libadwaita/src/adw-clamp-layout.c (adw_clamp_layout_allocate)
 // Reference: refs/adwaita-web/adwaita-web/scss/_clamp.scss
-// Reference: refs/libadwaita (Adw.Clamp)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
 adw-clamp {
   display: block;
   width: 100%;
-  margin-inline: auto;
 }

@@ -148,3 +148,11 @@ packages/node/worker_threads/fixtures/
 # construction (measured: 68 vs 63 examples) — a committed copy could never be
 # kept in agreement. The authored data under status/ is the tracked source.
 /STATUS.md
+
+# Playwright's HTML report, written by every browser test run and uploaded from
+# `main.yml` as a CI artifact. One copy was committed by accident in #292 (a
+# refactor PR that had nothing to do with it) and has been re-dirtying the tree
+# on every local run since. Like the storybook theme copy, a file regenerated
+# by the tooling has nothing to be checked against.
+/tests/browser/playwright-report/
+/tests/browser/test-results/

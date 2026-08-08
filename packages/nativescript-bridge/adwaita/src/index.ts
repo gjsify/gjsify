@@ -76,10 +76,12 @@ export {
     AdwNavigationView,
     NOTIFY_VISIBLE_PAGE,
     AdwSplitViewBase,
-    DEFAULT_SIDEBAR_WIDTH,
     NOTIFY_SHOW_SIDEBAR,
     AdwNavigationSplitView,
     AdwOverlaySplitView,
+    NsNavigationSplitViewState,
+    NsOverlaySplitViewState,
+    splitViewColumns,
     AdwSidebar,
     NOTIFY_SIDEBAR_SELECTED,
     AdwBottomSheet,
@@ -149,6 +151,9 @@ export type {
     // Navigation
     NotifyVisiblePageEventData,
     NotifyShowSidebarEventData,
+    NsShowSidebarNotification,
+    NsSplitViewHost,
+    NsSplitViewState,
     NotifySidebarSelectedEventData,
     NotifyOpenEventData,
     // Feedback / dialogs

@@ -1,6 +1,8 @@
 # @gjsify/adwaita-storybook
 
-Browser renderer for the [`@gjsify/stories`](../../framework/stories) contract — the web counterpart of [`@gjsify/storybook`](../../framework/storybook). It renders stories as a generic Adwaita component browser built from [`@gjsify/adwaita-web`](../adwaita-web) custom elements, so a web storybook looks and behaves like the native GTK one and the two targets can be compared 1:1 (e.g. via screenshots).
+Browser renderer for the [`@gjsify/stories`](../../framework/stories) contract — the web counterpart of [`@gjsify/storybook`](../../framework/storybook). It renders stories as a generic Adwaita component browser built from [`@gjsify/adwaita-web`](../adwaita-web) custom elements, so a web storybook looks and behaves like the native GTK one.
+
+A screenshot harness comparing the renderers is **not** implemented ([#1052](https://github.com/gjsify/gjsify/issues/1052)). The parity that is actually held is behavioural: the [`@gjsify/adwaita-core/conformance`](../adwaita-core) vector tables, which both renderer suites assert their real widgets against.
 
 ## Usage
 

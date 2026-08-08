@@ -21,14 +21,19 @@
 //   - a split button with no menu opened an empty popover instead of having an
 //     insensitive dropdown;
 //   - a menu choice was resolved with `indexOf` on the label, so two entries
-//     called `Copy` always dispatched the first.
+//     called `Copy` always dispatched the first;
+//   - `direction="none"` drew `open-menu-symbolic`. That one SHIPPED, in the
+//     vector and in both renderers, because the vector was derived from the same
+//     misread of the stylesheet as the implementation — see `./index.ts`.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c
 // Reference: refs/libadwaita/tests/test-split-button.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
+//            (menubutton arrow :451-469 — and the splitbutton override at :621-623)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type {
+    AdwArrowIcon,
     AdwMenuEntry,
     SplitButtonContentMode,
     SplitButtonDirection,
@@ -445,26 +450,36 @@ export interface SplitButtonDirectionVector {
     /** The `GtkArrowType`. */
     direction: SplitButtonDirection;
     /** The symbolic icon the arrow node draws. */
-    arrowIcon: string;
+    arrowIcon: AdwArrowIcon;
     /** Where the popup is placed. */
     popupDirection: SplitButtonDirection;
-    /** Why this row exists. */
+    /** Why this row exists — naming the selector that WINS, not the one that loses. */
     rule: string;
 }
 
 /**
- * Direction → glyph (_buttons.scss:451-469) and → popup placement
- * (adw-split-button.c:415). `none` is the row that matters: it places the popup
- * like `down` but draws a completely different icon.
+ * Direction → glyph for the dropdown half of a SPLIT BUTTON, and → popup
+ * placement (adw-split-button.c:415).
+ *
+ * `none` is the row that matters, and it is the row that was WRONG here until the
+ * override was found: the four shared directions come from `menubutton arrow`
+ * (_buttons.scss:457-468), but `.none` is re-declared inside `splitbutton { … }`
+ * at :621-623, and that selector wins. See the header of `./index.ts` — "cite the
+ * winning selector" — for what this table cost.
  */
 export const SPLIT_BUTTON_DIRECTION_VECTORS: ReadonlyArray<SplitButtonDirectionVector> = [
     {
         direction: 'down',
         arrowIcon: 'pan-down-symbolic',
         popupDirection: 'down',
-        rule: 'the default (c:420)',
+        rule: 'the default (c:420); glyph from `menubutton arrow.down`, not overridden (_buttons.scss:457-459)',
     },
-    { direction: 'up', arrowIcon: 'pan-up-symbolic', popupDirection: 'up', rule: 'arrow.up (_buttons.scss:460-462)' },
+    {
+        direction: 'up',
+        arrowIcon: 'pan-up-symbolic',
+        popupDirection: 'up',
+        rule: '`menubutton arrow.up`, not overridden (_buttons.scss:460-462)',
+    },
     {
         direction: 'left',
         arrowIcon: 'pan-start-symbolic',
@@ -479,9 +494,50 @@ export const SPLIT_BUTTON_DIRECTION_VECTORS: ReadonlyArray<SplitButtonDirectionV
     },
     {
         direction: 'none',
+        arrowIcon: 'pan-down-symbolic',
+        popupDirection: 'down',
+        rule: 'WINNING selector `splitbutton > menubutton > button > arrow.none` (_buttons.scss:621-623) OVERRIDES `menubutton arrow.none` (:454-456): inside a split button `none` draws pan-down, NOT open-menu — and pops down (c:415), so it is indistinguishable from `down`',
+    },
+];
+
+/**
+ * The same axis for a PLAIN `menubutton`, where nothing overrides `.none`.
+ *
+ * This table is not decoration: it is what makes the split button's row above a
+ * demonstrated OVERRIDE rather than an assertion. Holding both means a reader can
+ * see the two values and the two selectors side by side, and a renderer that
+ * reaches for the wrong one fails a test that names which widget it is drawing.
+ */
+export const MENU_BUTTON_DIRECTION_VECTORS: ReadonlyArray<SplitButtonDirectionVector> = [
+    {
+        direction: 'none',
         arrowIcon: 'open-menu-symbolic',
         popupDirection: 'down',
-        rule: 'none draws open-menu but pops DOWN (_buttons.scss:451-453 + c:415)',
+        rule: '`menubutton arrow.none` (_buttons.scss:454-456) — the hamburger, unopposed here; placement still down (c:415 via the shared GtkMenuButton, c:971/:997)',
+    },
+    {
+        direction: 'down',
+        arrowIcon: 'pan-down-symbolic',
+        popupDirection: 'down',
+        rule: '`menubutton arrow.down` (_buttons.scss:457-459) — identical to the split button row',
+    },
+    {
+        direction: 'up',
+        arrowIcon: 'pan-up-symbolic',
+        popupDirection: 'up',
+        rule: '`menubutton arrow.up` (_buttons.scss:460-462)',
+    },
+    {
+        direction: 'left',
+        arrowIcon: 'pan-start-symbolic',
+        popupDirection: 'left',
+        rule: '`menubutton arrow.left` (_buttons.scss:463-465)',
+    },
+    {
+        direction: 'right',
+        arrowIcon: 'pan-end-symbolic',
+        popupDirection: 'right',
+        rule: '`menubutton arrow.right` (_buttons.scss:466-468)',
     },
 ];
 

@@ -47,12 +47,12 @@ export class PreferencesGroupNsStory extends StoryView {
         this._group.addRow(regionRow);
 
         // The native story's `headerSuffix` is a flat "Sign out" Gtk.Button in the
-        // group header. AdwPreferencesGroup (NS) has no header-suffix slot, so the
-        // closest static presentation is a flat button placed as the trailing row.
+        // group header — the NS group now has that slot, so the three renderers
+        // present the story identically instead of moving the button into a row.
         const signOut = new AdwButton();
         signOut.variant = 'flat';
         signOut.text = 'Sign out';
-        this._group.addRow(signOut);
+        this._group.headerSuffix = signOut;
 
         this._syncGroup();
 
@@ -70,9 +70,7 @@ export class PreferencesGroupNsStory extends StoryView {
     private _syncGroup(): void {
         if (!this._group) return;
         this._group.title = this.args.title as string;
-        // `description` has no NS equivalent on AdwPreferencesGroup (only the dim
-        // uppercase title header exists); the arg stays bound but is inert.
-        void (this.args.description as string);
+        this._group.description = this.args.description as string;
     }
 }
 

@@ -47,6 +47,15 @@ adw-view-switcher {
         user-select: none;
         -webkit-user-select: none;
 
+        // A page with neither title nor icon has NO button at all
+        // (adw-view-switcher.c:178), spelled here as the `hidden` attribute.
+        // Re-assert it as an AUTHOR rule: the UA `[hidden] { display: none }`
+        // loses to this block's own author `display: inline-flex` (cascade ORIGIN
+        // beats specificity), so without this a hidden button stays on screen.
+        &[hidden] {
+            display: none;
+        }
+
         .adw-icon {
             width: 16px;
             height: 16px;
@@ -57,6 +66,37 @@ adw-view-switcher {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        // AdwIndicatorBin's badge — the unread count, or a bare dot when only
+        // `needs-attention` is set.
+        // Reference: refs/libadwaita/src/adw-indicator-bin.c
+        .adw-view-switcher-indicator {
+            display: inline-flex;
+            box-sizing: border-box;
+            align-items: center;
+            justify-content: center;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            border-radius: 8px;
+            background-color: var(--accent-bg-color);
+            color: var(--accent-fg-color);
+            font-size: 0.625rem;
+            font-weight: 700;
+            line-height: 1;
+
+            &[hidden] {
+                display: none;
+            }
+
+            &.needs-attention {
+                min-width: 6px;
+                width: 6px;
+                height: 6px;
+                padding: 0;
+                border-radius: 3px;
+            }
         }
 
         &:hover {

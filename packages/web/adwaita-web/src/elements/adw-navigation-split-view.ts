@@ -11,6 +11,8 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { DEFAULT_MAX_SIDEBAR_WIDTH, DEFAULT_MIN_SIDEBAR_WIDTH, resolveSidebarBounds } from '@gjsify/adwaita-core';
+
 import { bindBreakpointSetter } from '../breakpoints.js';
 
 export class AdwNavigationSplitView extends HTMLElement {
@@ -86,10 +88,29 @@ export class AdwNavigationSplitView extends HTMLElement {
             this._sidebarEl.style.maxWidth = '';
             return;
         }
-        const min = this.getAttribute('min-sidebar-width');
-        const max = this.getAttribute('max-sidebar-width');
-        this._sidebarEl.style.minWidth = min ? `${parseFloat(min)}px` : '';
-        this._sidebarEl.style.maxWidth = max ? `${parseFloat(max)}px` : '';
+        // An ABSENT attribute used to mean "no bound at all", where
+        // Adw.NavigationSplitView always has 180 / 280
+        // (adw-navigation-split-view.c min-sidebar-width / max-sidebar-width).
+        // The core also normalises the pair — libadwaita never lets max fall
+        // below min, and CSS resolves that conflict the other way round.
+        const bounds = resolveSidebarBounds(
+            {
+                minSidebarWidth: this._widthAttr('min-sidebar-width', DEFAULT_MIN_SIDEBAR_WIDTH),
+                maxSidebarWidth: this._widthAttr('max-sidebar-width', DEFAULT_MAX_SIDEBAR_WIDTH),
+            },
+            0,
+            { ceil: true },
+        );
+        this._sidebarEl.style.minWidth = `${bounds.min}px`;
+        this._sidebarEl.style.maxWidth = `${bounds.max}px`;
+    }
+
+    /** A pixel attribute, falling back to the widget's own default. */
+    private _widthAttr(name: string, fallback: number): number {
+        const raw = this.getAttribute(name);
+        if (raw === null) return fallback;
+        const value = parseFloat(raw);
+        return Number.isFinite(value) ? value : fallback;
     }
 
     private _syncClasses() {

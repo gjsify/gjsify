@@ -7,6 +7,8 @@ import {
     DEFAULT_DROPDOWN_TOOLTIP,
     SplitButtonState,
     isSplitButtonDirection,
+    menuButtonArrowIcon,
+    menuButtonPopupDirection,
     parseMenuEntries,
     resolveDropdownTooltip,
     splitButtonArrowIcon,
@@ -16,6 +18,7 @@ import {
 } from './split-button.js';
 import type { AdwMenuEntry, SplitButtonProperty } from './split-button.js';
 import {
+    MENU_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_CONTENT_VECTORS,
     SPLIT_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_DROPDOWN_VECTORS,
@@ -328,6 +331,31 @@ export default async () => {
                 expect(state.arrowIcon).toBe(arrowIcon);
             });
         }
+
+        for (const { direction, arrowIcon, popupDirection, rule } of MENU_BUTTON_DIRECTION_VECTORS) {
+            await it(`plain menubutton: ${direction} → ${arrowIcon}, popup ${popupDirection} — ${rule}`, () => {
+                expect(menuButtonArrowIcon(direction)).toBe(arrowIcon);
+                expect(menuButtonPopupDirection(direction)).toBe(popupDirection);
+            });
+        }
+
+        await it('the two tables differ ONLY at `none` — that is the whole splitbutton override', () => {
+            const shared = MENU_BUTTON_DIRECTION_VECTORS.filter((vector) => vector.direction !== 'none');
+            for (const { direction, arrowIcon } of shared) expect(splitButtonArrowIcon(direction)).toBe(arrowIcon);
+
+            // `menubutton arrow.none` :454-456 vs `splitbutton > menubutton >
+            // button > arrow.none` :621-623 — the only glyph the split button
+            // block re-declares, and the one that shipped wrong.
+            expect(menuButtonArrowIcon('none')).toBe('open-menu-symbolic');
+            expect(splitButtonArrowIcon('none')).toBe('pan-down-symbolic');
+            expect(splitButtonArrowIcon('none')).toBe(splitButtonArrowIcon('down'));
+        });
+
+        await it('placement is NOT overridden: the two functions are the same object (c:971, :997)', () => {
+            // `adw_split_button_set_direction` hands the value straight to
+            // `gtk_menu_button_set_direction`, so a copy here could only drift.
+            expect(menuButtonPopupDirection).toBe(splitButtonPopupDirection);
+        });
     });
 
     await describe('dropdown tooltip (test_adw_split_button_dropdown_tooltip, tests:273-298)', async () => {

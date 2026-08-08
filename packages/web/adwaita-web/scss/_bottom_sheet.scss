@@ -80,6 +80,10 @@ adw-bottom-sheet {
   // --- Drag handle (overlaid pill at the top of the sheet) ---
   // libadwaita: > drag-handle { min-width 54px; min-height 6px; margin 15px;
   // border-radius 99px; background currentColor @ 25% }.
+  // It is built with can_focus = FALSE and can_target = FALSE
+  // (adw-bottom-sheet.c:1197-1198) — a decorative pill, not a button;
+  // `pointer-events: none` is can_target in CSS. The `cursor: pointer` + focus
+  // ring that used to sit here belonged to a close button this widget never had.
   .adw-bottom-sheet-drag-handle {
     flex-shrink: 0;
     box-sizing: border-box;
@@ -89,12 +93,7 @@ adw-bottom-sheet {
     margin: 15px auto;
     border-radius: 99px;
     background-color: color-mix(in srgb, currentColor 25%, transparent);
-    cursor: pointer;
-
-    &:focus-visible {
-      outline: 2px solid var(--accent-color);
-      outline-offset: 4px;
-    }
+    pointer-events: none;
   }
 
   .adw-bottom-sheet-sheet-body {

@@ -6,7 +6,14 @@
 // behaviour). The overlay is drawn on top of the content (NS paints children in
 // add order) with a dimmed, tap-to-dismiss SCRIM beneath it, and the show/hide
 // transition SLIDES the sidebar in/out + FADES the scrim. Mirrors it: `collapsed`,
-// `showSidebar`, `notify::show-sidebar`, click-outside-to-close.
+// `showSidebar`, `pinSidebar`, `notify::show-sidebar`, click-outside-to-close.
+//
+// The property interplay is NOT here — it is `NsOverlaySplitViewState`, over the
+// headless `OverlaySplitViewState` (ADR 0004). This file is only the view-tree
+// half: columns, paint order, `visibility`, the slide/fade animation, and the
+// `isUserInteractionEnabled` pair that keeps the off-screen pane out of the focus
+// and screen-reader order (`gtk_widget_set_can_focus`,
+// adw-overlay-split-view.c:330-331 / :1460-1461).
 //
 // FIDELITY: the slide + scrim fade run through the native `View.animate()` API
 // (a real per-property animation — NOT the CSS subset, which has no transform
@@ -19,51 +26,76 @@
 // box-shadow and backdrop-blur — the scrim is a flat translucent fill, not a blur.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-overlay-split-view`.
+// Reference: refs/libadwaita/src/adw-overlay-split-view.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_overlay-split-view.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout } from '@nativescript/core';
 import { AdwSplitViewBase } from './split-view-base.js';
+import { NsOverlaySplitViewState, splitViewColumns } from './split-view-state.js';
 
 /** Slide/fade duration (ms) — matches Adwaita's ~200 ms sidebar reveal. */
 const OVERLAY_ANIM_MS = 200;
 
-export class AdwOverlaySplitView extends AdwSplitViewBase {
+export class AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewState> {
     /** Dimmed backdrop drawn between content and the overlaid sidebar; tapping it
      *  closes the sidebar (Adwaita's click-outside-to-dismiss). Created lazily. */
     private _scrim: GridLayout | null = null;
 
     constructor() {
-        super('adw-overlay-split-view');
+        super('adw-overlay-split-view', 'overlay', new NsOverlaySplitViewState());
         this._applyLayout();
     }
 
+    /**
+     * `Adw.OverlaySplitView:pin-sidebar` (adw-overlay-split-view.c:990-992,
+     * default FALSE) — whether collapsing leaves the sidebar's visibility alone.
+     */
+    get pinSidebar(): boolean {
+        return this._state.pinSidebar;
+    }
+
+    set pinSidebar(value: boolean) {
+        this._state.setPinSidebar(!!value);
+    }
+
     protected _applyLayout(): void {
-        const sidebarEnd = this._sidebarPosition === 'end';
-        if (!this._collapsed) {
+        const columns = splitViewColumns(this._state.sidebarPosition);
+        const sidebarEnd = this._state.sidebarPosition === 'end';
+        if (!this._state.collapsed) {
             // Side-by-side. `sidebar-position` decides which column each pane takes
             // (the storybook controls overlay uses `'end'` → controls on the right).
             // `show-sidebar` still applies when expanded (Adw.OverlaySplitView):
             // hiding it drops the sidebar column so the content reflows full-width
             // (e.g. the storybook controls toggle on a wide tablet/desktop screen).
             this._detachScrim();
-            const showSide = this._showSidebar;
+            const showSide = this._state.showSidebar;
             if (this._sidebar) {
                 this._sidebar.visibility = showSide ? 'visible' : 'collapse';
                 this._sidebar.translateX = 0;
                 this._sidebar.opacity = 1;
-                GridLayout.setColumn(this._sidebar, sidebarEnd ? 1 : 0);
+                GridLayout.setColumn(this._sidebar, columns.sidebar);
                 GridLayout.setColumnSpan(this._sidebar, 1);
-                this._sidebar.width = this._sidebarWidth;
+                this._sidebar.width = this.sidebarWidth;
+                // `update_collapsed` REMOVES `overlay-pane` and re-adds `sidebar-pane`
+                // when the view uncollapses (:730-738). Stripping it only in the
+                // collapsed branches left the class — and the edge alignment the
+                // overlay was anchored with — on the docked pane forever. Invisible
+                // today only because `.adw-overlay-active` and
+                // `.adw-split-view-sidebar` happen to paint the same fill; the
+                // alignment is not, and neither would survive a theme change.
+                this._sidebar.className = this._paneClassName(this._sidebar.className, false);
+                this._sidebar.horizontalAlignment = 'stretch';
             }
             if (this._content) {
                 this._content.visibility = 'visible';
                 // Span both columns when the sidebar is hidden so the content takes
                 // the full width; otherwise take just its own column (the one the
                 // sidebar isn't in).
-                GridLayout.setColumn(this._content, showSide ? (sidebarEnd ? 0 : 1) : 0);
+                GridLayout.setColumn(this._content, showSide ? columns.content : 0);
                 GridLayout.setColumnSpan(this._content, showSide ? 1 : 2);
             }
+            this._applyPaneFocus();
             return;
         }
         // Collapsed: content fills both columns; the scrim + sidebar overlay on top
@@ -78,26 +110,27 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
         if (this._scrim) {
             GridLayout.setColumn(this._scrim, 0);
             GridLayout.setColumnSpan(this._scrim, 2);
-            // Resting state mirrors `showSidebar` (an animated toggle overrides it).
-            this._scrim.visibility = this._showSidebar ? 'visible' : 'collapse';
-            this._scrim.opacity = this._showSidebar ? 1 : 0;
+            // Resting state mirrors the shield the state derives (collapsed AND
+            // revealed); an animated toggle overrides it.
+            this._scrim.visibility = this._state.shieldVisible ? 'visible' : 'collapse';
+            this._scrim.opacity = this._state.shieldVisible ? 1 : 0;
         }
         if (this._sidebar) {
             GridLayout.setColumn(this._sidebar, 0);
             GridLayout.setColumnSpan(this._sidebar, 2);
-            this._sidebar.width = this._sidebarWidth;
+            this._sidebar.width = this.sidebarWidth;
             this._sidebar.horizontalAlignment = sidebarEnd ? 'right' : 'left';
-            this._sidebar.className =
-                `${this._stripOverlay(this._sidebar.className)} adw-split-view-sidebar adw-overlay-active`.trim();
-            this._sidebar.visibility = this._showSidebar ? 'visible' : 'collapse';
-            this._sidebar.translateX = this._showSidebar ? 0 : this._hiddenOffset();
+            this._sidebar.className = this._paneClassName(this._sidebar.className, true);
+            this._sidebar.visibility = this._state.showSidebar ? 'visible' : 'collapse';
+            this._sidebar.translateX = this._state.showSidebar ? 0 : this._hiddenOffset();
             this._sidebar.opacity = 1;
         }
+        this._applyPaneFocus();
     }
 
     /** Animate a collapsed show/hide toggle; fall back to instant off-screen/off-device. */
     protected _transitionSidebar(): void {
-        if (!this._collapsed || !this._shouldAnimate()) {
+        if (!this._state.collapsed || !this._shouldAnimate()) {
             this._applyLayout();
             return;
         }
@@ -105,11 +138,31 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
         // Establish structure (columns, paint order, scrim, classes) without
         // touching the animatable props — the animation owns those.
         this._prepareCollapsedStructure();
-        if (this._showSidebar) this._animateOpen();
+        this._applyPaneFocus();
+        if (this._state.showSidebar) this._animateOpen();
         else this._animateClose();
     }
 
     // --- internals ---
+
+    /**
+     * `gtk_widget_set_can_focus (sidebar_bin, !collapsed || show_sidebar)` and its
+     * mirror (:330-331, :1460-1461), as NativeScript spells it.
+     *
+     * Without this the pane hidden UNDER the overlay keeps answering taps and stays
+     * in the screen-reader order — the scrim only shields the area it covers, and a
+     * `translateX`-ed sidebar is not covered at all.
+     *
+     * DEVIATION the C cannot settle: GTK sets `can-focus` on its own `AdwBin`
+     * WRAPPER, leaving the application's child untouched. NativeScript has no such
+     * wrapper — the pane IS the view the consumer handed us — so this writes on
+     * their view, and a pane the app deliberately made non-interactive is made
+     * interactive again the next time it comes on screen.
+     */
+    private _applyPaneFocus(): void {
+        if (this._sidebar) this._sidebar.isUserInteractionEnabled = this._state.sidebarFocusable;
+        if (this._content) this._content.isUserInteractionEnabled = this._state.contentFocusable;
+    }
 
     /** Lazily create the tap-to-dismiss scrim. */
     private _ensureScrim(): GridLayout {
@@ -143,7 +196,7 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
     /** Structural setup shared by the animated path (columns, order, scrim, class)
      *  — deliberately leaves translateX/opacity/visibility to the animation. */
     private _prepareCollapsedStructure(): void {
-        const sidebarEnd = this._sidebarPosition === 'end';
+        const sidebarEnd = this._state.sidebarPosition === 'end';
         if (this._content) {
             this._content.visibility = 'visible';
             GridLayout.setColumn(this._content, 0);
@@ -157,10 +210,9 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
         if (this._sidebar) {
             GridLayout.setColumn(this._sidebar, 0);
             GridLayout.setColumnSpan(this._sidebar, 2);
-            this._sidebar.width = this._sidebarWidth;
+            this._sidebar.width = this.sidebarWidth;
             this._sidebar.horizontalAlignment = sidebarEnd ? 'right' : 'left';
-            this._sidebar.className =
-                `${this._stripOverlay(this._sidebar.className)} adw-split-view-sidebar adw-overlay-active`.trim();
+            this._sidebar.className = this._paneClassName(this._sidebar.className, true);
         }
     }
 
@@ -201,7 +253,7 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
         Promise.all(tasks)
             .then(() => {
                 // A re-open may have raced in during the close — don't hide then.
-                if (this._showSidebar) return;
+                if (this._state.showSidebar) return;
                 if (sidebar) sidebar.visibility = 'collapse';
                 if (scrim) scrim.visibility = 'collapse';
             })
@@ -212,13 +264,20 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
 
     /** Off-screen sidebar offset: slides past the edge it's anchored to. */
     private _hiddenOffset(): number {
-        return this._sidebarPosition === 'end' ? this._sidebarWidth : -this._sidebarWidth;
+        const width = this.sidebarWidth;
+        return this._state.sidebarPosition === 'end' ? width : -width;
     }
 
-    private _stripOverlay(className: string | undefined): string {
-        return (className ?? '')
+    /**
+     * The sidebar pane's class list for the current mode — the NativeScript
+     * spelling of `update_collapsed`'s css-class swap (:727-738): `overlay-pane`
+     * while collapsed, `sidebar-pane` while docked, never both.
+     */
+    private _paneClassName(className: string | undefined, overlay: boolean): string {
+        const base = (className ?? '')
             .split(/\s+/)
             .filter((c) => c && c !== 'adw-overlay-active' && c !== 'adw-split-view-sidebar')
             .join(' ');
+        return `${base} adw-split-view-sidebar${overlay ? ' adw-overlay-active' : ''}`.trim();
     }
 }

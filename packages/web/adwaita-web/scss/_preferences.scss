@@ -8,6 +8,14 @@
 adw-preferences-group {
   display: block;
 
+  // An author `display` beats the UA `[hidden] { display: none }` regardless of
+  // specificity, so without this a group hidden through the DOM `hidden`
+  // property would keep rendering — the search treats it as invisible
+  // (`is_visible_group`), and the two must agree.
+  &[hidden] {
+    display: none;
+  }
+
   // The header is a flex row: a title/description label column on the left
   // (stretches to fill) and the optional header-suffix on the trailing edge.
   .adw-preferences-group-header {
@@ -15,6 +23,27 @@ adw-preferences-group {
     align-items: center;
     gap: var(--spacing-s);
     padding: var(--spacing-xs) 2px;
+
+    // An author `display` beats the UA `[hidden] { display: none }` no matter
+    // the specificity, so `headerEl.hidden = true` did NOTHING here: an empty
+    // group kept its header box and its padding.
+    &[hidden] {
+      display: none;
+    }
+
+    // libadwaita's own metrics, keyed off `is_single_line`:
+    // `> box.header:not(.single-line) { margin-bottom: 6px }` and
+    // `> box.single-line { min-height: 34px }`
+    // (refs/libadwaita/src/stylesheet/widgets/_preferences.scss:6-13). A
+    // title-only or suffix-only header is one line tall and needs the height
+    // floor instead of the gap below it.
+    &:not(.single-line) {
+      margin-bottom: 6px;
+    }
+
+    &.single-line {
+      min-height: 34px;
+    }
   }
 
   .adw-preferences-group-labels {

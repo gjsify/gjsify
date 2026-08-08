@@ -1,6 +1,8 @@
 // Browser port of the Split Button stories — adw-split-button, a primary action
 // paired with a dropdown menu. Shares its metadata/controls with the GTK twins
-// (split-button.story.ts) so the two render identically.
+// (split-button.story.ts). Their shared BEHAVIOUR is held by the
+// @gjsify/adwaita-core/conformance split-button vectors; that they render
+// identically is not measured anywhere (#1052).
 
 import { StoryElement, type StoryArgs, type StoryMeta, type WebStoryModule } from '@gjsify/adwaita-storybook';
 import { splitButtonFlatMeta, splitButtonMeta } from '../../buttons/split-button.meta.js';

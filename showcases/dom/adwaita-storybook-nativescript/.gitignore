@@ -6,3 +6,12 @@ node_modules/
 package-lock.json
 *.apk
 *.aab
+
+# Copied from the packages by `sync:theme`, which every android script runs
+# before it builds. Tracking them bought nothing and cost six weeks of silent
+# drift: the committed copy was last written 2026-06-27 while the source kept
+# moving, so the storybook on device rendered against a stale theme and no
+# check anywhere compared the two. A file that is regenerated on every build
+# cannot drift if it is not in git.
+app/adwaita.css
+app/storybook.css

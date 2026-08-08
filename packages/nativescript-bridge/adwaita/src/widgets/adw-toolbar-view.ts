@@ -4,16 +4,42 @@
 // (header bars / toolbars), an expanding content slot, and a bottom-bar slot.
 // Mirrors `Adw.ToolbarView`: `addTopBar()` / `setContent()` / `addBottomBar()`.
 //
-// FIDELITY: faithful. The vertical top/content/bottom arrangement maps directly
-// onto an NS `GridLayout`. Adwaita's automatic top/bottom-bar "raised" shadow on
-// scroll is not reproducible (no scroll-linked shadow in the CSS subset) — the
-// bars carry a static hairline separator instead.
+// FIDELITY: the vertical top/content/bottom arrangement maps directly onto an NS
+// `GridLayout`. `top-bar-style` / `bottom-bar-style` and the four classes
+// libadwaita derives from them — `raised`, `border`, `undershoot-top`,
+// `undershoot-bottom` — come from `@gjsify/adwaita-core`'s `toolbarViewClasses`,
+// so this widget and the browser element agree on when each applies. The
+// `extend-content-to-*-edge` properties move the bar box into the content row and
+// pin it to that edge, which is the NS spelling of "the content spans the full
+// height and the bar is drawn over it".
+//
+// What is NOT reproduced is the two chained CLAMPs of
+// `adw_toolbar_view_size_allocate`: NS row specs do the allocation, so a STRETCHY
+// bar (natural > minimum) keeps its natural height here where libadwaita would
+// shrink it back toward its minimum to protect the content. The arithmetic is in
+// core with vectors (`toolbarViewAllocate`); this widget has no stretchy bars to
+// apply it to.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-toolbar-view`.
+// Reference: refs/libadwaita/src/adw-toolbar-view.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, StackLayout, View } from '@nativescript/core';
+
+import {
+    type AdwToolbarStyle,
+    type ToolbarViewProps,
+    defaultToolbarViewProps,
+    toolbarViewClassNames,
+} from './chrome.js';
+
+/** The classes the widget starts with; the derived ones are swapped in beside them. */
+const BASE_CLASSES = {
+    view: 'adw-toolbar-view',
+    topBar: 'adw-toolbar-view-top',
+    bottomBar: 'adw-toolbar-view-bottom',
+};
 
 export class AdwToolbarView extends GridLayout {
     /** The top-bar slot (row 0) — stack of header bars / toolbars. */
@@ -22,11 +48,12 @@ export class AdwToolbarView extends GridLayout {
     protected readonly _bottomBox: StackLayout;
     /** The currently-installed content view (row 1), if any. */
     private _content: View | null = null;
+    private _props: ToolbarViewProps = defaultToolbarViewProps();
 
     constructor() {
         super();
 
-        this.className = 'adw-toolbar-view';
+        this.className = BASE_CLASSES.view;
 
         this.addColumn(new ItemSpec(1, 'star'));
         // Rows: top hugs, content expands, bottom hugs.
@@ -36,17 +63,21 @@ export class AdwToolbarView extends GridLayout {
 
         const topBox = new StackLayout();
         topBox.orientation = 'vertical';
-        topBox.className = 'adw-toolbar-view-top';
+        topBox.className = BASE_CLASSES.topBar;
         GridLayout.setRow(topBox, 0);
         this.addChild(topBox);
         this._topBox = topBox;
 
         const bottomBox = new StackLayout();
         bottomBox.orientation = 'vertical';
-        bottomBox.className = 'adw-toolbar-view-bottom';
+        bottomBox.className = BASE_CLASSES.bottomBar;
         GridLayout.setRow(bottomBox, 2);
         this.addChild(bottomBox);
         this._bottomBox = bottomBox;
+
+        // `update_undershoots` runs from size_allocate, so the classes follow the
+        // bars' real heights rather than a one-shot read at construction.
+        this.addEventListener('layoutChanged', () => this._syncClasses());
     }
 
     /** Append a widget (e.g. an {@link AdwHeaderBar}) to the top-bar slot. */
@@ -70,6 +101,8 @@ export class AdwToolbarView extends GridLayout {
             this.addChild(view);
             this._content = view;
         }
+        // The content was just added last, so it would paint over an extended bar.
+        this._restackBars();
     }
 
     /** The currently-installed content view, or `null`. */
@@ -85,5 +118,99 @@ export class AdwToolbarView extends GridLayout {
     /** The bottom-bar slot container. */
     get bottomBar(): StackLayout {
         return this._bottomBox;
+    }
+
+    /** `Adw.ToolbarView:top-bar-style` — `flat` (default), `raised` or `raised-border`. */
+    get topBarStyle(): AdwToolbarStyle {
+        return this._props.topBarStyle;
+    }
+
+    set topBarStyle(value: AdwToolbarStyle) {
+        this._props.topBarStyle = value;
+        this._syncClasses();
+    }
+
+    /** `Adw.ToolbarView:bottom-bar-style` — `flat` (default), `raised` or `raised-border`. */
+    get bottomBarStyle(): AdwToolbarStyle {
+        return this._props.bottomBarStyle;
+    }
+
+    set bottomBarStyle(value: AdwToolbarStyle) {
+        this._props.bottomBarStyle = value;
+        this._syncClasses();
+    }
+
+    /** `Adw.ToolbarView:extend-content-to-top-edge` — draw the top bar OVER the content. */
+    get extendContentToTopEdge(): boolean {
+        return this._props.extendContentToTopEdge;
+    }
+
+    set extendContentToTopEdge(value: boolean) {
+        this._props.extendContentToTopEdge = !!value;
+        this._applyBarPlacement();
+    }
+
+    /** `Adw.ToolbarView:extend-content-to-bottom-edge` — draw the bottom bar OVER the content. */
+    get extendContentToBottomEdge(): boolean {
+        return this._props.extendContentToBottomEdge;
+    }
+
+    set extendContentToBottomEdge(value: boolean) {
+        this._props.extendContentToBottomEdge = !!value;
+        this._applyBarPlacement();
+    }
+
+    /**
+     * Put each bar box in its own row, or — when the content extends under it —
+     * in the CONTENT row pinned to that edge, which is how an NS `GridLayout`
+     * spells "the content spans the full height and the bar overlays it".
+     */
+    private _applyBarPlacement(): void {
+        GridLayout.setRow(this._topBox, this._props.extendContentToTopEdge ? 1 : 0);
+        this._topBox.verticalAlignment = this._props.extendContentToTopEdge ? 'top' : 'stretch';
+        GridLayout.setRow(this._bottomBox, this._props.extendContentToBottomEdge ? 1 : 2);
+        this._bottomBox.verticalAlignment = this._props.extendContentToBottomEdge ? 'bottom' : 'stretch';
+        this._restackBars();
+        this._syncClasses();
+    }
+
+    /**
+     * Re-append the bar boxes so they sit ON TOP of the content.
+     *
+     * NativeScript paints siblings in add order, and an extended bar shares a
+     * grid cell with the content — which is added later, so without this the
+     * content would cover the very bar it is supposed to scroll under. A no-op
+     * while neither edge is extended, since the boxes then have their own rows.
+     */
+    private _restackBars(): void {
+        if (!this._props.extendContentToTopEdge && !this._props.extendContentToBottomEdge) return;
+        for (const box of [this._topBox, this._bottomBox]) {
+            this.removeChild(box);
+            this.addChild(box);
+        }
+    }
+
+    /**
+     * Re-derive the four libadwaita style classes from the current state.
+     *
+     * Composed against the CURRENT class names rather than the base ones, so a
+     * class a consumer appended survives (the storybook appends
+     * `sb-sidebar-pane` to one of these). Each assignment is guarded on a real
+     * change: this runs from `layoutChanged`, and re-styling a view can schedule
+     * another layout pass.
+     */
+    private _syncClasses(): void {
+        const heights = {
+            topBarHeight: this._topBox.getActualSize?.().height ?? 0,
+            bottomBarHeight: this._bottomBox.getActualSize?.().height ?? 0,
+        };
+        const names = toolbarViewClassNames(
+            { view: this.className, topBar: this._topBox.className, bottomBar: this._bottomBox.className },
+            this._props,
+            heights,
+        );
+        if (this.className !== names.view) this.className = names.view;
+        if (this._topBox.className !== names.topBar) this._topBox.className = names.topBar;
+        if (this._bottomBox.className !== names.bottomBar) this._bottomBox.className = names.bottomBar;
     }
 }

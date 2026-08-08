@@ -16,8 +16,9 @@
 //      `More Options` default;
 //   4. menu-model ⟷ popover exclusivity and the derived `dropdownEnabled`, which
 //      is what makes a menu-less split button's dropdown INSENSITIVE;
-//   5. the direction → arrow-glyph map, where `none` places the popup like
-//      `down` but draws `open-menu-symbolic`;
+//   5. the direction → arrow-glyph map, in the TWO variants the stylesheet has:
+//      a plain `menubutton` draws `open-menu-symbolic` for `none`, a split button
+//      draws `pan-down-symbolic`, because `splitbutton` OVERRIDES `arrow.none`;
 //   6. the root-state OR-fold: the whole control reads ACTIVE if either half is
 //      pressed or keyboard-activating, CHECKED if either half is checked (the
 //      arrow half is checked while the menu is open).
@@ -35,7 +36,8 @@
 // every mutator returns whether it changed and notifies only on a real change.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
-// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (arrow.*, splitbutton)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
+//            (menubutton arrow :451-469 — and the splitbutton override at :621-623)
 // Reference: refs/libadwaita/tests/test-split-button.c (the upstream suite)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
@@ -48,6 +50,21 @@ export type SplitButtonContentMode = 'empty' | 'label' | 'icon' | 'child';
 
 /** `GtkArrowType` as a string union. Default `'down'` (adw-split-button.c:420). */
 export type SplitButtonDirection = 'none' | 'up' | 'down' | 'left' | 'right';
+
+/**
+ * Every symbolic icon an `arrow` node can be given `-gtk-icon-source` for
+ * (_buttons.scss:451-469 plus the `splitbutton` override at :621-623).
+ *
+ * A union rather than `string` so a renderer's glyph→asset table is TOTAL: an
+ * `Adwaita` release that introduces a sixth glyph breaks the renderers at COMPILE
+ * time instead of painting a blank arrow at runtime.
+ */
+export type AdwArrowIcon =
+    | 'open-menu-symbolic'
+    | 'pan-down-symbolic'
+    | 'pan-up-symbolic'
+    | 'pan-start-symbolic'
+    | 'pan-end-symbolic';
 
 /** A root style class `update_style_classes` puts on the `splitbutton` node. */
 export type SplitButtonStyleClass = 'image-button' | 'text-button';
@@ -135,18 +152,43 @@ export const DEFAULT_DROPDOWN_TOOLTIP = 'More Options';
 export const SPLIT_BUTTON_DISABLED_OPACITY = 0.5;
 
 /**
- * Direction → arrow glyph, from the `menubutton arrow` rules the split button's
- * dropdown half inherits (_buttons.scss:451-469).
+ * Direction → arrow glyph for a PLAIN `menubutton`, from the `arrow` block inside
+ * the top-level `menubutton { … }` rule: `.none` at _buttons.scss:454-456,
+ * `.down` :457-459, `.up` :460-462, `.left` :463-465, `.right` :466-468.
  *
- * `'none'` is the odd one out: it PLACES the popup like `'down'`
- * (adw-split-button.c:415) but draws `open-menu-symbolic`.
+ * `none` is the "no particular direction" arrow, and GTK documents it as the
+ * generic app-menu glyph — a hamburger, not a caret.
  */
-const ARROW_ICONS: Readonly<Record<SplitButtonDirection, string>> = {
+const MENU_BUTTON_ARROW_ICONS: Readonly<Record<SplitButtonDirection, AdwArrowIcon>> = {
     none: 'open-menu-symbolic',
     down: 'pan-down-symbolic',
     up: 'pan-up-symbolic',
     left: 'pan-start-symbolic',
     right: 'pan-end-symbolic',
+};
+
+/**
+ * The same table as it applies INSIDE a split button, where `none` is NOT the
+ * hamburger.
+ *
+ * The dropdown half is a real `GtkMenuButton`, so it inherits all five rules
+ * above — but the stylesheet overrides one of them 167 lines further down, inside
+ * the `splitbutton { … }` block (_buttons.scss:621-623):
+ *
+ *     splitbutton > menubutton > button > arrow.none {
+ *       -gtk-icon-source: -gtk-icontheme('pan-down-symbolic');
+ *     }
+ *
+ * Four element selectors plus a class beat the two-element `menubutton arrow.none`
+ * at :454-456, so a split button with direction `none` draws the DOWN caret — the
+ * same glyph as `down`, which is also how it PLACES the popup.
+ *
+ * The spread IS the cascade: only `.none` is overridden, so an upstream change to
+ * any other direction lands in both tables at once and cannot drift between them.
+ */
+const SPLIT_BUTTON_ARROW_ICONS: Readonly<Record<SplitButtonDirection, AdwArrowIcon>> = {
+    ...MENU_BUTTON_ARROW_ICONS,
+    none: 'pan-down-symbolic',
 };
 
 /** The five `GtkArrowType` values, for validating an attribute string. */
@@ -188,18 +230,50 @@ export function resolveDropdownTooltip(tooltip: string): { text: string; markup:
         : { text: DEFAULT_DROPDOWN_TOOLTIP, markup: false };
 }
 
-/** The arrow glyph for a direction — a libadwaita symbolic icon name. */
-export function splitButtonArrowIcon(direction: SplitButtonDirection): string {
-    return ARROW_ICONS[direction] ?? ARROW_ICONS.down;
+/**
+ * The arrow glyph a PLAIN `menubutton` draws for a direction — `none` is the
+ * `open-menu-symbolic` hamburger (_buttons.scss:454-456).
+ *
+ * Use {@link splitButtonArrowIcon} for the dropdown half of a split button, which
+ * the stylesheet gives a different `none`.
+ */
+export function menuButtonArrowIcon(direction: SplitButtonDirection): AdwArrowIcon {
+    return MENU_BUTTON_ARROW_ICONS[direction] ?? MENU_BUTTON_ARROW_ICONS.down;
 }
 
 /**
- * Where the popup is placed. `'none'` behaves the same as `'down'`
- * (adw-split-button.c:415) — unlike the arrow GLYPH, which differs.
+ * The arrow glyph a SPLIT BUTTON's dropdown half draws for a direction — `none`
+ * is `pan-down-symbolic`, per the `splitbutton` override at _buttons.scss:621-623.
+ */
+export function splitButtonArrowIcon(direction: SplitButtonDirection): AdwArrowIcon {
+    return SPLIT_BUTTON_ARROW_ICONS[direction] ?? SPLIT_BUTTON_ARROW_ICONS.down;
+}
+
+/**
+ * Where the popup is placed: `'none'` behaves the same as `'down'`
+ * (adw-split-button.c:415).
+ *
+ * PLACEMENT IS NOT A SPLIT-BUTTON RULE, unlike the glyph. `adw_split_button_set_direction`
+ * is a pass-through to `gtk_menu_button_set_direction` (:997) and the getter reads
+ * it straight back off the same `GtkMenuButton` (:971) — the split button stores
+ * nothing and overrides nothing here, so `none → down` is `GtkMenuButton`'s own
+ * behaviour. {@link menuButtonPopupDirection} is therefore this very function
+ * rather than a second copy of it.
  */
 export function splitButtonPopupDirection(direction: SplitButtonDirection): Exclude<SplitButtonDirection, 'none'> {
     return direction === 'none' || !DIRECTIONS.includes(direction) ? 'down' : direction;
 }
+
+/**
+ * Where a plain `menubutton` places its popup — deliberately an ALIAS of
+ * {@link splitButtonPopupDirection}, not a copy.
+ *
+ * The two arrow-glyph functions differ because the stylesheet overrides the glyph
+ * per widget; placement has no such override, and pinning that as reference
+ * equality (`menuButtonPopupDirection === splitButtonPopupDirection`) is a claim a
+ * test can hold, where a duplicated body would only be a claim a comment makes.
+ */
+export const menuButtonPopupDirection = splitButtonPopupDirection;
 
 /** Whether `value` names a `GtkArrowType`, for parsing a renderer attribute. */
 export function isSplitButtonDirection(value: unknown): value is SplitButtonDirection {
@@ -552,8 +626,8 @@ export class SplitButtonState {
         return true;
     }
 
-    /** The arrow glyph for the current direction. */
-    get arrowIcon(): string {
+    /** The arrow glyph for the current direction, with the split button's `none`. */
+    get arrowIcon(): AdwArrowIcon {
         return splitButtonArrowIcon(this._direction);
     }
 

@@ -1,59 +1,170 @@
 // <adw-tab-view> — A dynamic tabbed container with a tab bar header (the web
-// counterpart of Adw.TabView + Adw.TabBar). One page is shown at a time; the
-// tab bar renders one chip per page (title + close affordance) over a
+// counterpart of Adw.TabView + Adw.TabBar). One page is shown at a time; the tab
+// bar renders one chip per page (title + close affordance) over a
 // headerbar-colored strip, with the selected chip raised onto the view
-// background. Pages are declared as <adw-tab-page> children (each with a
-// `title` attribute and arbitrary content); the view snapshots them at connect
-// time, builds the bar, and toggles the active page's visibility.
+// background.
+//
+// The MODEL is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link TabViewState}, shared with the NativeScript twin and specced by the
+// conformance vectors in `@gjsify/adwaita-core/conformance`. This element is the
+// DOM half only: it turns declared markup into pages, builds and MOVES tab
+// chips, toggles visibility, reflects the selection to an attribute, re-emits
+// changes as DOM events, and maps key chords onto the state machine.
+//
+// What the lift fixed here, all of it C-derived:
+//   - `close-page` removed NOTHING, so every close was permanently denied. The
+//     default now closes a non-pinned page and denies a pinned one, exactly as
+//     `close_page_cb` does (adw-tab-view.c:1986-1993), and the event is
+//     CANCELABLE so `preventDefault()` defers the close until
+//     `closePageFinish()` — the "save before closing?" seam that did not exist.
+//   - `selected="99"` CLAMPED to the last page and `selected="-1"` to the first;
+//     libadwaita ignores both (:2145, :4126-4134).
+//   - `view.selected = 2` changed the visible page and fired nothing, while a
+//     tab click fired; C notifies on every path (:1854).
+//   - `<adw-tab-page>` declared `observedAttributes = ['title']` with no
+//     `attributeChangedCallback` behind it, so the declaration was dead and a
+//     title could never change. Titles, tooltips, icons and the loading state
+//     are now live, as `AdwTab` keeps them (adw-tab.c:930-931).
+//   - the bar hid on `pages <= 1` with no pinned clause, so a single PINNED tab
+//     hid the bar where libadwaita keeps it (adw-tab-bar.c:163).
+//   - the close button was always visible; it now follows `tabCloseVisible`
+//     (adw-tab.c:124 + the pinned gate at :645-650).
+//   - a roving tabindex was installed with NOTHING wired to move it, so every
+//     inactive tab was keyboard-unreachable under role=tablist.
+//
+// Pages are declared as <adw-tab-page> children (the element itself becomes the
+// page panel, so its attributes stay live) or added imperatively.
 // Attributes:
-//   selected (zero-based index of the visible page, default 0)
-//   autohide (boolean — hide the tab bar when only one page remains, mirroring
-//     the Adw.TabBar `autohide` property)
-//   expand-tabs (boolean — tabs stretch to fill the bar evenly, mirroring the
-//     Adw.TabBar `expand-tabs` property)
-//   no-close (boolean — render no close affordance; web-specific escape hatch
-//     for static tab sets such as documentation command tabs)
+//   selected     — zero-based index of the visible page; out-of-range is IGNORED.
+//   autohide     — hide the tab bar when it has nothing to show. NB Adw.TabBar
+//     defaults this to TRUE (`DEFAULT_TAB_AUTOHIDE`); an HTML boolean attribute
+//     cannot, so this stays opt-in — a deliberate, citable inversion.
+//   expand-tabs  — tabs stretch to fill the bar evenly (Adw.TabBar `expand-tabs`).
+//   no-close     — render no close affordance; web-specific escape hatch for
+//     static tab sets such as documentation command tabs.
+// <adw-tab-page> attributes: page-id, title, tooltip, icon, indicator-icon,
+//   loading, needs-attention, pinned.
 // Events:
-//   `notify::selected-page` (CustomEvent, bubbles, `detail = { selected }`) when
-//     the visible page changes — mirrors the Adw.TabView `selected-page` property.
-//   `close-page` (CustomEvent, bubbles, `detail = { index }`) when a page's close
-//     affordance is activated — mirrors the Adw.TabView `close-page` signal.
+//   `notify::selected-page` (CustomEvent, bubbles,
+//     detail = { selected, selectedId, previousId, interactive }).
+//   `close-page` (CustomEvent, bubbles, CANCELABLE,
+//     detail = { index, id }) — one per close ATTEMPT. `preventDefault()` holds
+//     the page open until `closePageFinish(id, confirm)`.
+//   `page-attached` / `page-detached` / `page-reordered` / `page-pinned` /
+//     `page-updated` (CustomEvent, bubbles,
+//     detail = { id, position, previousPosition }) — one per page-list change,
+//     so a bound tab bar can move ONE chip instead of rebuilding.
 // Reference: refs/libadwaita/src/adw-tab-view.c (AdwTabView behaviour)
 // Reference: refs/libadwaita/src/adw-tab-bar.c (AdwTabBar autohide)
+// Reference: refs/libadwaita/src/adw-tab.c (AdwTab chip)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_tab-view.scss
 // Reference: refs/adwaita-web/adwaita-web/scss/_tabs.scss
+// Reference: packages/nativescript-bridge/adwaita/src/widgets/adw-tab-view.ts (NS twin)
 // Copyright (c) 2020-2022 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-/** A single page. Children of <adw-tab-view>; consumed at connect time. */
+import {
+    TabViewState,
+    normalizeIconName,
+    tabCloseVisible,
+    tabIconState,
+    tabTooltip,
+    tabsRevealed,
+} from '@gjsify/adwaita-core';
+import type { AdwTabPageSpec, AdwTabPageState, TabViewPagesChange, TabViewSelectionChange } from '@gjsify/adwaita-core';
+
+/** A page descriptor as `pages` exposes it. */
+export type AdwTabViewPage = AdwTabPageState<HTMLElement>;
+
+/** The page spec the imperative insertion methods take. */
+export type AdwTabViewPageSpec = AdwTabPageSpec<HTMLElement>;
+
+/** The live `<adw-tab-page>` properties, each mapped onto a state setter. */
+const PAGE_ATTRIBUTES = ['title', 'tooltip', 'icon', 'indicator-icon', 'loading', 'needs-attention', 'pinned'];
+
+/**
+ * The mask-image class list for an icon NAME, or `''` for none — the same
+ * `adw-icon adw-icon--<name>` convention every other icon in this package uses.
+ * The `-symbolic` strip is that convention, not C: the name reaches `GtkImage`
+ * untouched there.
+ */
+function iconClass(name: string | null): string {
+    return name === null || name === '' ? '' : ` adw-icon adw-icon--${normalizeIconName(name)}`;
+}
+
+/**
+ * A single page. Declared as a child of <adw-tab-view>; the element itself
+ * becomes the page panel, so its attributes keep driving the tab after connect —
+ * the old implementation moved the children out and discarded the element, which
+ * is why its `observedAttributes` declaration had nothing to act on.
+ */
 export class AdwTabPage extends HTMLElement {
     static get observedAttributes() {
-        return ['title'];
+        return PAGE_ATTRIBUTES;
+    }
+
+    attributeChangedCallback(name: string, _old: string | null, value: string | null) {
+        // `closest` still finds the view after adoption: the element is moved
+        // into the view's page container, not replaced by a wrapper.
+        const view = this.closest('adw-tab-view') as AdwTabView | null;
+        view?.syncDeclaredPage(this, name, value);
     }
 }
 
 export class AdwTabView extends HTMLElement {
-    private _barEl!: HTMLDivElement;
-    private _pagesEl!: HTMLDivElement;
-    private _tabs: HTMLButtonElement[] = [];
-    private _pages: HTMLDivElement[] = [];
-    private _selected = 0;
+    private readonly _state = new TabViewState<HTMLElement>({
+        onClosePage: (page) => this._requestClose(page),
+    });
+    private readonly _barEl: HTMLDivElement;
+    private readonly _tabBoxEl: HTMLDivElement;
+    private readonly _pagesEl: HTMLDivElement;
+    /** Tab chips keyed by page id — the bar is edited in place, never rebuilt. */
+    private readonly _tabs = new Map<string, HTMLButtonElement>();
+    /** Page panels keyed by page id; kept so a DETACHED page's node is still reachable. */
+    private readonly _panels = new Map<string, HTMLElement>();
+    private readonly _hovered = new Set<string>();
     private _initialized = false;
+    private _generatedIds = 0;
+    /** Guards the `selected` attribute reflection against re-entering the model. */
+    private _reflecting = false;
 
     static get observedAttributes() {
         return ['selected', 'autohide', 'expand-tabs', 'no-close'];
     }
 
-    /** Zero-based index of the visible page. */
+    constructor() {
+        super();
+        // Detached nodes only: a custom element constructor may not add children.
+        // They are attached in connectedCallback, and pages added BEFORE that
+        // land in the detached container and come along with it.
+        this._barEl = document.createElement('div');
+        this._barEl.className = 'adw-tab-bar';
+        this._barEl.setAttribute('role', 'tablist');
+        this._tabBoxEl = document.createElement('div');
+        this._tabBoxEl.className = 'adw-tab-box';
+        this._barEl.appendChild(this._tabBoxEl);
+        this._pagesEl = document.createElement('div');
+        this._pagesEl.className = 'adw-tab-view-pages';
+
+        this._state.subscribePages((change) => this._onPagesChange(change));
+        this._state.subscribe((change) => this._onSelectionChange(change));
+    }
+
+    // --- Declarative surface ------------------------------------------------
+
+    /** Zero-based index of the visible page, `-1` when the view is empty. */
     get selected(): number {
-        return this._selected;
+        return this._state.selectedIndex;
     }
 
     set selected(value: number) {
-        this.setAttribute('selected', String(value));
+        this._state.selectNthPage(value);
     }
 
-    /** Whether the tab bar hides itself when only one page remains. */
+    /**
+     * Whether the tab bar hides itself when it has nothing to show —
+     * `tabsRevealed`, which keeps the bar up for a single PINNED tab.
+     */
     get autohide(): boolean {
         return this.hasAttribute('autohide');
     }
@@ -87,120 +198,579 @@ export class AdwTabView extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Snapshot the declared <adw-tab-page> children before we take over the
-        // subtree — their title attribute + content become the rendered pages.
-        const pages = Array.from(this.querySelectorAll('adw-tab-page')) as AdwTabPage[];
+        // Read the declared selection BEFORE adopting anything: the auto-select
+        // of the first page reflects its own index into this very attribute.
+        const declaredSelection = this.getAttribute('selected');
 
-        // The tab bar (headerbar-colored strip of chips), built first so it sits
-        // above the pages.
-        this._barEl = document.createElement('div');
-        this._barEl.className = 'adw-tab-bar';
-        this._barEl.setAttribute('role', 'tablist');
-
-        const tabBox = document.createElement('div');
-        tabBox.className = 'adw-tab-box';
-        this._barEl.appendChild(tabBox);
-
-        this._pagesEl = document.createElement('div');
-        this._pagesEl.className = 'adw-tab-view-pages';
-
-        this._tabs = [];
-        this._pages = [];
-
-        pages.forEach((page, index) => {
-            const title = page.getAttribute('title') ?? '';
-
-            const tab = document.createElement('button');
-            tab.type = 'button';
-            tab.className = 'adw-tab';
-            tab.setAttribute('role', 'tab');
-
-            const label = document.createElement('span');
-            label.className = 'adw-tab-title';
-            label.textContent = title;
-            tab.appendChild(label);
-
-            // Close affordance — a small flat button drawn with a CSS "×" glyph
-            // (no symbolic close icon ships in @gjsify/adwaita-icons).
-            const close = document.createElement('button');
-            close.type = 'button';
-            close.className = 'adw-tab-close';
-            close.setAttribute('aria-label', 'Close tab');
-            close.addEventListener('click', (event) => {
-                event.stopPropagation();
-                this.dispatchEvent(new CustomEvent('close-page', { bubbles: true, detail: { index } }));
-            });
-            tab.appendChild(close);
-
-            tab.addEventListener('click', () => this._selectIndex(index));
-            tabBox.appendChild(tab);
-            this._tabs.push(tab);
-
-            // The page content area — the declared element's children are moved
-            // into a panel that the view toggles visible.
-            const panel = document.createElement('div');
-            panel.className = 'adw-tab-page';
-            panel.setAttribute('role', 'tabpanel');
-            for (const child of Array.from(page.childNodes)) panel.appendChild(child);
-            this._pagesEl.appendChild(panel);
-            this._pages.push(panel);
-        });
-
+        // Snapshot the declared pages, then take over the subtree. The elements
+        // themselves become the panels, so they must survive replaceChildren.
+        const declared = Array.from(this.querySelectorAll(':scope > adw-tab-page')) as AdwTabPage[];
         this.replaceChildren(this._barEl, this._pagesEl);
+        for (const pageEl of declared) this._adoptDeclaredPage(pageEl);
 
-        this._selected = this._readSelectedAttr();
-        this._render();
+        if (declaredSelection !== null) this._applySelectedAttribute(declaredSelection);
+        this._applyBarVisibility();
+        this._reflectSelected();
+
+        this.addEventListener('keydown', (event) => this._onKeyDown(event));
     }
 
-    attributeChangedCallback(name: string) {
+    attributeChangedCallback(name: string, _old: string | null, _value: string | null) {
         if (!this._initialized) return;
         if (name === 'selected') {
-            const next = this._readSelectedAttr();
-            if (next !== this._selected) {
-                this._selected = next;
-                this._render();
-            }
+            // The LIVE attribute, not the value captured when the reaction was
+            // queued: reflection writes this attribute, and a custom-element
+            // reaction can run after a later write has already superseded it.
+            if (this._reflecting) return;
+            const current = this.getAttribute('selected');
+            if (current !== null) this._applySelectedAttribute(current);
             return;
         }
-        // autohide is styling/visibility-only.
-        this._render();
+        // autohide gates the bar; expand-tabs and no-close are styling only.
+        this._applyBarVisibility();
     }
 
-    private _readSelectedAttr(): number {
-        const raw = Number.parseInt(this.getAttribute('selected') ?? '0', 10);
-        if (Number.isNaN(raw)) return 0;
-        const max = Math.max(0, this._pages.length - 1);
-        return Math.min(Math.max(raw, 0), max);
+    /**
+     * Push a live `<adw-tab-page>` attribute change into the model. Called by
+     * {@link AdwTabPage.attributeChangedCallback}; not part of the public API.
+     */
+    syncDeclaredPage(pageEl: AdwTabPage, name: string, value: string | null): void {
+        const id = pageEl.dataset.pageId;
+        if (id === undefined) return;
+        switch (name) {
+            case 'title':
+                this._state.setPageTitle(id, value);
+                return;
+            case 'tooltip':
+                this._state.setPageTooltip(id, value);
+                return;
+            case 'icon':
+                this._state.setPageIcon(id, value);
+                return;
+            case 'indicator-icon':
+                this._state.setPageIndicatorIcon(id, value);
+                return;
+            case 'loading':
+                this._state.setPageLoading(id, value !== null);
+                return;
+            case 'needs-attention':
+                this._state.setPageNeedsAttention(id, value !== null);
+                return;
+            case 'pinned':
+                this._state.setPagePinned(id, value !== null);
+                return;
+        }
     }
 
-    private _selectIndex(index: number): void {
-        if (index === this._selected) return;
-        this._selected = index;
-        // Keep the attribute in sync without re-entering via the guarded
-        // attributeChangedCallback (value already matches, so it no-ops).
-        this.setAttribute('selected', String(index));
-        this._render();
-        this.dispatchEvent(new CustomEvent('notify::selected-page', { bubbles: true, detail: { selected: index } }));
+    // --- Model surface (thin delegations to TabViewState) --------------------
+
+    /** All pages in order. */
+    get pages(): readonly AdwTabViewPage[] {
+        return this._state.pages;
     }
 
-    private _render(): void {
-        // Autohide: collapse the bar when only one page (or none) remains.
-        const hidden = this.autohide && this._pages.length <= 1;
-        this._barEl.hidden = hidden;
-        this._barEl.classList.toggle('single-tab', this._pages.length <= 1);
+    /** Number of pages. */
+    get nPages(): number {
+        return this._state.nPages;
+    }
 
-        this._tabs.forEach((tab, index) => {
-            const isActive = index === this._selected;
-            tab.classList.toggle('active', isActive);
-            tab.setAttribute('aria-selected', String(isActive));
-            tab.tabIndex = isActive ? 0 : -1;
+    /** Length of the pinned prefix. */
+    get nPinnedPages(): number {
+        return this._state.nPinnedPages;
+    }
+
+    /** Id of the selected page, `null` when the view is empty. */
+    get selectedId(): string | null {
+        return this._state.selectedId;
+    }
+
+    /** Index of the selected page, `-1` when the view is empty. */
+    get selectedIndex(): number {
+        return this._state.selectedIndex;
+    }
+
+    /** The selected page's panel element, or `null`. */
+    get selectedContent(): HTMLElement | null {
+        return this._state.selectedPage?.content ?? null;
+    }
+
+    isClosing(id: string): boolean {
+        return this._state.isClosing(id);
+    }
+
+    setSelectedPage(id: string | null): boolean {
+        return this._state.setSelectedPage(id);
+    }
+
+    selectNthPage(n: number): boolean {
+        return this._state.selectNthPage(n);
+    }
+
+    selectPreviousPage(): boolean {
+        return this._state.selectPreviousPage();
+    }
+
+    selectNextPage(): boolean {
+        return this._state.selectNextPage();
+    }
+
+    selectFirstPage(): boolean {
+        return this._state.selectFirstPage();
+    }
+
+    selectLastPage(): boolean {
+        return this._state.selectLastPage();
+    }
+
+    /** Ctrl+Tab — the next page, wrapping to the first. */
+    cycleNextPage(): boolean {
+        return this._state.cycleNextPage();
+    }
+
+    /** Ctrl+Shift+Tab — the previous page, wrapping to the last. */
+    cyclePreviousPage(): boolean {
+        return this._state.cyclePreviousPage();
+    }
+
+    /** Add a page opened FROM `parentId`, deriving its position (Adw.TabView.add_page). */
+    addPage(spec: AdwTabViewPageSpec, parentId: string | null = null): number {
+        return this._state.addPage(this._withPanel(spec), parentId);
+    }
+
+    insertPage(spec: AdwTabViewPageSpec, position: number): number {
+        return this._state.insertPage(this._withPanel(spec), position);
+    }
+
+    prependPage(spec: AdwTabViewPageSpec): number {
+        return this._state.prependPage(this._withPanel(spec));
+    }
+
+    appendPage(spec: AdwTabViewPageSpec): number {
+        return this._state.appendPage(this._withPanel(spec));
+    }
+
+    insertPinnedPage(spec: AdwTabViewPageSpec, position: number): number {
+        return this._state.insertPinnedPage(this._withPanel(spec), position);
+    }
+
+    prependPinnedPage(spec: AdwTabViewPageSpec): number {
+        return this._state.prependPinnedPage(this._withPanel(spec));
+    }
+
+    appendPinnedPage(spec: AdwTabViewPageSpec): number {
+        return this._state.appendPinnedPage(this._withPanel(spec));
+    }
+
+    /** Pin or unpin a page, re-ordering it in the same step. Returns its new position. */
+    setPagePinned(id: string, pinned: boolean): number {
+        return this._state.setPagePinned(id, pinned);
+    }
+
+    /**
+     * Request a close. Dispatches a CANCELABLE `close-page`; calling
+     * `preventDefault()` on it holds the page open until {@link closePageFinish}.
+     */
+    closePage(id: string): boolean {
+        return this._state.closePage(id);
+    }
+
+    closePageFinish(id: string, confirm: boolean): boolean {
+        return this._state.closePageFinish(id, confirm);
+    }
+
+    closeOtherPages(id: string): void {
+        this._state.closeOtherPages(id);
+    }
+
+    closePagesBefore(id: string): void {
+        this._state.closePagesBefore(id);
+    }
+
+    closePagesAfter(id: string): void {
+        this._state.closePagesAfter(id);
+    }
+
+    /** Remove a page unconditionally, running the successor rule first. */
+    detachPage(id: string): AdwTabViewPage | null {
+        return this._state.detachPage(id);
+    }
+
+    reorderPage(id: string, position: number): boolean {
+        return this._state.reorderPage(id, position);
+    }
+
+    reorderBackward(id: string): boolean {
+        return this._state.reorderBackward(id);
+    }
+
+    reorderForward(id: string): boolean {
+        return this._state.reorderForward(id);
+    }
+
+    reorderFirst(id: string): boolean {
+        return this._state.reorderFirst(id);
+    }
+
+    reorderLast(id: string): boolean {
+        return this._state.reorderLast(id);
+    }
+
+    setPageTitle(id: string, title: string | null): boolean {
+        return this._state.setPageTitle(id, title);
+    }
+
+    setPageTooltip(id: string, tooltip: string | null): boolean {
+        return this._state.setPageTooltip(id, tooltip);
+    }
+
+    setPageIcon(id: string, icon: string | null): boolean {
+        return this._state.setPageIcon(id, icon);
+    }
+
+    setPageLoading(id: string, loading: boolean): boolean {
+        return this._state.setPageLoading(id, loading);
+    }
+
+    setPageNeedsAttention(id: string, needsAttention: boolean): boolean {
+        return this._state.setPageNeedsAttention(id, needsAttention);
+    }
+
+    /** Every precondition the model refused, as C would have warned about it. */
+    get diagnostics(): readonly string[] {
+        return this._state.diagnostics;
+    }
+
+    // --- Adoption -----------------------------------------------------------
+
+    private _adoptDeclaredPage(pageEl: AdwTabPage): void {
+        // The declared element IS the panel — attributes stay live on it, which
+        // is what makes `<adw-tab-page title>` observable at all.
+        const spec: AdwTabViewPageSpec = {
+            id: pageEl.getAttribute('page-id') ?? this._nextId(),
+            title: pageEl.getAttribute('title'),
+            tooltip: pageEl.getAttribute('tooltip'),
+            icon: pageEl.getAttribute('icon'),
+            indicatorIcon: pageEl.getAttribute('indicator-icon'),
+            loading: pageEl.hasAttribute('loading'),
+            needsAttention: pageEl.hasAttribute('needs-attention'),
+            content: pageEl,
+        };
+        if (pageEl.hasAttribute('pinned')) this.appendPinnedPage(spec);
+        else this.appendPage(spec);
+    }
+
+    /** Give a spec its panel, so `append({ id })` with no content is legal. */
+    private _withPanel(spec: AdwTabViewPageSpec): AdwTabViewPageSpec {
+        const content = spec.content ?? document.createElement('adw-tab-page');
+        content.classList.add('adw-tab-page');
+        content.setAttribute('role', 'tabpanel');
+        content.dataset.pageId = spec.id;
+        return { ...spec, content };
+    }
+
+    private _nextId(): string {
+        // Monotonic and never reused: an id is the stand-in for a page POINTER,
+        // so recycling one would silently alias a closed tab to a new one.
+        this._generatedIds += 1;
+        return `tab-${this._generatedIds}`;
+    }
+
+    // --- Rendering ----------------------------------------------------------
+
+    private _onPagesChange(change: TabViewPagesChange): void {
+        switch (change.kind) {
+            case 'attached': {
+                const page = this._state.getPage(change.id);
+                if (page) this._insertTab(page, change.position);
+                break;
+            }
+            case 'detached': {
+                this._tabs.get(change.id)?.remove();
+                this._tabs.delete(change.id);
+                this._hovered.delete(change.id);
+                // The page is already out of the model, so its node has to come
+                // from here rather than from `getPage(id)?.content`.
+                this._panels.get(change.id)?.remove();
+                this._panels.delete(change.id);
+                break;
+            }
+            case 'reordered':
+            case 'pinned': {
+                this._moveTab(change.id, change.position);
+                this._refreshTab(change.id);
+                break;
+            }
+            case 'updated':
+                this._refreshTab(change.id);
+                break;
+        }
+        this._applyBarVisibility();
+        this._applyActiveState();
+        this.dispatchEvent(
+            new CustomEvent(`page-${change.kind}`, {
+                bubbles: true,
+                detail: { id: change.id, position: change.position, previousPosition: change.previousPosition },
+            }),
+        );
+    }
+
+    private _insertTab(page: AdwTabViewPage, position: number): void {
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'adw-tab';
+        tab.setAttribute('role', 'tab');
+        tab.dataset.pageId = page.id;
+
+        // Decorative mask-image spans, the same convention every other icon in
+        // this package uses (`adw-icon adw-icon--<name>`).
+        const icon = document.createElement('span');
+        icon.className = 'adw-tab-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        tab.appendChild(icon);
+
+        const label = document.createElement('span');
+        label.className = 'adw-tab-title';
+        tab.appendChild(label);
+
+        const indicator = document.createElement('span');
+        indicator.className = 'adw-tab-indicator';
+        indicator.setAttribute('aria-hidden', 'true');
+        tab.appendChild(indicator);
+
+        // Close affordance — a small flat button drawn with a CSS "×" glyph (no
+        // symbolic close icon ships in @gjsify/adwaita-icons). `can-focus=False`
+        // in adw-tab.ui:72, so it stays out of the tab order here too.
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'adw-tab-close';
+        close.tabIndex = -1;
+        close.setAttribute('aria-label', 'Close tab');
+        close.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this._state.closePage(page.id);
+        });
+        tab.appendChild(close);
+
+        tab.addEventListener('click', () => this._state.setSelectedPage(page.id));
+        tab.addEventListener('pointerenter', () => {
+            this._hovered.add(page.id);
+            this._refreshCloseVisibility(page.id);
+        });
+        tab.addEventListener('pointerleave', () => {
+            this._hovered.delete(page.id);
+            this._refreshCloseVisibility(page.id);
         });
 
-        this._pages.forEach((panel, index) => {
-            const isActive = index === this._selected;
-            panel.classList.toggle('active-page', isActive);
-            panel.hidden = !isActive;
+        this._tabBoxEl.insertBefore(tab, this._tabBoxEl.children[position] ?? null);
+        this._tabs.set(page.id, tab);
+
+        const panel = page.content;
+        if (panel) {
+            this._panels.set(page.id, panel);
+            this._pagesEl.insertBefore(panel, this._pagesEl.children[position] ?? null);
+        }
+        this._refreshTab(page.id);
+    }
+
+    /** Remove-then-insert, the same shape the model's own reorder has. */
+    private _moveTab(id: string, position: number): void {
+        const tab = this._tabs.get(id);
+        if (tab) {
+            tab.remove();
+            this._tabBoxEl.insertBefore(tab, this._tabBoxEl.children[position] ?? null);
+        }
+        const panel = this._panels.get(id);
+        if (panel) {
+            panel.remove();
+            this._pagesEl.insertBefore(panel, this._pagesEl.children[position] ?? null);
+        }
+    }
+
+    private _refreshTab(id: string): void {
+        const page = this._state.getPage(id);
+        const tab = this._tabs.get(id);
+        if (!page || !tab) return;
+
+        const label = tab.querySelector('.adw-tab-title') as HTMLElement | null;
+        if (label) label.textContent = page.title;
+        // The tooltip is Pango MARKUP when the page sets one of its own
+        // (adw-tab.c:141-146). The DOM `title` attribute is a TEXT sink, so the
+        // markup is shown verbatim rather than being pushed through an HTML sink
+        // — a renderer that interpreted it would be executing page-supplied markup.
+        tab.title = tabTooltip(page);
+        tab.classList.toggle('pinned', page.pinned);
+        tab.classList.toggle('needs-attention', page.needsAttention);
+        tab.classList.toggle('closing', page.closing);
+
+        const icons = tabIconState(page, this.getAttribute('default-icon'));
+        const icon = tab.querySelector('.adw-tab-icon') as HTMLElement | null;
+        if (icon) {
+            icon.className = `adw-tab-icon${iconClass(icons.icon)}${icons.spinner ? ' loading' : ''}`;
+            icon.hidden = !icons.iconVisible;
+        }
+        const indicator = tab.querySelector('.adw-tab-indicator') as HTMLElement | null;
+        if (indicator) {
+            indicator.className = `adw-tab-indicator${iconClass(page.indicatorIcon)}`;
+            indicator.hidden = !icons.indicatorVisible;
+        }
+        this._refreshCloseVisibility(id);
+    }
+
+    /**
+     * `tabCloseVisible` (adw-tab.c:124 + the pinned gate at :645-650). `dragging`
+     * is constantly false — tab drag-and-drop is compositor work and is not
+     * modelled — and `fullyVisible` is measured against the bar's scroll window,
+     * which is exactly what the C term means for a horizontally scrolled bar.
+     */
+    private _refreshCloseVisibility(id: string): void {
+        const page = this._state.getPage(id);
+        const tab = this._tabs.get(id);
+        if (!page || !tab) return;
+        const close = tab.querySelector('.adw-tab-close') as HTMLElement | null;
+        if (!close) return;
+
+        const barLeft = this._barEl.scrollLeft;
+        const fullyVisible =
+            tab.offsetLeft >= barLeft && tab.offsetLeft + tab.offsetWidth <= barLeft + this._barEl.clientWidth;
+        close.hidden = !tabCloseVisible({
+            hovering: this._hovered.has(id),
+            fullyVisible,
+            selected: this._state.selectedId === id,
+            dragging: false,
+            pinned: page.pinned,
         });
+    }
+
+    private _onSelectionChange(change: TabViewSelectionChange): void {
+        this._applyActiveState();
+        this._reflectSelected();
+        this.dispatchEvent(
+            new CustomEvent('notify::selected-page', {
+                bubbles: true,
+                detail: {
+                    selected: change.selectedIndex,
+                    selectedId: change.selectedId,
+                    previousId: change.previousId,
+                    interactive: change.interactive,
+                },
+            }),
+        );
+    }
+
+    private _applyActiveState(): void {
+        const selected = this._state.selectedId;
+        for (const page of this._state.pages) {
+            const isActive = page.id === selected;
+            const tab = this._tabs.get(page.id);
+            if (tab) {
+                tab.classList.toggle('active', isActive);
+                tab.setAttribute('aria-selected', String(isActive));
+                tab.tabIndex = isActive ? 0 : -1;
+            }
+            const panel = page.content;
+            if (panel) {
+                panel.classList.toggle('active-page', isActive);
+                panel.hidden = !isActive;
+            }
+            this._refreshCloseVisibility(page.id);
+        }
+    }
+
+    private _applyBarVisibility(): void {
+        const revealed = tabsRevealed({
+            autohide: this.autohide,
+            nPages: this._state.nPages,
+            nPinnedPages: this._state.nPinnedPages,
+            // Tab transfer between views is drag-and-drop, i.e. compositor work,
+            // and is not modelled here.
+            isTransferringPage: false,
+        });
+        this._barEl.hidden = !revealed;
+        this._barEl.classList.toggle('single-tab', this._state.nPages <= 1);
+    }
+
+    private _reflectSelected(): void {
+        this._reflecting = true;
+        const index = this._state.selectedIndex;
+        if (index < 0) this.removeAttribute('selected');
+        else if (this.getAttribute('selected') !== String(index)) this.setAttribute('selected', String(index));
+        this._reflecting = false;
+    }
+
+    private _applySelectedAttribute(value: string): void {
+        const index = Number.parseInt(value, 10);
+        // An unparseable value is IGNORED rather than treated as 0: the old
+        // `Number.isNaN(raw) ? 0 : clamp(raw)` made `selected="oops"` select the
+        // first page, and `selected="99"` the last, where libadwaita refuses both
+        // (adw-tab-view.c:2145, :4126-4134).
+        if (Number.isNaN(index)) return;
+        this._state.selectNthPage(index);
+    }
+
+    // --- Keyboard -----------------------------------------------------------
+
+    /**
+     * The `Adw.TabView` shortcut table (`init_shortcuts`, adw-tab-view.c:2192+),
+     * plus the ArrowLeft/ArrowRight movement `role=tablist` promises.
+     *
+     * Ctrl+Tab WRAPS and Ctrl+Page-Up/Down does not — the same `last` flag that
+     * separates them in `select_page_cb` (:2017-2041). Alt+0 is page index 9,
+     * because pages count from 0 (:2149-2150).
+     */
+    private _onKeyDown(event: KeyboardEvent): void {
+        const inBar = event.target instanceof Node && this._barEl.contains(event.target);
+        let handled = false;
+
+        if (event.ctrlKey && event.key === 'Tab') {
+            handled = event.shiftKey ? this._state.cyclePreviousPage() : this._state.cycleNextPage();
+        } else if (event.ctrlKey && event.shiftKey && (event.key === 'PageUp' || event.key === 'PageDown')) {
+            const id = this._state.selectedId;
+            if (id !== null) {
+                handled = event.key === 'PageUp' ? this._state.reorderBackward(id) : this._state.reorderForward(id);
+            }
+        } else if (event.ctrlKey && event.shiftKey && (event.key === 'Home' || event.key === 'End')) {
+            const id = this._state.selectedId;
+            if (id !== null) {
+                handled = event.key === 'Home' ? this._state.reorderFirst(id) : this._state.reorderLast(id);
+            }
+        } else if (event.ctrlKey && (event.key === 'PageUp' || event.key === 'PageDown')) {
+            handled = event.key === 'PageUp' ? this._state.selectPreviousPage() : this._state.selectNextPage();
+        } else if (event.ctrlKey && (event.key === 'Home' || event.key === 'End')) {
+            handled = event.key === 'Home' ? this._state.selectFirstPage() : this._state.selectLastPage();
+        } else if (event.altKey && /^[0-9]$/.test(event.key)) {
+            const digit = Number.parseInt(event.key, 10);
+            handled = this._state.selectNthPage(digit === 0 ? 9 : digit - 1);
+        } else if (inBar && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+            handled = event.key === 'ArrowLeft' ? this._state.selectPreviousPage() : this._state.selectNextPage();
+        } else if (inBar && (event.key === 'Home' || event.key === 'End')) {
+            handled = event.key === 'Home' ? this._state.selectFirstPage() : this._state.selectLastPage();
+        }
+
+        if (!handled) return;
+        event.preventDefault();
+        // Roving tabindex: the newly-active tab is the only focusable one, so
+        // focus has to travel with it or the next keypress goes nowhere.
+        if (inBar) {
+            const id = this._state.selectedId;
+            if (id !== null) this._tabs.get(id)?.focus();
+        }
+    }
+
+    /**
+     * The `close-page` seam. A CANCELABLE DOM event is the idiomatic spelling of
+     * the C signal's return value: letting it through takes libadwaita's default
+     * (`!pinned`, adw-tab-view.c:1990-1991), and `preventDefault()` defers the
+     * close until the app calls {@link closePageFinish}.
+     */
+    private _requestClose(page: AdwTabViewPage): boolean | 'defer' {
+        const proceed = this.dispatchEvent(
+            new CustomEvent('close-page', {
+                bubbles: true,
+                cancelable: true,
+                detail: { index: this._state.getPagePosition(page.id), id: page.id },
+            }),
+        );
+        return proceed ? !page.pinned : 'defer';
     }
 }
 

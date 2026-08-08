@@ -1,136 +1,480 @@
-// <adw-carousel> — a horizontally swipeable pager (the web counterpart of
-// Adw.Carousel). Pages are declared as direct children; the carousel lays them
-// out in a horizontal scroll-snap strip, tracks the fractional scroll position,
-// and exposes a `position` (fractional page index) + `n-pages`, mirroring the
-// AdwCarousel properties. Navigation: drag/scroll-snap (touch + trackpad),
-// optional scroll-wheel paging, and `scroll-to(index)`.
+// <adw-carousel> — a swipeable pager (the web counterpart of Adw.Carousel).
+// Pages are declared as direct children; the carousel lays them out in a
+// scroll-snap strip, tracks the fractional scroll position, and exposes the
+// AdwCarousel properties and signals.
 //
-// Indicators are SEPARATE elements bound to a carousel (exactly as the native
-// Adw.CarouselIndicatorDots / Adw.CarouselIndicatorLines bind to an
-// Adw.Carousel via their `carousel` property): set `el.carousel = carouselEl`
-// or place a `for` attribute referencing the carousel's id. The indicator
-// listens to the carousel's `notify::position` / `notify::n-pages` events and
-// repaints; clicking an indicator scrolls the carousel to that page.
+// The BEHAVIOUR is headless and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link CarouselState}, shared with the NativeScript twin and pinned by the
+// conformance vectors in `@gjsify/adwaita-core/conformance`: snap points, the
+// range and its clamp, which page a position settles on, the wheel axis rules
+// and their 150 ms lockout, the keynav step, and the insert/reorder/remove
+// ordering with its position compensation. This element is the DOM half only —
+// it turns children into a scroll-snap strip, converts scroll offsets to and
+// from positions, and re-emits changes as DOM events.
+//
+// What the lift fixed here, all of it C-derived:
+//   - `allow-scroll-wheel` defaults to TRUE (adw-carousel.c:1103-1106, :1201).
+//     It was read as a bare attribute presence, so a plain <adw-carousel>
+//     ignored the wheel entirely while the header comment claimed the opposite,
+//     and every doc example had to opt in.
+//   - the wheel now follows `scroll_cb` (:537-574): a touchpad propagates, a
+//     mouse wheel pages a horizontal carousel, a horizontal delta is the
+//     fallback the old `|dy| <= |dx|` early-return dropped, exactly one page per
+//     notch behind a 150 ms lockout instead of a non-decaying accumulator (which
+//     cancelled +30 then −30 out), and the event is consumed ONLY when it paged.
+//   - `page-changed` fires on every settle, including back onto the same page,
+//     and can report -1 (:363-376, :1150-1151); it used to be gated on an index
+//     change, which made -1 unreachable.
+//   - a fractional position resolves to a page with C's half-DOWN tie-break
+//     (:198-201), where `Math.round` picked the later page at every .5.
+//   - `allow-long-swipes` was dead code (`step * 1` vs `step`). It now maps onto
+//     `scroll-snap-stop`, which is the same rule in CSS: one flick, one page.
+//   - `<adw-carousel position="2">` used to be dropped, because attribute
+//     changes are delivered before `connectedCallback`; and the attribute path
+//     parsed with `parseInt` while the property path rounded. Both now parse a
+//     float and resolve it through the same page lookup.
+//   - the page list is no longer frozen at `connectedCallback`: `insertPage` /
+//     `removePage` / `reorderPage` mirror the C methods (:1370-1532).
 //
 // adw-carousel
-//   Attributes: allow-scroll-wheel (bool, default present), allow-long-swipes
-//     (bool — a flick can skip multiple pages at once), position (number,
-//     fractional page index — reflected, settable to snap to a page).
+//   Attributes: allow-scroll-wheel (default TRUE, set "false" to disable),
+//     allow-long-swipes (default false), interactive (default TRUE),
+//     spacing (px between pages, default 0), position (INITIAL/declarative page
+//     to show — write-only, the live position is the `position` property and the
+//     `notify::position` event).
 //   Events: `notify::position` (fractional scroll position changed),
-//     `notify::n-pages` (page count changed), `page-changed` (settled on a new
-//     page; `detail = { index }`) — mirroring the AdwCarousel signals the native
-//     story uses.
+//     `notify::n-pages` (page count changed), `page-changed`
+//     (`detail = { index }`, -1 when empty).
 // adw-carousel-indicator-dots / adw-carousel-indicator-lines
 //   Properties: carousel (the bound AdwCarousel element), or a `for` attribute
 //     with the carousel element's id.
 //
 // Reference: refs/libadwaita/src/adw-carousel.c (AdwCarousel behaviour)
 // Reference: refs/libadwaita/src/adw-carousel-indicator-dots.c
-//   (DOTS_RADIUS 3, DOTS_RADIUS_SELECTED 4, DOTS_OPACITY 0.3,
-//    DOTS_OPACITY_SELECTED 0.9, DOTS_SPACING 7)
 // Reference: refs/libadwaita/src/adw-carousel-indicator-lines.c
-//   (LINE_WIDTH 3, LINE_LENGTH 35, LINE_SPACING 5,
-//    LINE_OPACITY 0.3, LINE_OPACITY_ACTIVE 0.9)
 // Reference: refs/adwaita-web/adwaita-web/scss/_carousel_indicators.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as Web Components for @gjsify/adwaita-web.
+
+import { CarouselState } from '@gjsify/adwaita-core';
+import type { CarouselScrollRequest, CarouselScrollSource, CarouselStateChange } from '@gjsify/adwaita-core';
 
 /** Common surface an indicator binds to. The concrete element is AdwCarousel. */
 interface CarouselHost extends HTMLElement {
     readonly nPages: number;
     readonly position: number;
+    /** The page the current position settles on, `-1` when empty. */
+    readonly currentPage: number;
     scrollToPage(index: number): void;
     addEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
 }
 
+/** A mouse wheel notch is at least this many CSS pixels — below it, assume a touchpad. */
+const WHEEL_NOTCH_PIXELS = 40;
+
+/**
+ * Which `GdkInputSource` a `WheelEvent` most likely came from.
+ *
+ * The web platform exposes no device class, so this is a HEURISTIC where GDK has
+ * a fact (`gdk_device_get_source`, adw-carousel.c:535-536) — but the distinction
+ * is load-bearing: libadwaita ignores touchpad scrolling because the touchpad's
+ * own kinetic scroll already drives the swipe, which here is the track's native
+ * scroll-snap. Line- and page-mode deltas only ever come from a wheel; a
+ * touchpad reports small or fractional pixel deltas, and is the only thing that
+ * produces a horizontal component alongside a vertical one.
+ */
+function wheelSource(event: WheelEvent): CarouselScrollSource {
+    if (event.deltaMode !== 0) return 'mouse';
+    const dy = Math.abs(event.deltaY);
+    const dx = Math.abs(event.deltaX);
+    if (dx > 0 && dy > 0) return 'touchpad';
+    const dominant = Math.max(dx, dy);
+    if (!Number.isInteger(dominant) || dominant < WHEEL_NOTCH_PIXELS) return 'touchpad';
+    return 'mouse';
+}
+
 export class AdwCarousel extends HTMLElement implements CarouselHost {
+    private readonly _state = new CarouselState({
+        // The DOM owns the scroll animation: `scrollTo` only asks, and the
+        // scroll handler feeds the ramp back through `setPosition`.
+        animateScroll: true,
+        onScrollTo: (request) => this._performScroll(request),
+    });
     private _trackEl!: HTMLDivElement;
-    private _pages: HTMLElement[] = [];
-    private _position = 0;
+    /** Page id → its `.adw-carousel-page` slot. Ids are internal; the DOM node is the public handle. */
+    private readonly _slots = new Map<string, HTMLDivElement>();
+    private _nextPageId = 0;
     private _scrollRaf = 0;
-    private _wheelAccum = 0;
     private _initialized = false;
+    /** A declared `position` waiting for the track to have a width. */
+    private _pendingPosition: number | null = null;
+    private _pendingLayout: ResizeObserver | undefined;
+    /**
+     * `interactive` for the scroll now in flight: the flag of the request that
+     * started it, or `null` for a scroll we did not start — which is a user drag,
+     * and therefore interactive.
+     */
+    private _pendingInteractive: boolean | null = null;
 
     static get observedAttributes() {
-        return ['allow-scroll-wheel', 'allow-long-swipes', 'position'];
+        return ['allow-scroll-wheel', 'allow-long-swipes', 'interactive', 'spacing', 'position'];
+    }
+
+    constructor() {
+        super();
+        // Subscribing touches no attributes and no children, so it is legal in a
+        // custom element constructor — unlike anything DOM-shaped.
+        this._state.subscribe((change) => this._onStateChange(change));
+        this._state.onPageChanged((index) => {
+            this.dispatchEvent(new CustomEvent('page-changed', { bubbles: true, detail: { index } }));
+        });
     }
 
     /** Number of pages in the carousel. */
     get nPages(): number {
-        return this._pages.length;
+        return this._state.nPages;
     }
 
     /** Fractional scroll position (0 = first page, 1 = second, …). */
     get position(): number {
-        return this._position;
+        return this._state.position;
     }
 
+    /**
+     * Scroll to the page this position settles on.
+     *
+     * `AdwCarousel:position` is READ-ONLY in C (adw-carousel.c:1036-1041) — the
+     * setter is a port convenience, and it resolves the value with the same
+     * `get_page_at_position` rule the carousel uses everywhere else, so setting
+     * 0.5 lands on page 0 exactly as scrolling there would.
+     */
     set position(value: number) {
-        const clamped = Math.min(Math.max(value, 0), Math.max(0, this.nPages - 1));
-        this.scrollToPage(Math.round(clamped));
+        this._scrollToPosition(value);
     }
 
-    /** Whether the scroll wheel navigates between pages. */
+    /** The page the current position settles on, `-1` when the carousel is empty. */
+    get currentPage(): number {
+        return this._state.pageAt(this._state.position);
+    }
+
+    /** Whether the scroll wheel navigates between pages. Defaults to TRUE, as in libadwaita. */
     get allowScrollWheel(): boolean {
-        return this.hasAttribute('allow-scroll-wheel');
+        return this._state.allowScrollWheel;
     }
 
     set allowScrollWheel(value: boolean) {
-        this.toggleAttribute('allow-scroll-wheel', value);
+        this.setAttribute('allow-scroll-wheel', value ? 'true' : 'false');
     }
 
-    /** Whether a single flick can skip more than one page. */
+    /** Whether a single flick may cross more than one page. */
     get allowLongSwipes(): boolean {
-        return this.hasAttribute('allow-long-swipes');
+        return this._state.allowLongSwipes;
     }
 
     set allowLongSwipes(value: boolean) {
         this.toggleAttribute('allow-long-swipes', value);
     }
 
+    /** Whether the carousel can be navigated at all. Defaults to TRUE. */
+    get interactive(): boolean {
+        return this._state.interactive;
+    }
+
+    set interactive(value: boolean) {
+        this.setAttribute('interactive', value ? 'true' : 'false');
+    }
+
+    /** Spacing between pages in px (`AdwCarousel:spacing`). */
+    get spacing(): number {
+        return this._state.spacing;
+    }
+
+    set spacing(value: number) {
+        this.setAttribute('spacing', String(value));
+    }
+
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
 
-        // The declared children become the carousel's pages. Snapshot them
-        // before we move them into the scroll track.
-        this._pages = Array.from(this.children).filter((c): c is HTMLElement => c instanceof HTMLElement);
-
         this._trackEl = document.createElement('div');
         this._trackEl.className = 'adw-carousel-track';
-        for (const page of this._pages) {
-            const slot = document.createElement('div');
-            slot.className = 'adw-carousel-page';
-            slot.appendChild(page);
-            this._trackEl.appendChild(slot);
-        }
+        // The scroll animation is CSS, not a hard-coded `behavior: 'smooth'`, so
+        // it stays overridable: a consumer honouring prefers-reduced-motion, or a
+        // test that needs the scroll to land now, sets `scroll-behavior: auto` on
+        // the track and every scroll becomes instant.
+        this._trackEl.style.setProperty('scroll-behavior', 'smooth');
+
+        // Read the declared properties BEFORE adopting children: `spacing` is
+        // part of the page pitch, so a page added first would be measured
+        // against the wrong distance.
+        this._applyAttribute('allow-scroll-wheel', this.getAttribute('allow-scroll-wheel'));
+        this._applyAttribute('allow-long-swipes', this.getAttribute('allow-long-swipes'));
+        this._applyAttribute('interactive', this.getAttribute('interactive'));
+        this._applyAttribute('spacing', this.getAttribute('spacing'));
+
+        const declared = Array.from(this.children).filter(
+            (child): child is HTMLElement => child instanceof HTMLElement,
+        );
         this.replaceChildren(this._trackEl);
+        for (const page of declared) this._insert(page, -1);
 
         this._trackEl.addEventListener('scroll', this._onScroll, { passive: true });
         this._trackEl.addEventListener('wheel', this._onWheel, { passive: false });
 
-        // Surface the page count once the DOM is wired so indicators can paint.
-        this.dispatchEvent(new CustomEvent('notify::n-pages', { bubbles: true, detail: { nPages: this.nPages } }));
-        this._emitPosition();
+        // A declared `position` is applied last, once the pages it names exist.
+        // Custom-element upgrade delivers attributes BEFORE connectedCallback, so
+        // reading it here is the only way `<adw-carousel position="2">` works at
+        // all — it used to be dropped on the floor.
+        this._applyAttribute('position', this.getAttribute('position'));
     }
 
     attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
         if (!this._initialized) return;
-        if (name === 'position' && newValue !== null) {
-            const next = Number.parseInt(newValue, 10);
-            if (!Number.isNaN(next) && next !== Math.round(this._position)) this.scrollToPage(next);
-        }
-        // allow-scroll-wheel / allow-long-swipes are read live in the handlers.
+        this._applyAttribute(name, newValue);
     }
 
-    /** Scroll (snap) to the page at `index`, clamped to the valid range. */
+    disconnectedCallback() {
+        // A pending declared position watches the track for its first layout;
+        // a carousel removed before that happens must not keep an observer alive.
+        this._cancelPendingPosition();
+    }
+
+    /** One attribute → one state property. Shared by the initial read and later changes. */
+    private _applyAttribute(name: string, value: string | null): void {
+        switch (name) {
+            case 'allow-scroll-wheel':
+                // Absent means TRUE here: the property defaults TRUE in C, so the
+                // usual "presence = on" spelling would invert it.
+                this._state.setAllowScrollWheel(value !== 'false');
+                return;
+            case 'allow-long-swipes':
+                this._state.setAllowLongSwipes(value !== null && value !== 'false');
+                this._applySnapStop();
+                return;
+            case 'interactive':
+                this._state.setInteractive(value !== 'false');
+                return;
+            case 'spacing': {
+                const spacing = value === null ? 0 : Number.parseFloat(value);
+                if (Number.isFinite(spacing)) this._state.setSpacing(Math.max(0, spacing));
+                this._trackEl.style.columnGap = `${this._state.spacing}px`;
+                return;
+            }
+            case 'position':
+                // One parse for both paths. The attribute used to go through
+                // parseInt while the property rounded, so "1.7" meant page 1
+                // declaratively and page 2 imperatively.
+                if (value !== null) this._positionWhenMeasurable(Number.parseFloat(value));
+        }
+    }
+
+    /**
+     * Scroll to `value`, waiting for the first layout when the track has no
+     * width yet.
+     *
+     * `connectedCallback` runs DURING insertion, so the track is still 0px wide
+     * and a scroll offset has nowhere to land — a declared
+     * `<adw-carousel position="2">` silently stayed on page 0. Deferring to the
+     * first non-zero measurement is the only point at which the offset means
+     * anything; a later assignment simply replaces the pending one.
+     */
+    private _positionWhenMeasurable(value: number): void {
+        if (!Number.isFinite(value)) return;
+        if (this._trackEl.clientWidth > 0) {
+            this._cancelPendingPosition();
+            this._scrollInstantly(value);
+            return;
+        }
+        this._pendingPosition = value;
+        if (this._pendingLayout) return;
+        this._pendingLayout = new ResizeObserver(() => {
+            if (this._trackEl.clientWidth <= 0) return;
+            const pending = this._pendingPosition;
+            this._cancelPendingPosition();
+            if (pending !== null) this._scrollInstantly(pending);
+        });
+        this._pendingLayout.observe(this._trackEl);
+    }
+
+    /**
+     * Jump to `value` without the reveal animation.
+     *
+     * A DECLARED position is where the carousel STARTS, not somewhere it travels
+     * to — `<adw-carousel position="2">` should render already showing page 2.
+     * Left smooth, the track is still at offset 0 while the animation runs, and
+     * the `scroll` event that fires from there recomputes the position back to
+     * page 0. So the one assignment is made instant and the caller's
+     * `scroll-behavior` is put back.
+     */
+    private _scrollInstantly(value: number): void {
+        const previous = this._trackEl.style.getPropertyValue('scroll-behavior');
+        this._trackEl.style.setProperty('scroll-behavior', 'auto');
+        try {
+            this._scrollToPosition(value);
+        } finally {
+            if (previous) this._trackEl.style.setProperty('scroll-behavior', previous);
+            else this._trackEl.style.removeProperty('scroll-behavior');
+        }
+    }
+
+    /** Drop a pending declared position and stop watching for a layout. */
+    private _cancelPendingPosition(): void {
+        this._pendingLayout?.disconnect();
+        this._pendingLayout = undefined;
+        this._pendingPosition = null;
+    }
+
+    /** Resolve a fractional position to a page and scroll there; a no-op when there is none. */
+    private _scrollToPosition(value: number): void {
+        if (!Number.isFinite(value)) return;
+        const page = this._state.pageAt(value);
+        if (page >= 0) this.scrollToPage(page);
+    }
+
+    /**
+     * Insert `page` at `position` — `adw_carousel_insert` (adw-carousel.c:1370-1407).
+     * `-1` or a position past the end appends. Returns whether it was added.
+     */
+    insertPage(page: HTMLElement, position = -1): boolean {
+        if (!this._initialized) {
+            this.appendChild(page);
+            return true;
+        }
+        return this._insert(page, position);
+    }
+
+    /** `adw_carousel_append` (adw-carousel.c:1348-1357). */
+    appendPage(page: HTMLElement): boolean {
+        return this.insertPage(page, -1);
+    }
+
+    /** `adw_carousel_prepend` (adw-carousel.c:1330-1339). */
+    prependPage(page: HTMLElement): boolean {
+        return this.insertPage(page, 0);
+    }
+
+    /** Remove `page` — `adw_carousel_remove` (adw-carousel.c:1508-1532). */
+    removePage(page: HTMLElement): boolean {
+        const id = this._idOf(page);
+        if (id === null) return false;
+        if (!this._state.removePage(id)) return false;
+        // reveal-duration is 0 by default and this port has no reveal ramp, so
+        // the shrink completes at once — `adw_animation_skip` (:331).
+        this._state.skipReveal(id);
+        this._syncTrack();
+        return true;
+    }
+
+    /** Move `page` — `adw_carousel_reorder` (adw-carousel.c:1419-1499). */
+    reorderPage(page: HTMLElement, position: number): boolean {
+        const id = this._idOf(page);
+        if (id === null) return false;
+        if (!this._state.reorderPage(id, position)) return false;
+        this._syncTrack();
+        return true;
+    }
+
+    /**
+     * Scroll to the page at `index`. Out-of-range, fractional and NaN indices are
+     * refused rather than clamped, matching `adw_carousel_get_nth_page`'s
+     * precondition (adw-carousel.c:1616).
+     */
     scrollToPage(index: number): void {
+        this._state.scrollTo(index);
+    }
+
+    /** One keynav step — `navigate_to_direction` (adw-carousel.c:475-508). */
+    navigate(direction: 'back' | 'forward'): boolean {
+        return this._state.navigate(direction);
+    }
+
+    private _insert(page: HTMLElement, position: number): boolean {
+        const id = `page-${this._nextPageId++}`;
+        if (!this._state.insertPage(id, position)) return false;
+
+        const slot = document.createElement('div');
+        slot.className = 'adw-carousel-page';
+        slot.appendChild(page);
+        this._slots.set(id, slot);
+
+        // No reveal ramp in this port: with reveal-duration 0 the page is at full
+        // size immediately, which is what a zero-duration AdwTimedAnimation does.
+        this._state.skipReveal(id);
+        this._syncTrack();
+        return true;
+    }
+
+    /** The state's id for a page element, or `null` when it is not one of ours. */
+    private _idOf(page: HTMLElement): string | null {
+        for (const [id, slot] of this._slots) if (slot.contains(page)) return id;
+        return null;
+    }
+
+    /** Make the DOM order match the model order, and drop slots whose page is gone. */
+    private _syncTrack(): void {
+        const ids = this._state.ids;
+        const live = new Set(ids);
+        for (const [id, slot] of this._slots) {
+            if (live.has(id)) continue;
+            slot.remove();
+            this._slots.delete(id);
+        }
+        ids.forEach((id, index) => {
+            const slot = this._slots.get(id);
+            if (!slot) return;
+            if (this._trackEl.children[index] !== slot) {
+                this._trackEl.insertBefore(slot, this._trackEl.children[index] ?? null);
+            }
+        });
+        this._applySnapStop();
+        this._applyScrollFromModel();
+    }
+
+    /**
+     * Put the scroll offset back where the model says it is, instantly.
+     *
+     * A page revealed at or before the current one moves the position with it
+     * (`shift_position`, adw-carousel.c:241-258) precisely so the page on screen
+     * does not slide sideways — but a scroll container knows nothing about that
+     * and would keep its old offset, showing the newly-inserted page instead. GTK
+     * gets this for free because the same allocation that adds the child also
+     * lays it out; here it takes one write.
+     */
+    private _applyScrollFromModel(): void {
+        const distance = this._distance();
+        if (!(distance > 0)) return;
+        this._trackEl.scrollTo({ left: this._state.position * distance, behavior: 'instant' });
+    }
+
+    /**
+     * `allow-long-swipes` in CSS: `scroll-snap-stop: always` forces the scroll to
+     * stop at every page, which is exactly what the property being FALSE means —
+     * "each swipe can only move to the adjacent pages" (adw-carousel.c:1111-1113).
+     */
+    private _applySnapStop(): void {
+        const stop = this._state.allowLongSwipes ? 'normal' : 'always';
+        for (const slot of this._slots.values()) slot.style.setProperty('scroll-snap-stop', stop);
+    }
+
+    /** The px pitch between two page origins — `self->distance` (adw-carousel.c:767). */
+    private _distance(): number {
+        const first = this._trackEl?.firstElementChild as HTMLElement | null;
+        if (!first) return 0;
+        return this._state.pageDistance(first.getBoundingClientRect().width);
+    }
+
+    /** Run the scroll the state asked for, in the track's own scroll coordinates. */
+    private _performScroll(request: CarouselScrollRequest): void {
         if (!this._trackEl) return;
-        const clamped = Math.min(Math.max(index, 0), Math.max(0, this.nPages - 1));
-        const slot = this._trackEl.children[clamped] as HTMLElement | undefined;
-        if (!slot) return;
-        this._trackEl.scrollTo({ left: slot.offsetLeft, behavior: 'smooth' });
+        const distance = this._distance();
+        if (!(distance > 0)) return;
+        this._pendingInteractive = request.interactive;
+        // `offset = distance * position` (adw-carousel.c:797-801). The old code
+        // used `slot.offsetLeft`, which is measured from the nearest POSITIONED
+        // ancestor and only coincides with the scroll offset by accident.
+        this._trackEl.scrollTo({ left: request.index * distance });
     }
 
     private _onScroll = (): void => {
@@ -142,47 +486,49 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
     };
 
     private _onWheel = (event: WheelEvent): void => {
-        if (!this.allowScrollWheel || this.nPages === 0) return;
-        // A horizontal scroll already pans the snap strip natively; only the
-        // vertical wheel needs translating into page steps (mirrors AdwCarousel,
-        // which lets vertical scrolling page a horizontal carousel).
-        if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-        event.preventDefault();
-        this._wheelAccum += event.deltaY;
-        const threshold = 40;
-        if (Math.abs(this._wheelAccum) < threshold) return;
-        const step = this._wheelAccum > 0 ? 1 : -1;
-        this._wheelAccum = 0;
-        const current = Math.round(this._position);
-        const target = this.allowLongSwipes ? current + step * 1 : current + step;
-        this.scrollToPage(target);
+        const step = this._state.handleWheel({
+            deltaX: event.deltaX,
+            deltaY: event.deltaY,
+            source: wheelSource(event),
+        });
+        // GDK_EVENT_STOP only when it actually paged (adw-carousel.c:561-562 vs
+        // :576). The old code preventDefault()ed before its threshold test, so it
+        // swallowed sub-threshold scrolls without doing anything with them.
+        if (step !== 0) event.preventDefault();
     };
 
     private _updatePositionFromScroll(): void {
-        if (!this._trackEl) return;
-        const slotWidth = this._slotWidth();
-        if (slotWidth <= 0) return;
-        const next = this._trackEl.scrollLeft / slotWidth;
-        const settledBefore = Math.round(this._position);
-        this._position = next;
-        this._emitPosition();
-        const settledAfter = Math.round(next);
-        // Snap landed cleanly on a page boundary → page-changed (within 0.02 of
-        // an integer index, matching a finished scroll-snap).
-        if (settledAfter !== settledBefore && Math.abs(next - settledAfter) < 0.02) {
-            this.dispatchEvent(new CustomEvent('page-changed', { bubbles: true, detail: { index: settledAfter } }));
+        const distance = this._distance();
+        if (!(distance > 0)) return;
+
+        const next = this._trackEl.scrollLeft / distance;
+        // A scroll event that does not MOVE the position carries no news: it is
+        // the echo of the offset `_applyScrollFromModel` just wrote, and reading
+        // it back as an arrival would announce a `page-changed` for an insert
+        // that deliberately kept the same page on screen. The notification still
+        // goes out — C's notify at :281 is unconditional.
+        if (!this._state.setPosition(next, this._pendingInteractive ?? true)) return;
+        // `scroll_animation_done_cb` has an animation to tell it the scroll
+        // finished; scroll-snap has only the offset, so the core stands ARRIVAL
+        // at a snap point in for it (adw-carousel.c:363-376).
+        if (this._state.settleIfArrived()) this._pendingInteractive = null;
+    }
+
+    private _onStateChange(change: CarouselStateChange): void {
+        if (change.reason === 'n-pages') {
+            this.dispatchEvent(
+                new CustomEvent('notify::n-pages', { bubbles: true, detail: { nPages: change.nPages } }),
+            );
+            return;
         }
-    }
-
-    private _slotWidth(): number {
-        const first = this._trackEl?.children[0] as HTMLElement | undefined;
-        return first ? first.offsetWidth : 0;
-    }
-
-    private _emitPosition(): void {
-        this.dispatchEvent(
-            new CustomEvent('notify::position', { bubbles: true, detail: { position: this._position } }),
-        );
+        if (change.reason === 'position') {
+            this.dispatchEvent(
+                new CustomEvent('notify::position', {
+                    bubbles: true,
+                    detail: { position: change.position, page: change.page, interactive: change.interactive },
+                }),
+            );
+        }
     }
 }
 
@@ -261,6 +607,10 @@ abstract class AdwCarouselIndicator extends HTMLElement {
         return this._carousel?.position ?? 0;
     }
 
+    protected currentPage(): number {
+        return this._carousel?.currentPage ?? -1;
+    }
+
     protected goTo(index: number): void {
         this._carousel?.scrollToPage(index);
     }
@@ -270,29 +620,43 @@ abstract class AdwCarouselIndicator extends HTMLElement {
 
 export class AdwCarouselIndicatorDots extends AdwCarouselIndicator {
     protected _render(): void {
-        renderIndicator(this, 'adw-carousel-dot', this.nPages(), this.position(), (i) => this.goTo(i));
+        renderIndicator(this, 'adw-carousel-dot', this.nPages(), this.position(), this.currentPage(), (i) =>
+            this.goTo(i),
+        );
     }
 }
 
 export class AdwCarouselIndicatorLines extends AdwCarouselIndicator {
     protected _render(): void {
-        renderIndicator(this, 'adw-carousel-line', this.nPages(), this.position(), (i) => this.goTo(i));
+        renderIndicator(this, 'adw-carousel-line', this.nPages(), this.position(), this.currentPage(), (i) =>
+            this.goTo(i),
+        );
     }
 }
 
 /**
- * Shared rebuild for both indicator kinds: one child per page, the marker
- * closest to the fractional position carries `.active`, and clicking scrolls
- * the carousel. The dot/line look (size, growth, opacity ramp) is in SCSS; the
- * `--adw-carousel-progress` custom property carries the per-marker proximity so
- * the active marker can grow/brighten the way libadwaita lerps between the
- * inactive and selected states.
+ * Shared rebuild for both indicator kinds: one child per page, the CURRENT page
+ * carries `.active`, and clicking scrolls the carousel. The dot/line look (size,
+ * growth, opacity ramp) is in SCSS, driven by a per-marker
+ * `--adw-carousel-progress`.
+ *
+ * `current` comes from the carousel's own `get_page_at_position` rather than
+ * from the progress ramp: the old `progress > 0.5` test left NO dot marked at an
+ * exact half-way position — with two pages at position 0.5 both dots scored
+ * exactly 0.5 and every one of them reported `aria-current="false"`.
+ *
+ * The ramp itself is still the `1 − |position − i|` approximation, which is
+ * exact only while every page is fully revealed. libadwaita's real per-dot
+ * progress (`snapshot_dots`, adw-carousel-indicator-dots.c:114-134) also scales
+ * radius and opacity by that page's size, which needs a reveal ramp this port
+ * does not have.
  */
 function renderIndicator(
     host: HTMLElement,
     markerClass: string,
     nPages: number,
     position: number,
+    current: number,
     onClick: (index: number) => void,
 ): void {
     if (host.childElementCount !== nPages) {
@@ -308,13 +672,11 @@ function renderIndicator(
         host.replaceChildren(...markers);
     }
     Array.from(host.children).forEach((child, i) => {
-        // Proximity in [0,1]: 1 on the focused page, ramping to 0 one page away
-        // (matches AdwCarousel's per-dot lerp progress = 1 - |position - i|).
         const progress = Math.max(0, 1 - Math.abs(position - i));
         const marker = child as HTMLElement;
         marker.style.setProperty('--adw-carousel-progress', progress.toFixed(3));
-        marker.classList.toggle('active', progress > 0.5);
-        marker.setAttribute('aria-current', progress > 0.5 ? 'true' : 'false');
+        marker.classList.toggle('active', i === current);
+        marker.setAttribute('aria-current', i === current ? 'true' : 'false');
     });
 }
 

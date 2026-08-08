@@ -231,7 +231,9 @@ describe('check-ci-image-packages: the node-availability guard', () => {
         ['FROM fedora:44', 'RUN dnf install -y \\', `    ${packages} \\`, '    && dnf clean all', ''].join('\n');
     const BAKED_DOCKERFILE = dockerfileWith('gjs meson vala');
 
-    function runImageGuard(workflowFiles, dockerfile = BAKED_DOCKERFILE) {
+    // `ciFiles` keys are paths UNDER `.github/`, because question (4)'s corpus is
+    // that whole directory and not just its `workflows/` subdirectory.
+    function runImageGuard(workflowFiles, dockerfile = BAKED_DOCKERFILE, ciFiles = {}) {
         const root = mkdtempSync(join(tmpdir(), 'gjsify-image-guard-'));
         mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
         mkdirSync(join(root, '.docker'), { recursive: true });
@@ -250,6 +252,11 @@ describe('check-ci-image-packages: the node-availability guard', () => {
         );
         for (const [name, body] of Object.entries(workflowFiles)) {
             writeFileSync(join(root, '.github', 'workflows', name), body);
+        }
+        for (const [rel, body] of Object.entries(ciFiles)) {
+            const path = join(root, '.github', rel);
+            mkdirSync(dirname(path), { recursive: true });
+            writeFileSync(path, body);
         }
         const result = spawnSync(process.execPath, [IMAGE_GUARD, '--root', root], { encoding: 'utf8' });
         return { ...result, output: `${result.stdout}${result.stderr}` };
@@ -314,7 +321,7 @@ describe('check-ci-image-packages: the node-availability guard', () => {
                 '      image: fedora:43',
                 '    steps:',
                 '      - run: >',
-                '          dnf install -y',
+                '          dnf install -y --disablerepo=fedora-cisco-openh264',
                 '          git tar xz',
                 '          nodejs',
                 '          meson vala',
@@ -324,6 +331,65 @@ describe('check-ci-image-packages: the node-availability guard', () => {
         });
         assert.equal(result.status, 0, result.output);
         assert.match(result.stdout, /provided by its own nodejs install/);
+    });
+
+    // Question (4), both halves. openh264 arrives through a HARD Requires chain
+    // from gdk-pixbuf2, out of a separately hosted repo whose outage fails the
+    // whole transaction — and `--setopt=install_weak_deps=False` cannot drop it,
+    // which is why two of the four sites looked handled and were not (#1057).
+    //
+    // The second half is the corpus. `emulated-build.sh` was never checked at all
+    // because the guard read `.github/workflows/*.yml` and nothing else, so a
+    // `dnf install` in a SHELL SCRIPT one directory over was invisible. Both a
+    // workflow and a script are asserted here for that reason.
+    it('fails any dnf install that leaves the cisco openh264 repo enabled', () => {
+        const withoutFlag = {
+            'prebuilds.yml': [
+                'jobs:',
+                '  build-prebuilds:',
+                '    runs-on: ubuntu-24.04-arm',
+                '    container:',
+                '      image: fedora:43',
+                '    steps:',
+                '      - run: >',
+                '          dnf install -y --setopt=install_weak_deps=False',
+                '          gdk-pixbuf2-devel nodejs',
+                '',
+            ].join('\n'),
+        };
+        const result = runImageGuard(withoutFlag);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /prebuilds\.yml:8 runs `dnf install` without --disablerepo=fedora-cisco-openh264/);
+
+        const withFlag = {
+            'prebuilds.yml': withoutFlag['prebuilds.yml'].replace(
+                '--setopt=install_weak_deps=False',
+                '--setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264',
+            ),
+        };
+        assert.equal(runImageGuard(withFlag).status, 0, runImageGuard(withFlag).output);
+    });
+
+    it('checks shell scripts under .github, not only workflows', () => {
+        const script = [
+            '#!/bin/sh',
+            '# dnf install -y something   <- a comment, not a command',
+            'dnf install -y \\',
+            '    gtk4-devel',
+            '',
+        ];
+        const result = runImageGuard({}, undefined, { 'prebuild-toolchain/emulated-build.sh': script.join('\n') });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /emulated-build\.sh:3 runs `dnf install` without/);
+        // The comment on line 2 must NOT be reported — every workflow here carries
+        // prose about `dnf install`, and a guard that flags prose gets switched off.
+        assert.doesNotMatch(result.stderr, /emulated-build\.sh:2/);
+
+        // A continuation line satisfies the rule: the flag is part of the same
+        // logical command even though it is not on the `dnf install` line.
+        const continued = ['dnf install -y \\', '    --disablerepo=fedora-cisco-openh264 \\', '    gtk4-devel', ''];
+        const ok = runImageGuard({}, undefined, { 'prebuild-toolchain/emulated-build.sh': continued.join('\n') });
+        assert.equal(ok.status, 0, ok.output);
     });
 
     it('does not mistake node-shaped words for an invocation', () => {

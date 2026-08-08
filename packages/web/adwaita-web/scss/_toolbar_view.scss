@@ -11,6 +11,8 @@ adw-toolbar-view {
   min-height: 0;
   min-width: 0;
   flex: 1 1 auto;
+  // Positioning context for the extend-content-to-*-edge overlays below.
+  position: relative;
 
   .adw-toolbar-view-top,
   .adw-toolbar-view-bottom {
@@ -28,4 +30,76 @@ adw-toolbar-view {
     flex-direction: column;
     background-color: var(--window-bg-color);
   }
+
+  // top-bar-style / bottom-bar-style: an opaque background plus a persistent
+  // shadow, which `.border` swaps for a hairline (adw-toolbar-view.c:1011-1024,
+  // _toolbars.scss `> .top-bar.raised`).
+  .adw-toolbar-view-top.raised,
+  .adw-toolbar-view-bottom.raised {
+    background-color: var(--headerbar-bg-color);
+    color: var(--headerbar-fg-color);
+  }
+
+  .adw-toolbar-view-top.raised {
+    box-shadow:
+      0 1px var(--headerbar-shade-color),
+      0 2px 4px var(--headerbar-shade-color);
+
+    &.border {
+      box-shadow: 0 1px var(--headerbar-shade-color);
+    }
+  }
+
+  .adw-toolbar-view-bottom.raised {
+    box-shadow:
+      0 -1px var(--headerbar-shade-color),
+      0 -2px 4px var(--headerbar-shade-color);
+
+    &.border {
+      box-shadow: 0 -1px var(--headerbar-shade-color);
+    }
+  }
+
+  // The scroll fade under a FLAT bar. libadwaita paints it on the scrolled
+  // window; the browser equivalent is a non-interactive gradient stuck to the
+  // scrollport edge, taking no space of its own — a NEGATIVE margin equal to its
+  // height (_toolbars.scss :342-343, _scrolling.scss :150-157).
+  &.undershoot-top .adw-toolbar-view-content::before,
+  &.undershoot-bottom .adw-toolbar-view-content::after {
+    content: '';
+    position: sticky;
+    height: 6px;
+    flex-shrink: 0;
+    pointer-events: none;
+  }
+
+  &.undershoot-top .adw-toolbar-view-content::before {
+    top: 0;
+    margin-bottom: -6px;
+    background: linear-gradient(to bottom, var(--headerbar-shade-color), transparent);
+  }
+
+  &.undershoot-bottom .adw-toolbar-view-content::after {
+    bottom: 0;
+    margin-top: -6px;
+    background: linear-gradient(to top, var(--headerbar-shade-color), transparent);
+  }
+}
+
+// extend-content-to-*-edge: the content spans the full height and the bar is
+// drawn OVER it, which is `content_offset = 0` / `content_height = height` in
+// adw_toolbar_view_size_allocate (adw-toolbar-view.c:390-397).
+adw-toolbar-view[extend-content-to-top-edge] > .adw-toolbar-view-top,
+adw-toolbar-view[extend-content-to-bottom-edge] > .adw-toolbar-view-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+adw-toolbar-view[extend-content-to-top-edge] > .adw-toolbar-view-top {
+  top: 0;
+}
+
+adw-toolbar-view[extend-content-to-bottom-edge] > .adw-toolbar-view-bottom {
+  bottom: 0;
 }
