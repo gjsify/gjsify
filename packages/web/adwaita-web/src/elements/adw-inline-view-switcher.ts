@@ -108,7 +108,7 @@ export class AdwInlineViewSwitcher extends HTMLElement {
     private _pageObserver: MutationObserver | undefined;
 
     static get observedAttributes() {
-        return ['active', 'display-mode', 'flat', 'round'];
+        return ['active', 'display-mode', 'flat', 'round', 'osd'];
     }
 
     constructor() {
@@ -383,8 +383,16 @@ export class AdwInlineViewSwitcher extends HTMLElement {
     }
 
     private _applyStyleClasses(): void {
-        this.classList.toggle('flat', this.hasAttribute('flat'));
-        this.classList.toggle('round', this.hasAttribute('round'));
+        // `css_classes_changed_cb` (adw-inline-view-switcher.c:528-545) forwards
+        // THREE classes onto the toggle group, not two: `flat`, `round` and
+        // `osd`. This element carried the first two and only onto the host, so an
+        // `osd` inline switcher — the one in a floating overlay, where the class
+        // exists to make it legible — styled nothing at all.
+        for (const name of ['flat', 'round', 'osd'] as const) {
+            const present = this.hasAttribute(name);
+            this.classList.toggle(name, present);
+            this._groupEl?.classList.toggle(name, present);
+        }
         // The group carries the display-mode class, mirroring libadwaita's
         // inline-view-switcher > toggle-group.{labels,icons,both} (:826-850).
         for (const mode of INLINE_VIEW_SWITCHER_DISPLAY_MODES) {

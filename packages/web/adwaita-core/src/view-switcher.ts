@@ -186,12 +186,15 @@ export function createViewSwitcherPage(init: AdwViewSwitcherPageInit): AdwViewSw
  * Project a wave-1 stack page descriptor onto a switcher page, for a switcher
  * BOUND to an `Adw.ViewStack` rather than owning its own pages.
  *
- * Two fidelity notes a caller has to know, both consequences of what
- * `AdwViewStackPageInfo` carries: its `title` is already resolved against the
- * page name, so it is never `null` and the button-visibility rule reduces to the
- * `visible` flag; and it carries none of `badge-number`, `needs-attention`,
- * `use-underline`, so a bound switcher derives an empty badge and no
- * description. Only a switcher that owns its pages sees those.
+ * One fidelity note remains: `AdwViewStackPageInfo.title` is already resolved
+ * against the page name, so it is never `null` and the button-visibility rule
+ * reduces to the `visible` flag.
+ *
+ * The second one is gone. This used to say the stack page carried none of
+ * `badge-number`, `needs-attention` or `use-underline`, "so a bound switcher
+ * derives an empty badge and no description" — which made a switcher bound to a
+ * stack STRUCTURALLY unable to show a badge, and both `ViewSwitcherBar`s go
+ * through here. The stack page carries all three now.
  */
 export function viewSwitcherPageFromStackPage(page: AdwViewStackPageInfo): AdwViewSwitcherPage {
     return createViewSwitcherPage({
@@ -201,6 +204,9 @@ export function viewSwitcherPageFromStackPage(page: AdwViewStackPageInfo): AdwVi
         // `null`, which is what turns on the image-missing fallback.
         iconName: page.icon.length > 0 ? page.icon : null,
         visible: page.visible,
+        badgeNumber: page.badgeNumber,
+        needsAttention: page.needsAttention,
+        useUnderline: page.useUnderline,
     });
 }
 

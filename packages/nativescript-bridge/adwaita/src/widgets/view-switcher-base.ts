@@ -92,7 +92,9 @@ interface ButtonNodes {
  */
 export abstract class AdwViewSwitcherBase extends GridLayout {
     /** The horizontal switcher bar holding the buttons. */
-    protected readonly _bar: StackLayout;
+    protected readonly _bar: GridLayout;
+    /** `Adw.ViewSwitcher:policy`, default NARROW (adw-view-switcher.c:447-451). */
+    private _policy: AdwViewSwitcherPolicy = 'narrow';
     /** The content area where the selected page is shown. */
     protected readonly _contentArea: GridLayout;
     /** The registered pages, in bar order. */
@@ -107,14 +109,35 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
     protected abstract get buttonClass(): string;
     /**
      * `AdwViewSwitcher:policy`, which decides the button orientation
-     * (adw-view-switcher.c:534-537). `'wide'` — icon beside label — because that
-     * is the layout all three NS switchers have always used; the icon-over-label
-     * narrow form lives in the separate `AdwViewSwitcherBar`. There is no policy
-     * PROPERTY on NS yet, so this is a constant a subclass can override rather
-     * than settable state.
+     * (adw-view-switcher.c:534-537).
+     *
+     * It used to be a HARD-CODED `'wide'` with a note saying there was no policy
+     * property on NS — so a consumer could not follow a breakpoint, and the
+     * default was the opposite of C's, which is `ADW_VIEW_SWITCHER_POLICY_NARROW`
+     * (adw-view-switcher.c:447-451). It is a real property now, defaulting to
+     * `narrow`; a subclass may still pin it.
      */
     protected get policy(): AdwViewSwitcherPolicy {
-        return 'wide';
+        return this._policy;
+    }
+
+    /**
+     * `Adw.ViewSwitcher:policy` — settable, defaulting to NARROW as in C
+     * (adw-view-switcher.c:447-451).
+     *
+     * A hard-coded `'wide'` meant an NS consumer could not follow a breakpoint
+     * at all, and the value it was pinned to was not even the default.
+     */
+    get switcherPolicy(): AdwViewSwitcherPolicy {
+        return this._policy;
+    }
+
+    set switcherPolicy(value: AdwViewSwitcherPolicy) {
+        const next = value === 'wide' ? 'wide' : 'narrow';
+        if (next === this._policy) return;
+        this._policy = next;
+        this._applySelection();
+        this.notify({ eventName: 'notify::policy', object: this });
     }
 
     /**
@@ -135,9 +158,15 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         this.addRow(new ItemSpec(1, 'auto')); // bar
         this.addRow(new ItemSpec(1, 'star')); // content
 
-        const bar = new StackLayout();
-        bar.orientation = 'horizontal';
-        bar.horizontalAlignment = 'center';
+        // HOMOGENEOUS, which a centred StackLayout is not:
+        // `gtk_box_layout_set_homogeneous (…, TRUE)` (adw-view-switcher.c:475)
+        // gives every button the same width, so a long label cannot dominate the
+        // row. The grid takes one `star` column per button in `_rebuildButtons`;
+        // the NS *bar* widget already did this and the switcher did not, so the
+        // two disagreed about the same widget family.
+        const bar = new GridLayout();
+        bar.horizontalAlignment = 'stretch';
+        bar.addRow(new ItemSpec(1, 'auto'));
         GridLayout.setRow(bar, 0);
         this.addChild(bar);
         this._bar = bar;
@@ -176,6 +205,10 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
     setViews(pages: AdwViewPage[]): void {
         for (const nodes of this._nodes) this._bar.removeChild(nodes.button);
         this._nodes = [];
+        // The columns go with the buttons: a child whose column index exceeds the
+        // declared columns is clamped into the last one, so a shrinking switcher
+        // would stack its buttons on top of each other.
+        this._bar.removeColumns();
         for (const page of this._pages) this._contentArea.removeChild(page.content);
         this._pages.length = 0;
         this._pages.push(...pages);
@@ -224,6 +257,12 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         button.addEventListener('tap', () => {
             this._state.setSelected(index);
         });
+        // One `star` column per button IS the homogeneity: every column gets an
+        // equal share, so a long label cannot take the row
+        // (`gtk_box_layout_set_homogeneous (…, TRUE)`, adw-view-switcher.c:475).
+        this._bar.addColumn(new ItemSpec(1, 'star'));
+        GridLayout.setColumn(button, index);
+        GridLayout.setRow(button, 0);
         this._bar.addChild(button);
         return { button, icon, label, badge };
     }
@@ -267,6 +306,10 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
             } else {
                 nodes.badge.className = `${this.buttonClass}-badge`;
             }
+            // `update_description` (adw-indicator-bin.c:70-113) is what a screen
+            // reader announces for a badged page. The core computes it and this
+            // port DROPPED it on the floor, so a badge was a silent dot.
+            nodes.button.accessibilityLabel = model.description || model.label;
         });
     }
 

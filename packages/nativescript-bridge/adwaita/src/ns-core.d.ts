@@ -80,6 +80,9 @@ declare module '@nativescript/core' {
         readonly style: { direction?: 'ltr' | 'rtl' | null };
         /** Accessibility state — NS's counterpart to `gtk_accessible_update_state`. */
         accessibilityState: string;
+        /** The text a screen reader announces for this view — NS's counterpart
+         *  to `gtk_accessible_update_property (…, DESCRIPTION, …)`. */
+        accessibilityLabel: string;
         /** Animate one or more properties to their target values. Resolves when the
          *  animation finishes; the returned promise can also be `cancel()`ed. */
         animate(options: AnimationDefinition): AnimationPromise;
