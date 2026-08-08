@@ -65,7 +65,7 @@ Linux never needed either lever: its bootstrap runs the published GJS bundle,
 where `detectPackageManager()` already returns `gjsify`. That is also why a
 Linux-only pipeline could not see this — the same shape ADR 0018 § 5 predicts.
 
-### A Node-less host cannot bootstrap a fresh CLONE — four `node scripts/*.mjs` calls remain
+### A Node-less host cannot bootstrap a fresh CLONE — five `node scripts/*.mjs` calls remain
 
 Measured on a postmarketOS/aarch64 phone (musl, gjs 1.88.1, no node/npm/git) and
 reproduced locally by removing the only `node` from `PATH`: on a fresh clone
@@ -92,7 +92,7 @@ delivers is still a shipped defect — see #1005, which owns that half.
 through `gjsify tsc` (byte-identical emit, verified per package against the npm
 `tsc`), which carries the first five entries. It now dies at the sixth,
 `@gjsify/create-app`, exit 127 on `node scripts/process-template.mjs`. Four
-`node` invocations remain in the chain, and they are the whole residual:
+`node` invocations remain IN THAT CHAIN:
 `create-gjsify/scripts/process-template.mjs` (151 LOC),
 `create-gjsify/scripts/set-bin-mode.mjs` (35), `cli/scripts/build-assets.mjs`
 (49) and `scripts/bootstrap-native-facades.mjs` itself. All four import only
@@ -100,10 +100,41 @@ through `gjsify tsc` (byte-identical emit, verified per package against the npm
 nothing about them is intrinsically Node-bound; what is missing is a way to RUN
 an unbundled `.mjs` that imports `node:*` under GJS, since GJS's ESM loader
 cannot resolve those specifiers. Closing it means either bundling each to a
-committed `dist/*.gjs.mjs` (four more artifacts under the committed-bundle
+committed `dist/*.gjs.mjs` (more artifacts under the committed-bundle
 freshness gate — the expensive option) or a `gjsify run --node-script <file>`
 mode that bundles-and-runs on the fly (one mechanism, no new artifacts — the
-better option, and it would serve every repo script, not these four).
+better option, and it would serve every repo script, not just these).
+
+The mechanism is less new than it reads: `BuildAction.bundleFileForGjsCached`
+(`packages/infra/cli/src/actions/build.ts:513`) already bundles a single file for
+GJS and is already called from two places. `--node-script` is CLI wiring on top
+of it, not machinery to invent.
+
+**A FIFTH call, and it is NOT equivalent to the other four (#1053).**
+`packages/web/adwaita-web/scripts/build-scss.mjs` — reached from adwaita-web's
+`check`, `build` and `build:test:browser`. The postmarketOS measurement never saw
+it because that run stopped at `build:infra`, and this script sits outside that
+chain; the enumeration above is of the bootstrap chain, not of the repo.
+
+The distinction matters, because "port all five when `--node-script` lands" is
+wrong. The other four needed no change at all. This one did: dart-sass gates its
+four FILE-PATH entry points — `compile`, `compileAsync`, `render`, `renderSync` —
+behind a runtime `isNodeJs()` test and throws "The compile() method is only
+available in Node.js."; `compileString`/`compileStringAsync` carry no such test.
+A `--app gjs` bundle omits the `node` export condition by design
+(`packages/infra/rolldown-plugin-gjsify/src/app/gjs.ts:201`), so the script would
+have built GREEN and thrown at the first compile. It is on `compileString` now
+(byte-identical CSS and source map, verified against the previous output).
+
+What is still open there is the FILE READS, and it is the same shape one level
+down: `sass.node.js` populates the global `self.fs` that dart-sass reads every
+file through (`fs: require("fs")` in its `library.load({…})`), while
+`sass.default.js` loads with `{immutable}` only. On a non-Node runtime that
+global is undefined, so sass can open nothing — neither its own filesystem
+importer nor the `file:` URL a `FileImporter` hands back. Resolution is routed
+through an explicit importer in the script for exactly that reason: finishing the
+port is swapping that one object for an `Importer` whose `canonicalize`/`load`
+supply CONTENTS through `node:fs`, with nothing else in the file changing.
 
 **2026-08-06 — `--node-script` is viable, and the circularity has a documented
 exit.** `scripts/bootstrap-native-facades.mjs` states the trap in its own header:
@@ -122,9 +153,11 @@ the Node entry exists anyway. The residual gap is #1005 (a plain workspace
 install lays down no engine because the peer is never resolved), not this.
 
 Scope note when building it: it is ONE mechanism serving every script and every
-consumer. Hand-porting the four scripts to `gi://` instead is N pieces of work
+consumer. Hand-porting these scripts to `gi://` instead is N pieces of work
 AND makes each one Node-incompatible — motion without deletion (AGENTS.md
-§ Governance, `simplicity`).
+§ Governance, `simplicity`). The fifth script above shows the other half of the
+same rule: it needed a real change, and that change was an API swap INSIDE the
+script, not a `gi://` rewrite of it.
 
 Until then the engine diagnostic says the limitation out loud rather than
 recommending two commands that cannot work there; that wording is already fixed.

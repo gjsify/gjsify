@@ -2,10 +2,10 @@
 // 1. Resolve symbolic icons from @gjsify/adwaita-icons and write _icons.generated.scss.
 // 2. Compile scss/adwaita-skin.scss to dist/adwaita-web.css using the sass npm package.
 
-import { compile } from 'sass';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { compileString } from 'sass';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
     contactNewSymbolic,
     documentEditSymbolic,
@@ -133,8 +133,32 @@ writeFileSync(resolve(scssDir, '_icons.generated.scss'), iconPartial);
 console.log(`✓ Generated scss/_icons.generated.scss (${Object.keys(ICONS).length} icons)`);
 
 // --- 2. Compile SCSS -------------------------------------------------------
+// `compileString`, NOT `compile`, and the difference is not stylistic. dart-sass
+// gates its four FILE-PATH entry points — compile, compileAsync, render,
+// renderSync — behind a runtime `isNodeJs()` test and throws "The compile()
+// method is only available in Node.js."; `compileString`/`compileStringAsync`
+// carry no such test. A `gjsify build --app gjs` of this script deliberately
+// omits the `node` export condition, so it would resolve sass's `default` entry
+// and BUILD GREEN, then throw on the first compile at runtime (#1053).
+//
+// The importer is the SEAM, which is why resolution is routed through one rather
+// than left to sass. `sass.node.js` populates the global `self.fs` dart-sass
+// reads every file through (`fs: require("fs")` in its `library.load({…})`);
+// `sass.default.js` loads with `{immutable}` only, so on any non-Node runtime
+// that global is undefined and sass can open nothing — neither its own
+// filesystem importer nor the `file:` URL a FileImporter hands back. Porting the
+// rest of the way therefore means swapping this one object for an Importer whose
+// `canonicalize`/`load` supply CONTENTS through `node:fs` (which gjsify
+// polyfills); nothing else in this file changes. Recorded in
+// `status/open-todos.md` — this is the script that is not equivalent to the
+// other four.
+//
+// Byte-identical to the `compile()` it replaced, CSS and source map both,
+// verified against the previous output before landing.
 const entryPoint = resolve(scssDir, 'adwaita-skin.scss');
-const result = compile(entryPoint, {
+const result = compileString(readFileSync(entryPoint, 'utf8'), {
+    url: pathToFileURL(entryPoint),
+    importers: [{ findFileUrl: (url) => new URL(url, pathToFileURL(`${scssDir}/`)) }],
     style: 'expanded',
     sourceMap: true,
     sourceMapIncludeSources: true,
