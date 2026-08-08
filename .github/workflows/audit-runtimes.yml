@@ -161,6 +161,14 @@ jobs:
       - name: Check the ADR index lists every ADR
         run: node scripts/check-adr-index.mjs
 
+      # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of 58
+      # `customElements.define('adw-…')` calls, and it is what applies the ADR 0010
+      # style-isolation floor. A tag missing from it renders in the host page's font and
+      # colour, silently. It had already drifted — `adw-source-view` was never listed —
+      # and the spec ADR 0010 names as the guard instantiates exactly one element.
+      - name: Check adwaita-web's style-isolation list covers every element
+        run: node scripts/check-adwaita-reset-components.mjs
+
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
       # fields the filter reads. That is how this repo installed every platform's
@@ -370,6 +378,14 @@ jobs:
       # this compares those too — promoting Proposed → Accepted touches two files.
       - name: Check the ADR index lists every ADR
         run: node scripts/check-adr-index.mjs
+
+      # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of 58
+      # `customElements.define('adw-…')` calls, and it is what applies the ADR 0010
+      # style-isolation floor. A tag missing from it renders in the host page's font and
+      # colour, silently. It had already drifted — `adw-source-view` was never listed —
+      # and the spec ADR 0010 names as the guard instantiates exactly one element.
+      - name: Check adwaita-web's style-isolation list covers every element
+        run: node scripts/check-adwaita-reset-components.mjs
 
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
