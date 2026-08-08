@@ -111,56 +111,12 @@
     }
   }
 
-  // --- Dropdown menu (popover) ---
-  .adw-split-button-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    min-width: 160px;
-    padding: var(--spacing-xs);
-    border-radius: var(--button-radius);
-    background-color: var(--popover-bg-color, var(--window-bg-color, #fff));
-    color: var(--window-fg-color);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px var(--separator-color);
-
-    &[hidden] {
-      display: none;
-    }
-  }
-
-  .adw-split-button-menu-item {
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    width: 100%;
-    min-height: 32px;
-    margin: 0;
-    padding: var(--spacing-xs) var(--spacing-s);
-    border: none;
-    border-radius: calc(var(--button-radius) - 2px);
-    background-color: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: start;
-    cursor: pointer;
-    transition: background-color 0.1s ease;
-
-    &:hover {
-      background-color: var(--button-hover-color);
-    }
-
-    &:active {
-      background-color: var(--button-active-color);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--accent-color);
-      outline-offset: -2px;
-    }
-  }
+  // The dropdown menu is `<adw-popover>` (`_popover.scss`), and this was the
+  // WORST of the three hand-rolled surfaces: `--button-radius` (9px) where
+  // libadwaita's popover is 15px, under a two-layer shadow that exists nowhere
+  // in the vendored stylesheet (`popover > contents` has three,
+  // _popovers.scss:18-20), and a `calc(var(--button-radius) - 2px)` (7px) row
+  // where `modelbutton` is 9px. Nothing element-specific was left to keep.
 
   // --- Suggested action — accent-coloured whole control ---
   &.suggested-action {

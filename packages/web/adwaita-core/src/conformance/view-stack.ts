@@ -628,7 +628,15 @@ export interface ViewStackIconNameVector {
 
 /**
  * `normalizeIconName` — the one home for a `-symbolic` strip that appeared
- * eleven times across the web package and zero times in NS.
+ * eleven times across the web package and zero times in NS, plus the token guard
+ * that appeared exactly ONCE (`<adw-split-button>`) and was missing from every
+ * other copy.
+ *
+ * The guard rows are not hypothetical: `<adw-menu-button>` interpolated the raw
+ * name into `class="adw-icon adw-menu-button-icon adw-icon--<name>"`, so
+ * `icon-name="a b"` shipped a stray `b` class — for its own icon and for every
+ * JSON menu entry's. NOTHING in the build was in a position to notice, because
+ * the one element that DID guard passed its own spec.
  */
 export const VIEW_STACK_ICON_NAME_VECTORS: ReadonlyArray<ViewStackIconNameVector> = [
     { icon: 'go-next-symbolic', normalized: 'go-next', rule: 'the suffix is stripped' },
@@ -647,4 +655,20 @@ export const VIEW_STACK_ICON_NAME_VECTORS: ReadonlyArray<ViewStackIconNameVector
         rule: 'exactly ONE suffix is stripped, not repeated',
     },
     { icon: 'symbolic', normalized: 'symbolic', rule: 'the separating hyphen is part of the suffix' },
+    // --- the token guard ---
+    { icon: 'a b', normalized: '', rule: 'a SPACE is two class tokens — the second one used to be injected' },
+    {
+        icon: 'go-next-symbolic evil',
+        normalized: '',
+        rule: 'the strip runs first and does not rescue it — `-symbolic` is not the end of the string',
+    },
+    { icon: 'go_next', normalized: 'go_next', rule: 'an underscore is a legal identifier character' },
+    { icon: 'GoNext2', normalized: 'GoNext2', rule: 'case and digits are legal' },
+    {
+        icon: 'org.gnome.Builder',
+        normalized: '',
+        rule: 'a reverse-DNS application icon is not one token — it never had a mask class either',
+    },
+    { icon: 'icon"onload=x', normalized: '', rule: 'a quote cannot reach an attribute value' },
+    { icon: '  go-next  ', normalized: '', rule: 'surrounding whitespace is not trimmed away, it is rejected' },
 ];

@@ -20,19 +20,27 @@ import carouselTestSuite from './carousel.spec.js';
 import preferencesTestSuite from './preferences.spec.js';
 import chromeTestSuite from './chrome.spec.js';
 import avatarTestSuite from './avatar.spec.js';
+import actionRowTestSuite from './action-row.spec.js';
 import breakpointTestSuite from './breakpoint.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import rowsTestSuite from './rows.spec.js';
 import toastTestSuite from './toast.spec.js';
+import popoverTestSuite from './popover.spec.js';
+import bannerTestSuite from './banner.spec.js';
+import buttonContentTestSuite from './button-content.spec.js';
 
 run({
+    bannerTestSuite,
+    buttonContentTestSuite,
     breakpointTestSuite,
     colorSchemeTestSuite,
     toastTestSuite,
     dialogTestSuite,
     rowsTestSuite,
+    popoverTestSuite,
     avatarTestSuite,
+    actionRowTestSuite,
     viewStackTestSuite,
     navigationViewTestSuite,
     sidebarTestSuite,

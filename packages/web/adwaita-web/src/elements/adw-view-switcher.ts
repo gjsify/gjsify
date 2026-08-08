@@ -67,15 +67,16 @@ import type {
 import {
     applyDescription,
     applyIndicator,
+    applySwitcherIcon,
     domViewSwitcherScheduler,
     readSwitcherPage,
-    switcherIconClass,
 } from './view-switcher-dom.js';
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 /** The DOM nodes one page owns — the switcher paints the derived model onto them. */
 interface PageNodes {
     button: HTMLButtonElement;
-    icon: HTMLSpanElement;
+    icon: AdwIcon;
     label: HTMLSpanElement;
     indicator: HTMLSpanElement;
     body: HTMLDivElement;
@@ -224,8 +225,7 @@ export class AdwViewSwitcher extends HTMLElement {
         // Both children always exist, exactly as AdwViewSwitcherButton's template
         // does — the icon carries the `image-missing` fallback rather than
         // disappearing (adw-view-switcher-button.ui).
-        const icon = document.createElement('span');
-        icon.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
+        const icon = createAdwIcon(null, 'adw-view-switcher-icon');
 
         const label = document.createElement('span');
         label.className = 'adw-view-switcher-label';
@@ -291,7 +291,7 @@ export class AdwViewSwitcher extends HTMLElement {
             nodes.button.setAttribute('aria-selected', String(model.selected));
             nodes.button.tabIndex = model.selected ? 0 : -1;
 
-            nodes.icon.className = switcherIconClass(model.iconName, 'adw-view-switcher-icon');
+            applySwitcherIcon(nodes.icon, model.iconName);
             nodes.label.textContent = model.label;
             nodes.label.hidden = model.label.length === 0;
             applyIndicator(nodes.indicator, model.badgeLabel, model.needsAttention);

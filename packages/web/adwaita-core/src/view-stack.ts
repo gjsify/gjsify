@@ -129,16 +129,42 @@ export function resolvePageTitle(title: string | null | undefined, name: string)
 }
 
 /**
- * A GTK icon name reduced to its renderer-neutral form: `''` for absent, and a
- * single anchored `-symbolic` suffix stripped.
+ * The one shape a normalized icon name is allowed to have: a single identifier
+ * token.
+ *
+ * Both renderers use the result as an IDENTIFIER — `adwaita-web` interpolates it
+ * into a `.adw-icon--<name>` mask class, `adwaita-nativescript` looks it up in
+ * its rasterized-symbolic map — so a value that is not one token is not an icon
+ * name in either, and interpolating it produces markup instead of a lookup.
+ */
+const ICON_NAME_TOKEN = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * A GTK icon name reduced to its renderer-neutral form: `''` for absent or
+ * unusable, and a single anchored `-symbolic` suffix stripped.
  *
  * `AdwViewStackPage:icon-name` is a NAME string (adw-view-stack.c:393-396,
  * :1887-1912), not markup. The strip is end-anchored and applied ONCE, so
  * `go-symbolic-next` survives intact and `go-next-symbolic-symbolic` loses only
  * the last suffix.
+ *
+ * THE TOKEN GUARD IS PART OF THE NORMALIZATION, not the caller's job. It had
+ * been written exactly once — in `<adw-split-button>` — while the other 22
+ * `.adw-icon--<name>` construction sites in `@gjsify/adwaita-web` built the
+ * class without it, so `icon-name="a b"` interpolated into
+ * `class="adw-icon adw-icon--a b"` and injected a stray `b` class onto the icon
+ * node. That was live on `<adw-menu-button>`, for its own icon AND for every
+ * JSON menu entry's. A name that cannot be one token cannot be one class, so it
+ * resolves to "no icon" and the renderer's absent-icon path takes over.
+ *
+ * Consequence worth knowing: a reverse-DNS APPLICATION icon name
+ * (`org.gnome.Builder`) is not a token and normalizes to `''`. It never had a
+ * mask class either — `.adw-icon--org.gnome.Builder` parses as three classes —
+ * so this turns a silently blank icon into an explicitly absent one.
  */
 export function normalizeIconName(icon: string | null | undefined): string {
-    return (icon ?? '').replace(/-symbolic$/, '');
+    const base = (icon ?? '').replace(/-symbolic$/, '');
+    return ICON_NAME_TOKEN.test(base) ? base : '';
 }
 
 /** C's `g_warning` on an unknown name (adw-view-stack.c:2410), as a recorded string. */

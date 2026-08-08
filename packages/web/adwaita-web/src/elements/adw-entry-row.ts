@@ -27,7 +27,8 @@
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/entryrow.md
 // Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// edit icon node is <adw-icon>.
 
 import {
     ENTRY_ROW_APPLY_ICON_NAME,
@@ -37,12 +38,14 @@ import {
     type EntryRowRenderState,
 } from '@gjsify/adwaita-core';
 
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+
 /**
  * Show/hide a rendered part.
  *
  * `hidden` carries the semantics and is what the conformance suite reads, but
  * author CSS beats the UA `[hidden]` rule: `.adw-icon` already ships its own
- * `&[hidden] { display: none }` override in `_button.scss` and `.adw-button`
+ * `&[hidden] { display: none }` override in `_icon.scss` and `.adw-button`
  * does not, so a hidden apply button would still paint. The inline `display`
  * rides along until the entry-row SCSS pass lands.
  */
@@ -66,7 +69,7 @@ export class AdwEntryRow extends HTMLElement {
     protected _title!: HTMLSpanElement;
     /** The `editable-area` gizmo: both titles plus the input. */
     protected _area!: HTMLDivElement;
-    protected _editIcon!: HTMLSpanElement;
+    protected _editIcon!: AdwIcon;
     protected _indicator!: HTMLSpanElement;
     protected _applyButton!: HTMLButtonElement;
     protected _prefixes!: HTMLDivElement;
@@ -319,10 +322,11 @@ export class AdwEntryRow extends HTMLElement {
         this._applyButton.textContent = '✓';
         this._applyButton.addEventListener('click', () => this.apply());
 
-        this._editIcon = document.createElement('span');
-        this._editIcon.className = `adw-row-edit adw-icon adw-icon--document-edit ${prefix}-edit`;
+        // The libadwaita name travels in `data-icon-name`; the drawn glyph is
+        // the curated @gjsify/adwaita-icons spelling of the same symbolic, which
+        // is a different string (`adw-entry-edit-symbolic` vs `document-edit`).
+        this._editIcon = createAdwIcon('document-edit', 'adw-row-edit', `${prefix}-edit`);
         this._editIcon.dataset.iconName = ENTRY_ROW_EDIT_ICON_NAME;
-        this._editIcon.setAttribute('aria-hidden', 'true');
 
         // Snapshot order: indicator → apply → edit icon inside the editable area
         // (C:429-431), with the prefixes/suffixes boxes outside it.

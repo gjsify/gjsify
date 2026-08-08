@@ -20,8 +20,10 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented for @gjsify/adwaita-web Web Components.
 
-import { normalizeIconName, viewSwitcherIconName } from '@gjsify/adwaita-core';
+import { viewSwitcherIconName } from '@gjsify/adwaita-core';
 import type { AdwViewSwitcherPageInit, ViewSwitcherScheduler, ViewSwitcherTimerHandle } from '@gjsify/adwaita-core';
+
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 /**
  * The browser's timer behind the core's scheduler seam.
@@ -40,16 +42,21 @@ export const domViewSwitcherScheduler: ViewSwitcherScheduler = {
 };
 
 /**
- * The CSS class list for a resolved icon NAME.
+ * Build a switcher button's icon node, carrying its own position class.
  *
  * The core resolves NULL/empty to `image-missing` (which the stylesheet carries
- * a real glyph for); the `-symbolic` strip is this package's own mask-class
- * convention and has no counterpart in C, where the name reaches `GtkImage`
- * untouched.
+ * a real glyph for); the `-symbolic` strip and the CSS-token guard are
+ * `normalizeIconName`'s, applied by `<adw-icon>` — that strip is this package's
+ * own mask-class convention and has no counterpart in C, where the name reaches
+ * `GtkImage` untouched.
  */
-export function switcherIconClass(iconName: string, extra = ''): string {
-    const name = normalizeIconName(viewSwitcherIconName(iconName));
-    return `adw-icon adw-icon--${name}${extra ? ` ${extra}` : ''}`;
+export function createSwitcherIcon(iconName: string, extra: string): AdwIcon {
+    return createAdwIcon(viewSwitcherIconName(iconName), extra);
+}
+
+/** Repaint an existing switcher icon from a page's declared name. */
+export function applySwitcherIcon(icon: AdwIcon, iconName: string): void {
+    icon.iconName = viewSwitcherIconName(iconName);
 }
 
 /**

@@ -1,4 +1,4 @@
-import { stripMnemonic } from './glib.js';
+import { stringIsNotEmpty, stripMnemonic } from './glib.js';
 
 // Headless `Adw.PreferencesGroup` / `Adw.PreferencesDialog` behaviour
 // (ADR 0004 — headless Adwaita core).
@@ -582,12 +582,15 @@ function displayedLabelText(value: string | null | undefined, useMarkup: boolean
  * holding no state of its own beyond the widgets it is reading.
  *
  * Only the EXACT empty string hides a label — `g_strcmp0 (text, "")`, so a title
- * of a single space is a visible title and must not be trimmed.
+ * of a single space is a visible title and must not be trimmed. That is the same
+ * rule {@link stringIsNotEmpty} carries for the label bindings, so it is applied
+ * from there rather than respelled here; what stays local is only which STRING it
+ * is applied to, since this widget judges the markup-stripped display text.
  */
 export function derivePreferencesGroupHeader(input: PreferencesGroupHeaderInput): PreferencesGroupHeaderState {
     const useMarkup = input.useMarkup ?? true;
-    const titleVisible = displayedLabelText(input.title, useMarkup) !== '';
-    const descriptionVisible = displayedLabelText(input.description, useMarkup) !== '';
+    const titleVisible = stringIsNotEmpty(displayedLabelText(input.title, useMarkup));
+    const descriptionVisible = stringIsNotEmpty(displayedLabelText(input.description, useMarkup));
     const hasHeaderSuffix = input.hasHeaderSuffix ?? false;
 
     return {

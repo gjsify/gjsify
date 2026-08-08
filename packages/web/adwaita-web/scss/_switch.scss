@@ -1,0 +1,90 @@
+// _switch.scss — the <adw-switch> control: a track, a hidden checkbox and a
+// sliding knob. UNSCOPED, which is the whole point of the partial.
+//
+// WHY IT IS ITS OWN FILE. These rules used to live inside `_switch_row.scss`,
+// nested under `adw-switch-row { … }` — so `.adw-switch` did not exist anywhere
+// else, and the moment a second widget needed a toggle it could not use it.
+// `_expander_row.scss` therefore carried a character-for-character copy of the
+// whole block (same 44×24 box, same hidden input, same 20px knob, same
+// `translateX(20px)`, same focus ring) under a different class name. Two copies
+// of a control is how a hover state gets fixed in one of them.
+//
+// FIDELITY, RECORDED RATHER THAN "FIXED": the 44×24 track with the 20px knob is
+// `refs/adwaita-web/adwaita-web/scss/_switch.scss`'s geometry, NOT libadwaita's.
+// libadwaita draws `switch` as a 3px-padded trough around a 20px slider with
+// `border-radius: 14px` (refs/libadwaita/src/stylesheet/widgets/_switch.scss:3-4,
+// :24-26) — about 26px tall, not 24, and correspondingly narrower. What ships
+// here is the vendored web port's box, unchanged by the extraction; changing the
+// geometry is a visual decision for a separate change, and citing libadwaita for
+// numbers that came from somewhere else would be the misreading the conformance
+// header warns about.
+//
+// Reference: refs/adwaita-web/adwaita-web/scss/_switch.scss (the geometry that ships)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_switch.scss:3-4,20-26 (the geometry that does not, + the disabled treatment)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components; lifted out of
+//   `adw-switch-row {}` so <adw-switch> is usable anywhere.
+
+.adw-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+
+  // The real control: focusable and keyboard-toggleable, but never painted —
+  // the slider below is what the user sees and clicks.
+  input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+}
+
+.adw-switch-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--switch-off-bg);
+  border-radius: 12px;
+  transition: background-color 0.15s ease-out;
+
+  &::before {
+    content: "";
+    position: absolute;
+    height: 20px;
+    width: 20px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--switch-knob-bg);
+    border-radius: 50%;
+    transition: transform 0.15s ease-out;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  }
+}
+
+.adw-switch input:checked + .adw-switch-slider {
+  background-color: var(--accent-bg-color);
+
+  &::before {
+    transform: translateX(20px);
+  }
+}
+
+.adw-switch input:focus-visible + .adw-switch-slider {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+// libadwaita dims the whole widget (`filter: Opacity(var(--disabled-opacity))`,
+// _switch.scss:20-22). This package has no `--disabled-opacity` token, so the
+// existing `--dim-opacity` stands in rather than a fourth invented colour.
+.adw-switch.disabled {
+  opacity: var(--dim-opacity);
+
+  .adw-switch-slider {
+    cursor: not-allowed;
+  }
+}

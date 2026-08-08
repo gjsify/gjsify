@@ -1,24 +1,49 @@
 // <adw-button-row> — A boxed-list row that behaves like a button: a centered
-// title with an optional start icon, spanning the full width of the list. The
-// `suggested-action` / `destructive-action` style classes recolor it like the
-// matching Adwaita button variants.
-// Attributes: title, start-icon-name (symbolic name, e.g. "list-add"),
-//   activatable (default on — matches Adw.ButtonRow).
+// title between an optional start icon and an optional end icon, spanning the
+// full width of the list. The `suggested-action` / `destructive-action` style
+// classes recolor it like the matching Adwaita button variants.
+// Attributes: title, start-icon-name, end-icon-name (symbolic names, e.g.
+//   "list-add" / "go-next").
 // Events: `activated` (CustomEvent, bubbles) when the row is clicked — mirrors
 //   the Adw.ButtonRow `activated` GObject signal.
-// Reference: refs/libadwaita/src/adw-button-row.ui (AdwButtonRow template)
+//
+// The label/icon visibility rules are HEADLESS and live in
+// `@gjsify/adwaita-core` (ADR 0004) as {@link ButtonRowState}; this element
+// composes it and keeps only the DOM render half.
+// `@gjsify/adwaita-nativescript` composes the same state, so both ports share one
+// behaviour. Two things this fixes, both from adw-button-row.c:
+//   - `end-icon-name` (C:213-223, bound at adw-button-row.ui:52-65) exists since
+//     libadwaita 1.6 and neither renderer had it, so the trailing-chevron shape
+//     the property exists for could not be expressed.
+//   - THERE IS NO `activatable` OPT-OUT. `<property name="activatable">True
+//     </property>` is in the template (adw-button-row.ui:5), the class docs say
+//     "AdwButtonRow is always activatable." (C:31), and the whole public surface
+//     (C:270-352) is `new` plus the two icon-name pairs. This element used to
+//     honour an invented `activatable="false"`, which also gave the same markup
+//     two opposite meanings inside one package — `<adw-action-row>` reads
+//     `activatable` by PRESENCE, so `activatable="false"` there meant TRUE.
+//
+// Reference: refs/libadwaita/src/adw-button-row.c, adw-button-row.ui
 // Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (row.button)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// label/icon state composed from @gjsify/adwaita-core.
+
+import { BUTTON_ROW_ACTIVATABLE, ButtonRowState } from '@gjsify/adwaita-core';
+
+import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 export class AdwButtonRow extends HTMLElement {
     private _contentsEl!: HTMLDivElement;
-    private _startIconEl!: HTMLSpanElement;
+    private _startIconEl!: AdwIcon;
+    private _endIconEl!: AdwIcon;
     private _titleEl!: HTMLSpanElement;
+    /** The headless title + start/end icon state (ADR 0004). */
+    private readonly _state = new ButtonRowState();
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'start-icon-name', 'activatable'];
+        return ['title', 'start-icon-name', 'end-icon-name'];
     }
 
     connectedCallback() {
@@ -27,33 +52,21 @@ export class AdwButtonRow extends HTMLElement {
         this._contentsEl = document.createElement('div');
         this._contentsEl.className = 'adw-button-row-contents';
 
-        this._startIconEl = document.createElement('span');
-        this._startIconEl.setAttribute('aria-hidden', 'true');
+        this._startIconEl = createAdwIcon(null, 'start');
 
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-button-row-title';
 
-        this._contentsEl.append(this._startIconEl, this._titleEl);
-        this.replaceChildren(this._contentsEl);
+        this._endIconEl = createAdwIcon(null, 'end');
 
-        // Adw.ButtonRow is activatable by default; only an explicit
-        // activatable="false" turns it off. Set this while still uninitialized
-        // so the re-entrant attributeChangedCallback is a no-op — the explicit
-        // _render() below does the first render, once the elements above exist.
-        // (Setting _initialized before the elements were built made this
-        // setAttribute re-enter _render() and crash on a declaratively-parsed
-        // row, where connectedCallback runs with attributes already present.)
-        if (!this.hasAttribute('activatable')) {
-            this.setAttribute('activatable', '');
-        }
+        this._contentsEl.append(this._startIconEl, this._titleEl, this._endIconEl);
+        this.replaceChildren(this._contentsEl);
 
         this._initialized = true;
         this._render();
 
         this.addEventListener('click', () => {
-            if (this._isActivatable()) {
-                this.dispatchEvent(new CustomEvent('activated', { bubbles: true }));
-            }
+            this.dispatchEvent(new CustomEvent('activated', { bubbles: true }));
         });
     }
 
@@ -61,20 +74,31 @@ export class AdwButtonRow extends HTMLElement {
         if (this._initialized) this._render();
     }
 
-    private _isActivatable(): boolean {
-        return this.getAttribute('activatable') !== 'false';
+    private _render() {
+        this._state.setTitle(this.getAttribute('title'));
+        this._state.setStartIconName(this.getAttribute('start-icon-name'));
+        this._state.setEndIconName(this.getAttribute('end-icon-name'));
+        const state = this._state.state;
+
+        this._titleEl.textContent = state.title;
+        this._titleEl.hidden = !state.titleVisible;
+
+        this._paintIcon(this._startIconEl, state.startIconName, state.startIconVisible);
+        this._paintIcon(this._endIconEl, state.endIconName, state.endIconVisible);
+
+        // Unconditional: an AdwButtonRow has no way to not be activatable.
+        this.classList.toggle('activatable', BUTTON_ROW_ACTIVATABLE);
     }
 
-    private _render() {
-        const title = this.getAttribute('title') ?? '';
-        this._titleEl.textContent = title;
-        this._titleEl.hidden = title.length === 0;
-
-        const icon = this.getAttribute('start-icon-name') ?? '';
-        this._startIconEl.className = icon ? `adw-icon adw-icon--${icon}` : '';
-        this._startIconEl.hidden = icon.length === 0;
-
-        this.classList.toggle('activatable', this._isActivatable());
+    /**
+     * Paint one of the two `image.icon.{start,end}` nodes (adw-button-row.c:39-40).
+     *
+     * The `start` / `end` position class is set once at construction — it is
+     * where the node sits, not what it draws — so only the name changes here.
+     */
+    private _paintIcon(el: AdwIcon, iconName: string, visible: boolean) {
+        el.iconName = visible ? iconName : null;
+        el.hidden = !visible;
     }
 }
 

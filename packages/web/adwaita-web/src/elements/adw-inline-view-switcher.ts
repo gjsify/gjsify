@@ -62,9 +62,9 @@ import type {
 import {
     applyDescription,
     applyIndicator,
+    createSwitcherIcon,
     domViewSwitcherScheduler,
     readSwitcherPage,
-    switcherIconClass,
 } from './view-switcher-dom.js';
 
 /** A single page. Children of <adw-inline-view-switcher>; consumed at connect time. */
@@ -241,10 +241,7 @@ export class AdwInlineViewSwitcher extends HTMLElement {
             toggle.dataset.toggleIndex = String(model.toggleIndex);
 
             if (model.showIcon) {
-                const icon = document.createElement('span');
-                icon.className = switcherIconClass(model.iconName, 'adw-inline-view-switcher-icon');
-                icon.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
-                toggle.appendChild(icon);
+                toggle.appendChild(createSwitcherIcon(model.iconName, 'adw-inline-view-switcher-icon'));
             }
             if (model.showLabel) {
                 const label = document.createElement('span');

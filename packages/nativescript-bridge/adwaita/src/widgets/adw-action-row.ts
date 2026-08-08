@@ -7,11 +7,27 @@
 // via the `adw-row adw-action-row` CSS classes (see `src/theme/adwaita.css`) —
 // NOT a webview.
 //
+// The label-visibility rule and the `activatable-widget` ↔ `activatable`
+// coupling are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004); the NS
+// mapping (`View.visibility`, `isUserInteractionEnabled`) is in the pure sibling
+// `row-state.ts`, which the spec suite drives directly. Two things this fixes:
+//   - the TITLE label is now removed when the title is empty. The binding is the
+//     same `string_is_not_empty` closure on both labels (adw-action-row.ui:49-53
+//     vs :71-75); this port only ever applied it to the subtitle.
+//   - `Adw.ActionRow:activatable-widget` exists at all. Its binding is
+//     `sensitive` → `activatable` with SYNC_CREATE (adw-action-row.c:729-732),
+//     and clearing it leaves the row activatable (C:709, C:28-30).
+//
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-action-row` / `_row.scss`.
+// Reference: refs/libadwaita/src/adw-action-row.c, adw-action-row.ui
 // Reference: refs/libadwaita/src/stylesheet/widgets/_action-row.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, StackLayout, Label, View } from '@nativescript/core';
+import { GridLayout, ItemSpec, StackLayout, Label, View, type EventData } from '@nativescript/core';
+import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js';
+
+/** Event name emitted when the row is activated. Mirrors `Adw.ActionRow::activated`. */
+export const ACTIVATED = 'activated';
 
 export class AdwActionRow extends GridLayout {
     /**
@@ -31,9 +47,10 @@ export class AdwActionRow extends GridLayout {
     protected readonly _textStack: StackLayout;
     /** The title label. */
     protected readonly _titleLabel: Label;
-    /** The subtitle label (created lazily — only added to the tree when set). */
+    /** The subtitle label. */
     protected readonly _subtitleLabel: Label;
-    private _hasSubtitle = false;
+    /** The headless labels + activatable-widget coupling (ADR 0004). */
+    protected readonly _rowState = new ActionRowState<View>();
     /** The currently-installed prefix view (column 0), if any. */
     private _prefix: View | null = null;
     /** The currently-installed suffix view (column 2), if any. */
@@ -50,7 +67,7 @@ export class AdwActionRow extends GridLayout {
         this.addColumn(new ItemSpec(1, 'auto'));
         this.addRow(new ItemSpec(1, 'auto'));
 
-        // Column 1: a vertical stack holding title (+ optional subtitle).
+        // Column 1: a vertical stack holding title + subtitle.
         const textStack = new StackLayout();
         textStack.orientation = 'vertical';
         textStack.className = 'adw-row-text';
@@ -61,15 +78,24 @@ export class AdwActionRow extends GridLayout {
         titleLabel.textWrap = true;
         textStack.addChild(titleLabel);
 
+        // Both labels live in the tree from the start and are collapsed when
+        // empty — the same shape `preferences-group-state.ts` uses. Adding and
+        // removing them instead made the visibility rule structural, which is
+        // why the title half of it was never implemented: there was nowhere
+        // obvious to put it.
         const subtitleLabel = new Label();
         subtitleLabel.className = 'adw-row-subtitle';
         subtitleLabel.textWrap = true;
+        textStack.addChild(subtitleLabel);
 
         this.addChild(textStack);
 
         this._textStack = textStack;
         this._titleLabel = titleLabel;
         this._subtitleLabel = subtitleLabel;
+        this._applyLabels();
+
+        this.addEventListener('tap', () => this.activate());
     }
 
     /**
@@ -94,39 +120,30 @@ export class AdwActionRow extends GridLayout {
         return this._prefix;
     }
 
-    /** The row title (column 0, top line). */
+    /** The row title (column 1, top line). */
     get title(): string {
-        return this._titleLabel.text ?? '';
+        return this._rowState.title;
     }
 
     set title(value: string) {
-        this._titleLabel.text = value ?? '';
+        if (this._rowState.setTitle(value)) this._applyLabels();
     }
 
     /**
-     * The row subtitle (column 0, dim second line). Setting a non-empty value
-     * adds the subtitle label to the tree; setting empty removes it again so an
-     * empty subtitle leaves no blank gap — matching `Adw.ActionRow`.
+     * The row subtitle (column 1, dim second line). An empty subtitle collapses
+     * its label so it leaves no blank gap — `string_is_not_empty`, the same rule
+     * the title now follows.
      */
     get subtitle(): string {
-        return this._hasSubtitle ? (this._subtitleLabel.text ?? '') : '';
+        return this._rowState.subtitle;
     }
 
     set subtitle(value: string) {
-        const text = value ?? '';
-        this._subtitleLabel.text = text;
-        const wantSubtitle = text.length > 0;
-        if (wantSubtitle && !this._hasSubtitle) {
-            this._textStack.addChild(this._subtitleLabel);
-            this._hasSubtitle = true;
-        } else if (!wantSubtitle && this._hasSubtitle) {
-            this._textStack.removeChild(this._subtitleLabel);
-            this._hasSubtitle = false;
-        }
+        if (this._rowState.setSubtitle(value)) this._applyLabels();
     }
 
     /**
-     * Install a suffix widget in column 1 (e.g. a `Switch`, `Button`, or icon).
+     * Install a suffix widget in column 2 (e.g. a `Switch`, `Button`, or icon).
      * Replaces any previously-installed suffix. Pass `null` to clear it.
      */
     setSuffix(view: View | null): void {
@@ -145,5 +162,73 @@ export class AdwActionRow extends GridLayout {
     /** The currently-installed suffix view, or `null`. */
     get suffix(): View | null {
         return this._suffix;
+    }
+
+    /** `Adw.ActionRow:activatable-widget` — the widget this row activates. */
+    get activatableWidget(): View | null {
+        return this._rowState.activatableWidget;
+    }
+
+    /**
+     * Set the activatable widget. Its sensitivity is copied into `activatable`
+     * (adw-action-row.c:729-732); clearing it LEAVES the row activatable
+     * (C:709). Call {@link syncActivatableWidgetSensitivity} when the widget's
+     * `isUserInteractionEnabled` changes — NativeScript has no property-change
+     * notification a plain `View` write goes through, so the live half of the
+     * binding has to be driven, not observed.
+     */
+    set activatableWidget(widget: View | null) {
+        this._rowState.setActivatableWidget(widget, isViewSensitive(widget));
+    }
+
+    /** Re-read the activatable widget's sensitivity — the live half of the binding. */
+    syncActivatableWidgetSensitivity(): void {
+        const widget = this._rowState.activatableWidget;
+        if (widget) this._rowState.setActivatableWidgetSensitive(isViewSensitive(widget));
+    }
+
+    /** `GtkListBoxRow:activatable` — whether a tap activates this row at all. */
+    get activatable(): boolean {
+        return this._rowState.activatable;
+    }
+
+    set activatable(value: boolean) {
+        this._rowState.setActivatable(value);
+    }
+
+    /**
+     * `adw_action_row_activate` (adw-action-row.h:90): forward to the activatable
+     * widget, then emit `activated` (C:297-307). A no-op while unactivatable,
+     * because a tap on a non-activatable `GtkListBoxRow` never reaches here.
+     *
+     * FORWARDING IS SUBCLASS BUSINESS in this port. GTK sends
+     * `mnemonic-activate` and every widget knows what that means for itself;
+     * NativeScript has no such primitive on `View`, so {@link AdwSwitchRow}
+     * overrides this to toggle its slider and a plain action row only emits.
+     */
+    activate(): void {
+        if (!this._rowState.activatable) return;
+        const data: EventData = { eventName: ACTIVATED, object: this };
+        this.notify(data);
+    }
+
+    /**
+     * Whether this row's own title visibility follows `string_is_not_empty`.
+     *
+     * `AdwEntryRow` sets it `false`: its two titles are the endpoints of
+     * libadwaita's empty↔filled CROSS-FADE (adw-entry-row.c:433-439), so which
+     * of them shows is decided by `emptyTarget`, not by whether the string is
+     * empty. Without the opt-out, setting a title on an entry row would reveal
+     * the small floating label on top of the large placeholder.
+     */
+    protected _managesTitleVisibility = true;
+
+    /** Push the derived label text + visibility onto the two `Label`s. */
+    protected _applyLabels(): void {
+        const visuals = rowLabelVisuals({ title: this._rowState.title, subtitle: this._rowState.subtitle });
+        this._titleLabel.text = visuals.title;
+        if (this._managesTitleVisibility) this._titleLabel.visibility = visuals.titleVisibility;
+        this._subtitleLabel.text = visuals.subtitle;
+        this._subtitleLabel.visibility = visuals.subtitleVisibility;
     }
 }

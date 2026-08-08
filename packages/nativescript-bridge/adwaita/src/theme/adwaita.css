@@ -165,19 +165,46 @@ Page.adw-window {
     margin: 0;
 }
 
-.adw-entry-field {
+/* The text input itself, in BOTH entries: never any chrome of its own. Whatever
+ * surrounds it paints the Adwaita surface — the row for `.adw-entry-field`, the
+ * `.adw-entry` box for `.adw-entry-input`. (The widgets also set these two
+ * inline, which is the only thing that removes Android's Material underline;
+ * they are restated here so the rule is readable from the stylesheet.) */
+.adw-entry-field,
+.adw-entry-input {
     font-size: 15;
     color: rgba(0, 0, 0, 0.8);
     background-color: transparent;
-    /* No Material underline — Adwaita EntryRow has no field border. */
+    /* No Material underline — no Adwaita entry has a field border. */
     border-width: 0;
     padding: 0;
+}
+
+/* Row only: the gap between the shrunken floating title and the value. */
+.adw-entry-field {
     margin: 2 0 0 0;
 }
 
 .adw-password-field {
     /* secure handled in code; styling identical to a normal entry field. */
     color: rgba(0, 0, 0, 0.8);
+}
+
+/* ===== Entry (STANDALONE — the filled, rounded field, not a row) ===== */
+
+/* The BOX carries the surface, because the field cannot: an entry's fill has to
+ * answer the light/dark question, and the inline `backgroundColor` that strips
+ * the Material underline is not overridable from CSS. Metrics are `entry`'s own
+ * — 34 min-height and 9px horizontal padding (_entries.scss:4-6) — over
+ * `$button_color`, i.e. currentColor at 10% (_entries.scss:9 with
+ * _buttons.scss:1), the same fill `.adw-button` carries, at `$button_radius`
+ * 9px (_common.scss:8). */
+.adw-entry {
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 9;
+    min-height: 34;
+    padding: 0 9 0 9;
+    margin: 0;
 }
 
 /* ===== Combo row (inline value + chevron) ===== */
@@ -197,6 +224,47 @@ Page.adw-window {
      * on the widget. Only the gap to the value label is styled here. */
     margin: 0 0 0 2;
     vertical-align: middle;
+}
+
+/* ===== Drop down (STANDALONE — the toolbar twin of the combo row) ===== */
+
+/* A plain Adwaita button carrying a label and an arrow. `_dropdowns.scss`
+ * declares no padding for it, and which of `.text-button` / `.image-text-button`
+ * GTK stamps on a dropdown's button is NOT verifiable in this tree (`refs/gtk`
+ * is empty), so these are the BASE `button` metrics: `padding: 5px 10px` over
+ * `min-height: 24px` — 34 in total, the same height as an entry — at
+ * `$button_radius` 9px with the `$button_color` fill (_buttons.scss:19-30). */
+.adw-drop-down {
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 9;
+    min-height: 34;
+    padding: 5 10 5 10;
+    margin: 0;
+}
+
+/* `button { font-weight: bold }` (_buttons.scss:24). The label carries the
+ * colour because NS does not inherit `color` to a child Label. */
+.adw-drop-down-label {
+    font-size: 15;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.8);
+    vertical-align: center;
+}
+
+/* `dropdown > button > box { border-spacing: 6px }` (_dropdowns.scss:2-3) — the
+ * gap between label and arrow. The arrow's 16px size (_dropdowns.scss:10-13) is
+ * the AdwIcon default, and its colour follows the light/dark scheme, so neither
+ * is set anywhere. */
+.adw-drop-down-chevron {
+    margin: 0 0 0 6;
+    vertical-align: middle;
+}
+
+/* Pressed — `$button_active_color`, in the shade `.adw-button:highlighted`
+ * already uses. Wired by `attachRowPressFeedback()` (NS only auto-highlights a
+ * Button, and this one is a StackLayout). */
+.adw-drop-down:highlighted {
+    background-color: rgba(0, 0, 0, 0.19);
 }
 
 /* ===== Spin row (− value + stepper) ===== */
@@ -390,6 +458,14 @@ Page.adw-window {
     margin: 0 0 0 8;
 }
 
+/* `button-style` (Since 1.7). ADW_BANNER_BUTTON_SUGGESTED adds `.suggested-action`
+ * to the banner button (adw-banner.c:769) — the accent appearance, restated here
+ * because the banner button is not an `.adw-button`. */
+.adw-banner-button.suggested-action {
+    background-color: #3584e4;
+    color: #ffffff;
+}
+
 /* ===== Avatar (circular initials) ===== */
 
 .adw-avatar {
@@ -574,9 +650,12 @@ Page.adw-window {
 
 /* ===== Wrap box ===== */
 
-.adw-wrap-box {
-    margin: 6;
-}
+/* Adw.WrapBox has NO margin of its own — it is a bare layout container whose
+ * only spacing is `child-spacing` / `line-spacing`, both defaulting to 0
+ * (adw-wrap-box.c:285-287, :393-395). The 6 DIP margin that used to sit here was
+ * invented, and stacked on top of the port's equally invented 6 DIP spacing
+ * default, so an EMPTY wrap box occupied 12 DIPs. Spacing comes from the child
+ * margins the widget applies (widgets/wrap-box-layout.ts), never from here. */
 
 /* ===== Spinner ===== */
 
@@ -656,6 +735,23 @@ Page.adw-window {
 }
 
 /* ===== Button content (icon + label) ===== */
+
+/* The class AdwButtonContent stamps on the button hosting it
+ * (adw-button-content.c:115), removed again on unroot (:126).
+ *
+ * libadwaita: `button.image-text-button { padding-left: 9px; padding-right: 9px }`
+ * (_buttons.scss:77-80) — against the 17px a plain `.text-button` gets (:72-75),
+ * which this theme approximates as the 16 on `.adw-button` above. The rule lived
+ * in NEITHER renderer, so every icon+label button was drawn with the wrong
+ * horizontal padding.
+ *
+ * Only the PADDING half of that block applies: the same selector also declares
+ * `> box, > box > box { border-spacing: 4px }` (:82-84) and neither matches
+ * through the `buttoncontent` node (:47-52). The icon↔label gap stays the 6 from
+ * `buttoncontent > box` (:626-628), which is the icon's right margin below. */
+.adw-button.image-text-button {
+    padding: 5 9 5 9;
+}
 
 .adw-button-content {
     margin: 0;
@@ -1212,8 +1308,16 @@ Page.ns-dark.adw-window {
 }
 
 .ns-dark .adw-entry-field,
+.ns-dark .adw-entry-input,
 .ns-dark .adw-password-field {
     color: #ffffff;
+}
+
+/* ===== Dark: entry (standalone) ===== */
+
+/* The dark `$button_color`: currentColor at 10% over a white foreground. */
+.ns-dark .adw-entry {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ===== Dark: combo row ===== */
@@ -1224,6 +1328,20 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-combo-chevron {
     color: rgba(255, 255, 255, 0.45);
+}
+
+/* ===== Dark: drop down ===== */
+
+.ns-dark .adw-drop-down {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ns-dark .adw-drop-down-label {
+    color: #ffffff;
+}
+
+.ns-dark .adw-drop-down:highlighted {
+    background-color: rgba(255, 255, 255, 0.22);
 }
 
 /* ===== Dark: spin row ===== */

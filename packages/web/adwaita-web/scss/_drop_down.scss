@@ -76,29 +76,18 @@
     opacity: 0.55;
   }
 
-  // --- Popover list ---
-  // The elevated surface below the button. Reproduces popover.menu > contents.
+  // The popover SURFACE is `<adw-popover>`'s (`_popover.scss`, the `[menu]`
+  // variant — a dropdown's popover is a `popover.menu`, _dropdowns.scss:22).
+  // What stays here is what libadwaita ALSO scopes to `dropdown`:
+  //   - the extra 6px above the contents (`popover.menu { padding-top: 6px }`,
+  //     _dropdowns.scss:23). GTK puts it on the popover node while the 6px inset
+  //     sits on `> contents`; flattened onto one node they add, which is what
+  //     the two-node original renders too.
+  //   - the width tracking the button rather than libadwaita's flat `min-width`.
   .adw-drop-down-popover {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
+    padding-top: 12px;
     min-width: 100%;
     max-width: 320px;
-    padding: var(--spacing-xs);
-    border-radius: var(--card-radius);
-    background-color: var(--popover-bg-color, var(--window-bg-color, #fff));
-    color: var(--popover-fg-color, var(--window-fg-color));
-    box-shadow:
-      0 0 0 1px rgba(0, 0, 0, 0.05),
-      0 1px 5px 1px rgba(0, 0, 0, 0.09),
-      0 2px 14px 3px rgba(0, 0, 0, 0.05);
-
-    &[hidden] {
-      display: none;
-    }
   }
 
   // Search entry atop the popover (enable-search). It reuses the .adw-entry skin
@@ -115,44 +104,12 @@
     overflow-y: auto;
   }
 
-  // An option row — a flat rounded row with the label and a trailing check on
-  // the selected one; fills on hover/focus like a modelbutton.
+  // An option row is `.adw-popover-item` (`_popover.scss` — libadwaita's
+  // `modelbutton`). Only the trailing-check layout is a drop-down fact: the
+  // label and the check sit at opposite ends of the row.
   .adw-drop-down-item {
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
     justify-content: space-between;
     gap: var(--spacing-s);
-    width: 100%;
-    min-height: 32px;
-    margin: 0;
-    padding: var(--spacing-xs) var(--spacing-s);
-    border: none;
-    border-radius: calc(var(--button-radius) - 2px);
-    background-color: transparent;
-    color: inherit;
-    font-family: var(--font-family);
-    font-size: var(--font-size-base);
-    text-align: start;
-    cursor: pointer;
-    transition: background-color 0.1s ease;
-
-    &:hover {
-      background-color: var(--button-hover-color);
-    }
-
-    &:active {
-      background-color: var(--button-active-color);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--accent-color);
-      outline-offset: -2px;
-    }
-
-    &[hidden] {
-      display: none;
-    }
   }
 
   .adw-drop-down-item-label {

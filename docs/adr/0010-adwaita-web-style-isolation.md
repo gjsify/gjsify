@@ -75,8 +75,14 @@ Keep adwaita-web **light-DOM** and harden it, rather than migrate to Shadow DOM.
   specificity) — that is the price of light DOM, and the escape hatch is the Shadow
   DOM path above.
 - **Maintenance:** `$adw-components` in `_reset.scss` lists every custom-element tag
-  and must stay in sync with `src/elements/*` (the `customElements.define('adw-…')`
-  calls). Guarded by the style-isolation browser spec.
+  and must stay in sync with the `customElements.define('adw-…')` calls under `src/`.
+  This is now DERIVED-AND-CHECKED, not remembered: `scripts/check-adwaita-reset-components.mjs`
+  walks the defines and fails on a tag missing from the list (the element would render
+  without the floor) or an entry with no define behind it. It had already drifted —
+  `adw-source-view` was defined for its whole life and never listed. The
+  style-isolation browser spec does **not** cover this: it instantiates exactly one
+  element (`adw-switch-row`), so it proves the reset works, not that it reaches
+  everything.
 - The `--adw-*` token set is now an intentional, documented public contract, not an
   incidental implementation detail.
 
@@ -84,7 +90,9 @@ Keep adwaita-web **light-DOM** and harden it, rather than migrate to Shadow DOM.
 
 - `packages/web/adwaita-web/scss/_reset.scss` + `@use 'reset';` in `adwaita-skin.scss`.
 - Regression test: `src/style-isolation.spec.ts` (browser axis) embeds a widget in a
-  hostile-typography container and asserts its computed `font-family` stays Adwaita.
+  hostile-typography container and asserts its computed `font-family` stays Adwaita —
+  that the reset WORKS. That it REACHES every element is a separate question, held by
+  `scripts/check-adwaita-reset-components.mjs` (run in `audit-runtimes.yml`).
 - Validated on the real widgets: normal rendering unchanged; the hostile-host
   typography leak is blocked (before/after captured during review).
 - Follow-ups (`status/open-todos.md`): document the `--adw-*` token contract on the

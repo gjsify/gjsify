@@ -5,6 +5,20 @@
 // real Adwaita-styled popover positioned under the button; the popover is
 // dismissed on an outside click or Escape and supports arrow-key navigation.
 //
+// The popover is `<adw-popover>` and the dismissal/keyboard machine is
+// `@gjsify/adwaita-core`'s (ADR 0004). This element used to build both by hand,
+// as did `<adw-drop-down>` and `<adw-split-button>` — three surfaces that
+// disagreed with libadwaita and with each other on radius, shadow and padding,
+// and two copies of the same `(current ± 1 + n) % n` arithmetic. This element
+// keeps only what is a menu button: the icon, the item model, the title.
+//
+// THE ICON WENT THE SAME WAY, and it is where the drift actually bit: this
+// element interpolated `class="adw-icon adw-menu-button-icon adw-icon--<name>"`
+// while `<adw-split-button>` — alone among six copies — first checked the name
+// was one CSS token. So `icon-name="a b"` shipped a stray `b` class here, and so
+// did every JSON menu entry's `icon`. Both are `<adw-icon>` now, and the guard
+// is `normalizeIconName`'s.
+//
 // Attributes:
 //   icon-name  — symbolic icon (no `-symbolic` suffix), default `open-menu`.
 //   menu-title — optional heading shown atop the popover.
@@ -12,6 +26,10 @@
 //   disabled   — boolean; a disabled button does not open the menu.
 //   flat       — boolean style class (default: flat, like the header app menu).
 //   circular   — boolean style class (round 34×34 button).
+//   direction  — none | up | down | left | right (default down); where the
+//                popover opens. `none` behaves as `down`, which is
+//                Gtk.MenuButton's own rule, not ours — see
+//                {@link menuButtonPopupDirection}.
 // Properties (mirroring Adw.MenuButton / the NS twin):
 //   menuItems  — the menu entries ({ id?, label, icon? }[]) (get/set).
 //   menuTitle  — the popover heading (get/set).
@@ -26,6 +44,21 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { isSplitButtonDirection, menuButtonPopupDirection } from '@gjsify/adwaita-core';
+import type { SplitButtonDirection } from '@gjsify/adwaita-core';
+
+// SIDE-EFFECT import, deliberately separate from the type import below: it is
+// what guarantees `adw-popover` is defined before this module's own
+// `customElements.define` can upgrade a server-rendered `<adw-menu-button>` and
+// build one. A combined `import { AdwPopover }` would NOT do it — the binding is
+// only ever used in type position here, and this package compiles without
+// `verbatimModuleSyntax`, so TypeScript would elide the whole statement and take
+// the registration with it.
+import './adw-popover.js';
+import type { AdwPopover } from './adw-popover.js';
+
+import { createAdwIcon } from './adw-icon.js';
+
 /** A menu entry. `id` defaults to `label` on activation; `icon` is optional. */
 export interface AdwMenuItem {
     id?: string;
@@ -33,31 +66,38 @@ export interface AdwMenuItem {
     icon?: string;
 }
 
+/**
+ * Where the popover sits, per `GtkArrowType`. `menuButtonPopupDirection` folds
+ * `none` onto `down` (adw-split-button.c:415 — a pass-through to
+ * `gtk_menu_button_set_direction`, so it is GtkMenuButton's rule); this table is
+ * only the direction→CSS-axis mapping, which is a renderer fact.
+ *
+ * `left`/`right` become `start`/`end` because the surface is placed with
+ * logical properties, so it follows the writing direction the way GTK's
+ * `:dir(rtl)` popovers do.
+ */
+const POPOVER_POSITIONS = {
+    down: 'bottom',
+    up: 'top',
+    left: 'start',
+    right: 'end',
+} as const;
+
 export class AdwMenuButton extends HTMLElement {
     private _buttonEl!: HTMLButtonElement;
-    private _popoverEl!: HTMLDivElement;
+    private _popoverEl!: AdwPopover;
     private _items: AdwMenuItem[] = [];
     private _menuTitle = '';
-    private _active = false;
     private _initialized = false;
     private _itemButtons: HTMLButtonElement[] = [];
-    private _onDocumentPointerDown = (event: Event): void => {
-        if (!this.contains(event.target as Node)) this._setActive(false);
-    };
-    private _onDocumentKeyDown = (event: KeyboardEvent): void => {
-        if (event.key === 'Escape') {
-            this._setActive(false);
-            this._buttonEl.focus();
-        }
-    };
 
     static get observedAttributes() {
-        return ['icon-name', 'menu-title', 'menu', 'disabled', 'flat', 'circular'];
+        return ['icon-name', 'menu-title', 'menu', 'disabled', 'flat', 'circular', 'direction'];
     }
 
     /** Whether the popover menu is currently open. */
     get active(): boolean {
-        return this._active;
+        return this._popoverEl?.open ?? false;
     }
 
     /** The menu entries. Setting rebuilds the popover. */
@@ -80,6 +120,16 @@ export class AdwMenuButton extends HTMLElement {
         this.setAttribute('menu-title', this._menuTitle);
     }
 
+    /** Where the popover opens, and (via core) which way `none` folds. */
+    get direction(): SplitButtonDirection {
+        const value = this.getAttribute('direction');
+        return isSplitButtonDirection(value) ? value : 'down';
+    }
+
+    set direction(value: SplitButtonDirection) {
+        this.setAttribute('direction', value);
+    }
+
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
@@ -92,17 +142,23 @@ export class AdwMenuButton extends HTMLElement {
         this._buttonEl.setAttribute('aria-haspopup', 'menu');
         this._buttonEl.setAttribute('aria-expanded', 'false');
 
-        this._popoverEl = document.createElement('div');
-        this._popoverEl.className = 'adw-menu-button-popover';
+        this._popoverEl = document.createElement('adw-popover') as AdwPopover;
+        this._popoverEl.classList.add('adw-menu-button-popover');
         this._popoverEl.setAttribute('role', 'menu');
-        this._popoverEl.hidden = true;
-        this._popoverEl.addEventListener('keydown', (e) => this._onMenuKeyDown(e));
+        // `gtk_menu_button_set_menu_model` builds a GtkPopoverMenu, whose CSS
+        // node is `popover.menu` — the surface _menus.scss styles throughout.
+        this._popoverEl.setAttribute('menu', '');
+        this._popoverEl.setAttribute('align', 'end'); // the header-end app menu idiom
 
         this.replaceChildren(this._buttonEl, this._popoverEl);
+        this._popoverEl.anchor = this._buttonEl;
+        this._popoverEl.subscribe((open) => this._onPopoverToggled(open));
 
         this._buttonEl.addEventListener('click', () => {
             if (this.hasAttribute('disabled')) return;
-            this._setActive(!this._active);
+            // Nothing to show is not a menu — never open an empty popover.
+            if (!this._popoverEl.open && this._items.length === 0) return;
+            this._popoverEl.open = !this._popoverEl.open;
         });
 
         // Seed items from the `menu` attribute if the property was not set.
@@ -112,11 +168,6 @@ export class AdwMenuButton extends HTMLElement {
         // renders) never runs before `_buttonEl` is created.
         if (!this.hasAttribute('flat') && !this.hasAttribute('circular')) this.setAttribute('flat', '');
         this._render();
-    }
-
-    disconnectedCallback() {
-        document.removeEventListener('pointerdown', this._onDocumentPointerDown);
-        document.removeEventListener('keydown', this._onDocumentKeyDown);
     }
 
     attributeChangedCallback(name: string) {
@@ -143,52 +194,26 @@ export class AdwMenuButton extends HTMLElement {
         }
     }
 
-    private _setActive(active: boolean): void {
-        if (this._active === active) return;
-        // Only open when there is something to show.
-        if (active && this._items.length === 0) return;
-        this._active = active;
-        this._popoverEl.hidden = !active;
-        this.classList.toggle('active', active);
-        this._buttonEl.setAttribute('aria-expanded', String(active));
-        if (active) {
-            document.addEventListener('pointerdown', this._onDocumentPointerDown);
-            document.addEventListener('keydown', this._onDocumentKeyDown);
-            // Move focus into the menu for keyboard navigation.
-            this._itemButtons[0]?.focus();
-        } else {
-            document.removeEventListener('pointerdown', this._onDocumentPointerDown);
-            document.removeEventListener('keydown', this._onDocumentKeyDown);
-        }
-    }
-
-    private _onMenuKeyDown(event: KeyboardEvent): void {
-        const buttons = this._itemButtons;
-        if (buttons.length === 0) return;
-        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
-        let next = -1;
-        if (event.key === 'ArrowDown') next = (current + 1) % buttons.length;
-        else if (event.key === 'ArrowUp') next = (current - 1 + buttons.length) % buttons.length;
-        else if (event.key === 'Home') next = 0;
-        else if (event.key === 'End') next = buttons.length - 1;
-        else return;
-        event.preventDefault();
-        buttons[next]?.focus();
+    private _onPopoverToggled(open: boolean): void {
+        this.classList.toggle('active', open);
+        this._buttonEl.setAttribute('aria-expanded', String(open));
+        // Move focus into the menu for keyboard navigation.
+        if (open) this._itemButtons[0]?.focus();
     }
 
     private _render(): void {
         const disabled = this.hasAttribute('disabled');
         this.classList.toggle('disabled', disabled);
         this._buttonEl.disabled = disabled;
+        if (disabled) this._popoverEl.popdown();
         this.classList.toggle('flat', this.hasAttribute('flat'));
         this.classList.toggle('circular', this.hasAttribute('circular'));
+        this._popoverEl.position = POPOVER_POSITIONS[menuButtonPopupDirection(this.direction)];
 
-        const icon = (this.getAttribute('icon-name') ?? 'open-menu').replace(/-symbolic$/, '');
         this._buttonEl.replaceChildren();
-        const iconEl = document.createElement('span');
-        iconEl.className = `adw-icon adw-menu-button-icon${icon ? ` adw-icon--${icon}` : ''}`;
-        iconEl.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
-        this._buttonEl.appendChild(iconEl);
+        this._buttonEl.appendChild(
+            createAdwIcon(this.getAttribute('icon-name') ?? 'open-menu', 'adw-menu-button-icon'),
+        );
         this._buttonEl.setAttribute('aria-label', this.getAttribute('menu-title') || 'Menu');
 
         this._renderMenu();
@@ -201,7 +226,7 @@ export class AdwMenuButton extends HTMLElement {
         const title = this.getAttribute('menu-title') ?? this._menuTitle;
         if (title) {
             const titleEl = document.createElement('div');
-            titleEl.className = 'adw-menu-button-title';
+            titleEl.className = 'adw-popover-title adw-menu-button-title';
             titleEl.textContent = title;
             this._popoverEl.appendChild(titleEl);
         }
@@ -209,24 +234,22 @@ export class AdwMenuButton extends HTMLElement {
         for (const [index, entry] of this._items.entries()) {
             const item = document.createElement('button');
             item.type = 'button';
-            item.className = 'adw-menu-button-item';
+            item.className = 'adw-popover-item adw-menu-button-item';
             item.setAttribute('role', 'menuitem');
             item.tabIndex = -1;
 
-            const iconName = (entry.icon ?? '').replace(/-symbolic$/, '');
-            if (iconName) {
-                const iconEl = document.createElement('span');
-                iconEl.className = `adw-icon adw-menu-button-item-icon adw-icon--${iconName}`;
-                iconEl.setAttribute('aria-hidden', 'true');
-                item.appendChild(iconEl);
-            }
+            // An entry with no USABLE icon gets no icon node at all, rather than
+            // an empty 16px box — the element itself answers whether the name
+            // resolved, so the `-symbolic`-only and bad-token cases agree.
+            const entryIcon = createAdwIcon(entry.icon ?? null, 'adw-menu-button-item-icon');
+            if (entryIcon.resolvedIconName !== '') item.appendChild(entryIcon);
             const labelEl = document.createElement('span');
             labelEl.className = 'adw-menu-button-item-label';
             labelEl.textContent = entry.label;
             item.appendChild(labelEl);
 
             item.addEventListener('click', () => {
-                this._setActive(false);
+                this._popoverEl.popdown();
                 this._buttonEl.focus();
                 this.dispatchEvent(
                     new CustomEvent('menu-item-activated', {
@@ -240,7 +263,7 @@ export class AdwMenuButton extends HTMLElement {
         }
 
         // A menu-button with no entries can never open.
-        if (this._items.length === 0) this._setActive(false);
+        if (this._items.length === 0) this._popoverEl.popdown();
     }
 }
 

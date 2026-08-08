@@ -6,7 +6,10 @@
 // so `adwButton.addEventListener('click', …)` works.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// icon node is <adw-icon>.
+
+import { createAdwIcon } from './adw-icon.js';
 
 const VARIANT_CLASSES: Record<string, string> = {
     flat: 'flat',
@@ -56,12 +59,7 @@ export class AdwButton extends HTMLElement {
         if (icon && !label) btn.classList.add('icon-only');
 
         btn.replaceChildren();
-        if (icon) {
-            const span = document.createElement('span');
-            span.className = `adw-icon adw-icon--${icon}`;
-            span.setAttribute('aria-hidden', 'true'); // decorative (mask-image only, no text)
-            btn.appendChild(span);
-        }
+        if (icon) btn.appendChild(createAdwIcon(icon));
         if (label) btn.appendChild(document.createTextNode(label));
 
         const tooltip = this.getAttribute('tooltip');

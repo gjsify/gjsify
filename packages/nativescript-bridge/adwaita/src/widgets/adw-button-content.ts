@@ -2,66 +2,122 @@
 //
 // Renders a REAL NativeScript horizontal `StackLayout` with a leading
 // {@link AdwIcon} (a native-rasterised Adwaita symbolic icon) and a text `Label`,
-// meant to be placed as the child content of a button (or used as the label
-// widget of an {@link AdwSplitButton}). Mirrors `Adw.ButtonContent`: an `icon`
-// symbolic + a `label`, with `iconColor` so the icon can match the button's
-// foreground (e.g. white on a `suggested-action` button).
+// meant to be placed as the child content of a button (or as the label widget of
+// an {@link AdwSplitButton}). Mirrors `Adw.ButtonContent`: `icon` + `label`,
+// `useUnderline`, `canShrink`, plus `iconColor` so the icon can match the
+// button's foreground (e.g. white on a `suggested-action` button).
 //
-// Visual spec ported from `@gjsify/adwaita-web`'s `adw-button-content`.
-// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (.button .content)
+// The derivations are headless and live in `@gjsify/adwaita-core` (ADR 0004),
+// reached through `button-content.ts`. THE STYLE CLASS IS WHY THIS WAS TOUCHED:
+// `AdwButtonContent` puts `image-text-button` on the button hosting it
+// (adw-button-content.c:115) and removes it on unroot (:126), the stylesheet
+// gives that class `padding-left/right: 9px` where a plain text button has 17px
+// (_buttons.scss:77-80 against :72-75), and `grep -rn "image-text-button"` over
+// this package used to return NOTHING. `use-underline` and `can-shrink` were
+// absent too, and the label view was parented whether or not it had any text.
+//
+// NS has no rooting protocol, so the class is applied to whatever
+// {@link AdwButtonContent.hostButton} is set to. That is the seam the C gets for
+// free from `gtk_widget_get_ancestor` + the `AdwSplitButton` retarget
+// (:108-116); a caller that composes the button itself is the one that knows
+// which view plays that role, and core holds the retarget RULE
+// (`buttonContentStyleTargetIndex`) for a renderer that can walk its own tree.
+//
+// Reference: refs/libadwaita/src/adw-button-content.c (AdwButtonContent)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
+//            (image-text-button :77-91 · buttoncontent :626-645)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Label, StackLayout } from '@nativescript/core';
+import { Label, StackLayout, type View } from '@nativescript/core';
+import { ADW_BUTTON_CONTENT_DEFAULTS } from '@gjsify/adwaita-core';
+import type { AdwButtonContentProps, ButtonContentEllipsize } from '@gjsify/adwaita-core';
 import { AdwIcon } from './adw-icon.js';
+import {
+    buttonContentClassName,
+    buttonContentEllipsize,
+    buttonContentIconIsFallback,
+    buttonContentIconSvg,
+    buttonContentLabelText,
+    buttonContentLabelVisibility,
+    buttonContentRootedParentClassName,
+    buttonContentUnrootedParentClassName,
+} from './button-content.js';
+
+/** The content's own base class, before `can-shrink` adds its own. */
+const BASE_CLASS = 'adw-button-content';
 
 export class AdwButtonContent extends StackLayout {
-    /** The leading symbolic icon (lazily in the tree — only when an icon is set). */
+    /** The leading symbolic icon. Always parented — the C never hides the image. */
     protected readonly _icon: AdwIcon;
     /** The text label. */
     protected readonly _label: Label;
-    private _hasIcon = false;
-    private _iconSvg = '';
+    private readonly _props: AdwButtonContentProps = { ...ADW_BUTTON_CONTENT_DEFAULTS };
+    private _hostButton: View | null = null;
 
     constructor() {
         super();
 
         this.orientation = 'horizontal';
-        this.className = 'adw-button-content';
+        this.className = BASE_CLASS;
         this.horizontalAlignment = 'center';
 
         const icon = new AdwIcon();
         icon.className = `${icon.className} adw-button-content-icon`.trim();
         icon.verticalAlignment = 'middle';
+        icon.icon = buttonContentIconSvg('');
+        this.addChild(icon);
         this._icon = icon;
 
         const label = new Label();
         label.className = 'adw-button-content-label';
         label.verticalAlignment = 'middle';
+        // The label starts hidden — `gtk_widget_set_visible (self->label, FALSE)`
+        // in init (:300), because the default label is empty (:239-242).
+        label.visibility = buttonContentLabelVisibility('');
         this.addChild(label);
         this._label = label;
     }
 
     /**
+     * The button view this content styles — NS's stand-in for the `GtkButton`
+     * ancestor `adw_button_content_root` finds (:108).
+     *
+     * Setting it adds `image-text-button` (:115); clearing it, or replacing it,
+     * removes the class from the previous host first (:126), so a button that
+     * loses its content goes back to plain-button padding.
+     */
+    get hostButton(): View | null {
+        return this._hostButton;
+    }
+
+    set hostButton(view: View | null) {
+        if (this._hostButton === view) return;
+        if (this._hostButton) {
+            this._hostButton.className = buttonContentUnrootedParentClassName(this._hostButton.className ?? '');
+        }
+        this._hostButton = view;
+        if (view) view.className = buttonContentRootedParentClassName(view.className ?? '');
+    }
+
+    /**
      * A leading Adwaita symbolic SVG string (e.g. `folderDownloadSymbolic`).
-     * Setting a non-empty value inserts the icon before the label; empty removes it.
+     *
+     * An empty value shows the `image-missing` asset rather than hiding the icon:
+     * the C sets that fallback (:355-356) and never hides `self->icon`. The doc
+     * comments at :228/:343 say otherwise — see `buttonContentIconSvg`.
      */
     get icon(): string {
-        return this._iconSvg;
+        return this._props.iconName;
     }
 
     set icon(svg: string) {
-        this._iconSvg = svg ?? '';
-        this._icon.icon = this._iconSvg;
-        const want = this._iconSvg.length > 0;
-        if (want && !this._hasIcon) {
-            this.removeChild(this._label);
-            this.addChild(this._icon);
-            this.addChild(this._label);
-            this._hasIcon = true;
-        } else if (!want && this._hasIcon) {
-            this.removeChild(this._icon);
-            this._hasIcon = false;
-        }
+        this._props.iconName = svg ?? '';
+        this._icon.icon = buttonContentIconSvg(this._props.iconName);
+    }
+
+    /** Whether the icon currently shown is the empty-slot fallback. */
+    get iconIsFallback(): boolean {
+        return buttonContentIconIsFallback(this._props.iconName);
     }
 
     /** The icon fill colour (hex). Set to the button's foreground (e.g. white on suggested-action). */
@@ -73,12 +129,53 @@ export class AdwButtonContent extends StackLayout {
         this._icon.iconColor = value;
     }
 
-    /** The button content text. */
+    /** The button content text. Empty collapses the label view (:398). */
     get label(): string {
-        return this._label.text ?? '';
+        return this._props.label;
     }
 
     set label(value: string) {
-        this._label.text = value ?? '';
+        this._props.label = value ?? '';
+        this._renderLabel();
+    }
+
+    /**
+     * Whether an underline in {@link label} marks a mnemonic (:431-445).
+     * Defaults to FALSE (:253-256), so an underscore is a literal unless asked.
+     */
+    get useUnderline(): boolean {
+        return this._props.useUnderline;
+    }
+
+    set useUnderline(value: boolean) {
+        this._props.useUnderline = !!value;
+        this._renderLabel();
+    }
+
+    /**
+     * Whether the label may be smaller than its natural size (:489-491).
+     *
+     * FIDELITY GAP: this is `PANGO_ELLIPSIZE_END` in GTK and the NS CSS subset
+     * has no ellipsize, so the property is held, reported through
+     * {@link ellipsize}, and reflected as a `can-shrink` class for the theme —
+     * but the truncation ellipsis is not available on this platform.
+     */
+    get canShrink(): boolean {
+        return this._props.canShrink;
+    }
+
+    set canShrink(value: boolean) {
+        this._props.canShrink = !!value;
+        this.className = buttonContentClassName(this.className, this._props.canShrink);
+    }
+
+    /** The label's `PangoEllipsizeMode` for the current `canShrink` (:462). */
+    get ellipsize(): ButtonContentEllipsize {
+        return buttonContentEllipsize(this._props.canShrink);
+    }
+
+    private _renderLabel(): void {
+        this._label.text = buttonContentLabelText(this._props.label, this._props.useUnderline);
+        this._label.visibility = buttonContentLabelVisibility(this._props.label);
     }
 }

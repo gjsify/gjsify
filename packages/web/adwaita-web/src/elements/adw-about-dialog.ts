@@ -44,7 +44,10 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss (floating sheet)
 // Reference: refs/adwaita-web/adwaita-web/scss/_about_dialog.scss (web layout)
 // Copyright (c) 2022-2024 GNOME Foundation Inc. / Purism SPC (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// icon nodes are <adw-icon>.
+
+import { createAdwIcon } from './adw-icon.js';
 
 /** A credit person — a plain name, or a name paired with a link (email / URL). */
 interface CreditEntry {
@@ -398,12 +401,11 @@ export class AdwAboutDialog extends HTMLElement {
 
         // App icon — a large symbolic glyph. A given application-icon resolves
         // to its `.adw-icon--<name>` mask class; absent one, fall back to the
-        // GTK default generic `application-x-executable` glyph.
-        const icon = (this.applicationIcon || 'application-x-executable').replace(/-symbolic$/, '');
-        const iconEl = document.createElement('span');
-        iconEl.className = `adw-about-dialog-icon adw-icon adw-icon--${icon}`;
-        iconEl.setAttribute('aria-hidden', 'true');
-        body.appendChild(iconEl);
+        // GTK default generic `application-x-executable` glyph. A reverse-DNS
+        // application id (`org.gnome.Builder`) is not one CSS token and resolves
+        // to no glyph at all rather than to three stray classes — see
+        // `normalizeIconName`.
+        body.appendChild(createAdwIcon(this.applicationIcon || 'application-x-executable', 'adw-about-dialog-icon'));
 
         // App name — title-1.
         const nameEl = document.createElement('span');
@@ -462,10 +464,8 @@ export class AdwAboutDialog extends HTMLElement {
         row.setAttribute('title', title);
         row.setAttribute('activatable', '');
 
-        const chevron = document.createElement('span');
+        const chevron = createAdwIcon('go-next', 'adw-about-dialog-chevron');
         chevron.setAttribute('slot', 'suffix');
-        chevron.className = 'adw-icon adw-icon--go-next adw-about-dialog-chevron';
-        chevron.setAttribute('aria-hidden', 'true');
         row.appendChild(chevron);
 
         row.addEventListener('activated', () => {
@@ -529,10 +529,8 @@ export class AdwAboutDialog extends HTMLElement {
         row.setAttribute('activatable', '');
         row.classList.add('adw-about-dialog-link-row');
 
-        const chevron = document.createElement('span');
+        const chevron = createAdwIcon('go-next', 'adw-about-dialog-chevron');
         chevron.setAttribute('slot', 'suffix');
-        chevron.className = 'adw-icon adw-icon--go-next adw-about-dialog-chevron';
-        chevron.setAttribute('aria-hidden', 'true');
         row.appendChild(chevron);
 
         row.addEventListener('activated', () => {
@@ -578,10 +576,8 @@ export class AdwAboutDialog extends HTMLElement {
         if (uri) {
             row.setAttribute('activatable', '');
             row.classList.add('adw-about-dialog-link-row');
-            const chevron = document.createElement('span');
+            const chevron = createAdwIcon('go-next', 'adw-about-dialog-chevron');
             chevron.setAttribute('slot', 'suffix');
-            chevron.className = 'adw-icon adw-icon--go-next adw-about-dialog-chevron';
-            chevron.setAttribute('aria-hidden', 'true');
             row.appendChild(chevron);
             row.addEventListener('activated', () => {
                 this.dispatchEvent(new CustomEvent('activate-link', { bubbles: true, detail: { uri } }));

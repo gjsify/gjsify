@@ -111,6 +111,12 @@ export class AdwEntryRow extends AdwActionRow {
         // the row is empty; the inherited title shrinks to the small floating
         // label above the value.
         this._titleLabel.className = 'adw-row-title adw-entry-title';
+        // The inherited `string_is_not_empty` title binding does NOT apply here:
+        // which of the two titles shows is the empty↔filled cross-fade's answer
+        // (`emptyTarget`, adw-entry-row.c:433-439), and `applyEntryRowState`
+        // owns it. Without the opt-out, setting a title would reveal the small
+        // floating label on top of the large placeholder.
+        this._managesTitleVisibility = false;
         const emptyTitle = new Label();
         emptyTitle.className = 'adw-row-title adw-entry-empty-title';
         emptyTitle.textWrap = true;

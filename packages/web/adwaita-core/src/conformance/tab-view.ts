@@ -1477,8 +1477,15 @@ export interface TabTooltipVector {
 
 /**
  * `update_tooltip` (adw-tab.c:137-146): a non-empty tooltip wins and is set as
- * MARKUP; an empty one falls back to the title, set as TEXT. Neither port has
- * tooltips at all.
+ * MARKUP; an empty one falls back to the title, set as TEXT.
+ *
+ * WHO DRIVES THIS TABLE: only the core suite — and that is a GAP, not a reason.
+ * "Neither port has tooltips at all" was true when this was written and is not
+ * any more: the browser sets `tab.title = tabTooltip(page)`
+ * (`elements/adw-tab-view.ts`) and NativeScript re-exports it as
+ * `tabTooltipText` (`widgets/tab-view-state.ts`), so BOTH renderers consume
+ * these rows today and neither is held to them. Both surfaces are readable from
+ * their own suites, so wiring them is a loop, not new capability.
  */
 export const TAB_TOOLTIP_VECTORS: ReadonlyArray<TabTooltipVector> = [
     {

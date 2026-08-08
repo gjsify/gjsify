@@ -21,9 +21,12 @@
 // Reference: refs/adwaita-web/adwaita-web/scss/_toggle_group.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// selection state machine composed from @gjsify/adwaita-core.
+// selection state machine composed from @gjsify/adwaita-core, the icon node
+// from <adw-icon>.
 
 import { ToggleGroupState } from '@gjsify/adwaita-core';
+
+import { createAdwIcon } from './adw-icon.js';
 
 /** A single toggle. Children of <adw-toggle-group>; consumed at connect time. */
 export class AdwToggle extends HTMLElement {
@@ -70,12 +73,7 @@ export class AdwToggleGroup extends HTMLElement {
 
             const label = toggle.getAttribute('label') ?? '';
             const icon = toggle.getAttribute('icon-name') ?? '';
-            if (icon) {
-                const span = document.createElement('span');
-                span.className = `adw-icon adw-icon--${icon}`;
-                span.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
-                btn.appendChild(span);
-            }
+            if (icon) btn.appendChild(createAdwIcon(icon));
             if (label) btn.appendChild(document.createTextNode(label));
 
             // An icon-only toggle has no text — give it an accessible name.

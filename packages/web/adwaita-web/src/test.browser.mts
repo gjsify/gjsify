@@ -21,6 +21,7 @@ import { AdwViewSwitcherTest } from './view-switcher.spec.js';
 import { AdwAvatarTest } from './adw-avatar.spec.js';
 import { AdwSplitViewsTest } from './split-views.spec.js';
 import { AdwButtonRowTest } from './adw-button-row.spec.js';
+import { AdwActionRowsTest } from './adw-action-rows.spec.js';
 import { AdwBreakpointsTest } from './breakpoints.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
@@ -30,8 +31,18 @@ import { AdwTabViewTest } from './adw-tab-view.spec.js';
 import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
 import { AdwViewSwitcherBarTest } from './adw-view-switcher-bar.spec.js';
 import { AdwStyleIsolationTest } from './style-isolation.spec.js';
+import { AdwWrapBoxTest } from './adw-wrap-box.spec.js';
+import { AdwHeaderBarTest } from './adw-header-bar.spec.js';
+import { AdwBannerTest } from './adw-banner.spec.js';
+import { AdwButtonContentTest } from './adw-button-content.spec.js';
+import { AdwIconTest } from './adw-icon.spec.js';
+import { AdwSwitchTest } from './adw-switch.spec.js';
 
 run({
+    AdwBannerTest,
+    AdwButtonContentTest,
+    AdwIconTest,
+    AdwSwitchTest,
     AdwAvatarTest,
     AdwCarouselTest,
     AdwBottomSheetTest,
@@ -42,6 +53,7 @@ run({
 
     AdwSplitViewsTest,
     AdwButtonRowTest,
+    AdwActionRowsTest,
     AdwBreakpointsTest,
     AdwDataGridTest,
     AdwDialogTest,
@@ -51,6 +63,8 @@ run({
     AdwToastOverlayTest,
     AdwViewSwitcherBarTest,
     AdwStyleIsolationTest,
+    AdwWrapBoxTest,
+    AdwHeaderBarTest,
     AdwViewStackTest,
     AdwNavigationViewTest,
     AdwSidebarTest,

@@ -13,6 +13,15 @@
 // (adw-clamp-layout.c:226-227); the cap only starts biting further up, and it
 // eases in rather than snapping.
 //
+// `AdwBanner` is here for the opposite reason: it has no arithmetic at all, and
+// that is exactly why nobody checked it. Its whole spec is five property
+// defaults and three derivations, and the port had `revealed` initialised to
+// TRUE with no `visibility` written in the constructor — so a banner showed
+// itself here while the same markup stayed hidden in the browser. It belongs in
+// this module because its NS edge IS a class swap plus a visibility mapping, and
+// {@link replaceClasses} already lives here; libadwaita groups it the same way,
+// shipping `banner` in `_toolbars.scss` next to `toolbarview`.
+//
 // Free of `@nativescript/core` imports — like `icon-path.ts`, `row-press.ts`,
 // `avatar-color.ts` and `split-view-width.ts` — so the spec suite exercises the
 // shipping code rather than a transcription of it. The widget classes cannot
@@ -22,32 +31,41 @@
 // Reference: refs/libadwaita/src/adw-clamp-layout.c
 // Reference: refs/libadwaita/src/adw-toolbar-view.c
 // Reference: refs/libadwaita/src/adw-spinner.c
+// Reference: refs/libadwaita/src/adw-banner.c + adw-banner.ui
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import {
+    ADW_BANNER_BUTTON_STYLE_CLASSES,
+    ADW_BANNER_DEFAULTS,
     ADW_CLAMP_DEFAULTS,
     ADW_CLAMP_SIZE_CLASSES,
     ADW_SPINNER_MIN_SIZE,
     ADW_TOOLBAR_BAR_CLASSES,
     ADW_TOOLBAR_VIEW_CLASSES,
     ADW_TOOLBAR_VIEW_DEFAULTS,
+    type AdwBannerButtonStyle,
+    type AdwBannerProps,
     type AdwClampSizeClass,
     type AdwToolbarStyle,
+    bannerButtonStyleClasses,
     clampAllocate,
     normalizeClampSize,
     resolveSpinnerSize,
     spinnerGeometry,
+    stripMarkup,
     toolbarViewClasses,
 } from '@gjsify/adwaita-core';
 
 export {
+    ADW_BANNER_BUTTON_STYLE_CLASSES,
+    ADW_BANNER_DEFAULTS,
     ADW_CLAMP_SIZE_CLASSES,
     ADW_SPINNER_MIN_SIZE,
     ADW_TOOLBAR_BAR_CLASSES,
     ADW_TOOLBAR_VIEW_CLASSES,
     ADW_TOOLBAR_VIEW_DEFAULTS,
 };
-export type { AdwClampSizeClass, AdwToolbarStyle };
+export type { AdwBannerButtonStyle, AdwClampSizeClass, AdwToolbarStyle };
 
 // --- AdwClamp ----------------------------------------------------------------
 
@@ -200,6 +218,64 @@ export function replaceClasses(current: string, managed: readonly string[], next
 /** The child `className` for a clamp allocation — the size class, and nothing else touched. */
 export function clampChildClassName(current: string, sizeClass: AdwClampSizeClass | null): string {
     return replaceClasses(current, ADW_CLAMP_SIZE_CLASSES, sizeClass ? [sizeClass] : []);
+}
+
+// --- AdwBanner ----------------------------------------------------------------
+
+/** The five banner properties, as the widget holds them. */
+export type BannerProps = AdwBannerProps;
+
+/**
+ * The property defaults a fresh banner starts with — libadwaita's, not this
+ * port's.
+ *
+ * This is the whole reason the banner is here. `AdwBanner` used to initialise
+ * `_revealed = true` AND never write `visibility` in its constructor, so a
+ * banner put itself on screen on a device while the same markup stayed hidden in
+ * the browser. `Adw.Banner:revealed` defaults to FALSE (adw-banner.c:456-459) —
+ * "Banners are hidden by default" (:47) — and `use-markup` to TRUE (:422-425),
+ * which the port had backwards as well.
+ */
+export function defaultBannerProps(): BannerProps {
+    return { ...ADW_BANNER_DEFAULTS };
+}
+
+/**
+ * The text the NS title `Label` is given.
+ *
+ * `Adw.Banner`'s title is Pango markup by default (:422-425) and the NS CSS
+ * subset has no inline-markup layer at all, so the honest reduction is the
+ * markup's PLAIN TEXT: `<b>Metered</b>` reads `Metered`, which is what GTK
+ * paints minus the weight, where writing the raw string would paint the tags.
+ * Unparseable markup keeps the raw string, reproducing the C fallback that
+ * {@link stripMarkup} already models.
+ */
+export function bannerTitleText(title: string, useMarkup: boolean): string {
+    if (!useMarkup) return title;
+    return stripMarkup(title) ?? title;
+}
+
+/**
+ * The NS `visibility` for a `revealed` value.
+ *
+ * `Adw.Banner` reveals through a `GtkRevealer` (:817); the NS subset has no
+ * revealer, so `collapse` — which takes the view out of layout entirely — is the
+ * closest thing to a fully retracted one.
+ */
+export function bannerVisibility(revealed: boolean): 'visible' | 'collapse' {
+    return revealed ? 'visible' : 'collapse';
+}
+
+/**
+ * The `className` for the banner button — the managed `button-style` class
+ * swapped in, every other token left alone.
+ *
+ * `adw_banner_set_button_style` only ever adds or removes `suggested-action`
+ * (:766, :769); it never rewrites the button's class list, and neither does
+ * this.
+ */
+export function bannerButtonClassName(current: string, style: AdwBannerButtonStyle): string {
+    return replaceClasses(current, ADW_BANNER_BUTTON_STYLE_CLASSES, bannerButtonStyleClasses(style));
 }
 
 /**

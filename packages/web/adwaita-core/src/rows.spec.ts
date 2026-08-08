@@ -3,11 +3,36 @@
 // pins the moved surface with re-export smoke specs. Extended here with the full
 // clamp/step-edge, empty/out-of-range, index↔value-sync, toggle-idempotence and
 // notify-only-on-change matrix the NS mocks could not exercise.
+//
+// `ComboState`'s scenario matrix is no longer written out here: it is
+// `COMBO_SELECTION_VECTORS` (conformance/rows.ts), driven below and by both
+// renderer suites, so a divergence fails a test naming the input rather than
+// three suites agreeing by luck.
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { ComboState, ExpanderState, SpinState, ToggleGroupState } from './rows.js';
+import { ComboState, ExpanderState, SpinState, ToggleGroupState, normalizeComboOptions } from './rows.js';
 import type { ComboStateChange, SpinStateChange, ToggleGroupStateChange } from './rows.js';
+import { COMBO_SELECTION_VECTORS } from './conformance/rows.js';
+import type { ComboSelectionStep } from './conformance/rows.js';
+
+/** Replay one combo vector step against a headless combo state. */
+function applyComboStep(state: ComboState, step: ComboSelectionStep): void {
+    switch (step.op) {
+        case 'setOptions':
+            state.setOptions([...step.options]);
+            return;
+        case 'setSelectedIndex':
+            state.setSelectedIndex(step.index);
+            return;
+        case 'setSelectedValue':
+            state.setSelectedValue(step.value);
+            return;
+        case 'select':
+            state.select(step.index);
+            return;
+    }
+}
 
 export default async () => {
     await describe('ExpanderState disclosure (Adw.ExpanderRow)', async () => {
@@ -58,7 +83,30 @@ export default async () => {
         });
     });
 
-    await describe('ComboState selection (Adw.ComboRow)', async () => {
+    await describe('ComboState selection (libadwaita conformance vectors)', async () => {
+        for (const vector of COMBO_SELECTION_VECTORS) {
+            await it(`${vector.name} — ${vector.rule}`, () => {
+                const state = new ComboState();
+                const changes: ComboStateChange[] = [];
+                state.subscribe((change) => changes.push(change));
+
+                for (const step of vector.steps) applyComboStep(state, step);
+
+                expect(state.selectedIndex).toBe(vector.selected);
+                expect(state.selectedValue).toBe(vector.value);
+                expect(state.selectedLabel).toBe(vector.label);
+                // The whole feed, not just its last frame: a renderer repaints
+                // from every change, so a swallowed or duplicated one is a bug
+                // even when the end state is right.
+                expect(changes).toStrictEqual([...vector.emitted]);
+            });
+        }
+    });
+
+    // What the vectors above do NOT carry: every mutator's "did it change" return
+    // value — which is what each renderer gates its `notify::*` re-emit on — and
+    // the guards that have no scenario of their own.
+    await describe('ComboState selection contract (Adw.ComboRow)', async () => {
         const twoOptions = (): ComboState => {
             const state = new ComboState();
             state.setOptions([
@@ -68,14 +116,6 @@ export default async () => {
             return state;
         };
 
-        await it('resolves selectedValue/selectedLabel from selectedIndex', () => {
-            const state = twoOptions();
-            state.setSelectedIndex(1);
-            expect(state.selectedIndex).toBe(1);
-            expect(state.selectedValue).toBe('b');
-            expect(state.selectedLabel).toBe('Two');
-        });
-
         await it('setSelectedValue moves the index to the matching option', () => {
             const state = twoOptions();
             expect(state.setSelectedValue('b')).toBe(true);
@@ -83,14 +123,6 @@ export default async () => {
             // Unknown value is a no-op — index stays put.
             expect(state.setSelectedValue('nope')).toBe(false);
             expect(state.selectedIndex).toBe(1);
-        });
-
-        await it('returns empty strings for an out-of-range index', () => {
-            const state = new ComboState();
-            state.setOptions([{ label: 'One', value: 'a' }]);
-            state.setSelectedIndex(5);
-            expect(state.selectedValue).toBe('');
-            expect(state.selectedLabel).toBe('');
         });
 
         await it('guards an empty options list', () => {
@@ -102,49 +134,76 @@ export default async () => {
             expect(state.selectedIndex).toBe(0);
         });
 
-        await it('setOptions resets the index to 0 when it no longer fits', () => {
+        await it('setSelectedIndex returns whether it changed', () => {
+            // The return IS the notify gate: `<adw-drop-down>` fires
+            // `notify::selected` off it rather than keeping a second copy of the
+            // index to compare against.
             const state = twoOptions();
-            state.setSelectedIndex(1);
-            state.setOptions([{ label: 'Only', value: 'x' }]); // index 1 no longer valid
-            expect(state.selectedIndex).toBe(0);
-            expect(state.selectedValue).toBe('x');
-        });
-
-        await it('setOptions re-syncs the label even at the same index (interactive:false)', () => {
-            const state = new ComboState();
-            state.setOptions([{ label: 'First', value: 'a' }]);
-            const changes: ComboStateChange[] = [];
-            state.subscribe((c) => changes.push(c));
-            state.setOptions([{ label: 'Renamed', value: 'a' }]); // same index 0, new label
-            expect(state.selectedLabel).toBe('Renamed');
-            expect(changes[changes.length - 1]).toStrictEqual({
-                selected: 0,
-                value: 'a',
-                label: 'Renamed',
-                interactive: false,
-            });
-        });
-
-        await it('a programmatic index set notifies interactive:false', () => {
-            const state = twoOptions();
-            const changes: ComboStateChange[] = [];
-            state.subscribe((c) => changes.push(c));
             expect(state.setSelectedIndex(1)).toBe(true);
-            expect(changes).toStrictEqual([{ selected: 1, value: 'b', label: 'Two', interactive: false }]);
-            // Setting the same index again does not notify.
-            expect(state.setSelectedIndex(1)).toBe(false);
-            expect(changes.length).toBe(1);
+            expect(state.setSelectedIndex(1)).toBe(false); // already there → no-op
         });
 
-        await it('an interactive select notifies interactive:true and guards the no-op pick', () => {
+        await it('select returns whether it changed and guards the no-op pick', () => {
             const state = twoOptions();
-            const changes: ComboStateChange[] = [];
-            state.subscribe((c) => changes.push(c));
             expect(state.select(1)).toBe(true);
-            expect(changes).toStrictEqual([{ selected: 1, value: 'b', label: 'Two', interactive: true }]);
             expect(state.select(1)).toBe(false); // already selected → no-op
             expect(state.select(-1)).toBe(false); // negative → no-op
-            expect(changes.length).toBe(1);
+        });
+
+        await it('an interactive select cannot pick past the end either', () => {
+            // A pick is a pick OF something. Only the negative half used to be
+            // guarded, so `select(99)` moved the index somewhere selectedValue
+            // calls "no selection" — an interactive path reaching a state the
+            // chooser has no row for.
+            const state = twoOptions();
+            const changes: ComboStateChange[] = [];
+            state.subscribe((c) => changes.push(c));
+            expect(state.select(2)).toBe(false); // one past the end
+            expect(state.select(99)).toBe(false);
+            expect(state.select(Number.NaN)).toBe(false);
+            expect(state.selectedIndex).toBe(0);
+            expect(changes.length).toBe(0);
+        });
+
+        await it('hasIndex answers the bounds question both renderers ask', () => {
+            const state = twoOptions();
+            expect(state.hasIndex(0)).toBe(true);
+            expect(state.hasIndex(1)).toBe(true);
+            expect(state.hasIndex(2)).toBe(false);
+            expect(state.hasIndex(-1)).toBe(false);
+            expect(state.hasIndex(Number.NaN)).toBe(false);
+            expect(state.hasIndex(Number.POSITIVE_INFINITY)).toBe(false);
+            // The permissive programmatic model is unchanged: setSelectedIndex
+            // still accepts a position hasIndex rejects, and the selection then
+            // reads empty (GTK's INVALID_LIST_POSITION spelling).
+            expect(state.setSelectedIndex(5)).toBe(true);
+            expect(state.hasIndex(state.selectedIndex)).toBe(false);
+            expect(state.selectedValue).toBe('');
+        });
+
+        await it('normalizeComboOptions takes strings, descriptors and half-descriptors', () => {
+            expect(normalizeComboOptions(['One', 'Two'])).toStrictEqual([
+                { value: 'One', label: 'One' },
+                { value: 'Two', label: 'Two' },
+            ]);
+            expect(normalizeComboOptions([{ value: 'a', label: 'Apple' }])).toStrictEqual([
+                { value: 'a', label: 'Apple' },
+            ]);
+            // Either half stands in for the missing other, so a label-only entry
+            // stays addressable by value instead of becoming `undefined`.
+            expect(normalizeComboOptions([{ label: 'Apple' }])).toStrictEqual([{ value: 'Apple', label: 'Apple' }]);
+            expect(normalizeComboOptions([{ value: 'a' }])).toStrictEqual([{ value: 'a', label: 'a' }]);
+            // Non-strings are coerced, not dropped — the JSON attribute path can
+            // deliver numbers.
+            expect(normalizeComboOptions([{ value: 7, label: 7 }])).toStrictEqual([{ value: '7', label: '7' }]);
+            // A neither-half entry is the empty option, not a crash.
+            expect(normalizeComboOptions([{}])).toStrictEqual([{ value: '', label: '' }]);
+        });
+
+        await it('normalizeComboOptions guards a non-array', () => {
+            expect(normalizeComboOptions(null)).toStrictEqual([]);
+            expect(normalizeComboOptions(undefined)).toStrictEqual([]);
+            expect(normalizeComboOptions({ length: 2 } as unknown as string[])).toStrictEqual([]);
         });
 
         await it('coerces a non-finite programmatic index to 0', () => {

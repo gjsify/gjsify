@@ -29,6 +29,8 @@
 // Reference: refs/libadwaita/src/adw-sidebar-section.c (get/set_first_index)
 // Copyright (c) 2025 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
 
+import { stringIsNotEmpty } from './glib.js';
+
 /**
  * The "no item is selected" index — the TS mirror of `GTK_INVALID_LIST_POSITION`
  * (`adw_sidebar_init`, adw-sidebar.c:2862).
@@ -236,9 +238,9 @@ export function flattenSidebarItems(
                 sectionIndex,
                 sectionItemIndex,
                 item,
-                titleVisible: (item.title ?? '').length > 0,
-                subtitleVisible: (item.subtitle ?? '').length > 0,
-                iconVisible: (item.iconName ?? '').length > 0,
+                titleVisible: stringIsNotEmpty(item.title),
+                subtitleVisible: stringIsNotEmpty(item.subtitle),
+                iconVisible: stringIsNotEmpty(item.iconName),
             });
         });
 

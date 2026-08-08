@@ -1,0 +1,51 @@
+// _icon.scss — the symbolic icon box behind <adw-icon>.
+//
+// A symbolic icon is rendered as a CSS mask rather than an <img> or inline SVG,
+// so `currentColor` drives the fill and the glyph re-themes with whatever
+// contains it. The per-name `.adw-icon--<name>` mask classes are GENERATED into
+// scss/_icons.generated.scss by scripts/build-scss.mjs (one entry per icon in
+// its ICONS map), so adding an icon is a single map edit.
+//
+// This block lived in `_button.scss` for as long as the button was the only
+// widget that drew one. It is emitted BEFORE the widget partials so a context
+// that sizes its own icons (`.adw-about-dialog-icon` at 96px, the split button's
+// 14px arrows, the view switcher's 16px) still wins on ordinary specificity.
+//
+// Reference: refs/libadwaita/src/stylesheet/_common.scss:34-41 — `.normal-icons`
+//   / `.large-icons` set `-gtk-icon-size`. libadwaita has NO `_icon.scss`: there
+//   the icon is a GtkImage and its size is a widget property, not a rule.
+// Reference: refs/adwaita-web/adwaita-web/scss/_icon.scss — the vendored web
+//   port's `.adw-icon` is an inline-flex holder around a real <svg>; this
+//   package masks instead, which is what keeps it colourable via currentColor.
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components (mask-based).
+
+.adw-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  mask-size: 16px;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: 16px;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+
+  // `currentColor` IS the icon: the mask is painted with the inherited colour,
+  // so a suggested-action button's `--accent-fg-color` has to reach it. Since
+  // <adw-icon> is a custom element it is also in `$adw-components`, and the
+  // ADR-0010 boundary reset re-roots `color` on every entry there — which would
+  // otherwise repaint every icon in `--window-fg-color` regardless of its host.
+  // Class beats type selector, so this restores inheritance.
+  color: inherit;
+
+  // `display: inline-block` (author CSS) otherwise beats the UA `[hidden]`
+  // rule, so a hidden icon (e.g. an avatar's fallback icon while initials
+  // show) would still render as a solid maskless square. Honor `hidden`.
+  &[hidden] {
+    display: none;
+  }
+}

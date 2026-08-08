@@ -43,7 +43,8 @@
 // Reference: refs/libadwaita/src/adw-sidebar-item.h (AdwSidebarItem properties)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss (.navigation-sidebar, sidebar)
 // Copyright (c) 2025 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
-// Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+// Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
+// icon nodes are <adw-icon>.
 
 import {
     ADW_SIDEBAR_NO_SELECTION,
@@ -56,11 +57,7 @@ import {
     type SidebarSelectionChange,
 } from '@gjsify/adwaita-core';
 
-/** GTK symbolic name (e.g. "folder-symbolic") → adwaita-web icon class. */
-function iconClass(gtkName: string): string {
-    const name = gtkName.replace(/-symbolic$/, '');
-    return name ? `adw-icon adw-icon--${name}` : 'adw-icon';
-}
+import { createAdwIcon } from './adw-icon.js';
 
 // The sidebar consumes its declared children and drops them from the tree, so a
 // later `setAttribute` on one cannot find its sidebar with `closest()`. These
@@ -344,9 +341,7 @@ export class AdwSidebar extends HTMLElement {
         row.hidden = item.visible === false;
         row.disabled = item.enabled === false;
 
-        const iconEl = document.createElement('span');
-        iconEl.className = `${iconClass(item.iconName ?? '')} adw-sidebar-item-icon`;
-        iconEl.setAttribute('aria-hidden', 'true'); // decorative (mask-image only)
+        const iconEl = createAdwIcon(item.iconName ?? null, 'adw-sidebar-item-icon');
         iconEl.hidden = !flat.iconVisible;
         row.appendChild(iconEl);
 
@@ -369,10 +364,7 @@ export class AdwSidebar extends HTMLElement {
 
         // Page mode adds a trailing chevron on every row, the way the
         // boxed-list AdwActionRow carries a `go-next-symbolic` arrow.
-        const arrowEl = document.createElement('span');
-        arrowEl.className = 'adw-icon adw-icon--go-next adw-sidebar-item-arrow';
-        arrowEl.setAttribute('aria-hidden', 'true');
-        row.appendChild(arrowEl);
+        row.appendChild(createAdwIcon('go-next', 'adw-sidebar-item-arrow'));
 
         row.addEventListener('click', () => this._activate(flat.index));
 
