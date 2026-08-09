@@ -2090,7 +2090,26 @@ jobs:
           rem to the vcvars call that establishes the rest of the toolchain env.
           rem What it is NOT: /w, /std:cNN, or any diagnostic suppression.
           set INCLUDE=%GTK_PREFIX%\include;%INCLUDE%
-          meson setup build . -Dprebuilt_vala_c=vala-c-export || exit /b 1
+          rem --buildtype=release is LOAD-BEARING ON WINDOWS, and on no other
+          rem platform. meson's default buildtype is `debug`, whose MSVC meaning
+          rem is not "keep the symbols" but `b_vscrt=mdd` — link the DEBUG CRT.
+          rem MEASURED on the win11-gjsify VM against the artifact of the green
+          rem dispatch (run 30808747504): that gwebgl.dll imports
+          rem VCRUNTIME140D.dll and ucrtbased.dll, which ship ONLY with Visual
+          rem Studio and which Microsoft's redistribution terms forbid shipping.
+          rem Every other import (epoxy-0, gdk_pixbuf-2.0-0, glib-2.0-0,
+          rem gobject-2.0-0) resolved from the batteries-included GTK bundle, so
+          rem the DLL was two files away from working and failed with a bare
+          rem "Das angegebene Modul wurde nicht gefunden" naming gwebgl.dll —
+          rem the dependency, never the dependent.
+          rem
+          rem WHY THE LOAD TEST BELOW CANNOT CATCH IT: windows-latest HAS Visual
+          rem Studio, so the debug CRT resolves there and the probe goes green on
+          rem the one artifact no user can load. That is not a gap in the probe —
+          rem it is the runner being unrepresentative in exactly the dimension the
+          rem probe cannot see, which is why the assertion after it reads the
+          rem import table instead of loading anything.
+          meson setup build . -Dprebuilt_vala_c=vala-c-export --buildtype=release || exit /b 1
           meson compile -C build || exit /b 1
 
       - name: Collect @gjsify/webgl prebuilds
@@ -2133,6 +2152,44 @@ jobs:
             exit 1
           }
           Write-Host "typelib records a .dll leaf"
+
+      # The CRT a Windows prebuild links is a REDISTRIBUTION question, and it is
+      # the one property this runner cannot answer by loading the artifact:
+      # windows-latest ships Visual Studio, so a debug-CRT DLL loads here and
+      # fails on every machine that does not. Read the import table instead —
+      # a static property of the file, identical on every host.
+      #
+      # THE INCIDENT. `meson setup` was called without `--buildtype`, meson
+      # defaults to `debug`, and MSVC's reading of `debug` is `b_vscrt=mdd`. The
+      # green dispatch (run 30808747504) therefore published a gwebgl.dll
+      # importing VCRUNTIME140D.dll + ucrtbased.dll, and it took a real Windows
+      # desktop to notice, because the load test above passed on it.
+      #
+      # The `D`/`d` suffix is the whole signal: VCRUNTIME140D / ucrtbased /
+      # MSVCP140D are the debug images, and Microsoft's terms forbid shipping
+      # them at all — so this is a licence gate as much as a portability one.
+      - name: Assert the prebuild links the REDISTRIBUTABLE CRT
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dll = "packages/framework/webgl/prebuilds/$env:PREBUILD/gwebgl.dll"
+          # vswhere locates dumpbin the way node-gi.yml's windowing bundle does,
+          # rather than hard-coding an edition or assuming a vcvars-primed shell.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\Hostx64\\x64\\' } | Select-Object -First 1
+          if (-not $dumpbin) { Write-Host "::error::dumpbin.exe not found under $vs"; exit 1 }
+          $imports = & $dumpbin.FullName /dependents $dll |
+            Select-String -Pattern '^\s{4}(\S+\.dll)$' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+          Write-Host "imports: $($imports -join ', ')"
+          # Match the debug CRT by NAME, not by a blanket `*d.dll` — `epoxy-0.dll`
+          # and `libpng16d.dll`-shaped leaves would both trip a loose pattern.
+          $debugCrt = $imports | Where-Object { $_ -match '^(vcruntime\d+d|ucrtbased|msvcp\d+d|concrt\d+d)\.dll$' }
+          if ($debugCrt) {
+            Write-Host "::error::gwebgl.dll links the DEBUG CRT ($($debugCrt -join ', ')). Those ship only with Visual Studio and may not be redistributed, so this artifact cannot load on an end-user machine. Build with --buildtype=release (MSVC: b_vscrt=md)."
+            exit 1
+          }
+          Write-Host "CRT is redistributable"
 
       # ── THE LOAD TEST ────────────────────────────────────────────────────
       #

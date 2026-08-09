@@ -140,8 +140,13 @@ both sufficient and the simplest mechanism.
   ```
   The GdkWin32 backend is compiled **into** `libgtk-4-*.dll` (GTK4 builds every
   backend in), so there is no separate backend DLL — the caches (`loaders.cache`,
-  `gschemas.compiled`, `icon-theme.cache`) + the ANGLE/librsvg backers are the
-  additions. gvsbuild ships the tools this step runs (`gdk-pixbuf-query-loaders`,
+  `gschemas.compiled`, `icon-theme.cache`) + the librsvg backer are the
+  additions. The builder also seeds ANGLE (`libEGL`/`libGLESv2`), but the
+  gvsbuild GTK4 release ZIP ships none, so the bundle carries `epoxy-0.dll` —
+  GL *dispatch* — and no GL *implementation*. On a host with a vendor OpenGL ICD
+  that is invisible; on a GPU-less one (VM, RDP, CI) every `Gtk.GLArea` fails
+  with `No GL implementation is available`. Measured on the win11-gjsify VM; see
+  the webgl-on-win32 entry in `status/open-todos.md`. gvsbuild ships the tools this step runs (`gdk-pixbuf-query-loaders`,
   `glib-compile-schemas`, `gtk4-update-icon-cache`, `fc-cache`) in `<prefix>/bin`.
   Each data step is defensive — a missing tree/tool WARNs and continues (the DLL +
   typelib bundle is always produced).
