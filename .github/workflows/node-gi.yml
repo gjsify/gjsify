@@ -1874,7 +1874,7 @@ jobs:
           # directly and no table has to be kept in sync with the runner image.
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $vsVer = "vs$(& $vswhere -latest -property catalog_productLineVersion)"
-          Write-Host "gvsbuild --vs-ver $vsVer""
+          Write-Host "gvsbuild --vs-ver $vsVer"
           # Same prefix the zip was extracted into, so one tree carries GTK + Gst and
           # the bundle builder's single closure walk sees both.
           gvsbuild build --configuration release --vs-ver $vsVer --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
