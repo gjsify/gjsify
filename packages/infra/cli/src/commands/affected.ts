@@ -292,7 +292,12 @@ const IGNORE = [
     /^website\//,
     /^docs\//,
     ...OTHER_WORKFLOW_INPUTS,
-    /^\.githooks\//,
+    // `.githooks/` WAS here, and that is what let #1095 break its own guard. IGNORE
+    // is applied FIRST and wins over everything, so a hook change selected nothing,
+    // the e2e tier stayed off, the PR went green and `main` went red on the push
+    // run. It is a SCRIPT_COUPLING now instead: no seeds (there is no workspace to
+    // rebuild) but `runE2E`, because tests/e2e/git-hooks-cli-bundle-staleness is the
+    // only thing that exercises the hook at all.
     // @gjsify/node-gi (the Node-native GObject-Introspection engine, Axis 5) is
     // NOT a gjsify workspace member — the GJS-first install/foreach tooling can't
     // build its node-gyp addon, so the main workflow neither builds nor tests it.
@@ -308,9 +313,12 @@ const IGNORE = [
     // its files map to no workspace and force a conservative full run on every
     // napi PR.
     /^packages\/napi\//,
-    // Flatpak build/distribution tooling (SDK-extension manifest + metainfo).
-    // Like `.githooks/`, it has no package-test consumers; its own
-    // `tests/e2e/flatpak-sdk-extension` runs on `tests/e2e/**` / global triggers.
+    // Flatpak build/distribution tooling (SDK-extension manifest + metainfo). No
+    // package-test consumers; its own `tests/e2e/flatpak-sdk-extension` runs on
+    // `tests/e2e/**` / global triggers. This used to cite `.githooks/` as the
+    // precedent — that one has since moved to SCRIPT_COUPLINGS because ignoring it
+    // let a change walk past the suite guarding it, so the precedent is now the
+    // counter-example. Worth revisiting here for the same reason.
     /^flatpak\//,
     /^LICENSE/,
     /^\.gitignore$/,
@@ -375,6 +383,25 @@ interface ScriptCoupling {
 }
 
 const SCRIPT_COUPLINGS: readonly ScriptCoupling[] = [
+    {
+        // `.githooks/pre-commit` is guarded by an e2e suite and reachable from no
+        // workspace at all — it is not source, not a dependency, and its consumer is
+        // git. So a change to it selected NOTHING, the e2e tier stayed off (it turns
+        // on for a `tests/e2e/**` touch), and the PR went green while breaking the
+        // very test written to hold the hook: #1095 edited the hook's command line,
+        // merged clean, and turned `main` red on the push run.
+        //
+        // The same shape #1028 left a note about — whoever changes the GUARDED thing
+        // walks past the guard — and the reason it repeats is that the guard's
+        // trigger names the TEST's path instead of the thing under test.
+        //
+        // No extra seeds: there is no workspace to rebuild. The whole point is the
+        // tier.
+        match: /^\.githooks\//,
+        seeds: [],
+        runE2E: true,
+        why: 'tests/e2e/git-hooks-cli-bundle-staleness drives .githooks/pre-commit',
+    },
     {
         // `templates/*` ARE workspaces (root `package.json#workspaces` carries
         // a `templates/*` glob), so a template change already seeds its own
