@@ -1831,7 +1831,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\gtk-build\gtk\x64\release
-          key: gvsbuild-gtk4-gst-${{ env.GVSBUILD_VERSION }}-x64-v1
+          key: gvsbuild-gtk4-gst-gi-${{ env.GVSBUILD_VERSION }}-x64-v2
 
       # Build-time closure SOURCE only. Verbatim from the `windows` job.
       - name: Download + extract gvsbuild GTK4 (build-time closure source)
@@ -1915,7 +1915,15 @@ jobs:
           # an absent libvpx simply disables the vpx plugin — which is the state we
           # want anyway. -good is still built, for the parsers and decoders the audio
           # path genuinely needs: wavparse, flac, mpg123, autodetect.
-          gvsbuild build --configuration release --vs-ver $vsVer --skip libvpx --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
+          # `--enable-gi` IS THE WHOLE POINT and defaults to FALSE. gvsbuild's
+          # gstreamer projects gate introspection on it — without it they pass
+          # `-Dintrospection=disabled`, so the build succeeds and produces no
+          # .gir/.typelib at all. Measured: a complete 16-minute GStreamer build
+          # whose prefix contained zero Gst typelibs. The assertion below is what
+          # caught it, at the prefix, instead of three jobs later as "no element
+          # decodebin" — typelibs are the only reason we build this from source
+          # rather than lifting a binary.
+          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --skip libvpx --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
 
       - name: Assert GStreamer landed in the prefix (typelibs + plugins)
         shell: pwsh
