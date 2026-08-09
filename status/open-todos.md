@@ -1304,7 +1304,9 @@ What is still OPEN, i.e. what a promotion owes beyond that green dispatch:
   bundle-CONTENTS decision, so it belongs with the other "what does the win32
   bundle ship" work rather than here. The positive-assertion rule the typelib
   backers already follow (`REQUIRED_NAMESPACES`) is the shape the fix wants: a
-  `--windowing` bundle that resolves no GL should FAIL its build, not warn.
+  `--windowing` bundle that resolves no GL should FAIL its build, not warn —
+  and it must fail on "the seed matched nothing", not merely on "a named file is
+  absent", or the next unmatched pattern reproduces this. Tracked as #1097.
 - **Promotion is ONE change**: the `win32-x64` token in `gjsify.platforms`, a
   generated `@gjsify/webgl-win32-x64` package (`generate-platform-packages.mjs
   --write`) whose npm name is bootstrapped via `gjsify onboard` BEFORE the

@@ -145,8 +145,9 @@ both sufficient and the simplest mechanism.
   gvsbuild GTK4 release ZIP ships none, so the bundle carries `epoxy-0.dll` —
   GL *dispatch* — and no GL *implementation*. On a host with a vendor OpenGL ICD
   that is invisible; on a GPU-less one (VM, RDP, CI) every `Gtk.GLArea` fails
-  with `No GL implementation is available`. Measured on the win11-gjsify VM; see
-  the webgl-on-win32 entry in `status/open-todos.md`. gvsbuild ships the tools this step runs (`gdk-pixbuf-query-loaders`,
+  with `No GL implementation is available`. Measured on the win11-gjsify VM;
+  tracked as #1097, with the reasoning in the webgl-on-win32 entry of
+  `status/open-todos.md`. gvsbuild ships the tools this step runs (`gdk-pixbuf-query-loaders`,
   `glib-compile-schemas`, `gtk4-update-icon-cache`, `fc-cache`) in `<prefix>/bin`.
   Each data step is defensive — a missing tree/tool WARNs and continues (the DLL +
   typelib bundle is always produced).
