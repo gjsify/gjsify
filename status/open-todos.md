@@ -1247,7 +1247,26 @@ in that block's header comment — do not duplicate them here.
 under cl.exe 19.51 with zero language diagnostics, `gwebgl.dll` links, the
 typelib records a `.dll` leaf, and `Gwebgl.WebGLRenderingContext` resolves
 through `@gjsify/node-gi` — so the library is really loaded, not merely found.
-What remains is a DECLARATION decision, not an engineering unknown.
+
+**"What remains is a DECLARATION decision, not an engineering unknown" — that
+sentence stood here and was WRONG, and the way it was wrong is the entry.** The
+green artifact was a DEBUG build: `meson setup` ran without `--buildtype`, meson
+defaults to `debug`, and MSVC's reading of `debug` is `b_vscrt=mdd`. Measured on
+the win11-gjsify VM against the published artifact of that very run, `gwebgl.dll`
+imports `VCRUNTIME140D.dll` and `ucrtbased.dll` — images that ship only with
+Visual Studio and that Microsoft's terms forbid redistributing. Every other
+import (`epoxy-0`, `gdk_pixbuf-2.0-0`, `glib-2.0-0`, `gobject-2.0-0`) resolved
+from the batteries-included GTK bundle, so the library was two files short of
+working and said so as `Failed to load shared library 'gwebgl.dll'` — naming the
+dependent, never the missing dependency. The load test could not see it because
+`windows-latest` HAS Visual Studio: the one artifact no user could load is
+exactly the one the runner is equipped to load. Fixed by `--buildtype=release`
+plus an import-table assertion that runs BEFORE the load test, because the
+property is about redistribution and is answered by reading the file, not by
+loading it. The general lesson is not "pass --buildtype": it is that a CI host
+provisioned as a DEVELOPER machine silently satisfies developer-only
+dependencies, so any artifact leaving that host needs at least one check that
+inspects rather than executes.
 
 What is still OPEN, i.e. what a promotion owes beyond that green dispatch:
 
@@ -1261,7 +1280,33 @@ What is still OPEN, i.e. what a promotion owes beyond that green dispatch:
 - **The load test proves `dlopen` + `…_get_type`, never RENDERING.** A
   display-less runner cannot drive a `Gtk.GLArea`, the same gap the darwin note
   in `build-prebuilds-macos-experimental` records. Pixels need a real desktop —
-  the win11-gjsify VM is the machine for it.
+  the win11-gjsify VM is the machine for it. **Now measured there, and the
+  blocker is one layer BELOW webgl: there is no GL implementation at all.**
+  `Gdk.Display.create_gl_context()` fails with `No GL implementation is
+  available`, so `three-geometry-teapot` opens a fully correct Adwaita window
+  and paints that string where the teapot belongs — a `Gtk.GLArea` failure, not
+  a `gi://Gwebgl` one. Two independent causes, and BOTH have to go:
+  (a) the VM's display adapter is QEMU/QXL with no OpenGL ICD registered under
+  `HKLM\...\OpenGLDrivers`, so Windows offers only the GDI generic OpenGL 1.1
+  that GTK4 rejects; (b) **the batteries-included win32 bundle ships no GL
+  implementation either** — its 41 DLLs include `epoxy-0.dll`, which is the GL
+  *dispatch* layer and resolves nothing on its own. The windowing builder
+  already seeds `/^libEGL.*\.dll$/i` + `/^libGLESv2.*\.dll$/i`, and those
+  patterns matched NOTHING: the gvsbuild GTK4 release ZIP carries no ANGLE. So a
+  seed that silently matches nothing is how the bundle came to promise
+  "windowing" while shipping no GL — and both places that named ANGLE as shipped
+  (the licence paragraph below, and `gtk-runtime-win32-x64/README.md`) were
+  describing the seed list rather than the artifact; both are corrected.
+  Consequence for the showcases: on a Windows host WITH a vendor ICD the GL
+  showcases should work once webgl is promoted, but on a GPU-less host (VM, RDP
+  session, CI) all three stay dark. Shipping ANGLE would fix both, since its
+  libGLESv2 targets D3D11 and D3D11 has the WARP software rasteriser — that is a
+  bundle-CONTENTS decision, so it belongs with the other "what does the win32
+  bundle ship" work rather than here. The positive-assertion rule the typelib
+  backers already follow (`REQUIRED_NAMESPACES`) is the shape the fix wants: a
+  `--windowing` bundle that resolves no GL should FAIL its build, not warn —
+  and it must fail on "the seed matched nothing", not merely on "a named file is
+  absent", or the next unmatched pattern reproduces this. Tracked as #1097.
 - **Promotion is ONE change**: the `win32-x64` token in `gjsify.platforms`, a
   generated `@gjsify/webgl-win32-x64` package (`generate-platform-packages.mjs
   --write`) whose npm name is bootstrapped via `gjsify onboard` BEFORE the
@@ -1303,7 +1348,9 @@ have made this PR depend on that one landing first.
 
 `@gjsify/gtk-runtime-{darwin-arm64,darwin-x64,win32-x64}` each carry 37–45
 relocated LGPL/MPL/GPL libraries (GTK, GLib, Pango, cairo, freetype, fontconfig,
-harfbuzz, libadwaita, GtkSourceView, and on win32 also ANGLE, librsvg, libxml2)
+harfbuzz, libadwaita, GtkSourceView, and on win32 also librsvg, libxml2; ANGLE
+is SEEDED by the win32 builder but absent from the gvsbuild ZIP, so no shipped
+bundle contains it — see the webgl-on-win32 entry)
 and all three declare `"license": "MIT"` — the terms of their own three source
 files, not of the payload.
 
