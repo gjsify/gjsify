@@ -2101,7 +2101,8 @@ jobs:
           rem gobject-2.0-0) resolved from the batteries-included GTK bundle, so
           rem the DLL was two files away from working and failed with a bare
           rem "Das angegebene Modul wurde nicht gefunden" naming gwebgl.dll —
-          rem the dependency, never the dependent.
+          rem the DEPENDENT, never the missing dependency, which is why the
+          rem message sends you looking at the one file you know is present.
           rem
           rem WHY THE LOAD TEST BELOW CANNOT CATCH IT: windows-latest HAS Visual
           rem Studio, so the debug CRT resolves there and the probe goes green on
@@ -2182,6 +2183,15 @@ jobs:
           $imports = & $dumpbin.FullName /dependents $dll |
             Select-String -Pattern '^\s{4}(\S+\.dll)$' | ForEach-Object { $_.Matches[0].Groups[1].Value }
           Write-Host "imports: $($imports -join ', ')"
+          # A parse that matched NOTHING must not read as "clean" — that is the
+          # same vacuous-pass shape as the bundle builder's ANGLE seed, which
+          # silently matched no file and let a GL-less bundle call itself
+          # windowing. gwebgl.dll links glib and the CRT at minimum, so an empty
+          # list means dumpbin's format moved, not that the DLL is dependency-free.
+          if ($imports.Count -lt 2) {
+            Write-Host "::error::parsed $($imports.Count) imports from dumpbin — expected several. The output format changed and this check is no longer reading anything; fix the parse rather than trusting the pass."
+            exit 1
+          }
           # Match the debug CRT by NAME, not by a blanket `*d.dll` — `epoxy-0.dll`
           # and `libpng16d.dll`-shaped leaves would both trip a loose pattern.
           $debugCrt = $imports | Where-Object { $_ -match '^(vcruntime\d+d|ucrtbased|msvcp\d+d|concrt\d+d)\.dll$' }
