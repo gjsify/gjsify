@@ -426,6 +426,35 @@ export function maybeWireGtkWindowingEnv() {
         setIfUnset('FONTCONFIG_PATH', join(bundle.dir, 'etc', 'fonts'));
         setIfUnset('FONTCONFIG_FILE', fontsConf);
     }
+
+    // GStreamer, which finds its plugins the way GTK finds its schemas: by env,
+    // read at init. Without this the bundle can ship every Gst typelib and still
+    // play nothing — `Gst.init()` succeeds against an EMPTY registry, so the
+    // failure surfaces far away as "no element decodebin" rather than as a missing
+    // library. That is the same shape as the 0.27.1 bundles, which carried
+    // `Adw-1.typelib` with no libadwaita behind it.
+    //
+    // SYSTEM_PATH, not GST_PLUGIN_PATH: the latter is the USER's additive override
+    // and the bundle has no business consuming it. SYSTEM_PATH also suppresses the
+    // compiled-in default, which is what we want — that default is the build
+    // machine's prefix, and on a user's box it is either absent or, worse, a
+    // foreign GStreamer whose plugins would be mixed with the bundle's.
+    const gstPlugins = join(bundle.dir, 'lib', 'gstreamer-1.0');
+    if (existsSync(gstPlugins)) {
+        setIfUnset('GST_PLUGIN_SYSTEM_PATH', gstPlugins);
+        // The scanner is a separate EXECUTABLE that GStreamer forks to inspect each
+        // plugin out-of-process, so a plugin that crashes on load cannot take the
+        // app with it. Its compiled-in path is the build machine's too, so without
+        // this GStreamer silently degrades to in-process scanning — which works,
+        // until the first bad plugin takes the process down instead of itself.
+        const scanner = join(bundle.dir, 'libexec', 'gstreamer-1.0', gstScannerLeaf());
+        if (existsSync(scanner)) setIfUnset('GST_PLUGIN_SCANNER', scanner);
+    }
+}
+
+/** The plugin scanner's leaf name — the bundles ship the same tree on both OSes. */
+function gstScannerLeaf() {
+    return process.platform === 'win32' ? 'gst-plugin-scanner.exe' : 'gst-plugin-scanner';
 }
 
 let activated = null; // memoize: the activation result (idempotent)

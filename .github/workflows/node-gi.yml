@@ -1236,7 +1236,7 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
     steps:
       - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
-        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -1815,7 +1815,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\gtk-build\gtk\x64\release
-          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+          key: gvsbuild-gtk4-gst-${{ env.GVSBUILD_VERSION }}-x64-v1
 
       # Build-time closure SOURCE only. Verbatim from the `windows` job.
       - name: Download + extract gvsbuild GTK4 (build-time closure source)
@@ -1834,6 +1834,53 @@ jobs:
       # glib-compile-schemas / gtk4-update-icon-cache / fc-cache) from <prefix>/bin,
       # which link glib/gio DLLs — so <prefix>/bin must be on PATH. (The DLL closure
       # walk uses dumpbin, located via vswhere on the VS2022 image.)
+      # GSTREAMER, BUILT FROM SOURCE INTO THE SAME PREFIX.
+      #
+      # There is no prebuilt Windows GStreamer we can lift. The gvsbuild release
+      # publishes exactly two assets — GTK3_Gvsbuild and GTK4_Gvsbuild — and neither
+      # carries any of it: measured on the published @gjsify/gtk-runtime-win32-x64
+      # tarball, all 40 typelibs present and not one of them GStreamer's, which is why
+      # `new AudioContext()` threw `Failed to require Gst 1.0` on a machine whose GTK
+      # worked perfectly. gstreamer.freedesktop.org ships an installer .exe for x64,
+      # but it dropped the separate devel package, so whether it carries typelibs at
+      # all is unverified — and an installer is the wrong thing to extract in CI.
+      #
+      # gvsbuild DOES define gstreamer/orc/gst-plugins-base/-good with
+      # `-Dintrospection=enabled`, so building them is the path where the typelibs are
+      # guaranteed and the ABI matches everything already in this prefix.
+      #
+      # IT WILL REBUILD DEPENDENCIES. The extracted zip carries no gvsbuild build
+      # markers, so gvsbuild considers glib/gobject-introspection unbuilt and makes
+      # them again from source. That is the cost of not having a prebuilt binary, and
+      # it is why the cache key covers the GStreamer projects too and the timeout is
+      # generous — on a cache hit this whole step is skipped.
+      - name: Build GStreamer with gvsbuild (into the GTK prefix)
+        if: steps.cache-gtk.outputs.cache-hit != 'true'
+        shell: pwsh
+        timeout-minutes: 150
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --upgrade pipx
+          python -m pipx ensurepath
+          python -m pipx install "gvsbuild==$env:GVSBUILD_VERSION"
+          # Same prefix the zip was extracted into, so one tree carries GTK + Gst and
+          # the bundle builder's single closure walk sees both.
+          gvsbuild build --configuration release --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
+
+      - name: Assert GStreamer landed in the prefix (typelibs + plugins)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The two the bundle asserts, and the plugin dir the elements come from.
+          # Fail HERE rather than three jobs later with "no element decodebin".
+          foreach ($t in @('Gst-1.0.typelib', 'GstApp-1.0.typelib')) {
+            $p = "$env:GTK_PREFIX\lib\girepository-1.0\$t"
+            if (-not (Test-Path $p)) { Write-Host "MISSING $p"; exit 1 }
+          }
+          $plugins = Get-ChildItem "$env:GTK_PREFIX\lib\gstreamer-1.0" -Filter *.dll -ErrorAction SilentlyContinue
+          if (-not $plugins) { Write-Host "no GStreamer plugins in the prefix"; exit 1 }
+          Write-Host "GStreamer: $($plugins.Count) plugin DLL(s) in the prefix"
+
       - name: Put GTK on PATH (for the bundle-data tools)
         shell: pwsh
         run: '"$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8'
