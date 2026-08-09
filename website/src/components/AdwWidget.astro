@@ -87,19 +87,6 @@ const hasPreview = Astro.slots.has('preview');
 <div class="adw-widget">
     {
         hasPreview && (
-            {/* `not-content` for the same reason CommandTabs.astro states it,
-                and it was missing HERE while the tabs below already carried it.
-                Starlight gives every content element that FOLLOWS a sibling a
-                `margin-top: 1rem` and exempts only `:where(.not-content *)`.
-                Inside a preview that lands on the widgets themselves: measured
-                on the deployed page, the second button of a wrap box and every
-                one after it took `margin-top: 16px` while the first took none —
-                and in a flex line the first then STRETCHED by exactly that much,
-                50px tall against its siblings' 34px. The same rule pushed a
-                header bar's trailing button below its own title and set the two
-                panes of a split view onto different baselines.
-                A preview is a rendering of a widget, not prose: it has to be
-                laid out by the widget's own stylesheet alone. */}
             <div
                 class:list={[
                     'adw-widget-preview',
@@ -108,6 +95,20 @@ const hasPreview = Astro.slots.has('preview');
                     { 'is-scroll': scroll },
                 ]}
             >
+                {/* `not-content` for the same reason CommandTabs.astro states it,
+                    and it was missing HERE while the tabs below already carried
+                    it. Starlight gives every content element that FOLLOWS a
+                    sibling a `margin-top: 1rem`, exempting only
+                    `:where(.not-content *)`. Inside a preview that lands on the
+                    widgets: measured on the deployed page, the second button of
+                    a wrap box and every one after it took `margin-top: 16px`
+                    while the first took none — and in a flex line the first then
+                    STRETCHED by exactly that much, 50px against its siblings'
+                    34px. The same rule pushed a header bar's trailing button
+                    below its own title and set the two panes of a split view
+                    onto baselines 16px apart, which clipped the sidebar's last
+                    row. A preview is a rendering of a widget, not prose: it has
+                    to be laid out by the widget's own stylesheet alone. */}
                 {/* The preview is cloned into the stage at runtime (see <script>),
                     not server-rendered directly, for two reasons:
                     1. adwaita-web custom elements upgrade as the page is parsed;
