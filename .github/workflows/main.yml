@@ -408,6 +408,18 @@ jobs:
           # this same value; they are unaffected by the token spelling (they
           # matched the quoted form too — which is precisely why the gates kept
           # working while the build itself did nothing).
+          #
+          # `--with-dependencies` on the selective build below is what makes the
+          # restored cache safe to sit on. Without it the build rebuilt only the
+          # affected set and trusted every unchanged dependency's `lib/` — and a
+          # cache can be COMPLETE without being CURRENT, so one cancelled build
+          # on `main` left later PRs compiling against pre-merge outputs and
+          # failing with errors naming a package they never touched (#1080). The
+          # warmth probe below cannot catch that and no probe can: a stale
+          # archive is perfectly complete. It goes AFTER the excludes, so the
+          # closure does not walk out through `@gjsify/website` (which
+          # prod-depends every showcase); measured on the #1080 change set, that
+          # ordering is 5 extra packages instead of 56.
           FULL: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args == '' || steps.buildwarm.outputs.warm != 'true' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
           INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
         run: |
@@ -417,7 +429,7 @@ jobs:
               gjsify run build
             else
               echo \"[ci] selective build: \$INCLUDE_ARGS\"
-              gjsify foreach build \$INCLUDE_ARGS -tp --no-private --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"
+              gjsify foreach build \$INCLUDE_ARGS --with-dependencies -tp --no-private --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"
             fi
           '"
 

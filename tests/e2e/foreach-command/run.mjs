@@ -260,6 +260,60 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         assert.ok(!existsSync(join(root, 'marks', '@test-app.txt')), 'app should be excluded');
     });
 
+    // `--with-dependencies` — the third thing a selection can mean (#1080).
+    //
+    // `--include` FILTERS and `--topological` only ORDERS what was already
+    // selected, so "and everything these need" had no spelling at all. CI's
+    // selective build therefore rebuilt only the changed closure and trusted
+    // every dependency's restored `lib/` — and a build cache can be complete
+    // without being current, so one cancelled build on `main` made later PRs
+    // fail with compiler errors naming a package they never touched.
+
+    it('foreach --with-dependencies pulls in what the selection depends on', async () => {
+        rmSync(join(root, 'marks'), { recursive: true, force: true });
+        mkdirSync(join(root, 'marks'), { recursive: true });
+        // app → core → utils. Selecting app alone is exactly the case that
+        // silently trusted a stale core/lib and utils/lib.
+        const r = await runCli(
+            cliEntry,
+            ['foreach', 'mark', '--include', '@test/app', '--with-dependencies', '--topological'],
+            { cwd: root },
+        );
+        assert.equal(r.status, 0, `with-dependencies failed: ${r.stderr}`);
+        assert.ok(existsSync(join(root, 'marks', '@test-app.txt')), 'app mark missing');
+        assert.ok(existsSync(join(root, 'marks', '@test-core.txt')), 'core (direct dep) missing');
+        assert.ok(existsSync(join(root, 'marks', '@test-utils.txt')), 'utils (transitive dep) missing');
+    });
+
+    it('foreach without --with-dependencies still selects only the filter', async () => {
+        // The A/B for the test above: the flag has to be what adds them.
+        rmSync(join(root, 'marks'), { recursive: true, force: true });
+        mkdirSync(join(root, 'marks'), { recursive: true });
+        const r = await runCli(cliEntry, ['foreach', 'mark', '--include', '@test/app'], { cwd: root });
+        assert.equal(r.status, 0, `include-only failed: ${r.stderr}`);
+        assert.ok(existsSync(join(root, 'marks', '@test-app.txt')));
+        assert.ok(!existsSync(join(root, 'marks', '@test-core.txt')), 'core must NOT be selected without the flag');
+    });
+
+    it('foreach --with-dependencies re-applies --exclude', async () => {
+        // Order is the whole design. The expansion runs AFTER the filter, so it
+        // cannot walk out through a package the caller removed — and a dependency
+        // that IS excluded must not be smuggled back in by the expansion. In CI
+        // that ordering is the difference between 5 extra packages and 56:
+        // `@gjsify/website` is excluded there and prod-depends every showcase.
+        rmSync(join(root, 'marks'), { recursive: true, force: true });
+        mkdirSync(join(root, 'marks'), { recursive: true });
+        const r = await runCli(
+            cliEntry,
+            ['foreach', 'mark', '--include', '@test/app', '--with-dependencies', '--exclude', '@test/utils'],
+            { cwd: root },
+        );
+        assert.equal(r.status, 0, `with-dependencies + exclude failed: ${r.stderr}`);
+        assert.ok(existsSync(join(root, 'marks', '@test-app.txt')));
+        assert.ok(existsSync(join(root, 'marks', '@test-core.txt')));
+        assert.ok(!existsSync(join(root, 'marks', '@test-utils.txt')), 'an excluded dependency must stay excluded');
+    });
+
     it('foreach --parallel prefixes stdout with [<workspace-name>]', async () => {
         const r = await runCli(cliEntry, ['foreach', 'echo', '--parallel'], { cwd: root });
         assert.equal(r.status, 0, `parallel failed: ${r.stderr}`);

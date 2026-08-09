@@ -15,6 +15,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { cpus } from 'node:os';
 import type { Command } from '../types/index.js';
 import {
+    affectedClosure,
     buildDependencyGraph,
     discoverWorkspaces,
     filterWorkspaces,
@@ -186,6 +187,7 @@ interface ForeachOptions {
     'topological-dev'?: boolean;
     include?: string[];
     exclude?: string[];
+    'with-dependencies'?: boolean;
     shard?: string;
     private?: boolean;
     verbose?: boolean;
@@ -243,6 +245,13 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 description: 'Glob pattern to exclude workspaces by name (repeatable).',
                 type: 'string',
                 array: true,
+            })
+            .option('with-dependencies', {
+                description:
+                    "Also select everything the filtered set DEPENDS ON (production deps; add --topological-dev for devDependencies). --include only filters and --topological only orders, so neither can say 'and the packages these need'. Excludes are re-applied afterwards.",
+                type: 'boolean',
+                alias: 'd',
+                default: false,
             })
             .option('private', {
                 // Yargs auto-negates `--no-private` to `private=false`, so the
@@ -341,6 +350,36 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
             exclude: args.exclude,
             noPrivate: args.private === false,
         });
+
+        // `--with-dependencies` — the third thing a selection can mean, and the
+        // one that had no spelling. `--include` FILTERS and `--topological` only
+        // ORDERS what was already selected, so "and everything these need" was
+        // inexpressible, and CI's selective build simply assumed every
+        // dependency's restored `lib/` was current. A build cache can be
+        // complete without being current: caches are branch-scoped, so ONE
+        // cancelled build on `main` left later PRs compiling against pre-merge
+        // outputs, failing with compiler errors that named a package the PR
+        // never touched (#1080). No warmth probe can see that — a stale archive
+        // is perfectly complete — so freshness has to come from the selection.
+        //
+        // AFTER the filter, not before: expanding the unfiltered set would walk
+        // out through the very packages the caller excluded (CI excludes
+        // `@gjsify/website`, which prod-depends every showcase — expanding first
+        // pulled in 56 extra packages and undid selective CI). Excludes are then
+        // re-applied, because a dependency may be something the caller took out
+        // on purpose and expansion must not smuggle it back in.
+        if (args['with-dependencies'] === true) {
+            const includeDev = args['topological-dev'] === true;
+            const forward = buildDependencyGraph(allWorkspaces, { includeDev });
+            const closure = affectedClosure(
+                forward,
+                selected.map((ws) => ws.name),
+            );
+            selected = filterWorkspaces(
+                allWorkspaces.filter((ws) => closure.has(ws.name)),
+                { exclude: args.exclude, noPrivate: args.private === false },
+            );
+        }
 
         // In script mode, only run on workspaces that actually have the
         // requested script — yarn does this too, otherwise every project
