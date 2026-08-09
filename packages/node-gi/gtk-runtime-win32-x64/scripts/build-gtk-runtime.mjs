@@ -57,6 +57,7 @@ import {
     scanLicenseFiles,
     writeLicensePayload,
 } from '../../scripts/bundle-licenses.mjs';
+import { isBundledGstPlugin } from '../../scripts/gst-plugins.mjs';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -272,7 +273,9 @@ const gstPluginDir = join(PREFIX, 'lib', 'gstreamer-1.0');
 const gstPluginSeeds = [];
 if (WINDOWING && existsSync(gstPluginDir)) {
     for (const f of readdirSync(gstPluginDir)) {
-        if (f.toLowerCase().endsWith('.dll')) gstPluginSeeds.push(join(gstPluginDir, f));
+        if (f.toLowerCase().endsWith('.dll') && isBundledGstPlugin(f)) {
+            gstPluginSeeds.push(join(gstPluginDir, f));
+        }
     }
 }
 console.log(
@@ -453,6 +456,8 @@ if (WINDOWING) {
         let bytes = 0;
         for (const f of readdirSync(gstPluginDir)) {
             if (!f.toLowerCase().endsWith('.dll')) continue;
+            // The AUDIO PATH only, same rule and same reasons as darwin.
+            if (!isBundledGstPlugin(f)) continue;
             const dest = join(pluginsOut, f);
             copyFileSync(join(gstPluginDir, f), dest);
             bytes += statSync(dest).size;

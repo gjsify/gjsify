@@ -1868,12 +1868,16 @@ jobs:
           # ("Doesn't match target Visual Studio version of 17") and failed with
           # "Unable to find applicable Visual Studio". Hardcoding 18 would break the
           # same way at the next bump; vswhere already knows the answer.
+          # `--vs-ver` takes gvsbuild's own names (vs2022, vs2026), NOT the major
+          # version — 18 was rejected with "Choose from: vs2013 … vs2026".
+          # `catalog_productLineVersion` is exactly that year, so vswhere answers it
+          # directly and no table has to be kept in sync with the runner image.
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsMajor = (& $vswhere -latest -property installationVersion).Split('.')[0]
-          Write-Host "gvsbuild --vs-ver $vsMajor"
+          $vsVer = "vs$(& $vswhere -latest -property catalog_productLineVersion)"
+          Write-Host "gvsbuild --vs-ver $vsVer""
           # Same prefix the zip was extracted into, so one tree carries GTK + Gst and
           # the bundle builder's single closure walk sees both.
-          gvsbuild build --configuration release --vs-ver $vsMajor --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
+          gvsbuild build --configuration release --vs-ver $vsVer --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
 
       - name: Assert GStreamer landed in the prefix (typelibs + plugins)
         shell: pwsh

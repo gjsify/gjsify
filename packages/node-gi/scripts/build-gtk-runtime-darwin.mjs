@@ -89,6 +89,7 @@ import {
     renderThirdPartyNotice,
     writeLicensePayload,
 } from './bundle-licenses.mjs';
+import { isBundledGstPlugin } from './gst-plugins.mjs';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -498,8 +499,15 @@ if (WINDOWING) {
         mkdirSync(pluginsOut, { recursive: true });
         let bytes = 0;
         let dangling = 0;
+        let skipped = 0;
         for (const f of readdirSync(pluginsSrc)) {
             if (!f.endsWith('.dylib') && !f.endsWith('.so')) continue;
+            // The AUDIO PATH only — see gst-plugins.mjs for why "everything the
+            // prefix has" is not an option here and what the rule replaced it with.
+            if (!isBundledGstPlugin(f)) {
+                skipped++;
+                continue;
+            }
             const src = join(pluginsSrc, f);
             // A DANGLING LINK IS A PLUGIN THAT IS NOT INSTALLED. brew links every
             // plugin any formula ever provided into this one dir, and leaves the link
@@ -557,7 +565,8 @@ if (WINDOWING) {
         console.log(
             `build-gtk-runtime: GStreamer — ${gstPluginImages.length} plugin(s) relocated ` +
                 `(@loader_path/..), ${(bytes / 1024 / 1024).toFixed(1)} MiB of plugins` +
-                `${dangling ? `, ${dangling} dangling brew link(s) skipped` : ''}`,
+                `, ${skipped} non-audio plugin(s) skipped` +
+                `${dangling ? `, ${dangling} dangling brew link(s)` : ''}`,
         );
     } else {
         console.warn(
