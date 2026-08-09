@@ -60,7 +60,16 @@ const pkgRoot = join(here, '..');
 const repoRoot = join(pkgRoot, '..', '..', '..');
 const fixture = join(pkgRoot, 'fixtures', 'excalibur-webgl-app.ts');
 
-const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
+// A REALIZABLE GL CONTEXT, not merely a display — a different question from the
+// one `display-gate.mjs` answers, and the reason this stays Linux-only while the
+// plain GTK tests no longer are. The Linux CI provides GL through Xvfb +
+// llvmpipe; the Windows and macOS runners have no GPU and force
+// `GSK_RENDERER=cairo` for exactly that reason, so there is nothing here to
+// realize against. Keyed on the platform EXPLICITLY: the old gate reached the
+// same outcome by testing `DISPLAY`/`WAYLAND_DISPLAY`, which GdkWin32 and
+// GdkQuartz never set — it claimed a Mac had no display, which is false, and
+// would have silently stayed "skipped" even once GL was available there.
+const haveGl = process.platform === 'linux' && (!!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY);
 
 // The committed gwebgl Vala prebuild (typelib + .so) @gjsify/webgl ships —
 // in its per-target package since ADR 0017, a SIBLING of the bridge.
@@ -99,7 +108,7 @@ function findGjsify() {
     }
 }
 
-const gjsify = haveDisplay ? findGjsify() : null;
+const gjsify = haveGl ? findGjsify() : null;
 
 // The fixture bundles excalibur + the full @gjsify/webgl TS stack — both must
 // resolve from the monorepo (a bare node-gi tree skips cleanly).
@@ -112,8 +121,8 @@ function resolvable(spec) {
     }
 }
 
-const skip = !haveDisplay
-    ? 'no display (DISPLAY / WAYLAND_DISPLAY unset)'
+const skip = !haveGl
+    ? 'no GL-capable display (needs Linux + DISPLAY / WAYLAND_DISPLAY)'
     : !haveGwebgl
       ? `Gwebgl prebuild missing (${gwebglDir})`
       : !gjsify

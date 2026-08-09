@@ -31,6 +31,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { requireGi } from '../gi.js';
+import { haveDisplay } from './display-gate.mjs';
 
 const Gio = requireGi('Gio', '2.0');
 
@@ -49,7 +50,6 @@ try {
 } catch {
     // Adwaita is optional — the ComboRow repro self-skips without it.
 }
-const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 const gtkSkip = gtkLoadError ? `Gtk-4.0 typelib unavailable: ${gtkLoadError.message}` : false;
 const widgetSkip =
     gtkSkip ||

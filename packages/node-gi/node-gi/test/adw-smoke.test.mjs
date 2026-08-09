@@ -35,8 +35,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { requireGi } from '../gi.js';
-
-const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
+import { haveDisplay } from './display-gate.mjs';
 
 // Resolve the Adw + GTK stack up front: a missing Adw-1 / Gtk-4.0 typelib (a
 // headless dev box without libadwaita-devel) must SKIP, not throw.

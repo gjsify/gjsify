@@ -23,11 +23,12 @@
 // A skip is invisible by design, which is exactly why the CONDITION for one may
 // not be guessed per file.
 //
-// NOT YET ADOPTED EVERYWHERE. The 14 files on the Linux-only spelling keep it for
-// now: switching a test's gate makes it START RUNNING on two more platforms, and
-// whether each is actually expected to pass there is a per-test question with a
-// real answer — not a sweep. Convert them as they are looked at, and put the
-// answer in the CI job that runs them.
+// EVERY GTK TEST ASKS THIS ONE NOW, with exactly two deliberate exceptions:
+// `webgl-glarea` and `excalibur-webgl` need a realizable GL CONTEXT, not merely a
+// display. That is a different question, so they ask it themselves and say so.
+// The point was never "one gate everywhere" — it is that a gate must state the
+// thing it actually requires. Both of those reached the right OUTCOME through the
+// wrong CLAIM, and a wrong claim keeps being right only by accident.
 
 /**
  * True where the platform backend supplies a display with no environment
