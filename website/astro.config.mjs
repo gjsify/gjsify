@@ -1,6 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+
+// Read rather than `import … with { type: 'json' }`: the assertion syntax is
+// still version-sensitive across the Node versions this config runs under, and
+// a config that fails to parse takes the whole site with it.
+const blueprintGrammar = JSON.parse(
+    readFileSync(new URL('./src/grammars/blueprint.tmLanguage.json', import.meta.url), 'utf8'),
+);
 
 export default defineConfig({
     site: 'https://gjsify.github.io',
@@ -54,6 +62,15 @@ export default defineConfig({
         starlight({
             title: 'GJSify',
             description: 'The TypeScript framework for native Linux apps — on GJS, Node.js, Deno and Bun',
+            // Blueprint is what GTK UIs are actually WRITTEN in, so the widget
+            // gallery carries a `.blp` tab beside GJS/Web/NativeScript. Shiki
+            // bundles no grammar for it and falls back to plain text with a
+            // build warning — an unhighlighted tab between three highlighted
+            // ones reads as broken rather than deliberate. The grammar is
+            // deliberately minimal; its own header says what it does not cover.
+            expressiveCode: {
+                shiki: { langs: [blueprintGrammar] },
+            },
             head: [
                 {
                     // The @gjsify/adwaita-web skin keys its dark palette on

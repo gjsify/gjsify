@@ -48,6 +48,19 @@ glyph up to a full profile header.
     });
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Avatar {
+      text: "Ada Lovelace";
+      size: 96;
+      show-initials: true;
+      icon-name: "avatar-default-symbolic";
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <!-- import '@gjsify/adwaita-web' once to register the elements -->
@@ -94,6 +107,18 @@ hides itself so it only takes space when relevant.
     container.append(banner);
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Banner {
+      title: _("Metered connection — updates paused");
+      button-label: _("Resume");
+      revealed: true;
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <adw-banner title="Metered connection — updates paused" button-label="Resume" revealed></adw-banner>
@@ -133,6 +158,17 @@ and scales to any **size** from an inline glyph to a page-filling placeholder.
         halign: Gtk.Align.CENTER,
         valign: Gtk.Align.CENTER,
     });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Spinner {
+      width-request: 48;
+      height-request: 48;
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -184,6 +220,25 @@ first document.
     });
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.StatusPage {
+      icon-name: "folder-symbolic";
+      title: _("No Documents");
+      description: _("Documents you create or open will appear here.");
+
+      child: Gtk.Button {
+        label: _("New Document");
+        halign: center;
+
+        styles ["pill", "suggested-action"]
+      };
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <adw-status-page icon="folder" title="No Documents" description="Documents you create or open will appear here.">
@@ -226,6 +281,17 @@ single-line title stays vertically centered.
         title: 'Inbox',
         subtitle: '3 unread messages',
     });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.WindowTitle {
+      title: _("Inbox");
+      subtitle: _("3 unread messages");
+    }
     ```
   </Fragment>
   <Fragment slot="web">

@@ -70,6 +70,14 @@ const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
 // additional. Render only the slots that were actually provided.
 const IMPLS = [
     { slot: 'gjs', label: 'GJS' },
+    // Blueprint sits next to GJS because it describes the SAME native widget
+    // tree — it is how a GTK UI is usually written, with the GJS side reduced to
+    // wiring. Web and NativeScript are the ports and follow.
+    //
+    // The tab holds the DECLARATION only, deliberately: a `.blp` file is a
+    // widget tree and nothing else, and padding it with a loader would make it
+    // look like a fourth complete program rather than the thing it is.
+    { slot: 'blueprint', label: 'Blueprint' },
     { slot: 'web', label: 'Web' },
     { slot: 'nativescript', label: 'NativeScript' },
 ];

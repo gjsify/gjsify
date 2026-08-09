@@ -66,6 +66,23 @@ without wasting space on small ones.
     });
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Clamp {
+      maximum-size: 400;
+
+      child: Gtk.Label {
+        label: _("This content is clamped — it stops growing past the maximum size and stays centred.");
+        wrap: true;
+
+        styles ["card"]
+      };
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <!-- import '@gjsify/adwaita-web' once to register the elements -->
@@ -127,6 +144,33 @@ navigation, menu and action buttons.
     const menuButton = new Gtk.MenuButton({ iconName: 'open-menu-symbolic', menuModel: menu });
     menuButton.add_css_class('flat');
     headerBar.pack_end(menuButton);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.HeaderBar {
+      title-widget: Adw.WindowTitle {
+        title: _("Text Editor");
+        subtitle: "notes.md";
+      };
+
+      [start]
+      Gtk.Button {
+        icon-name: "go-previous-symbolic";
+
+        styles ["flat"]
+      }
+
+      [end]
+      Gtk.MenuButton {
+        icon-name: "open-menu-symbolic";
+
+        styles ["flat"]
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -222,6 +266,59 @@ place.
     bottomBar.pack_end(shareButton);
 
     view.add_bottom_bar(bottomBar);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {
+        title-widget: Adw.WindowTitle {
+          title: _("Documents");
+          subtitle: _("12 items");
+        };
+      }
+
+      content: Adw.StatusPage {
+        icon-name: "folder-symbolic";
+        title: _("Your library");
+        description: _("Content sits between the toolbars and scrolls independently of them.");
+      };
+
+      [bottom]
+      Gtk.ActionBar {
+        [start]
+        Gtk.Button {
+          icon-name: "list-add-symbolic";
+          tooltip-text: _("Add");
+
+          styles ["flat"]
+        }
+
+        [start]
+        Gtk.Button {
+          icon-name: "list-remove-symbolic";
+          tooltip-text: _("Remove");
+
+          styles ["flat"]
+        }
+
+        center-widget: Gtk.Label {
+          label: _("Selection: none");
+        };
+
+        [end]
+        Gtk.Button {
+          icon-name: "send-to-symbolic";
+          tooltip-text: _("Share");
+
+          styles ["flat"]
+        }
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -326,6 +423,65 @@ sets the gap between the lines.
         const chip = new Gtk.Button({ label: tag });
         chip.add_css_class('pill');
         wrap.append(chip);
+    }
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.WrapBox {
+      child-spacing: 8;
+      line-spacing: 8;
+
+      Gtk.Button {
+        label: _("Design");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        label: _("Adwaita");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        label: _("GNOME");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        label: _("GTK");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        label: _("Typescript");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        label: _("Storybook");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        label: _("Wrapping");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        label: _("Layout");
+
+        styles ["pill"]
+      }
     }
     ```
   </Fragment>

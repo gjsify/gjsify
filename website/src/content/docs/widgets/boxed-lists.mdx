@@ -58,6 +58,43 @@ build a full preferences page.
     group.add(new Adw.SwitchRow({ title: 'Sync over Wi-Fi only', active: true }));
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      title: _("Account");
+      description: _("Manage how this device signs in and syncs.");
+
+      header-suffix: Gtk.Button {
+        label: _("Sign out");
+
+        styles ["flat"]
+      };
+
+      Adw.EntryRow {
+        title: _("Display name");
+        text: "Grace Hopper";
+      }
+
+      Adw.SwitchRow {
+        title: _("Sync over Wi-Fi only");
+        subtitle: _("Avoid using mobile data for backups");
+        active: true;
+      }
+
+      Adw.ComboRow {
+        title: _("Region");
+        selected: 0;
+
+        model: Gtk.StringList {
+          strings [_("Europe"), _("Americas"), _("Asia"), _("Oceania")]
+        };
+      }
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <!-- import '@gjsify/adwaita-web' once to register the elements -->
@@ -128,6 +165,30 @@ respond to a click — typically to open a detail page.
     row.activatable = true;
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.ActionRow {
+        title: _("Wi-Fi");
+        subtitle: _("Connected to Highgarden 5GHz");
+        activatable: true;
+
+        [prefix]
+        Gtk.Image {
+          icon-name: "network-wireless-symbolic";
+        }
+
+        [suffix]
+        Gtk.Image {
+          icon-name: "go-next-symbolic";
+        }
+      }
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <adw-action-row title="Wi-Fi" subtitle="Connected to Highgarden 5GHz" activatable>
@@ -177,6 +238,20 @@ the boxed-list equivalent of a labelled on/off control.
     });
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.SwitchRow {
+        title: _("Automatic updates");
+        subtitle: _("Download and install updates without asking");
+        active: true;
+      }
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <adw-switch-row
@@ -221,6 +296,19 @@ show an **apply button** that commits the change.
     });
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.EntryRow {
+        title: _("Display name");
+        text: "Ada Lovelace";
+      }
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <adw-entry-row title="Display name" text="Ada Lovelace"></adw-entry-row>
@@ -256,6 +344,19 @@ them. Use it wherever a secret is edited inline in a boxed list.
         title: 'Password',
         text: 'correct-horse-battery',
     });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.PasswordEntryRow {
+        title: _("Password");
+        text: "correct-horse-battery";
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -303,6 +404,24 @@ selection is stored as an index into the model.
     });
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.ComboRow {
+        title: _("Accent colour");
+        subtitle: _("Used to highlight selected items");
+        selected: 1;
+
+        model: Gtk.StringList {
+          strings [_("Blue"), _("Teal"), _("Green"), _("Orange"), _("Purple")]
+        };
+      }
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <adw-combo-row
@@ -347,6 +466,25 @@ and optional decimal digits, for settings like a font size or a count.
         adjustment: new Gtk.Adjustment({ lower: 0, upper: 100, value: 16, stepIncrement: 1 }),
         digits: 0,
     });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.SpinRow {
+        title: _("Font size");
+
+        adjustment: Gtk.Adjustment {
+          lower: 0;
+          upper: 100;
+          value: 16;
+          step-increment: 1;
+        };
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -397,6 +535,29 @@ the whole section.
     row.add_row(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.ExpanderRow {
+        title: _("Proxy settings");
+        subtitle: _("Route traffic through a custom proxy");
+        expanded: true;
+
+        Adw.EntryRow {
+          title: _("Host");
+          text: "proxy.example.com";
+        }
+
+        Adw.SwitchRow {
+          title: _("Use authentication");
+        }
+      }
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <adw-expander-row title="Proxy settings" subtitle="Route traffic through a custom proxy" expanded>
@@ -443,6 +604,21 @@ style class (`.suggested-action`, `.destructive-action`).
         startIconName: 'list-add-symbolic',
     });
     row.add_css_class('suggested-action');
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.ButtonRow {
+        title: _("Add account");
+        start-icon-name: "list-add-symbolic";
+
+        styles ["suggested-action"]
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">

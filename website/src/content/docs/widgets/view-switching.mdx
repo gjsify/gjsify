@@ -83,6 +83,60 @@ breakpoint.
     box.append(stack);
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {
+        title-widget: Adw.ViewSwitcher {
+          policy: wide;
+          stack: stack;
+        };
+      }
+
+      content: Adw.ViewStack stack {
+        Adw.ViewStackPage {
+          name: "inbox";
+          title: _("Inbox");
+          icon-name: "mail-unread-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "mail-unread-symbolic";
+            title: _("Inbox");
+            description: _("You have three unread conversations.");
+          };
+        }
+
+        Adw.ViewStackPage {
+          name: "starred";
+          title: _("Starred");
+          icon-name: "starred-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "starred-symbolic";
+            title: _("Starred");
+            description: _("Messages you have marked as important.");
+          };
+        }
+
+        Adw.ViewStackPage {
+          name: "archive";
+          title: _("Archive");
+          icon-name: "folder-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "folder-symbolic";
+            title: _("Archive");
+            description: _("Older conversations kept for reference.");
+          };
+        }
+      };
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <!-- import '@gjsify/adwaita-web' once to register the elements -->
@@ -169,6 +223,24 @@ when only a single page remains, so a one-tab document looks chrome-free.
     const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
     box.append(tabBar);
     box.append(tabView);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Box {
+      orientation: vertical;
+
+      Adw.TabBar {
+        view: tabs;
+      }
+
+      Adw.TabView tabs {
+        vexpand: true;
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -262,6 +334,60 @@ wide.
     const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
     box.append(switcher);
     box.append(stack);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Adw.InlineViewSwitcher {
+        display-mode: both;
+        stack: stack;
+        halign: center;
+      }
+
+      Adw.ViewStack stack {
+        vexpand: true;
+
+        Adw.ViewStackPage {
+          title: _("Overview");
+          icon-name: "view-grid-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "view-grid-symbolic";
+            title: _("Overview");
+            description: _("A quick summary of your project.");
+          };
+        }
+
+        Adw.ViewStackPage {
+          title: _("Activity");
+          icon-name: "document-edit-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "document-edit-symbolic";
+            title: _("Activity");
+            description: _("Recent edits and changes.");
+          };
+        }
+
+        Adw.ViewStackPage {
+          title: _("Settings");
+          icon-name: "emblem-system-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "emblem-system-symbolic";
+            title: _("Settings");
+            description: _("Configure how things behave.");
+          };
+        }
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -358,6 +484,43 @@ flick skip several pages.
     const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
     box.append(carousel);
     box.append(dots);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+      halign: center;
+      valign: center;
+
+      Adw.Carousel carousel {
+        Gtk.Label {
+          label: _("Welcome");
+
+          styles ["title-1", "card"]
+        }
+
+        Gtk.Label {
+          label: _("Discover");
+
+          styles ["title-1", "card"]
+        }
+
+        Gtk.Label {
+          label: _("Get started");
+
+          styles ["title-1", "card"]
+        }
+      }
+
+      Adw.CarouselIndicatorDots {
+        carousel: carousel;
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
