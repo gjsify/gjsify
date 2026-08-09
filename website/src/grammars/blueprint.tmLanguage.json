@@ -1,0 +1,99 @@
+{
+  "_comment": [
+    "A MINIMAL TextMate grammar for Blueprint (.blp), the GTK UI-definition language.",
+    "",
+    "Shiki bundles no Blueprint grammar, and a fenced ```blueprint block without one",
+    "falls back to plain text — which next to three highlighted sibling tabs reads as",
+    "a broken tab rather than a deliberate one.",
+    "",
+    "DELIBERATELY SMALL. It covers exactly the constructs the widget gallery writes:",
+    "imports, a template header, namespaced type names, property assignments, style",
+    "classes, strings (including the translatable forms), numbers and comments. It is",
+    "not a validator and not a complete grammar — blueprint-compiler is the authority",
+    "on the language, and nothing here should be read as a second definition of it.",
+    "Anything unhandled simply renders unstyled, which is the correct failure for a",
+    "highlighter.",
+    "",
+    "Reference: https://gnome.pages.gitlab.gnome.org/blueprint-compiler/"
+  ],
+  "name": "blueprint",
+  "aliases": ["blp"],
+  "displayName": "Blueprint",
+  "scopeName": "source.blueprint",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#import" },
+    { "include": "#string" },
+    { "include": "#keyword" },
+    { "include": "#template-target" },
+    { "include": "#type" },
+    { "include": "#property" },
+    { "include": "#constant" }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        { "name": "comment.line.double-slash.blueprint", "match": "//.*$" },
+        { "name": "comment.block.blueprint", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "import": {
+      "comment": "`using Gtk 4.0;` — the version is a number, not a property value.",
+      "match": "\\b(using)\\s+([A-Z][A-Za-z0-9]*)\\s+([0-9]+(?:\\.[0-9]+)?)",
+      "captures": {
+        "1": { "name": "keyword.control.import.blueprint" },
+        "2": { "name": "entity.name.namespace.blueprint" },
+        "3": { "name": "constant.numeric.blueprint" }
+      }
+    },
+    "string": {
+      "patterns": [
+        {
+          "comment": "Translatable strings: _(\"…\") and C_(\"context\", \"…\").",
+          "match": "\\b(_|C_)(?=\\()",
+          "name": "entity.name.function.blueprint"
+        },
+        {
+          "name": "string.quoted.double.blueprint",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [{ "name": "constant.character.escape.blueprint", "match": "\\\\." }]
+        },
+        {
+          "name": "string.quoted.single.blueprint",
+          "begin": "'",
+          "end": "'",
+          "patterns": [{ "name": "constant.character.escape.blueprint", "match": "\\\\." }]
+        }
+      ]
+    },
+    "keyword": {
+      "name": "keyword.control.blueprint",
+      "match": "\\b(using|template|styles|menu|section|submenu|item|bind|bind-property|after|swapped|inverted|sync-create|no-sync-create|bidirectional)\\b"
+    },
+    "template-target": {
+      "comment": "`template $MainWindow: Adw.ApplicationWindow` — the app's own class.",
+      "name": "entity.name.class.blueprint",
+      "match": "\\$[A-Za-z_][A-Za-z0-9_]*"
+    },
+    "type": {
+      "comment": "`Adw.HeaderBar`, `Gtk.Box` — a namespaced widget type opening a block.",
+      "match": "\\b([A-Z][A-Za-z0-9]*)\\.([A-Z][A-Za-z0-9]*)\\b",
+      "captures": {
+        "1": { "name": "entity.name.namespace.blueprint" },
+        "2": { "name": "entity.name.type.blueprint" }
+      }
+    },
+    "property": {
+      "comment": "`title: \"…\";` — an identifier immediately before a colon.",
+      "name": "variable.other.property.blueprint",
+      "match": "\\b([a-z][A-Za-z0-9_-]*)\\s*(?=:)"
+    },
+    "constant": {
+      "patterns": [
+        { "name": "constant.language.blueprint", "match": "\\b(true|false|null)\\b" },
+        { "name": "constant.numeric.blueprint", "match": "\\b[0-9]+(?:\\.[0-9]+)?\\b" }
+      ]
+    }
+  }
+}

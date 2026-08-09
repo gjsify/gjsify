@@ -73,6 +73,21 @@ layer, which the Web and NativeScript renderers compose.
     overlay.add_toast(toast);
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    // A toast is CONSTRUCTED, not declared — `Adw.ToastOverlay` is the part a
+    // blueprint carries, and `overlay.add_toast(...)` presents one at runtime.
+    Adw.ToastOverlay overlay {
+      child: Adw.StatusPage {
+        title: _("Documents");
+        description: _("Drag files here to organise them.");
+      };
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <!-- import '@gjsify/adwaita-web' once to register the elements -->
@@ -145,6 +160,25 @@ keys.
     dialog.set_close_response('cancel');
 
     dialog.present(parent);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.AlertDialog {
+      heading: _("Delete Project?");
+      body: _("This will permanently remove the project and all of its files. This action cannot be undone.");
+
+      responses [
+        cancel: _("Cancel"),
+        delete: _("Delete") destructive,
+      ]
+
+      default-response: "cancel";
+      close-response: "cancel";
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -223,6 +257,23 @@ metadata. It is the conventional destination of a primary-menu _About_ entry.
     });
 
     dialog.present(parent);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.AboutDialog {
+      application-name: _("Adwaita Storybook");
+      developer-name: _("A GJSify Project");
+      version: "0.11.0";
+      comments: _("A live catalogue of native GTK and Adwaita widgets, rendered under GJS.");
+      website: "https://github.com/gjsify/gjsify";
+      issue-url: "https://github.com/gjsify/gjsify/issues";
+      license-type: mit_x11;
+      copyright: "© 2026 The GJSify Project";
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -313,6 +364,52 @@ common single-page case is shown here.
     page.add(group);
     dialog.add(page);
     dialog.present(parent);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesDialog {
+      title: _("Preferences");
+
+      Adw.PreferencesPage {
+        title: _("General");
+        icon-name: "preferences-system-symbolic";
+
+        Adw.PreferencesGroup {
+          title: _("Appearance");
+          description: _("Control how the application looks and behaves.");
+
+          Adw.SwitchRow {
+            title: _("Dark style");
+            subtitle: _("Use a dark colour scheme");
+            active: true;
+          }
+
+          Adw.ComboRow {
+            title: _("Accent colour");
+            selected: 0;
+
+            model: Gtk.StringList {
+              strings [_("Blue"), _("Teal"), _("Green"), _("Orange"), _("Purple")]
+            };
+          }
+
+          Adw.SpinRow {
+            title: _("Font size");
+
+            adjustment: Gtk.Adjustment {
+              lower: 8;
+              upper: 24;
+              value: 12;
+              step-increment: 1;
+            };
+          }
+        }
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">

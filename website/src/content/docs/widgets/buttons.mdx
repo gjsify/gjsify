@@ -55,6 +55,21 @@ to give a button an icon _and_ text, and can optionally ellipsize its label
     button.add_css_class('pill');
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Button {
+      child: Adw.ButtonContent {
+        label: _("Download");
+        icon-name: "folder-download-symbolic";
+      };
+
+      styles ["suggested-action", "pill"]
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <!-- import '@gjsify/adwaita-web' once to register the elements -->
@@ -126,6 +141,48 @@ with any button and carry the same meaning across the toolkit.
     const flat = new Gtk.Button({ label: 'Flat' });
     flat.add_css_class('flat');
     box.append(flat);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.WrapBox {
+      child-spacing: 12;
+      line-spacing: 12;
+      halign: center;
+
+      Gtk.Button {
+        label: _("Pill");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        icon-name: "list-add-symbolic";
+
+        styles ["circular"]
+      }
+
+      Gtk.Button {
+        label: _("Suggested");
+
+        styles ["suggested-action"]
+      }
+
+      Gtk.Button {
+        label: _("Delete");
+
+        styles ["destructive-action"]
+      }
+
+      Gtk.Button {
+        label: _("Flat");
+
+        styles ["flat"]
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -201,6 +258,38 @@ too heavy.
     // button.add_css_class('flat'); // the header-bar / toolbar variant
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.SplitButton {
+      label: _("Save");
+      icon-name: "document-save-symbolic";
+
+      menu-model: menu save-menu;
+    }
+
+    menu save-menu {
+      section {
+        item {
+          label: _("Save as…");
+          action: "app.save-as";
+        }
+
+        item {
+          label: _("Export");
+          action: "app.export";
+        }
+
+        item {
+          label: _("Print");
+          action: "app.print";
+        }
+      }
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <adw-split-button
@@ -248,6 +337,31 @@ pill-shaped appearance.
     group.add(new Adw.Toggle({ label: 'Grid', iconName: 'view-grid-symbolic' }));
     group.add(new Adw.Toggle({ label: 'Columns', iconName: 'view-columns-symbolic' }));
     group.active = 0;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.ToggleGroup {
+      active: 0;
+
+      Adw.Toggle {
+        label: _("List");
+        icon-name: "view-list-symbolic";
+      }
+
+      Adw.Toggle {
+        label: _("Grid");
+        icon-name: "view-grid-symbolic";
+      }
+
+      Adw.Toggle {
+        label: _("Columns");
+        icon-name: "view-columns-symbolic";
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">

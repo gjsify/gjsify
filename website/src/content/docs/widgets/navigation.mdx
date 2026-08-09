@@ -101,6 +101,84 @@ page with its own header bar.
     const view = new Adw.NavigationSplitView({ sidebar, content, showContent: true });
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.NavigationSplitView {
+      sidebar: Adw.NavigationPage {
+        title: _("Mailboxes");
+
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {}
+
+          content: Adw.PreferencesGroup {
+            Adw.ActionRow {
+              title: _("All Mail");
+              subtitle: _("128 messages");
+              activatable: true;
+
+              [prefix]
+              Gtk.Image {
+                icon-name: "mail-unread-symbolic";
+              }
+            }
+
+            Adw.ActionRow {
+              title: _("Starred");
+              subtitle: _("6 messages");
+              activatable: true;
+
+              [prefix]
+              Gtk.Image {
+                icon-name: "starred-symbolic";
+              }
+            }
+
+            Adw.ActionRow {
+              title: _("Drafts");
+              subtitle: _("2 messages");
+              activatable: true;
+
+              [prefix]
+              Gtk.Image {
+                icon-name: "document-edit-symbolic";
+              }
+            }
+
+            Adw.ActionRow {
+              title: _("Archive");
+              subtitle: _("512 messages");
+              activatable: true;
+
+              [prefix]
+              Gtk.Image {
+                icon-name: "folder-symbolic";
+              }
+            }
+          };
+        };
+      };
+
+      content: Adw.NavigationPage {
+        title: _("All Mail");
+
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {}
+
+          content: Adw.StatusPage {
+            icon-name: "mail-unread-symbolic";
+            title: _("All Mail");
+            description: _("Select a conversation from the list to read it here.");
+          };
+        };
+      };
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <!-- import '@gjsify/adwaita-web' once to register the elements -->
@@ -252,6 +330,76 @@ push the primary content aside on a narrow window.
     const view = new Adw.OverlaySplitView({ sidebar, content, showSidebar: true, collapsed: false });
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.OverlaySplitView {
+      show-sidebar: true;
+
+      sidebar: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {}
+
+        content: Adw.PreferencesGroup {
+          Adw.ActionRow {
+            title: _("Home");
+            activatable: true;
+
+            [prefix]
+            Gtk.Image {
+              icon-name: "go-home-symbolic";
+            }
+          }
+
+          Adw.ActionRow {
+            title: _("Discover");
+            activatable: true;
+
+            [prefix]
+            Gtk.Image {
+              icon-name: "system-search-symbolic";
+            }
+          }
+
+          Adw.ActionRow {
+            title: _("Library");
+            activatable: true;
+
+            [prefix]
+            Gtk.Image {
+              icon-name: "folder-music-symbolic";
+            }
+          }
+
+          Adw.ActionRow {
+            title: _("Settings");
+            activatable: true;
+
+            [prefix]
+            Gtk.Image {
+              icon-name: "emblem-system-symbolic";
+            }
+          }
+        };
+
+        styles ["sidebar"]
+      };
+
+      content: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {}
+
+        content: Adw.StatusPage {
+          icon-name: "folder-music-symbolic";
+          title: _("Your Library");
+          description: _("Toggle the sidebar to browse sections. Collapse it to overlay the content.");
+        };
+      };
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
@@ -389,6 +537,50 @@ is interactive, so click it to see the transition and back button.
     view.add(detail);
     ```
   </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.NavigationView {
+      Adw.NavigationPage {
+        tag: "root";
+        title: _("Contacts");
+
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {}
+
+          content: Gtk.Button {
+            label: _("Open contact");
+            halign: center;
+            valign: center;
+            action-name: "navigation.push";
+            action-target: "'detail'";
+
+            styles ["pill", "suggested-action"]
+          };
+        };
+      }
+
+      Adw.NavigationPage {
+        tag: "detail";
+        title: _("Ada Lovelace");
+
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {}
+
+          content: Adw.StatusPage {
+            icon-name: "avatar-default-symbolic";
+            title: _("Ada Lovelace");
+            description: _("Mathematician and writer, the first computer programmer.");
+          };
+        };
+      }
+    }
+    ```
+  </Fragment>
   <Fragment slot="web">
     ```html
     <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
@@ -505,6 +697,45 @@ wide and narrow layouts.
     box.append(sidebar);
     box.append(new Gtk.Separator({ orientation: Gtk.Orientation.VERTICAL }));
     box.append(status);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Sidebar {
+      mode: sidebar;
+      selected: 0;
+
+      Adw.SidebarSection {
+        title: _("Mailboxes");
+
+        Adw.SidebarItem {
+          title: _("Inbox");
+          subtitle: _("3 unread");
+          icon-name: "mail-unread-symbolic";
+        }
+
+        Adw.SidebarItem {
+          title: _("Starred");
+          subtitle: _("Favourites");
+          icon-name: "starred-symbolic";
+        }
+
+        Adw.SidebarItem {
+          title: _("Sent");
+          subtitle: _("Outgoing mail");
+          icon-name: "mail-send-symbolic";
+        }
+
+        Adw.SidebarItem {
+          title: _("Archive");
+          subtitle: _("Older mail");
+          icon-name: "folder-symbolic";
+        }
+      }
+    }
     ```
   </Fragment>
   <Fragment slot="web">
@@ -644,6 +875,74 @@ interactive in a real window.
     }
     box.append(group);
     sheet.sheet = box;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.BottomSheet {
+      open: true;
+      modal: true;
+      can-close: true;
+
+      content: Gtk.Button {
+        label: _("Toggle sheet");
+        halign: center;
+        valign: center;
+
+        styles ["pill", "suggested-action"]
+      };
+
+      sheet: Gtk.Box {
+        orientation: vertical;
+        spacing: 12;
+        margin-start: 18;
+        margin-end: 18;
+        margin-top: 18;
+        margin-bottom: 24;
+
+        Gtk.Label {
+          label: _("Share track");
+          xalign: 0;
+
+          styles ["title-2"]
+        }
+
+        Adw.PreferencesGroup {
+          Adw.ActionRow {
+            title: _("Copy link");
+            activatable: true;
+
+            [prefix]
+            Gtk.Image {
+              icon-name: "edit-copy-symbolic";
+            }
+          }
+
+          Adw.ActionRow {
+            title: _("Send to a friend");
+            activatable: true;
+
+            [prefix]
+            Gtk.Image {
+              icon-name: "mail-send-symbolic";
+            }
+          }
+
+          Adw.ActionRow {
+            title: _("Add to playlist");
+            activatable: true;
+
+            [prefix]
+            Gtk.Image {
+              icon-name: "list-add-symbolic";
+            }
+          }
+        }
+      };
+    }
     ```
   </Fragment>
   <Fragment slot="web">
