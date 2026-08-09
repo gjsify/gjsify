@@ -584,6 +584,17 @@ if (WINDOWING) {
             );
         }
 
+        // ZERO IS NEVER RIGHT — see the win32 builder's note: a plugin-naming
+        // mismatch shipped an element-free bundle there while every gate stayed
+        // green, because nothing counts plugins.
+        if (gstPluginImages.length === 0) {
+            console.error(
+                `build-gtk-runtime: ${pluginsSrc} holds plugins but NONE matched the audio-path ` +
+                    'filter — a --windowing bundle with no GStreamer elements reports itself healthy ' +
+                    'and then fails with "no element decodebin".',
+            );
+            process.exit(1);
+        }
         console.log(
             `build-gtk-runtime: GStreamer — ${gstPluginImages.length} plugin(s) relocated ` +
                 `(@loader_path/..), ${(bytes / 1024 / 1024).toFixed(1)} MiB of plugins` +

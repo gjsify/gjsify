@@ -68,10 +68,21 @@ export const GST_AUDIO_PLUGINS = [
     'directsound',
 ];
 
-/** `true` when this plugin file belongs in the bundle. */
+/**
+ * `true` when this plugin file belongs in the bundle.
+ *
+ * The `lib` prefix is OPTIONAL, and getting that wrong shipped an empty bundle.
+ * GStreamer names a plugin `libgstcoreelements.dylib` on darwin and
+ * `gstcoreelements.dll` on Windows; a `^libgst` strip therefore left the Windows
+ * leaf as `gstcoreelements`, matched nothing, and skipped ALL 83 plugins — while
+ * the build stayed green, because the typelib symmetry gate checks typelib against
+ * LIBRARY and knows nothing about plugins. A bundle with libgstreamer, both Gst
+ * typelibs and no elements is exactly the "healthy, then no element decodebin"
+ * shape this file exists to prevent.
+ */
 export function isBundledGstPlugin(fileName) {
     const base = fileName
-        .replace(/^libgst/, '')
+        .replace(/^(lib)?gst/, '')
         .replace(/\.(dylib|so|dll)$/i, '')
         .toLowerCase();
     return GST_AUDIO_PLUGINS.includes(base);

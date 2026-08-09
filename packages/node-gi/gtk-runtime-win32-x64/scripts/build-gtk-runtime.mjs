@@ -478,6 +478,22 @@ if (WINDOWING) {
                     'IN-PROCESS (works, until the first plugin that crashes on load)',
             );
         }
+        // ZERO IS NEVER RIGHT, and the build shipped zero while staying green: the
+        // plugin filter stripped `^libgst`, Windows names its plugins `gstfoo.dll`
+        // without the prefix, and all 83 were skipped. Nothing noticed, because the
+        // typelib symmetry gate checks typelib against LIBRARY and knows nothing
+        // about plugins — so the bundle had libgstreamer, both Gst typelibs, and no
+        // elements at all. That is precisely the "healthy, then no element decodebin"
+        // failure this section is written against, so it is now an ERROR.
+        if (windowing.gstPlugins === 0) {
+            console.error(
+                `build-gtk-runtime: ${gstPluginDir} holds plugins but NONE matched the audio-path ` +
+                    'filter — a --windowing bundle with no GStreamer elements would report itself ' +
+                    'healthy and then fail with "no element decodebin". Check isBundledGstPlugin ' +
+                    "against this platform's plugin naming.",
+            );
+            process.exit(1);
+        }
         console.log(
             `build-gtk-runtime: GStreamer — ${windowing.gstPlugins} plugin(s), ` +
                 `${(bytes / 1024 / 1024).toFixed(1)} MiB`,
