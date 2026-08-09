@@ -347,4 +347,40 @@ export const AdwAboutDialogTest = async () => {
             mounted.dispose();
         });
     });
+
+    // AN OPENED DIALOG HAS TO OCCUPY SPACE.
+    //
+    // Every other test in this file reads the built DOM, and all of them passed
+    // while the dialog rendered INVISIBLE — its sheet measured 360×0. The suite
+    // could not see that, because none of it looks at geometry.
+    //
+    // The sheet is `position: fixed` with a width and no height, which is what
+    // `adw-about-dialog.ui:7` declares: `content-width` 360 and no
+    // content-height, libadwaita taking the height from the content. The content
+    // could not supply one — the navigation pages were absolutely positioned, so
+    // they contributed nothing to the page stack, which contributed nothing to
+    // the view, which left the sheet at zero; and the pages, being `inset: 0` of
+    // a zero-height parent, were zero in turn.
+    await describe('adw-about-dialog — an opened dialog is actually on screen', async () => {
+        await it('gives its sheet a height derived from its content', () => {
+            const mounted = mount({ 'application-name': 'Adwaita Storybook', version: '0.11.0' });
+            mounted.dialog.setAttribute('open', '');
+
+            const sheet = mounted.dialog.querySelector('.adw-about-dialog-sheet') as HTMLElement;
+            const rect = sheet.getBoundingClientRect();
+            // HEIGHT only. The width was never the defect, and pinning it here
+            // needs `calc(100vw - 48px)` restated in JS — where `100vw` and
+            // `innerWidth` disagree by the scrollbar (360 against a measured
+            // 342), so the assertion would report the harness rather than the
+            // widget. A test should assert the rule the bug broke.
+            expect(rect.height > 0).toBe(true);
+            // And not merely the header: the sheet has to be taller than the one
+            // child that had a size of its own all along, which is what made the
+            // collapse invisible to every other test in this file.
+            const header = sheet.querySelector('adw-header-bar') as HTMLElement;
+            expect(rect.height > header.getBoundingClientRect().height).toBe(true);
+
+            mounted.dispose();
+        });
+    });
 };
