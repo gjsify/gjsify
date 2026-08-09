@@ -1793,9 +1793,25 @@ jobs:
   # job (build-time closure SOURCE only, NOT shipped). Runs in parallel (does not
   # consume the addon). Uploads the bundle for the windowing proof job below.
   windows-gtk-windowing-runtime:
-    name: Windows FULL-windowing GTK runtime bundle (build / windows-latest x64)
-    runs-on: windows-latest
-    timeout-minutes: 30
+    name: Windows FULL-windowing GTK runtime bundle (build / windows-2022 x64)
+    # PINNED TO windows-2022, and not for nostalgia. Two reasons, both measured:
+    #
+    #   • gvsbuild builds GStreamer's dependency chain, and libvpx's configure has
+    #     no `x86_64-win64-vs18` target — on windows-latest (VS 18) it dies 25
+    #     minutes in with "libvpx build failed". Nothing on our side to fix; the
+    #     toolchain is simply newer than that build system.
+    #   • It is also the more correct choice. The GTK half of this prefix is the
+    #     gvsbuild RELEASE zip, built with VS 2022. Compiling GStreamer into that
+    #     same prefix with VS 18 mixes toolsets in one bundle; pinning makes the
+    #     whole prefix one.
+    #
+    # The addon that loads these DLLs is built on windows-latest and stays there —
+    # the MSVC C ABI is what makes that fine, and it is what the display-free bundle
+    # has always relied on.
+    runs-on: windows-2022
+    # Was 30, which the gvsbuild GStreamer chain blows through on a cache miss (the
+    # run that reached libvpx was already at 25 min). A cache hit skips it entirely.
+    timeout-minutes: 180
     env:
       GVSBUILD_VERSION: '2026.6.0'
       GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'

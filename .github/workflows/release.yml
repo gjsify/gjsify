@@ -450,8 +450,14 @@ jobs:
     name: Publish @gjsify/gtk-runtime-win32-x64 (Windows bundle)
     needs: publish
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
-    runs-on: windows-latest
-    timeout-minutes: 30
+    # windows-2022, for the reasons node-gi.yml's windows-gtk-windowing-runtime
+    # records: libvpx's configure has no VS 18 target, so the gvsbuild GStreamer
+    # chain cannot build on windows-latest — and the GTK half of this prefix is a
+    # VS 2022 release zip anyway, so one toolset per bundle is the better shape.
+    runs-on: windows-2022
+    # Was 30. gvsbuild builds GStreamer's dependency chain from source on a cache
+    # miss, which does not fit in half an hour; a hit skips straight past it.
+    timeout-minutes: 180
     permissions:
       # id-token: write = npm Trusted Publishing (OIDC), configured for this
       # workflow file (release.yml). contents: read is for checkout.
