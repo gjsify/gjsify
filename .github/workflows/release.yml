@@ -537,9 +537,17 @@ jobs:
           python -m pip install --upgrade pipx
           python -m pipx ensurepath
           python -m pipx install "gvsbuild==$env:GVSBUILD_VERSION"
+          # THE VS VERSION IS DERIVED, NOT ASSUMED. gvsbuild targets VS 17 by default
+          # and windows-latest now ships 18, so it found the toolchain, SKIPPED it
+          # ("Doesn't match target Visual Studio version of 17") and failed with
+          # "Unable to find applicable Visual Studio". Hardcoding 18 would break the
+          # same way at the next bump; vswhere already knows the answer.
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsMajor = (& $vswhere -latest -property installationVersion).Split('.')[0]
+          Write-Host "gvsbuild --vs-ver $vsMajor"
           # Same prefix the zip was extracted into, so one tree carries GTK + Gst and
           # the bundle builder's single closure walk sees both.
-          gvsbuild build --configuration release --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
+          gvsbuild build --configuration release --vs-ver $vsMajor --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
 
       - name: Assert GStreamer landed in the prefix (typelibs + plugins)
         shell: pwsh

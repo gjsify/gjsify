@@ -497,9 +497,22 @@ if (WINDOWING) {
     if (existsSync(pluginsSrc)) {
         mkdirSync(pluginsOut, { recursive: true });
         let bytes = 0;
+        let dangling = 0;
         for (const f of readdirSync(pluginsSrc)) {
             if (!f.endsWith('.dylib') && !f.endsWith('.so')) continue;
             const src = join(pluginsSrc, f);
+            // A DANGLING LINK IS A PLUGIN THAT IS NOT INSTALLED. brew links every
+            // plugin any formula ever provided into this one dir, and leaves the link
+            // behind when the keg goes: measured on the arm64 runner,
+            // `libgstnice.dylib` points at a libnice keg that is not there, and
+            // copyFileSync died with ENOENT on it. `existsSync` FOLLOWS the link, so
+            // this is the check — and it is counted rather than swallowed, because a
+            // plugin silently missing from the payload is the failure mode this whole
+            // section exists to prevent.
+            if (!existsSync(src)) {
+                dangling++;
+                continue;
+            }
             const dest = join(pluginsOut, f);
             // Dereferencing, like § 2b: brew links plugins in from their kegs, and a
             // link into the Cellar is worthless inside a tarball.
@@ -543,7 +556,8 @@ if (WINDOWING) {
 
         console.log(
             `build-gtk-runtime: GStreamer — ${gstPluginImages.length} plugin(s) relocated ` +
-                `(@loader_path/..), ${(bytes / 1024 / 1024).toFixed(1)} MiB of plugins`,
+                `(@loader_path/..), ${(bytes / 1024 / 1024).toFixed(1)} MiB of plugins` +
+                `${dangling ? `, ${dangling} dangling brew link(s) skipped` : ''}`,
         );
     } else {
         console.warn(
