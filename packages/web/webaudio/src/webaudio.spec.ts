@@ -14,6 +14,7 @@ import { AudioBufferSourceNode } from './audio-buffer-source-node.js';
 import { AudioDestinationNode } from './audio-destination-node.js';
 import { HTMLAudioElement } from './html-audio-element.js';
 import { livePipelineCount, stopAllPipelines } from './gst-teardown.js';
+import { primeGstOutcomeForTests, tryEnsureGstInit } from './gst-init.js';
 
 /** Generate a minimal WAV ArrayBuffer (mono, 16-bit PCM, 440Hz sine) */
 function createTestWav(durationSec = 0.1, sampleRate = 44100): ArrayBuffer {
@@ -419,6 +420,60 @@ export default async () => {
             // (`@gjsify/unit` exits through `system.exit()`, which emits neither).
             stopAllPipelines();
             expect(livePipelineCount()).toBe(0);
+        });
+    });
+
+    // The host WITHOUT GStreamer — the one this suite could never be run on.
+    //
+    // Every test above needs GStreamer, so the whole file only ever ran where it
+    // is installed, and the branch that matters when it is NOT (the batteries-
+    // included GTK bundles ship no Gst at all) went unexecuted until a user hit
+    // it: `gjsify showcase excalibur-jelly-jumper --runtime node` on Windows 11
+    // died in `new AudioContext()` before the game rendered a frame.
+    //
+    // `tryEnsureGstInit` takes its initializer so that host is reachable from
+    // this one: a throwing initializer IS a machine without GStreamer, as far as
+    // everything downstream can tell.
+    await describe('no GStreamer on this host', async () => {
+        const absent = () => {
+            throw new Error("Failed to require Gst 1.0: Typelib file for namespace 'Gst' not found");
+        };
+
+        await it('reports the reason instead of throwing', () => {
+            const reason = tryEnsureGstInit(absent);
+            expect(typeof reason).toBe('string');
+            expect(reason).toContain('Gst 1.0');
+        });
+
+        await it('answers null when the bring-up succeeds', () => {
+            expect(tryEnsureGstInit(() => {})).toBeNull();
+        });
+
+        await it('does not poison the process-wide memo', () => {
+            // A caller passing its own initializer is asking about ONE outcome.
+            // If that answer were cached, this suite would leave every later
+            // `AudioContext` in the process convinced audio is unavailable.
+            tryEnsureGstInit(absent);
+            expect(tryEnsureGstInit()).toBeNull();
+        });
+
+        // THE REGRESSION ITSELF. `new AudioContext()` used to call the throwing
+        // bring-up, so on a host with no GStreamer it took the whole application
+        // down — Excalibur constructs one during its boot-time audio unlock, so
+        // the jelly-jumper showcase never reached its first frame on Windows.
+        await it('still constructs an AudioContext, and it is usable', () => {
+            primeGstOutcomeForTests("Failed to require Gst 1.0: Typelib file for namespace 'Gst' not found");
+            try {
+                const ctx = new AudioContext();
+                expect(ctx.destination).toBeDefined();
+                // Silent, but not broken: the graph still builds, and a source
+                // that cannot play must still settle its `onended` awaiter.
+                expect(ctx.createGain()).toBeDefined();
+                expect(ctx.createBufferSource()).toBeDefined();
+                expect(ctx.currentTime >= 0).toBe(true);
+            } finally {
+                primeGstOutcomeForTests(undefined);
+            }
         });
     });
 };

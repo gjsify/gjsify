@@ -3,7 +3,7 @@
 //
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLAudioElement
 
-import { ensureGstInit, Gst } from './gst-init.js';
+import { tryEnsureGstInit, Gst } from './gst-init.js';
 import { stopPipeline, trackPipeline } from './gst-teardown.js';
 import type Gst1 from '@girs/gst-1.0';
 
@@ -41,7 +41,15 @@ export class HTMLAudioElement {
     play(): Promise<void> {
         if (!this.src) return Promise.resolve();
 
-        ensureGstInit();
+        // Same rule as AudioContext and AudioBufferSourceNode.start(): no audio
+        // backend means no sound, not a thrown error. `play()` returns a promise
+        // in the DOM, and a page that ignores it — most do — would otherwise take
+        // an unhandled rejection for a missing optional subsystem.
+        const reason = tryEnsureGstInit();
+        if (reason !== null) {
+            console.warn(`[webaudio] Audio.play: GStreamer is unavailable, staying silent — ${reason}`);
+            return Promise.resolve();
+        }
         this._cleanup();
 
         this._pipeline = Gst.ElementFactory.make('playbin', 'player');

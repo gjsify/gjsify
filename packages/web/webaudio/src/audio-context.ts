@@ -6,7 +6,7 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/AudioContext
 
 import GLib from 'gi://GLib?version=2.0';
-import { ensureGstInit } from './gst-init.js';
+import { tryEnsureGstInit } from './gst-init.js';
 import { AudioBuffer } from './audio-buffer.js';
 import { AudioNode } from './audio-node.js';
 import { AudioDestinationNode } from './audio-destination-node.js';
@@ -23,8 +23,37 @@ export class AudioContext {
 
     private _startTime: number;
 
+    /**
+     * CONSTRUCTING A CONTEXT IS NOT PLAYING AUDIO, so a missing audio backend
+     * may not be fatal here. `ensureGstInit()` threw, and it killed whole
+     * applications: on the batteries-included GTK runtime bundles (win32-x64,
+     * darwin) GStreamer is not shipped, and Excalibur's boot-time audio unlock
+     * constructs a context before the first frame — so `gjsify showcase
+     * excalibur-jelly-jumper --runtime node` on Windows died with "Failed to
+     * require Gst 1.0: Typelib file for namespace 'Gst' not found" and the game
+     * never rendered.
+     *
+     * In a browser `new AudioContext()` always succeeds; a page that cannot play
+     * sound still runs. This matches that. The rule was already written down one
+     * level below — `AudioBufferSourceNode.start()` degrades to silent rather
+     * than throw, "a single failed audio node must NEVER crash the whole app" —
+     * it just had not been applied to the constructor.
+     *
+     * Warned ONCE per context and not per sound: a game loading forty samples
+     * would otherwise bury its own output. Everything downstream already copes —
+     * `start()` degrades to silent and `decodeAudioData` rejects with an
+     * `EncodingError`, which is what the spec says a failed decode does.
+     */
     constructor() {
-        ensureGstInit();
+        const reason = tryEnsureGstInit();
+        if (reason !== null) {
+            console.warn(
+                `[webaudio] AudioContext: GStreamer is unavailable, continuing SILENT — ${reason}\n` +
+                    '  Audio needs GStreamer 1.0 with gst-plugins-base. The @gjsify/gtk-runtime-* ' +
+                    'bundles do not ship it, so install it system-wide (Fedora: gstreamer1 ' +
+                    'gstreamer1-plugins-base; Windows: an MSYS2/gvsbuild GStreamer on PATH).',
+            );
+        }
         this._startTime = GLib.get_monotonic_time();
         this.destination = new AudioDestinationNode();
     }
