@@ -1903,7 +1903,19 @@ jobs:
           Write-Host "Visual Studio $vsMajor -> gvsbuild --vs-ver $vsVer"
           # Same prefix the zip was extracted into, so one tree carries GTK + Gst and
           # the bundle builder's single closure walk sees both.
-          gvsbuild build --configuration release --vs-ver $vsVer --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
+          # `--skip libvpx`, and it is the audio-path rule applied to the BUILD
+          # rather than only to the payload. gst-plugins-good declares exactly one
+          # dependency beyond -base, and it is libvpx: VP8/VP9, i.e. video, which
+          # gst-plugins.mjs already excludes from what ships. We were spending 15+
+          # minutes compiling a codec whose output is thrown away.
+          #
+          # It also never once succeeded. On windows-latest its configure has no
+          # `x86_64-win64-vs18` target; on windows-2022 it gets further and dies
+          # moving `x64/vpxmd.lib`. GStreamer's meson features default to `auto`, so
+          # an absent libvpx simply disables the vpx plugin — which is the state we
+          # want anyway. -good is still built, for the parsers and decoders the audio
+          # path genuinely needs: wavparse, flac, mpg123, autodetect.
+          gvsbuild build --configuration release --vs-ver $vsVer --skip libvpx --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
 
       - name: Assert GStreamer landed in the prefix (typelibs + plugins)
         shell: pwsh
