@@ -442,6 +442,23 @@ export class AdwOverlaySplitView extends HTMLElement {
         // alone cannot get right: the divider follows where the pane is DRAWN.
         this.classList.toggle('sidebar-at-visual-start', atStart);
 
+        // THE PANE STYLE CLASSES, which libadwaita documents as part of this
+        // widget's CSS node tree (adw-overlay-split-view.c:138-152) and switches
+        // in `update_collapsed` (:718-741): docked, the panes are `.sidebar-pane`
+        // and `.content-pane`; collapsed, the sidebar becomes an `.overlay-pane`
+        // floating above a content pane that carries no class at all.
+        //
+        // They are not decoration. `.overlay-pane` is what makes a collapsed
+        // sidebar drop the sidebar background for the window one, and they are
+        // the documented hook an app themes its own panes through — so leaving
+        // them off does not merely look wrong, it makes correct app CSS a no-op.
+        // The docs site is the proof: its split-view examples carried a
+        // hand-written `class="sidebar"` that styled nothing, written by someone
+        // reaching for exactly this and finding nothing there.
+        this._sidebarEl?.classList.toggle('sidebar-pane', !state.collapsed);
+        this._sidebarEl?.classList.toggle('overlay-pane', state.collapsed);
+        this._contentEl?.classList.toggle('content-pane', !state.collapsed);
+
         // Derived, not re-decided here: the shield only exists while collapsed
         // AND revealed, and each pane is reachable by keyboard only when it is
         // the one on screen.

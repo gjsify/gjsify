@@ -1,0 +1,57 @@
+// _panes.scss — `.sidebar-pane` / `.content-pane` / `.overlay-pane`.
+//
+// These are libadwaita STYLE CLASSES, not private markup of one widget. Both
+// split views document them as their CSS node tree
+// (adw-navigation-split-view.c:157-165, adw-overlay-split-view.c:136-152) and
+// both apply them to their pane bins, which makes them the supported hook an
+// app themes a pane through. They lived nowhere in this stylesheet, so each
+// split view hard-coded `--sidebar-bg-color` onto its own private pane div
+// instead — with two consequences.
+//
+// The first is that an app writing the documented selector styles nothing, and
+// gets no error saying so. Our own docs site is the evidence: every split-view
+// example carried `class="sidebar"` on the sidebar toolbar view, hand-written
+// by someone reaching for exactly this, matching no rule in the build.
+//
+// The second is a rendering defect, because the class is not constant — it is
+// how the widget says which of its states a pane is in. A collapsed overlay
+// sidebar is an `.overlay-pane`, on the WINDOW background, not the sidebar one
+// (adw-overlay-split-view.c:718-741); a collapsed navigation split view has no
+// pane bins at all, its pages being ordinary navigation pages. Painting the
+// sidebar colour at every width, as the private rules did, got both wrong.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss (.sidebar-pane, .overlay-pane)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+.sidebar-pane {
+  background-color: var(--sidebar-bg-color);
+  color: var(--sidebar-fg-color);
+}
+
+// A pane nested inside another sidebar pane defers to it rather than stacking a
+// second tint (`.sidebar-pane .sidebar-pane`, _sidebars.scss). libadwaita also
+// recolours the MIDDLE pane of a three-pane setup through
+// `--secondary-sidebar-*`; that needs a split view nested in a split view to
+// mean anything, and no such composition is rendered yet, so the tokens are
+// defined (they are public API an app may already reference) and the selector
+// is left for whoever builds the composition that can test it.
+.sidebar-pane .sidebar-pane {
+  background-color: transparent;
+  color: inherit;
+}
+
+// `.content-pane` deliberately has NO rule here. libadwaita gives it no colour
+// of its own — the window shows through — and writing `transparent` would be a
+// claim, not a copy: it would override the `--window-bg-color` the navigation
+// split view sets on its own content pane for the case where the view is not a
+// window's direct child. The class is still applied, because being able to
+// select it is the point.
+
+// Collapsed: the sidebar floats ABOVE the content as a temporary panel, and
+// libadwaita gives it the window colours rather than the sidebar ones — a panel
+// over the content is not the same surface as a pane beside it.
+.overlay-pane {
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+}

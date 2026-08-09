@@ -40,20 +40,14 @@ page with its own header bar.
           <adw-header-bar data-adw-slot="top">
             <adw-window-title data-adw-slot="center" title="Mailboxes"></adw-window-title>
           </adw-header-bar>
-          <adw-preferences-group>
-            <adw-action-row title="All Mail" subtitle="128 messages" activatable>
-              <span data-adw-slot="prefix" class="adw-icon adw-icon--mail-unread"></span>
-            </adw-action-row>
-            <adw-action-row title="Starred" subtitle="6 messages" activatable>
-              <span data-adw-slot="prefix" class="adw-icon adw-icon--starred"></span>
-            </adw-action-row>
-            <adw-action-row title="Drafts" subtitle="2 messages" activatable>
-              <span data-adw-slot="prefix" class="adw-icon adw-icon--document-edit"></span>
-            </adw-action-row>
-            <adw-action-row title="Archive" subtitle="512 messages" activatable>
-              <span data-adw-slot="prefix" class="adw-icon adw-icon--folder"></span>
-            </adw-action-row>
-          </adw-preferences-group>
+          <adw-sidebar mode="sidebar" selected="0">
+            <adw-sidebar-section>
+              <adw-sidebar-item title="All Mail" subtitle="128 messages" icon-name="mail-unread-symbolic"></adw-sidebar-item>
+              <adw-sidebar-item title="Starred" subtitle="6 messages" icon-name="starred-symbolic"></adw-sidebar-item>
+              <adw-sidebar-item title="Drafts" subtitle="2 messages" icon-name="document-edit-symbolic"></adw-sidebar-item>
+              <adw-sidebar-item title="Archive" subtitle="512 messages" icon-name="folder-symbolic"></adw-sidebar-item>
+            </adw-sidebar-section>
+          </adw-sidebar>
         </adw-toolbar-view>
         <adw-toolbar-view data-adw-slot="content">
           <adw-header-bar data-adw-slot="top">
@@ -67,23 +61,25 @@ page with its own header bar.
   <Fragment slot="gjs">
     ```ts
     import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
 
-    // Sidebar: a boxed list of mailboxes inside a toolbar view.
-    const group = new Adw.PreferencesGroup();
+    // Sidebar: an Adw.Sidebar, NOT a boxed list. A boxed list is a card of
+    // settings and draws itself as one — rounded, bordered, edge to edge in a
+    // pane that gives it no margin. A navigation sidebar is a flat selectable
+    // list, and the widget that already knows how to be one is this.
+    const section = new Adw.SidebarSection();
     for (const [title, subtitle, icon] of [
         ['All Mail', '128 messages', 'mail-unread-symbolic'],
         ['Starred', '6 messages', 'starred-symbolic'],
     ] as const) {
-        const row = new Adw.ActionRow({ title, subtitle });
-        row.add_prefix(new Gtk.Image({ iconName: icon }));
-        row.activatable = true;
-        group.add(row);
+        section.append(new Adw.SidebarItem({ title, subtitle, iconName: icon }));
     }
+
+    const sidebarList = new Adw.Sidebar({ mode: Adw.SidebarMode.SIDEBAR, selected: 0 });
+    sidebarList.append(section);
 
     const sidebarToolbar = new Adw.ToolbarView();
     sidebarToolbar.add_top_bar(new Adw.HeaderBar());
-    sidebarToolbar.content = group;
+    sidebarToolbar.content = sidebarList;
     const sidebar = new Adw.NavigationPage({ title: 'Mailboxes', child: sidebarToolbar });
 
     // Content: a status page inside a toolbar view.
@@ -114,47 +110,32 @@ page with its own header bar.
           [top]
           Adw.HeaderBar {}
 
-          content: Adw.PreferencesGroup {
-            Adw.ActionRow {
-              title: _("All Mail");
-              subtitle: _("128 messages");
-              activatable: true;
+          content: Adw.Sidebar {
+            mode: sidebar;
+            selected: 0;
 
-              [prefix]
-              Gtk.Image {
+            Adw.SidebarSection {
+              Adw.SidebarItem {
+                title: _("All Mail");
+                subtitle: _("128 messages");
                 icon-name: "mail-unread-symbolic";
               }
-            }
 
-            Adw.ActionRow {
-              title: _("Starred");
-              subtitle: _("6 messages");
-              activatable: true;
-
-              [prefix]
-              Gtk.Image {
+              Adw.SidebarItem {
+                title: _("Starred");
+                subtitle: _("6 messages");
                 icon-name: "starred-symbolic";
               }
-            }
 
-            Adw.ActionRow {
-              title: _("Drafts");
-              subtitle: _("2 messages");
-              activatable: true;
-
-              [prefix]
-              Gtk.Image {
+              Adw.SidebarItem {
+                title: _("Drafts");
+                subtitle: _("2 messages");
                 icon-name: "document-edit-symbolic";
               }
-            }
 
-            Adw.ActionRow {
-              title: _("Archive");
-              subtitle: _("512 messages");
-              activatable: true;
-
-              [prefix]
-              Gtk.Image {
+              Adw.SidebarItem {
+                title: _("Archive");
+                subtitle: _("512 messages");
                 icon-name: "folder-symbolic";
               }
             }
@@ -188,20 +169,14 @@ page with its own header bar.
                 <adw-header-bar slot="top">
                     <adw-window-title slot="center" title="Mailboxes"></adw-window-title>
                 </adw-header-bar>
-                <adw-preferences-group>
-                    <adw-action-row title="All Mail" subtitle="128 messages" activatable>
-                        <span slot="prefix" class="adw-icon adw-icon--mail-unread"></span>
-                    </adw-action-row>
-                    <adw-action-row title="Starred" subtitle="6 messages" activatable>
-                        <span slot="prefix" class="adw-icon adw-icon--starred"></span>
-                    </adw-action-row>
-                    <adw-action-row title="Drafts" subtitle="2 messages" activatable>
-                        <span slot="prefix" class="adw-icon adw-icon--document-edit"></span>
-                    </adw-action-row>
-                    <adw-action-row title="Archive" subtitle="512 messages" activatable>
-                        <span slot="prefix" class="adw-icon adw-icon--folder"></span>
-                    </adw-action-row>
-                </adw-preferences-group>
+                <adw-sidebar mode="sidebar" selected="0">
+                    <adw-sidebar-section>
+                        <adw-sidebar-item title="All Mail" subtitle="128 messages" icon-name="mail-unread-symbolic"></adw-sidebar-item>
+                        <adw-sidebar-item title="Starred" subtitle="6 messages" icon-name="starred-symbolic"></adw-sidebar-item>
+                        <adw-sidebar-item title="Drafts" subtitle="2 messages" icon-name="document-edit-symbolic"></adw-sidebar-item>
+                        <adw-sidebar-item title="Archive" subtitle="512 messages" icon-name="folder-symbolic"></adw-sidebar-item>
+                    </adw-sidebar-section>
+                </adw-sidebar>
             </adw-toolbar-view>
             <adw-toolbar-view slot="content">
                 <adw-header-bar slot="top">
@@ -216,28 +191,25 @@ page with its own header bar.
   <Fragment slot="nativescript">
     ```ts
     import {
-        AdwActionRow,
         AdwHeaderBar,
         AdwNavigationSplitView,
-        AdwPreferencesGroup,
+        AdwSidebar,
         AdwStatusPage,
         AdwToolbarView,
     } from '@gjsify/adwaita-nativescript';
     import { mailUnreadSymbolic } from '@gjsify/adwaita-icons/status';
 
-    // Sidebar: a boxed list of mailboxes inside a toolbar view.
-    const group = new AdwPreferencesGroup();
-    for (const [title, subtitle] of [['All Mail', '128 messages'], ['Starred', '6 messages']] as const) {
-        const row = new AdwActionRow();
-        row.title = title;
-        row.subtitle = subtitle;
-        group.addRow(row);
-    }
+    // Sidebar: the navigation list, not a boxed list. The NS surface takes a
+    // flat label list (no per-item subtitle/icon slot).
+    const sidebarList = new AdwSidebar();
+    sidebarList.setItems(['All Mail', 'Starred', 'Drafts', 'Archive']);
+    sidebarList.selected = 0;
+
     const sidebarHeader = new AdwHeaderBar();
     sidebarHeader.title = 'Mailboxes';
     const sidebar = new AdwToolbarView();
     sidebar.addTopBar(sidebarHeader);
-    sidebar.setContent(group);
+    sidebar.setContent(sidebarList);
 
     // Content: a status page inside a toolbar view.
     const status = new AdwStatusPage();
@@ -270,22 +242,16 @@ push the primary content aside on a narrow window.
   <Fragment slot="preview">
     <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
       <adw-overlay-split-view show-sidebar style="flex: 1;">
-        <adw-toolbar-view data-adw-slot="sidebar" class="sidebar">
+        <adw-toolbar-view data-adw-slot="sidebar">
           <adw-header-bar data-adw-slot="top"></adw-header-bar>
-          <adw-preferences-group>
-            <adw-action-row title="Home" activatable>
-              <span data-adw-slot="prefix" class="adw-icon adw-icon--go-home"></span>
-            </adw-action-row>
-            <adw-action-row title="Discover" activatable>
-              <span data-adw-slot="prefix" class="adw-icon adw-icon--system-search"></span>
-            </adw-action-row>
-            <adw-action-row title="Library" activatable>
-              <span data-adw-slot="prefix" class="adw-icon adw-icon--folder-music"></span>
-            </adw-action-row>
-            <adw-action-row title="Settings" activatable>
-              <span data-adw-slot="prefix" class="adw-icon adw-icon--emblem-system"></span>
-            </adw-action-row>
-          </adw-preferences-group>
+          <adw-sidebar mode="sidebar" selected="0">
+            <adw-sidebar-section>
+              <adw-sidebar-item title="Home" icon-name="go-home-symbolic"></adw-sidebar-item>
+              <adw-sidebar-item title="Discover" icon-name="system-search-symbolic"></adw-sidebar-item>
+              <adw-sidebar-item title="Library" icon-name="folder-music-symbolic"></adw-sidebar-item>
+              <adw-sidebar-item title="Settings" icon-name="emblem-system-symbolic"></adw-sidebar-item>
+            </adw-sidebar-section>
+          </adw-sidebar>
         </adw-toolbar-view>
         <adw-toolbar-view data-adw-slot="content">
           <adw-header-bar data-adw-slot="top"></adw-header-bar>
@@ -297,25 +263,28 @@ push the primary content aside on a narrow window.
   <Fragment slot="gjs">
     ```ts
     import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
 
-    // Sidebar: a flat, title-less toolbar view over a boxed list.
-    const group = new Adw.PreferencesGroup();
+    // Sidebar: a flat, title-less toolbar view over an Adw.Sidebar. The pane
+    // needs no style class of its own — Adw.OverlaySplitView puts `.sidebar-pane`
+    // on it while docked and `.overlay-pane` while collapsed, which is what
+    // gives it its colour. (The old `.sidebar` class libadwaita deprecates in
+    // favour of `.navigation-sidebar`; Adw.Sidebar carries that look itself.)
+    const section = new Adw.SidebarSection();
     for (const [title, icon] of [
         ['Home', 'go-home-symbolic'],
         ['Discover', 'system-search-symbolic'],
         ['Library', 'folder-music-symbolic'],
         ['Settings', 'emblem-system-symbolic'],
     ] as const) {
-        const row = new Adw.ActionRow({ title });
-        row.add_prefix(new Gtk.Image({ iconName: icon }));
-        row.activatable = true;
-        group.add(row);
+        section.append(new Adw.SidebarItem({ title, iconName: icon }));
     }
+
+    const sidebarList = new Adw.Sidebar({ mode: Adw.SidebarMode.SIDEBAR, selected: 0 });
+    sidebarList.append(section);
+
     const sidebar = new Adw.ToolbarView();
     sidebar.add_top_bar(new Adw.HeaderBar({ showTitle: false }));
-    sidebar.content = group;
-    sidebar.add_css_class('sidebar');
+    sidebar.content = sidebarList;
 
     const status = new Adw.StatusPage({
         iconName: 'folder-music-symbolic',
@@ -342,49 +311,32 @@ push the primary content aside on a narrow window.
         [top]
         Adw.HeaderBar {}
 
-        content: Adw.PreferencesGroup {
-          Adw.ActionRow {
-            title: _("Home");
-            activatable: true;
+        content: Adw.Sidebar {
+          mode: sidebar;
+          selected: 0;
 
-            [prefix]
-            Gtk.Image {
+          Adw.SidebarSection {
+            Adw.SidebarItem {
+              title: _("Home");
               icon-name: "go-home-symbolic";
             }
-          }
 
-          Adw.ActionRow {
-            title: _("Discover");
-            activatable: true;
-
-            [prefix]
-            Gtk.Image {
+            Adw.SidebarItem {
+              title: _("Discover");
               icon-name: "system-search-symbolic";
             }
-          }
 
-          Adw.ActionRow {
-            title: _("Library");
-            activatable: true;
-
-            [prefix]
-            Gtk.Image {
+            Adw.SidebarItem {
+              title: _("Library");
               icon-name: "folder-music-symbolic";
             }
-          }
 
-          Adw.ActionRow {
-            title: _("Settings");
-            activatable: true;
-
-            [prefix]
-            Gtk.Image {
+            Adw.SidebarItem {
+              title: _("Settings");
               icon-name: "emblem-system-symbolic";
             }
           }
         };
-
-        styles ["sidebar"]
       };
 
       content: Adw.ToolbarView {
@@ -404,22 +356,16 @@ push the primary content aside on a narrow window.
     ```html
     <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
         <adw-overlay-split-view show-sidebar style="flex: 1;">
-            <adw-toolbar-view slot="sidebar" class="sidebar">
+            <adw-toolbar-view slot="sidebar">
                 <adw-header-bar slot="top"></adw-header-bar>
-                <adw-preferences-group>
-                    <adw-action-row title="Home" activatable>
-                        <span slot="prefix" class="adw-icon adw-icon--go-home"></span>
-                    </adw-action-row>
-                    <adw-action-row title="Discover" activatable>
-                        <span slot="prefix" class="adw-icon adw-icon--system-search"></span>
-                    </adw-action-row>
-                    <adw-action-row title="Library" activatable>
-                        <span slot="prefix" class="adw-icon adw-icon--folder-music"></span>
-                    </adw-action-row>
-                    <adw-action-row title="Settings" activatable>
-                        <span slot="prefix" class="adw-icon adw-icon--emblem-system"></span>
-                    </adw-action-row>
-                </adw-preferences-group>
+                <adw-sidebar mode="sidebar" selected="0">
+                    <adw-sidebar-section>
+                        <adw-sidebar-item title="Home" icon-name="go-home-symbolic"></adw-sidebar-item>
+                        <adw-sidebar-item title="Discover" icon-name="system-search-symbolic"></adw-sidebar-item>
+                        <adw-sidebar-item title="Library" icon-name="folder-music-symbolic"></adw-sidebar-item>
+                        <adw-sidebar-item title="Settings" icon-name="emblem-system-symbolic"></adw-sidebar-item>
+                    </adw-sidebar-section>
+                </adw-sidebar>
             </adw-toolbar-view>
             <adw-toolbar-view slot="content">
                 <adw-header-bar slot="top"></adw-header-bar>
@@ -432,26 +378,23 @@ push the primary content aside on a narrow window.
   <Fragment slot="nativescript">
     ```ts
     import {
-        AdwActionRow,
         AdwHeaderBar,
         AdwOverlaySplitView,
-        AdwPreferencesGroup,
+        AdwSidebar,
         AdwStatusPage,
         AdwToolbarView,
     } from '@gjsify/adwaita-nativescript';
     import { folderMusicSymbolic } from '@gjsify/adwaita-icons/places';
 
-    const group = new AdwPreferencesGroup();
-    for (const title of ['Home', 'Discover', 'Library', 'Settings']) {
-        const row = new AdwActionRow();
-        row.title = title;
-        group.addRow(row);
-    }
+    const sidebarList = new AdwSidebar();
+    sidebarList.setItems(['Home', 'Discover', 'Library', 'Settings']);
+    sidebarList.selected = 0;
+
     const header = new AdwHeaderBar();
     header.flat = true;
     const sidebar = new AdwToolbarView();
     sidebar.addTopBar(header);
-    sidebar.setContent(group);
+    sidebar.setContent(sidebarList);
 
     const status = new AdwStatusPage();
     status.icon = folderMusicSymbolic;

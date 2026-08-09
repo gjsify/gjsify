@@ -27,8 +27,12 @@ adw-overlay-split-view {
   position: relative;
   overflow: hidden;
 
+  // NO background here. The pane colour comes from the `.sidebar-pane` /
+  // `.overlay-pane` class the element toggles (see _panes.scss), because which
+  // of the two a pane is in is exactly what decides its colour — hard-coding
+  // `--sidebar-bg-color` on this private class painted a collapsed overlay,
+  // which libadwaita puts on the window background, as though it were docked.
   .adw-osv-sidebar {
-    background-color: var(--sidebar-bg-color);
     overflow-y: auto;
     flex-shrink: 0;
     z-index: 10;

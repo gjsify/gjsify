@@ -24,8 +24,25 @@
   // draws separators, instead of a harsh near-black line on a dark surface.
   --separator-color: rgba(0, 0, 6, 0.1);
 
-  // Sidebar
+  // Sidebar / split panes. libadwaita defines the whole family, not just the
+  // background (_colors.scss:47-58), and only the background was here — so
+  // `.sidebar-pane` had no foreground to name, and an app overriding
+  // `--sidebar-fg-color` was overriding nothing.
   --sidebar-bg-color: #ebebed;
+  --sidebar-fg-color: rgba(0, 0, 6, 0.8);
+  --sidebar-backdrop-color: #f2f2f4;
+  --sidebar-shade-color: rgba(0, 0, 6, 0.07);
+  --sidebar-border-color: rgba(0, 0, 6, 0.07);
+
+  // The MIDDLE pane of a three-pane setup. Nothing renders one yet; the tokens
+  // are defined because they are public API an app may already reference, and a
+  // half-present family reads as "this one is unsupported" rather than "this
+  // composition is not built yet".
+  --secondary-sidebar-bg-color: #f3f3f5;
+  --secondary-sidebar-fg-color: rgba(0, 0, 6, 0.8);
+  --secondary-sidebar-backdrop-color: #f6f6fa;
+  --secondary-sidebar-shade-color: rgba(0, 0, 6, 0.07);
+  --secondary-sidebar-border-color: rgba(0, 0, 6, 0.07);
 
   // Cards / boxed lists
   --card-bg-color: #ffffff;
