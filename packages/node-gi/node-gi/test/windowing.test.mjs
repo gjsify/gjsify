@@ -37,11 +37,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { requireGi } from '../gi.js';
+import { haveDisplay } from './display-gate.mjs';
 
 // On win32/darwin the platform backend supplies the display; only Linux keys off
 // the X11/Wayland env vars.
-const displayless = process.platform === 'win32' || process.platform === 'darwin';
-const haveDisplay = displayless || !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 
 // Resolve the full GTK/Adw/Graphene stack up front: a missing typelib (a headless
 // dev box without gtk4-devel/libadwaita-devel) SKIPS, not throws.
