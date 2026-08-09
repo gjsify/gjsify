@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.34.0](https://github.com/gjsify/gjsify/compare/v0.33.0...v0.34.0) (2026-08-09)
+
+### Features
+
+* **adwaita-storybook:** run the showcase on node, bun and deno ([#1087](https://github.com/gjsify/gjsify/issues/1087)) ([37f4937](https://github.com/gjsify/gjsify/commit/37f49373d1734139792e745781e67a599dc70c04))
+* **node-gi:** ship GStreamer in the batteries-included runtime bundles ([#1094](https://github.com/gjsify/gjsify/issues/1094)) ([bacb92e](https://github.com/gjsify/gjsify/commit/bacb92e408f43577947099609888e6144ee2a84b)), closes [#1089](https://github.com/gjsify/gjsify/issues/1089) [#1080](https://github.com/gjsify/gjsify/issues/1080)
+* **website:** show each widget's Blueprint declaration ([#1085](https://github.com/gjsify/gjsify/issues/1085)) ([861dff2](https://github.com/gjsify/gjsify/commit/861dff2c5966f470b9b0247d24cb355b8881098c))
+
+### Bug Fixes
+
+* **adwaita-web:** give split-view panes their libadwaita style classes ([#1086](https://github.com/gjsify/gjsify/issues/1086)) ([6a75a3f](https://github.com/gjsify/gjsify/commit/6a75a3fa9f0e50880cbe9d0bfcbcd33387d4fe14))
+* **adwaita-web:** let a navigation view report a content height ([#1084](https://github.com/gjsify/gjsify/issues/1084)) ([b1de642](https://github.com/gjsify/gjsify/commit/b1de642e2b94ff0abdc3e202de78c96e68c9c586))
+* **ci:** let a .githooks change run the suite that guards it ([#1099](https://github.com/gjsify/gjsify/issues/1099)) ([c9f1939](https://github.com/gjsify/gjsify/commit/c9f19397c18ce36c5c7304dc10d2190bf64bb922)), closes [#1095](https://github.com/gjsify/gjsify/issues/1095) [#1028](https://github.com/gjsify/gjsify/issues/1028) [#1093](https://github.com/gjsify/gjsify/issues/1093)
+* **cli:** teach foreach to select a dependency closure ([#1090](https://github.com/gjsify/gjsify/issues/1090)) ([7e9bed8](https://github.com/gjsify/gjsify/commit/7e9bed86169ce3c5f884884a392d8991ed121155)), closes [#1080](https://github.com/gjsify/gjsify/issues/1080)
+* **hooks:** build with dependencies before rebundling, and announce a change ([#1095](https://github.com/gjsify/gjsify/issues/1095)) ([5f39894](https://github.com/gjsify/gjsify/commit/5f398941087fc829ba9f01e0a417693cdf7fa702)), closes [#1080](https://github.com/gjsify/gjsify/issues/1080)
+* **node-gi:** implement the GTK template API on Windows ([#1088](https://github.com/gjsify/gjsify/issues/1088)) ([ac32f4c](https://github.com/gjsify/gjsify/commit/ac32f4cd7ff04b8cbecf3ce2d138f6ea890d8ec3))
+* **webaudio:** construct an AudioContext without GStreamer ([#1089](https://github.com/gjsify/gjsify/issues/1089)) ([5a2c9c0](https://github.com/gjsify/gjsify/commit/5a2c9c08640d0fc0f3ae52fd7f0516405c6259b2))
+* **webgl:** link the redistributable CRT on win32 ([#1096](https://github.com/gjsify/gjsify/issues/1096)) ([4fa0f44](https://github.com/gjsify/gjsify/commit/4fa0f4463aabc56bb11eeec3dc918971d15fef11))
+* **website:** lay widget previews out by the widget stylesheet alone ([#1082](https://github.com/gjsify/gjsify/issues/1082)) ([a46dbbd](https://github.com/gjsify/gjsify/commit/a46dbbd5d5645691fedf4f230a15d830a2254b31))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([2aec741](https://github.com/gjsify/gjsify/commit/2aec741d85112704f6da88307beb51d8dde973c4))
+
+### Tests
+
+* **node-gi:** make every GTK gate state what it actually requires ([#1091](https://github.com/gjsify/gjsify/issues/1091)) ([22bee8b](https://github.com/gjsify/gjsify/commit/22bee8b3e2e009c2acd05bebd1e7699df8738037)), closes [#1088](https://github.com/gjsify/gjsify/issues/1088)
+
 ## [0.33.0](https://github.com/gjsify/gjsify/compare/v0.32.0...v0.33.0) (2026-08-08)
 
 ### Features
