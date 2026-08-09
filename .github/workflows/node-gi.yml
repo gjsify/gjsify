@@ -1475,6 +1475,17 @@ jobs:
           GSK_RENDERER: cairo
         run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
 
+      # AUDIO, the counterpart to the windowing proof above. Everything else about
+      # the GStreamer payload is checkable by counting files — and counting files is
+      # what missed the defect: a bundle shipped both Gst typelibs and ZERO plugins
+      # with every gate green. This asks the registry for the elements the decode
+      # path is made of, which covers the payload AND the env wiring around it.
+      - name: Audio proof — the GStreamer elements resolve on the bundle
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/gst-elements.test.mjs
+
   # Windows proof (Phase 1 — the reverse bridge BUILDS + RUNS on windows-latest).
   # The whole team is Linux-only, so a windows-latest runner is the only way to
   # validate. Sibling of the macOS proof (its `macos` job above is the template).
@@ -2118,6 +2129,17 @@ jobs:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
         run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
+
+      # AUDIO, the counterpart to the windowing proof above. Everything else about
+      # the GStreamer payload is checkable by counting files — and counting files is
+      # what missed the defect: a bundle shipped both Gst typelibs and ZERO plugins
+      # with every gate green. This asks the registry for the elements the decode
+      # path is made of, which covers the payload AND the env wiring around it.
+      - name: Audio proof — the GStreamer elements resolve on the bundle
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/gst-elements.test.mjs
 
   # Adwaita Storybook capstone — BUILD the `--app node` bundle. The full
   # @gjsify/storybook Libadwaita component gallery (showcases/gtk/adwaita-storybook,
