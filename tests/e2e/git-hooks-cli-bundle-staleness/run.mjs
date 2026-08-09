@@ -197,7 +197,13 @@ describe('git pre-commit hook — affected.gjs.mjs staleness', { timeout: 2 * 60
         // ADR 0002: `cli.gjs.mjs` is no longer committed, so there is nothing
         // for the hook to re-stage.
         assert.equal(invocations.length, 2, `expected 2 gjsify invocations, got: ${invocations.join(' / ')}`);
-        assert.equal(invocations[0], 'workspace @gjsify/cli build');
+        // `--with-dependencies` is asserted, not incidental. The bundle is built
+        // from the CLI's `lib/` AND its dependencies', and nothing forces those to
+        // be current — without the flag the hook rebuilt against a stale
+        // resolve-npm/rolldown-plugin-gjsify and staged a bundle CI could not
+        // reproduce (#1093). Pinning the exact command is what stops that being
+        // dropped again by someone simplifying the line.
+        assert.equal(invocations[0], 'workspace @gjsify/cli build --with-dependencies');
         assert.equal(invocations[1], 'workspace @gjsify/cli build:affected-bundle');
 
         // The rebuilt bundle must be in the just-recorded commit.
@@ -243,7 +249,10 @@ describe('git pre-commit hook — affected.gjs.mjs staleness', { timeout: 2 * 60
         assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
 
         const invocations = readLog(logPath);
-        assert.deepEqual(invocations, ['workspace @gjsify/cli build', 'workspace @gjsify/cli build:affected-bundle']);
+        assert.deepEqual(invocations, [
+            'workspace @gjsify/cli build --with-dependencies',
+            'workspace @gjsify/cli build:affected-bundle',
+        ]);
 
         // The rebuild is only half the property — the refreshed bundle has to be
         // IN the commit the hook just let through, or the next checkout carries
