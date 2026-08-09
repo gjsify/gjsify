@@ -70,6 +70,7 @@ import {
     readdirSync,
     realpathSync,
     rmSync,
+    statSync,
     writeFileSync,
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -88,6 +89,7 @@ import {
     renderThirdPartyNotice,
     writeLicensePayload,
 } from './bundle-licenses.mjs';
+import { isBundledGstPlugin } from './gst-plugins.mjs';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -225,6 +227,17 @@ const WINDOWING_SEED_PATTERNS = [
     // trace of the missing decoder — a bundle that ships the icons but nothing to
     // rasterize them.
     /^librsvg-2\.\d+\.dylib$/,
+    // GStreamer, backing the Gst + GstApp typelibs `@gjsify/webaudio` imports. Its
+    // PLUGINS are § 2c — native modules in a nested dir, like the pixbuf loaders.
+    //
+    // TWO seeds, not one. The otool walk reaches libgstbase/audio/pbutils/tag/video
+    // from libgstreamer, but `libgstapp` is NOT among them: it is a
+    // gst-plugins-base library that only an appsrc/appsink user links, which is
+    // precisely what the decode pipeline is. Seeding libgstreamer alone would leave
+    // `GstApp-1.0.typelib` unbacked and § 4's symmetry rule would DROP it — a green
+    // build with no audio and no message, the same trace librsvg left above.
+    /^libgstreamer-1\.0\..*\.dylib$/,
+    /^libgstapp-1\.0\..*\.dylib$/,
 ];
 
 function isSystemPath(p) {
@@ -277,8 +290,49 @@ if (seeds.length === 0) {
 }
 console.log(`build-gtk-runtime: ${seeds.length} seed libraries: ${seeds.join(', ')}`);
 
+// The GStreamer plugins § 2c ships must SEED THIS WALK, not merely be copied after
+// it. They live outside lib/, so nothing in the seed closure links them — and their
+// own dependencies (libgstaudio/tag/riff/pbutils from the gstreamer keg, plus orc
+// and libvorbis) therefore never entered it. Measured: every kept plugin came out
+// referencing `/opt/homebrew/Cellar/gstreamer/<ver>/lib/…`, and § 3 refused the
+// bundle — correctly, because those paths do not exist on a user's machine. Same
+// shape the win32 builder already had for its plugins and its pixbuf loaders.
+const gstPluginSeedPaths = [];
+const gstPluginSkips = { nonAudio: 0, dangling: 0 };
+if (WINDOWING) {
+    const dir = join(brewLib, 'gstreamer-1.0');
+    if (existsSync(dir)) {
+        for (const f of readdirSync(dir)) {
+            if (!f.endsWith('.dylib') && !f.endsWith('.so')) continue;
+            // The AUDIO PATH only — gst-plugins.mjs says why "everything the prefix
+            // has" is not an option and what the rule replaced it with.
+            if (!isBundledGstPlugin(f)) {
+                gstPluginSkips.nonAudio++;
+                continue;
+            }
+            // A DANGLING LINK IS A PLUGIN THAT IS NOT INSTALLED. brew links every
+            // plugin any formula ever provided into this one dir and leaves the link
+            // when the keg goes — `libgstnice.dylib` on the arm64 runner points at a
+            // libnice keg that is not there. `existsSync` FOLLOWS the link, so this
+            // is the check, and the skips are COUNTED rather than swallowed: a plugin
+            // quietly missing from the payload is the failure this area prevents.
+            const src = join(dir, f);
+            if (!existsSync(src)) {
+                gstPluginSkips.dangling++;
+                continue;
+            }
+            gstPluginSeedPaths.push(src);
+        }
+    }
+}
+
 const bundled = new Map(); // leaf -> real source path
 const queue = [...seeds];
+// Walk the plugins' deps into the closure WITHOUT adding the plugins themselves to
+// `bundled` — they are not flat lib/ entries, § 2c places and relocates them.
+for (const pluginPath of gstPluginSeedPaths) {
+    for (const dep of otoolDeps(pluginPath)) queue.push(basename(dep));
+}
 while (queue.length) {
     const leaf = queue.shift();
     if (bundled.has(leaf)) continue;
@@ -462,6 +516,99 @@ if (WINDOWING) {
     }
 }
 
+// --- 2c. WINDOWING: the GStreamer PLUGINS + scanner -------------------------
+// The elements. `Gst.init()` succeeds against an EMPTY registry, so a bundle that
+// ships libgstreamer and every Gst typelib and NO plugins reports itself perfectly
+// healthy and then fails far away with "no element decodebin". Exactly the shape
+// § 2b exists for: a complete-looking bundle missing the thing that does the work.
+//
+// EVERYTHING brew's prefix has, not a curated subset. A hand-picked element list is
+// a guess about which codecs an app will meet — and the failure mode of guessing
+// wrong is silence, not an error. The size it costs is printed below so the payload
+// is a number somebody can act on rather than a surprise in a tarball.
+//
+// Here rather than in § 4b for § 2b's reason: these are Mach-O images in a nested
+// dir, so they need the copy → relocate → re-sign pass, and § 3 then verifies them.
+// One level below lib/, hence `@loader_path/..` (the loaders sit three levels down
+// and take `../../..`).
+const gstPluginImages = []; // absolute paths in the bundle, for § 3
+const gstPluginSources = new Map(); // leaf -> keg realpath, for § 5's attribution
+if (WINDOWING) {
+    const pluginsSrc = join(brewLib, 'gstreamer-1.0');
+    const pluginsOut = join(OUT, 'lib', 'gstreamer-1.0');
+    if (existsSync(pluginsSrc)) {
+        mkdirSync(pluginsOut, { recursive: true });
+        let bytes = 0;
+        // The SAME list that seeded the closure walk above — read once, so the set
+        // that was walked and the set that ships cannot disagree.
+        for (const src of gstPluginSeedPaths) {
+            const f = basename(src);
+            const dest = join(pluginsOut, f);
+            // Dereferencing, like § 2b: brew links plugins in from their kegs, and a
+            // link into the Cellar is worthless inside a tarball.
+            copyFileSync(src, dest);
+            bytes += statSync(dest).size;
+            gstPluginImages.push(dest);
+            try {
+                gstPluginSources.set(f, realpathSync(src));
+            } catch {
+                gstPluginSources.set(f, src);
+            }
+        }
+        for (const image of gstPluginImages) {
+            relocate(image, { id: true, depPrefix: '@loader_path/..' });
+        }
+
+        // The scanner, which GStreamer FORKS to inspect each plugin out of process so
+        // a plugin that crashes on load cannot take the app down with it. Its
+        // compiled-in path is the build machine's, so it has to be bundled AND
+        // pointed at (`GST_PLUGIN_SCANNER`, wired in node-gi's gtk-runtime.js).
+        // Two levels below the bundle root → `@loader_path/../../lib`.
+        const scannerSrc = join(brewPrefix, 'libexec', 'gstreamer-1.0', 'gst-plugin-scanner');
+        if (existsSync(scannerSrc)) {
+            const scannerOut = join(OUT, 'libexec', 'gstreamer-1.0');
+            mkdirSync(scannerOut, { recursive: true });
+            const dest = join(scannerOut, 'gst-plugin-scanner');
+            copyFileSync(scannerSrc, dest);
+            gstPluginImages.push(dest);
+            try {
+                gstPluginSources.set('gst-plugin-scanner', realpathSync(scannerSrc));
+            } catch {
+                gstPluginSources.set('gst-plugin-scanner', scannerSrc);
+            }
+            relocate(dest, { id: false, depPrefix: '@loader_path/../../lib' });
+        } else {
+            console.warn(
+                `build-gtk-runtime: WARNING — ${scannerSrc} missing; GStreamer will scan plugins ` +
+                    'IN-PROCESS (works, until the first plugin that crashes on load)',
+            );
+        }
+
+        // ZERO IS NEVER RIGHT — see the win32 builder's note: a plugin-naming
+        // mismatch shipped an element-free bundle there while every gate stayed
+        // green, because nothing counts plugins.
+        if (gstPluginImages.length === 0) {
+            console.error(
+                `build-gtk-runtime: ${pluginsSrc} holds plugins but NONE matched the audio-path ` +
+                    'filter — a --windowing bundle with no GStreamer elements reports itself healthy ' +
+                    'and then fails with "no element decodebin".',
+            );
+            process.exit(1);
+        }
+        console.log(
+            `build-gtk-runtime: GStreamer — ${gstPluginImages.length} plugin(s) relocated ` +
+                `(@loader_path/..), ${(bytes / 1024 / 1024).toFixed(1)} MiB of plugins` +
+                `, ${gstPluginSkips.nonAudio} non-audio plugin(s) skipped` +
+                `${gstPluginSkips.dangling ? `, ${gstPluginSkips.dangling} dangling brew link(s)` : ''}`,
+        );
+    } else {
+        console.warn(
+            `build-gtk-runtime: WARNING — ${pluginsSrc} missing; no GStreamer plugins bundled ` +
+                '(Gst.init() would succeed and decode nothing)',
+        );
+    }
+}
+
 // --- 3. verify the relocation ---------------------------------------------
 // A leftover absolute reference to a library we DID bundle is the whole failure
 // mode: the bundle looks complete, loads fine on the build host, and resolves
@@ -506,7 +653,7 @@ function verifyRelocation(paths) {
 // relocation is the harder one (a ../../.. prefix, plus an `@rpath` ref and an absolute
 // LC_ID_DYLIB on librsvg's module), so leaving them out would ship exactly the class of
 // bug this function exists to catch.
-verifyRelocation([...[...bundledLeaves].map((leaf) => join(libOut, leaf)), ...pixbufLoaderImages]);
+verifyRelocation([...[...bundledLeaves].map((leaf) => join(libOut, leaf)), ...pixbufLoaderImages, ...gstPluginImages]);
 
 // --- 4. typelibs — only the ones this bundle can actually BACK --------------
 // The brew typelib dir is shared by every installed formula, so copying it wholesale
@@ -568,6 +715,7 @@ if (typelibPlan.dropped.length > 0) {
 // every declared set that did not arrive, so a partial prefix cannot publish.
 const windowing = {
     pixbufLoaders: pixbufLoaderImages.length, // § 2b
+    gstPlugins: gstPluginImages.length, // § 2c
     schemas: false,
     iconThemes: [],
     iconFiles: 0,
@@ -743,7 +891,7 @@ const brewInfoLicense = (formula) => {
 // third-party LGPL modules too, so "the terms travel with the binaries" is only true if
 // the per-binary table names them. They attribute through the same derivation as every
 // dylib — their realpath runs through …/Cellar/{gdk-pixbuf,librsvg}/<version>/… .
-const shippedBinaries = new Map([...bundled, ...pixbufLoaderSources]);
+const shippedBinaries = new Map([...bundled, ...pixbufLoaderSources, ...gstPluginSources]);
 const { components: licenseComponents, unattributed } = describeBrewKegs({
     files: shippedBinaries,
     fallbackLicense: brewInfoLicense,

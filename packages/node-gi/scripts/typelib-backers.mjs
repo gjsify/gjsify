@@ -78,13 +78,24 @@ export const REQUIRED_NAMESPACES = [
 ];
 
 /**
- * What `--windowing` is FOR: libadwaita + GtkSourceView. Asserting the typelibs
- * here (and not only the dylibs, which the workflows grep for) is what makes the
- * superset's promise checkable — with the drop filter in place, a missing
+ * What `--windowing` is FOR: libadwaita + GtkSourceView + GStreamer. Asserting the
+ * typelibs here (and not only the dylibs, which the workflows grep for) is what
+ * makes the superset's promise checkable — with the drop filter in place, a missing
  * libadwaita would otherwise take `Adw-1.typelib` out of the bundle quietly and
  * leave a green build that ships no Adwaita at all.
+ *
+ * `Gst` + `GstApp` are here because `@gjsify/webaudio` imports exactly those two and
+ * neither was in ANY bundle. Measured on the published win32 tarball: 40 typelibs
+ * present, not one of them GStreamer's. So `new AudioContext()` threw `Failed to
+ * require Gst 1.0` on the batteries-included runtime and took the whole application
+ * down — fixed as a CRASH by #1089, fixed as MISSING AUDIO here.
+ *
+ * `GstApp` is not decoration. The decode pipeline is appsrc → decodebin → appsink,
+ * and `pipeline.get_by_name('src').push_buffer(…)` resolves only once the GstApp
+ * namespace is registered; without it the failure is a perfectly loaded Gst and
+ * `push_buffer is not a function` at the first sample.
  */
-export const WINDOWING_REQUIRED_NAMESPACES = ['Adw', 'GtkSource'];
+export const WINDOWING_REQUIRED_NAMESPACES = ['Adw', 'GtkSource', 'Gst', 'GstApp'];
 
 function splitList(value, separator) {
     if (!value) return [];

@@ -1236,7 +1236,7 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
     steps:
       - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
-        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -1474,6 +1474,17 @@ jobs:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
         run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
+
+      # AUDIO, the counterpart to the windowing proof above. Everything else about
+      # the GStreamer payload is checkable by counting files — and counting files is
+      # what missed the defect: a bundle shipped both Gst typelibs and ZERO plugins
+      # with every gate green. This asks the registry for the elements the decode
+      # path is made of, which covers the payload AND the env wiring around it.
+      - name: Audio proof — the GStreamer elements resolve on the bundle
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/gst-elements.test.mjs
 
   # Windows proof (Phase 1 — the reverse bridge BUILDS + RUNS on windows-latest).
   # The whole team is Linux-only, so a windows-latest runner is the only way to
@@ -1793,9 +1804,25 @@ jobs:
   # job (build-time closure SOURCE only, NOT shipped). Runs in parallel (does not
   # consume the addon). Uploads the bundle for the windowing proof job below.
   windows-gtk-windowing-runtime:
-    name: Windows FULL-windowing GTK runtime bundle (build / windows-latest x64)
-    runs-on: windows-latest
-    timeout-minutes: 30
+    name: Windows FULL-windowing GTK runtime bundle (build / windows-2022 x64)
+    # PINNED TO windows-2022, and not for nostalgia. Two reasons, both measured:
+    #
+    #   • gvsbuild builds GStreamer's dependency chain, and libvpx's configure has
+    #     no `x86_64-win64-vs18` target — on windows-latest (VS 18) it dies 25
+    #     minutes in with "libvpx build failed". Nothing on our side to fix; the
+    #     toolchain is simply newer than that build system.
+    #   • It is also the more correct choice. The GTK half of this prefix is the
+    #     gvsbuild RELEASE zip, built with VS 2022. Compiling GStreamer into that
+    #     same prefix with VS 18 mixes toolsets in one bundle; pinning makes the
+    #     whole prefix one.
+    #
+    # The addon that loads these DLLs is built on windows-latest and stays there —
+    # the MSVC C ABI is what makes that fine, and it is what the display-free bundle
+    # has always relied on.
+    runs-on: windows-2022
+    # Was 30, which the gvsbuild GStreamer chain blows through on a cache miss (the
+    # run that reached libvpx was already at 25 min). A cache hit skips it entirely.
+    timeout-minutes: 180
     env:
       GVSBUILD_VERSION: '2026.6.0'
       GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
@@ -1815,7 +1842,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\gtk-build\gtk\x64\release
-          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+          key: gvsbuild-gtk4-gst-gi-${{ env.GVSBUILD_VERSION }}-x64-v2
 
       # Build-time closure SOURCE only. Verbatim from the `windows` job.
       - name: Download + extract gvsbuild GTK4 (build-time closure source)
@@ -1834,6 +1861,95 @@ jobs:
       # glib-compile-schemas / gtk4-update-icon-cache / fc-cache) from <prefix>/bin,
       # which link glib/gio DLLs — so <prefix>/bin must be on PATH. (The DLL closure
       # walk uses dumpbin, located via vswhere on the VS2022 image.)
+      # GSTREAMER, BUILT FROM SOURCE INTO THE SAME PREFIX.
+      #
+      # There is no prebuilt Windows GStreamer we can lift. The gvsbuild release
+      # publishes exactly two assets — GTK3_Gvsbuild and GTK4_Gvsbuild — and neither
+      # carries any of it: measured on the published @gjsify/gtk-runtime-win32-x64
+      # tarball, all 40 typelibs present and not one of them GStreamer's, which is why
+      # `new AudioContext()` threw `Failed to require Gst 1.0` on a machine whose GTK
+      # worked perfectly. gstreamer.freedesktop.org ships an installer .exe for x64,
+      # but it dropped the separate devel package, so whether it carries typelibs at
+      # all is unverified — and an installer is the wrong thing to extract in CI.
+      #
+      # gvsbuild DOES define gstreamer/orc/gst-plugins-base/-good with
+      # `-Dintrospection=enabled`, so building them is the path where the typelibs are
+      # guaranteed and the ABI matches everything already in this prefix.
+      #
+      # IT WILL REBUILD DEPENDENCIES. The extracted zip carries no gvsbuild build
+      # markers, so gvsbuild considers glib/gobject-introspection unbuilt and makes
+      # them again from source. That is the cost of not having a prebuilt binary, and
+      # it is why the cache key covers the GStreamer projects too and the timeout is
+      # generous — on a cache hit this whole step is skipped.
+      - name: Build GStreamer with gvsbuild (into the GTK prefix)
+        if: steps.cache-gtk.outputs.cache-hit != 'true'
+        shell: pwsh
+        timeout-minutes: 150
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --upgrade pipx
+          python -m pipx ensurepath
+          python -m pipx install "gvsbuild==$env:GVSBUILD_VERSION"
+          # THE VS VERSION IS DERIVED, NOT ASSUMED. gvsbuild targets VS 17 by default
+          # and windows-latest now ships 18, so it found the toolchain, SKIPPED it
+          # ("Doesn't match target Visual Studio version of 17") and failed with
+          # "Unable to find applicable Visual Studio". Hardcoding 18 would break the
+          # same way at the next bump; vswhere already knows the answer.
+          # `--vs-ver` takes gvsbuild's OWN names (vs2022, vs2026), not the major
+          # version: 18 was rejected with "Choose from: vs2013 … vs2026". The obvious
+          # derivation does not work either — `catalog_productLineVersion` returned
+          # "18" on this image, not "2026", so it is the major here too and `vs18` was
+          # rejected in turn.
+          #
+          # So the map is EXPLICIT, and an unknown major is a hard error rather than a
+          # guess. gvsbuild enumerates the legal names itself; a wrong guess here would
+          # only reproduce the same failure with a different number.
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsMajor = (& $vswhere -latest -property installationVersion).Split('.')[0]
+          $vsVer = switch ($vsMajor) {
+            '17' { 'vs2022' }
+            '18' { 'vs2026' }
+            default { throw "unmapped Visual Studio major '$vsMajor' — add it here (gvsbuild spells these vs2022 / vs2026)" }
+          }
+          Write-Host "Visual Studio $vsMajor -> gvsbuild --vs-ver $vsVer"
+          # Same prefix the zip was extracted into, so one tree carries GTK + Gst and
+          # the bundle builder's single closure walk sees both.
+          # `--skip libvpx`, and it is the audio-path rule applied to the BUILD
+          # rather than only to the payload. gst-plugins-good declares exactly one
+          # dependency beyond -base, and it is libvpx: VP8/VP9, i.e. video, which
+          # gst-plugins.mjs already excludes from what ships. We were spending 15+
+          # minutes compiling a codec whose output is thrown away.
+          #
+          # It also never once succeeded. On windows-latest its configure has no
+          # `x86_64-win64-vs18` target; on windows-2022 it gets further and dies
+          # moving `x64/vpxmd.lib`. GStreamer's meson features default to `auto`, so
+          # an absent libvpx simply disables the vpx plugin — which is the state we
+          # want anyway. -good is still built, for the parsers and decoders the audio
+          # path genuinely needs: wavparse, flac, mpg123, autodetect.
+          # `--enable-gi` IS THE WHOLE POINT and defaults to FALSE. gvsbuild's
+          # gstreamer projects gate introspection on it — without it they pass
+          # `-Dintrospection=disabled`, so the build succeeds and produces no
+          # .gir/.typelib at all. Measured: a complete 16-minute GStreamer build
+          # whose prefix contained zero Gst typelibs. The assertion below is what
+          # caught it, at the prefix, instead of three jobs later as "no element
+          # decodebin" — typelibs are the only reason we build this from source
+          # rather than lifting a binary.
+          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --skip libvpx --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
+
+      - name: Assert GStreamer landed in the prefix (typelibs + plugins)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The two the bundle asserts, and the plugin dir the elements come from.
+          # Fail HERE rather than three jobs later with "no element decodebin".
+          foreach ($t in @('Gst-1.0.typelib', 'GstApp-1.0.typelib')) {
+            $p = "$env:GTK_PREFIX\lib\girepository-1.0\$t"
+            if (-not (Test-Path $p)) { Write-Host "MISSING $p"; exit 1 }
+          }
+          $plugins = Get-ChildItem "$env:GTK_PREFIX\lib\gstreamer-1.0" -Filter *.dll -ErrorAction SilentlyContinue
+          if (-not $plugins) { Write-Host "no GStreamer plugins in the prefix"; exit 1 }
+          Write-Host "GStreamer: $($plugins.Count) plugin DLL(s) in the prefix"
+
       - name: Put GTK on PATH (for the bundle-data tools)
         shell: pwsh
         run: '"$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8'
@@ -2013,6 +2129,17 @@ jobs:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
         run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
+
+      # AUDIO, the counterpart to the windowing proof above. Everything else about
+      # the GStreamer payload is checkable by counting files — and counting files is
+      # what missed the defect: a bundle shipped both Gst typelibs and ZERO plugins
+      # with every gate green. This asks the registry for the elements the decode
+      # path is made of, which covers the payload AND the env wiring around it.
+      - name: Audio proof — the GStreamer elements resolve on the bundle
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/gst-elements.test.mjs
 
   # Adwaita Storybook capstone — BUILD the `--app node` bundle. The full
   # @gjsify/storybook Libadwaita component gallery (showcases/gtk/adwaita-storybook,

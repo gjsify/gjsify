@@ -348,7 +348,12 @@ test("the host's own typelib corpus parses, and its GTK stack is self-consistent
 test('WINDOWING_REQUIRED_NAMESPACES names what --windowing exists to add', () => {
     // Guards the floor itself: if this list were emptied, the --windowing bundles
     // could silently ship without Adwaita and every gate would still be green.
-    assert.deepEqual(WINDOWING_REQUIRED_NAMESPACES, ['Adw', 'GtkSource']);
+    //
+    // `Gst` + `GstApp` joined it when the bundles started shipping GStreamer, and
+    // BOTH are named because the failure modes differ: no `Gst` is no audio at all,
+    // while no `GstApp` is a perfectly loaded Gst whose `appsrc.push_buffer(…)` is
+    // not a function — the decode pipeline dying at its first sample.
+    assert.deepEqual(WINDOWING_REQUIRED_NAMESPACES, ['Adw', 'GtkSource', 'Gst', 'GstApp']);
     for (const ns of ['GLib', 'GObject', 'Gio', 'Gtk', 'Gdk', 'Pango', 'GdkPixbuf', 'Graphene', 'cairo']) {
         assert.ok(REQUIRED_NAMESPACES.includes(ns), `${ns} is part of the bundle's promise`);
     }

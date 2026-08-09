@@ -40,7 +40,7 @@
 // back" and for "the terms of what it ships travel with it", because two copies of a
 // gate are two gates that drift.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -57,6 +57,7 @@ import {
     scanLicenseFiles,
     writeLicensePayload,
 } from '../../scripts/bundle-licenses.mjs';
+import { isBundledGstPlugin } from '../../scripts/gst-plugins.mjs';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -142,6 +143,15 @@ const WINDOWING_SEED_PATTERNS = [
     /^epoxy.*\.dll$/i,
     /^rsvg.*\.dll$/i,
     /^libxml2.*\.dll$/i,
+    // GStreamer, backing the Gst + GstApp typelibs `@gjsify/webaudio` imports; its
+    // PLUGINS are § 4g. TWO seeds, not one: the dumpbin walk reaches
+    // gstbase/audio/pbutils/tag/video from gstreamer-1.0-0.dll, but gstapp is a
+    // gst-plugins-base library only an appsrc/appsink user links — which is exactly
+    // what the decode pipeline is. Seeding only gstreamer would leave
+    // `GstApp-1.0.typelib` unbacked and § 3's symmetry rule would DROP it: a green
+    // build with no audio and no message.
+    /^gstreamer-1\.0-.*\.dll$/i,
+    /^gstapp-1\.0-.*\.dll$/i,
 ];
 
 // Locate an MSVC/gvsbuild tool: env override, then the gvsbuild <prefix>/bin
@@ -256,8 +266,21 @@ if (WINDOWING && existsSync(gdkPixbufLoaderDir)) {
         if (f.toLowerCase().endsWith('.dll')) loaderSeeds.push(join(gdkPixbufLoaderDir, f));
     }
 }
+
+// Same shape for the GStreamer plugins (§ 4g): they live outside bin/ and their
+// backing DLLs must still land there, so each plugin seeds the closure walk.
+const gstPluginDir = join(PREFIX, 'lib', 'gstreamer-1.0');
+const gstPluginSeeds = [];
+if (WINDOWING && existsSync(gstPluginDir)) {
+    for (const f of readdirSync(gstPluginDir)) {
+        if (f.toLowerCase().endsWith('.dll') && isBundledGstPlugin(f)) {
+            gstPluginSeeds.push(join(gstPluginDir, f));
+        }
+    }
+}
 console.log(
-    `build-gtk-runtime: ${seeds.length} seed DLLs${loaderSeeds.length ? ` + ${loaderSeeds.length} pixbuf loaders` : ''}`,
+    `build-gtk-runtime: ${seeds.length} seed DLLs${loaderSeeds.length ? ` + ${loaderSeeds.length} pixbuf loaders` : ''}` +
+        `${gstPluginSeeds.length ? ` + ${gstPluginSeeds.length} gst plugins` : ''}`,
 );
 
 const dumpbin = findDumpbin();
@@ -268,7 +291,7 @@ if (dumpbin) {
     console.log(`build-gtk-runtime: walking the DLL closure with ${dumpbin}`);
     // Seed with bin/ seeds (leaf names) + external loader DLLs (full paths) so THEIR
     // deps are walked into bin/ even though the loaders live outside bin/.
-    const queue = [...seeds, ...loaderSeeds];
+    const queue = [...seeds, ...loaderSeeds, ...gstPluginSeeds];
     while (queue.length) {
         const entry = queue.shift();
         const isPath = entry.includes('\\') || entry.includes('/');
@@ -365,7 +388,14 @@ if (typelibPlan.dropped.length > 0) {
 // in 0.27.1. The DATA marker node-gi keys on is gschemas.compiled; a bundle without it
 // is treated as display-free by the loader, i.e. the failure is silent, which is
 // precisely why it is asserted instead of warned about.
-const windowing = { pixbufLoaders: 0, schemas: false, iconThemes: [], fontconfig: false, gtksource: false };
+const windowing = {
+    pixbufLoaders: 0,
+    gstPlugins: 0,
+    schemas: false,
+    iconThemes: [],
+    fontconfig: false,
+    gtksource: false,
+};
 if (WINDOWING) {
     // 4a. gdk-pixbuf loaders + a bundle-relative loaders.cache. The cache maps each
     // decoder DLL to its mime/extensions; gdk-pixbuf resolves the DLL paths in it
@@ -407,6 +437,71 @@ if (WINDOWING) {
         console.warn(
             `build-gtk-runtime: WARNING — ${gdkPixbufLoaderDir} missing; no gdk-pixbuf loaders bundled ` +
                 '(§ 5b will fail this build)',
+        );
+    }
+
+    // 4g. GStreamer plugins + the plugin scanner — the ELEMENTS. `Gst.init()`
+    // succeeds against an empty registry, so a bundle shipping libgstreamer and
+    // every Gst typelib but no plugins reports itself perfectly healthy and then
+    // fails far away with "no element decodebin". The same shape 4a exists for.
+    //
+    // EVERYTHING the prefix has, not a curated element list: guessing which codecs
+    // an app will meet fails SILENTLY when the guess is wrong. The size is printed
+    // instead, so the payload is a number somebody can act on. No relocation —
+    // unlike darwin's Mach-O plugins, Windows resolves the backing DLLs by search
+    // path, and the closure walk above already put them in bin/.
+    if (existsSync(gstPluginDir)) {
+        const pluginsOut = join(OUT, 'lib', 'gstreamer-1.0');
+        mkdirSync(pluginsOut, { recursive: true });
+        let bytes = 0;
+        for (const f of readdirSync(gstPluginDir)) {
+            if (!f.toLowerCase().endsWith('.dll')) continue;
+            // The AUDIO PATH only, same rule and same reasons as darwin.
+            if (!isBundledGstPlugin(f)) continue;
+            const dest = join(pluginsOut, f);
+            copyFileSync(join(gstPluginDir, f), dest);
+            bytes += statSync(dest).size;
+            windowing.gstPlugins++;
+        }
+        // The scanner, which GStreamer FORKS so a plugin that crashes on load cannot
+        // take the app down with it. Its compiled-in path is the build machine's, so
+        // it has to be bundled AND pointed at (`GST_PLUGIN_SCANNER`, wired in
+        // node-gi's gtk-runtime.js).
+        const scannerSrc = join(PREFIX, 'libexec', 'gstreamer-1.0', 'gst-plugin-scanner.exe');
+        if (existsSync(scannerSrc)) {
+            const scannerOut = join(OUT, 'libexec', 'gstreamer-1.0');
+            mkdirSync(scannerOut, { recursive: true });
+            copyFileSync(scannerSrc, join(scannerOut, 'gst-plugin-scanner.exe'));
+        } else {
+            console.warn(
+                `build-gtk-runtime: WARNING — ${scannerSrc} missing; GStreamer will scan plugins ` +
+                    'IN-PROCESS (works, until the first plugin that crashes on load)',
+            );
+        }
+        // ZERO IS NEVER RIGHT, and the build shipped zero while staying green: the
+        // plugin filter stripped `^libgst`, Windows names its plugins `gstfoo.dll`
+        // without the prefix, and all 83 were skipped. Nothing noticed, because the
+        // typelib symmetry gate checks typelib against LIBRARY and knows nothing
+        // about plugins — so the bundle had libgstreamer, both Gst typelibs, and no
+        // elements at all. That is precisely the "healthy, then no element decodebin"
+        // failure this section is written against, so it is now an ERROR.
+        if (windowing.gstPlugins === 0) {
+            console.error(
+                `build-gtk-runtime: ${gstPluginDir} holds plugins but NONE matched the audio-path ` +
+                    'filter — a --windowing bundle with no GStreamer elements would report itself ' +
+                    'healthy and then fail with "no element decodebin". Check isBundledGstPlugin ' +
+                    "against this platform's plugin naming.",
+            );
+            process.exit(1);
+        }
+        console.log(
+            `build-gtk-runtime: GStreamer — ${windowing.gstPlugins} plugin(s), ` +
+                `${(bytes / 1024 / 1024).toFixed(1)} MiB`,
+        );
+    } else {
+        console.warn(
+            `build-gtk-runtime: WARNING — ${gstPluginDir} missing; no GStreamer plugins bundled ` +
+                '(Gst.init() would succeed and decode nothing)',
         );
     }
 
