@@ -16,9 +16,13 @@ adw-navigation-view {
   background-color: var(--window-bg-color);
   color: var(--window-fg-color);
 
-  // The page stack — fills the view; positioned so pages can stack.
+  // The page stack — fills the view when it is given a height, and MEASURES the
+  // visible page when it is not. A flex column rather than a positioning
+  // context: the page is an in-flow item, so its content reaches the view.
   .adw-navigation-view-pages {
     flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
     position: relative;
     box-sizing: border-box;
     min-height: 0;
@@ -26,11 +30,31 @@ adw-navigation-view {
   }
 
   // A single navigation page — the visible one fills the view, the rest are
-  // hidden. Positioned absolutely so a transition can overlap two pages.
+  // `display: none`.
+  //
+  // IN FLOW, not absolute. It was `position: absolute; inset: 0` under a comment
+  // saying it had to be "so a transition can overlap two pages" — but two pages
+  // never overlap here: `adw-navigation-view.ts` marks every page but the
+  // visible one `[hidden]`, which is `display: none` below, and the push
+  // animation runs on `.visible-page` alone. So the absolute positioning bought
+  // an overlap that does not happen, and what it cost was the HEIGHT: an
+  // absolutely-positioned child contributes nothing to its parent, so the page
+  // stack measured 0, the view above it measured 0, and the page — `inset: 0` of
+  // a zero-height parent — measured 0 in turn. A closed circle.
+  //
+  // Inside a window that never showed, because a definite height arrived from
+  // outside. `<adw-about-dialog>` is the case where none does: its sheet is
+  // `position: fixed` with a width and no height, exactly as
+  // `adw-about-dialog.ui` declares it (`content-width` 360, no content-height —
+  // libadwaita takes the height from the content). The whole dialog rendered
+  // invisible, with a header bar inside it genuinely measuring 47px.
+  //
+  // `flex: 1 1 auto` keeps the fill: given a height the page still grows into
+  // it; without one it reports its content.
   .adw-navigation-page {
     box-sizing: border-box;
-    position: absolute;
-    inset: 0;
+    position: relative;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     overflow: auto;
