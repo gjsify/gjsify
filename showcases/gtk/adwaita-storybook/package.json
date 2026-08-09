@@ -17,9 +17,12 @@
     "clear": "gjsify clear dist tsconfig.tsbuildinfo node_modules/.cache/gjsify-storybook",
     "check": "gjsify tsc --noEmit",
     "start": "gjsify storybook",
+    "start:node": "gjsify storybook --runtime node",
     "start:watch": "gjsify storybook --watch",
     "start:browser": "http-server dist -o -c-1",
-    "build": "gjsify storybook --build-only --out dist/gjs.js",
+    "build": "gjsify run build:gjs && gjsify run build:node && gjsify run build:web",
+    "build:gjs": "gjsify storybook --build-only --out dist/gjs.js",
+    "build:node": "gjsify storybook --build-only --runtime node --out dist/gjs.node.mjs",
     "build:browser": "gjsify build src/browser/main.ts --app browser --outfile dist/browser-main.js",
     "build:assets": "gjsify copy src/browser/index.html dist/",
     "build:web": "gjsify run build:browser && gjsify run build:assets",
@@ -36,8 +39,12 @@
     "tier": 2,
     "example": {
       "runtimes": [
-        "gjs"
-      ]
+        "gjs",
+        "node",
+        "bun",
+        "deno"
+      ],
+      "node": "dist/gjs.node.mjs"
     }
   },
   "devDependencies": {

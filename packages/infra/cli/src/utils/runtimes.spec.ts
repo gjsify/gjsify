@@ -110,10 +110,14 @@ export default async () => {
             expect(checkRuntimeSupported('node', ['gjs', 'node'], 'x').ok).toBe(true);
         });
 
+        // A MADE-UP name on purpose. This asserts the message FORMATTER, not any
+        // real showcase — and it used to say `adwaita-storybook`, which stopped
+        // being true the moment that showcase declared node/bun/deno. A test
+        // that names a real thing quietly claims something about it.
         await it('gives a clear, actionable error for an unsupported runtime', () => {
-            const res = checkRuntimeSupported('node', ['gjs'], 'adwaita-storybook');
+            const res = checkRuntimeSupported('node', ['gjs'], 'gjs-only-example');
             expect(res.ok).toBe(false);
-            expect(res.message).toContain('adwaita-storybook');
+            expect(res.message).toContain('gjs-only-example');
             expect(res.message).toContain('does not support --runtime node');
             expect(res.message).toContain('Declared runtimes: gjs');
         });

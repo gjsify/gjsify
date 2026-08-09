@@ -33,6 +33,14 @@ This opens the native GTK4 storybook window — real `Adw.*` widgets, an `Adw.Na
 
 (From a checkout of the showcase, `gjsify storybook` does the same thing — it discovers the `*.story.ts` files and launches the GTK browser.)
 
+## Run it on Node, Bun or Deno
+
+```bash
+gjsify showcase adwaita-storybook --runtime node   # or --runtime bun / --runtime deno
+```
+
+The same native window, with GTK reached through [`@gjsify/node-gi`](/gjsify/projects/node-gi/) instead of GJS. One `--app node` bundle serves all three — Node-API is their common native ABI — so there is no per-runtime build and no third copy of a story.
+
 ## Run it in the browser
 
 ```ts
