@@ -27,8 +27,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { requireGi, unwrap } from '../gi.js';
 import native from '../index.js';
-
-const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
+import { haveDisplay } from './display-gate.mjs';
 
 let GObject;
 let Gtk;

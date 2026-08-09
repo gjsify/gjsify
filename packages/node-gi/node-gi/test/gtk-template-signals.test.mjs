@@ -36,8 +36,7 @@ import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
+import { haveDisplay } from './display-gate.mjs';
 
 // gjs is the reference. Probe it once; a missing gjs skips ONLY the parity leg (the
 // node-gi golden-value assertions still run).

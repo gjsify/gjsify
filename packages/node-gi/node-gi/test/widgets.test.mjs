@@ -47,9 +47,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { requireGi } from '../gi.js';
-
-const displayless = process.platform === 'win32' || process.platform === 'darwin';
-const haveDisplay = displayless || !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
+import { haveDisplay } from './display-gate.mjs';
 
 let Adw;
 let Gtk;

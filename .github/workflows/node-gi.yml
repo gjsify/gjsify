@@ -1459,6 +1459,22 @@ jobs:
           GSK_RENDERER: cairo
         run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
 
+      # Composite templates — the proof that was missing on BOTH displayless
+      # platforms. All four gtk-template tests gated on DISPLAY/WAYLAND_DISPLAY,
+      # variables GdkWin32 and GdkQuartz never set, so they had never run off
+      # Linux. Windows meanwhile shipped `GetGtkTemplateApi()` as an
+      # `#ifdef _WIN32` stub, and a user found it before CI did: `gjsify showcase
+      # three-geometry-teapot --runtime node` on Windows 11 died with "the
+      # libgtk-4 template API is unavailable" on a machine with working GTK 4.
+      # Running them here is what turns "templates work on this platform" from a
+      # claim into a check.
+      - name: Template proof — composite templates resolve, install and bind children
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
+
   # Windows proof (Phase 1 — the reverse bridge BUILDS + RUNS on windows-latest).
   # The whole team is Linux-only, so a windows-latest runner is the only way to
   # validate. Sibling of the macOS proof (its `macos` job above is the template).
@@ -1981,6 +1997,22 @@ jobs:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
         run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
+
+      # Composite templates — the proof that was missing on BOTH displayless
+      # platforms. All four gtk-template tests gated on DISPLAY/WAYLAND_DISPLAY,
+      # variables GdkWin32 and GdkQuartz never set, so they had never run off
+      # Linux. Windows meanwhile shipped `GetGtkTemplateApi()` as an
+      # `#ifdef _WIN32` stub, and a user found it before CI did: `gjsify showcase
+      # three-geometry-teapot --runtime node` on Windows 11 died with "the
+      # libgtk-4 template API is unavailable" on a machine with working GTK 4.
+      # Running them here is what turns "templates work on this platform" from a
+      # claim into a check.
+      - name: Template proof — composite templates resolve, install and bind children
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
 
   # Adwaita Storybook capstone — BUILD the `--app node` bundle. The full
   # @gjsify/storybook Libadwaita component gallery (showcases/gtk/adwaita-storybook,
