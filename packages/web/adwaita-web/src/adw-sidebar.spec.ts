@@ -329,4 +329,36 @@ export const AdwSidebarTest = async () => {
             host.remove();
         });
     });
+
+    // A row's own box, which nothing had ever measured.
+    //
+    // `.adw-sidebar-item` carried `width: 100%` ON TOP of `margin: 0 6px 2px`.
+    // The list is a column flex container, so a row already stretches to it and
+    // stretching subtracts margins; `width: 100%` resolves against the
+    // containing block instead, which does not, so every row came out 12px too
+    // wide — inset on the left, hanging past the right edge with its rounded
+    // corners clipped away. Every earlier test asked what a row CONTAINED, so
+    // all of them passed.
+    await describe('a sidebar row sits inside its list, not over its edge', async () => {
+        await it('leaves the same margin on both sides', async () => {
+            const { sidebar, host } = mountSidebar([{ items: [{ title: 'Inbox' }, { title: 'Starred' }] }], {
+                selected: '0',
+            });
+            host.setAttribute('style', 'width:220px');
+
+            const list = sidebar.querySelector('.adw-sidebar-list') as HTMLElement;
+            const listBox = list.getBoundingClientRect();
+
+            for (const row of rowsOf(sidebar)) {
+                const box = row.getBoundingClientRect();
+                const left = box.left - listBox.left;
+                const right = listBox.right - box.right;
+                // Symmetric, and INSIDE — a negative right gap is the overhang.
+                expect(Math.round(left)).toBe(Math.round(right));
+                expect(right >= 0).toBe(true);
+            }
+
+            host.remove();
+        });
+    });
 };

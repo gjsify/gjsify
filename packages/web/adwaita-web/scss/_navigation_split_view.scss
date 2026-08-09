@@ -22,12 +22,16 @@ adw-navigation-split-view {
   min-width: 0;
   flex: 1 1 auto;
 
+  // NO background here — it comes from the `.sidebar-pane` class the element
+  // applies while DOCKED (see _panes.scss). Collapsed, libadwaita builds no
+  // pane bins at all and the sidebar is an ordinary full-window navigation
+  // page; a background nailed to this private class made it sidebar-coloured
+  // at every width.
   .adw-nsv-sidebar {
     display: flex;
     flex-direction: column;
     min-height: 0;
     flex-shrink: 0;
-    background-color: var(--sidebar-bg-color);
   }
 
   // The container MINIMUM, as CSS spells it: `measure_uncollapsed`

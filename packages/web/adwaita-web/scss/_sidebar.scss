@@ -62,12 +62,19 @@ adw-sidebar {
   }
 
   // --- A single item row ---
+  //
+  // NO `width: 100%`. The list is a column flex container, so a row already
+  // stretches to it — and stretching SUBTRACTS the row's own margins, which is
+  // what puts the same 6px of air on both sides. `width: 100%` resolves against
+  // the containing block INSTEAD, which does not know about the margins, so
+  // every row came out 12px too wide: inset 6px on the left, hanging 6px past
+  // the right edge with its rounded corners cut off by the pane. Visible on any
+  // selected or hovered row, because only a filled row shows where it ends.
   .adw-sidebar-item {
     box-sizing: border-box;
     display: flex;
     align-items: center;
     gap: var(--spacing-m);
-    width: 100%;
     min-height: 36px;
     // The native row has a context menu, so padding lives on the inner box and
     // the row itself carries the menu margin + radius.

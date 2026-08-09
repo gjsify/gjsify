@@ -273,6 +273,16 @@ export class AdwNavigationSplitView extends HTMLElement {
             isSidebarAtVisualStart(state.sidebarPosition, this._direction),
         );
 
+        // THE PANE STYLE CLASSES, and only while docked. libadwaita builds the
+        // two `.sidebar-pane` / `.content-pane` bins in the UNCOLLAPSED branch
+        // alone (:583-608); collapsed, both pages move into one AdwNavigationView
+        // and neither bin exists (:552-568) — so a collapsed sidebar is a full
+        // window page on the WINDOW background, not a sidebar-coloured one.
+        // Painting it `--sidebar-bg-color` at every width, as this did, is the
+        // same defect the overlay view has with `.overlay-pane`.
+        this._sidebarEl?.classList.toggle('sidebar-pane', !state.collapsed);
+        this._contentEl?.classList.toggle('content-pane', !state.collapsed);
+
         // The STACK, not the two flags: `update_navigation_stack` (:342-405)
         // keeps a LONE child visible whatever `show-content` says, and with
         // `sidebar-position: end` the CONTENT is the root page — so the sidebar

@@ -890,4 +890,95 @@ export const AdwSplitViewsTest = async () => {
             host.remove();
         });
     });
+
+    // The pane STYLE CLASSES, which libadwaita documents as each split view's
+    // CSS node tree and which an app is meant to be able to select.
+    //
+    // They were absent entirely, and both views hard-coded `--sidebar-bg-color`
+    // onto their own private pane class instead. That is not the same thing
+    // twice: the class is not constant. It says which STATE a pane is in, and
+    // the colour follows from that — so a collapsed overlay sidebar, which
+    // libadwaita puts on the window background, was painted as though it were
+    // still docked beside the content.
+    //
+    // Asserting the class names and not only the colours is deliberate. The
+    // names are the app-facing contract; a rendering that happened to look right
+    // through some other selector would still have broken every app stylesheet
+    // written against the documented one.
+    await describe('split-view panes carry libadwaita pane style classes', async () => {
+        const bg = (el: Element) => getComputedStyle(el).backgroundColor;
+        const token = (name: string) => {
+            const probe = document.createElement('div');
+            probe.style.backgroundColor = `var(${name})`;
+            document.body.appendChild(probe);
+            const value = getComputedStyle(probe).backgroundColor;
+            probe.remove();
+            return value;
+        };
+
+        await it('overlay: docked panes are .sidebar-pane / .content-pane', async () => {
+            const { view, host } = mount('show-sidebar');
+            host.setAttribute('style', 'width:900px;height:300px;display:flex');
+            await settle();
+            const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            const content = view.querySelector('.adw-osv-content') as HTMLElement;
+
+            expect(sidebar.classList.contains('sidebar-pane')).toBe(true);
+            expect(sidebar.classList.contains('overlay-pane')).toBe(false);
+            expect(content.classList.contains('content-pane')).toBe(true);
+            expect(bg(sidebar)).toBe(token('--sidebar-bg-color'));
+            host.remove();
+        });
+
+        await it('overlay: collapsing turns the sidebar into an .overlay-pane on the window background', async () => {
+            const { view, host } = mount('show-sidebar');
+            host.setAttribute('style', 'width:900px;height:300px;display:flex');
+            await settle();
+            const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
+            const content = view.querySelector('.adw-osv-content') as HTMLElement;
+
+            view.setAttribute('collapsed', '');
+            await settle();
+            expect(sidebar.classList.contains('overlay-pane')).toBe(true);
+            expect(sidebar.classList.contains('sidebar-pane')).toBe(false);
+            // Collapsed, libadwaita removes `.content-pane` outright — the
+            // content is no longer one pane of two, it is the whole view.
+            expect(content.classList.contains('content-pane')).toBe(false);
+            expect(bg(sidebar)).toBe(token('--window-bg-color'));
+
+            // And back: the class follows the state in BOTH directions. A
+            // one-way toggle would leave a re-expanded sidebar window-coloured.
+            view.removeAttribute('collapsed');
+            await settle();
+            expect(sidebar.classList.contains('sidebar-pane')).toBe(true);
+            expect(bg(sidebar)).toBe(token('--sidebar-bg-color'));
+            host.remove();
+        });
+
+        await it('navigation: the pane classes exist while docked and are dropped when collapsed', async () => {
+            const host = document.createElement('div');
+            host.setAttribute('style', 'width:900px;height:300px;display:flex');
+            document.body.appendChild(host);
+            host.innerHTML =
+                '<adw-navigation-split-view><div slot="sidebar">s</div><div slot="content">c</div></adw-navigation-split-view>';
+            const view = host.querySelector('adw-navigation-split-view') as AdwNavigationSplitView;
+            await settle();
+            const sidebar = view.querySelector('.adw-nsv-sidebar') as HTMLElement;
+            const content = view.querySelector('.adw-nsv-content') as HTMLElement;
+
+            expect(sidebar.classList.contains('sidebar-pane')).toBe(true);
+            expect(content.classList.contains('content-pane')).toBe(true);
+            expect(bg(sidebar)).toBe(token('--sidebar-bg-color'));
+
+            // Collapsed, libadwaita builds no pane bins at all: both pages move
+            // into one navigation view, so the sidebar is an ordinary full-width
+            // page and must stop being sidebar-coloured.
+            view.setAttribute('collapsed', '');
+            await settle();
+            expect(sidebar.classList.contains('sidebar-pane')).toBe(false);
+            expect(content.classList.contains('content-pane')).toBe(false);
+            expect(bg(sidebar)).not.toBe(token('--sidebar-bg-color'));
+            host.remove();
+        });
+    });
 };
