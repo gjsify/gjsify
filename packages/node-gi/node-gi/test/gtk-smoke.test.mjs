@@ -28,8 +28,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { requireGi } from '../gi.js';
-
-const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
+import { haveDisplay } from './display-gate.mjs';
 
 // Resolve the GTK stack up front: a missing Gtk-4.0 typelib (a headless dev box
 // with no gtk4-devel) must SKIP, not throw. The GLib/Gio deps come along too.

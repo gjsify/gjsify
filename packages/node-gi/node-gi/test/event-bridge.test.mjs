@@ -58,6 +58,7 @@ import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { haveDisplay } from './display-gate.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 // The fixture lives OUTSIDE test/ on purpose: node --test's default glob
@@ -65,8 +66,6 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 // unbundled gi:// source directly, which fails to resolve.
 const pkgRoot = join(here, '..');
 const fixture = join(pkgRoot, 'fixtures', 'event-bridge-app.ts');
-
-const haveDisplay = !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY;
 
 // Locate the workspace `gjsify` CLI: an explicit override, else the nearest
 // node_modules/.bin/gjsify walking up from here, else `gjsify` on PATH.
