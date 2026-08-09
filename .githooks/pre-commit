@@ -149,9 +149,34 @@ echo "  • packages/infra/cli/src/ (or package.json), packages/infra/resolve-np
 echo "[gjsify pre-commit] rebuilding it — bypass with 'git commit --no-verify' or SKIP_GJSIFY_HOOKS=1."
 
 # `build` first: `build:affected-bundle` bundles `lib/`, which that step emits.
-$GJSIFY workspace @gjsify/cli build || rebuild_failed "gjsify workspace @gjsify/cli build"
+#
+# `--with-dependencies` IS LOAD-BEARING, and its absence staged a wrong artefact
+# twice. The bundle is built from the CLI's `lib/` AND its dependencies' — and
+# nothing forces those to be current, so on a tree that had merely been pulled this
+# rebuilt against a stale `resolve-npm`/`rolldown-plugin-gjsify` and produced a
+# 249376 B bundle where the source at HEAD produces 258405 B. CI then failed its
+# artifact check on a file the branch had no business changing, on two PRs whose
+# only CLI edit was a *.spec.ts that the bundle does not contain.
+#
+# Same shape as #1080 one level down: a build trusting an on-disk artefact without
+# checking it is current. There the answer was to widen the SELECTION rather than
+# add a probe, and it is the same answer here.
+$GJSIFY workspace @gjsify/cli build --with-dependencies || rebuild_failed "gjsify workspace @gjsify/cli build --with-dependencies"
 $GJSIFY workspace @gjsify/cli build:affected-bundle || rebuild_failed "gjsify workspace @gjsify/cli build:affected-bundle"
+
+# ANNOUNCE a change instead of staging it silently. A rebuild producing identical
+# bytes is the COMMON case — the bundle carries only the `affected` command, so most
+# CLI edits leave it alone — and `git add` of an identical file is a no-op anyway.
+# When the bytes DO differ, the commit grows a binary file the author never edited,
+# and that deserves a line: it is either a real consequence of the change, or the
+# signal that this tree built something CI will not reproduce.
+if git diff --quiet HEAD -- packages/infra/cli/dist/affected.gjs.mjs 2>/dev/null; then
+    echo "[gjsify pre-commit] affected.gjs.mjs unchanged by the rebuild — nothing to stage"
+    exit 0
+fi
 git add packages/infra/cli/dist/affected.gjs.mjs
-echo "[gjsify pre-commit] staged packages/infra/cli/dist/affected.gjs.mjs"
+echo "[gjsify pre-commit] affected.gjs.mjs CHANGED — staged. If this commit does not touch the"
+echo "[gjsify pre-commit] \`affected\` command, check that is intended: CI rebuilds the bundle from"
+echo "[gjsify pre-commit] source at HEAD and fails when the two disagree."
 
 exit 0
