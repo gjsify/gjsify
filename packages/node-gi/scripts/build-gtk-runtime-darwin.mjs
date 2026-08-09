@@ -290,8 +290,49 @@ if (seeds.length === 0) {
 }
 console.log(`build-gtk-runtime: ${seeds.length} seed libraries: ${seeds.join(', ')}`);
 
+// The GStreamer plugins § 2c ships must SEED THIS WALK, not merely be copied after
+// it. They live outside lib/, so nothing in the seed closure links them — and their
+// own dependencies (libgstaudio/tag/riff/pbutils from the gstreamer keg, plus orc
+// and libvorbis) therefore never entered it. Measured: every kept plugin came out
+// referencing `/opt/homebrew/Cellar/gstreamer/<ver>/lib/…`, and § 3 refused the
+// bundle — correctly, because those paths do not exist on a user's machine. Same
+// shape the win32 builder already had for its plugins and its pixbuf loaders.
+const gstPluginSeedPaths = [];
+const gstPluginSkips = { nonAudio: 0, dangling: 0 };
+if (WINDOWING) {
+    const dir = join(brewLib, 'gstreamer-1.0');
+    if (existsSync(dir)) {
+        for (const f of readdirSync(dir)) {
+            if (!f.endsWith('.dylib') && !f.endsWith('.so')) continue;
+            // The AUDIO PATH only — gst-plugins.mjs says why "everything the prefix
+            // has" is not an option and what the rule replaced it with.
+            if (!isBundledGstPlugin(f)) {
+                gstPluginSkips.nonAudio++;
+                continue;
+            }
+            // A DANGLING LINK IS A PLUGIN THAT IS NOT INSTALLED. brew links every
+            // plugin any formula ever provided into this one dir and leaves the link
+            // when the keg goes — `libgstnice.dylib` on the arm64 runner points at a
+            // libnice keg that is not there. `existsSync` FOLLOWS the link, so this
+            // is the check, and the skips are COUNTED rather than swallowed: a plugin
+            // quietly missing from the payload is the failure this area prevents.
+            const src = join(dir, f);
+            if (!existsSync(src)) {
+                gstPluginSkips.dangling++;
+                continue;
+            }
+            gstPluginSeedPaths.push(src);
+        }
+    }
+}
+
 const bundled = new Map(); // leaf -> real source path
 const queue = [...seeds];
+// Walk the plugins' deps into the closure WITHOUT adding the plugins themselves to
+// `bundled` — they are not flat lib/ entries, § 2c places and relocates them.
+for (const pluginPath of gstPluginSeedPaths) {
+    for (const dep of otoolDeps(pluginPath)) queue.push(basename(dep));
+}
 while (queue.length) {
     const leaf = queue.shift();
     if (bundled.has(leaf)) continue;
@@ -498,29 +539,10 @@ if (WINDOWING) {
     if (existsSync(pluginsSrc)) {
         mkdirSync(pluginsOut, { recursive: true });
         let bytes = 0;
-        let dangling = 0;
-        let skipped = 0;
-        for (const f of readdirSync(pluginsSrc)) {
-            if (!f.endsWith('.dylib') && !f.endsWith('.so')) continue;
-            // The AUDIO PATH only — see gst-plugins.mjs for why "everything the
-            // prefix has" is not an option here and what the rule replaced it with.
-            if (!isBundledGstPlugin(f)) {
-                skipped++;
-                continue;
-            }
-            const src = join(pluginsSrc, f);
-            // A DANGLING LINK IS A PLUGIN THAT IS NOT INSTALLED. brew links every
-            // plugin any formula ever provided into this one dir, and leaves the link
-            // behind when the keg goes: measured on the arm64 runner,
-            // `libgstnice.dylib` points at a libnice keg that is not there, and
-            // copyFileSync died with ENOENT on it. `existsSync` FOLLOWS the link, so
-            // this is the check — and it is counted rather than swallowed, because a
-            // plugin silently missing from the payload is the failure mode this whole
-            // section exists to prevent.
-            if (!existsSync(src)) {
-                dangling++;
-                continue;
-            }
+        // The SAME list that seeded the closure walk above — read once, so the set
+        // that was walked and the set that ships cannot disagree.
+        for (const src of gstPluginSeedPaths) {
+            const f = basename(src);
             const dest = join(pluginsOut, f);
             // Dereferencing, like § 2b: brew links plugins in from their kegs, and a
             // link into the Cellar is worthless inside a tarball.
@@ -565,8 +587,8 @@ if (WINDOWING) {
         console.log(
             `build-gtk-runtime: GStreamer — ${gstPluginImages.length} plugin(s) relocated ` +
                 `(@loader_path/..), ${(bytes / 1024 / 1024).toFixed(1)} MiB of plugins` +
-                `, ${skipped} non-audio plugin(s) skipped` +
-                `${dangling ? `, ${dangling} dangling brew link(s)` : ''}`,
+                `, ${gstPluginSkips.nonAudio} non-audio plugin(s) skipped` +
+                `${gstPluginSkips.dangling ? `, ${gstPluginSkips.dangling} dangling brew link(s)` : ''}`,
         );
     } else {
         console.warn(
