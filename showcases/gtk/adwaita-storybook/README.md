@@ -27,6 +27,26 @@ gjsify storybook --watch    # rebuild + relaunch on change
 (application id, window title, the `src` story dir, and `--globals auto`). No per-project
 storybook *app* — just `*.story.ts` files plus the shared renderer.
 
+### On Node, Bun and Deno
+
+The same window and the same stories on the other three runtimes, with GTK reached through
+[`@gjsify/node-gi`](../../../packages/node-gi/node-gi) instead of GJS:
+
+```bash
+gjsify storybook --runtime node                  # or --runtime bun / --runtime deno
+gjsify showcase adwaita-storybook --runtime bun  # without a checkout
+```
+
+ONE bundle serves all three (`dist/gjs.node.mjs`), because Node-API is their common native
+ABI — there is no per-runtime build, and `build:node` produces it once. `--runtime gjs`
+builds the separate `--app gjs` bundle.
+
+This is not a fourth story format. The stories are renderer-free and this is the same native
+GTK renderer reached over a different bridge; what a runtime has to prove is that the bridge
+holds. All three open the window and claim `org.gjsify.AdwaitaStorybook` on the session bus,
+which is exactly what the DBus harness below drives — so "it works there" is a checkable
+claim, not a build that merely completed.
+
 ## Debug / drive it over DBus + MCP
 
 Launch with the devtools control plane enabled, then drive it from `gdbus`, an MCP client,
