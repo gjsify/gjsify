@@ -88,6 +88,29 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
     }
 
     /**
+     * A copy of this canvas is a PLAIN, widget-less one.
+     *
+     * There is exactly one `Gtk.GLArea` and it stays with the original, so a
+     * clone cannot be GLArea-backed: the default `new this.constructor()` built
+     * one with `gtkGlArea === undefined`, and the first `width` read threw. That
+     * is not a hypothetical — it is how Excalibur switches renderers
+     * (`canvas.cloneNode(false)` → `replaceChild` → `getContext('2d')`), so the
+     * whole fallback died at the clone rather than degrading (gjsify#1107).
+     *
+     * A detached canvas is also what a browser hands back: same size, blank
+     * bitmap, no context, not presented by anything. Dropping to the DOM base
+     * class gives precisely that, including a writable `width`/`height` — the
+     * overrides above deliberately ignore writes because GTK owns the widget's
+     * size, and a clone has no widget to own it.
+     */
+    protected override _createCloneTarget(): BaseHTMLCanvasElement {
+        const clone = new BaseHTMLCanvasElement();
+        clone.width = this.width;
+        clone.height = this.height;
+        return clone;
+    }
+
+    /**
      * Returns a WebGL rendering context backed by the underlying Gtk.GLArea.
      * 'webgl' and 'experimental-webgl' return a WebGLRenderingContext (WebGL 1.0).
      * 'webgl2' returns a WebGL2RenderingContext (WebGL 2.0).

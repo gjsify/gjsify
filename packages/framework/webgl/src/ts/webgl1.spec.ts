@@ -598,6 +598,30 @@ export default async () => {
                 expect(Array.isArray(exts)).toBeTruthy();
                 expect((exts?.length ?? 0) > 0).toBeTruthy();
             });
+
+            // The masked VENDOR/RENDERER we report by spec ('' / 'ANGLE') say
+            // nothing about the host, so this extension is the ONLY way a
+            // consumer can find out it was handed a CPU rasteriser. It must
+            // answer on every host, hardware or not.
+            await it('WEBGL_debug_renderer_info reports the real driver', async () => {
+                const exts = gl.getSupportedExtensions();
+                expect(exts?.includes('WEBGL_debug_renderer_info')).toBeTruthy();
+
+                const ext = gl.getExtension('WEBGL_debug_renderer_info') as any;
+                expect(ext).not.toBeNull();
+                expect(ext.UNMASKED_VENDOR_WEBGL).toBe(0x9245);
+                expect(ext.UNMASKED_RENDERER_WEBGL).toBe(0x9246);
+
+                const vendor = gl.getParameter(ext.UNMASKED_VENDOR_WEBGL);
+                const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+                expect(typeof vendor).toBe('string');
+                expect(typeof renderer).toBe('string');
+                // A driver always names itself; an empty string would mean we
+                // wired the pname to nothing.
+                expect((renderer as string).length > 0).toBeTruthy();
+                // And it must NOT be the masked value — that is the whole point.
+                expect(renderer).not.toBe('ANGLE');
+            });
         });
 
         // -- Native Gwebgl bindings --
