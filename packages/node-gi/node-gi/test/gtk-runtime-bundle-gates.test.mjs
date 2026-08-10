@@ -58,6 +58,11 @@ import {
     renderThirdPartyNotice,
     scanLicenseFiles,
 } from '../../scripts/bundle-licenses.mjs';
+import {
+    GL_IMPLEMENTATION_PATTERNS,
+    describeGlImplementation,
+    formatMissingGlImplementation,
+} from '../../scripts/gl-implementation.mjs';
 
 // --- a synthetic typelib ----------------------------------------------------
 // girepository's Header, built by hand so the parser is tested against the FORMAT
@@ -771,6 +776,51 @@ test('WINDOWING_DATA_SETS keys every set to a namespace the floor guarantees', a
     assert.ok(
         WINDOWING_DATA_SETS.some((set) => set.id === 'pixbuf-loaders'),
         'the pixbuf loaders are shipped by both builders and belong in the shared list',
+    );
+});
+
+// --- GL implementation vs. GL dispatch (#1097) -----------------------------
+// The shipped 0.34.0 win32 bundle: 41 DLLs, epoxy among them, no rasteriser. It
+// advertised `windowing: true` and every Gtk.GLArea failed with "No GL
+// implementation is available" on a host without a vendor ICD.
+const BUNDLE_0_34_0 = ['gtk-4-1.dll', 'epoxy-0.dll', 'cairo-2.dll', 'glib-2.0-0.dll', 'adwaita-1-0.dll'];
+
+test('epoxy alone is NOT a GL implementation — the bundle that shipped for four releases', () => {
+    const gl = describeGlImplementation({ dlls: BUNDLE_0_34_0 });
+    assert.deepEqual(gl.matched, [], 'epoxy is dispatch; counting it is exactly the misreading #1097 records');
+    assert.deepEqual(gl.dispatch, ['epoxy-0.dll'], 'dispatch is reported, in its own field, so it cannot be misread');
+});
+
+test('a desktop-GL ICD and ANGLE each count, case-insensitively', () => {
+    // Mesa's win32 pair, as `mesa-dist-win` lays it out beside an executable.
+    // Sorted with localeCompare, which orders case-insensitively — `libgallium`
+    // before `OPENGL32`, not after it as a byte sort would put them.
+    const wgl = describeGlImplementation({ dlls: [...BUNDLE_0_34_0, 'OPENGL32.DLL', 'libgallium_wgl.dll'] });
+    assert.deepEqual(wgl.matched, ['libgallium_wgl.dll', 'OPENGL32.DLL']);
+    // ANGLE, which is what #1097 originally proposed shipping.
+    const egl = describeGlImplementation({ dlls: [...BUNDLE_0_34_0, 'libEGL.dll', 'libGLESv2.dll'] });
+    assert.deepEqual(egl.matched, ['libEGL.dll', 'libGLESv2.dll']);
+});
+
+test('the failure names every pattern it tried, not one absent file', () => {
+    // The regression guard: #1097 happened because an unmatched seed was
+    // indistinguishable from a matched one. A message naming a single missing file
+    // would let the NEXT unmatched pattern reproduce it just as quietly.
+    const gl = describeGlImplementation({ dlls: BUNDLE_0_34_0 });
+    const message = formatMissingGlImplementation({ gl, prefixBin: 'C:\\gtk-build\\gtk\\x64\\release\\bin' });
+    for (const pattern of GL_IMPLEMENTATION_PATTERNS) {
+        assert.ok(message.includes(String(pattern)), `the message must state that ${pattern} was tried`);
+    }
+    assert.ok(message.includes('epoxy-0.dll'), 'and that what IS present is dispatch');
+    assert.ok(message.includes('#1097'), 'and where the reasoning lives');
+});
+
+test('the patterns are recorded in the result, so a manifest proves the negative was checked', () => {
+    const gl = describeGlImplementation({ dlls: [] });
+    assert.deepEqual(gl.patterns, GL_IMPLEMENTATION_PATTERNS.map(String));
+    assert.ok(
+        !gl.patterns.some((p) => /epoxy/i.test(p)),
+        'epoxy must never enter the implementation patterns — that is the whole defect',
     );
 });
 

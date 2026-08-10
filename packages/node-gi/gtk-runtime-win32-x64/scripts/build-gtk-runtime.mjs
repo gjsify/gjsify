@@ -57,6 +57,11 @@ import {
     scanLicenseFiles,
     writeLicensePayload,
 } from '../../scripts/bundle-licenses.mjs';
+import {
+    GL_IMPLEMENTATION_PATTERNS,
+    describeGlImplementation,
+    formatMissingGlImplementation,
+} from '../../scripts/gl-implementation.mjs';
 import { isBundledGstPlugin } from '../../scripts/gst-plugins.mjs';
 import {
     REQUIRED_NAMESPACES,
@@ -84,6 +89,13 @@ const OUT = argValue('--out') ?? join(pkgRoot, 'gtk');
 const PREFIX = argValue('--prefix') ?? process.env.GTK_PREFIX;
 // The full-windowing SUPERSET: also collect the runtime data a real GTK window needs.
 const WINDOWING = process.argv.includes('--windowing');
+// Make "this windowing bundle resolves no GL implementation" FATAL rather than a
+// warning. Off by default because no gvsbuild prefix has ever satisfied it (see
+// GL_IMPLEMENTATION_PATTERNS): turning it on today would fail every win32 bundle
+// build for a gap the bundle cannot currently close. It exists so the promotion
+// that DOES ship a GL implementation can lock the property in the same change,
+// instead of re-deriving it — and so the check is exercised, not just written.
+const REQUIRE_GL = process.argv.includes('--require-gl');
 
 if (process.platform !== 'win32' || process.arch !== 'x64') {
     console.error(`build-gtk-runtime: only supported on win32/x64, not ${process.platform}/${process.arch}`);
@@ -129,17 +141,17 @@ const SEED_PATTERNS = [
 
 // Extra seeds for the WINDOWING superset: libadwaita (the Adw-1 typelib's backing
 // DLL — a real Adw.Application/ApplicationWindow needs it; the display-free
-// conformance never touches Adwaita, so it is NOT in the base seeds), the GL backing
-// a GSK GL renderer picks (ANGLE libEGL/libGLESv2 + epoxy — the cairo renderer needs
-// none, but a real window may negotiate GL), and librsvg (the SVG gdk-pixbuf loader
-// that renders the Adwaita symbolic icons). Most GL/rsvg deps are pulled transitively
-// by the loaders below; naming them keeps the closure complete even if a loader is
-// missing. (Gdk/Gsk/Gtk are all in gtk-4-*.dll, already a base seed.)
+// conformance never touches Adwaita, so it is NOT in the base seeds), the GL
+// dispatch layer epoxy (which GTK links; the cairo renderer needs no GL at all, but
+// a real window may negotiate it), any GL IMPLEMENTATION the prefix happens to carry
+// (see above — none has yet), and librsvg (the SVG gdk-pixbuf loader that renders the
+// Adwaita symbolic icons). Most rsvg deps are pulled transitively by the loaders
+// below; naming them keeps the closure complete even if a loader is missing.
+// (Gdk/Gsk/Gtk are all in gtk-4-*.dll, already a base seed.)
 const WINDOWING_SEED_PATTERNS = [
     /^(lib)?adwaita-1.*\.dll$/i, // gvsbuild leaf: adwaita-1-0.dll (backs the Adw-1 typelib)
     /^(lib)?gtksourceview-5.*\.dll$/i, // gvsbuild leaf: gtksourceview-5-0.dll (backs the GtkSource-5 typelib — the Learn6502 editor)
-    /^libEGL.*\.dll$/i,
-    /^libGLESv2.*\.dll$/i,
+    ...GL_IMPLEMENTATION_PATTERNS,
     /^epoxy.*\.dll$/i,
     /^rsvg.*\.dll$/i,
     /^libxml2.*\.dll$/i,
@@ -336,6 +348,24 @@ for (const src of binDlls.values()) {
     copyFileSync(join(gtkBin, src), join(binOut, src));
 }
 console.log(`build-gtk-runtime: copied ${binDlls.size} DLLs -> ${binOut}`);
+
+// --- 2b. does this bundle carry a GL IMPLEMENTATION? ----------------------
+// Asked of the FINISHED bin/, not of the seed list, so the answer describes the
+// artifact a user installs rather than the intent of the recipe. The negative is
+// the interesting one and it is stated positively — which patterns were tried and
+// that NONE matched — because the failure this closes was a seed that silently
+// matched nothing while the bundle went on advertising `windowing: true`.
+const glImplementation = describeGlImplementation({ dlls: [...binDlls.values()].map(basename) });
+if (WINDOWING && glImplementation.matched.length === 0) {
+    const message = formatMissingGlImplementation({ gl: glImplementation, prefixBin: gtkBin });
+    if (REQUIRE_GL) {
+        console.error(`build-gtk-runtime: ${message}`);
+        process.exit(1);
+    }
+    console.warn(`build-gtk-runtime: WARNING — ${message}`);
+} else if (WINDOWING) {
+    console.log(`build-gtk-runtime: GL implementation in bundle: ${glImplementation.matched.join(', ')}`);
+}
 
 // --- 3. typelibs — only the ones this bundle can actually BACK -------------
 // gvsbuild's typelib dir covers its whole build, not our closure, so copying it
@@ -770,6 +800,9 @@ const manifest = {
         dropped: typelibPlan.dropped.map((t) => ({ namespace: t.key, missing: t.missing })),
         requiredNamespaces,
     },
+    // Windowing-only: a display-free bundle is not expected to rasterise anything,
+    // so the absence of GL there is by design and recording it would read as a gap.
+    ...(WINDOWING ? { glImplementation } : {}),
     licenses: {
         notice: 'THIRD-PARTY-NOTICES.md',
         dir: 'licenses',
