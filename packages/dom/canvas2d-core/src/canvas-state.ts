@@ -38,6 +38,19 @@ export interface CanvasState {
     // Image smoothing
     imageSmoothingEnabled: boolean;
     imageSmoothingQuality: ImageSmoothingQuality;
+
+    /**
+     * The current transform collapses everything to zero area (a determinant of
+     * 0, e.g. after `scale(0, 1)`).
+     *
+     * Canvas 2D allows that and simply draws nothing; Cairo cannot represent it
+     * — `cairo_scale(0, 0)` puts the context into a permanent
+     * `invalid matrix (not invertible)` error state, after which EVERY call on
+     * it throws. So we keep the singular transform here and leave Cairo on the
+     * last invertible one, with drawing suppressed while this is set — which is
+     * what the singular transform would have produced anyway.
+     */
+    transformIsSingular: boolean;
 }
 
 export function createDefaultState(): CanvasState {
@@ -64,6 +77,7 @@ export function createDefaultState(): CanvasState {
         direction: 'ltr',
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'low',
+        transformIsSingular: false,
     };
 }
 

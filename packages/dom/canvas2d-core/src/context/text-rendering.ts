@@ -141,6 +141,7 @@ function getTextBaselineOffset(ctx: CanvasRenderingContext2D, layout: Pango.Layo
 const textMethods: TextMethods & ThisType<CanvasRenderingContext2D> = {
     fillText(this: CanvasRenderingContext2D, text: string, x: number, y: number, _maxWidth?: number): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         this._applyCompositing();
 
         const layout = createTextLayout(this, text);
@@ -197,6 +198,7 @@ const textMethods: TextMethods & ThisType<CanvasRenderingContext2D> = {
 
     strokeText(this: CanvasRenderingContext2D, text: string, x: number, y: number, _maxWidth?: number): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         this._applyCompositing();
         this._applyStrokeStyle();
         this._applyLineStyle();
