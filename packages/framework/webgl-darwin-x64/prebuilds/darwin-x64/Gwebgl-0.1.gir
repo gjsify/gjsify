@@ -32,6 +32,9 @@
 		<field name="lastError" writable="1">
 			<type name="gint" c:type="gint"/>
 		</field>
+		<field name="shader_dialect_target" writable="1">
+			<type name="gint" c:type="gint"/>
+		</field>
 		<field name="default_vao" writable="1">
 			<type name="guint" c:type="guint"/>
 		</field>
