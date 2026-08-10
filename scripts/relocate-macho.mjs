@@ -213,17 +213,30 @@ export function relocateImage(file, rpaths) {
     // arches produce the same bytes, which a blanket rule did not.
     const needsRpath = rewritten.length > 0 || info.needed.some((d) => d.startsWith('@rpath/'));
     if (needsRpath) {
-        // Replace the search-path set wholesale: delete every entry that is not
-        // in the wanted list, then add the missing ones. Deleting FIRST also
-        // keeps the header from growing more than it must.
+        // Replace the search-path list AND ITS ORDER: delete EVERY existing
+        // entry, including one already in the wanted list, then add the wanted
+        // ones in sequence.
+        //
+        // Deleting only the unwanted entries is what the first cut did, and it
+        // is wrong in a way that is invisible locally. `-add_rpath` APPENDS, so
+        // a kept entry holds its original position and the additions land behind
+        // it — which makes the precedence a property of whatever the linker
+        // happened to bake in, not of this list. Measured on the artifact CI
+        // built and committed from `main`: a freshly-linked `libgwebgl.dylib`
+        // carries `<brew>/lib` from the Homebrew link line, so keeping it put the
+        // SYSTEM prefix ahead of the bundle — the exact inversion of ADR 0023's
+        // darwin policy, and the two-GLibs-in-one-process hazard of #910 on any
+        // host that has both. It did not show up on the committed artifacts
+        // because THEY carried version-pinned Cellar rpaths that were all
+        // deleted, so the order came out right there by luck.
+        //
+        // Net header cost of deleting and re-adding the same string is zero, so
+        // the determinism is free.
         for (const existing of info.searchPaths) {
-            if (rpaths.includes(existing)) continue;
             edit(['install_name_tool', '-delete_rpath', existing, file], file);
             changed.push(`-rpath ${existing}`);
         }
-        const kept = info.searchPaths.filter((p) => rpaths.includes(p));
         for (const want of rpaths) {
-            if (kept.includes(want)) continue;
             edit(['install_name_tool', '-add_rpath', want, file], file);
             changed.push(`+rpath ${want}`);
         }
