@@ -83,7 +83,10 @@ export const WebGLBridge = GObject.registerClass(
         // relative to this origin, matching the browser DOMHighResTimeStamp spec.
         _timeOrigin: number = GLib.get_monotonic_time();
         // Unmasked GL vendor/renderer, filled in once the context exists.
-        private _rendererInfo: { vendor: string; renderer: string } | null = null;
+        // Public-with-underscore like every field above: a `private` member of a
+        // `GObject.registerClass` class cannot be named in the emitted declaration
+        // (TS4094, exported anonymous class type).
+        _rendererInfo: { vendor: string; renderer: string } | null = null;
 
         constructor(params?: Partial<Gtk.GLArea.ConstructorProps>) {
             super(params);
@@ -323,7 +326,7 @@ export const WebGLBridge = GObject.registerClass(
          * comfortably on the same driver that needs 1.1 s for one textured
          * full-screen draw in a 2D game).
          */
-        private _reportRenderer(gl: OurWebGLRenderingContext): void {
+        _reportRenderer(gl: OurWebGLRenderingContext): void {
             const ext = gl.getExtension('WEBGL_debug_renderer_info') as {
                 UNMASKED_VENDOR_WEBGL: number;
                 UNMASKED_RENDERER_WEBGL: number;
