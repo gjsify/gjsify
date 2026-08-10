@@ -50,13 +50,40 @@ const GLSL1_ONLY = /\b(attribute|varying|gl_FragColor|gl_FragData|texture2D|text
  * Constructs that exist ONLY in GLSL ES 3.00, used to recognise a versionless
  * source that is deliberately written in the modern dialect.
  *
+ * This list guards the DEFAULT rather than driving the decision: a source that
+ * matches nothing here is treated as GLSL 1.0, so anything modern it fails to
+ * recognise is a source that WILL be miscompiled. That asymmetry is why it
+ * covers the ESSL3-only BUILT-INS and TYPES and not just the declaration
+ * syntax — a versionless vertex shader doing `gl_Position = texelFetch(…)` has
+ * no `in`/`out` declaration of its own to give it away, and every entry below
+ * was added because it is the only marker such a shader would carry.
+ *
  * A GLOBAL `in`/`out` declaration, not a bare `\bout\b`: `in` and `out` are also
  * PARAMETER qualifiers in GLSL ES 1.00 (`void f(in vec3 v)`), so the bare word
  * proves nothing. Anchored per line and required to be followed by
  * `<type> <name>;`, which a parameter list cannot look like.
+ *
+ * The sampling built-ins are the ESSL3 spellings — ESSL1 says `texture2D` /
+ * `textureCube` / `texture2DProj`, all of which `GLSL1_ONLY` claims first, so
+ * the two lists cannot both match a well-formed source.
  */
-const GLSL3_ONLY =
-    /^\s*(?:flat\s+|smooth\s+|centroid\s+)*(?:in|out)\s+\w+\s+\w+\s*;|\blayout\s*\(|\btexture\s*\(|\buvec[234]\b/m;
+const GLSL3_ONLY = new RegExp(
+    [
+        // A global in/out declaration: `flat in vec3 vNormal;`
+        String.raw`^\s*(?:flat\s+|smooth\s+|centroid\s+)*(?:in|out)\s+\w+\s+\w+\s*;`,
+        // layout(location = 0) / layout(std140)
+        String.raw`\blayout\s*\(`,
+        // ESSL3 sampling built-ins (ESSL1 has the `*2D`/`*Cube` spellings)
+        String.raw`\b(?:texture|textureProj|textureLod|textureProjLod|textureGrad|textureProjGrad|texelFetch|texelFetchOffset|textureSize|textureOffset)\s*\(`,
+        // Integer/unsigned samplers and the unsigned scalar/vector types
+        String.raw`\b(?:isampler|usampler)(?:2D|3D|Cube|2DArray)\b`,
+        String.raw`\b(?:uint|uvec[234])\b`,
+        // Built-ins that only exist in ESSL3 (ESSL1 reaches gl_FragDepth only
+        // through EXT_frag_depth, whose spelling is gl_FragDepthEXT)
+        String.raw`\b(?:gl_VertexID|gl_InstanceID|gl_FragDepth)\b`,
+    ].join('|'),
+    'm',
+);
 
 /**
  * Which dialect is a source WITHOUT a `#version` directive written in?

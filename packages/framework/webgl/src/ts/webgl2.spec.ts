@@ -246,6 +246,30 @@ export default async () => {
                 gl2.deleteShader(sh);
             });
 
+            await it('keeps a versionless ESSL3 shader modern when only a BUILT-IN says so', async () => {
+                // The case the dialect DEFAULT could swallow. A versionless vertex
+                // shader that samples with `texelFetch` declares no `in`/`out` of
+                // its own, carries no `layout(`, and contains no GLSL1 marker
+                // either — so the declaration syntax alone cannot classify it, and
+                // defaulting it to GLSL 1.0 would inject `#version 100`, where
+                // `texelFetch` does not exist. Its ESSL3 built-in is the only
+                // evidence in the source, which is why `GLSL3_ONLY` has to cover
+                // the built-ins and not only the declarations.
+                const src = [
+                    'uniform highp sampler2D uTex;',
+                    'void main(){ gl_Position = texelFetch(uTex, ivec2(0), 0); }',
+                ].join('\n');
+                const sh = gl2.createShader(gl2.VERTEX_SHADER)!;
+                gl2.shaderSource(sh, src);
+                gl2.compileShader(sh);
+                if (!gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)) {
+                    console.error('versionless texelFetch log:', gl2.getShaderInfoLog(sh));
+                    console.error('injected source:', gl2.getShaderSource(sh)?.split('\n')[0]);
+                }
+                expect(gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)).toBeTruthy();
+                gl2.deleteShader(sh);
+            });
+
             await it('never rewrites a WebGL1 #version 100 shader', async () => {
                 // The non-regression that matters most. `#version 100` compiles on
                 // macOS through `ARB_ES2_compatibility` (core from GL 4.1) and is
