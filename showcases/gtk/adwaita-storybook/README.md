@@ -1,9 +1,11 @@
-# Adwaita Storybook
+# @gjsify/example-gtk-adwaita-storybook
 
 An interactive **component browser for [Libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/)**
 widgets — the GNOME equivalent of a web "storybook". Each widget is rendered live, in
 isolation, with a two-way-bound **Controls** panel so you can poke at its properties and
-watch it update.
+watch it update. 35 stories across 7 categories.
+
+Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
 It is a showcase for three pieces of gjsify tooling working together:
 
@@ -15,12 +17,33 @@ It is a showcase for three pieces of gjsify tooling working together:
 
 ![Avatar story](docs/avatar.png)
 
+## Targets
+
+| Target | Bundle | Renderer |
+|---|---|---|
+| GJS / GTK 4 | `dist/gjs.js` (`--app gjs`) | `@gjsify/storybook` — native `Adw.*` widgets |
+| Node · Bun · Deno | `dist/gjs.node.mjs` (`--app node`) | the same GTK renderer through the `@gjsify/node-gi` reverse bridge |
+| Browser | `dist/browser-main.js` (`--app browser`) | `@gjsify/adwaita-storybook` — `@gjsify/adwaita-web` components |
+| Android (NativeScript) | [`adwaita-storybook-nativescript`](../../dom/adwaita-storybook-nativescript) | `@gjsify/storybook-nativescript` — real native NS views |
+
+Every target renders the SAME stories: the renderer-free `*.meta.ts` metadata is exported from
+this package's `./metas` barrel and the shared logic lives in
+[`@gjsify/storybook-core`](../../../packages/framework/storybook-core), so each renderer is a
+thin adapter and the four renderings are comparable 1:1 by screenshot.
+
+## Prerequisites
+
+GJS ≥ 1.86 with GTK 4 and Libadwaita 1.x. `gjsify system-check` reports what is missing.
+
 ## Run it
 
 ```bash
 # from this directory
 gjsify storybook            # discover every *.story.ts, build (--app gjs), launch the browser
 gjsify storybook --watch    # rebuild + relaunch on change
+
+# without a checkout
+gjsify showcase adwaita-storybook
 ```
 
 `gjsify storybook` reads the `gjsify.storybook` block in [`package.json`](package.json)
@@ -46,6 +69,17 @@ GTK renderer reached over a different bridge; what a runtime has to prove is tha
 holds. All three open the window and claim `org.gjsify.AdwaitaStorybook` on the session bus,
 which is exactly what the DBus harness below drives — so "it works there" is a checkable
 claim, not a build that merely completed.
+
+### In the browser
+
+The web renderer builds the same stories as `@gjsify/adwaita-web` components:
+
+```bash
+gjsify run build:web        # build:browser + build:assets
+gjsify run start:browser    # http-server dist; open localhost:8080
+```
+
+The `./browser` export is the embeddable entry the project website uses.
 
 ## Debug / drive it over DBus + MCP
 
@@ -76,6 +110,32 @@ showcase:
 ```bash
 GJSIFY_DEVTOOLS=1 gjsify storybook &                       # launch
 gjs -m tools/shoot-stories.js org.gjsify.AdwaitaStorybook ./shots   # capture all stories
+```
+
+## What it demonstrates
+
+- A real Libadwaita component browser built from `*.story.ts` files alone — no per-project
+  storybook application, the renderer and the CLI command are the shared parts
+- Two-way-bound live controls over native GObject properties: editing a control writes the
+  widget property, and a `notify::` on the widget updates the control
+- ONE renderer-free story contract driving four renderings (GTK, Node/Bun/Deno over node-gi,
+  browser, NativeScript) — the same `*.meta.ts` metadata, shared across package boundaries
+- The `@gjsify/devtools` DBus + MCP control plane: an agent can list and open stories, set
+  story args, dump the widget tree and screenshot the window headlessly
+- Breadth of the Libadwaita widget set working under gjsify — rows, navigation, view
+  switching, dialogs and toasts (see the table below)
+- `gjsify storybook` as a first-class workflow: discovery, build, launch, `--watch`, `--runtime`
+
+## Layout
+
+```
+src/
+  <category>/<name>.meta.ts   renderer-free story metadata (title + controls) — shared by ALL targets
+  <category>/<name>.story.ts  the GTK story (StoryWidget subclass)
+  metas.ts                    the ./metas barrel the other renderers import
+  browser/<category>/<name>.web.ts   the adwaita-web story for the same meta
+  browser/{main,embed,stories}.ts + index.html   the browser shell and ./browser export
+tools/shoot-stories.js        open + screenshot every story over the devtools DBus surface
 ```
 
 ## Stories
@@ -134,6 +194,15 @@ export const MyStories: StoryModule = { stories: [MyStory] };
 Rules of thumb: globally-unique `GTypeName` (prefix `AdwStorybook…`), wrap `Adw.*Row`s in an
 `Adw.PreferencesGroup`, give space-filling widgets a `widthRequest`/`heightRequest`, and
 present dialogs from a button rather than embedding them.
+
+## Related
+
+- [`@gjsify/storybook`](../../../packages/framework/storybook) — the GTK story renderer
+- [`@gjsify/storybook-core`](../../../packages/framework/storybook-core) — the renderer-free logic all targets share
+- [`@gjsify/adwaita-storybook`](../../../packages/web/adwaita-storybook) — the browser renderer
+- [`@gjsify/devtools`](../../../packages/framework/devtools) — the DBus + MCP control plane
+- [`@gjsify/node-gi`](../../../packages/node-gi/node-gi) — the reverse bridge behind the Node/Bun/Deno target
+- [`adwaita-storybook-nativescript`](../../dom/adwaita-storybook-nativescript) — the same stories as a native Android app
 
 ## License
 
