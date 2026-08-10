@@ -2693,12 +2693,25 @@ export default async () => {
             // 64 MB took 1129 ms against 148 ms before, and 90 ms for the
             // Gio-async path stream measured beside it.
             //
-            // The MECHANISM is what is asserted, not a wall time: a 1 ms
-            // interval running alongside the read fires about once per chunk
-            // when the defect is present and roughly a tenth of that when it is
-            // not. That bound holds on a slow machine and on a fast one, and it
-            // can only fail in the safe direction — a loaded host fires the
-            // timer LESS often, never more.
+            // The MECHANISM is what is asserted, not a wall time — and the
+            // measure has to be RELATIVE to get there. A 1 ms interval counts
+            // ELAPSED TIME, while the chunk count is fixed, so `ticks` grows on
+            // a slow host while any bound stated against `chunkCount` does not:
+            // the two are only comparable per unit time. `ticks < chunks / 2`
+            // was such a bound, and it did NOT "only fail in the safe
+            // direction" as claimed here before — a correct-but-slow host fails
+            // it. Measured: the darwin-x64 runner read these 16 MB in 528 ms
+            // (~500 ticks against a limit of 128) and went green on a re-run of
+            // the SAME commit, with the Node leg passing at 89 ms beside it.
+            //
+            // So the same file is read TWICE in the same process, and the
+            // path-opened stream is the baseline: it goes through the Gio-async
+            // read path and structurally cannot pay a nextTick turn per chunk.
+            // Host speed then cancels — a loaded machine slows BOTH reads — and
+            // what remains is the ratio, which is the actual claim. The defect
+            // costs one full main-loop turn per chunk and lands an order of
+            // magnitude above the baseline (measured on 64 MB: 1129 ms against
+            // 148 ms for the fixed handle stream and 90 ms for this baseline).
             const dir = scratch('r15');
             try {
                 const f = join(dir, 'big');
@@ -2706,25 +2719,70 @@ export default async () => {
                 const chunkCount = 256;
                 writeFileSync(f, 'z'.repeat(chunkSize * chunkCount));
 
-                let ticks = 0;
-                const interval = setInterval(() => ticks++, 1);
+                /** Ticks of a 1 ms interval, and chunks seen, while draining `stream`. */
+                const measure = async (stream: AsyncIterable<unknown>) => {
+                    let ticks = 0;
+                    let chunks = 0;
+                    let bytes = 0;
+                    const interval = setInterval(() => ticks++, 1);
+                    try {
+                        for await (const chunk of stream) {
+                            bytes += (chunk as Buffer).length;
+                            chunks++;
+                        }
+                    } finally {
+                        clearInterval(interval);
+                    }
+                    return { ticks, chunks, bytes };
+                };
+
+                const baseline = await measure(createReadStream(f) as unknown as AsyncIterable<unknown>);
+
                 // The stream auto-closes the handle at EOF on both runtimes, so
                 // there is deliberately no `handle.close()` after it: a second
                 // close is a different rule (K-11) and only adds noise here.
                 const handle = await fsPromises.open(f, 'r');
-                let bytes = 0;
-                let chunks = 0;
-                try {
-                    for await (const chunk of handle.createReadStream()) {
-                        bytes += (chunk as Buffer).length;
-                        chunks++;
+                const viaHandle = await measure(handle.createReadStream() as unknown as AsyncIterable<unknown>);
+
+                expect(viaHandle.bytes).toBe(chunkSize * chunkCount);
+                expect(viaHandle.chunks >= chunkCount).toBe(true);
+                expect(baseline.bytes).toBe(chunkSize * chunkCount);
+
+                // The defect ADDS one main-loop turn per chunk, so it lands about
+                // `chunkCount` ticks above the baseline. Half of that is the
+                // threshold: well above scheduling noise (measured on Linux/GJS:
+                // baseline 41 ticks, handle 28 — the handle stream is not even the
+                // slower of the two) and well below the defect's own ~256.
+                const addedByHandle = viaHandle.ticks - baseline.ticks;
+
+                // Why a PRECONDITION and not just a tighter bound: the defect's
+                // signal is ~1 ms per chunk, so it is only resolvable on a host
+                // whose baseline is fast. The darwin-x64 runner read these 16 MB
+                // HEALTHILY at ~2 ticks per chunk — more than the defect costs on
+                // Linux — and from inside such a measurement no threshold can
+                // separate the two. Stating the resolution and reporting when it
+                // is missing is what keeps this rule from reding a correct host at
+                // random, which is exactly what `ticks < chunks / 2` did here.
+                //
+                // That a host is that slow is worth knowing, but it is a different
+                // claim from "one main-loop turn per chunk" and this rule is the
+                // wrong place to police it — hence loud, not fatal.
+                if (baseline.ticks >= chunkCount / 4) {
+                    console.error(
+                        `K-15 NOT ASSERTED: the path-opened baseline itself cost ${baseline.ticks} main-loop ticks ` +
+                            `over ${baseline.chunks} chunks, so this host cannot resolve one added turn per chunk ` +
+                            `(needs < ${chunkCount / 4}). Handle stream cost ${viaHandle.ticks}.`,
+                    );
+                } else {
+                    if (addedByHandle >= chunkCount / 2) {
+                        console.error(
+                            `K-15: handle stream cost ${viaHandle.ticks} main-loop ticks over ${viaHandle.chunks} ` +
+                                `chunks against a path-opened baseline of ${baseline.ticks} — ${addedByHandle} added, ` +
+                                `which is ~one turn per chunk.`,
+                        );
                     }
-                } finally {
-                    clearInterval(interval);
+                    expect(addedByHandle < chunkCount / 2).toBe(true);
                 }
-                expect(bytes).toBe(chunkSize * chunkCount);
-                expect(chunks >= chunkCount).toBe(true);
-                expect(ticks < chunks / 2).toBe(true);
             } finally {
                 drop(dir);
             }
