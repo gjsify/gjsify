@@ -185,6 +185,91 @@ export default async () => {
                 gl2.deleteShader(sh);
             });
 
+            // Each GLSL ES 1.00-only construct, one per case. A fragment shader
+            // carries its dialect in `gl_FragColor` / `texture2D` rather than in
+            // `attribute` / `varying`, and those two words were the whole of the
+            // old detector — so every source below was classed as MODERN, given
+            // `#version 300 es`, and failed on the identifier that made it GLSL1
+            // in the first place. Measured on Linux/Mesa 26.1.5 before the fix:
+            // "`gl_FragColor' undeclared".
+            //
+            // One case per marker rather than one shader using all of them: a
+            // single combined source passes as soon as ANY marker is recognised,
+            // which is exactly the assertion that would not notice a marker
+            // being dropped from the list again.
+            for (const [marker, body] of [
+                ['gl_FragColor', 'void main(){ gl_FragColor = vec4(1.0); }'],
+                ['gl_FragData', 'void main(){ gl_FragData[0] = vec4(1.0); }'],
+                ['texture2D', 'uniform sampler2D uTex;\nvoid main(){ gl_FragColor = texture2D(uTex, vec2(0.0)); }'],
+                [
+                    'textureCube',
+                    'uniform samplerCube uCube;\nvoid main(){ gl_FragColor = textureCube(uCube, vec3(0.0)); }',
+                ],
+            ] as const) {
+                await it(`treats a VERSIONLESS shader using ${marker} as GLSL 1.0`, async () => {
+                    const src = `precision mediump float;\n${body}`;
+                    const sh = gl2.createShader(gl2.FRAGMENT_SHADER)!;
+                    gl2.shaderSource(sh, src);
+                    gl2.compileShader(sh);
+                    if (!gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)) {
+                        console.error(`versionless ${marker} log:`, gl2.getShaderInfoLog(sh));
+                        console.error('injected source:', gl2.getShaderSource(sh)?.split('\n')[0]);
+                    }
+                    expect(gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)).toBeTruthy();
+                    gl2.deleteShader(sh);
+                });
+            }
+
+            await it('keeps the gl_-prefixed preamble macro off a MODERN versionless shader', async () => {
+                // `_wrapShader` adds `#define gl_MaxDrawBuffers 1` for a GLSL 1.0
+                // shader, where that constant does not exist. GLSL ES 3.00 has it
+                // built in and forbids defining any macro whose name starts with
+                // `gl_`, so the line must not survive into a modern shader — it
+                // used to, because the preamble keyed off "no #version line" while
+                // the version keyed off the dialect. Mesa tolerated the
+                // combination; a stricter compiler need not, which is why this is
+                // asserted on the SOURCE rather than only through compilation.
+                const src = [
+                    'precision mediump float;',
+                    'out vec4 fragColor;',
+                    'void main(){ fragColor = vec4(1.0); }',
+                ].join('\n');
+                const sh = gl2.createShader(gl2.FRAGMENT_SHADER)!;
+                gl2.shaderSource(sh, src);
+                const wrapped = gl2.getShaderSource(sh) ?? '';
+                expect(wrapped.includes('#define gl_MaxDrawBuffers')).toBeFalsy();
+                gl2.compileShader(sh);
+                if (!gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)) {
+                    console.error('versionless modern log:', gl2.getShaderInfoLog(sh));
+                }
+                expect(gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)).toBeTruthy();
+                gl2.deleteShader(sh);
+            });
+
+            await it('keeps a versionless ESSL3 shader modern when only a BUILT-IN says so', async () => {
+                // The case the dialect DEFAULT could swallow. A versionless vertex
+                // shader that samples with `texelFetch` declares no `in`/`out` of
+                // its own, carries no `layout(`, and contains no GLSL1 marker
+                // either — so the declaration syntax alone cannot classify it, and
+                // defaulting it to GLSL 1.0 would inject `#version 100`, where
+                // `texelFetch` does not exist. Its ESSL3 built-in is the only
+                // evidence in the source, which is why `GLSL3_ONLY` has to cover
+                // the built-ins and not only the declarations.
+                const src = [
+                    'uniform highp sampler2D uTex;',
+                    'void main(){ gl_Position = texelFetch(uTex, ivec2(0), 0); }',
+                ].join('\n');
+                const sh = gl2.createShader(gl2.VERTEX_SHADER)!;
+                gl2.shaderSource(sh, src);
+                gl2.compileShader(sh);
+                if (!gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)) {
+                    console.error('versionless texelFetch log:', gl2.getShaderInfoLog(sh));
+                    console.error('injected source:', gl2.getShaderSource(sh)?.split('\n')[0]);
+                }
+                expect(gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)).toBeTruthy();
+                gl2.deleteShader(sh);
+            });
+
             await it('never rewrites a WebGL1 #version 100 shader', async () => {
                 // The non-regression that matters most. `#version 100` compiles on
                 // macOS through `ARB_ES2_compatibility` (core from GL 4.1) and is
