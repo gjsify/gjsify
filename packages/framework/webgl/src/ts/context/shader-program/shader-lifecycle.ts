@@ -253,7 +253,13 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
                 const glArea = this.canvas.getGlArea();
                 const es = glArea.get_use_es();
                 const usesGlsl1Syntax = /\b(attribute|varying)\b/.test(source);
-                const version = usesGlsl1Syntax ? (es ? '100' : '120') : this._getGlslVersion(es);
+                // A GLSL1-shaped source must stay GLSL1 even on a WebGL2 context,
+                // which is why this does NOT go through `_getGlslVersion` — that
+                // one is overridden to answer `300 es` there. It used to inline
+                // `'120'`, and desktop GLSL 1.20 is a COMPATIBILITY dialect a core
+                // profile rejects outright; `_getGlsl1Version` knows the measured
+                // answer for both kinds of desktop context.
+                const version = usesGlsl1Syntax ? this._getGlsl1Version(es) : this._getGlslVersion(es);
                 if (version) {
                     source = '#version ' + version + '\n' + preamble + source;
                 } else if (preamble) {

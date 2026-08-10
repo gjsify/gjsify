@@ -53,8 +53,22 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         this._init();
     }
 
+    /**
+     * `'130'` here was the same defect as the base class's `'120'`, and equally
+     * unmeasured: measured on macOS 15.7.9 / GL 4.1 core with a modern (`out`)
+     * body, `#version 130` FAILS while `140`, `150` and `410 core` compile — a
+     * core profile supports 1.40 upwards and nothing below. So a versionless
+     * modern shader was uncompilable there for exactly the reason a versionless
+     * GLSL1 one was.
+     *
+     * The context's OWN GLSL version is the answer, not a floor picked by hand:
+     * it is by construction the highest the compiler accepts, and on any context
+     * that can be core it is ≥ 1.40. `_desktopGlslVersion()` falls back to `130`
+     * only where it cannot read one, which is the pre-core case the old literal
+     * was right about.
+     */
     override _getGlslVersion(es: boolean): string {
-        return es ? '300 es' : '130';
+        return es ? '300 es' : this._desktopGlslVersion();
     }
 
     // ─── WebGL2 overrides for WebGL1 validation that's too strict ─────────
