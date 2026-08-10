@@ -1402,14 +1402,52 @@ What is still OPEN, i.e. what a promotion owes beyond that green dispatch:
   describing the seed list rather than the artifact; both are corrected.
   Consequence for the showcases: on a Windows host WITH a vendor ICD the GL
   showcases should work once webgl is promoted, but on a GPU-less host (VM, RDP
-  session, CI) all three stay dark. Shipping ANGLE would fix both, since its
-  libGLESv2 targets D3D11 and D3D11 has the WARP software rasteriser — that is a
-  bundle-CONTENTS decision, so it belongs with the other "what does the win32
-  bundle ship" work rather than here. The positive-assertion rule the typelib
-  backers already follow (`REQUIRED_NAMESPACES`) is the shape the fix wants: a
-  `--windowing` bundle that resolves no GL should FAIL its build, not warn —
-  and it must fail on "the seed matched nothing", not merely on "a named file is
-  absent", or the next unmatched pattern reproduces this. Tracked as #1097.
+  session, CI) all three stay dark.
+
+  **(a) is CLOSED, and it closes the user-visible symptom on its own.** Mesa 26.1.6
+  registered as a system OpenGL ICD (`mesa-dist-win`'s `systemwidedeploy.cmd 1`:
+  `HKLM\…\OpenGLDrivers\MSOGL` → `mesadrv.dll`, the inbox `opengl32.dll` kept as the
+  loader — no System32 binary replaced, uninstall is option `10`) gives the
+  win11-gjsify VM **OpenGL 4.6, non-legacy**, and `three-geometry-teapot` RENDERS —
+  the first WebGL content this repo has drawn on Windows. `excalibur-jelly-jumper`
+  paints its Excalibur loader instead of the GL error. **The `4.6 (Compatibility
+  Profile)` this file predicted for Mesa/win32 is not what apps get**: GDK asks for
+  a CORE profile, so `is_legacy` is false and the `ensureDefaultVertexArray()` /
+  `ARB_ES3_compatibility` reasoning in the WebGL entries applies on win32 exactly as
+  it does on darwin, not the compatibility-profile branch.
+
+  **(b) survives, and the proposed fix for it was wrong.** Shipping ANGLE would NOT
+  have fixed a GPU-less host: the gvsbuild `epoxy-0.dll` is built with **no EGL
+  support at all** — measured on the shipped 0.34.0 bundle, it exports no
+  `epoxy_has_egl` and contains no `egl*` entry point — so
+  `gdk_win32_display_get_egl_display()` can never engage no matter what `libEGL.dll`
+  is present. That path needs libepoxy rebuilt with `-Degl=enabled` FIRST, which is
+  a gvsbuild-side change. And the other family is inert for a second, independent
+  reason: epoxy resolves desktop GL with a bare `LoadLibraryA("OPENGL32")`, which
+  Windows answers from the **application directory** then **System32** — never from
+  `PATH`, which is the only search the loader's bundle wiring controls (`opengl32`
+  is NOT in `KnownDLLs`, so the app-directory slot is genuinely open). An
+  `opengl32.dll` placed in the bundle's `bin/` is therefore never consulted.
+  Measured three ways on the VM: bundle-local `libEGL`+`libGLESv2`+`libgallium_wgl`
+  → still `No GL implementation is available`; bundle-local `opengl32.dll` preloaded
+  by absolute path via `process.dlopen` → still none (Node *unloads* a DLL that
+  fails to self-register, so the base-name-match trick needs the addon, not JS);
+  the same `opengl32.dll` beside a copied `node.exe` → **GL 4.6, works**, which is
+  what proves the mechanism is placement and nothing else. So a bundled ICD requires
+  the ADDON to opt the process into `SetDefaultDllDirectories(…)` +
+  `AddDllDirectory(<bundle>/bin)` — process-wide DLL-resolution surgery that would
+  also stop other native modules resolving their deps from `PATH`, so it is a
+  decision, not a detail.
+
+  The positive-assertion rule the typelib backers already follow
+  (`REQUIRED_NAMESPACES`) is the shape the fix wants, and **that half is now DONE**:
+  the windowing builder probes the FINISHED `bin/` for a GL implementation, records
+  the answer as `manifest.glImplementation` (with `dispatch` listed separately so
+  epoxy's presence can never be misread as GL), and warns naming every pattern that
+  matched nothing. `--require-gl` makes it fatal; it is off by default only because
+  no gvsbuild prefix satisfies it yet, so turning it on today would fail every win32
+  bundle build for a gap the bundle cannot currently close — the promotion that
+  ships a GL implementation flips it in the same change. Tracked as #1097.
 - **Promotion is ONE change**: the `win32-x64` token in `gjsify.platforms`, a
   generated `@gjsify/webgl-win32-x64` package (`generate-platform-packages.mjs
   --write`) whose npm name is bootstrapped via `gjsify onboard` BEFORE the
