@@ -132,10 +132,10 @@ consumer installs only the artifact that fits its platform.
 | `linux-x64` | ✅ `libgwebgl.so` + `Gwebgl-0.1.typelib` | native runner |
 | `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
-| `darwin-arm64` / `darwin-x64` | ✅ `libgwebgl.dylib` + `Gwebgl-0.1.typelib` | native runner — **WebGL1 only, see below** |
+| `darwin-arm64` / `darwin-x64` | ✅ `libgwebgl.dylib` + `Gwebgl-0.1.typelib` | native runner — **WebGL2 via a shader-dialect rewrite, see below** |
 | Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
 
-**macOS renders — WebGL1 only.** Measured on macOS 15.7.8 / x86_64 with gtk 4.22 and
+**macOS renders, WebGL1 and WebGL2.** Measured on macOS 15.7.8 / x86_64 with gtk 4.22 and
 libepoxy 1.5.10: `Gtk.GLArea` realizes a `GdkMacosGLContext`, and this bridge draws real
 pixels through it. That describes the GL stack once GTK is loaded — reaching it needed
 `DYLD_LIBRARY_PATH=/usr/local/lib` exported by hand, because the `Gtk-4.0` typelib names a
@@ -150,7 +150,22 @@ platform, not from the bridge:
   GL 4.1 on macOS.
 - Desktop GL 4.1 has **no GLSL ES 3.00 compiler** (that needs `ARB_ES3_compatibility`, GL 4.3),
   so `#version 300 es` shaders — i.e. all WebGL2 content, including three.js ≥ r163 and
-  Excalibur 0.32 — do not compile. `#version 100` (WebGL1) does, via `ARB_ES2_compatibility`.
+  Excalibur 0.32 — do not compile as written. `#version 100` (WebGL1) does, via
+  `ARB_ES2_compatibility`, which is core from 4.1; that one-version gap between the two
+  extensions is the entire reason WebGL1 worked here first.
+
+  **`shaderSource()` now closes it by rewriting the dialect**, and only where it must: on a
+  desktop context that lacks `ARB_ES3_compatibility`, `#version 300 es` becomes
+  `#version <the context's GLSL> core` (4.10 on macOS). Nothing else in the source changes,
+  which is a measured claim rather than a hopeful one — a three.js-shaped GLES 3.00 pair
+  (`layout(location=)` on attributes and fragment outputs, a `layout(std140)` block,
+  `texture()`, `isampler2D` + `texelFetch`, `textureLod`, MRT, precision statements) and
+  eleven separately probed edge constructs all compile on GLSL 4.10 with just that
+  substitution. Measured end to end on macOS 15.7.9 / GL 4.1 core: compiles, links, draws,
+  and `readPixels` returns the shader's colour. `#version 100` is left byte-for-byte alone,
+  and a context that already speaks GLSL ES 3.00 — Mesa's `4.6 (Compatibility Profile)` on
+  win32, GLES anywhere — is not rewritten at all.
+
   Of the 219 GL entry points the library references, exactly two are absent from Apple's
   `OpenGL.framework` (`glInvalidateFramebuffer`, `glInvalidateSubFramebuffer`, both GL 4.3);
   they are gated on `epoxy_gl_version() >= 43` because libepoxy aborts rather than returning

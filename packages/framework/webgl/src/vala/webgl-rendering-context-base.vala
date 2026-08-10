@@ -55,6 +55,12 @@ namespace Gwebgl {
         protected int lastError = GL_NO_ERROR;
 
         /**
+         * The `#version` token to rewrite a GLSL ES 3.00 shader to, or 0 when
+         * this context needs no rewrite. See {@link translateShaderDialect}.
+         */
+        protected int shader_dialect_target = 0;
+
+        /**
          * The vertex-array object that STANDS IN for WebGL's object 0.
          *
          * 0 means "this context does not need one" — which is every context but
@@ -89,6 +95,12 @@ namespace Gwebgl {
             // platform it fixes. It stays PUBLIC so it is callable and inspectable
             // once those types catch up, and it is idempotent.
             ensureDefaultVertexArray();
+            // Decided ONCE, here, for the same reason and at the same moment as
+            // the stand-in VAO above: the context is current, and the answer
+            // cannot change for its lifetime. Doing it per `shaderSource()` call
+            // would put two `glGetString`s and an extension walk on the path a
+            // renderer takes for every shader it compiles.
+            shader_dialect_target = detectShaderDialectTarget();
 
             this.webgl_constants.insert("UNPACK_FLIP_Y_WEBGL", UNPACK_FLIP_Y_WEBGL);
             this.webgl_constants.insert("UNPACK_PREMULTIPLY_ALPHA_WEBGL", UNPACK_PREMULTIPLY_ALPHA_WEBGL);
@@ -1573,9 +1585,118 @@ namespace Gwebgl {
             glScissor(x, y, width, height);
         }
 
+        /**
+         * The `#version` token a GLSL ES 3.00 shader must be rewritten to on this
+         * context, or 0 when it must be left exactly as the consumer wrote it.
+         *
+         * WHY A REWRITE IS NEEDED AT ALL, and only here. `#version 300 es` is
+         * accepted by a desktop GL compiler through `ARB_ES3_compatibility`,
+         * which is CORE FROM GL 4.3. macOS caps CGL at 4.1 and therefore does not
+         * have it — measured, `version '300' is not supported` — while it DOES
+         * have `ARB_ES2_compatibility` (core from 4.1), which is exactly why
+         * WebGL1's `#version 100` compiles there today and must not be touched.
+         * The one-version gap between those two extensions is the whole reason
+         * WebGL1 works on macOS and WebGL2 does not.
+         *
+         * So the predicate is the EXTENSION, not the OS and not the version
+         * alone: Mesa on win32 reports `4.6 (Compatibility Profile)` and has
+         * `ARB_ES3_compatibility`, so it compiles the consumer's own dialect and
+         * a rewrite there would be gratuitous — changing source we were not asked
+         * to change, on a context that never needed it.
+         *
+         * Returns 0 for a GLES context (the dialect IS native there), for a
+         * desktop context that already speaks GLSL ES 3.00, and for a desktop
+         * GLSL below 3.30 — below that there are no `layout` qualifiers, so the
+         * rewrite could not produce a compilable shader and failing at
+         * `#version` is the more honest error.
+         */
+        private int detectShaderDialectTarget() {
+            unowned string? version = glGetString(GL_VERSION);
+            if (version == null || version.has_prefix("OpenGL ES ")) {
+                return 0;
+            }
+            if (versionAtLeast(version, 4, 3)) {
+                return 0;
+            }
+            foreach (unowned string ext in getSupportedExtensions()) {
+                if (ext == "GL_ARB_ES3_compatibility") {
+                    return 0;
+                }
+            }
+            unowned string? glsl = glGetString(GL_SHADING_LANGUAGE_VERSION);
+            if (glsl == null) {
+                return 0;
+            }
+            string[] parts = glsl.split(".", 3);
+            if (parts.length < 2) {
+                return 0;
+            }
+            int major = int.parse(parts[0]);
+            int minor = int.parse(parts[1]);
+            // "4.10" spells the minor as 10, "4.6" as 6 — both mean 4.60/4.10 in
+            // `#version` terms, which is a two-digit minor.
+            int token = major * 100 + (minor >= 10 ? minor : minor * 10);
+            return token >= 330 ? token : 0;
+        }
+
+        /**
+         * Rewrite a GLSL ES 3.00 shader into the desktop dialect this context
+         * compiles. Returns `source` unchanged whenever nothing is needed.
+         *
+         * ONLY THE `#version` LINE CHANGES, and that is a measured scope rather
+         * than a hopeful one. On macOS 15.7.9 / GL 4.1 core / GLSL 4.10, a
+         * three.js-shaped GLES 3.00 pair — `layout(location=)` on attributes AND
+         * fragment outputs, a `layout(std140)` uniform block, `texture()`,
+         * `isampler2D` + `texelFetch`, `textureLod`, MRT, precision statements —
+         * compiles clean with only this substitution, as do `invariant
+         * gl_Position`, a fragment shader with no precision statement at all,
+         * `gl_FragDepth`, `sampler2DShadow`, `uint`/bitfield ops, `gl_VertexID`,
+         * `textureGrad`/`textureOffset`, `mediump` on a struct member and a
+         * dynamically-indexed sampler array. GLSL ES 3.00 and GLSL 4.10 simply
+         * agree on everything a WebGL2 consumer emits.
+         *
+         * `#extension … : require` is deliberately NOT rewritten. three.js 0.185
+         * emits exactly two (`GL_ANGLE_clip_cull_distance`,
+         * `GL_ANGLE_multi_draw`) and emits them only when the context advertises
+         * those extensions, which a desktop GL context does not — so the case
+         * this would guard against cannot arise from the consumer that motivated
+         * the work, and silently downgrading a `require` to `enable` would turn a
+         * shader's stated hard requirement into a warning behind its back.
+         */
+        private string translateShaderDialect(string source) {
+            if (shader_dialect_target == 0 || !source.contains("#version")) {
+                return source;
+            }
+            var translated = new StringBuilder.sized(source.length + 8);
+            bool rewritten = false;
+            string[] lines = source.split("\n");
+            for (int i = 0; i < lines.length; i++) {
+                // The directive must be the first thing in the shader bar
+                // comments and blank lines, so the FIRST `#version` is the only
+                // one that can be real — a later match is inside a string or a
+                // comment and rewriting it would corrupt the source.
+                if (!rewritten && lines[i].strip().has_prefix("#version")) {
+                    rewritten = true;
+                    if (lines[i].contains("300") && lines[i].contains("es")) {
+                        translated.append_printf("#version %d core", shader_dialect_target);
+                        if (i < lines.length - 1) {
+                            translated.append_c('\n');
+                        }
+                        continue;
+                    }
+                }
+                translated.append(lines[i]);
+                if (i < lines.length - 1) {
+                    translated.append_c('\n');
+                }
+            }
+            return translated.str;
+        }
+
         public void shaderSource(/*WebGLShader*/ uint shader, string source) {
-            string[] sources = new string[]{ source };
-            int[] length = new int[1]{ source.length };
+            string translated = translateShaderDialect(source);
+            string[] sources = new string[]{ translated };
+            int[] length = new int[1]{ translated.length };
             glShaderSource(shader, 1, sources, length);
         }
 

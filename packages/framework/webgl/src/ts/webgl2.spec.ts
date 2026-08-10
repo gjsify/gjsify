@@ -130,6 +130,44 @@ export default async () => {
                 gl2.deleteShader(sh);
             });
 
+            await it('leaves the source alone on a context that speaks GLSL ES 3.00', async () => {
+                // The three tests around this one assert the OUTCOME (it compiles,
+                // it links, it draws). This one asserts the MECHANISM, because the
+                // outcome is identical whether the dialect was rewritten or never
+                // needed rewriting — and those are opposite states to be in.
+                //
+                // `getShaderSource` reports what GL was actually handed, so the
+                // round-trip is the only way to see which of the two happened.
+                // On GLES (every Linux CI host) and on a desktop context with
+                // `ARB_ES3_compatibility` the source must survive byte-for-byte:
+                // rewriting there would be changing a consumer's shader for no
+                // reason. On macOS's GL 4.1, which has no such extension, the
+                // version line must come back as desktop GLSL.
+                const sh = gl2.createShader(gl2.VERTEX_SHADER)!;
+                gl2.shaderSource(sh, VS300);
+                const stored = gl2.getShaderSource(sh) ?? '';
+                const version = stored.split('\n')[0].trim();
+                const rest = stored.split('\n').slice(1).join('\n');
+
+                expect(version === '#version 300 es' || /^#version \d{3} core$/.test(version)).toBeTruthy();
+                // Whatever happened to line 1, NOTHING else may change.
+                expect(rest).toBe(VS300.split('\n').slice(1).join('\n'));
+                gl2.deleteShader(sh);
+            });
+
+            await it('never rewrites a WebGL1 #version 100 shader', async () => {
+                // The non-regression that matters most. `#version 100` compiles on
+                // macOS through `ARB_ES2_compatibility` (core from GL 4.1) and is
+                // the reason WebGL1 worked on darwin before WebGL2 did. A rewrite
+                // that reached it would break the case that already worked, on the
+                // one platform the rewrite exists for.
+                const src = ['#version 100', 'attribute vec4 aPos;', 'void main(){ gl_Position = aPos; }'].join('\n');
+                const sh = gl2.createShader(gl2.VERTEX_SHADER)!;
+                gl2.shaderSource(sh, src);
+                expect(gl2.getShaderSource(sh)).toBe(src);
+                gl2.deleteShader(sh);
+            });
+
             await it('#version 300 es program links and renders green', async () => {
                 // makeProgram works with WebGL2 context too — cast to WebGLRenderingContext
                 const prog = makeProgram(gl2 as unknown as WebGLRenderingContext, VS300, FS300);
