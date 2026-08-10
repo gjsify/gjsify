@@ -36,6 +36,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, copyFileSync, rmSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { checkPrebuildDir } from './check-prebuild-loader-path.mjs';
+import { relocateDarwinPrebuildDir } from './relocate-macho.mjs';
 // The target GRAMMAR lives with the rule that validates it. That is deliberate
 // rather than convenient: this script WRITES the directory name `prebuild-libc`
 // then reads back and checks, so the two agreeing by construction is worth more
@@ -392,6 +393,20 @@ function main() {
     rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
     for (const file of artifacts) copyFileSync(join(buildDir, file), join(outDir, file));
+
+    // RELOCATE BEFORE VERIFYING (darwin only). A Mach-O records each dependency
+    // by full install path, so a freshly-linked image names the build host's
+    // Homebrew prefix and nothing else — see `relocate-macho.mjs` for why that
+    // is a defect rather than a detail, and for the rpath order it writes.
+    //
+    // It runs HERE, on the copy in the destination, rather than in each
+    // `meson.build`: the artifact is the thing being promised, this is the one
+    // place every darwin target passes through, and the very next statement is
+    // the check that fails on a leftover. Doing it per-bridge would be twelve
+    // copies of a rule and would leave the check with nothing to catch it.
+    if (process.platform === 'darwin' && target.startsWith('darwin-')) {
+        relocateDarwinPrebuildDir(outDir, target);
+    }
 
     // The whole PATH, not just the target directory name: after the split the
     // destination is usually a sibling package, and "→ linux-x64/" would read as

@@ -161,6 +161,166 @@ describe('check-prebuild-loader-path: failure modes', () => {
     });
 });
 
+/**
+ * The build-host leak (#1102): a Mach-O names each dependency by full install
+ * path, so an unrelocated darwin prebuild carries the Homebrew prefix of the
+ * runner that linked it — `/usr/local/…` from an Intel runner, `/opt/homebrew/…`
+ * from an Apple-silicon one. Both published `@gjsify/webgl` darwin prebuilds did,
+ * and so did all ten other darwin packages.
+ *
+ * The fixtures are SYNTHESISED rather than produced with `install_name_tool`,
+ * for the reason the whole suite is written the way it is: these tests have to
+ * run on the Linux CI host that cannot execute — or edit — a Mach-O. A minimal
+ * 64-bit image is a header plus load commands, which is exactly the part the
+ * parser reads, so building one in-process gives real coverage of the failing
+ * shape on every platform. Producing it with the real tool would have made the
+ * one check that guards macOS runnable only ON macOS.
+ */
+describe('check-prebuild-loader-path: the build-host leak', () => {
+    const MH_MAGIC_64 = 0xfeedfacf;
+    const CPU_TYPE_X86_64 = 0x01000007;
+    const LC_ID_DYLIB = 0x0d;
+    const LC_LOAD_DYLIB = 0x0c;
+    const LC_RPATH = 0x8000001c;
+
+    /**
+     * Build a thin 64-bit Mach-O carrying exactly the given load commands.
+     *
+     * @param {Array<{cmd: number, str: string}>} commands
+     */
+    function machO(commands) {
+        const header = Buffer.alloc(32);
+        header.writeUInt32LE(MH_MAGIC_64, 0);
+        header.writeUInt32LE(CPU_TYPE_X86_64, 4);
+        header.writeUInt32LE(commands.length, 16);
+
+        const blocks = commands.map(({ cmd, str }) => {
+            // dylib_command is 24 bytes of fixed fields before the string;
+            // rpath_command is 12. Only the offset matters to the parser, so
+            // both are emitted with the string at a declared offset and the
+            // whole command padded to a 8-byte multiple, exactly as ld does.
+            const strOff = cmd === LC_RPATH ? 12 : 24;
+            const size = Math.ceil((strOff + str.length + 1) / 8) * 8;
+            const b = Buffer.alloc(size);
+            b.writeUInt32LE(cmd >>> 0, 0);
+            b.writeUInt32LE(size, 4);
+            b.writeUInt32LE(strOff, 8);
+            b.write(str, strOff, 'utf8');
+            return b;
+        });
+        return Buffer.concat([header, ...blocks]);
+    }
+
+    /** Write one synthetic image into a throwaway prebuild directory. */
+    function stage(commands) {
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-loader-path-'));
+        writeFileSync(join(dir, 'libgjsifyfoo.dylib'), machO(commands));
+        return dir;
+    }
+
+    const SYSTEM = { cmd: LC_LOAD_DYLIB, str: '/usr/lib/libSystem.B.dylib' };
+
+    it('FAILS an absolute dependency outside /usr/lib and /System', () => {
+        const dir = stage([
+            { cmd: LC_ID_DYLIB, str: '@rpath/libgjsifyfoo.dylib' },
+            { cmd: LC_LOAD_DYLIB, str: '/usr/local/opt/glib/lib/libglib-2.0.0.dylib' },
+            SYSTEM,
+        ]);
+        try {
+            const problems = checkPrebuildDir(dir, { verbose: false });
+            assert.equal(problems.length, 1);
+            assert.match(problems[0], /hard-links the build host/);
+            assert.match(problems[0], /libglib-2\.0\.0\.dylib/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('FAILS the Apple-silicon prefix too — the predicate is not a /usr/local grep', () => {
+        // The trap this guards: a hardcoded `/opt/homebrew` test is vacuously
+        // false on an Intel runner and a hardcoded `/usr/local` one is vacuously
+        // false on Apple silicon, so either alone passes green while proving
+        // nothing about the other arch.
+        const dir = stage([{ cmd: LC_LOAD_DYLIB, str: '/opt/homebrew/opt/libepoxy/lib/libepoxy.0.dylib' }, SYSTEM]);
+        try {
+            assert.match(checkPrebuildDir(dir, { verbose: false }).join('\n'), /hard-links the build host/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('FAILS a prefix nobody thought to list — MacPorts, a custom prefix, a home directory', () => {
+        const dir = stage([{ cmd: LC_LOAD_DYLIB, str: '/opt/local/lib/libglib-2.0.0.dylib' }, SYSTEM]);
+        try {
+            assert.match(checkPrebuildDir(dir, { verbose: false }).join('\n'), /hard-links the build host/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('FAILS an absolute LC_ID_DYLIB — the leak propagates into whoever links it', () => {
+        const dir = stage([{ cmd: LC_ID_DYLIB, str: '/usr/local/Cellar/foo/1.0/lib/libgjsifyfoo.dylib' }, SYSTEM]);
+        try {
+            assert.match(checkPrebuildDir(dir, { verbose: false }).join('\n'), /records its OWN name/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('PASSES /usr/lib and /System — those ship with macOS at a guaranteed path', () => {
+        const dir = stage([
+            { cmd: LC_ID_DYLIB, str: '@rpath/libgjsifyfoo.dylib' },
+            { cmd: LC_LOAD_DYLIB, str: '@rpath/libglib-2.0.0.dylib' },
+            SYSTEM,
+            { cmd: LC_LOAD_DYLIB, str: '/System/Library/Frameworks/OpenGL.framework/Versions/A/OpenGL' },
+            { cmd: LC_RPATH, str: '@loader_path' },
+        ]);
+        try {
+            assert.deepEqual(checkPrebuildDir(dir, { verbose: false }), []);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('REPORTS an absolute rpath without failing it — a search path is not a requirement', () => {
+        // The asymmetry is the point: dyld ABORTS the load over a missing
+        // `LC_LOAD_DYLIB` and SKIPS a missing `LC_RPATH`, so keeping the
+        // Homebrew prefix as the last search entry is a working fallback. Failing
+        // it would refuse the artifact `relocate-macho.mjs` deliberately produces.
+        const dir = stage([
+            { cmd: LC_LOAD_DYLIB, str: '@rpath/libglib-2.0.0.dylib' },
+            SYSTEM,
+            { cmd: LC_RPATH, str: '@loader_path' },
+            { cmd: LC_RPATH, str: '/usr/local/lib' },
+        ]);
+        try {
+            assert.deepEqual(checkPrebuildDir(dir, { verbose: false }), []);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('holds every COMMITTED darwin prebuild to the same rule', () => {
+        // The regression half. It runs from any host — the parser reads both
+        // arches' images without executing them — so an unrelocated artifact
+        // committed from either runner is caught on the Linux leg.
+        const dirs = [];
+        for (const target of ['darwin-x64', 'darwin-arm64']) {
+            for (const { pillar, bridge } of PAIRS) {
+                const d = prebuildDir(pillar, bridge, target);
+                if (existsSync(d)) dirs.push(d);
+            }
+            const webgl = prebuildDir('framework', 'webgl', target);
+            if (existsSync(webgl)) dirs.push(webgl);
+        }
+        assert.ok(dirs.length > 0, 'expected at least one committed darwin prebuild to check');
+        for (const dir of dirs) {
+            const leaks = checkPrebuildDir(dir, { verbose: false }).filter((p) => /hard-links the build host/.test(p));
+            assert.deepEqual(leaks, [], `${dir} still carries a build-host dependency`);
+        }
+    });
+});
+
 describe('typelib shared-library records', () => {
     const TERMINAL_LE = prebuildDir('node', 'terminal-native', 'linux-x64', 'GjsifyTerminal-1.0.typelib');
 

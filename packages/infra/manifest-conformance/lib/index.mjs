@@ -18,6 +18,7 @@ export { defineRule, allRules, portableRules, getRule, selectRules, runRules, cl
 export { createContext, readManifest, packagesUnder, toPosixPath, posixRelative } from './context.mjs';
 export {
     checkPrebuildDir,
+    isBuildHostAbsolutePath,
     readLibrary,
     readTypelibSharedLibraries,
     readElfNeeded,

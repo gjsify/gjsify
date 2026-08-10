@@ -88,9 +88,43 @@ const MH_CIGAM_64 = 0xcffaedfe;
 const FAT_MAGIC = 0xcafebabe;
 const FAT_CIGAM = 0xbebafeca;
 
+const LC_ID_DYLIB = 0x0d;
 const LC_LOAD_DYLIB = 0x0c;
 const LC_LOAD_WEAK_DYLIB = 0x80000018;
 const LC_RPATH = 0x8000001c;
+const LC_CODE_SIGNATURE = 0x1d;
+
+/**
+ * The two roots a Mach-O may name absolutely and still be portable.
+ *
+ * Everything under them ships with macOS itself, at a path Apple guarantees;
+ * `/usr/lib/libSystem.B.dylib` is on every image here and must stay absolute.
+ * Any OTHER absolute path is a fact about the machine that ran the linker.
+ */
+const SYSTEM_DYLIB_ROOTS = ['/usr/lib/', '/System/'];
+
+/**
+ * Does this Mach-O load-command string name an absolute path that only the
+ * BUILD HOST is known to have?
+ *
+ * The whole point of the predicate is that it is DERIVED rather than a list of
+ * prefixes to grep for. A `/opt/homebrew` test is vacuously false on an Intel
+ * runner (whose prefix is `/usr/local`) and vice versa, so a hardcoded pair
+ * would pass on both arches while proving nothing about either — the same trap
+ * `build-gtk-runtime-darwin.mjs` § 3 names. It also catches MacPorts
+ * (`/opt/local`), a non-default `HOMEBREW_PREFIX`, and `/Users/<someone>/…`
+ * without anyone having to think of them first.
+ *
+ * `@rpath`, `@loader_path` and `@executable_path` are relative BY CONSTRUCTION
+ * and never absolute, so the leading-slash test is the whole discriminator.
+ *
+ * @param {string} p a load-command string exactly as recorded
+ * @returns {boolean}
+ */
+export function isBuildHostAbsolutePath(p) {
+    if (!p.startsWith('/')) return false;
+    return !SYSTEM_DYLIB_ROOTS.some((root) => p.startsWith(root));
+}
 
 const PT_LOAD = 1;
 const PT_DYNAMIC = 2;
@@ -166,6 +200,11 @@ const PE_MACHINE_ARCH = {
  *   empty because nothing read them, not because the image records none
  * @property {string[]} needed dependency strings exactly as recorded
  * @property {string[]} searchPaths rpath/runpath entries exactly as recorded
+ * @property {string|null} id the image's OWN recorded name (Mach-O
+ *   `LC_ID_DYLIB`); null for a format that has no such record, and for a
+ *   Mach-O BUNDLE, which legitimately carries none
+ * @property {boolean} signed does the image carry a Mach-O `LC_CODE_SIGNATURE`?
+ *   Always false for ELF/PE, which this parser does not read signatures from
  */
 
 /**
@@ -193,17 +232,27 @@ function readMachO(data) {
     const ncmds = u32(16);
     /** @type {string[]} */ const needed = [];
     /** @type {string[]} */ const searchPaths = [];
+    // The image's own name. Read alongside the dependencies because it is the
+    // same string record and the same failure: an absolute `LC_ID_DYLIB` is a
+    // build-host path a consumer links against and cannot resolve. Not
+    // hypothetical — librsvg's pixbuf loader ids itself as an absolute keg path,
+    // which is why `build-gtk-runtime-darwin.mjs`'s relocate() rewrites the id
+    // and not only the deps.
+    /** @type {string|null} */ let id = null;
+    let signed = false;
     let off = 32; // mach_header_64 is 32 bytes
     for (let i = 0; i < ncmds; i++) {
         const cmd = u32(off);
         const cmdsize = u32(off + 4);
         if (cmdsize < 8 || off + cmdsize > data.length) throw new Error('truncated load commands');
-        if (cmd === LC_LOAD_DYLIB || cmd === LC_LOAD_WEAK_DYLIB || cmd === LC_RPATH) {
+        if (cmd === LC_CODE_SIGNATURE) signed = true;
+        if (cmd === LC_LOAD_DYLIB || cmd === LC_LOAD_WEAK_DYLIB || cmd === LC_RPATH || cmd === LC_ID_DYLIB) {
             const strOff = u32(off + 8);
             const raw = data.subarray(off + strOff, off + cmdsize);
             const end = raw.indexOf(0);
             const str = raw.subarray(0, end === -1 ? raw.length : end).toString('utf8');
-            (cmd === LC_RPATH ? searchPaths : needed).push(str);
+            if (cmd === LC_ID_DYLIB) id = str;
+            else (cmd === LC_RPATH ? searchPaths : needed).push(str);
         }
         off += cmdsize;
     }
@@ -214,6 +263,8 @@ function readMachO(data) {
         inspectable: true,
         needed,
         searchPaths,
+        id,
+        signed,
     };
 }
 
@@ -297,6 +348,10 @@ function readElf(data) {
         inspectable: true,
         needed,
         searchPaths,
+        // ELF's counterpart is DT_SONAME, which is a bare name by construction
+        // and therefore cannot carry a build-host path. Nothing to read.
+        id: null,
+        signed: false,
     };
 }
 
@@ -326,6 +381,8 @@ function readPe(data) {
         inspectable: false,
         needed: [],
         searchPaths: [],
+        id: null,
+        signed: false,
     };
 }
 
@@ -709,6 +766,58 @@ export function checkPrebuildDir(dir, { verbose = true } = {}) {
             `  ${lib} [${info.format}/${info.arch ?? 'unknown-arch'}] needs ${siblings.length ? siblings.join(', ') : '(no sibling)'}` +
                 ` | search: ${info.searchPaths.join(', ') || '(none)'}`,
         );
+
+        // THE BUILD HOST MUST NOT SURVIVE INTO THE ARTIFACT (darwin only).
+        //
+        // ELF records its dependencies by SONAME — a bare name the loader
+        // resolves — so a Linux prebuild structurally cannot carry the build
+        // machine's paths. Mach-O records the full install path of every
+        // dependency, so it does by default, and every darwin prebuild in this
+        // tree did: `@gjsify/webgl-darwin-x64` named
+        // `/usr/local/opt/glib/lib/libglib-2.0.0.dylib` and the arm64 twin named
+        // the same library under `/opt/homebrew`, each matching the DEFAULT
+        // Homebrew prefix of the runner that built it. That is correct by
+        // coincidence on the common Mac and resolves nothing on any other one.
+        //
+        // The check runs on the FINISHED artifact rather than on build intent,
+        // which is the whole reason it catches this: nothing about the build
+        // looked wrong, the libraries loaded on the runner that made them, and
+        // the load tests passed on hosts that happened to have Homebrew.
+        // Symmetrical to the win32 import-table check (#1096) and to
+        // `build-gtk-runtime-darwin.mjs` § 3, which asserts exactly this over
+        // the bundle — the prebuilds were the one darwin artifact with no such
+        // gate.
+        //
+        // A HARD dependency fails; a SEARCH PATH is reported. The two are not
+        // the same promise: an `LC_LOAD_DYLIB` naming a missing absolute path
+        // aborts the load, while an `LC_RPATH` that does not exist is simply
+        // skipped by dyld, so keeping the host's Homebrew prefix as a LATER
+        // rpath entry is a working fallback rather than a defect. Failing it
+        // too would refuse the very artifact this rule wants.
+        if (info.format === 'macho') {
+            for (const dep of info.needed.filter(isBuildHostAbsolutePath)) {
+                problems.push(
+                    `${path}: hard-links the build host — \`${dep}\`.\n` +
+                        '    A Mach-O records the full install path of each dependency, so this artifact only\n' +
+                        '    loads where that exact path exists (the right Homebrew prefix, the right formula\n' +
+                        '    installed). Relocate it at stage time: rewrite the load command to `@rpath/<leaf>`\n' +
+                        '    and add the rpaths that resolve it — `scripts/relocate-macho.mjs` does both, and\n' +
+                        '    `stage-prebuild.mjs` runs it on every darwin target.',
+                );
+            }
+            if (info.id !== null && isBuildHostAbsolutePath(info.id)) {
+                problems.push(
+                    `${path}: records its OWN name as the build-host path \`${info.id}\`.\n` +
+                        '    Anything linking against this library copies that string into its own load\n' +
+                        '    command, so the leak propagates to the consumer. Set the id to\n' +
+                        `    \`@rpath/${basename(path)}\` (install_name_tool -id).`,
+                );
+            }
+            const hostRpaths = info.searchPaths.filter(isBuildHostAbsolutePath);
+            if (hostRpaths.length > 0) {
+                note(`  ${lib} — build-host search path(s), FALLBACK ONLY: ${hostRpaths.join(', ')}`);
+            }
+        }
 
         for (const dep of siblings) {
             const leaf = basename(dep);
