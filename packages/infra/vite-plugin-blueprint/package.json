@@ -11,6 +11,10 @@
             "types": "./lib/index.d.ts",
             "default": "./lib/index.js"
         },
+        "./resolve": {
+            "types": "./lib/resolve-compiler.d.ts",
+            "default": "./lib/resolve-compiler.js"
+        },
         "./types": {
             "types": "./types/blueprint.d.ts"
         }

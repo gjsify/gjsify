@@ -13,8 +13,10 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import type { DepCheck } from './check-system-deps.js';
+import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
 import {
     buildInstallCommand,
+    checkBlueprintCompiler,
     checkTypeSkew,
     missingSystemDepsFor,
     OPTIONAL_DEPS,
@@ -106,6 +108,49 @@ export default async () => {
                 .map((d) => d.id)
                 .filter((id) => !declared.has(id));
             expect(undeclared.join(', ')).toBe('');
+        });
+
+        await it('every package manager can spell blueprint-compiler', async () => {
+            // A `.blp` build that cannot find the compiler used to rethrow execa's
+            // error, which names the command that failed and nothing to install.
+            // Measured on the win11-gjsify VM 2026-08-10, that was read as
+            // "blueprint-compiler is a GNOME Python tool, so it is unavailable on
+            // Windows" — a wrong conclusion that reached a docs file. It is pure
+            // Python and MSYS2 ships it prebuilt; only PyGObject (no Windows
+            // wheel) makes plain pip impossible.
+            const missing: DepCheck[] = [
+                { id: 'blueprint-compiler', name: 'blueprint-compiler', found: false, severity: 'optional' },
+            ];
+            const silent: string[] = [];
+            for (const pm of ['apt', 'dnf', 'pacman', 'zypper', 'apk', 'brew'] as const) {
+                if (!buildInstallCommand(pm, missing)) silent.push(pm);
+            }
+            expect(silent.join(', ')).toBe('');
+        });
+
+        await it('the win32 blueprint hint is MSYS2, never a winget package', async () => {
+            // winget has no blueprint-compiler and cannot usefully get one, so the
+            // hint must not be `winget install`-shaped. This asserts the standalone
+            // branch instead of the PM_PACKAGES table — putting it in the table
+            // would print a line that looks right and installs nothing.
+            if (process.platform !== 'win32') return;
+            const missing: DepCheck[] = [
+                { id: 'blueprint-compiler', name: 'blueprint-compiler', found: false, severity: 'optional' },
+            ];
+            const hint = buildInstallCommand('winget', missing) ?? '';
+            expect(hint.includes('mingw-w64-ucrt-x86_64-blueprint-compiler')).toBe(true);
+            expect(hint.includes('winget install')).toBe(false);
+        });
+
+        await it('the blueprint check agrees with the resolver the BUILD uses', async () => {
+            // The two must not be able to disagree. On win32 the compiler is
+            // normally an MSYS2 script deliberately kept OFF PATH, so a PATH-only
+            // check would report "missing" on a host where every `.blp` builds —
+            // a check failing for the wrong reason.
+            const check = checkBlueprintCompiler(['@gjsify/vite-plugin-blueprint']);
+            expect(check.id).toBe('blueprint-compiler');
+            expect(check.severity).toBe('optional');
+            expect(check.found).toBe(resolveBlueprintCompiler() !== null);
         });
     });
 
