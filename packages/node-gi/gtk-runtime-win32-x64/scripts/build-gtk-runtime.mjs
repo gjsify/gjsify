@@ -355,7 +355,10 @@ console.log(`build-gtk-runtime: copied ${binDlls.size} DLLs -> ${binOut}`);
 // the interesting one and it is stated positively — which patterns were tried and
 // that NONE matched — because the failure this closes was a seed that silently
 // matched nothing while the bundle went on advertising `windowing: true`.
-const glImplementation = describeGlImplementation({ dlls: [...binDlls.values()].map(basename) });
+// `.map((f) => basename(f))`, NOT `.map(basename)`: map passes the INDEX as the
+// second argument and basename reads that as its `suffix`, which throws on the
+// first element. Same shape as `dllList` below.
+const glImplementation = describeGlImplementation({ dlls: [...binDlls.values()].map((f) => basename(f)) });
 if (WINDOWING && glImplementation.matched.length === 0) {
     const message = formatMissingGlImplementation({ gl: glImplementation, prefixBin: gtkBin });
     if (REQUIRE_GL) {
