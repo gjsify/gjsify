@@ -57,7 +57,13 @@ namespace Gwebgl {
         }
 
         public void bindVertexArray(uint vao) {
-            glBindVertexArray((GL.GLuint) vao);
+            // `gl.bindVertexArray(null)` means "back to the default vertex array",
+            // and on a core profile that array is `default_vao`, not 0 — binding 0
+            // there is the state in which the next draw is GL_INVALID_OPERATION.
+            // `default_vao` is 0 wherever no stand-in was needed, so this is the
+            // identity on every other context (see
+            // `WebGLRenderingContextBase.ensureDefaultVertexArray`).
+            glBindVertexArray((GL.GLuint) (vao == 0 ? default_vao : vao));
         }
 
         // ─── Query Objects ────────────────────────────────────────────────────

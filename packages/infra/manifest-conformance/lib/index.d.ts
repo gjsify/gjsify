@@ -101,8 +101,13 @@ export interface LibInfo {
     inspectable: boolean;
     needed: string[];
     searchPaths: string[];
+    /** Mach-O `LC_ID_DYLIB`; null for ELF/PE and for a Mach-O bundle. */
+    id: string | null;
+    /** Does the image carry a Mach-O `LC_CODE_SIGNATURE`? Always false for ELF/PE. */
+    signed: boolean;
 }
 export declare function readLibrary(file: string): LibInfo | null;
+export declare function isBuildHostAbsolutePath(p: string): boolean;
 export declare function readTypelibSharedLibraries(file: string): string[] | null;
 export declare function checkPrebuildDir(dir: string, options?: { verbose?: boolean }): string[];
 
