@@ -558,14 +558,28 @@ What is still open:
   GL backend is a version line. That the route EXISTS was never in doubt: Safari and Chrome both
   ship WebGL2 on macOS, on a stack capped at the same 4.1. **Decision: (b)** — rewrite the dialect
   in the Vala layer at `shaderSource()` time for a desktop-GL context, NOT (a) declaring darwin
-  WebGL1-only and not (c) shipping ANGLE. Still to be done and NOT yet claimed: the rewrite itself
-  (`#version`, plus `: require` → `: enable` for GLES-only extension names), and the API-level GLES
-  3.0 features desktop GL 4.1 spells differently — `GL_PRIMITIVE_RESTART_FIXED_INDEX` (4.3 on
-  desktop; 4.1 has `glPrimitiveRestartIndex` + `GL_PRIMITIVE_RESTART`, which is what ANGLE emulates
-  with) and the mandatory ETC2/EAC formats (absent on desktop, unused by three.js/Excalibur).
-  Until the rewrite lands, "webgl works on darwin" still means **WebGL1-only**, and the OS-axis
-  declaration in `packages/framework/webgl/package.json` promises a loadable prebuild, NOT a
-  WebGL2-capable one.
+  WebGL1-only and not (c) shipping ANGLE. **DONE**, and measured end to end on macOS 15.7.9 /
+  GL 4.1 core through the real library: an unmodified `#version 300 es` pair compiles, links,
+  draws, and `readPixels` returns the shader's colour — the first WebGL2 CONTENT this repo has
+  drawn on darwin. `#version 100` comes back byte-for-byte unchanged in the same run.
+  **The predicate is the EXTENSION, not the OS**: `ARB_ES3_compatibility` (core from GL 4.3) is
+  what makes a desktop compiler accept the ES dialect, so Mesa's `4.6 (Compatibility Profile)` on
+  win32 has it and is deliberately NOT rewritten — rewriting a context that never needed it would
+  be changing a consumer's shader for nothing. The mirror of that extension is why WebGL1 worked
+  here first: `ARB_ES2_compatibility` is core from 4.1, and the ONE version between the two is the
+  whole of what separated WebGL1 from WebGL2 on this platform.
+  Deliberately NOT done, with the reason rather than a shrug: `: require` → `: enable` is not
+  rewritten, because three.js 0.185 emits exactly two `require` directives
+  (`GL_ANGLE_clip_cull_distance`, `GL_ANGLE_multi_draw`) and only when the context ADVERTISES
+  those extensions, which a desktop GL context does not — so the case cannot arise from the
+  consumer that motivated the work, and silently downgrading a shader's stated hard requirement
+  to a warning behind its back is worse than the failure it would hide.
+  Still open: the API-level GLES 3.0 features desktop GL 4.1 spells differently —
+  `GL_PRIMITIVE_RESTART_FIXED_INDEX` (4.3 on desktop; 4.1 has `glPrimitiveRestartIndex` +
+  `GL_PRIMITIVE_RESTART`, which is what ANGLE emulates with) and the mandatory ETC2/EAC formats
+  (absent on desktop, unused by three.js/Excalibur). Neither is reached by the showcases, so
+  neither is claimed as working; both are shader-independent and would surface as a draw-time
+  error, not a compile failure.
 - ~~**`getSupportedExtensions()` trips a GLib assertion on every desktop-GL context.**~~ **CLOSED**
   (#1101). A core profile makes `glGetString(GL_EXTENSIONS)` return NULL, and the split
   dereferenced it — `g_strsplit: assertion 'string != NULL' failed` here, a silent process death on
