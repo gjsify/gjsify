@@ -6,6 +6,22 @@ reverse bridge. One unchanged `Adw.Application` + `Adw.ApplicationWindow` realiz
 renders **and responds to input** through the platform GDK backend (GdkWayland/GdkX11
 on Linux, GdkWin32 on Windows) under Node.js exactly as under GJS.
 
+Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
+
+## Targets
+
+| Target | Bundle | Platform glue |
+|---|---|---|
+| GJS | `dist/app.gjs.mjs` (`--app gjs`) | GJS's own `gi://` imports |
+| Node.js | `dist/app.node.mjs` (`--app node`) | `@gjsify/node-gi` — `gi://` → `requireGi` over GObject-Introspection |
+
+Same source, same window, both directions of the bridge. It is `private` + versioned (a
+dev-tooling showcase, like [`adwaita-storybook`](../adwaita-storybook)): it depends on
+`@gjsify/node-gi` via a `file:` link, so it is not published to npm and not part of the
+`gjsify showcase` manifest — it runs from a checkout via its own scripts.
+
+## The app
+
 Two views live in an `Adw.ViewStack`, switched by a bottom `Adw.ViewSwitcherBar`, with
 the whole content under an `Adw.ToastOverlay`:
 
@@ -24,10 +40,13 @@ the whole content under an `Adw.ToastOverlay`:
   and a `win.toast` action both raise a dismissible `Adw.Toast` through the overlay —
   interactions dispatched through the node-gi `notify::` signal chain.
 
-It is `private` + versioned (a dev-tooling showcase, like `adwaita-storybook`): it
-depends on `@gjsify/node-gi` via a `file:` link, so it is not published to npm.
+## Prerequisites
 
-## Build + run
+GJS ≥ 1.86 (for the GJS target), Node.js ≥ 20 (what `@gjsify/node-gi` declares, for
+the Node target), GTK 4 and Libadwaita 1.x with their typelibs. `gjsify system-check`
+reports what is missing.
+
+## Run
 
 ```bash
 # GJS (native gi://)
@@ -50,7 +69,7 @@ control plane via `installDevtools(app)` (a no-op unless `GJSIFY_DEVTOOLS` is
 truthy). With it enabled, the LIVE window is drivable, inspectable and screenshottable
 over the session bus (`org.gjsify.Devtools`) — so the interactivity is provable
 without a human clicking. `Adw.ApplicationWindow` implements `Gio.ActionGroup`, and
-node-gi's `instanceof` now spans the whole GObject hierarchy, so devtools resolves the
+node-gi's `instanceof` spans the whole GObject hierarchy, so devtools resolves the
 `win.*` action group off the active window:
 
 ```bash
@@ -73,7 +92,7 @@ gjs -m tools/shoot.js eu.jumplink.NodeGiWindow dist/window.png
 `tools/shoot.js` calls `GetStatus` → `DumpTree` → `Screenshot` and writes the PNG.
 The same window can be driven from an MCP client via `gjsify debug`.
 
-## What it proves
+## What it demonstrates
 
 - `@gjsify/node-gi` dispatches the GTK signal/action/event chain into JS: a
   `Gtk.Button::clicked` signal, a `Gio.SimpleAction::activate` on the window,
@@ -88,9 +107,30 @@ The same window can be driven from an MCP client via `gjsify debug`.
   `Gsk.Renderer.render_texture`, `Gdk.Texture.save_to_png_bytes`).
 - `@gjsify/devtools`' live DBus `ActivateAction` / `GetProperty` / `DumpTree` /
   `Screenshot` run under node-gi, not just on GJS.
+- One `gi://` source tree building for `--app gjs` and `--app node` — the reverse
+  direction of the usual gjsify story (Node APIs on GJS), and the same window either way.
+
+## Layout
+
+```
+src/
+  app.ts               the whole app — Adw.Application, both views, installDevtools()
+  globals.d.ts         the GJS ambient globals the app references
+tools/shoot.js         GetStatus → DumpTree → Screenshot → PNG (GJS caller)
+```
+
+## Related
+
+- [`@gjsify/node-gi`](../../../packages/node-gi/node-gi) — the reverse bridge this is the GUI capstone of
+- [`@gjsify/devtools`](../../../packages/framework/devtools) — the DBus + MCP control plane used to self-verify
+- [`adwaita-storybook`](../adwaita-storybook) — the storybook, which also runs on Node/Bun/Deno over node-gi
 
 The self-contained, workspace-free proofs (no bundler, no `@gjsify/devtools`) live as
 `packages/node-gi/node-gi/test/windowing.test.mjs` (static render),
 `packages/node-gi/node-gi/test/windowing-interactive.test.mjs` (the interactivity
 chain + render) and `packages/node-gi/node-gi/test/widgets.test.mjs` (the Adwaita
 widget breadth) — what the Linux `gtk-smoke` + Windows windowing CI jobs run.
+
+## License
+
+MIT
