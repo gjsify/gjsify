@@ -61,6 +61,27 @@ export const Resources = {
 // Excalibur's play button overlay (which we replace with Excalibur's own
 // suppressPlayButton: false for the audio-unlock user gesture).
 class DevLoader extends ex.Loader {
+    /**
+     * Skip the whole "wait for the player" step, not just its button.
+     *
+     * `Loader.onUserAction()` is `delay(200, engine.clock)` followed by
+     * `showPlayButton()`. Overriding only the button left the delay, and that
+     * delay is scheduled on the EXCALIBUR CLOCK, whose time advances per frame
+     * rather than per millisecond — with a spiral-of-death guard that clamps
+     * `elapsed` to 1 ms for ANY frame that took longer than 200 ms. So on a host
+     * slower than 5 fps a 200 ms cosmetic pause silently becomes 200 FRAMES:
+     * measured at 1.1 s per frame on a GPU-less macOS VM, the loader sat there
+     * for ~4 minutes with nothing drawn, nothing rejected and nothing logged —
+     * the window looked frozen, and `game.start()` simply never resolved
+     * (gjsify#1107).
+     *
+     * There is nothing to wait for here: the pause exists to let a player see
+     * the progress bar finish, and this loader draws no progress bar. Removing
+     * it makes loading depend on the resources alone, on every host.
+     */
+    onUserAction() {
+        return Promise.resolve();
+    }
     showPlayButton() {
         return Promise.resolve();
     }
