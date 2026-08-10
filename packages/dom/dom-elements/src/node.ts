@@ -239,8 +239,23 @@ export class Node extends EventTarget {
         return oldChild;
     }
 
+    /**
+     * Produces the blank node that `cloneNode` then fills in.
+     *
+     * Default is `new this.constructor()`, which assumes the constructor takes
+     * no arguments. That does not hold for the framework bridges: a GTK-backed
+     * element is constructed FROM its widget (`new HTMLCanvasElement(glArea)`),
+     * so cloning one produced an instance whose widget was `undefined` and whose
+     * very first property read threw. Overriding this seam lets such an element
+     * decide what an unbacked copy of itself is — which for a canvas is a plain
+     * detached one, exactly as in a browser.
+     */
+    protected _createCloneTarget(): Node {
+        return new (this.constructor as new () => Node)();
+    }
+
     cloneNode(deep = false): Node {
-        const clone = new (this.constructor as new () => Node)();
+        const clone = this._createCloneTarget();
         clone[PS.nodeType] = this[PS.nodeType];
 
         if (deep) {
