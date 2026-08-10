@@ -31,6 +31,50 @@ declare module '../shader-program.js' {
     interface ShaderProgramMethods extends ShaderLifecycleMethods {}
 }
 
+/**
+ * Constructs that exist ONLY in GLSL ES 1.00 — every one of them was REMOVED in
+ * GLSL ES 3.00, so a source containing any is written in the older dialect and
+ * cannot be compiled as the newer one.
+ *
+ * `attribute` and `varying` used to be the whole list, and they are the
+ * VERTEX-side half of it: a fragment shader carries its dialect in
+ * `gl_FragColor` / `gl_FragData` and in the `texture2D` family instead, and a
+ * fullscreen-pass fragment shader routinely has neither `attribute` nor
+ * `varying`. Measured on Linux/Mesa 26.1.5, `void main(){ gl_FragColor = … }`
+ * with no `#version` was therefore classed as modern, given `#version 300 es`,
+ * and failed to compile with "`gl_FragColor' undeclared".
+ */
+const GLSL1_ONLY = /\b(attribute|varying|gl_FragColor|gl_FragData|texture2D|texture2DProj|textureCube)\b/;
+
+/**
+ * Constructs that exist ONLY in GLSL ES 3.00, used to recognise a versionless
+ * source that is deliberately written in the modern dialect.
+ *
+ * A GLOBAL `in`/`out` declaration, not a bare `\bout\b`: `in` and `out` are also
+ * PARAMETER qualifiers in GLSL ES 1.00 (`void f(in vec3 v)`), so the bare word
+ * proves nothing. Anchored per line and required to be followed by
+ * `<type> <name>;`, which a parameter list cannot look like.
+ */
+const GLSL3_ONLY =
+    /^\s*(?:flat\s+|smooth\s+|centroid\s+)*(?:in|out)\s+\w+\s+\w+\s*;|\blayout\s*\(|\btexture\s*\(|\buvec[234]\b/m;
+
+/**
+ * Which dialect is a source WITHOUT a `#version` directive written in?
+ *
+ * Order matters, and the DEFAULT is the point: WebGL specifies that a shader
+ * with no `#version` targets GLSL ES 1.00, which is also what browsers do, so
+ * anything not positively identified as modern is GLSL 1.0 rather than the
+ * context's newest dialect. Recognising the modern shape at all is a deliberate
+ * extension beyond the spec — such a source is invalid in a browser — kept
+ * because it costs nothing and refusing it would take away a capability that
+ * works today.
+ */
+function glslDialectOf(source: string): 'glsl1' | 'modern' {
+    if (GLSL1_ONLY.test(source)) return 'glsl1';
+    if (GLSL3_ONLY.test(source)) return 'modern';
+    return 'glsl1';
+}
+
 const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase> = {
     createShader(this: WebGLContextBase, type: GLenum = 0): WebGLShader | null {
         if (type !== this.FRAGMENT_SHADER && type !== this.VERTEX_SHADER) {
@@ -220,6 +264,17 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
         // Determine if the source already has a #version directive
         const hasVersion = source.startsWith('#version') || source.includes('\n#version');
 
+        // The dialect a VERSIONLESS source is written in, decided ONCE. Both the
+        // `#version` to inject and the preamble to inject depend on it, and they
+        // used to answer it separately: the version through
+        // `/\b(attribute|varying)\b/` and the preamble through `!hasVersion`
+        // alone. Two conditions for one question is how they came to disagree —
+        // measured on Linux/Mesa 26.1.5, a versionless `gl_FragColor` shader was
+        // handed `#version 300 es` (where that variable does not exist, so it
+        // failed to compile) TOGETHER WITH `#define gl_MaxDrawBuffers 1`, a
+        // `gl_`-prefixed macro GLSL ES 3.00 explicitly forbids.
+        const dialect = hasVersion ? null : glslDialectOf(source);
+
         // Build preamble lines that must come AFTER #version (if any)
         let preamble = '';
 
@@ -229,8 +284,9 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
 
         // Only inject gl_MaxDrawBuffers for GLSL ES 1.0 shaders.
         // GLSL ES 3.0+ (#version 300 es) has gl_MaxDrawBuffers as a built-in
-        // constant and forbids redefining names beginning with gl_.
-        if (!this._extensions.webgl_draw_buffers && !hasVersion) {
+        // constant and forbids redefining names beginning with gl_ — so this
+        // follows the DIALECT, not merely the absence of a `#version` line.
+        if (!this._extensions.webgl_draw_buffers && dialect === 'glsl1') {
             preamble += '#define gl_MaxDrawBuffers 1\n';
         }
 
@@ -246,20 +302,18 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
             }
         } else {
             // No #version in source — inject version + preamble at the top.
-            // If the shader uses GLSL 1.0 keywords (attribute/varying), keep it
-            // as GLSL 1.0 even in a WebGL2 context. Real browsers default
-            // versionless shaders to GLSL 1.0 compatibility mode.
+            // A GLSL 1.0-shaped source stays GLSL 1.0 even in a WebGL2 context.
+            // Real browsers default versionless shaders to GLSL 1.0.
             if (this.canvas) {
                 const glArea = this.canvas.getGlArea();
                 const es = glArea.get_use_es();
-                const usesGlsl1Syntax = /\b(attribute|varying)\b/.test(source);
                 // A GLSL1-shaped source must stay GLSL1 even on a WebGL2 context,
                 // which is why this does NOT go through `_getGlslVersion` — that
                 // one is overridden to answer `300 es` there. It used to inline
                 // `'120'`, and desktop GLSL 1.20 is a COMPATIBILITY dialect a core
                 // profile rejects outright; `_getGlsl1Version` knows the measured
                 // answer for both kinds of desktop context.
-                const version = usesGlsl1Syntax ? this._getGlsl1Version(es) : this._getGlslVersion(es);
+                const version = dialect === 'glsl1' ? this._getGlsl1Version(es) : this._getGlslVersion(es);
                 if (version) {
                     source = '#version ' + version + '\n' + preamble + source;
                 } else if (preamble) {
