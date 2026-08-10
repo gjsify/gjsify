@@ -297,7 +297,72 @@ export abstract class WebGLContextBase {
     }
 
     _getGlslVersion(es: boolean): string {
-        return es ? '100' : '120';
+        return this._getGlsl1Version(es);
+    }
+
+    /**
+     * The `#version` a GLSL ES 1.00-SHAPED shader must carry — the dialect with
+     * `attribute`, `varying` and `gl_FragColor`. Deliberately NOT overridden by
+     * the WebGL2 context: such a source stays GLSL1 wherever it appears.
+     *
+     * On a desktop context the answer used to be an unconditional `'120'`, and
+     * desktop GLSL 1.20 is a COMPATIBILITY-profile dialect. A core profile
+     * rejects the directive outright — `version '120' is not supported`, then
+     * `#version required and missing`, then a syntax error on the first
+     * `varying` — so every versionless shader died on macOS, which is the one
+     * platform that gets a core profile. Measured on the
+     * `three-postprocessing-pixel` showcase: its fourteen GLSL ES 3.00 shaders
+     * compiled and its two versionless ones did not, leaving the scene black
+     * behind a fully-drawn Adwaita window.
+     *
+     * `'100'` is the right answer rather than a workaround: it is the dialect
+     * the source is actually written in, and `ARB_ES2_compatibility` — CORE FROM
+     * GL 4.1 — is precisely the extension that makes a desktop compiler accept
+     * it. Measured on macOS 15.7.9 / GL 4.1 core, GLSL1-shaped body:
+     * `100` OK, `110` FAIL, `120` FAIL.
+     *
+     * The version gate keeps the old answer where nothing better exists: below
+     * GL 4.1 there is no `ARB_ES2_compatibility`, and such a context can only be
+     * a compatibility profile anyway — which is exactly where `120` works.
+     */
+    _getGlsl1Version(es: boolean): string {
+        return es ? '100' : this._atLeastGlVersion(4, 1) ? '100' : '120';
+    }
+
+    /**
+     * The `#version` token of the context's OWN desktop GLSL — `'410'` for
+     * GLSL 4.10 — for a versionless shader written in the MODERN dialect
+     * (`in`/`out`, no `gl_FragColor`).
+     *
+     * Derived rather than a hand-picked floor, because the driver's own version
+     * is by construction one it accepts, and on any context that can be a core
+     * profile it is ≥ 1.40 — which is the whole requirement. Falls back to
+     * `'130'` where no version can be read, the pre-core case the previous
+     * hardcoded literal was right about.
+     */
+    protected _desktopGlslVersion(): string {
+        const glsl = this._gl.getString(0x8b8c /* GL_SHADING_LANGUAGE_VERSION */);
+        if (!glsl || glsl.startsWith('OpenGL ES ')) return '130';
+        const [major, minor] = glsl.split('.', 2).map((part) => Number.parseInt(part, 10));
+        if (!Number.isFinite(major) || !Number.isFinite(minor)) return '130';
+        // "4.10" spells the minor as 10, "4.6" as 6 — `#version` wants two digits.
+        return String(major * 100 + (minor >= 10 ? minor : minor * 10));
+    }
+
+    /**
+     * Is the RAW GL version at least `major.minor`, on a DESKTOP context?
+     *
+     * False for GLES, whose versions answer a different question entirely.
+     * Read off `glGetString(GL_VERSION)` rather than `getParameter(VERSION)`,
+     * which this class answers with the WebGL spelling (`"WebGL 1.0 …"`) and so
+     * cannot be parsed for a driver version.
+     */
+    protected _atLeastGlVersion(major: number, minor: number): boolean {
+        const version = this._gl.getString(0x1f02 /* GL_VERSION */);
+        if (!version || version.startsWith('OpenGL ES ')) return false;
+        const [haveMajor, haveMinor] = version.split('.', 2).map((part) => Number.parseInt(part, 10));
+        if (!Number.isFinite(haveMajor) || !Number.isFinite(haveMinor)) return false;
+        return haveMajor > major || (haveMajor === major && haveMinor >= minor);
     }
 
     // ─── Foundational helpers used across multiple split modules ──────────

@@ -155,6 +155,36 @@ export default async () => {
                 gl2.deleteShader(sh);
             });
 
+            await it('compiles a VERSIONLESS GLSL1 shader — the injected #version must suit the profile', async () => {
+                // A shader with no `#version` gets one from `_wrapShader`, and the
+                // desktop answer used to be a hardcoded `120`. Desktop GLSL 1.20
+                // is a COMPATIBILITY dialect: measured on macOS 15.7.9 / GL 4.1
+                // core, `#version 100` compiles and `110`/`120` do not, so every
+                // versionless shader was uncompilable on the one platform that
+                // gets a core profile. `three-postprocessing-pixel` rendered a
+                // black scene behind a complete Adwaita window because of exactly
+                // these two shaders.
+                //
+                // Asserted through compilation rather than by reading the injected
+                // line back: what matters is that the driver accepts it, and the
+                // right token differs per context (100 on GLES and on desktop
+                // >= 4.1, 120 below it).
+                const src = [
+                    'attribute vec4 aPos;',
+                    'varying vec2 vUv;',
+                    'void main(){ vUv = aPos.xy; gl_Position = aPos; }',
+                ].join('\n');
+                const sh = gl2.createShader(gl2.VERTEX_SHADER)!;
+                gl2.shaderSource(sh, src);
+                gl2.compileShader(sh);
+                if (!gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)) {
+                    console.error('versionless GLSL1 log:', gl2.getShaderInfoLog(sh));
+                    console.error('injected source:', gl2.getShaderSource(sh)?.split('\n')[0]);
+                }
+                expect(gl2.getShaderParameter(sh, gl2.COMPILE_STATUS)).toBeTruthy();
+                gl2.deleteShader(sh);
+            });
+
             await it('never rewrites a WebGL1 #version 100 shader', async () => {
                 // The non-regression that matters most. `#version 100` compiles on
                 // macOS through `ARB_ES2_compatibility` (core from GL 4.1) and is
