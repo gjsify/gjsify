@@ -4,7 +4,6 @@
 // Original: MIT license, three.js authors (https://threejs.org)
 
 import GObject from 'gi://GObject?version=2.0';
-import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
@@ -104,8 +103,15 @@ export class PixelWindow extends Adw.ApplicationWindow {
             // itself. The writes this replaces were silent no-ops whose comment
             // claimed they were what made the resize check work.
 
-            const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
-            const assetBase = `file://${bundleDir}/`;
+            // Derived in URI SPACE, never by pasting `file://` onto a native path.
+            // `GLib.filename_from_uri()` hands back a PLATFORM path, which on win32
+            // is `C:\…\dist` — and `file://${that}/` makes `C:` the URI HOSTNAME, so
+            // GdkPixbuf rejects every texture with "The hostname of the URI … is
+            // invalid" and the scene loads nothing. It only looked right on Linux and
+            // macOS, where an absolute path already starts with the `/` that
+            // `file://` needs. `new URL('./', …)` keeps the value a URL end to end, so
+            // no separator or drive letter is ever handled by hand.
+            const assetBase = new URL('./', import.meta.url).href;
 
             this._demo = start(canvas, { assetBase });
             this.connectControls(this._demo);
