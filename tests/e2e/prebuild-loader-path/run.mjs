@@ -23,7 +23,16 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    readdirSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -297,6 +306,45 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
             assert.deepEqual(checkPrebuildDir(dir, { verbose: false }), []);
         } finally {
             rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('gives every committed darwin prebuild the SAME rpath order', () => {
+        // The order IS the precedence policy — dyld expands `@rpath` against
+        // each `LC_RPATH` in the order recorded — so asserting the set would
+        // pass on the bug this exists to catch.
+        //
+        // What it caught: `relocate-macho.mjs` first deleted only the rpaths it
+        // did not want and appended the rest, so an entry the linker had already
+        // baked in kept its position. A freshly-linked `libgwebgl.dylib` carries
+        // `<brew>/lib` from the Homebrew link line, and CI's own artifact
+        // therefore shipped the SYSTEM prefix ahead of the bundle — inverting
+        // ADR 0023's darwin policy. The committed artifacts did not show it,
+        // because theirs were version-pinned Cellar paths that all got deleted.
+        // A set-equality assertion is blind to exactly that difference.
+        //
+        // Read from the file rather than recomputed from `darwinPrebuildRpaths`:
+        // the point is what the ARTIFACT records, and a shared helper would make
+        // the test agree with the generator by construction.
+        for (const target of ['darwin-x64', 'darwin-arm64']) {
+            const arch = target.slice('darwin-'.length);
+            const prefix = arch === 'arm64' ? '/opt/homebrew' : '/usr/local';
+            const expected = ['@loader_path', `@loader_path/../../../gtk-runtime-${target}/gtk/lib`, `${prefix}/lib`];
+            for (const { pillar, bridge } of [...PAIRS, { pillar: 'framework', bridge: 'webgl' }]) {
+                const dir = prebuildDir(pillar, bridge, target);
+                if (!existsSync(dir)) continue;
+                for (const leaf of readdirSync(dir).filter((f) => f.endsWith('.dylib'))) {
+                    const info = readLibrary(join(dir, leaf));
+                    // A library with no `@rpath/` dependency gets no rpaths at
+                    // all — that is deliberate, and it is the cdylibs.
+                    if (!info?.needed.some((n) => n.startsWith('@rpath/'))) continue;
+                    assert.deepEqual(
+                        info.searchPaths,
+                        expected,
+                        `${target}/${leaf}: rpath ORDER must be @loader_path → bundle → system (ADR 0023)`,
+                    );
+                }
+            }
         }
     });
 
