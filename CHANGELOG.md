@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.35.0](https://github.com/gjsify/gjsify/compare/v0.34.0...v0.35.0) (2026-08-10)
+
+### Features
+
+* **webgl:** compile WebGL2 shaders on desktop GL 4.1 ([ef4de86](https://github.com/gjsify/gjsify/commit/ef4de865492581775d281572840957c7b5997654))
+* **webgl:** report the GL implementation apps got ([0fe73e2](https://github.com/gjsify/gjsify/commit/0fe73e2a920cfbd444e0168a1dd9b69cb143e320)), closes [#1107](https://github.com/gjsify/gjsify/issues/1107)
+
+### Bug Fixes
+
+* **canvas2d-core:** survive transforms Cairo cannot hold ([5ad55d3](https://github.com/gjsify/gjsify/commit/5ad55d31052d2f0c31de44706ebcff7473b6090f)), closes [#1107](https://github.com/gjsify/gjsify/issues/1107)
+* **dom-elements:** let an element choose its clone target ([fb5ce6b](https://github.com/gjsify/gjsify/commit/fb5ce6bb0997cca1e657e439e76d455496fa36b8))
+* **example-dom-three-postprocessing-pixel:** build a valid URI ([ce4eb6a](https://github.com/gjsify/gjsify/commit/ce4eb6aa1c81a895c8817a77f217868902a16adc)), closes [#1108](https://github.com/gjsify/gjsify/issues/1108)
+* **example-excalibur-jelly-jumper:** leave the loader ([3a549ec](https://github.com/gjsify/gjsify/commit/3a549ec09268f1bf80f4e22263f34181d60a7b0c)), closes [#1107](https://github.com/gjsify/gjsify/issues/1107)
+* **gtk-runtime-win32-x64:** report the GL it ships ([64cc805](https://github.com/gjsify/gjsify/commit/64cc8050630dd82d1900422a801b6fc4cd3e49d6)), closes [#1097](https://github.com/gjsify/gjsify/issues/1097) [#1097](https://github.com/gjsify/gjsify/issues/1097)
+* make the darwin rpath order deterministic ([e2ffa71](https://github.com/gjsify/gjsify/commit/e2ffa71a132e0b2eb59298060c1bd5e499809b9f)), closes [#1103](https://github.com/gjsify/gjsify/issues/1103)
+* make WebGL and its prebuilds work on darwin ([5b07eec](https://github.com/gjsify/gjsify/commit/5b07eec9d9ddf20bae0966780e1184731fec5ebf)), closes [#1102](https://github.com/gjsify/gjsify/issues/1102) [#1101](https://github.com/gjsify/gjsify/issues/1101) [#1101](https://github.com/gjsify/gjsify/issues/1101) [#1102](https://github.com/gjsify/gjsify/issues/1102)
+* **webgl:** decide the versionless dialect once ([#1108](https://github.com/gjsify/gjsify/issues/1108)) ([0f0671e](https://github.com/gjsify/gjsify/commit/0f0671e780bde3fdcf6e6b664b79c0473edb69ea))
+* **webgl:** inject a #version a core profile accepts ([36e383e](https://github.com/gjsify/gjsify/commit/36e383eb79ba1d807ed64424437d4d638f41bdb6)), closes [#1104](https://github.com/gjsify/gjsify/issues/1104)
+* **webgl:** keep the bridge's new members declarable ([4bd3827](https://github.com/gjsify/gjsify/commit/4bd3827485f7cc676a3bec795a8216f6580ba7c1))
+
+### Documentation
+
+* record what closing [#1107](https://github.com/gjsify/gjsify/issues/1107) left open ([631cce2](https://github.com/gjsify/gjsify/commit/631cce2cc5679b6a1a04dcee58379ee71b0e2539))
+* **showcases:** align every showcase README ([#1113](https://github.com/gjsify/gjsify/issues/1113)) ([c702876](https://github.com/gjsify/gjsify/commit/c702876babac351e04e2c6d874f65ff0c9c87593))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([a7456c2](https://github.com/gjsify/gjsify/commit/a7456c2f6fdf4941ecacd5a7ae96e8cdfd868eff))
+* update native prebuilds [skip ci] ([0f9180b](https://github.com/gjsify/gjsify/commit/0f9180b06bf0b61f42840f3162a3157771c65520))
+
+### Tests
+
+* **fs:** make K-15 measure turns, not wall time ([d50eee1](https://github.com/gjsify/gjsify/commit/d50eee17421f6a25b9ce0849e25fd3eb61b776e5))
+
 ## [0.34.0](https://github.com/gjsify/gjsify/compare/v0.33.0...v0.34.0) (2026-08-09)
 
 ### Features
