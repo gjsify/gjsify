@@ -83,6 +83,7 @@ function getDrawImageSource(image: unknown): { pixbuf: CanvasImageHandle; imgWid
 const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
     fill(this: CanvasRenderingContext2D, pathOrRule?: Path2D | CanvasFillRule, fillRule?: CanvasFillRule): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         this._applyCompositing();
         this._applyFillStyle();
 
@@ -101,6 +102,7 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
 
     stroke(this: CanvasRenderingContext2D, path?: Path2D): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         this._applyCompositing();
         this._applyStrokeStyle();
         this._applyLineStyle();
@@ -115,6 +117,7 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
 
     fillRect(this: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         this._applyCompositing();
         // Per spec: fillRect must not affect the current path.
         // Save current path, draw the rect in an isolated path, then restore.
@@ -136,6 +139,7 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
 
     strokeRect(this: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         this._applyCompositing();
         // Per spec: strokeRect must not affect the current path.
         const savedPath = this._ctx.copyPath();
@@ -157,6 +161,7 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
 
     clearRect(this: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         // Per spec: clearRect must not affect the current path.
         const savedPath = this._ctx.copyPath();
         this._ctx.save();
@@ -171,6 +176,7 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
 
     clip(this: CanvasRenderingContext2D, pathOrRule?: Path2D | CanvasFillRule, fillRule?: CanvasFillRule): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         let rule: CanvasFillRule | undefined;
         if (pathOrRule instanceof Path2D) {
             this._ctx.newPath();
@@ -231,6 +237,7 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
         a8?: number,
     ): void {
         this._ensureSurface();
+        if (this._state.transformIsSingular) return;
         this._applyCompositing();
 
         let sx: number, sy: number, sw: number, sh: number;

@@ -214,5 +214,64 @@ export default async () => {
                 expect(nearlyEqual(final.f, 50)).toBe(true);
             });
         });
+
+        // Cairo cannot hold a non-invertible matrix: `cairo_scale(0, 0)` puts the
+        // context into a permanent "invalid matrix (not invertible)" error state
+        // and EVERY later call on it throws, including the ones that would reset
+        // it. Canvas 2D has no such failure — a collapsed transform just draws
+        // nothing. Excalibur scales entities to zero in normal play, which is how
+        // this took down the whole 2D renderer on the first frame after a
+        // renderer fallback (gjsify#1107).
+        await describe('degenerate and non-finite transforms', async () => {
+            await it('survives a zero scale and keeps drawing afterwards', async () => {
+                const ctx = makeCtx();
+                ctx.scale(0, 0);
+                // The poisoned-context symptom was a throw HERE, not above.
+                ctx.translate(10, 10);
+                ctx.fillRect(0, 0, 10, 10);
+                ctx.resetTransform();
+                ctx.translate(5, 5);
+                const m = ctx.getTransform();
+                expect(nearlyEqual(m.a, 1)).toBe(true);
+                expect(nearlyEqual(m.e, 5)).toBe(true);
+            });
+
+            await it('reports the collapse rather than the last usable matrix', async () => {
+                const ctx = makeCtx();
+                ctx.scale(2, 2);
+                ctx.scale(0, 1);
+                const m = ctx.getTransform();
+                expect(m.a).toBe(0);
+                expect(m.d).toBe(0);
+            });
+
+            await it('treats a zero-determinant matrix the same way', async () => {
+                const ctx = makeCtx();
+                ctx.transform(1, 2, 2, 4, 0, 0);
+                ctx.fillRect(0, 0, 10, 10);
+                ctx.resetTransform();
+                expect(nearlyEqual(ctx.getTransform().a, 1)).toBe(true);
+            });
+
+            await it('setTransform to an invertible matrix recovers', async () => {
+                const ctx = makeCtx();
+                ctx.scale(0, 0);
+                ctx.setTransform(1, 0, 0, 1, 7, 9);
+                const m = ctx.getTransform();
+                expect(nearlyEqual(m.a, 1)).toBe(true);
+                expect(nearlyEqual(m.e, 7)).toBe(true);
+            });
+
+            await it('ignores non-finite arguments instead of poisoning Cairo', async () => {
+                const ctx = makeCtx();
+                ctx.translate(10, 10);
+                ctx.translate(Number.NaN, 0);
+                ctx.scale(Number.POSITIVE_INFINITY, 1);
+                ctx.rotate(Number.NaN);
+                const m = ctx.getTransform();
+                expect(nearlyEqual(m.a, 1)).toBe(true);
+                expect(nearlyEqual(m.e, 10)).toBe(true);
+            });
+        });
     });
 };
