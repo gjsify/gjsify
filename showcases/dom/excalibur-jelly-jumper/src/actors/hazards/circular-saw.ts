@@ -4,6 +4,7 @@ import { PhysicsActor } from '../../classes/physics-actor.js';
 import { CollisionGroup } from '../../physics/collision.js';
 import { CarriableComponent } from '../../components/physics/carrier.js';
 import { DamageComponent } from '../../components/behaviours/damage.js';
+import { supportsMaterials } from '../../materials/support.js';
 
 export class CircularSawHazard extends PhysicsActor {
     direction = 1;
@@ -50,6 +51,8 @@ export class CircularSawHazard extends PhysicsActor {
 
     // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur default generic; Engine<TKnownScenes = any>
     onInitialize(engine: ex.Engine<any>): void {
+        // Cosmetic: without it the blade simply draws whole instead of clipped.
+        if (!supportsMaterials(engine.graphicsContext)) return;
         this.graphics.material = new RenderTopHalfMaterial(engine.graphicsContext, this);
     }
 

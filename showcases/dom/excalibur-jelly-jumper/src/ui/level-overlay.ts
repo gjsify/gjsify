@@ -2,6 +2,7 @@ import * as ex from 'excalibur';
 import type Player from '../actors/player.js';
 import { Resources } from '../resources.js';
 import { OutlineMaterial } from '../materials/outline.js';
+import { supportsMaterials } from '../materials/support.js';
 import { GameManager } from '../state/game.js';
 
 /**
@@ -78,7 +79,10 @@ class CoinCounter extends ex.ScreenElement {
             z: this.z,
             coordPlane: ex.CoordPlane.Screen,
         });
-        this.label.graphics.material = new OutlineMaterial(engine.graphicsContext, 2);
+        // Cosmetic: without it the coin counter loses its black outline.
+        if (supportsMaterials(engine.graphicsContext)) {
+            this.label.graphics.material = new OutlineMaterial(engine.graphicsContext, 2);
+        }
         this.addChild(this.label);
         const icon = new ex.Actor({
             anchor: ex.vec(0, 0.5),
