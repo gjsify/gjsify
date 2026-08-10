@@ -16,6 +16,9 @@ import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
+// The zero-dependency subpath, deliberately: importing the plugin root would
+// pull vite/execa/minify-xml into a system CHECK.
+import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
 
 export type DepSeverity = 'required' | 'optional';
 
@@ -469,6 +472,33 @@ export function runMinimalChecks(): DepCheck[] {
     return results;
 }
 
+/**
+ * Is a blueprint-compiler reachable, by the SAME rule the build uses?
+ *
+ * Delegates to `@gjsify/vite-plugin-blueprint/resolve` rather than probing PATH
+ * here, because the two answers must not be able to disagree: on win32 the
+ * compiler is normally an MSYS2 script that is deliberately NOT on PATH, so a
+ * PATH-only check would report "missing" on a host where every `.blp` builds
+ * fine — a check failing for the wrong reason, which is the failure mode this
+ * file's own history is made of.
+ *
+ * `--version` is not run. MSYS2 ships blueprint-compiler as a shebang script
+ * with no `.exe`, so `checkBinary` cannot execute it on Windows; presence of the
+ * resolved pair is the honest answer, and the `source` is worth reporting
+ * because "found via msys2" explains an install PATH does not show.
+ */
+export function checkBlueprintCompiler(requiredBy?: string[]): DepCheck {
+    const resolved = resolveBlueprintCompiler();
+    return {
+        id: 'blueprint-compiler',
+        name: 'blueprint-compiler (.blp templates)',
+        found: resolved !== null,
+        version: resolved ? `found via ${resolved.source}` : undefined,
+        severity: 'optional',
+        requiredBy,
+    };
+}
+
 /** Check gwebgl npm package (project first, CLI fallback). Optional — only needed by @gjsify/webgl users. */
 export function checkGwebgl(cwd: string): DepCheck {
     return checkNpmPackage('gwebgl', 'gwebgl (@gjsify/webgl)', '@gjsify/webgl', cwd, 'optional', ['@gjsify/webgl']);
@@ -541,7 +571,14 @@ function runNativeBuildToolchainChecks(): DepCheck[] {
     // crate by Cargo path-dependency need a Rust toolchain.
     const rustBridges = ['@gjsify/lightningcss-native', '@gjsify/oxfmt-native', '@gjsify/rolldown-native'];
 
+    // Every showcase/app whose window comes from a `.blp` template. NOT a Vala
+    // bridge and nothing to do with meson — it is a BUILD-time toolchain in the
+    // same sense, and it belongs here so `gjsify system-check` names it before a
+    // build does.
+    const blueprintConsumers = ['@gjsify/vite-plugin-blueprint'];
+
     return [
+        checkBlueprintCompiler(blueprintConsumers),
         checkBinary('ninja', 'Ninja', 'ninja', ['--version'], 'optional', undefined, valaBridges),
         checkBinary(
             'vala',
@@ -808,10 +845,25 @@ export function buildInstallCommand(pm: PackageManager, missing: DepCheck[]): st
     const pkgMap = PM_PACKAGES[pm];
     const pkgs: string[] = [];
     const npmDeps: string[] = [];
+    const standalone: string[] = [];
 
     for (const dep of missing) {
         if (dep.id === 'gwebgl') {
             npmDeps.push('@gjsify/webgl');
+            continue;
+        }
+        // blueprint-compiler on Windows is the one dep whose install command is
+        // not this host's package manager. winget has no package for it, and it
+        // cannot get one that works: the tool needs PyGObject, which publishes
+        // no Windows wheel, so MSYS2 — which ships Python, PyGObject and the
+        // typelibs already fitted together — is the only source. Its command is
+        // not `winget install`-shaped, so it cannot live in PM_PACKAGES without
+        // producing a line that looks right and fails.
+        if (dep.id === 'blueprint-compiler' && process.platform === 'win32') {
+            standalone.push(
+                'pacman -S mingw-w64-ucrt-x86_64-blueprint-compiler mingw-w64-ucrt-x86_64-gtk4 ' +
+                    'mingw-w64-ucrt-x86_64-libadwaita   # inside MSYS2; found automatically afterwards',
+            );
             continue;
         }
         if (dep.id === 'nodejs') continue; // can't be missing if we're running
@@ -826,6 +878,7 @@ export function buildInstallCommand(pm: PackageManager, missing: DepCheck[]): st
     if (npmDeps.length > 0) {
         lines.push(`npm install ${npmDeps.join(' ')}`);
     }
+    lines.push(...standalone);
 
     return lines.length > 0 ? lines.join('\n  ') : null;
 }

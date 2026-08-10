@@ -141,6 +141,7 @@
         "@gjsify/npm-registry": "workspace:^",
         "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/rolldown-plugin-gjsify": "workspace:^",
+        "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@gjsify/rolldown-plugin-pnp": "workspace:^",
         "@gjsify/semver": "workspace:^",
         "@gjsify/tar": "workspace:^",
