@@ -15,6 +15,7 @@ import { WebGL2RenderingContext as OurWebGL2RenderingContext } from './webgl2-re
 import { attachEventControllers } from '@gjsify/event-bridge';
 import { Event } from '@gjsify/dom-events';
 import { notifyElementResize } from '@gjsify/dom-elements';
+import { isSoftwareRenderer } from './software-renderer.js';
 
 // Public callback type uses globalThis.HTMLCanvasElement (lib.dom) so callers can pass the
 // canvas directly to WebGL demos that type their canvas parameter as HTMLCanvasElement.
@@ -81,6 +82,8 @@ export const WebGLBridge = GObject.registerClass(
         // Both requestAnimationFrame timestamps and performance.now() are
         // relative to this origin, matching the browser DOMHighResTimeStamp spec.
         _timeOrigin: number = GLib.get_monotonic_time();
+        // Unmasked GL vendor/renderer, filled in once the context exists.
+        private _rendererInfo: { vendor: string; renderer: string } | null = null;
 
         constructor(params?: Partial<Gtk.GLArea.ConstructorProps>) {
             super(params);
@@ -146,6 +149,7 @@ export const WebGLBridge = GObject.registerClass(
                 this._canvas.getContext('webgl2');
                 const gl = this._canvas.getContext('webgl') as OurWebGLRenderingContext | null;
                 if (gl) {
+                    this._reportRenderer(gl);
                     for (const cb of this._readyCallbacks) {
                         cb(
                             this._canvas as unknown as globalThis.HTMLCanvasElement,
@@ -264,6 +268,20 @@ export const WebGLBridge = GObject.registerClass(
         }
 
         /**
+         * The GL implementation GDK negotiated, unmasked — `{vendor, renderer}`
+         * straight from `glGetString`, e.g. `Apple Software Renderer`. `null`
+         * until the context exists (i.e. before the first `onReady`).
+         *
+         * Read it to REPORT what a host provides. It is not a capability check:
+         * a CPU rasteriser draws everything a GPU does, only slower, and how much
+         * slower depends entirely on the workload. Anything that switches
+         * renderers should key on a measured frame budget, not on this string.
+         */
+        get rendererInfo(): { vendor: string; renderer: string } | null {
+            return this._rendererInfo;
+        }
+
+        /**
          * Registers a callback to be called once the WebGL context is ready.
          * If the context is already available, the callback fires synchronously.
          */
@@ -286,6 +304,43 @@ export const WebGLBridge = GObject.registerClass(
          */
         onWebGLReady(cb: WebGLReadyCallback): void {
             this.onReady(cb);
+        }
+
+        /**
+         * Records the negotiated GL implementation and, when it rasterises on the
+         * CPU, says so ONCE on stderr.
+         *
+         * A GPU-less host is invisible from inside the app: context creation
+         * succeeds, every draw call succeeds, nothing rejects, and the only tell
+         * is a frame budget blown by three orders of magnitude — which presents as
+         * a window that sits there. Naming the renderer at the one place that
+         * knows it turns that into a line anyone can act on, for every consumer,
+         * without any of them asking.
+         *
+         * Diagnostic only: it changes no behaviour, because a software renderer is
+         * fine for plenty of workloads (measured on one GPU-less macOS host: a
+         * demand-driven three.js scene and a flat-shaded full-screen quad both run
+         * comfortably on the same driver that needs 1.1 s for one textured
+         * full-screen draw in a 2D game).
+         */
+        private _reportRenderer(gl: OurWebGLRenderingContext): void {
+            const ext = gl.getExtension('WEBGL_debug_renderer_info') as {
+                UNMASKED_VENDOR_WEBGL: number;
+                UNMASKED_RENDERER_WEBGL: number;
+            };
+            const vendor = String(gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) ?? '');
+            const renderer = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) ?? '');
+            this._rendererInfo = { vendor, renderer };
+
+            if (isSoftwareRenderer(renderer)) {
+                console.warn(
+                    `[@gjsify/webgl] GL is rasterised on the CPU by "${renderer}" (${vendor}) — this host ` +
+                        `exposes no usable GPU. Every draw call still works; fill-heavy or continuously ` +
+                        `animating content will be orders of magnitude slower than on hardware, which can ` +
+                        `look like a frozen window rather than a slow one. Read it yourself via ` +
+                        `WebGLBridge.rendererInfo or the WEBGL_debug_renderer_info extension.`,
+                );
+            }
         }
 
         /**

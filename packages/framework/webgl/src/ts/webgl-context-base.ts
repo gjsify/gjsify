@@ -35,6 +35,7 @@ import { getEXTColorBufferFloat } from './extensions/ext-color-buffer-float.js';
 import { getEXTColorBufferHalfFloat } from './extensions/ext-color-buffer-half-float.js';
 import { getEXTTextureFilterAnisotropic } from './extensions/ext-texture-filter-anisotropic.js';
 import { getOESTextureHalfFloat } from './extensions/oes-texture-half-float.js';
+import { getWEBGLDebugRendererInfo } from './extensions/webgl-debug-renderer-info.js';
 // import { getOESVertexArrayObject } from './extensions/oes-vertex-array-object.js';
 
 import type { WebGLBuffer } from './webgl-buffer.js';
@@ -69,7 +70,16 @@ const availableExtensions: Record<string, ExtensionFactory> = {
     ext_color_buffer_half_float: getEXTColorBufferHalfFloat,
     ext_texture_filter_anisotropic: getEXTTextureFilterAnisotropic,
     oes_texture_half_float: getOESTextureHalfFloat,
+    webgl_debug_renderer_info: getWEBGLDebugRendererInfo,
 };
+
+/** `GL_VENDOR` / `GL_RENDERER` — the pnames `glGetString` answers unmasked. */
+const GL_VENDOR = 0x1f00;
+const GL_RENDERER = 0x1f01;
+
+/** `WEBGL_debug_renderer_info` pnames, accepted by `getParameter`. */
+const UNMASKED_VENDOR_WEBGL = 0x9245;
+const UNMASKED_RENDERER_WEBGL = 0x9246;
 
 /**
  * Per-extension structural type. Each extension is a concrete class instance
@@ -445,7 +455,14 @@ export abstract class WebGLContextBase {
     }
 
     getSupportedExtensions(): string[] {
-        const exts = ['ANGLE_instanced_arrays', 'STACKGL_resize_drawingbuffer', 'STACKGL_destroy_context'];
+        const exts = [
+            'ANGLE_instanced_arrays',
+            'STACKGL_resize_drawingbuffer',
+            'STACKGL_destroy_context',
+            // Unconditional: it reads `glGetString`, which every GL implementation
+            // answers. Nothing to probe for.
+            'WEBGL_debug_renderer_info',
+        ];
 
         const supportedExts = this._gl.getSupportedExtensions();
 
@@ -498,6 +515,13 @@ export abstract class WebGLContextBase {
                 return '';
             case this.RENDERER:
                 return 'ANGLE';
+
+            // WEBGL_debug_renderer_info — the unmasked counterparts of the two
+            // above, straight from the driver.
+            case UNMASKED_VENDOR_WEBGL:
+                return this._gl.getString(GL_VENDOR);
+            case UNMASKED_RENDERER_WEBGL:
+                return this._gl.getString(GL_RENDERER);
             case this.SHADING_LANGUAGE_VERSION:
                 return 'WebGL GLSL ES 1.0 ';
 

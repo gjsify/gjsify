@@ -27,6 +27,36 @@ function stubGlArea(allocW: number, allocH: number, scale: number): Gtk.GLArea {
 }
 
 export default async () => {
+    // A clone has no GLArea to be backed by, and the default `new
+    // this.constructor()` built one anyway — `gtkGlArea` came out `undefined`
+    // and the first `width` read threw. Excalibur switches renderers exactly
+    // this way (`canvas.cloneNode(false)` → `replaceChild` → `getContext('2d')`),
+    // so its whole fallback died at the clone (gjsify#1107). A real Gtk.GLArea
+    // cannot cover this on the hosts that run CI, hence the stub.
+    await describe('HTMLCanvasElement (GLArea) — cloneNode', async () => {
+        await it('clones to a plain canvas instead of throwing', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(640, 480, 1));
+            const clone = canvas.cloneNode(false) as unknown as HTMLCanvasElement;
+            expect(clone.width).toBe(640);
+            expect(clone.height).toBe(480);
+        });
+
+        await it('gives the clone a writable size — no widget owns it', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(640, 480, 1));
+            const clone = canvas.cloneNode(false) as unknown as HTMLCanvasElement;
+            clone.width = 800;
+            clone.height = 600;
+            expect(clone.width).toBe(800);
+            expect(clone.height).toBe(600);
+        });
+
+        await it('leaves the original bound to its widget', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(640, 480, 2));
+            canvas.cloneNode(false);
+            expect(canvas.width).toBe(1280);
+        });
+    });
+
     await describe('HTMLCanvasElement (GLArea) — drawing buffer vs CSS size', async () => {
         await it('reports the drawing buffer in DEVICE pixels on a HiDPI surface', async () => {
             const canvas = new HTMLCanvasElement(stubGlArea(360, 655, 3));

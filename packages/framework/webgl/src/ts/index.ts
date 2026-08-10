@@ -9,6 +9,7 @@ import '@girs/gio-2.0';
 import '@girs/gtk-4.0';
 
 export * from './html-canvas-element.js';
+export * from './software-renderer.js';
 export * from './webgl-bridge.js';
 // export * from './linkable.js';
 // export * from './utils.js';
@@ -47,3 +48,4 @@ export * from './extensions/oes-texture-float.js';
 export * from './extensions/oes-texture-half-float.js';
 export * from './extensions/stackgl-destroy-context.js';
 export * from './extensions/stackgl-resize-drawing-buffer.js';
+export * from './extensions/webgl-debug-renderer-info.js';
