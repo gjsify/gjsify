@@ -31,6 +31,9 @@
 		<field name="lastError" writable="1">
 			<type name="gint" c:type="gint"/>
 		</field>
+		<field name="default_vao" writable="1">
+			<type name="guint" c:type="guint"/>
+		</field>
 		<constructor name="new" c:identifier="gwebgl_web_gl_rendering_context_base_new">
 			<return-value transfer-ownership="full">
 				<type name="Gwebgl.WebGLRenderingContextBase" c:type="GwebglWebGLRenderingContextBase*"/>
@@ -1255,6 +1258,16 @@
 				<parameter name="pname" transfer-ownership="none">
 					<type name="gint" c:type="gint"/>
 				</parameter>
+			</parameters>
+		</method>
+		<method name="ensureDefaultVertexArray" c:identifier="gwebgl_web_gl_rendering_context_base_ensureDefaultVertexArray">
+			<return-value transfer-ownership="full">
+				<type name="guint" c:type="guint"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="Gwebgl.WebGLRenderingContextBase" c:type="GwebglWebGLRenderingContextBase*"/>
+				</instance-parameter>
 			</parameters>
 		</method>
 		<method name="getSupportedExtensions" c:identifier="gwebgl_web_gl_rendering_context_base_getSupportedExtensions">
