@@ -537,35 +537,64 @@ failure comes back looking like a broken prebuild.
 
 What is still open:
 
-- **GLSL ES 3.00 does not exist on macOS, so every WebGL2-only consumer is dead there.**
-  `#version 300 es` needs ARB_ES3_compatibility (GL 4.3) and macOS caps CGL at 4.1; measured
-  through the shipped stack, `gl2.compileShader` reports `version '300' is not supported`. WebGL1
-  (`#version 100`) compiles. Consequence: `three-geometry-teapot`, `three-postprocessing-pixel` and
-  the Excalibur showcases BUILD and RUN on darwin-x64 (the GLArea realizes, the log says
-  `Context version: OpenGL 4.1`) and draw nothing, because three.js ≥ r163 and Excalibur 0.32 are
-  WebGL2-only. Three honest resolutions — pick one deliberately rather than leaving the third
-  state: (a) declare darwin WebGL1-only and say so in the showcase preflight + the platform matrix;
-  (b) translate GLSL ES 3.00 → GLSL 4.10 in the Vala layer for a desktop-GL context (`in`/`out` are
-  already common, the work is `texture()` sampling, `layout` qualifiers and the precision
-  statements — this is what ANGLE does and it is not small); (c) ship/link ANGLE on darwin and get a
-  real GLES 3 driver. Until one is chosen, "webgl works on darwin" must be stated as
-  **WebGL1-only**, and the OS-axis declaration in `packages/framework/webgl/package.json` promises a
-  loadable prebuild, NOT a WebGL2-capable one.
-- **`getSupportedExtensions()` trips a GLib assertion on every desktop-GL context.**
-  `g_strsplit: assertion 'string != NULL' failed`, three times per context: a core profile makes
-  `glGetString(GL_EXTENSIONS)` return NULL (it is `glGetStringi(GL_EXTENSIONS, i)` + `GL_NUM_EXTENSIONS`
-  there). The Vala side must read the indexed form when the context is desktop GL ≥ 3.0. Not fatal
-  today — the JS layer still returned 3 entries — but it is a NULL deref away from one, and it is
-  the same class as the `invalidateFramebuffer` gate: GLES semantics assumed on a GL context.
-- **A `GL_INVALID_OPERATION` (0x502) is pending before the first draw**, and an `Adw.Application`
-  app whose `WebGLBridge` draws from `requestAnimationFrame` produced a BLACK window while the
-  identical tick-callback + `queue_render` + `render` mechanism animated correctly in a plain
-  `Gtk.Window` + `GLib.MainLoop` (~13 renders/s on the software renderer). Two candidates, neither
-  confirmed: a desktop GL core profile has NO default vertex-array object (a draw with VAO 0 is
-  exactly `GL_INVALID_OPERATION`, while GLES permits it), and/or the `_gtkFboId` captured from
-  `GL_FRAMEBUFFER_BINDING` is not the framebuffer GTK presents on this backend. Reproduce with the
-  probe below plus a `--globals auto,dom` bundle that drives the real bridge; this is the next thing
-  to chase, and it is what stands between "the native bridge draws" and "an app draws".
+- **GLSL ES 3.00 does not exist on macOS — but the WebGL2 route through GL 4.1 is now MEASURED,
+  and it is option (b), far cheaper than this entry assumed.** `#version 300 es` needs
+  ARB_ES3_compatibility (core in GL 4.3) and macOS caps CGL at 4.1, so the dialect is genuinely
+  refused: `version '300' is not supported`. What was never measured is how much of the SHADER has
+  to change once the version line does, and the answer is **nothing**. On macOS 15.7.9 / GL 4.1
+  core / GLSL 4.10, a three.js-shaped GLES 3.00 pair — `layout(location=)` attributes AND fragment
+  outputs, a `layout(std140)` uniform block, `texture()`, `isampler2D` + `texelFetch`,
+  `textureLod`, MRT, `precision highp` statements — compiles clean after swapping ONLY
+  `#version 300 es` → `#version 410 core`. So do all eleven constructs probed separately for being
+  the likely breakers: `invariant gl_Position`, a fragment shader with no precision statement at
+  all, `gl_FragDepth`, `sampler2DShadow` + `texture(vec3)`, `uint`/`uvec4`/bitfield ops,
+  `gl_VertexID`/`gl_InstanceID`, `textureGrad`/`textureOffset`, `mediump` on a struct member, a
+  dynamically-indexed sampler array, and even `#extension GL_OES_standard_derivatives : enable` /
+  `GL_EXT_shader_texture_lod : enable` (an unknown extension with `: enable` is specified to warn,
+  not fail — only `: require` would error, which is the one directive form a translator must
+  rewrite). **The premise the old entry rested on — "this is what ANGLE does and it is not small" —
+  does not survive the measurement**: ANGLE is large because it targets the whole GLES conformance
+  suite from a D3D/Metal backend, whereas the gap between GLSL ES 3.00 and GLSL 4.10 on a desktop
+  GL backend is a version line. That the route EXISTS was never in doubt: Safari and Chrome both
+  ship WebGL2 on macOS, on a stack capped at the same 4.1. **Decision: (b)** — rewrite the dialect
+  in the Vala layer at `shaderSource()` time for a desktop-GL context, NOT (a) declaring darwin
+  WebGL1-only and not (c) shipping ANGLE. Still to be done and NOT yet claimed: the rewrite itself
+  (`#version`, plus `: require` → `: enable` for GLES-only extension names), and the API-level GLES
+  3.0 features desktop GL 4.1 spells differently — `GL_PRIMITIVE_RESTART_FIXED_INDEX` (4.3 on
+  desktop; 4.1 has `glPrimitiveRestartIndex` + `GL_PRIMITIVE_RESTART`, which is what ANGLE emulates
+  with) and the mandatory ETC2/EAC formats (absent on desktop, unused by three.js/Excalibur).
+  Until the rewrite lands, "webgl works on darwin" still means **WebGL1-only**, and the OS-axis
+  declaration in `packages/framework/webgl/package.json` promises a loadable prebuild, NOT a
+  WebGL2-capable one.
+- ~~**`getSupportedExtensions()` trips a GLib assertion on every desktop-GL context.**~~ **CLOSED**
+  (#1101). A core profile makes `glGetString(GL_EXTENSIONS)` return NULL, and the split
+  dereferenced it — `g_strsplit: assertion 'string != NULL' failed` here, a silent process death on
+  win32. `webgl-rendering-context-base.vala` now reads the indexed form
+  (`GL_NUM_EXTENSIONS` + `glGetStringi`). **Decided from `GL_VERSION`, NOT by trying the old call
+  and recovering from NULL**, which is what the issue proposed: measured on this host, the invalid
+  call QUEUES `GL_INVALID_ENUM` (0x500), so the obvious fix would have traded a crash for a
+  phantom error reported to the next consumer that calls `getError()` — the exact class of defect
+  the entry below was filed about. `getString()` and `getParameter`'s `GL_EXTENSIONS` branch went
+  through the same guard; they had the same unchecked return. Verified against the real built
+  library on a GtkGLArea 4.1 core context: 46 extensions, 0x0 queued afterwards.
+- ~~**A `GL_INVALID_OPERATION` (0x502) is pending before the first draw**~~ **CLOSED — it was the
+  first candidate, and it is now measured rather than suspected.** A desktop GL core profile has NO
+  default vertex-array object; GLES keeps object 0 as a real one, so every WebGL consumer draws with
+  nothing bound and macOS is the platform that reaches a core profile (CGL offers no GLES profile at
+  all, so GDK hands out desktop GL 4.1). Measured per profile on this VM through CGL, same call
+  sequence: `legacy 2.1` → `enableVertexAttribArray` 0x0, `drawArrays` 0x0; `4.1 core` → **0x502 on
+  both**; `4.1 core` with any VAO bound → clean. `WebGLRenderingContextBase.construct` now generates
+  and binds a stand-in (`ensureDefaultVertexArray()`, a no-op wherever `GL_CONTEXT_PROFILE_MASK`
+  does not report core — so Mesa's `4.6 (Compatibility Profile)` on win32 correctly gets none), and
+  `WebGL2RenderingContext.bindVertexArray(0)` maps onto it so "back to the default vertex array"
+  does not restore the broken state. **It is done in the Vala constructor and not from the JS
+  `_init()` beside `_gtkFboId`** because `@girs/gwebgl-0.1` is a PINNED published package: a new
+  method is not callable from TypeScript until ts-for-gir regenerates it, so routing the fix through
+  JS would have made it wait on a types release to reach the platform it fixes. Since a draw that
+  raises 0x502 draws nothing, this is also the most likely half of the BLACK WINDOW — but the
+  second candidate is untouched and unproven either way: whether the `_gtkFboId` captured from
+  `GL_FRAMEBUFFER_BINDING` is the framebuffer GTK presents on this backend. Re-run the
+  `Adw.Application` reproducer before calling the black window closed.
 - **The HiDPI path stays unproven on darwin.** The VM reports scale factor 1 (its LaunchAgent pins
   `res:1920x1080 scaling:off`), so `clientWidth × devicePixelRatio === canvas.width` holds
   trivially and this host cannot falsify the drawing-buffer bug class. Only a real HiDPI Mac can.

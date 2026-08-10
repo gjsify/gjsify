@@ -54,6 +54,21 @@ namespace Gwebgl {
         protected int unpack_alignment = 4;
         protected int lastError = GL_NO_ERROR;
 
+        /**
+         * The vertex-array object that STANDS IN for WebGL's object 0.
+         *
+         * 0 means "this context does not need one" — which is every context but
+         * a desktop-GL CORE profile. See {@link ensureDefaultVertexArray}.
+         *
+         * Typed `uint`, not `GL.GLuint`, although every call it feeds takes the
+         * latter: a protected field is a PUBLIC field in the GIR, and
+         * `g-ir-compiler` cannot resolve `GL.GLuint` there (the GL vapi is a
+         * binding this typelib does not depend on) — it fails the typelib build
+         * outright. `GLuint` is `uint`, so the casts at the two use sites are
+         * spelling, not conversion.
+         */
+        protected uint default_vao = 0;
+
 
         public WebGLRenderingContextBase() {
 
@@ -61,6 +76,19 @@ namespace Gwebgl {
 
         /* Constructor */
         construct {
+            // Done HERE and not from the JS layer, although the JS `_init()` is
+            // where the other once-per-context GL fact (GtkGLArea's FBO id) is
+            // captured. Two reasons, both concrete: the context is ALREADY current
+            // at this point — the bridge constructs this object inside GtkGLArea's
+            // render signal, which is exactly what lets `_init()` read
+            // `GL_FRAMEBUFFER_BINDING` one line later — and a stand-in for object 0
+            // is an invariant of the context rather than something a consumer opts
+            // into. Calling it from TypeScript would additionally need a
+            // regenerated `@girs/gwebgl-0.1`, which is a PINNED published package,
+            // so the fix would have had to wait on a types release to reach the
+            // platform it fixes. It stays PUBLIC so it is callable and inspectable
+            // once those types catch up, and it is idempotent.
+            ensureDefaultVertexArray();
 
             this.webgl_constants.insert("UNPACK_FLIP_Y_WEBGL", UNPACK_FLIP_Y_WEBGL);
             this.webgl_constants.insert("UNPACK_PREMULTIPLY_ALPHA_WEBGL", UNPACK_PREMULTIPLY_ALPHA_WEBGL);
@@ -1022,8 +1050,11 @@ namespace Gwebgl {
                 case GL_VERSION:
                 case GL_EXTENSIONS:
                 {
-                    var str = glGetString(pname);
-                    return new Variant("s", str);
+                    // Through `getString`, not `glGetString` — a `Variant("s", …)`
+                    // built from a NULL is the same crash `getSupportedExtensions`
+                    // had, and `GL_EXTENSIONS` is precisely the name that returns
+                    // NULL in a core profile. One guarded call site, not two.
+                    return new Variant("s", getString(pname));
                 }
             
                 case GL_MAX_VIEWPORT_DIMS:
@@ -1189,14 +1220,153 @@ namespace Gwebgl {
         }
 
         public string getString(int pname) {
-            return glGetString(pname);
+            // `glGetString` is declared `unowned string?` and MEANS it: every
+            // name it does not answer for this context returns NULL, and the
+            // return type here promised otherwise. Empty string matches
+            // `WebGL2RenderingContext.getStringi`, which has always done `?? ""`.
+            return glGetString(pname) ?? "";
+        }
+
+        /**
+         * Does this context answer `glGetStringi(GL_EXTENSIONS, i)`?
+         *
+         * Decided from `GL_VERSION` rather than by TRYING the old call and
+         * recovering from its failure, because the failure is not free: in a
+         * core profile `glGetString(GL_EXTENSIONS)` is specified to raise
+         * `GL_INVALID_ENUM`, and a probe that leaves an error queued makes the
+         * next `getError()` a consumer calls report a fault this class invented.
+         *
+         * `GL_VERSION` is the one query legal in every profile and version, and
+         * its string starts with the number in both dialects — `"4.1 INTEL…"`,
+         * `"4.6 (Compatibility Profile) Mesa…"`, `"OpenGL ES 3.0 Mesa…"` — so
+         * one predicate covers desktop GL and GLES, which is the point: the
+         * indexed form arrived in 3.0 on BOTH.
+         */
+        private bool hasIndexedExtensionQuery() {
+            unowned string? version = glGetString(GL_VERSION);
+            if (version == null) {
+                return false;
+            }
+            string number = version.has_prefix("OpenGL ES ")
+                ? version.substring("OpenGL ES ".length)
+                : version;
+            return int.parse(number) >= 3;
+        }
+
+        /**
+         * Create and bind the vertex-array object that stands in for WebGL's
+         * object 0, if this context is one that has none.
+         *
+         * WEBGL GUARANTEES A USABLE VERTEX-ARRAY STATE WITH NOTHING BOUND; A
+         * DESKTOP GL CORE PROFILE DOES NOT. GLES (hence WebGL) keeps object 0 as
+         * a real, usable vertex array, so `enableVertexAttribArray` +
+         * `drawArrays` with nothing bound is the NORMAL path and every WebGL1
+         * consumer takes it. In a core profile object 0 does not exist and both
+         * calls are `GL_INVALID_OPERATION`.
+         *
+         * Measured on this repo's macOS test VM (macOS 15.7.9, Apple Software
+         * Renderer), the same CGL context sequence per profile:
+         *
+         *     legacy 2.1  enableVertexAttribArray → 0x0    drawArrays → 0x0
+         *     4.1 core    enableVertexAttribArray → 0x502  drawArrays → 0x502
+         *     4.1 core, with a VAO bound          → clean
+         *
+         * That is the pending `GL_INVALID_OPERATION` the darwin ledger recorded
+         * before the first draw, and — since a draw that raises it draws nothing
+         * — the black window behind it. macOS reaches this and Linux does not for
+         * one reason: CGL offers NO GLES profile at all, so GDK hands out desktop
+         * GL 4.1 there while it hands out GLES on a typical Linux host.
+         *
+         * Binding one VAO for the context's lifetime is what a WebGL
+         * implementation on desktop GL does; the alternative — teaching every
+         * draw path to bind one — would put the same call on the hot path.
+         *
+         * @return the id bound, or 0 when this context needs no stand-in
+         */
+        public uint ensureDefaultVertexArray() {
+            if (default_vao != 0) {
+                return default_vao;
+            }
+            if (!needsDefaultVertexArray()) {
+                return 0;
+            }
+            GL.GLuint[] ids = new GL.GLuint[1];
+            glGenVertexArrays(1, ids);
+            default_vao = (uint) ids[0];
+            glBindVertexArray((GL.GLuint) default_vao);
+            return default_vao;
+        }
+
+        /**
+         * Is this a context whose object 0 is not a usable vertex array?
+         *
+         * True for a desktop-GL CORE profile and nothing else. The profile is
+         * ASKED FOR rather than inferred from the OS: `GL_CONTEXT_PROFILE_MASK`
+         * is the query that answers it, a compatibility profile keeps object 0
+         * (so Mesa's `4.6 (Compatibility Profile)` on win32 needs no stand-in and
+         * must not get one), and GLES keeps it at every version.
+         *
+         * The mask itself only exists from GL 3.2, which is also the first
+         * version that can be core — so the version gate is not a precaution
+         * around the query, it IS the answer for everything below it.
+         */
+        private bool needsDefaultVertexArray() {
+            unowned string? version = glGetString(GL_VERSION);
+            if (version == null || version.has_prefix("OpenGL ES ")) {
+                return false;
+            }
+            if (!versionAtLeast(version, 3, 2)) {
+                return false;
+            }
+            GL.GLint[] mask = new GL.GLint[1];
+            glGetIntegerv(GL_CONTEXT_PROFILE_MASK, mask);
+            return (mask[0] & GL_CONTEXT_CORE_PROFILE_BIT) != 0;
+        }
+
+        /** Does a `GL_VERSION` string report at least `major.minor`? */
+        private static bool versionAtLeast(string version, int major, int minor) {
+            string[] parts = version.split(".", 3);
+            if (parts.length < 2) {
+                return false;
+            }
+            int have_major = int.parse(parts[0]);
+            int have_minor = int.parse(parts[1]);
+            return have_major > major || (have_major == major && have_minor >= minor);
         }
 
         public string[] getSupportedExtensions() {
-            string result = glGetString(GL_EXTENSIONS);
-            string[] sp = result.split(" ", 0);
-            // char **sp = strsplit((const char *) result, " ", 0);
-            return sp;
+            // GL_EXTENSIONS AS A SINGLE STRING DOES NOT EXIST IN A CORE PROFILE.
+            // Since OpenGL 3.0 `glGetString(GL_EXTENSIONS)` is specified to raise
+            // `GL_INVALID_ENUM` and return NULL there; the list must be read with
+            // `GL_NUM_EXTENSIONS` + `glGetStringi`. GLES kept the string form, so
+            // the same call answers on one context and returns NULL on another —
+            // which is exactly how this shipped: nothing in the suite pins a
+            // profile, Linux hands out one that still answers, and the NULL only
+            // appears where a core context does. Dereferencing it was three
+            // `g_strsplit: assertion 'string != NULL' failed` criticals and then a
+            // silent process death (#1101, measured on win32 with a real ICD and
+            // confirmed as a NULL on macOS by direct probe).
+            if (hasIndexedExtensionQuery()) {
+                GL.GLint[] count = new GL.GLint[1];
+                glGetIntegerv(GL_NUM_EXTENSIONS, count);
+                string[] names = new string[0];
+                for (int i = 0; i < count[0]; i++) {
+                    unowned string? name = glGetStringi(GL_EXTENSIONS, (GL.GLuint) i);
+                    if (name != null) {
+                        names += name;
+                    }
+                }
+                return names;
+            }
+
+            unowned string? joined = glGetString(GL_EXTENSIONS);
+            if (joined == null) {
+                // Pre-3.0 and still no string: nothing to report. An empty list is
+                // the honest answer and the one WebGL's own
+                // `getSupportedExtensions()` gives for a context that exposes none.
+                return new string[0];
+            }
+            return joined.split(" ", 0);
         }
 
         // https://github.com/stackgl/headless-gl/blob/ce1c08c0ef0c31d8c308cb828fd2f172c0bf5084/src/native/webgl.cc#L1637
