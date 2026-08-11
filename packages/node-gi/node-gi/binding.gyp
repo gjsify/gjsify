@@ -41,6 +41,16 @@
             "OTHER_CFLAGS": [
               "<!@(pkg-config --cflags girepository-2.0 cairo)"
             ],
+            # scripts/stage-prebuild.mjs rewrites this addon's Homebrew-absolute
+            # dependencies to @rpath and gives it a four-entry LC_RPATH list (#1120).
+            # A Mach-O's load commands live in a header pad fixed at LINK time, and
+            # the default pad is too small for that: install_name_tool then refuses
+            # with "larger updated load commands do not fit (the program must be
+            # relinked)". Not repairable after the fact, which is why it is a link
+            # flag and not a staging step.
+            "OTHER_LDFLAGS": [
+              "-Wl,-headerpad_max_install_names"
+            ],
             "CLANG_CXX_LANGUAGE_STANDARD": "c++17",
             "GCC_ENABLE_CPP_EXCEPTIONS": "NO"
           }
