@@ -1,19 +1,29 @@
 // E2E: `gjsify run --node-script <file>` runs an UNBUNDLED Node-style script
 // on a host with no usable Node.
 //
-// This is the mechanism that closes "A Node-less host cannot bootstrap a fresh
-// CLONE" (status/open-todos.md): the four `node scripts/*.mjs` calls left in
-// `build:infra` — plus `@gjsify/adwaita-web`'s `build:scss`, which also put a
-// `node` in `check` — all import nothing but `node:fs` / `node:path` /
-// `node:url`, and were unrunnable under GJS only because GJS's ESM loader
-// cannot resolve `node:` specifiers for a file on disk.
+// This is the mechanism behind "A Node-less host cannot bootstrap a fresh
+// CLONE" (status/open-todos.md): the four `node scripts/*.mjs` calls in
+// `build:infra` import nothing but `node:fs` / `node:path` / `node:url`, and
+// were unrunnable under GJS only because GJS's ESM loader cannot resolve `node:`
+// specifiers for a file on disk.
+//
+// TWO ENTRY POINTS, both covered here:
+//
+//   the FLAG — `gjsify run --node-script <file>`, for a direct call; and
+//   the SHIM — a `node` on PATH that re-enters the flag, which is how the build
+//   chain reaches it, because its manifests must keep spelling `node
+//   scripts/x.mjs` (a new flag there cannot be bootstrapped by the previous
+//   release's CLI — see `writeNodeShim`).
 //
 // WHAT THIS TEST HOLDS, and why each assertion is here:
 //
-//   1. It runs the committed `dist/cli.gjs.mjs` under `gjs -m`, with FAKE
-//      `node`/`npm` on PATH that exit 127 and announce themselves. So "it
-//      worked" cannot secretly mean "it fell back to Node" — the same
-//      arrangement `tests/e2e/workspace-node-free-gjs` uses.
+//   1. It runs the built `dist/cli.gjs.mjs` under `gjs -m`. For the FLAG cases
+//      that means FAKE `node`/`npm` on PATH which exit 127 and announce
+//      themselves, so "it worked" cannot secretly mean "it fell back to Node" —
+//      the arrangement `tests/e2e/workspace-node-free-gjs` uses. For the SHIM
+//      cases the sabotage is not enough (a sabotaged `node` is still a `node`,
+//      and the shim is deliberately written only when NONE resolves), so those
+//      run on a PATH with every node-carrying directory removed.
 //
 //   2. It asserts `import.meta.url` resolves to the SOURCE file, by having the
 //      script WRITE A SIBLING next to itself. This is the load-bearing property
@@ -27,7 +37,10 @@
 //      runner that swallows a failing script turns a broken build green, which
 //      is a failure mode this repo has paid for more than once.
 //
-// SKIP when off a capable host (non-Linux / no gjs / no committed bundle).
+//   4. It asserts a COMPOUND script works. That is the case no rewrite inside
+//      the CLI could serve: `/bin/sh` resolves `node` from PATH itself.
+//
+// SKIP when off a capable host (non-Linux / no gjs / no built bundle).
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
