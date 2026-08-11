@@ -1,33 +1,17 @@
 // Popover dismissal + keyboard navigation — the portable half of a popover.
 //
-// Three web elements hand-rolled a popover independently (`adw-menu-button`,
-// `adw-drop-down`, `adw-split-button`) and all three disagreed: with libadwaita
-// and with each other. The SURFACE disagreed (12px / 12px / 9px radius against
-// libadwaita's 15px, two of the three shadows right and one a 2-layer
-// invention), and so did the BEHAVIOUR — `adw-split-button` had no Escape
-// dismissal and no arrow-key navigation at all, while the other two spelled the
-// same wrap arithmetic out twice. Nothing compared them, so nothing noticed.
+// The portable tier is the dismissal + focus state machine — "is it open" and
+// "which item does this key move to" — plus the surface metrics, because
+// `adw-menu-button`, `adw-drop-down` and `adw-split-button` each hand-rolled their
+// own and disagreed with libadwaita and with each other. A renderer that hardcodes
+// its own radius is the drift this module ends.
 //
-// WHAT IS PORTABLE, AND WHAT IS DELIBERATELY NOT
-//
-// The portable tier is the dismissal + focus state machine: "is it open", and
-// "which item does this key move to". That is arithmetic over an item count, and
-// it is identical on every renderer.
-//
-// THERE IS NO POSITIONER HERE, ON PURPOSE. None of the three elements positions
-// anything today — placement is pure CSS (`position: absolute; top: calc(100% +
-// 6px)`), so there is no flip logic to lift, because none was ever written. A
-// core positioner could only share "prefer below, flip above if it does not
-// fit", which is three lines per renderer and needs a measured viewport rect the
-// two runtimes do not hand over the same way (DOM `getBoundingClientRect` vs a
-// NativeScript view's `getLocationOnScreen`). Inventing that seam to share three
-// lines is ADR 0004's "resist over-abstracting" clause exactly. What IS shared
-// is the placement DECISION, and it already exists: {@link menuButtonPopupDirection}
-// in `./split-button.js` resolves `direction` → where the popup goes.
-//
-// {@link POPOVER_PADDING} / {@link POPOVER_RADIUS} are here because they are the
-// numbers the three renderers each got wrong; a renderer that hardcodes its own
-// is the drift this module exists to end.
+// NO POSITIONER HERE, on purpose: placement is pure CSS (`position: absolute; top:
+// calc(100% + 6px)`), so there is no flip logic to lift, and a core one would need
+// a measured viewport rect the two runtimes do not hand over the same way (DOM
+// `getBoundingClientRect` vs NativeScript `getLocationOnScreen`) — ADR 0004's
+// "resist over-abstracting" clause. The placement DECISION is shared already:
+// {@link menuButtonPopupDirection} in `./split-button.js`.
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss:7-28 (popover > contents)
 // Reference: refs/libadwaita/src/stylesheet/_common.scss:10,13 ($menu_radius, $popover_radius)

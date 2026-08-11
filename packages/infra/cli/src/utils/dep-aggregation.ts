@@ -1,16 +1,8 @@
-// Workspace-aware dependency aggregation for `gjsify upgrade`.
-//
-// Given a flat list of per-workspace dependency declarations, group them by
-// package name and surface inconsistencies (the same package declared at
-// different version ranges across workspaces). Used by:
-//
-//   - `gjsify upgrade` interactive table — shows fan-out (count of workspaces
-//     declaring the dep) and flags inconsistent declarations with `⚠`.
-//   - `gjsify upgrade --align` — offline mode that detects inconsistencies
-//     and proposes a single range (the highest semver-satisfying one) without
-//     hitting the registry.
-//   - `gjsify upgrade --check` — CI gate that exits non-zero when any
-//     inconsistency exists.
+// Workspace-aware dependency aggregation for `gjsify upgrade`: group per-workspace
+// declarations by package name and surface inconsistencies — the same package
+// declared at different ranges across workspaces. Drives the interactive table's
+// fan-out column, `--align` (propose one range offline, no registry hit) and
+// `--check` (CI gate, non-zero on any inconsistency).
 
 import { compare, parse } from '@gjsify/semver';
 
@@ -29,13 +21,11 @@ export interface DepDeclaration {
     workspace: string;
     /** Absolute path to the workspace's `package.json`. */
     workspaceLocation: string;
-    /** Dependency name (e.g. `rolldown`). */
     name: string;
-    /** Which manifest field this declaration lives in. */
     field: 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies';
     /** The original range string (e.g. `^1.0.4`). */
     currentRange: string;
-    /** The parsed version (max-satisfying numeric) inside the range, or `null`. */
+    /** Max-satisfying numeric version inside the range, or `null` if unparseable. */
     currentVersion: string | null;
     /** Range prefix preserved on write-back (`^`, `~`, `>=`, …; `""` for literal). */
     prefix: string;
@@ -43,22 +33,19 @@ export interface DepDeclaration {
 
 /** Aggregated view of one external dep across all workspaces that declare it. */
 export interface DependencyGroup {
-    /** Dependency name. */
     name: string;
-    /** Every declaration of this dep across the workspace. */
     occurrences: DepDeclaration[];
-    /** Set of all unique declared ranges (size > 1 → inconsistency). */
+    /** Unique declared ranges — size > 1 IS the inconsistency. */
     declaredRanges: Set<string>;
-    /** Range string declared by the most workspaces (the de-facto consensus). */
+    /** Range declared by the most workspaces: the de-facto consensus. */
     dominantRange: string;
-    /** When ranges disagree, the highest declared semver version across them. */
+    /** Highest declared semver across the group. */
     highestVersion: string | null;
 }
 
 /**
- * Group a flat list of `DepDeclaration`s by dep name. Each group has the full
- * occurrence list plus pre-computed aggregates (consensus range, highest
- * declared version) so callers don't have to re-scan.
+ * Group a flat list of `DepDeclaration`s by dep name, pre-computing the aggregates
+ * so no caller has to re-scan the occurrences.
  */
 export function groupByDependency(decls: readonly DepDeclaration[]): DependencyGroup[] {
     const map = new Map<string, DependencyGroup>();
@@ -82,8 +69,7 @@ export function groupByDependency(decls: readonly DepDeclaration[]): DependencyG
             }
         }
     }
-    // Second pass: dominantRange = the range with the most occurrences;
-    // ties resolve by highest semver, then by lexicographic order.
+    // dominantRange = most occurrences; ties break on highest semver, then lexically.
     for (const g of map.values()) {
         const counts = new Map<string, number>();
         for (const occ of g.occurrences) {
@@ -115,10 +101,7 @@ export function isInconsistent(group: DependencyGroup): boolean {
     return group.declaredRanges.size > 1;
 }
 
-/**
- * Filter to just the inconsistent groups (>1 distinct range across workspaces).
- * Convenience wrapper for `--align` and `--check` modes.
- */
+/** The inconsistent groups only — what `--align` and `--check` operate on. */
 export function findInconsistencies(groups: readonly DependencyGroup[]): DependencyGroup[] {
     return groups.filter(isInconsistent);
 }

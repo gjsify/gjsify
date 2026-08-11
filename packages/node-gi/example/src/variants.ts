@@ -3,20 +3,18 @@
 // Cross-runtime scenario: GVariant + enums/flags + deterministic GLib helpers.
 //
 // BYTE-IDENTICAL input to `gjsify build --app {gjs,node}`, run on gjs/node/bun/deno
-// (see harness.mjs). Every printed value is deterministic — no hostname, no paths,
-// no dependence on signal-callback args (their shape differs across runtimes). The
-// GVariant build/deepUnpack path is the same GJS-shaped API on both the native
-// `gi://` (gjs) and the `@gjsify/node-gi` reverse bridge (node/bun/deno).
+// (see harness.mjs). Every printed value must stay deterministic — no hostname, no
+// paths, no dependence on signal-callback args, whose shape differs across runtimes.
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
 
 print('node-gi variants example');
 
-// 1. Deterministic GLib string helpers (pure transforms — no environment input).
+// Pure transforms — no environment input, so the output is stable.
 print(`escape: ${GLib.markup_escape_text('<a href="x">&', -1)}`);
 print(`sha256: ${GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, 'gjsify', -1)}`);
 
-// 2. Enums / flags surfaced GJS-style (UPPER_CASE members, numeric values).
+// Enums / flags must surface GJS-style: UPPER_CASE members, numeric values.
 print(`filetype-dir: ${Gio.FileType.DIRECTORY}`);
 print(`checksum-sha256: ${GLib.ChecksumType.SHA256}`);
 

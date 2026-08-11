@@ -64,9 +64,8 @@ export function makePrepareDir(cacheDir: string): string {
 }
 
 /**
- * If <cacheDir>/pkg points to a target whose mtime + maxAge < now, return its
- * realpath. Returns undefined when the link doesn't exist, isn't a symlink,
- * has been removed, or has expired.
+ * The realpath of `<cacheDir>/pkg` when it is a symlink within its TTL; undefined
+ * when the link is missing, is not a symlink, has been removed, or has expired.
  */
 export function getValidCachedPkg(cacheDir: string, maxAgeMinutes: number = DEFAULT_TTL_MIN): string | undefined {
     const linkPath = join(cacheDir, 'pkg');
@@ -100,30 +99,25 @@ export function getValidCachedPkg(cacheDir: string, maxAgeMinutes: number = DEFA
  * Returns the realpath of the new live target. EBUSY/EEXIST indicates a race
  * — a parallel process won, return its realpath.
  *
- * WINDOWS, both halves of which shipped broken:
+ * WINDOWS breaks both halves:
  *
- *   • Step 1 used `symlinkSync(…, 'dir')`, and a directory SYMLINK needs
- *     elevation or Developer Mode there, so a plain
- *     `npx @gjsify/cli@latest showcase …` died with `EPERM: operation not
- *     permitted, symlink`. It now goes through {@link linkDirSync}, which picks
- *     an NTFS junction — the same choice npm and yarn make, and the one
- *     `commands/install.ts` already made for workspace links without sharing it.
- *   • Step 2's rename-over-existing is a POSIX guarantee, not a Windows one:
- *     `MoveFileEx` will not replace an existing DIRECTORY, and a junction is a
- *     directory reparse point. So on the second run — when `pkg` already exists
- *     — the rename failed with `EPERM`, the catch below read that as "race
- *     lost", and the function returned the OLD target. That is not a crash but
- *     it is worse than one: the cache silently never refreshed. Windows
- *     therefore unlinks first and accepts the non-atomic window, which the
- *     existing race handling already covers.
+ *   • A directory SYMLINK needs elevation or Developer Mode, so step 1 goes
+ *     through {@link linkDirSync} for an NTFS junction — the choice npm and yarn
+ *     make. A raw `symlinkSync(…, 'dir')` died with `EPERM: operation not
+ *     permitted, symlink` on a plain `npx @gjsify/cli@latest showcase …`.
+ *   • Step 2's rename-over-existing is a POSIX guarantee only: `MoveFileEx` will
+ *     not replace an existing DIRECTORY, and a junction is a directory reparse
+ *     point. On the second run the rename fails `EPERM`, the catch below reads it
+ *     as "race lost", and the OLD target comes back — not a crash, but worse: the
+ *     cache silently never refreshes. Windows therefore unlinks first and accepts
+ *     a non-atomic window, which the race handling already covers.
  *
- * @param opts.junctions force the Windows link strategy (TESTS ONLY). Defaults
- *   to the host's. It is a parameter for the same reason `dirLinkTarget` takes
- *   `linkType`: nothing in CI runs on Windows, so an injected `true` is the ONLY
- *   way the unlink-then-rename ordering above is ever EXECUTED, and an
- *   unexecutable Windows branch is exactly how the `'dir'` bug shipped. What the
- *   injection proves off-host is the ORDERING and that the second swap really
- *   refreshes; what it cannot prove is `MoveFileEx`/junction syscall behaviour.
+ * @param opts.junctions force the Windows link strategy (TESTS ONLY), defaulting to
+ *   the host's. A parameter for the same reason `dirLinkTarget` takes `linkKind`:
+ *   nothing in CI runs on Windows, so an injected `true` is the ONLY way the
+ *   unlink-then-rename ordering is ever EXECUTED. It proves the ORDERING and that a
+ *   second swap really refreshes; it cannot prove `MoveFileEx`/junction syscall
+ *   behaviour.
  */
 export function symlinkSwap(cacheDir: string, prepareDir: string, opts: { junctions?: boolean } = {}): string {
     const junctions = opts.junctions ?? dirLinksAreJunctions();
@@ -131,43 +125,42 @@ export function symlinkSwap(cacheDir: string, prepareDir: string, opts: { juncti
     const tmpName = `pkg.tmp-${Date.now().toString(16)}-${process.pid.toString(16)}`;
     const tmpLink = join(cacheDir, tmpName);
 
-    // If we cannot even create the tmp link, give up (the error propagates).
+    // If the tmp link cannot be created, give up (the error propagates).
     linkDirSync(tmpLink, prepareDir);
 
     try {
         if (junctions) {
-            // Windows: no rename-over-a-directory. Removing first opens a window
-            // in which `pkg` is absent; a concurrent reader treats that as a cache
-            // miss and prepares its own, which is correct, just wasteful. force:true
-            // keeps a first-ever swap (nothing to remove) from throwing.
+            // Windows: no rename-over-a-directory. Removing first opens a window in
+            // which `pkg` is absent; a concurrent reader treats that as a miss and
+            // prepares its own — correct, just wasteful. `force:true` keeps a
+            // first-ever swap (nothing to remove) from throwing.
             //
             // maxRetries/retryDelay for the same reason `install-backend-native.ts`
-            // wraps every delete in `rmWithRetry`: on Windows a delete fails with
-            // EBUSY/EPERM while ANY process holds a handle (an antivirus scan, a
-            // concurrent reader that just realpath'd this very link), and the
-            // deletion then stays PENDING — so without the retry a transient
-            // handle sends us down the "race lost" branch and the cache silently
-            // does not refresh. Free on POSIX, where the first attempt succeeds.
+            // wraps deletes in `rmWithRetry`: on Windows a delete fails EBUSY/EPERM
+            // while ANY process holds a handle (an antivirus scan, a concurrent
+            // reader that just realpath'd this link) and then stays PENDING, so
+            // without the retry a transient handle takes the "race lost" branch and
+            // the cache silently does not refresh. Free on POSIX.
             rmSync(linkPath, { force: true, recursive: false, maxRetries: 10, retryDelay: 100 });
         }
         renameSync(tmpLink, linkPath);
     } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code === 'EBUSY' || code === 'EPERM' || code === 'EEXIST' || code === 'EACCES') {
-            // Race lost — clean up our tmp and use whoever won. force:true is
-            // the non-throwing spelling of "remove if still there"; any other
-            // failure on our own pid-unique link is real and should surface.
+            // Race lost — clean up our tmp and use whoever won. `force:true` is the
+            // non-throwing "remove if still there"; any other failure on our own
+            // pid-unique link is real and should surface.
             rmSync(tmpLink, { force: true });
             try {
                 return realpathSync(linkPath);
             } catch {
-                // Windows only, and only because the junction path unlinks before
-                // it renames: "race lost" can also mean the winner is INSIDE that
-                // non-atomic window, so `pkg` momentarily does not exist and this
-                // would throw ENOENT out of a function whose caller reports it to
-                // the user as `Could not resolve showcase "<name>"`. Our own
-                // prepareDir is a complete, correctly installed tree — a truthful
-                // answer for THIS run. The next run reads whichever link won.
+                // Windows only, because the junction path unlinks before it renames:
+                // "race lost" can also mean the winner is INSIDE that non-atomic
+                // window, so `pkg` momentarily does not exist and this would throw
+                // ENOENT out to a caller that reports it as `Could not resolve
+                // showcase "<name>"`. Our own prepareDir is a complete, correctly
+                // installed tree — a truthful answer for THIS run, and the next run
+                // reads whichever link won.
                 return realpathSync(prepareDir);
             }
         }
@@ -180,29 +173,26 @@ export function symlinkSwap(cacheDir: string, prepareDir: string, opts: { juncti
 /**
  * Remove `<cacheDir>/<oldPrepareDir>` siblings older than `maxAgeMinutes`.
  *
- * Every `gjsify dlx` miss creates a fresh prepare dir and swaps the `pkg` link
- * onto it; the previous one is then unreferenced and stayed on disk forever,
- * because this function accepted a TTL and did nothing with it. A full npm tree
- * per miss makes that the largest thing gjsify writes to a user's cache.
+ * Every `gjsify dlx` miss creates a fresh prepare dir and swaps the `pkg` link onto
+ * it, leaving the previous one unreferenced — a full npm tree per miss, the largest
+ * thing gjsify writes to a user's cache.
  *
  * Three rules keep it from deleting something it should not:
  *
  *   1. **Only names `makePrepareDir` could have produced** (`<hex>-<hex>`). The
- *      cache dir also holds `pkg` and, briefly, `pkg.tmp-<ts>-<pid>` links from
- *      a concurrent swap — and a name-shape guard is what makes "delete the
- *      rest" safe against anything a future version puts here.
- *   2. **Never the LIVE target**, whatever its age. A long-lived cache entry
- *      that is still current is exactly the one worth keeping, and it ages past
- *      any TTL while being used on every run.
- *   3. **Never throws.** This is housekeeping on a best-effort path: a losing
- *      race (a parallel dlx removing the same dir) or a read-only cache must not
- *      fail the command the user actually ran.
+ *      cache dir also holds `pkg` and, briefly, `pkg.tmp-<ts>-<pid>` links from a
+ *      concurrent swap; the name-shape guard is what makes "delete the rest" safe
+ *      against anything a future version puts here.
+ *   2. **Never the LIVE target**, whatever its age — a still-current entry ages
+ *      past any TTL precisely because it is used on every run.
+ *   3. **Never throws.** Best-effort housekeeping: a lost race against a parallel
+ *      dlx, or a read-only cache, must not fail the command the user ran.
  */
 export function cleanupStalePrepareDirs(cacheDir: string, maxAgeMinutes: number = DEFAULT_TTL_MIN): void {
     const cutoff = Date.now() - maxAgeMinutes * ONE_MINUTE_MS;
 
-    // The live target, resolved once. An unreadable or absent `pkg` link simply
-    // means nothing is live yet — every prepare dir is then a candidate.
+    // An unreadable or absent `pkg` link means nothing is live yet, so every prepare
+    // dir is a candidate.
     let live: string | undefined;
     try {
         live = realpathSync(join(cacheDir, 'pkg'));
@@ -225,8 +215,8 @@ export function cleanupStalePrepareDirs(cacheDir: string, maxAgeMinutes: number 
             if (lstatSync(dir).mtimeMs >= cutoff) continue;
             rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
         } catch {
-            // Lost a race with another dlx, or the entry vanished between the
-            // readdir and the stat. Both mean "someone else handled it".
+            // Lost a race with another dlx, or the entry vanished between readdir and
+            // stat. Both mean someone else handled it.
         }
     }
 }

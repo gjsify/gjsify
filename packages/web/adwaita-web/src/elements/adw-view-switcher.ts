@@ -3,46 +3,32 @@
 // libadwaita keeps separate. Pages are declared as <adw-view-switcher-page>
 // children; their own children become the page body.
 //
-// Everything that decides WHAT to show is HEADLESS and lives in
-// `@gjsify/adwaita-core` (ADR 0004): the button-visibility rule, the
-// `image-missing` icon fallback, the mnemonic-stripped label, the badge label
-// and its screen-reader description, and the SELECTION — which is
-// `ViewSwitcherState` over the wave-1 `ViewStackState`, so this element and the
-// NativeScript twin share one set of guards and one set of conformance vectors
-// (`@gjsify/adwaita-core/conformance`). This file is the DOM half only.
+// Everything that decides WHAT to show is HEADLESS, in `@gjsify/adwaita-core`
+// (ADR 0004): `ViewSwitcherState` over the wave-1 `ViewStackState`, so this
+// element and the NativeScript twin share one set of guards and one set of
+// conformance vectors. This file is the DOM half only.
 //
-// What the lift fixed here, all of it C-derived:
-//   - a page with neither title nor icon rendered an empty, clickable,
-//     space-consuming tab; libadwaita hides the button outright
-//     (adw-view-switcher.c:178). An EMPTY title is NOT that case — it keeps its
-//     button, which is why `getAttribute` is no longer flattened with `?? ''`.
-//   - a page with no icon rendered no icon at all; libadwaita substitutes
-//     `image-missing` (adw-view-switcher-button.c:399-405).
-//   - `active="-1"` / `active="99"` were CLAMPED into range, so an out-of-range
-//     request silently switched pages; `adw_view_stack_pages_select_item`
-//     refuses (adw-view-stack.c:682-684).
-//   - `notify::visible-child` fired only for a click, never for a property or
-//     attribute set; C notifies on every path (adw-view-stack.c:1038-1039).
-//   - `notify::policy` was documented in this header and never dispatched.
-//   - the declared pages were harvested with an UNSCOPED querySelectorAll, so a
-//     nested switcher inside a page had its pages stolen by the outer one.
-//   - the 500 ms drag-hover auto-switch did not exist
+// The C rules that are not visible in the DOM code:
+//   - a page with NEITHER title NOR icon has no button at all
+//     (adw-view-switcher.c:178). An EMPTY title is not that case — it keeps its
+//     button, hence no `?? ''` flattening of `getAttribute`.
+//   - a page with no icon gets `image-missing`, not nothing
+//     (adw-view-switcher-button.c:399-405).
+//   - an out-of-range, negative or fractional `active` is REFUSED, not clamped
+//     (`adw_view_stack_pages_select_item`, adw-view-stack.c:682-684), and the
+//     attribute is reflected back to the selection that actually holds.
+//   - `notify::visible-child` fires on EVERY path, property and attribute sets
+//     included, not only on a click (adw-view-stack.c:1038-1039).
+//   - a drag hovering a button auto-switches after 500 ms
 //     (adw-view-switcher-button.c:14, :58-96).
+//   - `policy` defaults 'narrow'; an unrecognised value is refused and leaves the
+//     current policy alone, removing the attribute restores the default.
 //
-// Attributes:
-//   policy — 'wide' | 'narrow' (default 'narrow'). An unrecognised value is
-//     REJECTED and leaves the current policy alone, as `g_return_if_fail` does;
-//     removing the attribute restores the default.
-//   active — zero-based index of the selected PAGE. Out-of-range, negative and
-//     fractional values are refused and the attribute is reflected back to the
-//     selection that actually holds.
-// Page attributes: name, title, icon-name, hidden (= AdwViewStackPage:visible),
-//   use-underline, badge-number, needs-attention.
-// Events:
-//   `notify::visible-child` (CustomEvent, bubbles,
-//     detail = { index, name, title, interactive }) on every selection change,
-//     including the auto-pick; `interactive` is false for a model-driven one.
-//   `notify::policy` (CustomEvent, bubbles, detail = { policy }).
+// A page's `hidden` attribute is `AdwViewStackPage:visible` inverted. Both events
+// bubble; `notify::visible-child` carries
+// `{ index, name, title, interactive }`, where `interactive` is false for a
+// model-driven change such as the auto-pick.
+//
 // Reference: refs/libadwaita/src/adw-view-switcher.c (AdwViewSwitcher behaviour)
 // Reference: refs/libadwaita/src/adw-view-switcher-button.c (AdwViewSwitcherButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss
@@ -86,29 +72,19 @@ interface PageNodes {
 /**
  * A single page. Children of `<adw-view-switcher>`; consumed at connect time.
  *
- * Deliberately carries NO `observedAttributes`. It used to declare six of them
- * and no `attributeChangedCallback`, which is a dead declaration — the browser
- * computes the list and has nowhere to deliver to — so changing `badge-number`,
- * `title`, `icon-name` or `needs-attention` after connect did nothing at all,
- * where C rebinds on every page `notify` (adw-view-switcher.c:184-193, :223).
- *
- * A callback could not fix it either: the switcher consumes these elements at
- * connect and `replaceChildren`s them away, so a detached page has no `closest`
- * to reach its owner through. The switcher watches them with a `MutationObserver`
- * instead, which keeps working after the detach and needs nothing from this class.
+ * Deliberately carries NO `observedAttributes` and no `attributeChangedCallback`:
+ * the switcher consumes these elements at connect and `replaceChildren`s them
+ * away, so a detached page has no `closest` to reach its owner through. The
+ * switcher watches them with a `MutationObserver` instead — the DOM stand-in for
+ * the per-page `notify` C rebinds on (adw-view-switcher.c:184-193, :223).
  */
 export class AdwViewSwitcherPage extends HTMLElement {}
 
 export class AdwViewSwitcher extends HTMLElement {
     /**
-     * The dwell timer, injectable.
-     *
-     * It used to be `new ViewSwitcherState({ scheduler: domViewSwitcherScheduler })`
-     * inline, which left NOWHERE to hand a clock in — so
-     * `VIEW_SWITCHER_DRAG_VECTORS` was driven by the core suite alone, and the
-     * conformance header claimed all three suites drove it. `scheduler` is a
-     * property so a test can replace it before the element connects; the DOM one
-     * is the default, exactly as before.
+     * The dwell timer, injectable so a test can hand in a clock and drive
+     * `VIEW_SWITCHER_DRAG_VECTORS` against the real element. Replace it before the
+     * element connects.
      */
     scheduler: ViewSwitcherScheduler = domViewSwitcherScheduler;
     private _stateInstance: ViewSwitcherState | null = null;
@@ -136,8 +112,6 @@ export class AdwViewSwitcher extends HTMLElement {
 
     constructor() {
         super();
-        // Subscribing touches no attributes and no children, so it is legal in a
-        // custom element constructor — unlike anything DOM-shaped.
     }
 
     /** The policy controlling the button layout ('wide' | 'narrow'). */
@@ -186,25 +160,22 @@ export class AdwViewSwitcher extends HTMLElement {
 
     connectedCallback() {
         if (this._initialized) {
-            // Re-entering a document. `disconnectedCallback` drops the page
-            // observer on the way out, and this early return used to skip
-            // rebuilding it — so a switcher that had merely been MOVED (a
-            // slideshow slide, a client-side route change) stopped noticing
-            // page attribute changes for good, and did it silently.
+            // Re-entering a document. `disconnectedCallback` drops the page observer
+            // on the way out, so a switcher that was merely MOVED (a slideshow
+            // slide, a route change) has to get it back here or it silently stops
+            // noticing page attribute changes.
             this._watchPages();
             return;
         }
 
-        // `:scope >` rather than a subtree scan: an unscoped query let an outer
-        // switcher adopt the pages of a nested one, since both use the same tag.
-        // Pages come from the stack's OWN children in C (adw-view-switcher.c:203).
+        // `:scope >`, not a subtree scan: an unscoped query lets an outer switcher
+        // adopt a nested one's pages, since both use the same tag. Pages come from
+        // the stack's OWN children in C (adw-view-switcher.c:203).
         const declared = Array.from(this.querySelectorAll(':scope > adw-view-switcher-page')) as HTMLElement[];
-        // Read the declared selection BEFORE adopting any page: the auto-pick
-        // reflects its own index back into this very attribute.
+        // Read BEFORE adopting any page: the auto-pick reflects its own index back
+        // into this very attribute.
         const declaredActive = this.getAttribute('active');
 
-        // The single `viewswitcher` node holds the segmented button bar; a
-        // sibling content area shows the selected page.
         this._barEl = document.createElement('div');
         this._barEl.className = 'adw-view-switcher-bar';
         this._barEl.setAttribute('role', 'tablist');
@@ -242,9 +213,9 @@ export class AdwViewSwitcher extends HTMLElement {
     /**
      * Re-read every declared page and push it into the state.
      *
-     * Called by `AdwViewSwitcherPage.attributeChangedCallback`, which is what
-     * makes a runtime `badge-number` change reach the button. `setPages` keeps
-     * the selection where it can, so this is a repaint and not a reset.
+     * Driven by the `MutationObserver` in {@link _watchPages}, which is what makes
+     * a runtime `badge-number` change reach the button. `setPages` keeps the
+     * selection where it can, so this is a repaint and not a reset.
      */
     refreshPages(): void {
         if (!this._initialized) return;
@@ -253,18 +224,13 @@ export class AdwViewSwitcher extends HTMLElement {
     }
 
     /**
-     * Watch the declared pages for attribute changes.
+     * Watch the declared pages for attribute changes — the DOM's `notify::` on
+     * `AdwViewStackPage`, which C's `update_button` binds per page
+     * (adw-view-switcher.c:184-193). See {@link AdwViewSwitcherPage} for why an
+     * observer and not a callback.
      *
-     * A `MutationObserver` rather than an `attributeChangedCallback` on the page:
-     * the switcher consumes those elements at connect and `replaceChildren`s them
-     * out of the tree, so a detached page cannot find its owner — but an observer
-     * bound to it keeps firing. This is the DOM's `notify::` on
-     * `AdwViewStackPage`, which the C's `update_button` handler binds per page
-     * (adw-view-switcher.c:184-193).
-     *
-     * It delivers on a MICROTASK where GTK's notify is synchronous. That is the
-     * DOM's contract for watching a node, it is invisible to a user, and nothing
-     * in this element reads the button back inside the setter.
+     * MODIFICATION: delivers on a MICROTASK where GTK's notify is synchronous.
+     * Invisible to a user, and nothing here reads the button back inside a setter.
      */
     private _watchPages(): void {
         this._pageObserver?.disconnect();
@@ -299,9 +265,9 @@ export class AdwViewSwitcher extends HTMLElement {
         button.className = 'adw-view-switcher-button';
         button.setAttribute('role', 'tab');
 
-        // Both children always exist, exactly as AdwViewSwitcherButton's template
-        // does — the icon carries the `image-missing` fallback rather than
-        // disappearing (adw-view-switcher-button.ui).
+        // Both children always exist, as in AdwViewSwitcherButton's template — the
+        // icon carries `image-missing` rather than disappearing
+        // (adw-view-switcher-button.ui).
         const icon = createAdwIcon(null, 'adw-view-switcher-icon');
 
         const label = document.createElement('span');
@@ -317,14 +283,12 @@ export class AdwViewSwitcher extends HTMLElement {
         });
         // GtkDropControllerMotion's enter/leave, which drive TIMEOUT_EXPAND.
         //
-        // The `relatedTarget` test is the whole point: this button contains an
-        // icon and a label, and the DOM fires `dragleave` + `dragenter` when the
-        // pointer crosses BETWEEN them. `ViewSwitcherDragSwitch.leave` clears the
-        // dwell timer and `enter` re-arms a fresh 500ms, so a drag that merely
-        // slid from the icon to the label restarted the countdown and the page
-        // never switched. C has one `GtkDropControllerMotion` per BUTTON
-        // (adw-view-switcher-button.c:79-96), which has no such internal edges —
-        // `relatedTarget` containment is that same "did we really leave" test.
+        // The `relatedTarget` containment test is load-bearing: the button contains
+        // an icon and a label, and the DOM fires `dragleave` + `dragenter` when the
+        // pointer crosses BETWEEN them. Since `leave` clears the dwell timer and
+        // `enter` re-arms a fresh 500 ms, an untested crossing restarts the
+        // countdown forever. C's one `GtkDropControllerMotion` per BUTTON
+        // (adw-view-switcher-button.c:79-96) has no such internal edges.
         button.addEventListener('dragenter', (event) => {
             if (button.contains((event as DragEvent).relatedTarget as Node | null)) return;
             this._state.dragEnter(index);

@@ -1,43 +1,30 @@
 // `gjsify run --node-script <file>` — run an UNBUNDLED `.mjs`/`.js` that imports
 // `node:*` builtins, on whatever runtime the CLI itself is executing on.
 //
-// WHY THIS EXISTS
+// A repo script that imports only `node:fs`/`node:path`/`node:url` — all polyfilled — is not
+// intrinsically Node-bound; what was missing is a way to RUN one under GJS, whose ESM loader
+// has no `node:` URI scheme and no node_modules walker, so `gjs -m <script>.mjs` dies on the
+// first import. That gap is why a Node-less host could install gjsify, resolve every native
+// prebuild, and then fail `build:infra` at `node scripts/process-template.mjs` (see
+// `status/open-todos.md`).
 //
-// A repo script like `scripts/build-assets.mjs` imports only `node:fs` /
-// `node:path` / `node:url` — every one of which gjsify polyfills — so nothing
-// about it is intrinsically Node-bound. What was missing is a way to RUN one
-// under GJS: GJS's ESM loader has no `node:` URI scheme and no node_modules
-// walker, so `gjs -m scripts/build-assets.mjs` dies on the first import. That
-// single gap is why a Node-less host could install gjsify, resolve every native
-// prebuild, and then fail `build:infra` at `node scripts/process-template.mjs`
-// (`status/open-todos.md`, "A Node-less host cannot bootstrap a fresh CLONE").
+// Rejected alternative: commit a `dist/*.gjs.mjs` per script — one more artifact each under
+// the committed-bundle freshness gate, scaling with the number of scripts. This is ONE
+// mechanism serving every script in the repo and every consumer's too.
 //
-// The alternative that was considered and rejected: commit a `dist/*.gjs.mjs`
-// for each script. That is one more artifact per script under the committed-
-// bundle freshness gate, and it scales with the number of scripts. This is ONE
-// mechanism that serves every script in the repo and every consumer's too.
+//   node / bun / deno host → spawn the file on that runtime; no bundling, no cost.
+//   gjs host               → bundle `--app gjs` (which maps `node:fs` → `@gjsify/fs`,
+//                            injects the globals the script reads, and resolves bare
+//                            specifiers), then run the bundle.
 //
-// WHAT IT DOES
-//
-//   node / bun / deno host → spawn the file on that runtime. Byte-for-byte what
-//                            `node <file>` did before; no bundling, no cost.
-//   gjs host               → bundle the file `--app gjs` (which is what maps
-//                            `node:fs` → `@gjsify/fs`, injects the globals the
-//                            script reads, and resolves bare specifiers), then
-//                            run the bundle.
-//
-// `import.meta.url` IS THE WHOLE TRICK
-//
-// The bundle does not live where the source lives, and a script's own location
-// is how it finds what it operates on — all four scripts this was built for open
-// with `dirname(fileURLToPath(import.meta.url))` and derive their package root
-// from it. Left alone, `import.meta.url` in the bundle is the BUNDLE's URL, so
-// every one of them would write its output into the cache directory. So the
-// source file's URL is baked in as a compile-time define, exactly as
-// `config.ts`'s `loadConfigViaGjsBundle` does for a `gjsify.config.js` that
-// reads its own siblings. `process.argv` needs no such care: the `--app gjs`
-// bundle already exposes `[gjs, <bundle>, ...args]`, so `argv.slice(2)` and
-// `argv.includes('--flag')` behave as they do on Node.
+// `import.meta.url` is the whole trick: the bundle does not live where the source lives, and
+// a script's own location is how it finds what it operates on — all four scripts this was
+// built for derive their package root from `dirname(fileURLToPath(import.meta.url))`. Left
+// alone that is the BUNDLE's URL, so every one would write its output into the cache
+// directory; the source file's URL is therefore baked in as a compile-time define, exactly
+// as `config.ts`'s `loadConfigViaGjsBundle` does for a `gjsify.config.js` that reads its own
+// siblings. `process.argv` needs no such care: the `--app gjs` bundle already exposes
+// `[gjs, <bundle>, ...args]`.
 
 import { existsSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
@@ -54,19 +41,14 @@ export interface RunNodeScriptOptions {
 /**
  * Whether the on-the-fly GJS bundle may be reused across runs.
  *
- * OFF by default, and that is deliberate. The cache `bundleFileForGjsCached`
- * implements invalidates on the ENTRY file's mtime plus the project lockfile —
- * which covers a plugin or a config (both leaf-ish, both consuming installed
- * deps) but NOT a repo script, whose imports are workspace packages that change
- * without any lockfile write. A stale bundle there does not fail loudly: the
- * script runs and EMITS BUILD OUTPUT from code that no longer exists in the
- * tree. That is the failure this repo has paid for repeatedly under a different
- * name ("it never runs the source you just edited"), and a build script is the
- * worst place to reintroduce it.
+ * OFF by default: `bundleFileForGjsCached` invalidates on the ENTRY file's mtime plus the
+ * project lockfile, which covers a plugin or a config but NOT a repo script, whose imports
+ * are workspace packages that change without any lockfile write. A stale bundle there does
+ * not fail loudly — the script runs and EMITS BUILD OUTPUT from code that no longer exists
+ * in the tree, and a build script is the worst place to reintroduce that.
  *
- * The cost of being right is one bundle per invocation, and only under GJS —
- * node/bun/deno never bundle at all. `GJSIFY_NODE_SCRIPT_CACHE=1` opts in for a
- * host that would rather have the seconds back.
+ * The cost is one bundle per invocation, and only under GJS. `GJSIFY_NODE_SCRIPT_CACHE=1`
+ * opts in for a host that would rather have the seconds back.
  */
 function scriptCacheEnabled(): boolean {
     const v = process.env['GJSIFY_NODE_SCRIPT_CACHE'];
@@ -94,12 +76,10 @@ export async function runNodeScript(
 
     const host = hostRuntime();
     if (host !== 'gjs') {
-        // Node/bun/deno can load the file as-is; bundling would only add a step
-        // and a way to differ from what the runtime would have done itself.
-        // `quiet`: the echo would print `node <file>` — which is exactly what the
-        // package.json script already reads — behind ~2 kB of native-library env
-        // that a build script never loads. Nothing is lost by leaving it out, and
-        // a build chain calls this a dozen times.
+        // Node/bun/deno load the file as-is; bundling would only add a step and a way to
+        // differ from what the runtime would have done itself. `quiet` because the echo
+        // would print `node <file>` — what the package.json script already reads — behind
+        // ~2 kB of native-library env, a dozen times per build chain.
         await runRuntimeBundle(host, scriptPath, extraArgs, { exitOnSuccess: options.exitOnSuccess, quiet: true });
         return;
     }
@@ -126,7 +106,6 @@ export async function runNodeScript(
     }
 
     // Quiet for the same reason as the node path above; the bundle's location is
-    // deterministic (`node_modules/.cache/gjsify/node-scripts/<name>-<hash>.mjs`)
-    // for anyone who needs to inspect it.
+    // deterministic (`node_modules/.cache/gjsify/node-scripts/<name>-<hash>.mjs`).
     await runGjsBundle(bundlePath, extraArgs, { exitOnSuccess: options.exitOnSuccess, quiet: true });
 }

@@ -3,73 +3,56 @@
  * Guard: every COMMITTED generated artifact must be reproducible from the
  * sources in the SAME commit.
  *
- * TWO JOBS SINCE ADR 0002, and the second is why this script survived the
+ * TWO JOBS SINCE ADR 0002, and the second is why the script survived the
  * untracking rather than going with it:
  *
- *   1. It still HOLDS `packages/infra/cli/dist/affected.gjs.mjs` and
- *      `@gjsify/tsc`'s shipped `lib/lib*.d.ts`, the two generated things still
- *      committed. `affected.gjs.mjs` is the one that needs holding: the CI
- *      `changes` job boots it before any install and it gates every other job,
- *      so a stale copy does not fail — it silently gates today's PR with an
- *      older commit's tables. Fail-open staleness is the kind a rebuild check
- *      is for.
- *   2. It is the guard that the UNTRACKING STAYS. The artifact set is
- *      discovered from git, and a committed bundle with no rebuild recipe is a
- *      hard error — so re-committing `cli.gjs.mjs` reds CI instead of quietly
- *      reinstating the class ADR 0002 removed.
+ *   1. It HOLDS the two generated things still committed:
+ *      `packages/infra/cli/dist/affected.gjs.mjs` and `@gjsify/tsc`'s shipped
+ *      `lib/lib*.d.ts`. `affected.gjs.mjs` is the one that needs holding — the
+ *      CI `changes` job boots it before any install and it gates every other
+ *      job, so a stale copy does not fail, it silently gates today's PR with an
+ *      older commit's tables.
+ *   2. It is the guard that the UNTRACKING STAYS: the artifact set is discovered
+ *      from git and a committed bundle with no rebuild recipe is a hard error,
+ *      so re-committing `cli.gjs.mjs` reds CI instead of quietly reinstating the
+ *      class ADR 0002 removed.
  *
- * It also still BUILDS `cli.gjs.mjs` and `tsc.gjs.mjs`, which are no longer
- * committed: `main.yml` uploads them as the `bootstrap-bundles-fedora<v>`
- * artifact every downstream job restores. See the `groups` comments — being
- * built-but-ungrouped is what leaves them on disk for that upload.
+ * It also still BUILDS the uncommitted `cli.gjs.mjs` and `tsc.gjs.mjs`, which
+ * `main.yml` uploads as the `bootstrap-bundles-fedora<v>` artifact every
+ * downstream job restores — being built-but-ungrouped is what leaves them on
+ * disk for that upload (see the `groups` comments).
  *
- * Until now CI only checked that a bundle RUNS and REPORTS the expected
- * version string (`.github/actions/gjsify-setup/action.yml`). That is a weak
- * check with a proven failure mode: a bundle built from OLD source still
- * reports the right version, so it passes. It happened — #821 changed the
+ * The pre-existing check — that a bundle RUNS and REPORTS the expected version
+ * (`.github/actions/gjsify-setup/action.yml`) — cannot see staleness: a bundle
+ * built from OLD source still reports the right version. #821 changed the
  * curated browser aliases in `packages/infra/resolve-npm/lib/index.mjs`, data
- * the bundles INLINE, and merged fully green with both `dist/*.gjs.mjs` still
- * carrying the old table; #825 had to rebuild them after the fact.
+ * the bundles INLINE, and merged fully green with both `dist/*.gjs.mjs` carrying
+ * the old table; #825 rebuilt them after the fact. `.githooks/pre-commit` is the
+ * local mitigation and is best-effort by construction: it triggers on FOUR
+ * source paths while `cli.gjs.mjs` inlines the whole workspace-dep closure, it
+ * SKIPS ITSELF when no gjsify CLI is reachable (what happened in #821, authored
+ * in a worktree with no `node_modules`), and `--no-verify` /
+ * `SKIP_GJSIFY_HOOKS=1` bypass it as they should.
  *
- * `.githooks/pre-commit` is the local mitigation, and it is best-effort by
- * construction — it cannot be the invariant:
- *   - it triggers on FOUR source paths, while `cli.gjs.mjs` inlines the whole
- *     workspace-dep closure (`@gjsify/{tar,semver,buffer,workspace,…}`);
- *   - it SKIPS ITSELF with a warning when no gjsify CLI is reachable — which is
- *     exactly what happened in #821, authored in a worktree with no
- *     `node_modules`;
- *   - `--no-verify` / `SKIP_GJSIFY_HOOKS=1` bypass it, as they should.
+ * So: REBUILD each artifact from source and compare byte-for-byte against the
+ * copy committed at HEAD. Two properties make that trustworthy rather than noisy:
  *
- * This check closes that hole the only way that is exhaustive by
- * construction: REBUILD each artifact from source and compare it byte-for-byte
- * against the copy committed at HEAD.
- *
- * Two properties make it trustworthy rather than merely noisy:
- *
- *   - The expected bytes come from `git show HEAD:<path>`, NOT from the
- *     working tree. Earlier steps in the same CI job (`gjsify run build` ends
- *     in `build:gjs-bundle`) rewrite those files in place, so a working-tree
- *     comparison would compare a fresh build against itself and pass without
- *     checking anything.
- *   - The artifact set is DISCOVERED from git (every file committed at HEAD
+ *   - Expected bytes come from `git show HEAD:<path>`, NOT the working tree.
+ *     Earlier steps in the same job (`gjsify run build` ends in
+ *     `build:gjs-bundle`) rewrite those files in place, so a working-tree
+ *     comparison would compare a fresh build against itself and always pass.
+ *   - The artifact set is DISCOVERED from git (everything committed at HEAD
  *     ending in `.gjs.mjs` under a `dist/` dir, plus the declared directory
- *     groups), not hard-coded. A committed bundle with no rebuild recipe is a
- *     hard error, so a new one cannot silently escape — the same "exhaustive by
- *     construction" reasoning as gjsify-setup's "Re-assert committed sources
- *     over the build cache" step.
+ *     groups), so a new bundle cannot silently escape.
  *
- * The rebuild is side-effect-free where it matters: whatever the COMMITTED
- * artifacts contained on entry is restored on exit, pass or fail, so later
- * steps and the build-output cache see exactly the tree they would have seen
- * without this check. Untracked build output the recipes touch on the way
- * (`packages/infra/cli/lib/`) is left rebuilt — it is regenerated from the same
- * sources the job already built, so it is byte-equivalent either way.
+ * Whatever the COMMITTED artifacts held on entry is restored on exit, pass or
+ * fail, so later steps and the build-output cache see the tree they would have
+ * seen without this check. Untracked build output the recipes touch on the way
+ * (`packages/infra/cli/lib/`) is left rebuilt — byte-equivalent either way.
  *
- * It runs on a COLD tree (fresh clone + `gjsify install`, nothing built) as
- * well as a warm one — see `ensureBuildableWorkspace()` below. That is a
- * requirement, not a convenience: `--rebuild` is the release path, and moving
- * releases into CI means running it on a tree that by definition has no build
- * output.
+ * It must run on a COLD tree (fresh clone + `gjsify install`, nothing built) as
+ * well as a warm one — see `ensureBuildableWorkspace()`: `--rebuild` is the
+ * release path, and a CI release runs on a tree with no build output.
  *
  * Usage:
  *   node scripts/verify-committed-bundles.mjs            # rebuild + compare
@@ -77,15 +60,14 @@
  *   node scripts/verify-committed-bundles.mjs --keep     # leave the rebuild in place
  *   node scripts/verify-committed-bundles.mjs --rebuild  # PRODUCE the artifacts, no compare
  *
- * `--rebuild` is what `.release-it.json`'s `after:bump` hook runs. A release
- * bumps the version, so the artifacts MUST differ from HEAD — comparing would
- * fail by definition. Sharing this file rather than re-spelling the commands in
- * the hook is the point: the release then produces exactly the artifacts CI
- * verifies, using the same workspace CLI and the same `--with-dependencies`
- * input pinning, and a newly-committed bundle is picked up by both at once.
- * (The alternative — a second copy of the recipe in JSON — is what let the
- * v0.24.0 release ship three bundles built by a THREE-RELEASE-OLD global
- * `gjsify` with no dependency closure and only one of them `git add`ed.)
+ * `--rebuild` is what `.release-it.json`'s `after:bump` hook runs: a release
+ * bumps the version, so the artifacts MUST differ from HEAD and comparing would
+ * fail by definition. Sharing this file instead of re-spelling the commands there
+ * is the point — the release produces exactly the artifacts CI verifies, with the
+ * same workspace CLI and the same `--with-dependencies` input pinning. (A second
+ * copy of the recipe in JSON is what let the v0.24.0 release ship three bundles
+ * built by a THREE-RELEASE-OLD global `gjsify` with no dependency closure, only
+ * one of them `git add`ed.)
  */
 
 import { spawnSync, execFileSync } from 'node:child_process';
@@ -101,41 +83,33 @@ const inActions = Boolean(process.env.GITHUB_ACTIONS);
 /**
  * How each committed artifact is regenerated, and what it covers.
  *
- * `steps` are `gjsify workspace <name> <script> [flags…]` invocations run in
- * order.
- * `groups` are what gets compared: a `file` group is one exact path; a `dir`
- * group compares the whole matching file SET (so an added/removed file counts
- * as drift, not just changed content).
- * `hint` is what a contributor must run — it is printed verbatim on failure.
+ * `steps` — `gjsify workspace <name> <script> [flags…]`, run in order.
+ * `groups` — what gets compared: a `file` group is one exact path, a `dir` group
+ * compares the whole matching file SET, so an added/removed file counts as drift.
+ * `hint` — printed verbatim on failure, so it must be runnable as-is.
  */
 const RECIPES = [
     {
         id: '@gjsify/cli',
         steps: [
-            // `--with-dependencies` is what makes the comparison mean anything.
-            // The bundle INLINES the `lib/esm` of every workspace dep in its
+            // `--with-dependencies` is what makes the comparison mean anything:
+            // the bundle INLINES the `lib/esm` of every workspace dep in its
             // production closure, and in CI those come from the build-output
             // cache, whose `restore-keys` fallback can hand back a tree built
-            // from a DIFFERENT source revision. Rebuilding the closure first
-            // pins the inputs to the sources at HEAD, so a mismatch means the
-            // committed bundle is stale — never that the cache was warm in an
-            // unlucky way. It also makes `build:gjs-bundle`'s `node
-            // lib/index.js` entry exist, the same two-step the pre-commit hook
-            // does.
+            // from a DIFFERENT source revision. Rebuilding the closure first pins
+            // the inputs to the sources at HEAD, so a mismatch means the committed
+            // bundle is stale and never that the cache was unluckily warm. It also
+            // makes `build:gjs-bundle`'s `node lib/index.js` entry exist.
             ['@gjsify/cli', 'build', '--with-dependencies'],
             ['@gjsify/cli', 'build:gjs-bundle'],
             ['@gjsify/cli', 'build:affected-bundle'],
         ],
-        // `cli.gjs.mjs` is NOT a group any more (ADR 0002 untracked it), but
-        // `build:gjs-bundle` stays in `steps` — the step is what PRODUCES the
-        // file for `main.yml`'s `bootstrap-bundles-fedora<v>` artifact, and
-        // `build:affected-bundle` needs the same rebuilt closure anyway.
-        //
-        // That a file is built but ungrouped is load-bearing rather than
-        // sloppy: only grouped files are snapshotted and restored, so the two
-        // untracked bundles are deliberately LEFT rebuilt on disk for the
-        // upload step that follows. Adding them back to `groups` would restore
-        // the pre-run bytes and hand downstream jobs a stale bundle.
+        // `cli.gjs.mjs` is deliberately built but UNGROUPED: only grouped files
+        // are snapshotted and restored, so the step produces it for `main.yml`'s
+        // `bootstrap-bundles-fedora<v>` artifact and leaves it on disk for the
+        // upload. Adding it back to `groups` would restore the pre-run bytes and
+        // hand downstream jobs a stale bundle. (`build:affected-bundle` needs the
+        // same rebuilt closure anyway.)
         groups: [{ kind: 'file', path: 'packages/infra/cli/dist/affected.gjs.mjs' }],
         hint:
             'gjsify workspace @gjsify/cli build --with-dependencies && ' +
@@ -147,17 +121,15 @@ const RECIPES = [
         steps: [['@gjsify/tsc', 'build']],
         // `pickLibSource()` normally KEEPS the committed `lib*.d.ts` (a refresh
         // would race concurrent `gjsify tsc` readers during a parallel build),
-        // which would make comparing them a check that cannot fail. Force the
-        // regeneration here — this step runs alone, so the race it guards
-        // against does not exist, and it turns the version-locked lib set into
-        // real coverage: a `TYPESCRIPT_VERSION` bump without regenerated libs
-        // is exactly the v0.7.2 `TS6053` cascade.
+        // which would make comparing them a check that cannot fail. Forced here
+        // because this step runs alone, so that race does not exist — and it turns
+        // the version-locked lib set into real coverage: a `TYPESCRIPT_VERSION`
+        // bump without regenerated libs is the v0.7.2 `TS6053` cascade.
         env: { GJSIFY_TSC_REFRESH_LIBS: '1' },
         groups: [
-            // `tsc.gjs.mjs` left the group set with ADR 0002 — same reasoning as
-            // the CLI recipe above; the step still builds it for the artifact.
-            // Mirrors `isLibFile` in packages/infra/tsc/scripts/build-bundle.mjs
-            // — note the bare `lib.d.ts`, which `^lib\..*\.d\.ts$` alone misses.
+            // `tsc.gjs.mjs` is ungrouped for the reason the CLI recipe gives.
+            // Mirrors `isLibFile` in packages/infra/tsc/scripts/build-bundle.mjs —
+            // note the bare `lib.d.ts`, which `^lib\..*\.d\.ts$` alone misses.
             { kind: 'dir', path: 'packages/infra/tsc/lib', match: /^lib\.(.*\.)?d\.ts$/ },
         ],
         hint: 'GJSIFY_TSC_REFRESH_LIBS=1 gjsify workspace @gjsify/tsc build',
@@ -184,13 +156,13 @@ function headBytes(relPath) {
 
 /**
  * Repo-relative paths COMMITTED AT HEAD matching a pathspec — `ls-tree`, not
- * `ls-files`: the whole check is "does HEAD's artifact match HEAD's source",
- * so the file SET must come from the same revision as the bytes.
- * `refs/` (read-only upstream submodules) never contributes.
+ * `ls-files`: the check is "does HEAD's artifact match HEAD's source", so the file
+ * SET must come from the same revision as the bytes. `refs/` (read-only upstream
+ * submodules) never contributes.
  */
 function headFiles(pathspec) {
     // `ls-tree` takes path PREFIXES, not wildcards (unlike `ls-files`), so the
-    // pathspec is only ever a directory here and any pattern match happens in JS.
+    // pathspec is only ever a directory and any pattern match happens in JS.
     return git(['ls-tree', '-r', '-z', '--name-only', 'HEAD', ...(pathspec ? ['--', pathspec] : [])])
         .split('\0')
         .filter(Boolean)
@@ -244,9 +216,8 @@ function restoreDisk(snapshot, groups) {
 
 /**
  * Where a mismatching rebuild is kept so it can leave the machine that made it.
- * Mirrors the repo-relative path, so the whole tree can be copied over a
- * checkout verbatim. (The CI upload of that directory is gone with ADR 0002 —
- * see the failure message below for why it no longer has a subject.)
+ * Mirrors the repo-relative path, so the tree can be copied over a checkout
+ * verbatim. No CI upload since ADR 0002 — the failure message says why.
  */
 const REBUILT_DIR = join(repoRoot, 'tmp', 'rebuilt-bundles');
 const rebuiltSaved = [];
@@ -276,15 +247,15 @@ function excerpt(buf, offset) {
  * workspace-local shim first (matches the version the workspace declares), then
  * PATH, then the committed GJS bundle (a freshly-cloned tree).
  *
- * Resolved PER CALL, because on Windows the invocation embeds the arguments:
- * `node_modules/.bin/gjsify` is a shell script Windows cannot execute, its
- * `.cmd` sibling is a batch file `spawn` refuses (CVE-2024-27980), and the only
- * working form is `%COMSPEC% /d /s /c "<shim> <escaped args…>"`. See
- * `scripts/resolve-gjsify.mjs` for the measurements. Before this, `existsSync`
- * said yes to the unexecutable shim and every step here died with `exit null` —
- * `spawnSync` leaves `status` NULL on ENOENT — reporting a rebuild failure for a
- * command that never started. That matters more here than anywhere: this is the
- * check `.githooks/pre-commit` names when it degrades on Windows.
+ * Resolved PER CALL because on Windows the invocation embeds the arguments:
+ * `node_modules/.bin/gjsify` is a shell script Windows cannot execute, its `.cmd`
+ * sibling is a batch file `spawn` refuses (CVE-2024-27980), and the only working
+ * form is `%COMSPEC% /d /s /c "<shim> <escaped args…>"` — measurements in
+ * `scripts/resolve-gjsify.mjs`. Otherwise `existsSync` says yes to the
+ * unexecutable shim and every step dies with `exit null` (`spawnSync` leaves
+ * `status` NULL on ENOENT), reporting a rebuild failure for a command that never
+ * started — and this is the check `.githooks/pre-commit` names when it degrades
+ * on Windows.
  */
 function gjsifyStep(argv) {
     const resolved = resolveGjsifySpawn(repoRoot, argv);
@@ -300,39 +271,27 @@ function fail(msg) {
 }
 
 /**
- * Bring the workspace to the point where `gjsify build` can run AT ALL, so
- * this check works on a cold tree.
+ * Bring the workspace to the point where `gjsify build` can run AT ALL, so this
+ * check works on a cold tree.
  *
- * On a fresh clone every recipe here dies at its first step with
+ * On a fresh clone every recipe dies at its first step with "no usable bundler
+ * engine under GJS": the only GJS bundler engine is `@gjsify/rolldown-native`,
+ * whose JS facade (`packages/infra/{rolldown,lightningcss}-native/lib/`) is a
+ * BUILD OUTPUT `gjsify install` does not produce and
+ * `scripts/bootstrap-native-facades.mjs` does. CI hides this, because
+ * `gjsify run build` → `build:infra` runs the bootstrap long before this step.
  *
- *     gjsify build: no usable bundler engine under GJS —
- *     `@gjsify/rolldown-native` is not loadable …
+ * Called rather than documented as a precondition, because "run this other thing
+ * first" gets forgotten — which is how the release path (`--rebuild` from
+ * `.release-it.json`'s `after:bump`) ends up unable to run on the cold tree a CI
+ * release always has.
  *
- * because under GJS the only bundler engine is `@gjsify/rolldown-native`, and
- * that engine's JS facade (`packages/infra/{rolldown,lightningcss}-native/lib/`)
- * is a BUILD OUTPUT `gjsify install` does not produce.
- * `scripts/bootstrap-native-facades.mjs` is what produces it. Nothing used to
- * call it from here — in CI the failure is invisible because `gjsify run build`
- * → `build:infra` runs the bootstrap long before this step.
- *
- * We call it rather than documenting it as a precondition: a script whose
- * documented precondition is "run this other thing first" gets that
- * precondition forgotten, which is exactly how the release path (`--rebuild`
- * from `.release-it.json`'s `after:bump`) ends up unable to run on the cold
- * tree a CI release always has.
- *
- * ONE entry point. The bootstrap has a precondition of its own — it drives the
- * CLI's NODE entry (`packages/infra/cli/lib/index.js`, the one emitter that
- * needs no bundler), which is itself a build output — but it now satisfies that
- * precondition ITSELF on a cold tree by running root `build:infra` (the
- * documented tsc chain that produces the entry AND ends in the very same
- * bootstrap). This file used to carry that cold/warm branch; the branch belongs
- * in the bootstrap, where EVERY caller inherits it rather than only this one.
- * The release workflow's `publish-napi` job is the caller that did not, and it
- * is why `@gjsify/napi` missed the v0.24.1 train.
- *
- * Warm is the CI ordering and stays cheap: the bootstrap is mtime-idempotent,
- * so already-built facades are skipped in milliseconds.
+ * The bootstrap satisfies its OWN precondition (it drives the CLI's node entry,
+ * itself a build output) by running root `build:infra` on a cold tree, so every
+ * caller inherits the cold/warm handling instead of only this one. The release
+ * workflow's `publish-napi` job is the caller that did not, and that is why
+ * `@gjsify/napi` missed the v0.24.1 train. Warm stays cheap: the bootstrap is
+ * mtime-idempotent.
  *
  * @returns {string|null} an abort reason, or null on success.
  */
@@ -349,8 +308,6 @@ function ensureBuildableWorkspace() {
         '"no usable bundler engine under GJS". Fix that build first, then re-run this check.'
     );
 }
-
-// ── plan ────────────────────────────────────────────────────────────────
 
 const args = new Set(process.argv.slice(2));
 const listOnly = args.has('--list');
@@ -377,8 +334,6 @@ for (const r of RECIPES) {
 }
 if (listOnly) process.exit(0);
 
-// ── rebuild + compare ───────────────────────────────────────────────────
-
 // Probe once for the banner. The real invocations are built per step, since on
 // Windows the arguments live inside the `cmd.exe /c "…"` line.
 {
@@ -392,14 +347,13 @@ let failures = 0;
 // rest of the job. Record the intent, unwind, exit at the end.
 let aborted = null;
 
-// ONE snapshot of EVERY artifact, taken before ANY build runs — not one per
-// recipe. Recipes are not isolated from each other: `@gjsify/cli build
-// --with-dependencies` walks the CLI's workspace-dep closure, which contains
-// `@gjsify/tsc`, so it rewrites `dist/tsc.gjs.mjs` before the tsc recipe ever
-// snapshots it. A per-recipe snapshot then "restores" that rebuild and leaves a
-// tracked file modified for the rest of the CI job. The verdicts are unaffected
-// (they compare against `git show HEAD:…`, not the snapshot) — only the
-// put-it-back step is, and it has to see the pre-run tree.
+// ONE snapshot of EVERY artifact before ANY build runs, not one per recipe.
+// Recipes are not isolated: `@gjsify/cli build --with-dependencies` walks a
+// closure containing `@gjsify/tsc`, so it rewrites `dist/tsc.gjs.mjs` before the
+// tsc recipe could snapshot it, and a per-recipe snapshot would "restore" that
+// rebuild and leave a tracked file modified for the rest of the job. Verdicts are
+// unaffected (they compare against `git show HEAD:…`) — only the put-it-back
+// step, which has to see the pre-run tree.
 const allGroups = RECIPES.flatMap((r) => r.groups);
 const pristine = snapshotDisk(allGroups.flatMap(groupFilesOnDisk));
 
@@ -474,17 +428,15 @@ try {
                 console.error(`  rebuilt   …${excerpt(actual, off)}…`);
                 fail(`  Refresh locally: ${recipe.hint}, then commit it.`);
                 // …and keep the bytes THIS run produced, because "refresh
-                // locally" is not always advice a contributor can take. The
-                // historical way that happened — fast-glob's raced entry order
-                // leaking into `--library` outputs (`mapSysname` where the
-                // committed file had `makeCallable`; see release-cut.yml) — is
-                // fixed at the core (`utils/entry-points.ts` sorts each
-                // pattern's expansion), but a STALE `lib/esm` built before the
-                // fix, or restored from a build cache that predates it, still
-                // reproduces the old bytes until the closure is rebuilt. On
-                // such a tree the instruction above loops, and the only bytes
-                // that satisfy this check are the ones CI builds. Saving them
-                // turns a dead end into a download.
+                // locally" is not always advice a contributor can take. The known
+                // cause — fast-glob's raced entry order leaking into `--library`
+                // outputs — is fixed at the core
+                // (`rolldown-plugin-gjsify/src/utils/entry-points.ts` sorts each
+                // pattern's expansion), but a STALE `lib/esm` built before that
+                // fix, or restored from a build cache predating it, still
+                // reproduces the old bytes until the closure is rebuilt. On such a
+                // tree the instruction above loops and only CI's bytes satisfy
+                // this check, so saving them turns a dead end into a download.
                 saveRebuilt(p, actual);
             }
             if (group.kind === 'dir') {

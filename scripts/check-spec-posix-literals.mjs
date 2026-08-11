@@ -13,23 +13,11 @@
 //
 // THE INCIDENT
 //
-// #1039 ("fd-first redesign") added ~100 rules to `packages/node/fs`'s ledger
-// and merged green: `main.yml` is Linux-only, and on Linux the Linux literal
-// CANNOT fail. The OS legs run on `main`, so the regression landed before
-// anything could see it — 9 failures on darwin, 36 on win32, and `main` was red
-// for eight hours.
-//
-// Most of those needed a non-Linux host to find. Three did not, and they are
-// this check:
-//
-//   const O_CREAT = 64;            // opened the wrong flag set on darwin/win32
-//   const O_APPEND = 1024;         // the append rule appended nowhere
-//   expect(err?.errno).toBe(-17);  // asserted Linux, not EEXIST
-//
-// `windows-suites.yml` had already written the class down — "specs that spelled
-// a POSIX answer as though it were THE answer, which is exactly the failure mode
-// a Linux-only pipeline cannot see". This is the part of that class a Linux-only
-// pipeline CAN see, so it is checked here rather than paid for again on `main`.
+// #1039 added ~100 rules to `packages/node/fs`'s ledger and merged green, because
+// `main.yml` is Linux-only and on Linux the Linux literal CANNOT fail. The OS legs
+// run on `main`, so the regression landed unseen: 9 failures on darwin, 36 on
+// win32, `main` red for eight hours. Most needed a non-Linux host to find; three
+// did not — `const O_CREAT = 64;` and its kind — and those are this check.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -43,9 +31,9 @@ const SKIP_DIRS = new Set(['node_modules', 'lib', 'dist', '.git', 'refs', 'build
 const FLAG_LITERAL = /\b(?:const|let|var)\s+(O_[A-Z0-9_]+)\s*=\s*(0[xXoO][0-9a-fA-F]+|\d+)/;
 
 /**
- * `.toBe(-17)` (or toEqual/toStrictEqual) on a line reading the `errno`
- * PROPERTY. Case-sensitive and anchored on the dot on purpose: `constants.
- * Z_ERRNO` is zlib's own -1 on every platform and no business of this check.
+ * `.toBe(-17)` (or toEqual/toStrictEqual) on a line reading the `errno` PROPERTY.
+ * Anchored on the dot: `constants.Z_ERRNO` is zlib's own -1 on every platform and
+ * no business of this check.
  */
 const ERRNO_LITERAL = /\.errno\b/;
 const ERRNO_ASSERT = /\.(?:toBe|toEqual|toStrictEqual)\(\s*-\d+\s*\)/;
@@ -84,11 +72,10 @@ for (const root of SEARCH_ROOTS) {
     for (const file of walk(abs)) {
         const lines = readFileSync(file, 'utf8').split('\n');
         lines.forEach((line, i) => {
-            // The honest exception: an errno WE synthesize is ours on every host,
-            // so asserting it is asserting our own contract. It must say so, and
-            // the reason is mandatory — the same shape as `osNotes` in ADR 0018.
-            // Accepted on the line itself or on the one above it, so the reason
-            // survives a formatter that would otherwise wrap it away.
+            // The honest exception: an errno WE synthesize is ours on every host, so
+            // asserting it asserts our own contract — with a mandatory reason, the
+            // same shape as `osNotes` in ADR 0018. Accepted on the line itself or
+            // the one above, so a formatter cannot wrap the reason away.
             const marked = [line, lines[i - 1] ?? ''].filter((l) => OPT_OUT.test(l));
             if (marked.length > 0) {
                 if (!marked.some((l) => /posix-literal-ok:\s*\S/.test(l))) {

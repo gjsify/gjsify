@@ -3,9 +3,6 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
-// Read rather than `import … with { type: 'json' }`: the assertion syntax is
-// still version-sensitive across the Node versions this config runs under, and
-// a config that fails to parse takes the whole site with it.
 const blueprintGrammar = JSON.parse(
     readFileSync(new URL('./src/grammars/blueprint.tmLanguage.json', import.meta.url), 'utf8'),
 );
@@ -14,10 +11,8 @@ export default defineConfig({
     site: 'https://gjsify.github.io',
     base: '/gjsify',
     trailingSlash: 'always',
-    // The Framework/Bridges page was merged into Patterns/Bridges (single source),
-    // and the Patterns landing page was dissolved into the Guides group.
-    // Keep the old URLs alive. Destinations must carry the `/gjsify` base —
-    // Astro does not prefix redirect targets with `base`.
+    // Old URLs of pages that were merged away. Destinations must spell out the
+    // `/gjsify` base — Astro does not prefix redirect targets with `base`.
     redirects: {
         '/framework/bridges': '/gjsify/patterns/bridges/',
         '/patterns': '/gjsify/patterns/gobject-classes/',
@@ -25,12 +20,10 @@ export default defineConfig({
     vite: {
         resolve: {
             alias: {
-                // @gjsify/stories + @gjsify/storybook-core ship exports pointing at lib/esm
-                // (the published tarball carries lib), but this workspace website never builds
-                // workspace lib — it resolves packages from src (as it does @gjsify/adwaita-web).
-                // Map these two to their src so the docs build resolves them without a lib build.
-                // (They previously carried a `browser` → ./src condition, removed in the export fix
-                // that unbroke published --app gjs consumers; that resolution now lives here.)
+                // Both ship exports pointing at lib/esm, which this website never builds
+                // (it resolves workspace packages from src), so map them to src here.
+                // Not via a `browser` → ./src export condition: that spelling broke
+                // published `--app gjs` consumers and was removed for it.
                 '@gjsify/stories': fileURLToPath(
                     new URL('../packages/framework/stories/src/index.ts', import.meta.url),
                 ),
@@ -62,22 +55,18 @@ export default defineConfig({
         starlight({
             title: 'GJSify',
             description: 'The TypeScript framework for native Linux apps — on GJS, Node.js, Deno and Bun',
-            // Blueprint is what GTK UIs are actually WRITTEN in, so the widget
-            // gallery carries a `.blp` tab beside GJS/Web/NativeScript. Shiki
-            // bundles no grammar for it and falls back to plain text with a
-            // build warning — an unhighlighted tab between three highlighted
-            // ones reads as broken rather than deliberate. The grammar is
-            // deliberately minimal; its own header says what it does not cover.
+            // The widget gallery carries a `.blp` tab, and Shiki bundles no
+            // Blueprint grammar. Scope and limits: the `_comment` header in
+            // src/grammars/blueprint.tmLanguage.json.
             expressiveCode: {
                 shiki: { langs: [blueprintGrammar] },
             },
             head: [
                 {
                     // The @gjsify/adwaita-web skin keys its dark palette on
-                    // prefers-color-scheme with manual .theme-dark/.theme-light
-                    // overrides; Starlight's toggle sets data-theme. Mirror the
-                    // toggle onto the skin classes so every adw-* component
-                    // follows the site theme even when it differs from the OS.
+                    // prefers-color-scheme, overridable by .theme-dark/.theme-light,
+                    // while Starlight's toggle sets data-theme. Mirroring one onto the
+                    // other is what makes adw-* follow the site rather than the OS.
                     tag: 'script',
                     content:
                         "(function(){var r=document.documentElement;var s=function(){var t=r.dataset.theme;r.classList.toggle('theme-dark',t==='dark');r.classList.toggle('theme-light',t==='light');};s();new MutationObserver(s).observe(r,{attributes:true,attributeFilter:['data-theme']});})();",
@@ -93,8 +82,7 @@ export default defineConfig({
             },
             favicon: '/favicon.svg',
             social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/gjsify/gjsify' }],
-            // Sidebar labels stay short — a page's full story belongs in its
-            // title/description, not in the nav. Secondary groups are collapsed.
+            // Labels stay short: a page's full story belongs in its title/description.
             sidebar: [
                 {
                     label: 'Start',

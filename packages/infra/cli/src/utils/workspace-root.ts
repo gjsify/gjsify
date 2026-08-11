@@ -1,16 +1,11 @@
-// Walk up from a starting directory to the first ancestor whose
-// `package.json` declares a `workspaces` field — the monorepo root.
+// Walk up from a starting directory to the first ancestor whose `package.json`
+// declares a `workspaces` field — the monorepo root that `gjsify
+// run`/`workspace`/`foreach` need to discover siblings, resolve `workspace:^`
+// deps and walk the dep graph. They can be invoked from anywhere, because a
+// chained script call puts the child CLI's cwd at the inner workspace.
 //
-// Used by `gjsify run`, `gjsify workspace`, and `gjsify foreach`: each
-// can be invoked from inside any workspace (chained script calls put the
-// child CLI invocation's cwd at the inner workspace's location), and
-// every one of them needs the monorepo root to discover sibling
-// workspaces, resolve `workspace:^` deps, and walk the dep graph.
-//
-// Sanity-checked via `discoverWorkspaces(candidate)`: the candidate
-// monorepo must actually contain `start` as one of its workspaces.
-// Without this guard, a grand-parent monorepo unrelated to `start`
-// could be picked up.
+// The candidate must also CONTAIN `start` (`discoverWorkspaces`), or an unrelated
+// grand-parent monorepo gets picked up.
 
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';

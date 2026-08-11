@@ -5,9 +5,8 @@
 //   github: POST   <registry>/-/package/<escaped>/trust            body: [{type,claims}]
 //   revoke: DELETE <registry>/-/package/<escaped>/trust/<id>
 //
-// Everything here is side-effect-free so it can be unit-tested without a
-// network; the command (commands/trust.ts) does the fetch + OTP orchestration.
-// Reference: refs/npm-cli/lib/trust-cmd.js + lib/commands/trust/*.js.
+// Side-effect-free so it unit-tests without a network; `commands/trust.ts` does the fetch + OTP
+// orchestration. Reference: refs/npm-cli/lib/trust-cmd.js + lib/commands/trust/*.js.
 
 import { escapePackageName } from './publish-headers.js';
 
@@ -53,9 +52,8 @@ export interface TrustEntry {
 }
 
 /**
- * The POST body for `trust github`. npm always sends an ARRAY with a single
- * config object carrying `type`, `claims` AND `permissions` (the last is
- * required — `--allow-publish` → `['createPackage']`).
+ * The POST body for `trust github`: npm always sends an ARRAY with a single config object, and
+ * `permissions` is required alongside `type`/`claims`.
  */
 export function githubTrustBody(opts: {
     repository: string;
@@ -117,23 +115,17 @@ export function classifyTrustList(
 }
 
 /**
- * Derive `owner/repo` from a git remote URL. Handles the common GitHub forms:
- *   git@github.com:owner/repo.git
- *   ssh://git@github.com/owner/repo.git
- *   https://github.com/owner/repo(.git)
- * Returns null when it can't confidently extract two segments.
+ * Derive `owner/repo` from a git remote URL (scp-like `git@host:owner/repo.git` and the
+ * `ssh://`/`https://` forms). Null when two segments cannot be confidently extracted.
  */
 export function parseRepoFromGitRemote(url: string): string | null {
     let s = url.trim();
     if (!s) return null;
-    // Strip a trailing .git
     s = s.replace(/\.git$/, '');
-    // scp-like: git@host:owner/repo
     const scp = s.match(/^[^/@]+@[^:]+:(.+)$/);
     if (scp) {
         return twoSegments(scp[1]);
     }
-    // URL forms: ssh://, https://, http://, git://
     const m = s.match(/^[a-z]+:\/\/[^/]+\/(.+)$/i);
     if (m) {
         return twoSegments(m[1]);
@@ -144,6 +136,6 @@ export function parseRepoFromGitRemote(url: string): string | null {
 function twoSegments(path: string): string | null {
     const parts = path.split('/').filter((p) => p.length > 0);
     if (parts.length < 2) return null;
-    // owner/repo are the LAST two segments (handles nested groups → take repo + its owner)
+    // The LAST two segments, so a nested group path still yields repo + its owner.
     return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
 }

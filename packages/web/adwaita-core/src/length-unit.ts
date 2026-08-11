@@ -1,12 +1,8 @@
 // `AdwLengthUnit` — the scale-aware length vocabulary, headless (ADR 0004).
 //
-// libadwaita gives it its own compilation unit because three unrelated widget
-// families write lengths in it: the split views' `sidebar-width-unit`, the wrap
-// box's `child-spacing-unit` / `line-spacing-unit` /
-// `natural-line-length-unit`, and `AdwClamp`'s `unit`. It lives in its own
-// module here for the same reason — it arrived inside `split-view.ts`, and the
-// second consumer is where a shared helper gets lifted rather than imported
-// across a boundary that means nothing to it.
+// Its own module because three unrelated widget families write lengths in it: the
+// split views' `sidebar-width-unit`, the wrap box's `child-spacing-unit` /
+// `line-spacing-unit` / `natural-line-length-unit`, and `AdwClamp`'s `unit`.
 //
 // Reference: refs/libadwaita/src/adw-length-unit.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -41,11 +37,10 @@ export function adwLengthToPx(unit: AdwLengthUnit, value: number, dpi: number = 
 /**
  * An authored unit → the enum value, or the caller's default.
  *
- * A GObject enum property REJECTS an out-of-range value and keeps what it had;
- * a renderer reading an HTML attribute or an XML layout has no such gate, so the
- * unusable value has to land somewhere deliberate. `fallback` is the property's
- * own default, which differs between the widgets that use this vocabulary — the
- * split views default to `sp`, the wrap box to `px`.
+ * A GObject enum property rejects an out-of-range value and keeps what it had; a
+ * renderer reading an HTML attribute or an XML layout has no such gate, so
+ * `fallback` is the property's own default — `sp` for the split views, `px` for
+ * the wrap box.
  */
 export function normalizeLengthUnit(value: unknown, fallback: AdwLengthUnit): AdwLengthUnit {
     return ADW_LENGTH_UNITS.includes(value as AdwLengthUnit) ? (value as AdwLengthUnit) : fallback;

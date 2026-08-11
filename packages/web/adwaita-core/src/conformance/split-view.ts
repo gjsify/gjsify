@@ -39,7 +39,6 @@ export interface AdwLengthUnitVector {
     dpi: number;
     /** The resulting pixel length. */
     px: number;
-    /** Why this row exists. */
     rule: string;
 }
 

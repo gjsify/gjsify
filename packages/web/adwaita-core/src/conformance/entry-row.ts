@@ -31,7 +31,6 @@ export interface EntryTextLengthVector {
     text: string;
     /** `adw_entry_row_get_text_length` — "The current number of characters". */
     length: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -67,7 +66,6 @@ export interface EntryMaxLengthVector {
     clamped: string;
     /** {@link EntryTextLengthVector.length} of {@link clamped}. */
     length: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -128,7 +126,6 @@ export interface EntryRowStateVector {
     steps: ReadonlyArray<EntryRowStep>;
     /** Every output of the derivation afterwards. */
     expected: EntryRowRenderState;
-    /** The C rule this row pins down. */
     rule: string;
 }
 
@@ -513,7 +510,6 @@ export interface EntryRowActivationVector {
     activation: EntryRowActivation;
     /** The latch afterwards (`apply` clears it; `entry-activated` leaves state alone). */
     textChangedAfter: boolean;
-    /** The C rule this row pins down. */
     rule: string;
 }
 
@@ -582,7 +578,6 @@ export interface EntryRowGuardVector {
     returns: ReadonlyArray<boolean | null>;
     /** How many times subscribers are notified across the whole sequence. */
     notifications: number;
-    /** The C rule this row pins down. */
     rule: string;
 }
 
@@ -681,7 +676,6 @@ export interface PasswordEntryRowVector {
     expected: PasswordEntryRowRenderState;
     /** `indicatorVisible` on the composed entry row — the caps-lock warning the user actually sees. */
     entryIndicatorVisible: boolean;
-    /** The C rule this row pins down. */
     rule: string;
 }
 
@@ -817,7 +811,6 @@ export interface PasswordRevealGuardVector {
     steps: ReadonlyArray<{ op: 'setRevealed'; value: boolean } | { op: 'togglePeek' }>;
     /** How many reveal notifications the sequence produces. */
     notifications: number;
-    /** The C rule this row pins down. */
     rule: string;
 }
 

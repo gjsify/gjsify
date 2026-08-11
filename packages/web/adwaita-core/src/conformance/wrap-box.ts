@@ -1,7 +1,5 @@
 // Wrap-box conformance vectors — the portable slice of Adw.WrapBox.
 //
-// WHY ONLY A SLICE
-//
 // The line-BREAKING engine is deliberately not ported (ADR 0004):
 // `count_line_children` walks children until the line overflows and
 // `box_allocate` distributes the leftover, and neither renderer can be FED that
@@ -9,29 +7,18 @@
 // breaks them in native code.
 //
 // What IS portable is everything the engine decides BEFORE it measures: the
-// property normalisers, the DECISION about where a line's leftover space goes —
-// into the CHILDREN, into the GAPS, or into one offset applied to the whole line
-// — and the child-ORDER arithmetic. Four of the bugs in issue #1048 were wrong
-// answers to those questions:
+// property normalisers, the DECISION about where a line's leftover space goes
+// (into the CHILDREN, into the GAPS, or into one offset applied to the whole
+// line), and the child-ORDER arithmetic. Four bugs in issue #1048 were wrong
+// answers to those: `align` bound to the CROSS axis where C applies it along the
+// MAIN one; `justify="fill"` and `"spread"` both rendered as `space-between`, so
+// `fill` grew the gaps where C grows the children; `justify-last-line` observed
+// and read by nothing, so the last line was ALWAYS justified; and a negative
+// spacing reaching the layout with a notification, for a value libadwaita clamps
+// to 0 and early-returns on.
 //
-//   - `align` was bound to `align-items` — the CROSS axis — where C applies it
-//     as a MAIN-axis offset, so `align="1"` pushed children DOWN instead of to
-//     the end of the line;
-//   - `justify="fill"` and `justify="spread"` both rendered as `space-between`,
-//     so `fill` grew the gaps where C grows the children;
-//   - `justify-last-line` was in `observedAttributes` and read by nothing, so
-//     the last line was ALWAYS justified — the exact opposite of the C default;
-//   - a negative spacing reached the layout and emitted a notification for a
-//     value libadwaita clamps to 0 and then early-returns on.
-//
-// The implementation behind these rows is `@gjsify/adwaita-core`'s `wrap-box.ts`
-// and both renderers delegate to it. This header used to say the opposite — that
-// there was no core implementation "on purpose", because "the NativeScript port
-// has nowhere to land them, since NS `WrapLayout` exposes `orientation`,
-// `itemWidth` and `itemHeight` and nothing else". NativeScript also ships
-// `FlexboxLayout` (`flexDirection`, `flexWrap`, `justifyContent`, `alignItems`,
-// `alignContent`, per-child `setFlexGrow`/`setFlexShrink`), so the premise was
-// false and the LINE table was driven by one renderer for no reason.
+// The implementation behind these rows is `@gjsify/adwaita-core`'s `wrap-box.ts`,
+// which both renderers delegate to.
 //
 // Reference: refs/libadwaita/src/adw-wrap-box.c
 // Reference: refs/libadwaita/src/adw-wrap-layout.c
@@ -51,9 +38,9 @@ export interface WrapBoxLineVector {
     align: number;
     /**
      * Whether this is the FINAL line — `i == *n_lines - 1`
-     * (adw-wrap-layout.c:463-464). Note it is the final line, NOT merely an
-     * incomplete one: a wrap box whose children all fit on one line has that
-     * line as its last, so by default `justify` does nothing to it at all.
+     * (adw-wrap-layout.c:463-464). The final one, NOT merely an incomplete one:
+     * a box whose children all fit on one line has that line as its last, so by
+     * default `justify` does nothing to it at all.
      */
     lastLine: boolean;
     /**
@@ -71,13 +58,12 @@ export interface WrapBoxLineVector {
  * The line-layout decision, row by row (adw-wrap-layout.c:317-341, :397-400,
  * :705-706, :717-725).
  *
- * Two rows are counter-intuitive and are the reason the table exists rather than
- * a sentence in a comment. First, `lastLine` is the FINAL line whether or not it
- * is full, so the single-line case — the common one — is governed by
- * `justify-last-line`, not by `justify`. Second, `spread` with exactly ONE child
- * in the line does not spread anything: `n_children > 1` guards the branch that
- * keeps children at `minimum_size`, so a lone child is STRETCHED instead, which
- * the property documentation states outright (adw-wrap-box.c:349-352).
+ * Two counter-intuitive rows are why this is a table and not a sentence.
+ * `lastLine` is the FINAL line whether or not it is full, so the single-line case
+ * — the common one — is governed by `justify-last-line`, not `justify`. And
+ * `spread` with exactly ONE child in the line spreads nothing: `n_children > 1`
+ * guards the branch keeping children at `minimum_size`, so a lone child is
+ * STRETCHED instead (adw-wrap-box.c:349-352).
  */
 export const WRAP_BOX_LINE_VECTORS: ReadonlyArray<WrapBoxLineVector> = [
     // --- justify=none: align is the only thing that moves ---
@@ -236,16 +222,14 @@ export const WRAP_BOX_LINE_VECTORS: ReadonlyArray<WrapBoxLineVector> = [
 /** One `child-spacing` / `line-spacing` normalisation expectation. */
 export interface WrapBoxSpacingVector {
     /**
-     * The value handed to the setter. A string is what an HTML attribute or an
-     * XML layout carries; a number is what a JS property setter gets. C only
-     * ever sees an `int`, so the string rows are the PORTS' own edge — they
-     * exist because the browser port propagated `NaN` into the style where the
-     * NativeScript port coerced it to 0.
+     * The value handed to the setter — a string from an HTML attribute or XML
+     * layout, a number from a JS property setter. C only ever sees an `int`, so
+     * the string rows are the PORTS' own edge: the browser propagated `NaN` into
+     * the style where NativeScript coerced it to 0.
      */
     value: number | string | null;
     /** The value the widget stores and lays out with. */
     spacing: number;
-    /** The rule this row pins down. */
     rule: string;
 }
 
@@ -255,8 +239,8 @@ export interface WrapBoxSpacingVector {
  * BEFORE anything else happens, so it never reaches the layout.
  *
  * The property is declared with a minimum of 0 (adw-wrap-box.c:285-287,
- * :393-395), which is why the clamp exists at all: without it GObject would
- * reject the value and warn.
+ * :393-395), which is why the clamp exists: without it GObject would reject the
+ * value and warn.
  */
 export const WRAP_BOX_SPACING_VECTORS: ReadonlyArray<WrapBoxSpacingVector> = [
     { value: 0, spacing: 0, rule: 'the default is 0 — no spacing at all, on every renderer' },
@@ -280,7 +264,6 @@ export interface WrapBoxSpacingNotifyVector {
     value: number | string;
     /** Whether the setter reaches `g_object_notify_by_pspec` at all. */
     notifies: boolean;
-    /** The rule this row pins down. */
     rule: string;
 }
 
@@ -307,10 +290,10 @@ export const WRAP_BOX_SPACING_NOTIFY_VECTORS: ReadonlyArray<WrapBoxSpacingNotify
  * (adw-wrap-box.c:284-495) plus the overridden `orientation` (:497).
  *
  * The count is the assertion. C notifies on all fourteen; the browser port
- * notified on TWO (`child-spacing`, `line-spacing`) and the NativeScript port on
- * none, so a consumer binding to any other property was watching a signal that
- * could not fire. A roster is the only shape that fails when a property is ADDED
- * without its notification, which is how the first twelve went missing.
+ * notified on TWO (`child-spacing`, `line-spacing`) and NativeScript on none, so
+ * a consumer binding to anything else watched a signal that could not fire. A
+ * roster is the only shape that fails when a property is ADDED without its
+ * notification.
  */
 export const WRAP_BOX_NOTIFY_PROPERTIES: readonly string[] = [
     'child-spacing',
@@ -339,18 +322,16 @@ export interface WrapBoxPolicyVector {
     policy: AdwWrapPolicy;
     /** The `flex-shrink` a child gets — `FlexboxLayout.setFlexShrink` on NativeScript. */
     flexShrink: number;
-    /** The rule this row pins down. */
     rule: string;
 }
 
 /**
  * `Adw.WrapBox:wrap-policy` (adw-wrap-box.c:476-495).
  *
- * The default is `natural`, which is the RESTRICTIVE one: a line wraps as soon
- * as the next child would not fit at its natural size. `minimum` packs harder by
- * squeezing children down to their minimum first. Both renderers had neither, so
- * they inherited whatever their flex container defaults to — and CSS defaults
- * `flex-shrink` to 1, i.e. to `minimum`, the value libadwaita does NOT default to.
+ * The default is `natural`, the RESTRICTIVE one: a line wraps as soon as the next
+ * child would not fit at its natural size, where `minimum` squeezes children down
+ * first. Both renderers had neither and inherited their flex container's default
+ * — and CSS defaults `flex-shrink` to 1, i.e. to `minimum`.
  */
 export const WRAP_BOX_POLICY_VECTORS: ReadonlyArray<WrapBoxPolicyVector> = [
     { value: null, policy: 'natural', flexShrink: 0, rule: 'the default is natural — wrap before shrinking' },
@@ -377,7 +358,6 @@ export interface WrapBoxLengthVector {
     dpi: number;
     /** The resolved pixel length. */
     px: number;
-    /** The rule this row pins down. */
     rule: string;
 }
 
@@ -419,7 +399,6 @@ export interface WrapBoxNaturalLengthVector {
     value: unknown;
     /** The stored length, `-1` when unset. */
     length: number;
-    /** The rule this row pins down. */
     rule: string;
 }
 
@@ -427,9 +406,9 @@ export interface WrapBoxNaturalLengthVector {
  * `Adw.WrapBox:natural-line-length` — `g_param_spec_int (…, -1, G_MAXINT, -1, …)`
  * (adw-wrap-box.c:438-441).
  *
- * `-1` means UNSET, not "zero length", so it is the landing place for everything
- * out of range: a GObject setter would have refused those and left the property
- * where it was, and unset is where it was born.
+ * `-1` means UNSET, not "zero length", so it is where everything out of range
+ * lands: a GObject setter would have refused those and left the property where it
+ * was born.
  */
 export const WRAP_BOX_NATURAL_LENGTH_VECTORS: ReadonlyArray<WrapBoxNaturalLengthVector> = [
     { value: null, length: -1, rule: 'absent means unset — the box asks for what its children need' },
@@ -456,7 +435,6 @@ export interface WrapBoxChildOrderVector {
     sibling: string | null;
     /** The children afterwards, or `null` when the call is refused. */
     result: readonly string[] | null;
-    /** The rule this row pins down. */
     rule: string;
 }
 
@@ -467,8 +445,7 @@ export interface WrapBoxChildOrderVector {
  *
  * The counter-intuitive rule is the NULL sibling: it inserts at the FIRST
  * position, not the last. Reading it as "append" is the obvious misreading and a
- * silent one — the child lands somewhere plausible. Neither renderer had any of
- * this API, so there was nothing to misread yet, which is the good time to pin it.
+ * silent one — the child lands somewhere plausible.
  *
  * The refusals are the C's `g_return_if_fail`s: an insert wants the child
  * unparented, a reorder wants it already a child, the sibling must belong to this

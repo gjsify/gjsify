@@ -115,25 +115,21 @@ jobs:
       - name: Check no spec spells a POSIX constant as a Linux number
         run: node scripts/check-spec-posix-literals.mjs
 
-      # Prose that a change resurrects after the base branch deleted it. Git
-      # merges that WITHOUT a conflict — the merge base has neither wording, so
-      # "replace these paragraphs with those" is an ordinary edit — which is how
-      # #886 put back five paragraphs #885 had consolidated, and how #892 carried
-      # the whole pre-#885 AGENTS.md. Nothing else can see it: prose has no test,
-      # no type, no conformance rule.
-      #
-      # WARNS by design and never gates: a deliberate revert has the identical
-      # signature, and a hard gate on an ambiguous signal is one people learn to
-      # route around. `continue-on-error` keeps it advisory; a `Revert-Of:`
-      # trailer marks the intent explicitly.
-      #
-      # Needs history, and this checkout is shallow — deepen just for this step
-      # rather than making every other check in this job pay for a full clone.
       # The PR-title linter inherits its type list from the action default
       # instead of carrying a second copy of `type-enum`. That is only sound
       # while the two agree — this is what says so out loud.
       - name: Check the PR-title type list still matches commitlint
         run: node scripts/check-pr-title-types.mjs
+
+      # Comment volume has no natural limit, so nothing failed while `cli-fail.ts` grew
+      # a 47-line yargs research diary above a 3-line function (ratio 9.3), while
+      # `rolldown-plugin-gjsify` reached one comment line per code line, or while
+      # `scripts/` reached 0.77 — 105k comment lines repo-wide, paid by every reader and
+      # every agent context afterwards. The ceilings are MEASURED, not chosen: each is
+      # what the tree had when it was last cleaned, so a cleanup cannot grow back
+      # without a reviewed commit that raises one.
+      - name: Check each tree's comment budget
+        run: node scripts/check-comment-budget.mjs --check
 
       # A multi-line inline `node -e '…'` whose body contains the quote that opened
       # it: the shell truncates the program and the step dies before asserting
@@ -273,6 +269,17 @@ jobs:
           # so a newly added workflow is covered without editing this step.
           "$tmp/actionlint" -shellcheck= -pyflakes=
 
+      # Prose a change resurrects after the base branch deleted it. Git merges that
+      # WITHOUT a conflict — the merge base has neither wording, so "replace these
+      # paragraphs with those" is an ordinary edit. That is how #886 put back five
+      # paragraphs #885 had consolidated, and #892 the whole pre-#885 AGENTS.md.
+      # Nothing else can see it: prose has no test, no type, no conformance rule.
+      #
+      # Advisory on purpose: a deliberate revert has the identical signature, and a
+      # hard gate on an ambiguous signal is one people learn to route around. A
+      # `Revert-Of:` trailer marks the intent. Needs history, so it deepens the
+      # shallow checkout for this step alone rather than making every other check in
+      # the job pay for a full clone.
       - name: Check for resurrected prose (advisory)
         continue-on-error: true
         env:

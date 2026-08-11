@@ -1,26 +1,17 @@
 /**
- * Rule `tier` (ADR 0003 + ADR 0005) — REPO-SCOPED.
+ * Rule `tier` (ADR 0003 + ADR 0005) — REPO-SCOPED, because `gjsify.tier` is a
+ * governance field of the `@gjsify/*` release train: how much stability THIS project
+ * promises, and which of ITS packages may depend on which. The check hard-codes
+ * `@gjsify/node-gi` by name (ADR 0005) and reads only `@gjsify/*` edges, so in a
+ * consumer's tree it would either find nothing or enforce a policy that is not theirs.
  *
- * Why repo-scoped rather than portable: `gjsify.tier` is a governance field of
- * the `@gjsify/*` release train — it says how much stability THIS project
- * promises for a package and which of ITS packages may depend on which. The
- * check hard-codes `@gjsify/node-gi` by name (ADR 0005) and reads only
- * `@gjsify/*` edges. In a consumer's tree it would either find nothing or
- * enforce a policy that is not theirs, so it stays here.
- *
- * Three checks, all hard failures:
- *
- *   1. tier-missing   : a published package lacks `gjsify.tier` ∈ {1,2,3}.
- *   2. tier-direction : a dep edge A→B (deps/optionalDeps, both @gjsify
- *                       workspace packages) where tier(B) > tier(A) — a
- *                       stability-promised package must not inherit a less
- *                       stable package's breakage (ADR 0003 rule 1).
- *                       devDependencies and (optional) peerDependencies are
- *                       exempt by design — they encode exactly this looseness.
- *   3. node-gi-isolation: ADR 0005 names `@gjsify/node-gi` explicitly — no
- *                       Tier-1/2 package may take a hard dependency on it.
- *                       (Subsumed by 2 while node-gi is Tier 3, but asserted
- *                       by name so the invariant survives a tier edit.)
+ * Three hard failures:
+ *   1. a published package lacks `gjsify.tier` ∈ {1,2,3};
+ *   2. a deps/optionalDeps edge A→B between workspace packages with tier(B) > tier(A)
+ *      (ADR 0003 rule 1) — devDeps and optional peerDeps encode exactly this
+ *      looseness and are exempt by design;
+ *   3. no Tier-1/2 package hard-depends on `@gjsify/node-gi`. Subsumed by 2 while
+ *      node-gi is Tier 3, but asserted by name so it survives a tier edit.
  */
 
 import { defineRule, packagesUnder, readManifest } from '../../../packages/infra/manifest-conformance/lib/index.mjs';
@@ -72,10 +63,9 @@ export function auditTiers(published) {
         if (!VALID_TIERS.has(info.tier)) continue; // already reported above
         for (const { dep, field } of info.edges) {
             const target = published.get(dep);
-            // Not a published workspace package (private example or external
-            // @gjsify/* pkg) — out of tier-contract scope. A published package
-            // depending on a private one is a publish-tooling failure, not a
-            // tier failure.
+            // Not a published workspace package (private example, or an external
+            // `@gjsify/*`) — out of tier-contract scope. A published package depending
+            // on a private one is a publish-tooling failure, not a tier failure.
             if (!target || !VALID_TIERS.has(target.tier)) continue;
             if (dep === '@gjsify/node-gi' && info.tier < 3) {
                 failures.push(

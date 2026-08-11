@@ -1,59 +1,43 @@
 #!/usr/bin/env node
 // Drop a `gjsify.platformsUncommitted` entry once its artifact IS committed.
 //
-// The entry means "this target is declared and CI builds it, but no artifact
-// lives in this repo yet", and the conformance rule turns it into a FAILURE the
-// moment `prebuilds/<target>/` appears — deliberately, so a deferral cannot
-// outlive its cause (AGENTS.md, OS-axis enforcement).
+// The entry means "declared and CI-built, but no artifact lives in this repo yet",
+// and the conformance rule turns it into a FAILURE the moment `prebuilds/<target>/`
+// appears, so a deferral cannot outlive its cause (docs/runtime-platform-axes.md).
 //
-// That is exactly what makes it a trap for the job that RESOLVES the cause.
-// `commit-prebuilds` downloads the artifacts and pushes them to `main`; the
-// next `audit-runtimes --check` on `main` then fails on an entry that is now
-// self-contradictory, and `main` stays red until a human notices and sends a
-// follow-up PR. The condition and its marker have to be cleared by the same
-// act, or the honest-deferral mechanism buys its honesty with a red default
-// branch every time a new target lands.
+// That makes it a trap for the job that RESOLVES the cause: `commit-prebuilds` pushes
+// the artifacts to `main`, the next `audit-runtimes --check` fails on a
+// now self-contradictory entry, and `main` stays red until a human sends a follow-up.
+// The condition and its marker have to be cleared by the same act, or honest deferral
+// buys its honesty with a red default branch every time a target lands.
 //
-// So this runs in `commit-prebuilds`, right before staging: for every package
-// declaring exemptions, an entry whose directory is now present on disk is
-// removed (and the object with it, when it empties). An entry whose artifact
-// did NOT arrive — a skipped package, a leg that did not run — is untouched,
-// which is the whole point: it still describes reality.
+// So this runs in `commit-prebuilds` right before staging. An entry whose artifact did
+// NOT arrive — skipped package, leg that did not run — is untouched: it still
+// describes reality.
 //
 // Usage: node scripts/clear-committed-platform-exemptions.mjs [--dry-run] [--root <dir>]
-//   STDOUT is the machine-readable half: one repo-relative path per file
-//   WRITTEN — the manifest whose exemption was cleared, plus every other
-//   generated file re-derived from that change — so the caller stages exactly
-//   those and nothing else (a `git add packages/*/*/package.json` in a job that
-//   pushes to `main` would sweep in whatever else happened to be dirty).
-//   Commentary goes to stderr. Exits 0 with empty stdout when there is nothing
-//   to clear — the common case.
+//   STDOUT is the machine-readable half: one repo-relative path per file WRITTEN, so
+//   the caller stages exactly those and nothing else (a `git add
+//   packages/*/*/package.json` in a job that pushes to `main` would sweep in whatever
+//   else was dirty). Commentary goes to stderr. Exits 0 with empty stdout when there
+//   is nothing to clear.
 //
-// WHY THIS WRITES MORE THAN THE MANIFEST
+// IT WRITES MORE THAN THE MANIFEST because `gjsify.platformsUncommitted` is an input
+// to TWO generated files: the manifest block and a "No artifact in this tarball yet"
+// paragraph that `generate-platform-packages.mjs` emits while `planned.state ===
+// 'uncommitted'`. `auditPlatformPackages` byte-compares both, so clearing only the
+// manifest leaves a README the generator no longer agrees with — which kept
+// `commit-prebuilds` red from 2026-08-01 with every build leg green and no prebuild
+// landing on `main` for 41 hours.
 //
-// `gjsify.platformsUncommitted` is an input to TWO generated files of a platform
-// package, not one: the manifest block itself, and a nine-line "No artifact in
-// this tarball yet" paragraph in the generated `README.md` that
-// `generate-platform-packages.mjs` emits only while `planned.state ===
-// 'uncommitted'`. `auditPlatformPackages` byte-compares BOTH. So deleting the
-// exemption and writing only the manifest leaves a README the generator no
-// longer agrees with, and the gate two steps later in `commit-prebuilds` fails
-// with `README.md is not what the generator emits now` — once per cleared
-// package. That is what kept `commit-prebuilds` red from 2026-08-01 onward, with
-// every build leg green and no prebuild landing on `main` for 41 hours.
-//
-// WHY IT STILL WRITES THE MANIFEST ITSELF RATHER THAN ASKING THE GENERATOR
-//
-// The generator's `write()` is parent-scoped: it re-emits every target of a
-// touched parent, and `expectedFiles` derives `gjsify.glibcRequires` by MEASURING
-// the binary on disk. The eight parents this script clears own 36 sibling `plan`
-// children, 26 of them carrying a measured glibc floor. Calling `write()` here
-// would let a job that pushes under `[skip ci]` silently raise a floor that the
-// `prebuild-libc` gate compares against two steps later — verbatim the failure
-// that gate exists to catch, and which has already fired for real (#927). So the
-// surgical delete stays, and the generator is used as an ORACLE: its manifest
-// must equal ours, or this script refuses. A floor is a promise to consumers; a
-// human declares it.
+// IT STILL WRITES THE MANIFEST ITSELF rather than asking the generator, because the
+// generator's `write()` is parent-scoped — it re-emits every target of a touched
+// parent, and `expectedFiles` derives `gjsify.glibcRequires` by MEASURING the binary
+// on disk. Calling it here would let a job pushing under `[skip ci]` silently raise a
+// floor that the `prebuild-libc` gate compares against two steps later, verbatim the
+// failure that gate exists to catch and which has fired for real (#927). So the
+// surgical delete stays and the generator is an ORACLE: its manifest must equal ours
+// or this script refuses. A floor is a promise to consumers; a human declares it.
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -111,8 +95,8 @@ export function clearSatisfiedExemptions(root, { dryRun: dry = false } = {}) {
         const exemptions = gjsify?.platformsUncommitted;
         if (!exemptions || Object.keys(exemptions).length === 0) continue;
 
-        // `gjsify.prebuilds` names the directory; a package declaring an
-        // exemption without one is a manifest bug the conformance rule owns.
+        // A package declaring an exemption without a `gjsify.prebuilds` directory is a
+        // manifest bug the conformance rule owns.
         const prebuildsDir = gjsify.prebuilds;
         if (!prebuildsDir) continue;
 
@@ -128,11 +112,9 @@ export function clearSatisfiedExemptions(root, { dryRun: dry = false } = {}) {
         // Match the tree's manifest style: 4-space indent, trailing newline.
         const surgical = `${JSON.stringify(data, null, 4)}\n`;
 
-        // Which OTHER generated files does this package have, and what should
-        // they look like now that the exemption is gone? Matched by NAME:
-        // `platformPackageName()` is the one truth for the parent→child mapping,
-        // and a path comparison would break the first time a root sits behind a
-        // symlink (macOS `/var` vs `/private/var`).
+        // Matched by NAME: `platformPackageName()` is the one truth for the
+        // parent→child mapping, and a path comparison would break the first time a
+        // root sits behind a symlink (macOS `/var` vs `/private/var`).
         plan ??= planPlatformPackages(generatorContext(root));
         let parent = null;
         let planned = null;
@@ -151,10 +133,9 @@ export function clearSatisfiedExemptions(root, { dryRun: dry = false } = {}) {
             // which is exactly what the generator keys the README block on.
             const want = expectedFiles(parent, { ...planned, state: 'plan', why: undefined });
 
-            // The generator is an ORACLE here, never the writer. If its manifest
-            // disagrees with the surgical delete, the difference is MEASURED from
-            // the artifact that just landed (`libc` / `gjsify.glibcRequires`) —
-            // numbers a delete cannot invent and this job must not declare.
+            // A disagreement here is MEASURED from the artifact that just landed
+            // (`libc` / `gjsify.glibcRequires`) — numbers a delete cannot invent and
+            // this job must not declare.
             if (want['package.json'] !== surgical) {
                 throw new Error(
                     `clear-committed-platform-exemptions: refusing to write ${data.name}.\n` +
@@ -165,8 +146,8 @@ export function clearSatisfiedExemptions(root, { dryRun: dry = false } = {}) {
                 );
             }
 
-            // Every OTHER generated entry, derived rather than hard-coded: a third
-            // generated file added to `expectedFiles` later is covered for free.
+            // Derived rather than hard-coded, so a third generated file added to
+            // `expectedFiles` later is covered for free.
             for (const [name, contents] of Object.entries(want)) {
                 if (name === 'package.json') continue;
                 const target = join(dirname(manifest), name);
@@ -176,9 +157,9 @@ export function clearSatisfiedExemptions(root, { dryRun: dry = false } = {}) {
             }
         }
 
-        // The `!dry` guard is load-bearing, not cosmetic: the e2e suite calls this
-        // function on the REAL monorepo root with `dryRun: true`, so unguarded
-        // re-emission would rewrite live package READMEs on every test run.
+        // The `!dry` guard is load-bearing: the e2e suite calls this on the REAL
+        // monorepo root with `dryRun: true`, so unguarded re-emission would rewrite
+        // live package READMEs on every test run.
         if (!dry) writeFileSync(manifest, surgical);
         for (const path of written) paths.push(posixRelative(root, path));
     }

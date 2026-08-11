@@ -1,8 +1,7 @@
-// DOM↔GTK bridges shipped under `packages/framework/*`.
-//
-// Bridges aren't measured as a coverage percentage — there's no canonical
-// "all bridges" list to compare against. They're a feature catalogue:
-// "these standard DOM elements have a native GTK rendering backend".
+// DOM↔GTK bridges (`packages/framework/*`), plus the native Vala bridges below.
+// Not a coverage percentage: there is no canonical "all bridges" list to divide
+// by, so this is a feature catalogue — "these standard DOM elements have a native
+// GTK rendering backend".
 
 export interface Bridge {
     domSurface: string;

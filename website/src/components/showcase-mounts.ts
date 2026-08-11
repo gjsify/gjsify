@@ -1,20 +1,17 @@
-// Lazy `mount()` loaders for every browser-mountable showcase — the one place
-// a showcase's browser entry is named. CLIENT-ONLY: importing this pulls in
-// three.js, Excalibur and adwaita-web, so it must never be imported from Astro
-// frontmatter. The SSR-safe half (names, asset dirs) is `showcase-registry.ts`.
-//
-// The dynamic `import()`s are written out one per showcase, with literal
-// specifiers, on purpose: a computed specifier
-// (`import('@gjsify/example-dom-' + name + '/browser')`) is not statically
-// analysable, so Vite could not split each showcase into its own chunk and the
-// landing page would download all of them to mount one.
+// Lazy `mount()` loaders for every browser-mountable showcase — the one place a
+// showcase's browser entry is named. CLIENT-ONLY: this pulls in three.js,
+// Excalibur and adwaita-web, so never import it from Astro frontmatter (the
+// SSR-safe half is `showcase-registry.ts`). The `import()`s are spelled out with
+// literal specifiers because a computed one is not statically analysable: Vite
+// could not give each showcase its own chunk, and the landing page would
+// download all of them to mount one.
 
 import type { ShowcaseMountOpts, ShowcaseName } from './showcase-registry.ts';
 
 /**
- * What a host holds on to after mounting. Every method is optional: the
- * slideshow pauses a demo that scrolls out of view, but a static showcase need
- * not implement that, and terminal-variant slides have no handle at all.
+ * What a host holds on to after mounting. All optional: only the slideshow
+ * pauses demos that scroll out of view, and terminal-variant slides have no
+ * handle at all.
  */
 export interface ShowcaseHandle {
     pause?: () => void;
@@ -25,13 +22,12 @@ export interface ShowcaseHandle {
 type ShowcaseMounter = (container: HTMLElement, opts: ShowcaseMountOpts) => Promise<ShowcaseHandle | undefined>;
 
 /**
- * Name → mounter. The `Record<ShowcaseName, …>` annotation is the mechanism
- * that keeps the landing page honest: add a showcase to `SHOWCASE_NAMES` and
- * this object stops type-checking until its mounter is here, so a showcase
- * cannot reach a page with no way to mount it. That is exactly how the LDraw
- * showcase shipped as an empty box — it was registered as a slide, while the
- * slideshow's private `switch` (with no exhaustiveness check of any kind) was
- * never given a matching arm.
+ * Name → mounter. The `Record<ShowcaseName, …>` annotation is the mechanism that
+ * keeps the landing page honest: adding a showcase to `SHOWCASE_NAMES` stops this
+ * object type-checking until its mounter is here, so a showcase cannot reach a
+ * page with no way to mount it. That is how the LDraw showcase shipped as an
+ * empty box — registered as a slide, with no matching arm in the slideshow's
+ * private, unchecked `switch`.
  */
 export const SHOWCASE_MOUNTS: Record<ShowcaseName, ShowcaseMounter> = {
     'three-postprocessing-pixel': async (container, opts) => {
@@ -69,11 +65,10 @@ export const SHOWCASE_MOUNTS: Record<ShowcaseName, ShowcaseMounter> = {
 };
 
 /**
- * Mount `name` into `container`, or report why nothing appeared. The guard is
- * not dead code: `name` reaches here as a `data-` attribute, i.e. as a string
- * the type system never saw, so a typo in a slide id or embed prop lands here
- * rather than in the compiler. Without it the symptom is a silent empty frame,
- * which is what made this class of bug expensive to find.
+ * Mount `name` into `container`, or report why nothing appeared. The guard is not
+ * dead code: `name` arrives as a `data-` attribute, a string the type system
+ * never saw, so a typo in a slide id or embed prop lands here rather than in the
+ * compiler — without it the symptom is a silent empty frame.
  */
 export async function mountShowcase(
     name: string,

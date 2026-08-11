@@ -1,32 +1,24 @@
 // Shared utility for running a GJS bundle with native package env vars.
 // Used by `gjsify run`, `gjsify dlx`, and the showcase command (via dlx).
 //
-// Detection runs the same exhaustive node_modules walker (`detectNativePackages`)
-// from two starting points and merges by package name (CWD shadows bundle):
+// Detection runs `detectNativePackages` from two starting points and merges by package name
+// (CWD shadows bundle): `process.cwd()` for native deps in the user's project, and
+// `dirname(bundlePath)` for those in whatever node_modules the bundle lives in — critical for
+// `gjsify dlx`, where the bundle sits under `~/.cache/gjsify/dlx/<sha>/…` and the user's CWD
+// is unrelated. The bundle-side walk also catches transitive deps' typelibs.
 //
-//   1. process.cwd()          — picks up native deps in the user's project
-//                               (yarn / pnpm / npm node_modules walking up).
-//   2. dirname(bundlePath)    — picks up native deps in whatever node_modules
-//                               the bundle lives in. Critical for `gjsify dlx`
-//                               where the bundle resides in
-//                               `~/.cache/gjsify/dlx/<sha>/.../node_modules/<pkg>/dist/`
-//                               and the user's CWD is unrelated. The bundle-side
-//                               walk also catches transitive deps' typelibs.
-//
-// Env composition is split out as `computeNativeEnvForBundle()` — a pure
-// function that takes a bundle path + cwd and returns the env it would inject.
-// This lets the e2e tests assert the env without spawning gjs.
+// Env composition is split out as the pure `computeNativeEnvForBundle()` so the e2e tests can
+// assert the env without spawning gjs.
 
 import { spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { detectNativePackages, buildNativeEnv, type NativeEnv } from './detect-native-packages.js';
 
 /**
- * Pure env computation for a given bundle. Returns the typelib +
- * shared-library search paths that {@link runGjsBundle} would inject into the
- * spawned `gjs` process, plus the formatted env-prefix string used for the
- * `$ …` echo. Which library variable is set is host-dependent
- * (`LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` / `PATH`) — see `buildNativeEnv`.
+ * Pure env computation: the typelib + shared-library search paths {@link runGjsBundle} would
+ * inject into the spawned `gjs`, plus the formatted prefix for the `$ …` echo. Which library
+ * variable is set is host-dependent (`LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` / `PATH`) — see
+ * `buildNativeEnv`.
  */
 export function computeNativeEnvForBundle(
     bundlePath: string,
@@ -41,23 +33,16 @@ export function computeNativeEnvForBundle(
     const seen = new Set(cwdPackages.map((p) => p.name));
     const nativePackages = [...cwdPackages, ...bundlePackages.filter((p) => !seen.has(p.name))];
 
-    // `inherited` feeds BOTH halves — the composition and the comparison. Split
-    // them and the win32 branch disagrees with itself: `buildNativeEnv` writes
-    // the library variable back under the host's own spelling (`Path` in a
-    // stock env block), so a comparison keyed on the canonical `PATH` would
-    // look up a key that is not there and call every run a change.
+    // `inherited` feeds BOTH halves — composition and comparison. Split them and the win32
+    // branch disagrees with itself: `buildNativeEnv` writes the library variable back under
+    // the host's own spelling (`Path` in a stock env block), so a comparison keyed on the
+    // canonical `PATH` would look up a key that is not there and call every run a change.
     const env = buildNativeEnv(nativePackages, { env: inherited });
-    // Show only what this CLI actually CHANGED. `buildNativeEnv` prepends the
-    // detected directories to the inherited value and returns the result
-    // unconditionally, so with no native packages it hands back the host's own
-    // variable verbatim — and the echo then claimed the CLI had set it.
-    //
-    // Harmless on Linux, where `LD_LIBRARY_PATH` is usually unset and the empty
-    // filter caught it. On Windows the library variable IS `PATH`, which is
-    // never empty, so every run printed a ~2 kB dump of the host PATH in front
-    // of a command the user is invited to copy — burying the command, and
-    // claiming a change that never happened. Comparing against the inherited
-    // value is what makes the echo honest on both.
+    // Show only what this CLI actually CHANGED: `buildNativeEnv` prepends to the inherited
+    // value unconditionally, so with no native packages it hands back the host's own variable
+    // verbatim. Harmless on Linux, where `LD_LIBRARY_PATH` is usually unset; on Windows the
+    // library variable IS `PATH`, never empty, so every run printed a ~2 kB dump of the host
+    // PATH in front of a command the user is invited to copy.
     const envPrefix = Object.entries(env)
         .filter(([key, value]) => value !== undefined && value !== '' && value !== inherited[key])
         .map(([key, value]) => `${key}=${value}`)
@@ -67,28 +52,24 @@ export function computeNativeEnvForBundle(
 }
 
 /**
- * Run a GJS bundle, automatically setting LD_LIBRARY_PATH and GI_TYPELIB_PATH
- * for any installed native gjsify packages discoverable from either the CWD
- * or the bundle's own node_modules tree.
+ * Options for {@link runGjsBundle}, which runs a GJS bundle with `GI_TYPELIB_PATH` and the
+ * host's library variable set for any native gjsify packages discoverable from the CWD or the
+ * bundle's own node_modules tree.
  */
 export interface RunGjsBundleOptions {
     /**
-     * Exit this process with code 0 once the child succeeds. Under GJS,
-     * `ensureMainLoop()` (armed by spawn) keeps the parent's GLib loop alive
-     * after the child exits — a TERMINAL caller (`gjsify run <file>`, `dlx`)
-     * must opt in here or it parks forever (this exact gap hung CI's
-     * "Test WebGL conformance" for 83 min: the suite finished in 1.35 s, the
-     * parent `gjsify run conformance.gjs.js` never exited). Callers that
-     * continue after the bundle (e.g. `gjsify test`'s multi-runtime
-     * aggregation loop) MUST leave this false — an unconditional exit here
-     * truncated `gjsify test` after the first gjs bundle.
+     * Exit this process with code 0 once the child succeeds. Under GJS, `ensureMainLoop()`
+     * (armed by spawn) keeps the parent's GLib loop alive after the child exits, so a TERMINAL
+     * caller (`gjsify run <file>`, `dlx`) must opt in or it parks forever — this gap hung CI's
+     * WebGL conformance job for 83 min on a suite that finished in 1.35 s. Callers that
+     * continue after the bundle (`gjsify test`'s multi-runtime loop) MUST leave this false; an
+     * unconditional exit truncated `gjsify test` after the first gjs bundle.
      */
     exitOnSuccess?: boolean;
     /**
-     * Suppress the `$ <env> gjs -m …` echo. The echo exists so a user can
-     * copy-paste the exact command, which is worth ~2 kB of env prefix for a
-     * one-shot `gjsify run <bundle>` — and is pure noise for a build script the
-     * chain invokes a dozen times (`utils/node-script.ts`).
+     * Suppress the `$ <env> gjs -m …` echo. Worth its ~2 kB of env prefix for a one-shot
+     * `gjsify run <bundle>`; pure noise for a build script invoked a dozen times per chain
+     * (`utils/node-script.ts`).
      */
     quiet?: boolean;
 }
@@ -107,25 +88,17 @@ export async function runGjsBundle(
 
     const gjsArgs = ['-m', bundlePath, ...extraArgs];
 
-    // Print the exact command being executed so users can copy-paste it to
-    // run gjs directly without the wrapper. Env vars are only shown if we
-    // actually set any (i.e. native gjsify packages were detected).
-    // Use stderr so that children speaking a protocol on stdout (e.g. an
-    // MCP stdio server) receive an uncontaminated stdout stream.
+    // Echo the exact command so users can copy-paste it and run gjs without the wrapper.
+    // stderr, so children speaking a protocol on stdout (an MCP stdio server) keep a clean one.
     const gjsCommand = ['gjs', ...gjsArgs.map((a) => (a.includes(' ') ? `"${a}"` : a))].join(' ');
     if (!options.quiet) console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${gjsCommand}`);
 
     const child = spawn('gjs', gjsArgs, { env, stdio: 'inherit' });
 
     let failed = false;
-    // The CHILD's own exit code, so it can be re-raised verbatim. A spawn error
-    // (no `gjs` on PATH) has no code of its own and falls back to 1.
-    //
-    // Collapsing every failure to 1 lost information a caller acts on: a script
-    // run through `gjsify run --node-script` reports ITS status (the bootstrap
-    // scripts all end `process.exit(r.status ?? 1)`, forwarding a child's code),
-    // and a chain that reads `$?` to distinguish "tool failed" from "tool says
-    // no" saw the same 1 for both.
+    // The CHILD's own exit code, re-raised verbatim; a spawn error (no `gjs` on PATH) has none
+    // of its own and falls back to 1. Collapsing every failure to 1 lost information callers
+    // act on — a chain reading `$?` to tell "tool failed" from "tool says no" saw 1 for both.
     let childCode = 1;
     await new Promise<void>((resolvePromise, reject) => {
         child.on('close', (code) => {
@@ -142,14 +115,12 @@ export async function runGjsBundle(
         failed = true;
     });
     if (failed) {
-        // Set `process.exitCode` synchronously BEFORE exiting: under GJS
-        // `process.exit()` is deferred (the GLib main loop is armed), so when
-        // this runs via run.ts's in-process script dispatch, execution returns
-        // to the caller, which propagates by reading `process.exitCode`. Without
-        // this, `gjsify run <script>` whose body is `gjsify run <bundle>`
-        // swallowed a non-zero gjs exit and returned 0 — masking a failing
-        // `test:gjs` in the `test` script chain (and, via `gjsify foreach test`,
-        // in CI). The `return` guards against a fall-through second `exit`.
+        // Set `process.exitCode` synchronously BEFORE exiting: under GJS `process.exit()` is
+        // deferred (the GLib main loop is armed), so under run.ts's in-process script dispatch
+        // execution returns to the caller, which propagates by reading `process.exitCode`.
+        // Without it, `gjsify run <script>` wrapping `gjsify run <bundle>` swallowed a non-zero
+        // gjs exit and returned 0 — masking a failing `test:gjs` in the `test` chain, and via
+        // `gjsify foreach test` in CI. The `return` guards a fall-through second `exit`.
         process.exitCode = childCode;
         return process.exit(childCode);
     }

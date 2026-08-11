@@ -61,7 +61,6 @@ export interface PopoverSurfaceVector {
     selector: string;
     /** Where it is vendored, with lines. */
     source: string;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -110,7 +109,6 @@ export interface PopoverKeyVector {
     context: PopoverKeyContext;
     /** What the renderer must do. */
     expected: PopoverKeyResolution;
-    /** Why this row exists. */
     rule: string;
 }
 

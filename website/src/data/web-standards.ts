@@ -1,23 +1,19 @@
-// Web platform standards coverage for gjsify.
-//
-// Source of truth: a curated inventory of relevant W3C/WHATWG web standards
-// (~60 entries) mapped against the `@gjsify/web-*` and supporting packages.
+// Web platform standards coverage: a curated inventory of ~60 relevant W3C/WHATWG
+// standards mapped against the `@gjsify/web-*` and supporting packages.
 //
 // Status tiers:
-//   full         — implementation reaches every consumer-facing surface
-//   partial      — core works; specific subsystems missing or behind a fallback
-//   missing      — in scope for gjsify but not implemented yet (roadmap)
-//   out-of-scope — standard exists but doesn't apply to desktop GTK apps
-//                  (Service Worker, FS Access, Web Bluetooth, …) — these
-//                  count against the total but are explicitly excluded
-//                  from the implementation roadmap
+//   full         — reaches every consumer-facing surface
+//   partial      — core works; subsystems missing or behind a fallback
+//   missing      — in scope but not implemented yet (roadmap)
+//   out-of-scope — doesn't apply to desktop GTK apps; counts against the total,
+//                  but is excluded from the roadmap
 
 export type StandardStatus = 'full' | 'partial' | 'missing' | 'out-of-scope';
 
 export interface WebStandard {
     name: string;
     status: StandardStatus;
-    /** `@gjsify/<x>` package(s) backing the implementation, when status != missing/out-of-scope */
+    /** Backing `@gjsify/<x>` package(s); absent for missing/out-of-scope entries. */
     pkg?: string;
     /** One-liner explaining out-of-scope decisions or partial gaps */
     note?: string;

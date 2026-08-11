@@ -3,23 +3,14 @@
  * CLI entry: fail when the TRACKED `gjsify-lock.json` does not carry the data
  * the current lockfile format promises.
  *
- * Why this exists — the bug it would have caught:
- *
- * `applyPlatformFilter()` decides per package whether this host can use it, and
- * marks the misses `inert` so they are never downloaded. It is entirely
- * DATA-DRIVEN: it reads `os` / `cpu` / `libc` / `optional` off each lockfile
- * entry. A `lockfileVersion: 2` entry carries none of those fields, so the
- * filter had nothing to filter on and every checkout installed every platform's
- * prebuilds — 4935 MB where 1268 MB is usable, 183 foreign-platform packages on
- * a linux-x64 host. The feature had shipped, with e2e coverage, and was dead in
- * this repo for one reason: the tracked lockfile was never regenerated.
- *
- * Nothing complained. That is the point. `install --immutable` deliberately
- * ACCEPTS old versions (`READABLE_LOCKFILE_VERSIONS`) so a fresh clone of an
- * older commit still installs, and every install therefore succeeded — quietly,
- * at 4× the size. A silent 3.7 GB is exactly the shape of defect that no test
- * asserting "the filter works" can see, because the filter did work; it was
- * handed empty inputs.
+ * `applyPlatformFilter()` is entirely DATA-DRIVEN — it reads `os`/`cpu`/`libc`/
+ * `optional` off each lockfile entry — and a `lockfileVersion: 2` entry carries
+ * none of them, so every checkout installed every platform's prebuilds (4935 MB
+ * where 1268 MB is usable, 183 foreign-platform packages on linux-x64). The
+ * filter had shipped with e2e coverage and was dead here for one reason: the
+ * tracked lockfile was never regenerated. Nothing complained, because
+ * `install --immutable` deliberately accepts old versions
+ * (`READABLE_LOCKFILE_VERSIONS`) so an older commit still clones and installs.
  *
  * So the check is on the DATA, not just the version number:
  *
@@ -27,16 +18,13 @@
  *   2. every entry whose NAME encodes a platform triple actually carries the
  *      matching `os` (and `cpu`, when the name encodes an arch).
  *
- * (2) is what makes this more than a version assertion: a regeneration that
- * bumped the number while dropping the fields — or a hand-edit, or a merge that
- * took one side of a conflicted lockfile — passes (1) and fails (2). It is a
- * real invariant rather than a count: the file itself names the packages that
- * MUST be platform-scoped, so there is no threshold to tune and nothing to keep
- * in sync as dependencies come and go.
+ * (2) is what makes it more than a version assertion: a regeneration that bumped
+ * the number while dropping the fields — or a hand-edit, or a merge taking one
+ * side of a conflicted lockfile — passes (1) and fails (2). The file names the
+ * packages that MUST be platform-scoped, so there is no threshold to tune.
  *
- * What it does NOT prove: that the filter's verdicts are correct. That is the
- * `install-platform-filter` e2e suite's job. This only guarantees the verdicts
- * are computed from real inputs.
+ * What it does NOT prove: that the filter's verdicts are correct — that is the
+ * `install-platform-filter` e2e suite's job.
  *
  * Usage: node scripts/check-lockfile-current.mjs
  */
@@ -51,15 +39,10 @@ const LOCKFILE_WRITER = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'src', '
 const LOCKFILE = join(MONOREPO_ROOT, 'gjsify-lock.json');
 
 /**
- * The `lockfileVersion` a fresh resolve writes, READ FROM THE WRITER.
- *
- * Never restate the number: a version the writer records and its checkers read
- * cannot disagree, so the next format bump needs no sweep of call sites. A parse
- * failure THROWS rather than guessing — a checker that silently fell back to a
- * literal would pass forever after the declaration moved.
- *
- * Exported because `tests/e2e/helpers.mjs` reads it too, and two readers of one
- * declaration is the duplication this function exists to prevent.
+ * The `lockfileVersion` a fresh resolve writes, READ FROM THE WRITER — never
+ * restated, so a format bump needs no sweep of call sites. A parse failure
+ * THROWS rather than guessing: a checker falling back to a literal would pass
+ * forever after the declaration moved. Exported for `tests/e2e/helpers.mjs`.
  */
 export function readLockfileVersion() {
     const src = readFileSync(LOCKFILE_WRITER, 'utf-8');
@@ -74,11 +57,9 @@ export function readLockfileVersion() {
 }
 
 /**
- * A package name that ends in a platform triple, e.g. `@gjsify/webgl-linux-x64`,
- * `…-darwin-arm64`, `…-linux-arm64-musl`. Matches the naming convention every
- * platform-scoped package in this workspace and its dependency tree follows
- * (esbuild's, which ADR 0017 adopted) — the same shape the prebuild packages are
- * published under.
+ * A package name ending in a platform triple, e.g. `@gjsify/webgl-linux-x64`,
+ * `…-darwin-arm64`, `…-linux-arm64-musl` — esbuild's convention, adopted by
+ * ADR 0017 and followed by every platform-scoped package in the tree.
  */
 const PLATFORM_NAME =
     /-(?<os>linux|darwin|win32|android|freebsd|openbsd|sunos)-(?<cpu>x64|arm64|arm|ia32|ppc64|s390x)(?<libc>-musl|-glibc)?$/;
@@ -104,8 +85,8 @@ function main() {
         );
     }
 
-    // The data check. Runs even on a version mismatch: knowing WHICH fields are
-    // absent is more actionable than the version number alone.
+    // Runs even on a version mismatch: WHICH fields are absent is more
+    // actionable than the version number alone.
     const packages = lock.packages ?? {};
     const stripped = [];
     for (const [path, entry] of Object.entries(packages)) {
@@ -148,19 +129,14 @@ function main() {
     );
 }
 
-// Run only when invoked as the CLI, because `tests/e2e/helpers.mjs` imports this
-// module for `readLockfileVersion()` and must not trigger the check (or its
-// `process.exit`) on import.
+// CLI-only, because `tests/e2e/helpers.mjs` imports `readLockfileVersion()` and
+// must not trigger the check (or its `process.exit`) on import.
 //
 // `pathToFileURL`, not a `file://` template: on Windows the interpolated form
 // yields `file://C:\…` against an `import.meta.url` of `file:///C:/…`, so the
-// guard would never match and this check would exit 0 having asserted NOTHING.
-// audit-runtimes.yml runs it on windows-latest as well as ubuntu, which is
-// exactly where a silently-skipped check does its damage.
+// guard never matches and this check exits 0 having asserted NOTHING — and
+// audit-runtimes.yml runs it on windows-latest as well as ubuntu.
 //
-// The `argv[1]` guard is not padding: under `node -e` / `--eval` / the REPL there
-// is no script path, and `pathToFileURL(undefined)` THROWS `ERR_INVALID_ARG_TYPE`
-// — so importing this module from an eval'd script would crash on the guard
-// itself. (The `file://` template form hid that by producing the harmless
-// non-match `file://undefined`, which is the same silent-skip trap in reverse.)
+// The `argv[1]` guard is not padding: under `node -e`/`--eval`/the REPL there is
+// no script path, and `pathToFileURL(undefined)` THROWS `ERR_INVALID_ARG_TYPE`.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

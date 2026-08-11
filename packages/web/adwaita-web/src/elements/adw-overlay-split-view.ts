@@ -32,25 +32,22 @@ import { bindBreakpointSetter } from '../breakpoints.js';
  *
  * libadwaita animates with a spring `(1, 0.5, 500)`
  * (adw-overlay-split-view.c:1163-1165). A browser cannot be handed spring
- * parameters, so this drives the progress from `requestAnimationFrame` on a
- * critically-damped approximation and lets the element write the resulting
- * geometry — which is the same seam the NativeScript port fills with
- * `View.animate()`, and the same one a test fills with an instant fake.
+ * parameters, so this approximates it from `requestAnimationFrame`. Pluggable so
+ * the NativeScript port can substitute `View.animate()` and a test an instant fake.
  */
 const CSS_SPLIT_VIEW_ANIMATOR: SplitViewAnimator = {
     animate(request) {
         let handle = 0;
         let cancelled = false;
         // 250ms is the visible settle time of libadwaita's spring at these
-        // parameters; the CURVE is an approximation and says so, the ENDPOINTS
-        // are exact because `onDone` writes `to`.
+        // parameters. The CURVE is an approximation; the ENDPOINTS are exact,
+        // because `onDone` writes `to`.
         const duration = 250;
         const start = performance.now();
         const step = (now: number) => {
             if (cancelled) return;
             const t = Math.min((now - start) / duration, 1);
-            // ease-out: fast first, settling — the visible signature of a spring
-            // with no overshoot, which is what `clamp` asks for anyway.
+            // ease-out — the visible signature of a spring with no overshoot.
             const eased = 1 - (1 - t) * (1 - t);
             request.onValue(request.from + (request.to - request.from) * eased);
             if (t < 1) {
@@ -75,9 +72,9 @@ const CSS_SPLIT_VIEW_ANIMATOR: SplitViewAnimator = {
  * read: absence means the default, not false.
  *
  * HTML boolean attributes are presence-only, which can only ever express a FALSE
- * default — so `show-sidebar` used to start hidden while `Adw.OverlaySplitView`
- * starts shown (adw-overlay-split-view.c:974-976). `show-sidebar="false"` is the
- * explicit off switch.
+ * default, while `Adw.OverlaySplitView:show-sidebar` starts shown
+ * (adw-overlay-split-view.c:974-976). `show-sidebar="false"` is the explicit off
+ * switch.
  */
 function readTriStateAttr(element: Element, name: string, fallback: boolean): boolean {
     const raw = element.getAttribute(name);
@@ -92,10 +89,10 @@ export class AdwOverlaySplitView extends HTMLElement {
     private _backdropEl!: HTMLDivElement;
     private _disposeBreakpoint: (() => void) | undefined;
     /**
-     * The single source of truth for the property interplay, shared with the
-     * NativeScript renderer (ADR 0004). The element owns the attributes and the
-     * painting; every rule about what `collapsed` + `show-sidebar` + `pin-sidebar`
-     * MEAN together lives in core, held to `OVERLAY_COLLAPSE_VECTORS`.
+     * The property interplay, shared with the NativeScript renderer (ADR 0004):
+     * the element owns the attributes and the painting, core owns what `collapsed`
+     * + `show-sidebar` + `pin-sidebar` mean together, held to
+     * `OVERLAY_COLLAPSE_VECTORS`.
      */
     private _state = new OverlaySplitViewState();
     /** Re-entrancy guard for {@link _reflectShowSidebar}. */
@@ -111,9 +108,7 @@ export class AdwOverlaySplitView extends HTMLElement {
     /**
      * Every attribute {@link _readAttribute} handles must be listed here — an
      * unobserved attribute never reaches `attributeChangedCallback`, so its branch
-     * is DEAD after construction. `pin-sidebar` was missing, which made the
-     * property that suppresses the collapse coupling settable only in the markup
-     * a parser saw: `view.setAttribute('pin-sidebar', '')` did nothing at all.
+     * is dead after construction and the property is settable only in parsed markup.
      */
     static get observedAttributes() {
         return [
@@ -148,13 +143,9 @@ export class AdwOverlaySplitView extends HTMLElement {
         else this.removeAttribute('collapsed');
     }
 
-    // The three defaults come from the widget, not from an app's taste: 180 /
-    // 280 / 0.25 (adw-overlay-split-view.c:1036-1075). They used to be 280 /
-    // 400 / 0.30 here, which are the values the three.js and canvas2d showcases
-    // set EXPLICITLY in their `.blp` — so an app's preference had been copied
-    // into the widget. The visible cost was in the storybook, whose whole
-    // purpose is a 1:1 comparison: the GTK story takes the real defaults and the
-    // browser story took these, so the two sides showed different sidebars.
+    // The three defaults are the widget's, not an app's taste: 180 / 280 / 0.25
+    // (adw-overlay-split-view.c:1036-1075). A showcase that wants other numbers
+    // sets them explicitly, so the storybook's GTK and browser sides stay 1:1.
     get minSidebarWidth(): number {
         return parseFloat(this.getAttribute('min-sidebar-width') || String(DEFAULT_MIN_SIDEBAR_WIDTH));
     }
@@ -182,41 +173,34 @@ export class AdwOverlaySplitView extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Capture slotted children before rebuilding DOM
         const sidebarChildren = Array.from(this.querySelectorAll('[slot="sidebar"]'));
         const contentChildren = Array.from(this.querySelectorAll('[slot="content"]'));
-        // Any remaining unslotted children go to content
+        // Unslotted children are content.
         const unslotted = Array.from(this.childNodes).filter(
             (n) => !sidebarChildren.includes(n as Element) && !contentChildren.includes(n as Element),
         );
 
-        // Clear children safely
         this.replaceChildren();
 
-        // Sidebar container
         this._sidebarEl = document.createElement('div');
         this._sidebarEl.className = 'adw-osv-sidebar';
         sidebarChildren.forEach((c) => this._sidebarEl.appendChild(c));
 
-        // Content container
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-osv-content';
         contentChildren.forEach((c) => this._contentEl.appendChild(c));
         unslotted.forEach((c) => this._contentEl.appendChild(c));
 
-        // Backdrop for overlay dismiss
         this._backdropEl = document.createElement('div');
         this._backdropEl.className = 'adw-osv-backdrop';
         this._backdropEl.addEventListener('click', () => this.hideSidebar());
 
         this.append(this._sidebarEl, this._contentEl, this._backdropEl);
 
-        // Apply initial state
         // The attributes present at parse time ARE the construction options —
-        // `Adw.OverlaySplitView` is built with its properties, it is not built
-        // and then mutated. Applying them as sequential setters instead would
-        // fire the collapse transition and auto-hide a sidebar that the markup
-        // explicitly asked to keep shown.
+        // `Adw.OverlaySplitView` is built with its properties, not built and then
+        // mutated. Sequential setters would fire the collapse transition and
+        // auto-hide a sidebar the markup explicitly asked to keep shown.
         this._state = new OverlaySplitViewState({
             collapsed: this.hasAttribute('collapsed'),
             showSidebar: readTriStateAttr(this, 'show-sidebar', true),
@@ -226,24 +210,22 @@ export class AdwOverlaySplitView extends HTMLElement {
             enableHideGesture: readTriStateAttr(this, 'enable-hide-gesture', true),
             animator: CSS_SPLIT_VIEW_ANIMATOR,
         });
-        // Every progress step repaints — the reveal is a CONTINUUM now, not two
-        // end states, which is what the five OVERLAY_SWIPE_* tables describe.
+        // Every progress step repaints: the reveal is a continuum, not two end
+        // states — the five OVERLAY_SWIPE_* tables describe it.
         this._state.subscribe(() => {
             this._reflectShowSidebar();
             this._syncClasses();
         });
 
-        // `escape_shortcut_cb` (adw-overlay-split-view.c:705-716) — absent from
-        // BOTH ports, which made `OverlaySplitViewState.escape()` dead code.
-        // Bound on the element, so it only fires while focus is inside the view
-        // and still propagates when the state declines to consume it.
+        // `escape_shortcut_cb` (adw-overlay-split-view.c:705-716). Bound on the
+        // element, so it only fires while focus is inside the view and still
+        // propagates when the state declines to consume it.
         //
-        // Bound ONCE, here, and never removed: a listener on the element itself
-        // survives detaching and is collected with the element, so there is
-        // nothing to leak — while re-adding it per connect would stack a second
-        // handler on every move. Only the two bindings that reach OUTSIDE the
-        // element (the observer below and the breakpoint's media query) need a
-        // teardown, and they are re-established on every connect.
+        // Bound ONCE and never removed: a listener on the element itself is
+        // collected with the element, so there is nothing to leak, while re-adding
+        // it per connect would stack a handler on every move. Only the bindings
+        // that reach OUTSIDE the element (the observer, the breakpoint's media
+        // query) need a teardown.
         this.addEventListener('keydown', this._onKeyDown);
         this._bindSwipe();
     }
@@ -252,17 +234,15 @@ export class AdwOverlaySplitView extends HTMLElement {
      * Everything that must be re-established every time the element enters a
      * document — NOT once per lifetime.
      *
-     * `connectedCallback` returns early on the second connect (the DOM is
-     * already built), so anything torn down in `disconnectedCallback` used to be
-     * gone for good: moving the view between parents — which is what a slideshow
-     * or a client-side route change does — killed the ResizeObserver and left
-     * `_measuredWidth` frozen at whatever it last saw, or at 0 if the view had
-     * never been visible. That is the other half of the docs-site regression.
+     * `_buildOnce` returns early on the second connect, so anything torn down in
+     * `disconnectedCallback` and rebound only there would be gone for good: moving
+     * the view between parents (a slideshow, a client-side route change) would kill
+     * the ResizeObserver and freeze `_measuredWidth`.
      */
     private _bindToDocument() {
-        // The view's own box is the size source, the same one the breakpoints
-        // use: the sidebar width is a FRACTION of it and has to be recomputed
-        // when it changes, which a one-shot read at connect could not do.
+        // The view's own box is the size source, the same one the breakpoints use:
+        // the sidebar width is a FRACTION of it, so a one-shot read at connect
+        // cannot keep up.
         this._resizeObserver?.disconnect();
         this._resizeObserver = new ResizeObserver((entries) => {
             const entry = entries[entries.length - 1];
@@ -273,11 +253,10 @@ export class AdwOverlaySplitView extends HTMLElement {
             this._syncClasses();
         });
         this._resizeObserver.observe(this);
-        // Seed synchronously so the FIRST paint after a connect is already
-        // placed. The observer's initial callback is a frame away, and on a
-        // re-connect there may be no size change at all for it to report.
-        // Zero is the honest answer while the view is in a `display: none`
-        // subtree, and `_syncGeometry` knows what to do with it.
+        // Seed synchronously so the FIRST paint after a connect is already placed:
+        // the observer's initial callback is a frame away, and on a re-connect
+        // there may be no size change for it to report at all. Zero is the honest
+        // answer inside a `display: none` subtree — `_syncGeometry` handles it.
         this._measuredWidth = this.offsetWidth;
     }
 
@@ -305,9 +284,9 @@ export class AdwOverlaySplitView extends HTMLElement {
         this._readAttribute(_name);
         // `collapsed` is in the list because `get_sidebar_width` IGNORES the
         // fraction while collapsed and clamps the VIEW width instead
-        // (adw-overlay-split-view.c:462-463) — a collapsed sidebar is a
-        // different number, not the same one drawn differently. Leaving it out
-        // is the frame-late bug the NativeScript port paid for.
+        // (adw-overlay-split-view.c:462-463) — a collapsed sidebar is a different
+        // number, not the same one drawn differently. Omitting it lands the width
+        // a frame late.
         if (
             _name === 'min-sidebar-width' ||
             _name === 'max-sidebar-width' ||
@@ -320,19 +299,17 @@ export class AdwOverlaySplitView extends HTMLElement {
     }
 
     /**
-     * Push ONE attribute into the state, then reflect back what the state made
-     * of it.
+     * Push ONE attribute into the state, then reflect back what the state made of it.
      *
-     * Per-attribute rather than a re-read of all of them, because `show-sidebar`
-     * is a value the state ALSO owns: collapsing auto-hides an unpinned sidebar,
-     * and a blanket re-read would immediately clobber that decision with the
-     * stale attribute.
+     * Per-attribute rather than a re-read of all of them: `show-sidebar` is a value
+     * the state ALSO owns (collapsing auto-hides an unpinned sidebar), so a blanket
+     * re-read would clobber that decision with the stale attribute.
      */
     private _readAttribute(name: string) {
         const state = this._state;
-        // `pin-sidebar` defaults FALSE (adw-overlay-split-view.c:990-992), so it
-        // is an ordinary presence attribute; `show-sidebar` below is the one that
-        // cannot be, and `sidebar-position` is an enum defaulting to 'start'.
+        // `pin-sidebar` defaults FALSE (adw-overlay-split-view.c:990-992), so it is
+        // an ordinary presence attribute; `show-sidebar` below is the one that
+        // cannot be.
         if (name === 'pin-sidebar') state.setPinSidebar(this.hasAttribute('pin-sidebar'));
         if (name === 'sidebar-position') {
             const position = this.getAttribute('sidebar-position');
@@ -341,8 +318,7 @@ export class AdwOverlaySplitView extends HTMLElement {
         if (name === 'show-sidebar') {
             state.setShowSidebar(readTriStateAttr(this, 'show-sidebar', true));
         }
-        // Both default TRUE (adw-overlay-split-view.c:1178-1210), so they read
-        // through the tri-state helper for the same reason `show-sidebar` does.
+        // Both default TRUE (adw-overlay-split-view.c:1178-1210), hence tri-state.
         if (name === 'enable-show-gesture') {
             state.setEnableShowGesture(readTriStateAttr(this, 'enable-show-gesture', true));
         }
@@ -403,10 +379,8 @@ export class AdwOverlaySplitView extends HTMLElement {
     /**
      * The reading direction `start` / `end` are resolved against.
      *
-     * `get_start_or_end` (adw-overlay-split-view.c:227-234) returns
-     * `GTK_PACK_END` under RTL, so a `start` sidebar is drawn on the RIGHT.
-     * Neither renderer mirrored any of it; the browser has the direction for
-     * free and only had to read it.
+     * `get_start_or_end` (adw-overlay-split-view.c:227-234) returns `GTK_PACK_END`
+     * under RTL, so a `start` sidebar is drawn on the RIGHT.
      */
     private get _direction(): AdwTextDirection {
         return getComputedStyle(this).direction === 'rtl' ? 'rtl' : 'ltr';
@@ -437,31 +411,25 @@ export class AdwOverlaySplitView extends HTMLElement {
         const atStart = isSidebarAtVisualStart(state.sidebarPosition, this._direction);
         this.classList.toggle('sidebar-start', state.sidebarPosition === 'start');
         this.classList.toggle('sidebar-end', state.sidebarPosition === 'end');
-        // The VISUAL side, which under RTL is the opposite of the logical one.
-        // The stylesheet needs it for the divider edge, which `border-inline-*`
-        // alone cannot get right: the divider follows where the pane is DRAWN.
+        // The VISUAL side, which under RTL is the opposite of the logical one. The
+        // stylesheet needs it for the divider edge, which `border-inline-*` alone
+        // cannot get right: the divider follows where the pane is DRAWN.
         this.classList.toggle('sidebar-at-visual-start', atStart);
 
-        // THE PANE STYLE CLASSES, which libadwaita documents as part of this
-        // widget's CSS node tree (adw-overlay-split-view.c:138-152) and switches
-        // in `update_collapsed` (:718-741): docked, the panes are `.sidebar-pane`
-        // and `.content-pane`; collapsed, the sidebar becomes an `.overlay-pane`
-        // floating above a content pane that carries no class at all.
-        //
-        // They are not decoration. `.overlay-pane` is what makes a collapsed
-        // sidebar drop the sidebar background for the window one, and they are
-        // the documented hook an app themes its own panes through — so leaving
-        // them off does not merely look wrong, it makes correct app CSS a no-op.
-        // The docs site is the proof: its split-view examples carried a
-        // hand-written `class="sidebar"` that styled nothing, written by someone
-        // reaching for exactly this and finding nothing there.
+        // The pane style classes are part of this widget's documented CSS node tree
+        // (adw-overlay-split-view.c:138-152), switched in `update_collapsed`
+        // (:718-741): docked, the panes are `.sidebar-pane` and `.content-pane`;
+        // collapsed, the sidebar becomes an `.overlay-pane` above a content pane
+        // carrying no class at all. Not decoration — `.overlay-pane` is what swaps
+        // the sidebar background for the window one, and both are the documented
+        // hook an app themes its panes through, so omitting them makes correct app
+        // CSS a no-op.
         this._sidebarEl?.classList.toggle('sidebar-pane', !state.collapsed);
         this._sidebarEl?.classList.toggle('overlay-pane', state.collapsed);
         this._contentEl?.classList.toggle('content-pane', !state.collapsed);
 
-        // Derived, not re-decided here: the shield only exists while collapsed
-        // AND revealed, and each pane is reachable by keyboard only when it is
-        // the one on screen.
+        // Derived, not re-decided here: the shield exists only while collapsed AND
+        // revealed, and a pane is keyboard-reachable only while it is on screen.
         if (this._backdropEl) this._backdropEl.hidden = !state.shieldVisible;
         this._sidebarEl?.setAttribute('aria-hidden', String(!state.sidebarFocusable));
         this._contentEl?.setAttribute('aria-hidden', String(!state.contentFocusable));
@@ -473,32 +441,22 @@ export class AdwOverlaySplitView extends HTMLElement {
      * Place the sidebar for the current progress — `allocate_uncollapsed`
      * (:572-610) and `allocate_collapsed` (:653-703), through the core.
      *
-     * The slide used to be `marginRight: -offsetWidth` REGARDLESS of which edge
-     * the sidebar is on, so an `end` sidebar slid the wrong way; and it was only
-     * two states, so a swipe had nothing to drive. `layoutOverlaySplitView`
-     * returns the pane rect for any progress including the overshoot, which is
-     * what makes a continuous gesture expressible at all.
+     * `layoutOverlaySplitView` returns the pane rect for ANY progress, overshoot
+     * included, which is what makes a continuous gesture expressible; the offset
+     * also has to follow the edge the sidebar is on, or an `end` sidebar slides the
+     * wrong way.
      */
     private _syncGeometry() {
         const sidebar = this._sidebarEl;
         if (!sidebar) return;
-        // NOTHING MEASURED YET — HAND THE PLACEMENT BACK TO THE STYLESHEET.
-        //
-        // This used to `return` and leave the inline styles alone, which is the
-        // one thing it must not do. The stylesheet no longer carries a
-        // `transform: translateX(±100%)` for the hidden end state (that is the
-        // point of driving the offset per frame), so an absolutely-positioned
-        // pane with no `left` resolves to `left: 0` at full opacity: a HIDDEN
-        // sidebar painted over the content at the wrong edge. Shipped that way
-        // in v0.32.0's `feat(adwaita)` commit and visible on the docs site,
-        // whose slideshow builds each slide hidden and moves it in — so the
-        // first measurement never arrived and the fallback was all there was.
-        //
-        // Clearing rather than skipping matters just as much: a STALE inline
-        // `left` from an earlier measurement outranks the resting rule (an
-        // absolutely-positioned box with `left` + `width` ignores `right`), so
-        // leaving the old value behind would defeat the stylesheet exactly when
-        // it is needed. `_resting.scss` carries the four end states.
+        // Nothing measured yet — hand the placement back to the stylesheet, and
+        // CLEAR rather than skip. The stylesheet carries no `transform:
+        // translateX(±100%)` for the hidden end state (the point of driving the
+        // offset per frame), so an absolutely-positioned pane with no `left`
+        // resolves to `left: 0` at full opacity — a hidden sidebar painted over the
+        // content at the wrong edge. A stale inline `left` is just as bad: with
+        // `left` + `width` set, the box ignores `right` and outranks the resting
+        // rule. `_resting.scss` carries the four end states.
         if (this._measuredWidth <= 0) {
             for (const prop of [
                 'left',
@@ -529,16 +487,15 @@ export class AdwOverlaySplitView extends HTMLElement {
 
         sidebar.style.width = `${layout.sidebar.width}px`;
         if (state.collapsed) {
-            // Floating above the content: absolutely placed at the rect the core
-            // returned, so an overshoot widens the pane instead of detaching it.
+            // Absolutely placed at the rect the core returned, so an overshoot
+            // widens the pane instead of detaching it.
             sidebar.style.marginLeft = '';
             sidebar.style.marginRight = '';
             sidebar.style.insetInlineStart = '';
             sidebar.style.left = `${layout.sidebar.x}px`;
         } else {
-            // Docked: the pane keeps its place in the flex row and the hidden
-            // part is taken off the edge it is ON — the left one at visual
-            // start, the right one at visual end.
+            // Docked: the pane keeps its place in the flex row and the hidden part
+            // is taken off the edge it is ON.
             sidebar.style.left = '';
             const hidden = measured - Math.trunc(measured * Math.min(state.showProgress, 1));
             sidebar.style.marginLeft = atStart ? `${-hidden}px` : '';
@@ -561,21 +518,16 @@ export class AdwOverlaySplitView extends HTMLElement {
         const bounds = resolveSidebarBounds(this._widthSpec, 0, { ceil: true });
         this._sidebarEl.style.minWidth = `${bounds.min}px`;
         this._sidebarEl.style.maxWidth = `${bounds.max}px`;
-        // NOT a CSS percentage. `(int)` truncates toward zero, and a percentage
-        // is fractional — core's own header forbids it in as many words, and
-        // this element carried one for its whole life.
+        // px, never a CSS percentage: the C `(int)` truncates toward zero and a
+        // percentage is fractional. Core's header forbids it.
         this._syncGeometry();
     }
 
-    // --- swipe (Adw.Swipeable) ---
-
     /**
-     * The pan gesture the five `OVERLAY_SWIPE_*` tables describe.
+     * The `Adw.Swipeable` pan gesture the five `OVERLAY_SWIPE_*` tables describe.
      *
-     * There was no gesture code in either renderer — grep for `pan` in both
-     * split views returned zero — so `showProgress` was only ever 0 or 1 and the
-     * tables shipped unexercised. Pointer events give the browser the whole
-     * gesture in three handlers; every DECISION in them is core's.
+     * Pointer events give the browser the whole gesture in three handlers; every
+     * DECISION in them is core's.
      */
     private _bindSwipe() {
         this.addEventListener('pointerdown', (event) => {
@@ -621,13 +573,11 @@ export class AdwOverlaySplitView extends HTMLElement {
                     return;
                 }
                 state.beginSwipe();
-                // Capture keeps the move/up events coming once the pointer
-                // leaves the element — an optimisation, not a precondition. It
-                // THROWS for a pointer id the browser has no active pointer for,
-                // which Firefox does strictly and Chromium tolerates: a synthetic
-                // event, or one whose pointer was already released, aborted the
-                // whole gesture before the progress was ever written. The swipe
-                // still works without it, so the failure is swallowed on purpose.
+                // Capture keeps the move/up events coming once the pointer leaves
+                // the element — an optimisation, not a precondition. It THROWS for
+                // a pointer id with no active pointer (Firefox strictly, Chromium
+                // tolerates), which a synthetic or already-released event hits, so
+                // the failure is swallowed rather than aborting the gesture.
                 try {
                     this.setPointerCapture(event.pointerId);
                 } catch {

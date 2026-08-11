@@ -1,13 +1,11 @@
 // On-disk packument metadata cache for `gjsify install`.
 //
 // Sibling to the content-addressable tarball cache (install-tarball-cache.ts).
-// Stores each package's abbreviated packument plus the registry `ETag` it came
-// with, so a re-resolve (lockfile miss — e.g. a dependency range changed) can
-// send a conditional `If-None-Match` and turn the unchanged majority into empty
-// `304 Not Modified` responses — a real bandwidth + parse saving on repeated /
-// dep-churn installs, on top of the ~4× gzip transfer for the changed minority
-// (packuments are fetched gzip-compressed and decoded by the fetch layer; see
-// `@gjsify/npm-registry` `fetchPackumentConditional`).
+// Stores each package's packument plus the registry `ETag` it came with, so a
+// re-resolve (lockfile miss — e.g. a dependency range changed) can send a
+// conditional `If-None-Match` and turn the unchanged majority into empty
+// `304 Not Modified` responses, on top of the ~4× gzip transfer for the changed
+// minority (see `@gjsify/npm-registry` `fetchPackumentConditional`).
 //
 // Mirrors pnpm's metadata cache + npm's make-fetch-happen HTTP-cache layer.
 //
@@ -15,24 +13,19 @@
 //
 //   $XDG_CACHE_HOME/gjsify/metadata/v3/<shard>/<shape>,<encoded-registry>,<encoded-name>.json
 //
-// The cache is keyed by (SHAPE, registry, name) — NOT name alone — so switching
-// the registry for a scope can never serve a packument from the wrong source on
-// a coincidental ETag match. `<shard>` is a 2-hex FNV-1a digest of the key, a
-// directory-fan-out step so the leaf dir never grows unbounded (same rationale
-// as the tarball cache's hex sharding). `v2` is a layout version.
+// Keyed by (SHAPE, registry, name) — NOT name alone — so switching the registry
+// for a scope can never serve a packument from the wrong source on a coincidental
+// ETag match. `<shard>` is a 2-hex FNV-1a digest of the key, directory fan-out so
+// the leaf dir never grows unbounded (as with the tarball cache's hex sharding).
 //
-// WHY THE SHAPE IS PART OF THE KEY (the v1 → v2 bump): the same packument URL
-// serves TWO different documents — the abbreviated "corgi" install document and
-// the full one — and only the full one carries a version's `libc` field (see
-// `@gjsify/npm-registry` `FetchOptions.fullMetadata`). With one key per (registry,
-// name), an escalated read would be answered by whichever shape happened to be
-// cached first: a musl-only package would come back `libc`-less, be judged
-// compatible on a glibc host, and get installed — a WRONG ANSWER that looks
-// exactly like a cache hit, with no failure until something dlopens the binary.
-// pacote prefixes its own cache key with `full:`/`corgi:` for precisely this
-// reason. The layout bump (rather than just a longer filename) makes the v1
-// entries — written before the distinction existed and therefore of unknown
-// shape — unreachable instead of ambiguous.
+// WHY THE SHAPE IS PART OF THE KEY: one packument URL serves TWO documents — the
+// abbreviated "corgi" install document and the full one — and only the full one
+// carries a version's `libc` (`@gjsify/npm-registry` `FetchOptions.fullMetadata`).
+// Keyed per (registry, name) alone, a read is answered by whichever shape was cached
+// first, so a musl-only package comes back `libc`-less, is judged compatible on a
+// glibc host, and installs — a wrong answer indistinguishable from a cache hit, with
+// no failure until something dlopens the binary. pacote prefixes its own key with
+// `full:`/`corgi:` for the same reason.
 //
 // Disabled with `GJSIFY_PACKUMENT_CACHE=0` (or `false`). Honours
 // `XDG_CACHE_HOME` like the tarball + dlx caches.
@@ -43,18 +36,16 @@ import type { Packument } from '@gjsify/npm-registry';
 
 import { atomicWrite, gjsifyCacheRoot, readCacheFile } from './install-cache-fs.js';
 
-// v3, and BOTH halves of the bump matter. v2 moved the separator off the
-// Win32-reserved `|` (see `packumentCacheKey`); v3 additionally makes the
-// document SHAPE part of the key. Either change alone makes older entries
+// v2 moved the separator off the Win32-reserved `|` (see `packumentCacheKey`); v3
+// made the document SHAPE part of the key. Either change alone makes older entries
 // unreachable rather than merely stale, so a new root retires them instead of
 // leaving ambiguous orphans under the old one.
 const CACHE_LAYOUT_VERSION = 'v3';
 
 /**
  * Which document shape an entry holds. `'corgi'` = the abbreviated
- * `application/vnd.npm.install-v1+json` install document (the default for every
- * resolve); `'full'` = `application/json`. Same names pacote uses, so the two
- * caches are describable in one sentence.
+ * `application/vnd.npm.install-v1+json` install document; `'full'` =
+ * `application/json`, the only one carrying `libc`. Same names pacote uses.
  */
 export type PackumentShape = 'corgi' | 'full';
 
@@ -109,25 +100,21 @@ function encodePart(part: string): string {
  * The cache key for a (shape, registry, name) triple — exported so the filename
  * rule below is a PROPERTY a test can assert, not a claim in a comment.
  *
- * THE SEPARATOR IS NOT COSMETIC. It used to be `|`, producing names like
- * `corgi|https%3A%2F%2Fregistry.npmjs.org%2F|%40gjsify%2Fnode-gi.json` — and `|`
- * is a Win32 RESERVED filename character, so every write failed with `EINVAL`.
- * Nothing reported it: `atomicWrite` is best-effort on purpose (a read-only
- * cache volume must not break an install) and `readCacheFile` reads an
- * unreadable path as a MISS. So on Windows this cache was never broken loudly —
- * it was silently DEAD, and the `If-None-Match` → `304` revalidation that is the
- * entire reason this file exists never engaged once.
+ * THE SEPARATOR IS NOT COSMETIC. `|` is a Win32 RESERVED filename character, so
+ * while it was the separator every write there failed with `EINVAL` and nothing
+ * reported it: `atomicWrite` is best-effort on purpose (a read-only cache volume
+ * must not break an install) and `readCacheFile` treats an unreadable path as a
+ * MISS. The cache was not broken loudly on Windows, it was silently DEAD, and the
+ * `If-None-Match` → `304` revalidation this file exists for never engaged once.
  *
- * `,` is legal on Win32 AND escaped by `encodeURIComponent`, which is what keeps
- * a flat three-part name injective: an encoded part cannot contain the
- * separator, so exactly one triple maps to any given filename. The shape needs
- * no encoding — it is one of two literals, neither containing the separator —
- * and it LEADS so that listing a shard groups by shape.
+ * `,` is legal on Win32 AND escaped by `encodeURIComponent`, which keeps a flat
+ * three-part name injective: an encoded part cannot contain the separator, so
+ * exactly one triple maps to any filename. The shape needs no encoding — one of two
+ * literals — and LEADS so listing a shard groups by shape.
  *
- * The shard key and the filename are derived from the SAME encoded parts. They
- * used to disagree — the key hashed the raw values while the name used the
- * encoded ones — which is how a reserved character in the name survived review
- * of a function whose other half looked correct.
+ * The shard key and the filename must derive from the SAME encoded parts; hashing
+ * the raw values while naming with the encoded ones is how a reserved character
+ * survived review of a function whose other half looked correct.
  */
 export function packumentCacheKey(registry: string, name: string, shape: PackumentShape): string {
     return `${shape},${encodePart(registry)},${encodePart(name)}`;
@@ -141,15 +128,15 @@ function pathFor(registry: string, name: string, shape: PackumentShape): string 
 }
 
 /**
- * Read a cached packument + its ETag for `(registry, name)` in the given
- * document `shape`. Returns `null` on a miss, when the cache is disabled, or
- * when the entry is unreadable/corrupt (treated as a miss — the caller just
- * re-fetches).
+ * Read a cached packument + its ETag for `(registry, name)` in the given document
+ * `shape`. Returns `null` on a miss, when the cache is disabled, or when the entry
+ * is unreadable/corrupt (treated as a miss — the caller re-fetches).
  *
- * `shape` defaults to `'corgi'` because that is what a resolve fetches and what
- * every caller predating the full-document escalation meant. A caller that
- * escalated MUST pass `'full'` — reading the corgi entry would return a body
- * with no `libc`, i.e. the exact wrong answer the shape key exists to prevent.
+ * The `shape` must be the one the body was fetched under: the two documents are
+ * different bodies with independently-versioned ETags behind ONE URL, so reading
+ * across shapes returns a `libc`-less body that looks exactly like a hit. The
+ * install backend resolves with `'full'`; the `'corgi'` default serves callers that
+ * do not escalate.
  */
 export function getCachedPackument(
     registry: string,
@@ -173,12 +160,11 @@ export function getCachedPackument(
 /**
  * Persist a packument + ETag for `(registry, name)` under its document `shape`.
  * Writes to a `<path>.tmp.<pid>` sibling then atomically renames so a concurrent
- * reader never sees a partial write. No-op when the cache is disabled, the ETag
- * is empty, or the write fails (read-only / out-of-disk cache volume must not
- * break the install).
+ * reader never sees a partial write. No-op when the cache is disabled, the ETag is
+ * empty, or the write fails (a read-only / out-of-disk cache volume must not break
+ * the install).
  *
- * `shape` is last and defaults to `'corgi'` to keep the pre-escalation call
- * shape valid; it must match the `accept` header the body was fetched with.
+ * `shape` must match the `accept` header the body was fetched with.
  */
 export function putCachedPackument(
     registry: string,

@@ -1,32 +1,24 @@
-// Runtime bundler pick (Phase D-2.B.5b → D-3.1 runtime-aware default).
+// Runtime bundler pick. `shouldUseNative()` chooses per host runtime: Node gets
+// npm `rolldown(opts).write(opts.output)`; GJS gets `@gjsify/rolldown-native` (the
+// Vala/Rust prebuild) via `bundleWithPlugins()`, with `runNativeBundle` replicating
+// npm rolldown's `.write()` including nested chunk/asset subdirectories. The native
+// engine is the GJS DEFAULT with no env var, because npm `rolldown` is a Rust N-API
+// addon that cannot load under GJS at all.
 //
-// The engine is chosen by `shouldUseNative()` per host runtime:
-//   - Node: npm `rolldown(opts).write(opts.output)`.
-//   - GJS:  `@gjsify/rolldown-native` (the Vala/Rust prebuild) via
-//           `bundleWithPlugins()`. npm `rolldown` is a Rust N-API addon
-//           that CANNOT load under GJS, so the native engine is the GJS
-//           DEFAULT — no env var needed (this is the Node-free build
-//           chain's bundler). This writes the BundleOutput to disk
-//           (`runNativeBundle`), replicating npm rolldown's `.write()`
-//           incl. nested chunk/asset subdirectories.
+// `GJSIFY_BUNDLER=native|npm` overrides that: `native` throws when the prebuild is
+// not loadable for the running architecture instead of silently switching engines;
+// `npm` forces the npm crate (Node only).
 //
-// `GJSIFY_BUNDLER=native|npm` is an explicit override: `native` forces
-// the native engine and throws if its prebuild isn't loadable for the
-// running architecture (instead of silently switching engines); `npm`
-// forces the npm crate (Node only).
+// Plugin hooks arrive either as bare functions (`load(id)`) or as
+// `{filter, handler}` objects; both are translated to `NativePlugin` form, with
+// `filter.id` regex/string sources becoming `idFilter.<hook>` regex strings on the
+// Rust side, and `this.resolve()` / `this.warn()` / `this.error()` routing through
+// the nested protocol.
 //
-// Plugin shape conversion: rolldown plugins may declare hooks either
-// as bare functions (`load(id)`) or as `{filter, handler}` objects.
-// Both shapes are translated to `NativePlugin` form. `filter.id`
-// regex/string sources become `idFilter.<hook>` regex strings on the
-// Rust side. `this.resolve()` / `this.warn()` / `this.error()` calls
-// inside hook handlers route through the B.3 nested protocol.
-//
-// Plugins that depend on rolldown context methods we don't implement
-// (`this.parse`, `this.emitFile`, `this.getModuleInfo`, …) will fail
-// at hook-call time. The current gjsify plugin set doesn't use any
-// of those, so we don't gate on it; future incompatibilities surface
-// as build errors rather than silent wrong behavior.
+// Plugins using rolldown context methods this bridge does not implement
+// (`this.parse`, `this.emitFile`, `this.getModuleInfo`, …) fail at hook-call time.
+// Deliberately not gated: the current gjsify plugin set uses none of them, and a
+// future incompatibility surfaces as a build error rather than silent wrong output.
 
 import { promises as fs, existsSync } from 'node:fs';
 import * as path from 'node:path';
@@ -36,28 +28,22 @@ import type { RolldownOutput, InputOptions, RolldownWatcher } from 'rolldown';
 import type * as Rolldown from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
 import { resolveNpmPackage } from './utils/resolve-npm-package.js';
-// Static, not dynamic: `diagnoseNativeEngine()` is synchronous and is called
-// inside a `throw` expression. Safe — check-system-deps imports only `node:`
-// builtins, so there is no cycle, and every one of them is already in the GJS
-// bundle via `commands/install.ts`.
+// Static, not dynamic: `diagnoseNativeEngine()` is synchronous and called inside a
+// `throw` expression. Safe because check-system-deps imports only `node:` builtins,
+// all of which the GJS bundle already carries via `commands/install.ts`.
 import { buildInstallCommand, detectPackageManager, missingSystemDepsFor } from './utils/check-system-deps.js';
 import { activateNativePrebuilds } from './utils/gi-search-path.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
-// npm `rolldown` is a Rust crate with platform-specific prebuilds; loading
-// it eagerly at module init pulls musl-detection code that does
-// `require('node:fs')` synchronously — fine on Node, but fatal under GJS
-// where the createRequire polyfill rejects synchronous builtin loads.
-// Dynamic import keeps it off the GJS code path entirely; the native
-// branch (`@gjsify/rolldown-native`) handles bundling there.
+// Loaded lazily: eager module-init loading of the npm crate pulls musl-detection
+// code that calls `require('node:fs')` synchronously — fine on Node, fatal under
+// GJS, where the createRequire polyfill rejects synchronous builtin loads.
 async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
-    // Under GJS the npm crate can NEVER run (its JS wrapper requires a
-    // napi binary). Reaching this loader under GJS means the native
-    // engine probe failed — historically that surfaced as an opaque
-    // `ImportError: Unsupported URI scheme for importing: node` from deep
-    // inside the crate's wrapper (e.g. on a truly-cold workspace where
-    // `@gjsify/rolldown-native`'s lib/ is not built yet, issue #497).
-    // Fail with the actionable diagnosis instead.
+    // Under GJS the npm crate can NEVER run (its JS wrapper needs a napi binary), so
+    // reaching this loader there means the native probe failed. That used to surface
+    // as an opaque `ImportError: Unsupported URI scheme for importing: node` from deep
+    // inside the crate's wrapper (#497, on a cold workspace where the native engine's
+    // lib/ was not built yet). Fail with the actionable diagnosis instead.
     if (isGjs()) {
         throw new Error(
             'gjsify build: no usable bundler engine under GJS — `@gjsify/rolldown-native` is not loadable, ' +
@@ -65,8 +51,8 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
                 diagnoseNativeEngine(),
         );
     }
-    // Indirect specifier so Rolldown's static-analysis doesn't try to
-    // bundle the npm crate into a GJS target build.
+    // Indirect specifier so Rolldown's static analysis does not try to bundle the npm
+    // crate into a GJS target build.
     const specifier = 'rolldown';
     const target = resolveImportTargetForGjs(specifier);
     const mod = (await import(/* @vite-ignore */ target)) as typeof Rolldown;
@@ -77,24 +63,19 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
  * Say WHY the native engine could not be loaded, read off disk rather than
  * guessed.
  *
- * The causes need different fixes, and this message used to assert the rarest
- * of them ("the CLI bundle was invoked DIRECTLY … bypasses the `gjsify`
- * launcher") as the "most likely cause". On the by-far most common one — a
- * freshly cloned + freshly installed tree, where the engine's JS facade has
- * simply never been built — that reading is not merely unhelpful, it points at
- * a launcher that was in fact used correctly, so the reader goes looking for an
- * env-var problem that does not exist. `scripts/verify-committed-bundles.mjs`
- * hit exactly that and it blocked releases. ADR 0021 then removed the bypassed
- * launcher as a CAUSE outright, so it is no longer among the candidates at all.
+ * The causes need different fixes, so never name the rarest as "most likely": this
+ * message used to lead with a bypassed `gjsify` launcher, which on the by-far most
+ * common case — a fresh clone where the engine's JS facade has never been built —
+ * sent readers after an env-var problem that did not exist, and blocked releases via
+ * `scripts/verify-committed-bundles.mjs`. ADR 0021 has since removed the bypassed
+ * launcher as a cause outright.
  *
  * NOTHING here may throw or recurse into the failure being explained. Branches 1
- * and 2 are `existsSync`-only (no import, no resolution). Branch 3 additionally
- * asks `missingSystemDepsFor()` and reads the memoized `activateNativePrebuilds()`
- * result — both safe by construction rather than by a catch: the former routes
- * every probe through `tryExecFile`, which returns null on any failure, and the
- * latter is an array the failing load attempt already computed. Keep that
- * property when editing: a probe that dies here replaces the diagnosis with its
- * own stack.
+ * and 2 are `existsSync`-only. Branch 3 also asks `missingSystemDepsFor()` and reads
+ * the memoized `activateNativePrebuilds()` result — safe by construction rather than
+ * by a catch: the former routes every probe through `tryExecFile`, which returns
+ * null on any failure, and the latter is an array the failed load already computed.
+ * Keep that property: a probe that dies here replaces the diagnosis with its stack.
  */
 function diagnoseNativeEngine(): string {
     let pkgDir: string | null = null;
@@ -136,30 +117,24 @@ function diagnoseNativeEngine(): string {
         );
     }
 
-    // Branch 3: installed AND built, so the typelib/prebuild LOOKUP failed.
+    // Branch 3: installed AND built, so the typelib/prebuild LOOKUP failed. Both
+    // remaining candidates are MEASURED, cheaply and without any call that can throw
+    // while explaining a failure, and the measured one prints first: #994 ran `ldd`
+    // over every committed linux-x64 prebuild on a consumer-baseline host and found a
+    // missing `libjson-glib-1.0.so.0` at least as common as the alternative — it is
+    // what ts-for-gir#437 hit, with this message on screen.
     //
-    // This branch used to assert "Most likely the CLI bundle was invoked
-    // DIRECTLY … bypasses the launcher" — repeating, one branch later, the exact
-    // mistake this function's docblock records fixing in branch 2: naming the
-    // rarest cause as the most likely one. After #994 measured `ldd` over every
-    // committed linux-x64 prebuild on a consumer-baseline host, a missing
-    // `libjson-glib-1.0.so.0` is at least as common, and it is what ts-for-gir#437
-    // actually hit — with this message on screen.
-    //
-    // So both candidates are now MEASURED, cheaply and without any call that can
-    // throw while explaining a failure, and the measured one is printed first.
-    //
-    // ADR 0021 RETIRED THE THIRD CANDIDATE. "The launcher was bypassed, export
-    // these two variables yourself" is no longer a cause of failure at all:
-    // `tryLoadNative()` calls `activateNativePrebuilds()` before the engine is
-    // loaded, which puts every detected prebuild dir on girepository's typelib
-    // AND library search paths in-process. Do not reintroduce it — besides now
-    // being false, the path it printed (`<facade>/prebuilds/<target>`) had been
-    // wrong since ADR 0017 moved every artifact into a per-target SIBLING
-    // package, so it told readers to export a directory that does not exist.
+    // ADR 0021 RETIRED A THIRD CANDIDATE: "the launcher was bypassed, export these
+    // two variables yourself" is no longer a cause at all, because `tryLoadNative()`
+    // calls `activateNativePrebuilds()` before the engine loads, putting every
+    // detected prebuild dir on girepository's typelib AND library search paths
+    // in-process. Do not reintroduce it — besides being false, the path it printed
+    // (`<facade>/prebuilds/<target>`) has been wrong since ADR 0017 moved every
+    // artifact into a per-target SIBLING package, so it named a directory that does
+    // not exist.
     const parts: string[] = ['The JS facade is built, so this is the typelib/prebuild lookup failing.'];
 
-    // (1) A declared system library that is not on this host. `missingSystemDepsFor`
+    // (1) A declared system library missing from this host. `missingSystemDepsFor`
     // reads the same tables `gjsify system-check` does, so the answer cannot drift
     // from the declaration.
     const missing = missingSystemDepsFor('@gjsify/rolldown-native');
@@ -179,11 +154,10 @@ function diagnoseNativeEngine(): string {
             );
     }
 
-    // (2) The remaining cause, last because it is the least actionable: no
-    // prebuild for this architecture. Read off the set `activateNativePrebuilds()`
-    // ACTUALLY put on the search paths — memoized, so this is a cached-array read
-    // that cannot throw, and unlike the old hand-composed path it names the
-    // per-target sibling package that really holds the artifact.
+    // (2) No prebuild for this architecture — last because it is least actionable.
+    // Read off the set `activateNativePrebuilds()` ACTUALLY put on the search paths:
+    // a memoized cached-array read that cannot throw, and it names the per-target
+    // sibling package really holding the artifact.
     if (missing.length === 0) {
         const engine = activateNativePrebuilds().find((p) => p.name.startsWith('@gjsify/rolldown-native'));
         parts.push(

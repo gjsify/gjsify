@@ -25,7 +25,6 @@ export interface SidebarClampVector {
     count: number;
     /** What `selected` reads back as: the index itself, or `-1` for no selection. */
     selected: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -69,7 +68,6 @@ export interface SidebarItemsChangedVector {
     added: number;
     /** `selected` after `items_changed_cb` has run. */
     expected: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -179,7 +177,6 @@ export interface SidebarModelVector {
     flat: ReadonlyArray<{ index: number; sectionIndex: number; sectionItemIndex: number; title: string }>;
     /** The headers that get drawn, in render order. */
     headers: ReadonlyArray<SidebarHeaderSpec>;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -315,7 +312,6 @@ export interface SidebarItemFlagsVector {
     subtitleVisible: boolean;
     /** `notify_icon_cb`'s `icon_name && *icon_name` (adw-sidebar.c:1303). */
     iconVisible: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -385,7 +381,6 @@ export interface SidebarActivationVector {
     selectionChanged: boolean;
     /** `selected` afterwards. */
     selected: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -481,7 +476,6 @@ export interface SidebarFilterVector {
     headers: ReadonlyArray<SidebarHeaderSpec>;
     /** The `.empty` / placeholder state — computed from the FILTERED count. */
     isEmpty: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -559,7 +553,6 @@ export interface SidebarModeVector {
     mode: 'sidebar' | 'page';
     /** Whether the selection is PAINTED in that mode. */
     selectionVisible: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 

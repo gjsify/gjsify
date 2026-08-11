@@ -508,13 +508,12 @@ export class FileHandle implements IFileHandle {
      * @experimental
      */
     readableWebStream(): ReadableStream {
-        // Resolve ReadableStream lazily from globalThis to keep the
-        // WHATWG streams implementation out of the bundle when this method
-        // is not actually used.
+        // Resolved from globalThis, not imported: keeps the WHATWG streams
+        // implementation out of the bundle when this method is unused.
         const Ctor = (globalThis as { ReadableStream?: typeof globalThis.ReadableStream }).ReadableStream;
         if (typeof Ctor !== 'function') {
             throw new Error(
-                'readableWebStream() requires a global ReadableStream. Import "node:stream/web" or "@gjsify/streams" before calling this method.',
+                'readableWebStream() requires a global ReadableStream. Import "node:stream/web" or "@gjsify/web-streams/register" before calling this method.',
             );
         }
         return new Ctor() as unknown as ReadableStream;

@@ -1,49 +1,30 @@
 // SPDX-License-Identifier: MIT
 // worker.terminate() mid-JS→GI-call regression for @gjsify/node-gi.
 //
-// The env-teardown fix (#730) closed the process-exit toggle-ref crash and gated
-// every C→JS re-entry trampoline, but a NARROWER residual remained: terminating a
-// worker_thread WHILE it is inside a native GI call (a hot loop) aborted the
-// process with SIGABRT. Mechanism: once the env can no longer run JS, a fallible
-// node-addon-api wrapper call fails, the throw is swallowed
-// (NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS), and the call returns a
-// DEFAULT-CONSTRUCTED value (`_env == nullptr`); the NEXT fallible wrapper call
-// chained onto that empty value funnels into node-addon-api's
-// Error::New(napi_get_last_error_info) NAPI_FATAL_IF_FAILED sites — OUTSIDE the
-// swallow valve — and aborts ("FATAL ERROR: Error::New napi_get_last_error_info").
-// The fix checks each fallible wrapper result (IsEmpty()) on the invoke/wrap/
-// marshalling/construction paths and returns cleanly instead (MakeGObjectHandle's
-// External::New → TypeTag chain in toggle.cc; the JsToGIArgument/JsToGValue/element
-// coercion chains + boxed/GType/paramspec handle wrapping via the common.h
-// NodeGiTo* helpers; ConstructGObject's GetPropertyNames→Length + name loop).
+// The env-teardown fix (#730) closed the process-exit toggle-ref crash, but a narrower
+// residual remained: terminating a worker_thread WHILE it is inside a native GI call
+// aborted with SIGABRT. Mechanism: once the env can no longer run JS a fallible
+// node-addon-api call fails, the throw is swallowed
+// (NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS) and the call returns a DEFAULT-CONSTRUCTED
+// value (`_env == nullptr`); the NEXT fallible call chained onto that empty value funnels
+// into node-addon-api's Error::New(napi_get_last_error_info) NAPI_FATAL_IF_FAILED sites —
+// OUTSIDE the swallow valve — and aborts. The fix checks each fallible wrapper result
+// (IsEmpty()) on the invoke/wrap/marshalling/construction paths and returns cleanly.
 //
-// WHAT THIS TEST GUARANTEES — and the CI-safety design:
-//
-// The deterministic thing the fix guarantees is "no SIGABRT" (the Error::New
-// funnel). It does NOT — and cannot — eliminate a SEPARATE, PRE-EXISTING hazard:
-// a SIGSEGV when the terminate lands while the worker OS thread is INSIDE a
-// blocking GLib C call (repro'd stack: g_str_hash ← g_hash_table_lookup ← ffi ←
-// gi_function_info_invoke — NO napi frame). That is the terminating isolate/
-// process teardown racing an OS thread stuck in native C code; node-gi has no
-// hook once ffi has dispatched into GLib, and it is IDENTICAL on the pre-fix
-// build. It can strike EITHER loop shape (both do GI C calls), at a few percent.
-//
-// So this test must be immune to that SIGSEGV. Two layers:
-//   1. ISOLATION — every terminate loop runs ENTIRELY in a spawned CHILD process
-//      (spawnSync). The `node --test` runner NEVER terminates a worker itself, so
-//      a worker/child SIGSEGV can never crash the runner; it is observed only as
-//      the child's exit signal.
-//   2. TOLERANCE — the pass condition is "the child did NOT die of SIGABRT
-//      (signal 6 / exit 134)". A SIGSEGV (signal 11) or a timeout kill is
-//      TOLERATED — those are the documented residual, not the funnel this fix
-//      closed. (An earlier version asserted a fully clean method-leg exit; the
-//      environmental SIGSEGV can hit the method loop too, so that assertion
-//      flaked CI — this is the fix for that.)
-// Children run with core dumps disabled (ulimit -c 0) so a SIGSEGV child dies
-// instantly instead of blocking on a core-dump handler (which could time the
-// child out on CI). Coverage stays strong: each child performs enough terminates
-// that if the funnel were OPEN, SIGABRT would be near-certain (pre-fix the
-// construction funnel was ~94% per terminate).
+// The fix guarantees "no SIGABRT" only. It cannot remove a separate PRE-EXISTING hazard:
+// a SIGSEGV when the terminate lands while the worker OS thread is inside a blocking GLib
+// C call (repro'd stack: g_str_hash ← g_hash_table_lookup ← ffi ← gi_function_info_invoke,
+// no napi frame) — teardown racing an OS thread stuck in C, with no node-gi hook once ffi
+// has dispatched, identical on the pre-fix build and possible on either loop shape. The
+// test is built to survive it:
+//   1. ISOLATION — every terminate loop runs in a spawned CHILD (spawnSync), so a
+//      worker/child SIGSEGV can never crash the `node --test` runner.
+//   2. TOLERANCE — pass condition is "the child did NOT die of SIGABRT". A SIGSEGV or a
+//      timeout kill is the documented residual; asserting a clean exit flaked CI.
+// Children run with core dumps disabled (ulimit -c 0) so a tolerated SIGSEGV dies instantly
+// instead of blocking on a core-dump handler and timing the child out. Each child does
+// enough terminates that an OPEN funnel is near-certain to abort (pre-fix, the construction
+// funnel SIGABRT'd on 188 of 200 terminates).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -53,9 +34,8 @@ import { join } from 'node:path';
 
 const indexUrl = new URL('../index.js', import.meta.url).href;
 
-// The worker hot-loop body per shape. `method` = fresh GObjects via
-// callStaticMethod + string marshalling (the MakeGObjectHandle funnel); `construct`
-// = newObject with props (the object.cc ConstructGObject/JsToGValue funnels).
+// `method` = fresh GObjects via callStaticMethod + string marshalling (the
+// MakeGObjectHandle funnel); `construct` = newObject with props (ConstructGObject/JsToGValue).
 const LOOP_BODY = {
     method: `
       const f = callStaticMethod('Gio', 'File', 'new_for_path', ['/tmp/node-gi-stress']);
@@ -69,11 +49,10 @@ const LOOP_BODY = {
       callMethod(g, 'add_action', [a]);`,
 };
 
-// One child = `terminates` full spawn-worker → hot-loop → random-dwell →
-// terminate cycles, all in this ISOLATED child process. `mainClaims` decides which
-// env owns the toggle machinery: false → the WORKER is the owner env (the named
-// repro — MakeGObjectHandle's owner path); true → the main thread claims first and
-// the worker takes the plain strong-ref wrap path.
+// One child = `terminates` spawn-worker → hot-loop → random-dwell → terminate cycles.
+// `mainClaims` decides which env owns the toggle machinery: false → the WORKER owns it
+// (the named repro, MakeGObjectHandle's owner path); true → the main thread claims first
+// and the worker takes the plain strong-ref wrap path.
 function runChild(terminates, mainClaims, shape) {
     const claim =
         shape === 'construct'
@@ -119,9 +98,7 @@ process.exit(0);
     );
     writeFileSync(file, script);
     try {
-        // Disable core dumps in the child (POSIX) so a tolerated SIGSEGV dies instantly
-        // rather than blocking on a core-dump handler and risking a spawn timeout on CI.
-        // Fall back to a direct spawn where a POSIX shell isn't available (e.g. Windows).
+        // Core dumps off (see header); Windows has no POSIX shell, so spawn directly there.
         if (process.platform === 'win32') {
             return spawnSync(process.execPath, [file], { timeout: 60000, encoding: 'utf8' });
         }
@@ -134,11 +111,8 @@ process.exit(0);
     }
 }
 
-// The ONLY deterministic pass condition: the isolated child must not die of the
-// Error::New funnel — SIGABRT (signal 6) or its exit-status form 134 (128+6). A
-// SIGSEGV (signal 11), a timeout kill (SIGTERM), or a clean exit are all TOLERATED
-// (the pre-existing terminate-mid-GLib-C-call residual — see the header). A SIGABRT
-// means the funnel this fix closed has regressed.
+// The only deterministic pass condition: no SIGABRT (signal 6, or its exit-status form
+// 134). SIGSEGV, a timeout kill, or a clean exit are all tolerated — see the header.
 function assertNoSigabrt(r, tag) {
     assert.notEqual(
         r.signal,
@@ -152,8 +126,7 @@ function assertNoSigabrt(r, tag) {
     );
 }
 
-// METHOD/STATIC-CALL loop — the MakeGObjectHandle (toggle.cc) + string-marshalling
-// funnels. Owner-env worker (the named repro path) + non-owner (plain strong-ref).
+// MakeGObjectHandle + string-marshalling funnels, owner-env worker and non-owner.
 test('terminate: worker.terminate() mid method/static GI-call never SIGABRTs', () => {
     for (let i = 0; i < 3; i++) {
         assertNoSigabrt(runChild(8, false, 'method'), `method owner-worker child ${i}`);
@@ -163,8 +136,7 @@ test('terminate: worker.terminate() mid method/static GI-call never SIGABRTs', (
     }
 });
 
-// CONSTRUCTION loop — the object.cc ConstructGObject/JsToGValue funnels (pre-fix
-// 188/200 SIGABRT). Owner + non-owner env.
+// ConstructGObject/JsToGValue funnels, owner and non-owner env.
 test('terminate: worker.terminate() mid-newObject never SIGABRTs (object.cc funnel closed)', () => {
     for (let i = 0; i < 3; i++) {
         assertNoSigabrt(runChild(8, i === 1, 'construct'), `construct child ${i}`);

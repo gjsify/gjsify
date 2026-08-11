@@ -1,20 +1,15 @@
 // HTML-entry support for `gjsify build --app browser`.
 //
-// Vite treats `index.html` as the build entry: it finds the
-// `<script type="module" src="...">`, bundles that module, and emits a
-// processed HTML with the script pointing at the built asset. `gjsify build`
-// only ever took a `.ts`/`.js` entry + `--outfile`, so browser apps hand-wrote
-// their shell page (the `write-app-html.mjs` pattern). This util brings the
-// Vite behaviour to the production Rolldown build.
+// Brings Vite's HTML-entry behaviour to the production Rolldown build: treat `index.html` as
+// the entry, find its `<script type="module" src="...">`, bundle that module, and emit a
+// processed HTML whose script points at the built asset.
 //
-// HTML emission MUST run as a CLI post-bundle step (mirroring `applyShebang`),
-// NOT as a Rolldown plugin `emitFile`: the native `@gjsify/rolldown-native`
-// engine implements no `emitFile`, so a plugin-based emit would work on the
-// npm engine (Node) but throw under the GJS-bundled CLI. Parsing is regex-based
-// and tolerant on purpose — this replaces a ~25-line hand-written script, not a
-// full HTML pipeline; CSS is NOT extracted here (it travels in the JS bundle as
-// a string via css-as-string and is injected by the app — the unified pattern
-// shared with the `--app gjs` target).
+// Emission MUST run as a CLI post-bundle step (mirroring `applyShebang`), NOT as a Rolldown
+// plugin `emitFile`: the native `@gjsify/rolldown-native` engine implements no `emitFile`, so a
+// plugin-based emit would work on the npm engine (Node) and throw under the GJS-bundled CLI.
+// Parsing is regex-based and tolerant on purpose — this is a shell-page rewrite, not a full HTML
+// pipeline. CSS is NOT extracted here: it travels in the JS bundle as a string via
+// css-as-string and is injected by the app, the same pattern the `--app gjs` target uses.
 
 import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import type { RolldownOptions } from 'rolldown';
@@ -29,11 +24,9 @@ export interface ParsedHtmlEntry {
 }
 
 /**
- * Return the `.html` path when `input` is a SINGLE html entry (a literal
- * `.html` string, a 1-element array of one, or a 1-key record whose value is
- * one) — else `null`. Multi-entry inputs and non-html entries (incl. globs
- * like `src/**\/*.ts`) are never treated as html. The path is returned as
- * authored (relative or absolute); the caller resolves + reads it.
+ * The `.html` path when `input` is a SINGLE html entry (a literal `.html` string, a 1-element
+ * array of one, or a 1-key record whose value is one) — else `null`. Multi-entry inputs and
+ * non-html entries are never treated as html. Returned as authored; the caller resolves + reads it.
  */
 export function detectHtmlEntry(input: RolldownOptions['input'] | undefined): string | null {
     if (!input) return null;
@@ -60,9 +53,8 @@ const SRC_ATTR_RE = /\bsrc\s*=\s*["']([^"']+)["']/i;
 const EXTERNAL_SRC_RE = /^(?:https?:)?\/\//i;
 
 /**
- * Find the FIRST `<script type="module" src="…">` whose `src` is a local
- * (non-`http(s)://`, non-`//`) path and resolve the referenced module against
- * the HTML file's directory. Throws when no such tag exists.
+ * The FIRST `<script type="module" src="…">` whose `src` is a local (non-`http(s)://`, non-`//`)
+ * path, with the module resolved against the HTML file's directory. Throws when there is none.
  */
 export function parseHtmlEntry(htmlPath: string, htmlSource: string): ParsedHtmlEntry {
     for (const match of htmlSource.matchAll(SCRIPT_MODULE_RE)) {
@@ -94,17 +86,16 @@ export interface EmitBrowserHtmlInput {
 }
 
 /**
- * Produce the emitted HTML: the original source with the entry script's `src`
- * rewritten to point at the built JS bundle, relative to the output HTML's own
- * directory (so the page is portable regardless of where `dist/` is served
- * from). Everything else — `<title>`, meta tags, other markup — is preserved.
+ * The original source with the entry script's `src` rewritten to the built JS bundle, relative
+ * to the output HTML's own directory so the page is portable wherever `dist/` is served from.
+ * All other markup is preserved.
  */
 export function emitBrowserHtml(input: EmitBrowserHtmlInput): string {
     const { htmlSource, scriptTag, scriptSrc, jsOutPath, outHtmlPath } = input;
     let rel = relative(dirname(outHtmlPath), jsOutPath).split(/[\\/]/).join('/');
     if (!rel.startsWith('.')) rel = `./${rel}`;
-    // Rewrite only the src value WITHIN the matched tag, then swap that tag
-    // back into the source — avoids touching any other `src=` in the document.
+    // Rewrite the src WITHIN the matched tag, then swap that tag back in — so no other `src=`
+    // in the document is touched.
     const newTag = scriptTag.replace(SRC_ATTR_RE, (whole) => whole.replace(scriptSrc, rel));
     return htmlSource.replace(scriptTag, newTag);
 }

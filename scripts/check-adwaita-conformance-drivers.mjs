@@ -3,21 +3,14 @@
 //
 // THE INCIDENT
 //
-// `@gjsify/adwaita-core/conformance` exists so that a renderer which
-// re-implements a derivation instead of delegating to core fails a unit test
-// naming the input. That only works if a renderer actually drives the table. A
-// census (issue #1072) found 44 tables with exactly ONE consumer, 43 of them
-// core-only — the derivation asserted against itself, with no renderer held to
-// it. Sixteen of those were silent gaps rather than deliberate.
-//
-// Some core-only tables are legitimate: an intermediate step whose COMPOSED
-// result is renderer-driven would otherwise be asserted twice. The problem is
-// telling the two apart, and two headers in this area were found asserting
-// coverage that did not exist — `TAB_TOOLTIP_VECTORS` claimed neither port had
-// tooltips when both consume the derivation, and `createViewSwitcherClock`
-// claimed all three suites drove the drag vectors when only core did. A comment
-// that asserts coverage reads as a reason not to look, which is the precise
-// failure mode the tables were introduced to prevent.
+// `@gjsify/adwaita-core/conformance` exists so a renderer that re-implements a
+// derivation instead of delegating to core fails a unit test naming the input —
+// which only works if a renderer actually drives the table. A census (#1072)
+// found 43 tables driven by core alone, the derivation asserted against itself,
+// 16 of them silent gaps rather than deliberate. Some core-only tables are
+// legitimate (an intermediate step whose COMPOSED result is renderer-driven), so
+// telling the two apart is the whole problem — and two headers here were found
+// asserting coverage that did not exist, which reads as a reason not to look.
 //
 // WHAT IT CHECKS
 //
@@ -28,13 +21,9 @@
 //   3. driven only by the core suite with no such line                     → FAIL
 //   4. driven by nothing at all                                            → FAIL
 //
-// The `CORE-ONLY:` line is deliberately in the TABLE's own header rather than in
-// a renderer's source: #1072 found three `TOOLBAR_VIEW_*` tables whose reason
-// lived in both renderers' `adw-toolbar-view.ts` and nowhere the table's reader
-// would look, so the table itself was still silent.
-//
-// Plain Node over the repo's own files — no install, no build — so it runs in
-// `audit-runtimes.yml` next to the other repo-scoped guards.
+// The `CORE-ONLY:` line belongs in the TABLE's own header, not a renderer's
+// source: #1072 found three `TOOLBAR_VIEW_*` tables whose reason lived in both
+// renderers and nowhere the table's reader would look.
 //
 // Usage: node scripts/check-adwaita-conformance-drivers.mjs [--root <dir>]
 
@@ -58,7 +47,6 @@ const RENDERER_DIRS = [
 /** The marker a core-only table must carry, in its own header. */
 const CORE_ONLY_MARKER = 'CORE-ONLY:';
 
-/** Every `.ts` under `dir`, recursively. */
 function walk(dir) {
     const out = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -70,11 +58,9 @@ function walk(dir) {
 }
 
 /**
- * Every exported vector table, with the text ABOVE its declaration.
- *
- * "Above" is everything back to the previous blank line that is not itself a
- * comment — which is the docblock plus any section banner, i.e. exactly what a
- * reader of the table sees.
+ * Every exported vector table, with the text ABOVE its declaration — back to the
+ * previous non-comment line, so the docblock plus any section banner, i.e.
+ * exactly what a reader of the table sees.
  */
 function tablesIn(file) {
     const source = readFileSync(file, 'utf8');

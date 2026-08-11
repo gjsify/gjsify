@@ -1,22 +1,17 @@
 // Short-lived, CROSS-INVOCATION cache for the npm 2FA one-time code.
 //
-// A TOTP stays valid for its ~30 s window, so a `login → onboard → publish →
-// trust` sequence of SEPARATE `gjsify` processes should reuse ONE typed code
-// instead of prompting per command. The in-process `OtpProvider` cache
-// (utils/npm-otp.ts) only survives a single command; this file is the layer
-// under it that survives across invocations.
+// A TOTP stays valid for its ~30 s window, so a `login → onboard → publish → trust` sequence of
+// SEPARATE `gjsify` processes should reuse ONE typed code instead of prompting per command. The
+// in-process `OtpProvider` cache (utils/npm-otp.ts) survives only a single command; this is the
+// layer under it that survives across invocations.
 //
-// Design:
-//   - Stored in a temp file (under `$XDG_RUNTIME_DIR`, else the OS temp dir —
-//     NEVER the repo), perms 0600, with a stamped absolute `expiresAt`.
-//   - TTL = one TOTP window (30 s), deliberately short. A read past the expiry
-//     ignores AND deletes the file.
-//   - Keyed by the REGISTRY URL, so a code for one registry is never replayed
-//     against another.
-//   - Best-effort: a cache miss/error NEVER breaks the command — a stale or
-//     unreadable entry degrades to "no cached code" (re-prompt).
-//   - Opt-out: `GJSIFY_NO_OTP_CACHE=1` disables it entirely; `gjsify logout`
-//     clears it.
+//   - A temp file under `$XDG_RUNTIME_DIR`, else the OS temp dir — NEVER the repo — perms 0600,
+//     with a stamped absolute `expiresAt`.
+//   - TTL = one TOTP window (30 s), deliberately short; a read past expiry ignores AND deletes.
+//   - Keyed by REGISTRY URL, so a code for one registry is never replayed against another.
+//   - Best-effort: a stale or unreadable entry degrades to "no cached code" (re-prompt), never
+//     an error.
+//   - `GJSIFY_NO_OTP_CACHE=1` disables it entirely; `gjsify logout` clears it.
 
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -77,8 +72,8 @@ function cacheFileFor(registry: string, opts?: OtpCacheOptions): string {
 }
 
 /**
- * Read the cached code for `registry`, or `undefined` on a miss / expiry /
- * opt-out. An EXPIRED entry is deleted as a side effect.
+ * The cached code for `registry`, or `undefined` on a miss / expiry / opt-out. An EXPIRED entry
+ * is deleted as a side effect.
  */
 export function readCachedOtp(registry: string, opts?: OtpCacheOptions): string | undefined {
     if (!isOtpCacheEnabled()) return undefined;
@@ -94,7 +89,7 @@ export function readCachedOtp(registry: string, opts?: OtpCacheOptions): string 
         // Registry mismatch (sanitized filename collision) → miss, don't delete.
         if (entry.registry !== normalizeRegistry(registry)) return undefined;
         if (now >= entry.expiresAt) {
-            deleteCacheFile(file); // expired → ignore + delete
+            deleteCacheFile(file);
             return undefined;
         }
         return entry.otp.length > 0 ? entry.otp : undefined;
@@ -106,8 +101,8 @@ export function readCachedOtp(registry: string, opts?: OtpCacheOptions): string 
 }
 
 /**
- * Persist `otp` for `registry` with a fresh TTL, perms 0600. No-op on opt-out
- * or empty code. Best-effort — a write failure never throws.
+ * Persist `otp` for `registry` with a fresh TTL, perms 0600. No-op on opt-out or an empty code;
+ * a write failure never throws.
  */
 export function writeCachedOtp(registry: string, otp: string, opts?: OtpCacheOptions): void {
     if (!isOtpCacheEnabled()) return;
@@ -120,8 +115,8 @@ export function writeCachedOtp(registry: string, otp: string, opts?: OtpCacheOpt
         const file = cacheFileFor(registry, opts);
         const entry: OtpCacheEntry = { otp, expiresAt: now + ttl, registry: normalizeRegistry(registry) };
         writeFileSync(file, JSON.stringify(entry), { mode: 0o600 });
-        // Enforce 0600 even when the file pre-existed with looser perms (writeFile
-        // only applies `mode` on create) — the code is a live secret.
+        // Enforce 0600 even when the file pre-existed with looser perms — `writeFileSync` applies
+        // `mode` only on create, and the code is a live secret.
         chmodSync(file, 0o600);
     } catch {
         /* best-effort — a cache write must never break the command */
@@ -138,7 +133,7 @@ export function clearAllCachedOtp(opts?: OtpCacheOptions): void {
     try {
         rmSync(cacheBaseDir(opts), { recursive: true, force: true });
     } catch {
-        /* ignore */
+        /* best-effort — an unremovable cache dir must not fail a logout */
     }
 }
 
@@ -157,6 +152,6 @@ function deleteCacheFile(file: string): void {
     try {
         if (existsSync(file)) rmSync(file, { force: true });
     } catch {
-        /* ignore */
+        /* best-effort — the entry has already been treated as a miss by every caller */
     }
 }

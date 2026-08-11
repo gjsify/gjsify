@@ -98,7 +98,6 @@ export interface ComboSelectionVector {
      * gated on `interactive`.
      */
     emitted: ReadonlyArray<ComboStateChange>;
-    /** Why this row exists — the rule or edge case it pins down. */
     rule: string;
 }
 
@@ -336,7 +335,6 @@ export interface ComboChooserVector {
     count: number;
     /** Whether the arrow is drawn and the row is activatable. */
     presentsChooser: boolean;
-    /** The rule this row pins down. */
     rule: string;
 }
 

@@ -1,12 +1,9 @@
-// Unit tests for the unified `spawnToCompletion` wrapper.
-//
-// Runs on the CLI's Node harness (`test:node`), where `isGjs()` is false and
-// therefore the streaming async path is always taken — which is exactly the
-// contract to pin down: `completion` must NEVER change behaviour off GJS. The
-// GJS-side half of the contract (a `'return'` caller must not park the CLI at
-// 0% CPU after the child exits) is a whole-process property that only shows up
-// in a real bundle, so it is guarded end-to-end by
-// `tests/e2e/spawn-gjs-teardown` instead.
+// Runs on the CLI's Node harness (`test:node`), where `isGjs()` is false and the
+// streaming async path is always taken — which is the contract to pin down:
+// `completion` must NEVER change behaviour off GJS. The GJS half (a `'return'`
+// caller must not park the CLI at 0% CPU after the child exits) is a whole-process
+// property visible only in a real bundle, guarded by
+// `tests/e2e/spawn-gjs-teardown`.
 
 import { describe, expect, it } from '@gjsify/unit';
 import { realpathSync } from 'node:fs';
@@ -17,18 +14,14 @@ import { describeExit, spawnToCompletion } from './spawn.js';
 const MISSING = 'gjsify-spawn-spec-definitely-not-a-command';
 
 /**
- * A portable stand-in for the `/bin/sh -c …` these tests used to spawn.
+ * A portable stand-in for `/bin/sh -c …`.
  *
- * Every assertion here is about the WRAPPER — exit code, stdio wiring, env
- * seeding, cwd — and none of them needs a shell to produce the observable. But
- * `/bin/sh` does not exist on Windows, so on that host all nine failed with
- * ENOENT before reaching anything they actually check. Node is already a hard
- * prerequisite of this harness (`test:node`), and `process.execPath` is the one
- * interpreter guaranteed to be present and identical on every platform.
- *
- * `-e` also removes the shell's own quoting from the picture, which is a real
- * hazard on Windows: `printf "%s" "$VAR"` has no cmd.exe equivalent, and
- * anything approximating it would test cmd's parser rather than this module.
+ * No assertion here needs a shell to produce its observable, and `/bin/sh` does
+ * not exist on Windows, where these rows all died of ENOENT before checking
+ * anything. `process.execPath` is the one interpreter guaranteed present and
+ * identical on every platform. `-e` also keeps the shell's quoting out of it:
+ * `printf "%s" "$VAR"` has no cmd.exe equivalent, and an approximation would test
+ * cmd's parser rather than this module.
  */
 function node(script: string): [string, string[]] {
     return [process.execPath, ['-e', script]];
@@ -108,9 +101,9 @@ export default async () => {
         });
 
         await it('resolves only after piped output has drained (close, not exit)', async () => {
-            // The child writes a chunk and exits immediately; awaiting `close`
-            // rather than `exit` is what guarantees the data is readable by the
-            // time the caller flushes.
+            // The child writes a chunk and exits immediately: awaiting `close` rather
+            // than `exit` is what guarantees the data is readable when the caller
+            // flushes.
             let out = '';
             await spawnToCompletion(...node("process.stdout.write('a'.repeat(5000))"), {
                 completion: 'exit',
@@ -222,10 +215,9 @@ export default async () => {
 
     await describe('spawnToCompletion — cwd', async () => {
         await it('runs the child in the requested working directory', async () => {
-            // The temp dir rather than `/`: on Windows `/` is not an absolute
-            // path at all (it means "root of the current drive"), so the child
-            // reported `C:\` and the assertion could never hold. `realpathSync`
-            // because macOS hands out `/var/folders/…`, a symlink to
+            // The temp dir rather than `/`: on Windows `/` means "root of the current
+            // drive", so the child reported `C:\` and the assertion could never hold.
+            // `realpathSync` because macOS hands out `/var/folders/…`, a symlink to
             // `/private/var/…`, and `process.cwd()` reports the resolved form.
             const dir = realpathSync(tmpdir());
             let out = '';
@@ -244,11 +236,11 @@ export default async () => {
         });
     });
 
-    // The two options `runLifecycleScript` needs. It was the one spawn in the CLI
-    // that bypassed this helper — a raw async `node:child_process.spawn` — because
-    // neither existed here. Under GJS that armed `ensureMainLoop()` with nothing to
-    // tear it down, and `gjsify pack` on a package with a `prepack` parked at 0% CPU
-    // after writing its tarball (#1010).
+    // The two options `runLifecycleScript` needs. Lacking them it was the one spawn
+    // in the CLI that bypassed this helper (a raw `node:child_process.spawn`), which
+    // under GJS armed `ensureMainLoop()` with nothing to tear it down: `gjsify pack`
+    // on a package with a `prepack` parked at 0% CPU after writing its tarball
+    // (#1010).
     await describe('spawnToCompletion — shell + inherit-stderr', async () => {
         await it('runs a command LINE through the shell', async () => {
             // `&&` is the observable: it is shell syntax, not argv.
@@ -272,10 +264,9 @@ export default async () => {
         });
 
         await it('accepts inherit-stderr without disturbing the exit code', async () => {
-            // Where the bytes LAND is an fd-level property this harness cannot
-            // observe from inside the parent; the e2e that packs with `--json`
-            // covers that. What is asserted here is that the mode is wired
-            // through both paths rather than silently dropped.
+            // Where the bytes LAND is an fd-level property this harness cannot observe
+            // from inside the parent (the e2e that packs with `--json` covers it).
+            // Asserted here: the mode is wired through both paths, not dropped.
             const r = await spawnToCompletion(...node("process.stdout.write('chatter'); process.exit(0)"), {
                 completion: 'return',
                 stdio: 'inherit-stderr',

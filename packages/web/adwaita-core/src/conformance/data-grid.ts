@@ -1,55 +1,38 @@
 // Data-grid conformance vectors — the cross-renderer spec for `AdwDataGrid`.
 //
-// WHAT THESE ARE DERIVED FROM, SINCE IT IS NOT C
-//
-// Every other table in this directory cites libadwaita source. This one cannot:
-// libadwaita vendors no `adw-data-grid.c`, `refs/gtk` is empty in this tree, and
-// the widget is OURS — the web mirror of the native `Gtk.Grid` an accounting app
-// fills for a BWA / P&L, not a port of an upstream class. So the rows below are
-// derived from the browser element that has shipped the behaviour
+// NOT DERIVED FROM C, and cannot be: libadwaita vendors no `adw-data-grid.c`,
+// `refs/gtk` is empty in this tree, and the widget is OURS — the web mirror of
+// the native `Gtk.Grid` an accounting app fills for a BWA / P&L. The rows are
+// derived from the browser element that shipped the behaviour
 // (`adwaita-web/src/elements/adw-data-grid.ts`) and its stylesheet
-// (`adwaita-web/scss/_data_grid.scss`), which is what the header rule of this
-// directory asks for in the absence of C: name the thing that decides, and say
-// when something less specific is being beaten.
+// (`adwaita-web/scss/_data_grid.scss`), per this directory's rule for the absence
+// of C: name the thing that decides.
 //
-// The one genuinely upstream rule that reaches this widget is typographic:
-// `_labels.scss:81-88` gives `.numeric` `font-variant-numeric: tabular-nums` and
-// `.monospace` the monospace family. It is cited on the class table and nowhere
-// else — the layout rules have no upstream to cite and must not be given a
-// borrowed one.
-//
-// WHY THE TABLE EXISTS WHEN THE IMPLEMENTATION IS ALREADY SHARED
+// The one genuinely upstream rule here is typographic — `_labels.scss:81-88`
+// gives `.numeric` `font-variant-numeric: tabular-nums` and `.monospace` the
+// monospace family. It is cited on the class table and nowhere else; the layout
+// rules have no upstream and must not be given a borrowed one.
 //
 // The five derivations live in `@gjsify/adwaita-core` and both renderers call
-// them, so there is no second copy to drift — today. What the rows pin is the
-// half a shared function cannot: that the two renderers make the SAME USE of the
-// answer. The track descriptor is the case that matters. The browser turns
-// `slack` into `minmax(0px, 1fr)` and NativeScript turns it into
-// `ItemSpec(1, 'star')`; nothing in either type system connects those two, and a
-// renderer that quietly re-decided which column absorbs the slack would still
-// type-check and still pass its own suite. The rows name the input.
+// them, so there is no second copy to drift. What the rows pin is the half a
+// shared function cannot: that the two renderers make the SAME USE of the answer.
+// The browser turns a `slack` track into `minmax(0px, 1fr)` and NativeScript into
+// `ItemSpec(1, 'star')`; nothing in either type system connects those, so a
+// renderer that re-decided which column absorbs the slack would still type-check
+// and still pass its own suite.
 //
-// One trap is written into the browser mapping and pinned here: the slack track
-// is `minmax(0px, 1fr)`, with `0px` spelled WITH its unit. `0` and `0px` are the
-// same length and not the same CSS text — `style.gridTemplateColumns` reads back
-// the canonical `minmax(0px, 1fr)`, so a template built with a bare `0` fails an
-// equality assertion in the browser and nowhere else.
+// A trap in the browser mapping, pinned here: the slack track spells `0px` WITH
+// its unit. `0` and `0px` are the same length and not the same CSS text —
+// `style.gridTemplateColumns` reads back the canonical `minmax(0px, 1fr)`, so a
+// template built with a bare `0` fails an equality assertion in the browser and
+// nowhere else.
 //
-// WHO DRIVES THIS TABLE
-//
-// The core suite (`data-grid.spec.ts`) against the functions themselves, and the
-// NativeScript suite (`data-grid.spec.ts`) against them plus its own
-// descriptor→`ItemSpec` mapping — its widget cannot be imported off-device
-// (`AdwDataGrid extends GridLayout` evaluates the bare `@nativescript/core`
-// specifier at module eval) and holds no derivation of its own.
-//
-// The browser side is held by its own DOM spec (`adw-data-grid.spec.ts`), which
-// drives a REAL `<adw-data-grid>` and reads the derived values back off the
-// element — `'minmax(0px, 1fr) auto'` and `'2fr 80px'` off
-// `style.gridTemplateColumns`, the `align-*` / `numeric` / `mono` classes off the
-// rendered cells, and the interactivity rule off which rows carry `.interactive`.
-// That suite predates this table and asserts the same values against the same
-// inputs, which is why lifting the functions into core did not need it touched.
+// Driven by the core suite against the functions themselves; by the NativeScript
+// suite against them plus its own descriptor→`ItemSpec` mapping (its widget cannot
+// be imported off-device — `AdwDataGrid extends GridLayout` evaluates the bare
+// `@nativescript/core` specifier at module eval); and by the browser's own DOM
+// spec, which drives a REAL `<adw-data-grid>` and reads the derived values back
+// off the element.
 //
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: the grid itself is a @gjsify/adwaita-* widget, not a port.
@@ -68,19 +51,17 @@ export interface DataGridTrackVector {
     tracks: ReadonlyArray<DataGridTrack>;
     /** The browser mapping — a `grid-template-columns` value. */
     template: string;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * `dataGridTracks` + `dataGridTrackTemplate`.
  *
- * The rule that needs the most rows is the implicit one: with NO `width` and NO
+ * The rule needing the most rows is the implicit one: with NO `width` and NO
  * `flex` anywhere, the FIRST column absorbs the slack and the rest size to
- * content. It is global, so a single declared size anywhere in the list turns it
- * off for every column — the pair of two-column rows below is the whole
- * difference between "label column stretches, figures hug the right edge" and
- * "every column hugs its content".
+ * content. It is global, so one declared size anywhere turns it off for every
+ * column — the difference between "label column stretches, figures hug the right
+ * edge" and "every column hugs its content".
  */
 export const DATA_GRID_TRACK_VECTORS: ReadonlyArray<DataGridTrackVector> = [
     {
@@ -165,23 +146,21 @@ export interface DataGridColumnClassVector {
     align: string;
     /** The full class list, in order. */
     classes: ReadonlyArray<string>;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * `dataGridColumnAlign` + `dataGridColumnClasses`.
  *
- * `numeric` and `mono` are libadwaita's own label classes
- * (`_labels.scss:81-88`): `.numeric` is `font-variant-numeric: tabular-nums`,
- * `.monospace` additionally the monospace family. They are opt-ins that stack,
- * and `numeric` additionally moves the default alignment to the right edge —
- * which is the entire difference between this widget and a boxed list.
+ * `numeric` and `mono` are libadwaita's own label classes (`_labels.scss:81-88`):
+ * `.numeric` is `font-variant-numeric: tabular-nums`, `.monospace` additionally
+ * the monospace family. They stack, and `numeric` also moves the default
+ * alignment to the right edge.
  *
  * `align` is deliberately unvalidated (the last row): a value outside the union
- * produces a class no stylesheet claims, and the cell keeps the base rule's
- * alignment. The variant table below IS validated, because a bogus variant would
- * pick an emphasis rather than merely fail to move text.
+ * produces a class no stylesheet claims and the cell keeps the base alignment.
+ * The variant table below IS validated, a bogus variant picking an emphasis
+ * rather than merely failing to move text.
  */
 export const DATA_GRID_COLUMN_CLASS_VECTORS: ReadonlyArray<DataGridColumnClassVector> = [
     {
@@ -243,17 +222,16 @@ export interface DataGridVariantVector {
     input: unknown;
     /** What it normalises to. */
     variant: AdwDataGridRowVariant;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * `normalizeDataGridVariant`.
  *
- * Unlike the alignment, this one IS clamped: the variant picks a row's EMPHASIS
- * — a spanning bold section title, a hairline rule above a subtotal, a double
- * rule above the total — so an unrecognised value must fall back to the plain
- * data row rather than to no rule at all.
+ * Unlike the alignment, this one IS clamped: the variant picks a row's EMPHASIS —
+ * a spanning bold section title, a hairline above a subtotal, a double rule above
+ * the total — so an unrecognised value falls back to the plain data row rather
+ * than to no rule at all.
  */
 export const DATA_GRID_VARIANT_VECTORS: ReadonlyArray<DataGridVariantVector> = [
     { input: 'normal', variant: 'normal', rule: 'the explicit default' },
@@ -275,18 +253,16 @@ export interface DataGridCellTextVector {
     input: string | number | boolean | undefined | null;
     /** What the cell paints. */
     text: string;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * `dataGridCellText`.
  *
- * The grid formats NOTHING — a cell value is a pre-formatted string, because
- * only the app knows the locale, the currency and the rounding. So the rule is
- * only about the two empties, and the rows that matter are `0` and `false`: a
- * truthiness test would blank both, and a blanked `0` in a statement column is a
- * missing figure, not a zero one.
+ * The grid formats NOTHING — a cell value is a pre-formatted string, only the app
+ * knowing the locale, currency and rounding. So the rule is only about the two
+ * empties, and the rows that matter are `0` and `false`: a truthiness test blanks
+ * both, and a blanked `0` in a statement column is a missing figure, not a zero.
  */
 export const DATA_GRID_CELL_TEXT_VECTORS: ReadonlyArray<DataGridCellTextVector> = [
     { input: '120.000,00 €', text: '120.000,00 €', rule: 'a pre-formatted string passes through untouched' },
@@ -310,18 +286,16 @@ export interface DataGridInteractiveVector {
     gridInteractive: boolean;
     /** Whether the row activates. */
     interactive: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * `dataGridRowInteractive`.
  *
- * Two independent rules, and both have a failure mode worth a row. Only a
- * `normal` row can ever activate: a section header, a subtotal and a total are
- * structure, and offering a detail view for a computed line leads nowhere. And
- * the per-row flag overrides the grid-level one in BOTH directions, which is the
- * part a single `||` or `&&` gets wrong.
+ * Two independent rules, each with a failure mode worth a row. Only a `normal`
+ * row can activate — a header, subtotal and total are structure, and a detail
+ * view for a computed line leads nowhere. And the per-row flag overrides the
+ * grid-level one in BOTH directions, which a single `||` or `&&` gets wrong.
  */
 export const DATA_GRID_INTERACTIVE_VECTORS: ReadonlyArray<DataGridInteractiveVector> = [
     {
@@ -399,18 +373,17 @@ export interface DataGridColumnNormalizeVector {
     input: unknown;
     /** The normalised descriptors. */
     columns: ReadonlyArray<AdwDataGridColumn>;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * `normalizeDataGridColumns`.
  *
- * The input is a parsed JSON attribute, so every field has to survive a value of
- * the wrong type. Two policies run side by side and the rows say which is which:
- * an entry WITHOUT a `key` is dropped (there is nothing to read from a row), and
- * a field of the wrong type is coerced (`key`, `label`, `width`) or discarded
- * (`flex`, `monospace`, `numeric`) rather than taking the whole entry down.
+ * The input is a parsed JSON attribute, so every field must survive a value of
+ * the wrong type. Two policies run side by side: an entry WITHOUT a `key` is
+ * dropped (nothing to read from a row), and a field of the wrong type is coerced
+ * (`key`, `label`, `width`) or discarded (`flex`, `monospace`, `numeric`) rather
+ * than taking the whole entry down.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (DATA_GRID_TRACK_VECTORS)
  */

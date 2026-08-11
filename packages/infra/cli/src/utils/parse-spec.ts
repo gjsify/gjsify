@@ -15,9 +15,9 @@ const NPM_NAME_RE = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
  * Local: starts with `./`, `../`, `/`, or is an existing directory path.
  * Registry: `<name>` | `<name>@<version>` | `@scope/<name>` | `@scope/<name>@<version>`
  *
- * The full spec string is preserved on the registry case so it can be passed
- * verbatim to `npm install` (which already understands dist-tags, ranges,
- * git URIs, tarball URLs, etc. — we don't re-parse those).
+ * `spec` keeps the input verbatim so the registry case can be handed straight to
+ * `npm install`, which already understands dist-tags, ranges, git URIs and tarball
+ * URLs — none of those are re-parsed here.
  */
 export function parseSpec(input: string): ParsedSpec {
     if (!input) throw new Error('dlx: empty package spec');
@@ -30,8 +30,7 @@ export function parseSpec(input: string): ParsedSpec {
         return { kind: 'local', path: resolve(input) };
     }
 
-    // Registry spec: split off the version after the LAST `@` that isn't the
-    // leading scope separator.
+    // Split the version off the LAST `@` — `lastAt > 0` skips a leading scope `@`.
     let name = input;
     let version: string | undefined;
     const lastAt = input.lastIndexOf('@');

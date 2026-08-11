@@ -35,7 +35,6 @@ export interface CarouselSnapPointVector {
     sizes: readonly number[];
     /** `snapPoint[i] = (Σ_{j≤i} size[j]) − 1`. */
     snapPoints: readonly number[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -61,7 +60,6 @@ export interface CarouselSizesFromSnapPointsVector {
     snapPoints: readonly number[];
     /** `sizes[0] = points[0] + 1`, `sizes[i] = points[i] − points[i−1]`. */
     sizes: readonly number[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -92,7 +90,6 @@ export interface CarouselRangeVector {
     lower: number;
     /** `MAX (0, positionShift + last snap point)`. */
     upper: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -127,7 +124,6 @@ export interface CarouselClampVector {
     snapPoints: readonly number[];
     /** `CLAMP (position, lower, upper)`. */
     clamped: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -157,7 +153,6 @@ export interface CarouselPageAtPositionVector {
     snapPoints: readonly number[];
     /** The page index, `-1` when there are no pages. */
     page: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -207,7 +202,6 @@ export interface CarouselNavigateVector {
     direction: CarouselDirection;
     /** The target page, `null` when C returns FALSE. */
     target: number | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -259,7 +253,6 @@ export interface CarouselWheelVector {
     source: CarouselScrollSource;
     /** Pages to step; `0` means the event propagates. */
     step: -1 | 0 | 1;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -353,7 +346,6 @@ export interface CarouselWheelLockoutVector {
     pages: number;
     /** The events, in order, each with the clock reading it arrives at. */
     steps: readonly CarouselWheelLockoutStep[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -410,7 +402,6 @@ export interface CarouselReorderShiftVector {
     size: number;
     /** How far `position` must move so the visible page does not jump. */
     shift: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -506,7 +497,6 @@ export interface CarouselPageListVector {
     pageChanged: readonly number[];
     /** The state afterwards. */
     expected: CarouselStateSnapshot;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -755,7 +745,6 @@ export interface CarouselRevealVector {
     ops: readonly CarouselRevealOp[];
     /** The state afterwards. */
     expected: CarouselStateSnapshot;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -887,7 +876,6 @@ export interface CarouselPropertyDefaultVector {
     property: 'orientation' | 'interactive' | 'allowScrollWheel' | 'allowLongSwipes' | 'spacing' | 'revealDuration';
     /** What a freshly constructed carousel reports. */
     value: string | number | boolean;
-    /** Why this row exists. */
     rule: string;
 }
 

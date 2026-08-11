@@ -4,56 +4,37 @@
 // headerbar-colored strip, with the selected chip raised onto the view
 // background.
 //
-// The MODEL is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
-// {@link TabViewState}, shared with the NativeScript twin and specced by the
-// conformance vectors in `@gjsify/adwaita-core/conformance`. This element is the
-// DOM half only: it turns declared markup into pages, builds and MOVES tab
-// chips, toggles visibility, reflects the selection to an attribute, re-emits
-// changes as DOM events, and maps key chords onto the state machine.
+// The MODEL is HEADLESS, in `@gjsify/adwaita-core`'s {@link TabViewState}
+// (ADR 0004), shared with the NativeScript twin and specced by
+// `@gjsify/adwaita-core/conformance`. This element is the DOM half only.
 //
-// What the lift fixed here, all of it C-derived:
-//   - `close-page` removed NOTHING, so every close was permanently denied. The
-//     default now closes a non-pinned page and denies a pinned one, exactly as
-//     `close_page_cb` does (adw-tab-view.c:1986-1993), and the event is
-//     CANCELABLE so `preventDefault()` defers the close until
-//     `closePageFinish()` — the "save before closing?" seam that did not exist.
-//   - `selected="99"` CLAMPED to the last page and `selected="-1"` to the first;
-//     libadwaita ignores both (:2145, :4126-4134).
-//   - `view.selected = 2` changed the visible page and fired nothing, while a
-//     tab click fired; C notifies on every path (:1854).
-//   - `<adw-tab-page>` declared `observedAttributes = ['title']` with no
-//     `attributeChangedCallback` behind it, so the declaration was dead and a
-//     title could never change. Titles, tooltips, icons and the loading state
-//     are now live, as `AdwTab` keeps them (adw-tab.c:930-931).
-//   - the bar hid on `pages <= 1` with no pinned clause, so a single PINNED tab
-//     hid the bar where libadwaita keeps it (adw-tab-bar.c:163).
-//   - the close button was always visible; it now follows `tabCloseVisible`
-//     (adw-tab.c:124 + the pinned gate at :645-650).
-//   - a roving tabindex was installed with NOTHING wired to move it, so every
-//     inactive tab was keyboard-unreachable under role=tablist.
+// The C rules that are not visible in the DOM code:
+//   - closing defaults to closing a non-pinned page and DENYING a pinned one
+//     (`close_page_cb`, adw-tab-view.c:1986-1993).
+//   - an out-of-range `selected` is IGNORED, not clamped (:2145, :4126-4134),
+//     and every path notifies, property sets included (:1854).
+//   - the bar stays up for a single PINNED tab (adw-tab-bar.c:163).
+//   - the close affordance follows `tabCloseVisible` (adw-tab.c:124, pinned gate
+//     :645-650), and titles/tooltips/icons/loading stay live (adw-tab.c:930-931).
 //
-// Pages are declared as <adw-tab-page> children (the element itself becomes the
-// page panel, so its attributes stay live) or added imperatively.
-// Attributes:
-//   selected     — zero-based index of the visible page; out-of-range is IGNORED.
-//   autohide     — hide the tab bar when it has nothing to show. NB Adw.TabBar
-//     defaults this to TRUE (`DEFAULT_TAB_AUTOHIDE`); an HTML boolean attribute
-//     cannot, so this stays opt-in — a deliberate, citable inversion.
-//   expand-tabs  — tabs stretch to fill the bar evenly (Adw.TabBar `expand-tabs`).
-//   no-close     — render no close affordance; web-specific escape hatch for
-//     static tab sets such as documentation command tabs.
-// <adw-tab-page> attributes: page-id, title, tooltip, icon, indicator-icon,
-//   loading, needs-attention, pinned.
-// Events:
-//   `notify::selected-page` (CustomEvent, bubbles,
-//     detail = { selected, selectedId, previousId, interactive }).
-//   `close-page` (CustomEvent, bubbles, CANCELABLE,
-//     detail = { index, id }) — one per close ATTEMPT. `preventDefault()` holds
-//     the page open until `closePageFinish(id, confirm)`.
-//   `page-attached` / `page-detached` / `page-reordered` / `page-pinned` /
-//     `page-updated` (CustomEvent, bubbles,
-//     detail = { id, position, previousPosition }) — one per page-list change,
-//     so a bound tab bar can move ONE chip instead of rebuilding.
+// Pages are declared as <adw-tab-page> children — the element itself becomes the
+// panel, so its attributes stay live — or added imperatively. The roving tabindex
+// must keep moving: under `role=tablist` a frozen one leaves every inactive tab
+// keyboard-unreachable.
+//
+// MODIFICATION: Adw.TabBar defaults `autohide` TRUE (`DEFAULT_TAB_AUTOHIDE`); an
+// HTML boolean attribute cannot express a TRUE default, so `autohide` is opt-in
+// here. `no-close` is web-specific, for static tab sets such as documentation
+// command tabs.
+//
+// Events (all CustomEvent, all bubbling): `notify::selected-page`
+// (`{ selected, selectedId, previousId, interactive }`); `close-page`
+// (`{ index, id }`), CANCELABLE and one per close ATTEMPT, where
+// `preventDefault()` holds the page open until `closePageFinish(id, confirm)`;
+// and `page-attached` / `page-detached` / `page-reordered` / `page-pinned` /
+// `page-updated` (`{ id, position, previousPosition }`), one per page-list change
+// so a bound tab bar can move ONE chip instead of rebuilding.
+//
 // Reference: refs/libadwaita/src/adw-tab-view.c (AdwTabView behaviour)
 // Reference: refs/libadwaita/src/adw-tab-bar.c (AdwTabBar autohide)
 // Reference: refs/libadwaita/src/adw-tab.c (AdwTab chip)

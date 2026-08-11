@@ -55,7 +55,6 @@ export interface RadioGroupVector {
     selected: ReadonlyArray<readonly [string, string | null]>;
     /** Every change the state emits, in order. This IS the renderer's repaint feed. */
     emitted: ReadonlyArray<RadioGroupChange>;
-    /** Why this row exists — the rule or edge case it pins down. */
     rule: string;
 }
 

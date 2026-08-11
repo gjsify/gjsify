@@ -1,26 +1,20 @@
 // Shared line-prefixed child-output forwarding for the parallel runners
-// (`gjsify foreach`, `gjsify check`).
+// (`gjsify foreach`, `gjsify check`) — one home for it, because the second,
+// unbuffered copy kept the hang below alive after the first was fixed.
 //
-// Under GJS, `process.stdout.write` is a BLOCKING `Gio.write_all`. Writing
-// each prefixed line LIVE during a PARALLEL run into a backpressuring pipe
-// (a CI log collector that drains slowly) stalls the single GLib main loop
-// on a full pipe → every parallel child's pipe backs up → their reads stall
-// → the whole run HANGS. (A tty or file sink never backpressures, which is
-// why this only ever bites in CI.) On a NON-tty sink we therefore BUFFER
-// each child's prefixed output and flush it as ONE write when that child
-// closes: the child is already done by then, so its own read can't stall,
-// and concurrent flushes serialize into brief loop stalls instead of a
-// deadlock. On a tty (interactive) lines are written live for responsive
-// output.
-//
-// This helper is the single home for that logic — `foreach` shipped the fix
-// first; `check` had an unbuffered copy that kept the hang class alive.
+// Under GJS `process.stdout.write` is a BLOCKING `Gio.write_all`. Writing lines
+// live during a PARALLEL run into a backpressuring sink (a slow-draining CI log
+// collector) stalls the single GLib main loop on a full pipe → every child's pipe
+// backs up → their reads stall → the run HANGS. A tty or file sink never
+// backpressures, which is why this only bites in CI. So on a NON-tty sink each
+// child's output is buffered and flushed as ONE write after it closes: the child
+// can no longer stall, and concurrent flushes serialize into brief loop stalls
+// instead of a deadlock. A tty gets live lines, for responsiveness.
 
 /**
- * Prefix every line of `src` with `prefix` and route it to `sink`. When
- * `buffered` is false (tty), lines are written live. When true (non-tty /
- * CI pipe), they are accumulated and emitted only by the returned `flush()`
- * — call it once the child has closed.
+ * Prefix every line of `src` with `prefix` and route it to `sink`. `buffered`
+ * withholds everything until the returned `flush()` runs — call that only once
+ * the child has closed.
  */
 export function prefixLines(
     src: NodeJS.ReadableStream,

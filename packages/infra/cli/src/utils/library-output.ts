@@ -1,29 +1,22 @@
 // Guard against the recurring "library build leaks into src/" footgun.
 //
-// `BuildAction.buildLibrary` derives its output directory from
-// `dirname(package.json "module" ?? "main")`. When a package points `main`
-// at its runtime SOURCE entry (`src/index.ts` — the intended entry for
-// Vite/gjsify-compiled consumers, e.g. `@gjsify/adwaita-web`), that derived
-// outdir is `src/`, so `gjsify build --library` writes the compiled `.js`
-// tree straight next to the sources: `src/*.js` / `*2.js` duplicates, a
-// `src/_virtual/` helper dir, and a nested `src/<pkg>/src/**` preserve-modules
-// tree. These pure helpers let the build action refuse that up front instead
-// of silently corrupting the source tree.
+// `BuildAction.buildLibrary` derives its outdir from `dirname(package.json "module" ?? "main")`.
+// When a package points `main` at its runtime SOURCE entry (`src/index.ts` — the intended entry
+// for Vite/gjsify-compiled consumers, e.g. `@gjsify/adwaita-web`), that outdir is `src/`, so
+// `gjsify build --library` writes the compiled tree next to the sources: `src/*.js` / `*2.js`
+// duplicates, a `src/_virtual/` helper dir, and a nested `src/<pkg>/src/**` preserve-modules
+// tree. These pure helpers let the build action refuse that up front.
 
 import { dirname, extname, isAbsolute, relative, resolve } from 'node:path';
 
 /**
- * The literal (non-glob) base directories the build's input source files live
- * in, derived from the bundler `input` patterns. A file entry maps to its
- * containing dir, a glob is reduced to the literal prefix before the first
- * wildcard:
- *   - `src/index.ts`   → `<cwd>/src`
- *   - `src/**` + `/*.ts` → `<cwd>/src`
- *   - `src`            → `<cwd>/src`
+ * The literal (non-glob) base directories the input source files live in, derived from the
+ * bundler `input` patterns: a file entry maps to its containing dir, a glob is reduced to the
+ * literal prefix before the first wildcard (`src/index.ts`, `src` and `src/**` + `/*.ts` all
+ * give `<cwd>/src`).
  *
- * The project root itself is intentionally excluded — a flat library that
- * keeps its source at the project root and emits there is an explicit layout,
- * not the `src/`-subdir footgun this guard targets.
+ * The project root is intentionally excluded — a flat library keeping its source at the root and
+ * emitting there is an explicit layout, not the `src/`-subdir footgun this guard targets.
  */
 export function inputSourceDirs(input: unknown, cwd: string): string[] {
     const patterns: string[] = [];
@@ -38,17 +31,15 @@ export function inputSourceDirs(input: unknown, cwd: string): string[] {
     const dirs = new Set<string>();
     for (const raw of patterns) {
         const norm = raw.replace(/\\/g, '/');
-        // Cut the pattern at the first glob metacharacter — everything before
-        // it is a literal path prefix.
+        // Everything before the first glob metacharacter is a literal path prefix.
         const globIdx = norm.search(/[*?{}[\]()!+@]/);
         let base = globIdx === -1 ? norm : norm.slice(0, globIdx);
         if (globIdx === -1) {
-            // Whole pattern is literal: a file path collapses to its dirname,
-            // a bare directory stays as-is.
+            // Wholly literal: a file path collapses to its dirname, a bare directory stays.
             base = extname(base) ? dirname(base) : base;
         } else {
-            // The glob cut mid-segment (`src/`, `src/fo*`) — drop the trailing
-            // partial segment so we keep only the complete literal directory.
+            // The glob cut mid-segment (`src/fo*`) — drop the trailing partial segment so only
+            // the complete literal directory remains.
             base = base.replace(/\/[^/]*$/, '');
         }
         const abs = resolve(root, base || '.');
@@ -64,24 +55,15 @@ function isInsideOrEqual(child: string, parent: string): boolean {
 }
 
 /**
- * `true` when writing library output to `outdir` would land build artifacts
- * inside (or directly on top of) the input source tree. Unsafe iff `outdir`
- * equals, or is nested under, any input source directory.
- *
- *   isOutdirInsideSource('src',      ['<cwd>/src'])       → true   (leak)
- *   isOutdirInsideSource('src/nest', ['<cwd>/src'])       → true   (leak)
- *   isOutdirInsideSource('dist/esm', ['<cwd>/src'])       → false  (safe)
- *   isOutdirInsideSource('lib',      ['<cwd>/src'])       → false  (safe)
+ * `true` when library output written to `outdir` would land inside (or on top of) the input
+ * source tree — i.e. `outdir` equals, or is nested under, any input source directory.
  */
 export function isOutdirInsideSource(outdir: string, sourceDirs: readonly string[], cwd: string): boolean {
     const absOut = resolve(cwd, outdir);
     return sourceDirs.some((dir) => isInsideOrEqual(absOut, dir));
 }
 
-/**
- * The error thrown when a `--library` build would emit into its own source
- * tree. Names both remedies so the fix is actionable at the point of failure.
- */
+/** The error thrown when a `--library` build would emit into its own source tree. */
 export function libraryOutputLeakError(outdir: string): Error {
     return new Error(
         `gjsify build --library: refusing to write output into "${outdir}", which holds the ` +

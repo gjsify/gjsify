@@ -92,7 +92,7 @@ are in [docs/code-anti-patterns.md](docs/code-anti-patterns.md) — read them be
 
 |**try/catch around a call that cannot throw** — for GI calls read the GIR, only `throws="1"` raises. A kept catch must STATE ITS REASON; `eslint/no-empty` is `error`
 |**paranoid probes for what the workspace guarantees** — redundant `x?.m?.()` on our own classes hides real bugs as silent no-calls. Only the documented probes are sanctioned
-|**comments that restate the code** — comment WHY; a restating comment is a second copy that drifts
+|**comments that restate the code** — comment WHY; a restating comment is a second copy that drifts. Cut restatement, narrative history, upstream source coordinates; keep the incident, GI quirks, spec links, error text. Per-tree volume gated against MEASURED ceilings by `scripts/check-comment-budget.mjs --check`
 |**duplication instead of a helper** — the SECOND copy is where you lift; the drifted copy fails in a CONSUMER while the owning package stays green
 |**scattered lifecycle** — cleanup beside creation, ownership in ONE place, wired to the exit the host actually has
 |**shelling out where an API exists** — pass an argv array (`Gio.Subprocess`), never an interpolated command line
@@ -130,17 +130,15 @@ Conventional commits `<type>[scope]: <description>`, imperative, ≤50-char subj
 
 ## PR size — prefer few large ones
 
-A full CI pass is ~25 minutes, and that cost is per PR, not per commit — which
-makes the arithmetic one-sided: **land one large feature PR rather than several
-small stacked ones.** The measurement behind it (four stacked PRs → three
-main-merge rounds and two bundle rebuilds before anything landed) is in
-[docs/governance.md](docs/governance.md).
+A full CI pass is ~25 minutes, and that cost is per PR, not per commit: **land one
+large feature PR rather than several small stacked ones.** The measurement (four
+stacked PRs → three main-merge rounds, two bundle rebuilds before anything landed)
+is in [docs/governance.md](docs/governance.md).
 
-**Do not idle on CI.** It starts on push and can be watched while work
-continues; a green run is a gate on MERGING, not on writing the next commit.
-Push, keep going, check back. Watch the WORKFLOW status rather than the check
-list — a workflow that has not spawned its jobs yet contributes zero checks, so
-"no pending checks" reads as green before anything has started.
+**Do not idle on CI.** A green run gates MERGING, not writing the next commit —
+push, keep going, check back. Watch the WORKFLOW status, not the check list: a
+workflow that has not spawned its jobs contributes zero checks, so "no pending
+checks" reads as green before anything has started.
 
 ## Constraints
 
@@ -162,15 +160,15 @@ axis 6 bundled toolchains → [docs/bundled-toolchains.md](docs/bundled-toolchai
 ## Writing agent context files
 
 **Budget first — an agent context file is loaded on EVERY turn, so its size is a permanent tax.**
-Root AGENTS.md ≤ 20 KB, any nested one ≤ 20 KB, and no single file over 32 KiB: that is
-`project_doc_max_bytes`, where Codex silently truncates the tail with no warning. This file was
-277 KB before it was split, reached one defensible paragraph at a time — the budget is the
-mechanism, not the intention.
+Every AGENTS.md ≤ 20 KB, nothing over 32 KiB: that is `project_doc_max_bytes`, where Codex
+silently truncates the tail with no warning. This file reached 277 KB before it was split, one
+defensible paragraph at a time. Nothing measures it yet — this file itself sits just over 20 KB —
+so treat the number as a hard edit target when you touch a section, not as a guarantee.
 
-**Where content goes.** A rule that is true repo-wide → this file. A rule scoped to one subtree →
-that subtree's AGENTS.md, which is authoritative there. The INCIDENT behind a rule, a lookup
-table, a procedure run a few times a year → `docs/`, linked from the rule. Growing a section past
-a screen is the signal to move its detail out and leave the rule plus one link, never to append.
+**Where content goes.** True repo-wide → this file. Scoped to one subtree → that subtree's
+AGENTS.md, authoritative there. The INCIDENT behind a rule, a lookup table, a rare procedure →
+`docs/`, linked from the rule. Growing a section past a screen is the signal to move its detail
+out and leave the rule plus one link, never to append.
 
 **Never compress away the INCIDENT that justifies a rule** — a rule without its reason gets
 "simplified" back into the bug. Moving it one hop into `docs/` preserves it; deleting it does not.

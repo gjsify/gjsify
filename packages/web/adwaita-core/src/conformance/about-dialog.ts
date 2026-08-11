@@ -1,17 +1,17 @@
 // About-dialog conformance vectors — the spec both renderers are held to.
 //
-// The `CREDIT_PERSON_VECTORS` rows were not written by reading `parse_person`.
-// They were produced by COMPILING the vendored function (adw-about-dialog.c:490-534)
-// against GLib 2.88 together with the `mailto:` step from `add_credits_section`
-// (:571-580) and printing its three out-parameters for each input — so the table
-// is the C's answer, not a second reading of it. Several rows surprised the
-// reading: `"Ada <https://x>"` leaves the `<` in the NAME, `"Ada <>"` is a link
-// row with the URI `mailto:`, and `"xhttps://x"` is the person `"x"`.
+// The `CREDIT_PERSON_VECTORS` rows are the C's answer, not a second reading of
+// it: they were produced by COMPILING the vendored `parse_person`
+// (adw-about-dialog.c:490-534) against GLib 2.88 with the `mailto:` step from
+// `add_credits_section` (:571-580) and printing its three out-parameters. Several
+// surprised the reading — `"Ada <https://x>"` leaves the `<` in the NAME,
+// `"Ada <>"` is a link row with the URI `mailto:`, `"xhttps://x"` is the person
+// `"x"`.
 //
-// The visibility tables are exhaustive over their inputs rather than
-// hand-picked, because `update_details`/`update_support`/`update_credits_legal_group`
-// are literally boolean algebra over three or four flags — an exhaustive table
-// is both shorter to justify and impossible to cherry-pick.
+// The visibility tables are exhaustive rather than hand-picked, because
+// `update_details`/`update_support`/`update_credits_legal_group` are boolean
+// algebra over three or four flags — exhaustive is shorter to justify and
+// impossible to cherry-pick.
 //
 // Reference: refs/libadwaita/src/adw-about-dialog.c
 // Reference: refs/libadwaita/src/adw-about-dialog.ui
@@ -31,18 +31,17 @@ export interface CreditPersonVector {
     isEmail: boolean;
     /** The URI the row gets (`add_credits_section` :571-580). */
     uri: string | null;
-    /** Why this row exists — the rule or edge case it pins down. */
     rule: string;
 }
 
 /**
  * `parse_person` (adw-about-dialog.c:490-534), verified against real GLib.
  *
- * Seven of these rows are the browser renderer's divergences, and each was a
- * plausible-looking simplification: anchoring the angle pair at the end of the
- * string, testing the link for `@`, requiring whitespace before a bare URL,
- * accepting `mailto:` as a scheme, `String.trim()` instead of `g_strstrip`,
- * treating index 0 as falsy, and never reaching the `r1 <= q1 + 1` branch.
+ * Seven rows are the browser renderer's divergences, each a plausible-looking
+ * simplification: anchoring the angle pair at the end of the string, testing the
+ * link for `@`, requiring whitespace before a bare URL, accepting `mailto:` as a
+ * scheme, `String.trim()` instead of `g_strstrip`, treating index 0 as falsy, and
+ * never reaching the `r1 <= q1 + 1` branch.
  */
 export const CREDIT_PERSON_VECTORS: ReadonlyArray<CreditPersonVector> = [
     {
@@ -336,7 +335,6 @@ export interface TranslatorCreditsVector {
     value: string | null;
     /** The names the "Translated by" section is built from. */
     people: ReadonlyArray<string>;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -346,7 +344,7 @@ export interface TranslatorCreditsVector {
  *
  * The empty-string row is the one a port gets wrong: `g_strsplit ("", "\n", 0)`
  * is a ZERO-length vector, so `add_credits_section` bails at `!*people`
- * (:545-546) and no section is drawn; JS `''.split('\n')` is `['']`, which
+ * (:545-546) and no section is drawn, where JS `''.split('\n')` is `['']` and
  * draws the section with one blank row.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
@@ -392,16 +390,15 @@ export interface CreditsSectionsVector {
     };
     /** The groups on the Credits page, in order, with each row's title + URI. */
     sections: ReadonlyArray<{ title: string | null; people: ReadonlyArray<{ name: string; uri: string | null }> }>;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * `update_credits` (:593-627) — which groups exist, in which order.
  *
- * The order is fixed by the five `add_credits_section` calls (:611-619) followed
- * by the app's own sections in insertion order (:621-625). An empty property is
- * not an empty group, it is no group (:545-546).
+ * The order is fixed by the five `add_credits_section` calls (:611-619) then the
+ * app's own sections in insertion order (:621-625). An empty property is not an
+ * empty group, it is no group (:545-546).
  */
 export const CREDITS_SECTIONS_VECTORS: ReadonlyArray<CreditsSectionsVector> = [
     {
@@ -480,7 +477,6 @@ export interface AboutDialogDetailsVector {
         linksGroup: boolean;
         detailsWebsiteRow: boolean;
     };
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -488,11 +484,10 @@ export interface AboutDialogDetailsVector {
  * `update_details` (:1102-1119), exhaustive over (website, comments,
  * custom links) plus the two rows that show what release notes add.
  *
- * The row that matters most is `website only`: it is the ONE combination where
- * the website link stays on the main page and no Details row is offered, and it
- * is the combination a port reproduces incorrectly by folding `website` into
- * its "has details" predicate. `show_details` is `has_comments ||
- * has_custom_links` — website is deliberately not in it (:1108).
+ * `website only` matters most: the ONE combination where the website link stays
+ * on the main page and no Details row is offered, and the one a port gets wrong by
+ * folding `website` into its "has details" predicate. `show_details` is
+ * `has_comments || has_custom_links` — website is deliberately not in it (:1108).
  */
 export const ABOUT_DIALOG_DETAILS_VECTORS: ReadonlyArray<AboutDialogDetailsVector> = [
     {
@@ -667,19 +662,17 @@ export interface AboutDialogSupportVector {
     debugInfo: boolean;
     /** The four widgets `update_support` decides — all on the MAIN page. */
     visible: { supportGroup: boolean; supportRow: boolean; issueRow: boolean; troubleshootingRow: boolean };
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * `update_support` (:1121-1133), exhaustive.
  *
- * Every widget here is a child of `support_group`, which the template puts on
- * the MAIN page (adw-about-dialog.ui:146-186) — the class docs say so outright
- * ("displays the following two links on the main page", :87-90). The browser
- * renderer put Support Questions and Report an Issue on the Details page
- * instead, which hid the issue tracker behind a navigation step AND made the
- * Details page appear for a dialog that has no Details content in GTK terms.
+ * Every widget here is a child of `support_group`, which the template puts on the
+ * MAIN page (adw-about-dialog.ui:146-186; the class docs say so at :87-90). The
+ * browser renderer put Support Questions and Report an Issue on the Details page,
+ * hiding the issue tracker behind a navigation step AND making the Details page
+ * appear for a dialog with no Details content in GTK terms.
  */
 export const ABOUT_DIALOG_SUPPORT_VECTORS: ReadonlyArray<AboutDialogSupportVector> = [
     {
@@ -755,7 +748,6 @@ export interface AboutDialogCreditsLegalVector {
         legalRow: boolean;
         acknowledgementsRow: boolean;
     };
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -833,7 +825,6 @@ export interface AboutDialogHeaderVector {
     value: string;
     /** Whether the corresponding widget is shown. */
     visible: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -841,10 +832,9 @@ export interface AboutDialogHeaderVector {
  * The four `x && *x` visibility tests on the main page (:2313-2314, :2376-2377,
  * :2426-2427, :2476).
  *
- * All four are FIRST-CHARACTER tests, so a single space is content. There is no
- * fallback anywhere: an unset application name shows NO label, it does not show
- * the word "Application", and an unset icon shows NO image, not a generic
- * executable glyph. The browser renderer invented both.
+ * All four are FIRST-CHARACTER tests, so a single space is content, and there is
+ * no fallback anywhere: an unset application name shows NO label, an unset icon NO
+ * image. The browser renderer invented both.
  */
 export const ABOUT_DIALOG_HEADER_VECTORS: ReadonlyArray<AboutDialogHeaderVector> = [
     { property: 'application-icon', value: 'org.gnome.Builder', visible: true, rule: 'an icon name shows the image' },
@@ -894,7 +884,6 @@ export interface AboutDialogLabelVector {
     text: string;
     /** What a renderer with no accelerator layer paints (`stripMnemonic`). */
     plain: string;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -902,12 +891,12 @@ export interface AboutDialogLabelVector {
  * The template labels (adw-about-dialog.ui), with and without their mnemonic
  * markers.
  *
- * `dialogTitle` is the row that catches the invented one: the main navigation
- * page binds its title to `AdwDialog:title`, whose template default is the bare
- * word "About" (.ui:6, :19). The application name is NOT part of it — it appears
- * on its own in the header revealer that fades in on scroll (.ui:29-31). A
- * renderer that titles the page "About <app>" AND labels the dialog "About
- * <app>" says the app's name three times on one screen.
+ * `dialogTitle` catches the invented one: the main navigation page binds its
+ * title to `AdwDialog:title`, whose template default is the bare word "About"
+ * (.ui:6, :19). The application name is NOT part of it — it appears on its own in
+ * the header revealer that fades in on scroll (.ui:29-31). A renderer titling the
+ * page "About <app>" AND labelling the dialog "About <app>" says the app's name
+ * three times on one screen.
  *
  * CORE-ONLY: a string table the renderers read THROUGH ADW_ABOUT_DIALOG_LABELS; the rendered text is asserted by ABOUT_DIALOG_HEADER/DETAILS_VECTORS
  */
@@ -957,7 +946,6 @@ export interface LicenseInfoVector {
     spdxId: string | null;
     /** `gtk_license_info[i].url`. */
     url: string | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -966,8 +954,8 @@ export interface LicenseInfoVector {
  * not a second copy of the whole table.
  *
  * Index 18 is pinned because `G_STATIC_ASSERT (G_N_ELEMENTS (gtk_license_info)
- * - 1 == GTK_LICENSE_0BSD)` (:253-256) is the C's own check that the table and
- * the enum have not drifted; this is that assertion, ported.
+ * - 1 == GTK_LICENSE_0BSD)` (:253-256) is the C's own drift check; this is that
+ * assertion, ported.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
  */
@@ -1005,7 +993,6 @@ export interface LicenseSpdxVector {
     spdxId: string;
     /** The `GtkLicense` it resolves to, or `null` for no match. */
     licenseType: number | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -1032,7 +1019,6 @@ export interface LicenseTextVector {
     license: string;
     /** What the Legal page shows, `null` meaning "no licence text at all". */
     text: string | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -1090,7 +1076,6 @@ export interface LicenseSetterVector {
     licenseType: number;
     /** Every `g_object_notify_by_pspec` from every step, concatenated in order. */
     notify: ReadonlyArray<'license' | 'license-type'>;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -1098,10 +1083,10 @@ export interface LicenseSetterVector {
  * The two setters (:3396-3416, :3459-3480), which are ONE state machine.
  *
  * Each notifies BOTH properties whenever it does anything (:3414-3415,
- * :3476-3477), because setting either can move the other. The asymmetry in the
- * early-outs is the trap: `set_license` bails on an unchanged STRING before it
- * would have set the type to custom, so re-assigning the same text after a
- * licence-type change does switch the type, while assigning `""` to an already
+ * :3476-3477), setting either being able to move the other. The trap is the
+ * asymmetry in the early-outs: `set_license` bails on an unchanged STRING before
+ * it would have set the type to custom, so re-assigning the same text after a
+ * licence-type change DOES switch the type, while assigning `""` to an already
  * empty licence does not.
  *
  * CORE-ONLY: a property-ordering table with no rendered surface — the RESULT is ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, which both renderers drive
@@ -1195,7 +1180,6 @@ export interface LegalSectionVector {
     license: string;
     /** Whether the app's own legal section is drawn at all (:666-671). */
     visible: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 

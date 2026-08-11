@@ -2,78 +2,47 @@
 /**
  * Relocate a staged darwin prebuild off the BUILD HOST's Homebrew prefix.
  *
- * A Mach-O records the FULL INSTALL PATH of every dependency, where an ELF
- * records a bare SONAME the loader resolves. That one format difference is the
- * whole bug: every darwin prebuild this repo has ever published named its GLib
- * as `/usr/local/opt/glib/lib/libglib-2.0.0.dylib` (Intel runner) or
- * `/opt/homebrew/opt/glib/lib/libglib-2.0.0.dylib` (Apple-silicon runner),
- * i.e. the DEFAULT Homebrew prefix of whichever machine linked it. Correct by
- * coincidence on the common Mac; unloadable on a host with no Homebrew, a
- * non-default `HOMEBREW_PREFIX`, MacPorts, or simply without those formulae
- * (#1102, measured on all 12 darwin packages across both arches).
+ * A Mach-O records the FULL INSTALL PATH of every dependency where an ELF records
+ * a bare SONAME, so every darwin prebuild this repo published named its GLib under
+ * the DEFAULT Homebrew prefix of whichever machine linked it (`/usr/local` Intel,
+ * `/opt/homebrew` Apple silicon) — unloadable without Homebrew, with a non-default
+ * `HOMEBREW_PREFIX`, on MacPorts, or without those formulae (#1102, all 12 darwin
+ * packages, both arches). Fix: rewrite each such load command to `@rpath/<leaf>`
+ * and give the image an `LC_RPATH` list that resolves it.
  *
- * The fix is the one `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs`
- * already applies to its own payload (§ 2 for the bundled dylibs, § 6 for the
- * addon): rewrite each such load command to `@rpath/<leaf>` and give the image
- * an `LC_RPATH` list that resolves it. This module is the same operation for
- * the OTHER darwin artifact — a staged prebuild, which bundles nothing and must
- * therefore find its dependencies in someone else's tree.
+ * Separate from `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs`, which
+ * does the same to its own payload, because `packages/node-gi/**` is both the
+ * affected classifier's IGNORE list and `node-gi.yml`'s `paths:` trigger — an
+ * import either way leaves one of the two building without its CI. Only the binary
+ * READER is shared (`readLibrary()`, the repo's ONE parser), so the code rewriting
+ * a load command and the code later failing the build over one see the same bytes.
  *
- * ## Why this is a separate module and not a call into that builder
+ * dyld tries `LC_RPATH` entries in order, so this list IS the precedence policy:
  *
- * `packages/node-gi/**` is both the affected classifier's IGNORE list and
- * `node-gi.yml`'s `paths:` trigger. Importing across that line in either
- * direction breaks one of the two: a `scripts/**` edit would silently change
- * node-gi's build without running node-gi's CI, and importing node-gi's builder
- * here would make every prebuild stage depend on a tree main.yml does not watch.
- * The READING half is shared where sharing is free and correct —
- * `readLibrary()` from `@gjsify/manifest-conformance`, the repo's ONE binary
- * parser, so the code that rewrites a load command and the code that later
- * fails the build over one are looking at the same bytes through the same
- * parser. Only the ~20 lines that shell out to `install_name_tool` are local.
- *
- * ## The rpath list, and why it is in this order
- *
- * dyld tries `LC_RPATH` entries in the order they appear, so the list IS the
- * precedence policy:
- *
- *   1. `@loader_path` — a dependency staged INTO the prebuild directory wins.
- *      Nothing does that today; it costs one load command and it is what a
- *      future self-contained prebuild would need.
+ *   1. `@loader_path` — a dependency staged INTO the prebuild dir wins. Nothing
+ *      does that today; one load command reserves the option.
  *   2. `@loader_path/../../../gtk-runtime-darwin-<arch>/gtk/lib` — the
- *      batteries-included bundle, resolved as an npm SIBLING of the platform
- *      package (`@gjsify/webgl-darwin-x64/prebuilds/darwin-x64/` climbs three to
- *      `@gjsify/`). This is the "no Homebrew at all" path.
+ *      batteries-included bundle as an npm SIBLING of the platform package
+ *      (`prebuilds/<target>/` climbs three to `@gjsify/`). The "no Homebrew" path.
  *   3. `<homebrew prefix>/lib` — the system stack, LAST.
  *
- * Bundle before system is not a preference invented here: it is ADR 0023's
- * per-OS policy (`decideGtkSource()` — linux prefers the system stack, win32
- * and darwin prefer the bundle), and a prebuild resolving its GLib differently
- * from the process that loaded it is precisely the two-GTKs-in-one-process
- * failure #910 paid for. What this list CANNOT do is honour
- * `GJSIFY_GTK_PREFER`: an `LC_RPATH` is fixed at link time and dyld consults no
- * environment when expanding `@rpath`. So the artifact encodes the default and
- * the override stays a node-gi-level concern — worth stating because the two
- * mechanisms look interchangeable and are not.
+ * Bundle before system is ADR 0023's per-OS policy (`decideGtkSource()`), and a
+ * prebuild resolving its GLib differently from the process that loaded it is the
+ * two-GTKs-in-one-process failure #910 paid for. The list CANNOT honour
+ * `GJSIFY_GTK_PREFER` — `LC_RPATH` is fixed at link time and dyld consults no
+ * environment expanding `@rpath` — so the artifact encodes the default and the
+ * override stays a node-gi concern; the two look interchangeable and are not.
  *
- * Entry 3 keeps an absolute build-host path in the file ON PURPOSE, and
- * `checkPrebuildDir()` therefore REPORTS an absolute `LC_RPATH` where it FAILS
- * an absolute `LC_LOAD_DYLIB`. The asymmetry is the real difference in what the
- * two promise: a missing hard dependency aborts the load, a missing search path
- * is skipped. Dropping entry 3 would make the artifact strictly cleaner and
- * strictly less useful — it would stop loading on the Homebrew-only GJS host
- * that works today.
+ * Entry 3 keeps an absolute build-host path ON PURPOSE, so `checkPrebuildDir()`
+ * REPORTS an absolute `LC_RPATH` where it FAILS an absolute `LC_LOAD_DYLIB`: a
+ * missing hard dependency aborts the load, a missing search path is skipped.
+ * Dropping it would stop the artifact loading on the Homebrew-only GJS host that
+ * works today.
  *
- * ## What it deliberately does NOT keep
- *
- * The incoming images carry version-PINNED rpaths (`/usr/local/Cellar/glib/
- * 2.88.2/lib`, `/opt/homebrew/Cellar/libepoxy/1.5.10/lib`) that meson bakes in
- * from the link line. Those are replaced, not extended: they stop existing the
- * first time the build host runs `brew upgrade`, and because they name a
- * formula VERSION they make the artifact depend on which formulae the runner
- * happened to have — so two CI runs of the same commit produce different bytes.
- * Homebrew symlinks every keg into `<prefix>/lib`, which resolves the same
- * libraries without naming a version, so one derived entry replaces all of them.
+ * The incoming version-PINNED rpaths (`…/Cellar/glib/2.88.2/lib`) meson bakes in
+ * are replaced, not extended: they die at the build host's next `brew upgrade`, and
+ * naming a formula VERSION makes two CI runs of one commit produce different bytes.
+ * Homebrew symlinks every keg into `<prefix>/lib`, so one entry replaces all.
  *
  * Usage: node scripts/relocate-macho.mjs <prebuild-dir> --target darwin-<arch>
  */
@@ -87,18 +56,11 @@ import { isBuildHostAbsolutePath, readLibrary } from '../packages/infra/manifest
 /**
  * Homebrew's documented default prefix, keyed by the TARGET arch.
  *
- * Not `brew --prefix`, and the difference is load-bearing: `stage-prebuild.mjs`
- * runs on the host that built the artifact, but this module is also what
- * repairs an ALREADY-COMMITTED prebuild, and an Intel Mac editing the
- * `darwin-arm64` image must write `/opt/homebrew` — the prefix of the machine
- * that will RUN it — not its own `/usr/local`. Reading the host's prefix here
- * would stamp one arch's fallback into the other arch's artifact, which is the
- * same class of error `--out` is cross-checked against the destination
- * package's `os`/`cpu` to prevent.
- *
- * A custom `HOMEBREW_PREFIX` is deliberately not consulted: this entry is a
- * FALLBACK for consumers, so the only useful value is the one most consumers
- * have, and baking a build machine's unusual prefix in would help nobody.
+ * Not `brew --prefix`: this module also repairs an ALREADY-COMMITTED prebuild,
+ * so an Intel Mac editing the `darwin-arm64` image must write `/opt/homebrew` —
+ * the prefix of the machine that will RUN it — not its own `/usr/local`.
+ * A custom `HOMEBREW_PREFIX` is likewise not consulted; the entry is a FALLBACK
+ * for consumers, so the only useful value is the one most consumers have.
  */
 const HOMEBREW_DEFAULT_PREFIX = {
     x64: '/usr/local',
@@ -107,7 +69,7 @@ const HOMEBREW_DEFAULT_PREFIX = {
 
 /**
  * The `LC_RPATH` list a darwin prebuild for `target` should carry, in dyld's
- * search order. PURE — the unit-testable half.
+ * search order.
  *
  * @param {string} target `darwin-x64` | `darwin-arm64`
  * @returns {string[]}
@@ -131,19 +93,12 @@ const run = (argv) => execFileSync(argv[0], argv.slice(1), { stdio: ['ignore', '
  * Run one `install_name_tool` edit, translating its ONE expected failure into
  * something actionable.
  *
- * A Mach-O's load commands live in a fixed-size header pad decided at LINK
- * time, so growing them can simply not fit — `install_name_tool` then says
- * *"larger updated load commands do not fit (the program must be relinked)"*.
- * Measured here on `@gjsify/oxfmt-native-darwin-x64` and
- * `@gjsify/rolldown-native-darwin-x64`: cargo links the Rust cdylibs with no
- * spare pad on x86-64 (the arm64 twins happen to have room, which is exactly
- * the kind of accident that makes this look like a flake).
- *
- * It is not a defect in those two files — they record no dependency needing an
- * rpath at all, which is why {@link relocateImage} does not ask them to grow.
- * The guard stays because the day a Vala bridge hits the same wall, the fix is
- * a LINK FLAG (`-Wl,-headerpad_max_install_names`) in that package's
- * `meson.build`, and a raw `execFileSync` stack trace does not say so.
+ * A Mach-O's load commands live in a fixed-size header pad decided at LINK time,
+ * so growing them can simply not fit. Cargo leaves no spare pad on x86-64 (the
+ * arm64 twins happen to have room, which is what makes this look like a flake).
+ * Nothing is asked to grow today, but when something hits the wall the fix is a
+ * LINK FLAG (`-Wl,-headerpad_max_install_names`) in that package's `meson.build`,
+ * and a raw `execFileSync` stack trace does not say so.
  *
  * @param {string[]} argv
  * @param {string} file
@@ -181,9 +136,8 @@ export function relocateImage(file, rpaths) {
 
     /** @type {string[]} */ const changed = [];
 
-    // The image's own name, when it carries one. A Mach-O BUNDLE has no
-    // LC_ID_DYLIB and `-id` on one is an error, so this is conditional on what
-    // the parser actually read rather than on the file extension.
+    // A Mach-O BUNDLE has no LC_ID_DYLIB and `-id` on one is an error, so this
+    // keys on what the parser read, not on the file extension.
     let newId = null;
     if (info.id !== null && isBuildHostAbsolutePath(info.id)) {
         newId = `@rpath/${basename(file)}`;
@@ -194,8 +148,8 @@ export function relocateImage(file, rpaths) {
     const rewritten = info.needed.filter(isBuildHostAbsolutePath);
     for (const dep of rewritten) {
         const to = `@rpath/${basename(dep)}`;
-        // `-change` matches the old string VERBATIM, which is why the loop reads
-        // the recorded strings rather than reconstructing them from a prefix.
+        // `-change` matches VERBATIM, so the loop reads the recorded strings
+        // rather than reconstructing them from a prefix.
         edit(['install_name_tool', '-change', dep, to, file], file);
         changed.push(`${dep} → ${to}`);
     }
@@ -203,35 +157,24 @@ export function relocateImage(file, rpaths) {
     // ONLY an image that has something to resolve gets a search path.
     //
     // `@rpath` in an image's OWN id is not a dependency — it is a template the
-    // CONSUMER expands against its own rpaths — so a library that records an id
-    // of `@rpath/<leaf>` and no `@rpath/` dependency needs no `LC_RPATH` of its
-    // own. Both Rust cdylibs are exactly that shape (`libgjsify_oxfmt.dylib`,
-    // `libgjsify_rolldown.dylib`: system libraries and nothing else), and giving
-    // them three rpaths would be dead weight that also happens not to fit —
-    // cargo leaves no header pad on x86-64. Deriving the need from the
-    // dependencies instead of applying the list unconditionally makes both
-    // arches produce the same bytes, which a blanket rule did not.
+    // CONSUMER expands against its own rpaths — so a library recording an id of
+    // `@rpath/<leaf>` and no `@rpath/` dependency needs no `LC_RPATH`. Both Rust
+    // cdylibs are that shape, and three rpaths would be dead weight that also
+    // does not fit in cargo's header pad. Deriving the need from the dependencies
+    // makes both arches produce the same bytes, which a blanket rule did not.
     const needsRpath = rewritten.length > 0 || info.needed.some((d) => d.startsWith('@rpath/'));
     if (needsRpath) {
-        // Replace the search-path list AND ITS ORDER: delete EVERY existing
-        // entry, including one already in the wanted list, then add the wanted
-        // ones in sequence.
-        //
-        // Deleting only the unwanted entries is what the first cut did, and it
-        // is wrong in a way that is invisible locally. `-add_rpath` APPENDS, so
-        // a kept entry holds its original position and the additions land behind
-        // it — which makes the precedence a property of whatever the linker
-        // happened to bake in, not of this list. Measured on the artifact CI
-        // built and committed from `main`: a freshly-linked `libgwebgl.dylib`
-        // carries `<brew>/lib` from the Homebrew link line, so keeping it put the
-        // SYSTEM prefix ahead of the bundle — the exact inversion of ADR 0023's
-        // darwin policy, and the two-GLibs-in-one-process hazard of #910 on any
-        // host that has both. It did not show up on the committed artifacts
-        // because THEY carried version-pinned Cellar rpaths that were all
-        // deleted, so the order came out right there by luck.
-        //
-        // Net header cost of deleting and re-adding the same string is zero, so
-        // the determinism is free.
+        // Replace the search-path list AND ITS ORDER: delete EVERY existing entry,
+        // including one already in the wanted list, then add the wanted ones in
+        // sequence. Deleting only the unwanted ones is wrong invisibly —
+        // `-add_rpath` APPENDS, so a kept entry holds its original position and
+        // additions land behind it, making precedence a property of whatever the
+        // linker baked in. A freshly-linked `libgwebgl.dylib` carries `<brew>/lib`
+        // from the Homebrew link line, so keeping it put the SYSTEM prefix ahead of
+        // the bundle: the inversion of ADR 0023's darwin policy and #910's
+        // two-GLibs hazard on any host with both. The committed artifacts hid it,
+        // their version-pinned Cellar rpaths all being deleted anyway. Deleting and
+        // re-adding the same string costs zero header bytes.
         for (const existing of info.searchPaths) {
             edit(['install_name_tool', '-delete_rpath', existing, file], file);
             changed.push(`-rpath ${existing}`);
@@ -242,27 +185,19 @@ export function relocateImage(file, rpaths) {
         }
     }
 
-    // RE-SIGN WHAT WAS SIGNED, AND ONLY THAT.
+    // Re-sign what was signed, and ONLY that. `install_name_tool` invalidates an
+    // existing signature and Apple-silicon dyld refuses a mis-signed dylib, so an
+    // image that HAD one needs a fresh one. An image that had none must not get
+    // one: the signature lands on a fresh page-aligned `__LINKEDIT` tail, so
+    // signing an unsigned 20,288-byte `libgjsifylightningcss.dylib` produced 38,720
+    // bytes — ~18 KB × 9 x64 artifacts of growth in COMMITTED files that every
+    // `commit-prebuilds` run rewrites (Mach-O output is not byte-reproducible).
     //
-    // `install_name_tool` invalidates an existing signature and dyld on Apple
-    // silicon refuses a mis-signed dylib outright, so an image that HAD one must
-    // get a fresh one. An image that had none must not: adding a signature to a
-    // previously-unsigned file is not free — measured on
-    // `libgjsifylightningcss.dylib` (darwin-x64), signing an unsigned 20,288-byte
-    // image produced a 38,720-byte one, because the signature has to be placed on
-    // a fresh page-aligned `__LINKEDIT` tail. That is ~18 KB × 9 x64 artifacts of
-    // pure growth, in files that are COMMITTED and, since Mach-O output is not
-    // byte-reproducible, rewritten by every `commit-prebuilds` run.
-    //
-    // Deriving it from the image rather than from the arch is not a stylistic
-    // preference: the two agree today (measured across all 18 committed
-    // artifacts — every arm64 one is `adhoc,linker-signed`, every x64 one is
-    // unsigned, which is ld64 requiring a signature on arm64 macOS and omitting
-    // it on x86_64) and the artifact is the thing that actually knows. A
-    // toolchain that starts signing x64 images is then handled with no edit here.
-    // This is where it departs from `build-gtk-runtime-darwin.mjs`, which signs
-    // unconditionally for one code path — correct THERE, where the output is a
-    // freshly-built tarball payload and nothing is committed.
+    // Derived from the image, not the arch: the two agree today (all 18 committed
+    // artifacts — arm64 `adhoc,linker-signed`, x64 unsigned, ld64 requiring a
+    // signature on arm64 macOS only) and a toolchain that starts signing x64 needs
+    // no edit here. `build-gtk-runtime-darwin.mjs` signs unconditionally — correct
+    // THERE, where the output is a fresh tarball payload, not committed.
     if (changed.length > 0 && info.signed) {
         run(['codesign', '--force', '--sign', '-', file]);
         changed.push('re-signed (ad-hoc)');

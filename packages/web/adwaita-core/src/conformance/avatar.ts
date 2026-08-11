@@ -15,7 +15,6 @@ export interface AvatarInitialsVector {
     text: string;
     /** What `extract_initials_from_text` produces for it. */
     initials: string;
-    /** Why this row exists — the rule or edge case it pins down. */
     rule: string;
 }
 

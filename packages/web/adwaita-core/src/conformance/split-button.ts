@@ -380,7 +380,6 @@ export interface SplitButtonStyleClassVector {
     iconName: string | null;
     /** The classes on the `splitbutton` node. */
     classes: readonly SplitButtonStyleClass[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -419,7 +418,6 @@ export interface SplitButtonTooltipVector {
     text: string;
     /** Whether it is Pango MARKUP (`set_tooltip_markup`) rather than plain text. */
     markup: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -555,7 +553,6 @@ export interface SplitButtonRootStateVector {
     active: boolean;
     /** Whether the root reads CHECKED. */
     checked: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -615,7 +612,6 @@ export interface SplitButtonMenuParseVector {
     json: string | null;
     /** The entries it yields. */
     entries: readonly AdwMenuEntry[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -663,7 +659,6 @@ export interface SplitButtonMenuActivationVector {
     index: number;
     /** The entry that must be dispatched, or `null`. */
     activated: AdwMenuEntry | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -704,7 +699,6 @@ export interface SplitButtonDropdownVector {
     enabled: boolean;
     /** Whether the menu can be popped up at all. */
     canOpen: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 

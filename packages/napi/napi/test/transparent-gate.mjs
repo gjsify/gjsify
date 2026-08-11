@@ -1,29 +1,23 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/napi — TRANSPARENT ADDON GATE. The end-to-end proof that
+// @gjsify/napi — TRANSPARENT ADDON GATE. End-to-end proof that
 // `napiNodeAddonPlugin` (packages/infra/rolldown-plugin-gjsify) auto-resolves a
-// real npm native addon's compiled `.node` WITHOUT a hand-pinned addonPath — the
-// forward mirror of `gjsGiNodePlugin`, exercised on real C/C++ (+ napi-rs)
-// addons with the GjsifyNapi typelib present.
+// real npm native addon's compiled `.node` WITHOUT a hand-pinned addonPath.
 //
 //   node test/transparent-gate.mjs <addon-name>
 //
-// Difference from the pinned baseline (addon-gate.mjs): NO `.gjsifyrc.mjs`
+// Difference from the pinned baseline (addon-gate.mjs): no `.gjsifyrc.mjs`
 // writing `nodeAddonResolver({ addonPath })`. The plugin is ALWAYS-ON for
 // `--app gjs`; it intercepts the addon's OWN acquisition helper
 // (`node-gyp-build` / `bindings` / a napi-rs platform sibling) and routes the
-// `.node` it would load through `loadAddon()` — auto-located by node-gyp-build's
-// own probe order. We still (a) alias the addon's bare specifier to its NATIVE
-// entry (bufferutil et al. ship a pure-JS `browser` fallback the `--app gjs`
-// resolver would otherwise pick — the whole point is to exercise the NATIVE
-// path), and (b) hide `prebuilds/` so BOTH runtimes load the same source-built
-// `.node`. Then we run the SAME workout on Node (golden) + GJS-under-shim and
-// byte-diff the two stdouts.
+// `.node` it would load through `loadAddon()`. The gate still aliases the
+// addon's bare specifier to its NATIVE entry and hides `prebuilds/` so BOTH
+// runtimes load the same source-built `.node`; then the SAME workout runs on
+// Node (golden) and on GJS-under-shim and the two stdouts are byte-diffed.
+// Exit 0 only on byte-identical.
 //
 // `@gjsify/napi` is made resolvable by BARE specifier (a symlink into the
 // addons prefix — the `gjsify install @gjsify/napi` stand-in), so the shim's
 // `require('@gjsify/napi')` resolves + bundles exactly as in a real consumer.
-//
-// Exit code: 0 on byte-identical PASS; 1 on a genuine mismatch/regression.
 
 import { execFileSync } from 'node:child_process';
 import {

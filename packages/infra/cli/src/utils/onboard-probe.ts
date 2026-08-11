@@ -1,20 +1,13 @@
-// Trusted-Publisher STATE-READ path for `gjsify onboard`, extracted so it can
-// be unit-tested against a mocked requester (no live npm).
+// Trusted-Publisher STATE-READ path for `gjsify onboard`, extracted so it can be
+// unit-tested against a mocked requester (no live npm).
 //
-// The bug this fixes (task #60): `gjsify onboard` read all ~127 packages'
-// trust state with a PLAIN authenticated `fetch` (no OTP handling) run in a
-// wide concurrent burst — every read came back `401 → auth-required →
-// unreadable`, so the sweep planned `0 to publish+trust, 0 to trust, 127
-// unreadable`. Meanwhile a targeted `gjsify trust <pkg> --otp <code>` READ the
-// same state fine with the SAME token, because its read runs through the shared
-// `TrustRequester` (→ `withOtpRetry`): a 401 that is an OTP challenge is
-// answered with the shared code, and non-OTP transient 401s are tolerated.
-//
-// Fix: onboard now reads through the EXACT same `TrustRequester` path as
-// `gjsify trust` (identical `trustUrl` + `buildHeaders` auth + OTP handling),
-// PLUS a one-shot retry on a transient 401, PLUS a first-serial-then-bounded
-// probe order so the ONE shared OTP is prompted at most once and npm is never
-// hit with a 127-wide parallel burst from a single token.
+// Onboard MUST read through the same `TrustRequester` as `gjsify trust`, never a
+// plain authenticated `fetch`. It once used the latter, in a wide concurrent burst:
+// every one of ~127 reads came back `401 → auth-required → unreadable` and the
+// sweep planned `0 to publish+trust, 0 to trust, 127 unreadable`, while a targeted
+// `gjsify trust <pkg> --otp <code>` read the same state fine on the SAME token —
+// because the shared requester goes through `withOtpRetry`, which answers a 401
+// that is an OTP challenge and tolerates transient non-OTP ones.
 
 import { DEFAULT_REGISTRY, registryFor, type NpmrcConfig } from '@gjsify/npm-registry';
 import type { Workspace } from '@gjsify/workspace';
@@ -24,7 +17,6 @@ import { classifyTrustList, trustUrl, type TrustState } from './trust-registry.j
 /** What a package needs, computed from its published + trust state. */
 export type PkgAction = 'skip' | 'trust' | 'publish-and-trust' | 'blocked';
 
-/** A per-package plan produced by the probe phase. */
 export interface PkgPlan {
     ws: Workspace;
     registry: string;
@@ -34,7 +26,6 @@ export interface PkgPlan {
     action: PkgAction;
 }
 
-/** Everything a probe needs beyond the requester + workspace. */
 export interface ProbeContext {
     registryOverride?: string;
     npmrc: NpmrcConfig;
@@ -52,7 +43,6 @@ export interface ProbeOptions {
     sleep?: (ms: number) => Promise<void>;
 }
 
-/** Small backoff before the one-shot retry of a transient 401 read. */
 export const PROBE_RETRY_DELAY_MS = 400;
 
 /** Default probe concurrency — kept SMALL so a single token never bursts npm. */
@@ -78,11 +68,10 @@ function defaultSleep(ms: number): Promise<void> {
 }
 
 /**
- * Read one package's published + trust state via the SHARED trust requester —
- * the exact `trustUrl` + `buildHeaders` auth + `withOtpRetry` path `gjsify
- * trust` uses. On a transient `auth-required` (401 that was not an answerable
- * OTP challenge — e.g. a parallel-burst rejection or a lapsed 2FA-skip window),
- * it retries ONCE after a short backoff.
+ * Read one package's published + trust state through the SHARED trust requester.
+ * A surviving `auth-required` means the 401 was not an answerable OTP challenge —
+ * a parallel-burst rejection or a lapsed 2FA-skip window — and both recover on a
+ * single retry after a short backoff.
  */
 export async function probeTrustState(
     request: TrustRequester,
@@ -108,11 +97,9 @@ export async function probeTrustState(
 }
 
 /**
- * Probe every selected workspace. The FIRST package is read SERIALLY so a
- * 2FA-gated read triggers the single shared-OTP prompt (typed once) before the
- * concurrent burst — the rest reuse the now-cached code — and so a single token
- * never faces a 127-wide parallel read. The remaining packages are read with a
- * bounded (small) concurrency cap.
+ * Probe every selected workspace. The FIRST is read SERIALLY on purpose: a
+ * 2FA-gated read triggers the shared-OTP prompt once, before the burst, so the rest
+ * reuse the cached code instead of each prompting.
  */
 export async function probeAllTrustStates(
     request: TrustRequester,

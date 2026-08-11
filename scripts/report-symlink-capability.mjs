@@ -1,27 +1,19 @@
 #!/usr/bin/env node
 /**
- * Print whether this host can create a symbolic link.
+ * Print whether this host can create a symbolic link. Reports only — never exits
+ * non-zero.
  *
- * WHY A SCRIPT AND NOT A `node -e` ONE-LINER
+ * A file rather than a `node -e` one-liner because the one-liner has to survive
+ * cmd.exe quoting, which mangles `'` and `"` differently from every other shell in
+ * this repo's CI.
  *
- * The one-liner form has to survive cmd.exe quoting, which is the layer that
- * silently mangles `'` and `"` differently from every other shell in this
- * repository's CI. A file has no quoting layer at all.
- *
- * WHY IT IS WORTH PRINTING
- *
- * `@gjsify/fs`'s symlink specs are gated on the CAPABILITY (see
- * `packages/node/fs/src/capabilities.spec.ts`), never on the platform, because
- * Windows has symlinks and merely requires elevation or Developer Mode to make
- * one. GitHub's Windows runners are elevated, so those tests RUN there; an
- * ordinary workstation tolerates them as expected failures instead.
- *
- * Both outcomes are correct and they are not distinguishable from a green
- * check, so the run has to say which one it measured. A reader who assumes the
- * elevated result covers the unprivileged case has the wrong picture — that
- * asymmetry is precisely what ADR 0018 was written to stop happening silently.
- *
- * Never exits non-zero: this reports, it does not gate.
+ * Worth printing because `@gjsify/fs`'s symlink specs gate on the CAPABILITY
+ * (`packages/node/fs/src/capabilities.spec.ts`), never the platform: Windows has
+ * symlinks and merely wants elevation or Developer Mode. GitHub's Windows runners are
+ * elevated so those tests RUN there, while an ordinary workstation tolerates them as
+ * expected failures. Both outcomes are correct and indistinguishable from a green
+ * check, so the run must say which it measured — assuming the elevated result covers
+ * the unprivileged case is the asymmetry ADR 0018 exists to surface.
  */
 
 import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';

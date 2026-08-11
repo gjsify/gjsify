@@ -49,7 +49,6 @@ export interface ViewStackVectorChange {
 
 /** One end-to-end view-stack expectation. */
 export interface ViewStackVector {
-    /** What this row pins down. */
     rule: string;
     /** The C function + lines it is derived from. */
     derivedFrom: string;
@@ -526,7 +525,6 @@ export const VIEW_STACK_VECTORS: ReadonlyArray<ViewStackVector> = [
 
 /** One page-descriptor normalization expectation. */
 export interface ViewStackPageDescriptorVector {
-    /** What this row pins down. */
     rule: string;
     /** The C property it is derived from. */
     derivedFrom: string;
@@ -622,7 +620,6 @@ export interface ViewStackIconNameVector {
     icon: string | null | undefined;
     /** The normalized result. */
     normalized: string;
-    /** What this row pins down. */
     rule: string;
 }
 

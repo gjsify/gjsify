@@ -34,7 +34,6 @@ export interface ClampThresholdsVector {
     max: number;
     /** `lower + 3 * (max - lower)`. */
     upper: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -87,7 +86,6 @@ export interface ClampChildSizeVector {
     params: ClampParams;
     /** What the child is allocated. */
     childSize: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -165,7 +163,6 @@ export interface ClampSizeFromChildVector {
     params: ClampParams;
     /** The size the clamp itself reports for it. */
     clampSize: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -217,7 +214,6 @@ export interface ClampAllocateVector {
     sizeClass: AdwClampSizeClass;
     /** The centring offset. */
     offset: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -293,7 +289,6 @@ export interface ClampPropertyVector {
     fallback: number;
     /** The value that reaches the layout. */
     size: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -341,7 +336,6 @@ export interface ToolbarViewAllocateVector {
     contentHeight: number;
     /** The content's offset from the top edge. */
     contentOffset: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -478,7 +472,6 @@ export interface ToolbarViewMeasureVector {
     minimum: number;
     /** The view's natural along the measured axis. */
     natural: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -610,7 +603,6 @@ export interface ToolbarViewContentForSizeVector {
     forSizeMin: number;
     /** `for_size` for the content's natural. */
     forSizeNat: number;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -686,7 +678,6 @@ export interface ToolbarViewClassVector {
     topBar: readonly string[];
     /** Classes on the bottom-bar box. */
     bottomBar: readonly string[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -780,7 +771,6 @@ export interface SpinnerGeometryVector {
      * — or `null` for a non-square box, which that element had no notion of.
      */
     legacyWebLineWidth: number | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -889,7 +879,6 @@ export interface SpinnerSizeVector {
     value: number | string | null | undefined;
     /** The box the spinner is given. */
     size: number;
-    /** Why this row exists. */
     rule: string;
 }
 

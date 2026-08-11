@@ -1,23 +1,14 @@
 // Dead-token vs new-package diagnostic for `gjsify publish`.
 //
-// When the publish PUT returns `404 Not Found` (body `"Not Found"` or empty)
-// it is ambiguous between two very different situations:
+// A `404 Not Found` on the publish PUT is npm's shape for two very different
+// causes, and guessing sends the user down the wrong path entirely: the
+// `_authToken` has been revoked/expired (npm answers an unrecognised bearer with
+// 404, not 401), or the scoped package genuinely is not on npm yet and needs the
+// first-publish bootstrap from AGENTS.md.
 //
-//   1. The `_authToken` in ~/.npmrc has been revoked / expired. The npm
-//      registry's 404 is its way of saying "we don't recognize this
-//      bearer". Easy to mistake for a missing-package error and send the
-//      user down the wrong path (Trusted-Publisher-bootstrap setup).
-//   2. The scoped `@gjsify/<pkg>` genuinely doesn't exist on npm yet —
-//      the first-publish bootstrap step from AGENTS.md.
-//
-// `GET /-/whoami` with the SAME Authorization header disambiguates: a live
-// token returns `{"username": "..."}`, a dead token returns `{}` (status 200
-// in both cases — the empty body is npm's signal).
-//
-// `npm publish` from npm-cli handles dead tokens with `401 EOTP` + a clear
-// "one-time-password or refresh the token" hint. The 404 path is npm's
-// PUT-specific shape and `gjsify publish` previously just printed the
-// opaque body. This helper closes the diagnostic gap.
+// `GET /-/whoami` with the SAME Authorization header disambiguates: a live token
+// returns `{"username": "…"}`, a dead one returns `{}` — status 200 for both, so
+// the EMPTY BODY is the signal.
 
 import { whoami, type NpmrcConfig } from '@gjsify/npm-registry';
 
@@ -26,30 +17,26 @@ export type Diagnose404Reason = 'dead-token' | 'live-token-404' | 'unknown';
 export interface Diagnose404Result {
     /** Discriminant — drives the JSON shape + exit-code path in the caller. */
     reason: Diagnose404Reason;
-    /** Username from `/-/whoami` when reason === 'live-token-404'. */
+    /** Set only when `reason === 'live-token-404'`. */
     username?: string;
-    /** Multi-line, human-friendly hint ready for stderr emission. */
+    /** Multi-line hint, ready for stderr as-is. */
     message: string;
 }
 
 interface Diagnose404Input {
     /** Full package name including scope, e.g. `@gjsify/abort-controller`. */
     packageName: string;
-    /** Pinned version we tried to publish. */
     version: string;
-    /** Registry URL (with or without trailing slash). */
+    /** Registry URL, with or without trailing slash. */
     registry: string;
-    /** Parsed .npmrc — used to derive Authorization on the whoami probe. */
+    /** Source of the Authorization header on the whoami probe. */
     npmrc: NpmrcConfig | undefined;
 }
 
 /**
- * Probe `/-/whoami` to disambiguate the 404 cause. Best-effort: any thrown
- * error / non-2xx falls through to `reason: 'unknown'` so the caller's
- * generic error path runs untouched.
- *
- * Pure async I/O — no side effects, no process.exit, no console writes.
- * The caller owns presentation (stderr vs stdout, plain vs JSON).
+ * Probe `/-/whoami` to disambiguate the 404 cause. Best-effort: a thrown error or
+ * non-2xx yields `reason: 'unknown'`, leaving the caller's generic error path
+ * untouched. No side effects and no writes — the caller owns presentation.
  */
 export async function diagnose404(input: Diagnose404Input): Promise<Diagnose404Result> {
     const { packageName, version, registry, npmrc } = input;
@@ -112,11 +99,10 @@ function formatUnknown(name: string, version: string): string {
 }
 
 /**
- * Heuristic: is the 404 body the "dead-token-or-missing-package" shape?
- * npm's PUT returns plain text `Not Found` (sometimes empty body). We trigger
- * the diagnostic for both, plus for the JSON `{"error":"Not Found"}` shape
- * just in case. Other 404 bodies (e.g. with a structured npm error code)
- * keep the generic error path.
+ * Is the 404 body the "dead-token-or-missing-package" shape? npm's PUT answers
+ * with plain-text `Not Found` or an empty body; the JSON `{"error":"Not Found"}`
+ * form is accepted too. Any other 404 body — notably one carrying a structured npm
+ * error code — keeps the generic error path.
  */
 export function is404DiagnosticCandidate(body: string): boolean {
     const trimmed = body.trim();

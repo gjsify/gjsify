@@ -1,14 +1,10 @@
-// Regression coverage for the multi-anchor `resolveNpmPackage` helper.
-//
-// The helper's reason for existing: GJS's native ESM loader has no
-// node_modules walker, so a bare `await import('rolldown')` from inside
-// the bundled CLI throws `Module not found: rolldown` even when the
-// package is physically present in a node_modules above the caller's
-// cwd. The helper tries multiple createRequire anchors in priority
-// order — cwd → workspace root → bundle URL → parent-dir walk →
-// GJSIFY_NODE_PATH — and returns the first hit. Under Node, where the
-// native loader resolves bare specifiers natively, the helper is not
-// strictly required but is still expected to succeed when invoked.
+// GJS's native ESM loader has no node_modules walker, so a bare `await
+// import('rolldown')` from inside the bundled CLI throws `Module not found:
+// rolldown` even when the package sits in a node_modules above the caller's cwd
+// (still true on gjs 1.88.1). The helper tries createRequire anchors in priority
+// order — cwd → workspace root → bundle URL → parent-dir walk → GJSIFY_NODE_PATH —
+// and returns the first hit. Under Node it is not strictly required, but must
+// still succeed when invoked.
 
 import { describe, expect, it } from '@gjsify/unit';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, existsSync, realpathSync } from 'node:fs';
@@ -19,29 +15,19 @@ import { resolveNpmPackage } from './resolve-npm-package.js';
 /**
  * `mkdtempSync` under a CANONICALISED tmp root.
  *
- * On macOS `os.tmpdir()` is a per-user `/var/folders/…`, and `/var` is a
- * symlink to `/private/var`. `resolveNpmPackage` resolves through
- * `createRequire`, which canonicalises, so it returns `/private/var/…` while a
- * path this fixture builds from `tmpdir()` still spells it `/var/…`. Every
- * comparison below would then fail on a Mac for a reason that has nothing to do
- * with resolution. Canonicalising the root once keeps the two sides
- * apples-to-apples, and is a no-op wherever `/tmp` is already a real directory.
+ * On macOS `os.tmpdir()` is a per-user `/var/folders/…` and `/var` symlinks to
+ * `/private/var`. `resolveNpmPackage` goes through `createRequire`, which
+ * canonicalises, so it returns `/private/var/…` while a path built from `tmpdir()`
+ * still spells it `/var/…` — every comparison below would fail on a Mac for a
+ * reason unrelated to resolution. A no-op wherever `/tmp` is already real.
  */
 function mkdtempReal(prefix: string): string {
     return realpathSync(mkdtempSync(join(tmpdir(), prefix)));
 }
 
 /**
- * Set up a tiny synthetic project layout under a unique tmp dir:
- *   <tmp>/                              ← anchor: cwd
- *     package.json
- *     node_modules/
- *       fake-pkg/
- *         package.json
- *         index.js
- *
- * Returns the tmp root + the absolute path of `fake-pkg`'s entry file
- * so tests can compare resolved paths directly.
+ * A synthetic `<tmp>/node_modules/fake-pkg/` project, returning the tmp root plus
+ * the absolute entry path so rows can compare resolved paths directly.
  */
 function setupFixture(): { root: string; entry: string } {
     const root = mkdtempReal('gjsify-resolve-npm-');
@@ -76,8 +62,7 @@ export default async () => {
         await it('returns null when no anchor has the package', () => {
             const root = mkdtempReal('gjsify-resolve-empty-');
             try {
-                // Force an isolated cwd with no node_modules, no bundleUrl,
-                // no env override — every anchor must miss.
+                // No node_modules, no bundleUrl, no env override — every anchor misses.
                 delete process.env['GJSIFY_NODE_PATH'];
                 const resolved = resolveNpmPackage('this-package-definitely-does-not-exist-xyzzy', { cwd: root });
                 expect(resolved).toBe(null);
@@ -87,10 +72,8 @@ export default async () => {
         });
 
         await it('falls back to the bundleUrl anchor when cwd misses', () => {
-            // Two separate tmp roots: one for cwd (empty), one for the
-            // bundle URL (has the package). This is the cross-cwd case
-            // from the task — the CLI bundle lives next to a populated
-            // node_modules, but is invoked from an unrelated directory.
+            // The cross-cwd case: the CLI bundle lives next to a populated
+            // node_modules but is invoked from an unrelated directory.
             const emptyCwd = mkdtempReal('gjsify-resolve-empty-');
             const { root: bundleRoot, entry } = setupFixture();
             try {
@@ -107,8 +90,8 @@ export default async () => {
         });
 
         await it('respects GJSIFY_NODE_PATH override over cwd', () => {
-            // Two roots, both with the package — but with DIFFERENT
-            // entry-file contents. GJSIFY_NODE_PATH must win.
+            // Two roots both carrying the package; the assertion is on which PATH
+            // comes back, so GJSIFY_NODE_PATH must outrank cwd.
             const cwdRoot = setupFixture();
             const envRoot = setupFixture();
             try {
@@ -146,8 +129,8 @@ export default async () => {
         await it('returns null gracefully on a malformed specifier', () => {
             const { root } = setupFixture();
             try {
-                // Empty specifier — createRequire.resolve throws under
-                // every anchor; helper must swallow and return null.
+                // `createRequire.resolve` throws under every anchor; the helper must
+                // swallow that and return null.
                 const resolved = resolveNpmPackage('', { cwd: root });
                 expect(resolved).toBe(null);
             } finally {

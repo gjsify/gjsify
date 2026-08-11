@@ -1,31 +1,26 @@
-// Utility to find npm packages with gjsify native prebuilds.
-// Packages declare: "gjsify": { "prebuilds": "<dir>" } in their package.json,
-// and (since the OS-axis audit) the `<os>-<arch>[-musl]` targets they promise in
-// "gjsify": { "platforms": [...] }. The libc half of that token is the newest
-// axis; which libc a package's artifacts actually NEED is a separate, measured
-// claim (npm's `libc` field + `gjsify.glibcRequires`, held to the binaries by the
-// `prebuild-libc` conformance rule) — this file only resolves DIRECTORIES.
+// Find npm packages carrying gjsify native prebuilds. Packages declare
+// `"gjsify": { "prebuilds": "<dir>" }` plus the `<os>-<arch>[-musl]` targets they
+// promise in `"gjsify": { "platforms": [...] }`. This file only resolves
+// DIRECTORIES — which libc a package's artifacts actually NEED is a separate
+// measured claim (npm's `libc` field + `gjsify.glibcRequires`, held to the binaries
+// by the `prebuild-libc` conformance rule).
 //
-// TWO passes, and the second one exists because the first cannot see an isolated
-// (pnpm-style) layout: `detectNativePackages(startDir)` walks up from `startDir`
-// and exhaustively scans every `node_modules` it finds, then resolves any package
-// that DECLARED a prebuild without shipping one through its per-platform
-// companion package (`<name>-<token>`), searching from THAT package's own
-// directory. See `resolvePlatformSibling`. Used by:
+// TWO passes. `detectNativePackages(startDir)` walks up from `startDir` scanning
+// every `node_modules`, then resolves any package that DECLARED a prebuild without
+// shipping one through its per-platform companion (`<name>-<token>`), searching
+// from THAT package's own directory (`resolvePlatformSibling`). The second pass
+// exists because the first cannot see an isolated (pnpm-style) layout. Call sites:
 //   * `gjsify run`, `gjsify info`, `gjsify install` — startDir = process.cwd()
-//   * `runGjsBundle()` — startDir = dirname(bundlePath), so DLX-cache layouts
-//     (`~/.cache/gjsify/dlx/<sha>/.../node_modules/<pkg>/dist/bundle.js`) get
-//     their full transitive prebuild set picked up automatically. The
-//     transitive walk is what makes `gjsify showcase` / `gjsify dlx` work
-//     for packages whose Vala typelibs live in *indirect* deps.
+//   * `runGjsBundle()` — startDir = dirname(bundlePath), so DLX-cache layouts pick
+//     up their full transitive prebuild set. That transitive walk is what makes
+//     `gjsify showcase` / `gjsify dlx` work for packages whose Vala typelibs live
+//     in *indirect* deps.
 //
-// PLATFORM RESOLUTION IS A PURE FUNCTION. Everything that depends on the host
-// OS/CPU/libc lives in `resolvePrebuildDirName()` / `buildNativeEnv()` /
-// `resolveHostLibc()`, all of which take `platform` / `arch` / `libc` as
-// parameters instead of reading `process.platform` inline. That is what makes
-// the darwin, win32 AND musl branches unit-testable from a glibc Linux host
-// (see `detect-native-packages.spec.ts`) — the host values are only read at the
-// outermost call site, as a default.
+// PLATFORM RESOLUTION IS A PURE FUNCTION: `resolvePrebuildDirName()`,
+// `buildNativeEnv()` and `resolveHostLibc()` take `platform`/`arch`/`libc` as
+// parameters instead of reading `process.*` inline, which is what makes the darwin,
+// win32 AND musl branches unit-testable from a glibc Linux host. The host values
+// are read only at the outermost call site, as a default.
 
 import { readdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -40,40 +35,34 @@ export interface NativePackage {
 }
 
 /**
- * Which C library an artifact is built against. npm's own `libc` manifest field
- * uses exactly these two tokens, and it is LINUX-ONLY there — every other OS has
- * one C library, so the axis does not exist off Linux and is `null` there rather
- * than defaulted to something.
+ * Which C library an artifact is built against. npm's own `libc` manifest field uses
+ * exactly these two tokens and is LINUX-ONLY — every other OS has one C library, so
+ * the axis is `null` off Linux rather than defaulted to something.
  */
 export type HostLibc = 'glibc' | 'musl';
 
 /** The host target a resolution is performed for. Defaults to the running process. */
 export interface HostTarget {
-    /** `process.platform` value — `linux` | `darwin` | `win32` | … */
     platform?: string;
-    /** `process.arch` value — `x64` | `arm64` | `ppc64` | `s390x` | `riscv64` | … */
     arch?: string;
     /**
-     * Host C library, or `undefined`/`null` when the axis does not apply (any
-     * non-Linux OS) or could not be determined. Both non-values mean the same
-     * thing to the resolver: behave exactly as before the libc axis existed —
-     * never offer a `-musl` directory. That is deliberately the conservative
-     * direction: an unsuffixed directory is the DEFAULT build, so a host we
-     * cannot classify still resolves what it always did.
+     * Host C library, or `undefined`/`null` when the axis does not apply (non-Linux)
+     * or could not be determined. Both non-values mean the same thing: never offer a
+     * `-musl` directory, exactly as before the axis existed. Conservative on purpose —
+     * an unsuffixed directory is the DEFAULT build, so an unclassifiable host still
+     * resolves what it always did.
      */
     libc?: HostLibc | null;
 }
 
 /**
- * Environment a GJS process needs so `gi://Gjsify…` imports resolve against
- * the detected prebuilds. `GI_TYPELIB_PATH` is universal (girepository reads
- * it on every OS); the *library* search path is whatever the host's dynamic
- * loader actually consults, which is a different variable per OS — see
+ * Environment a GJS process needs so `gi://Gjsify…` imports resolve against the
+ * detected prebuilds. `GI_TYPELIB_PATH` is universal (girepository reads it on every
+ * OS); the *library* search path is a different variable per OS — see
  * {@link buildNativeEnv}.
  *
- * The index signature exists for the Windows case, where the key is the host's
- * own `PATH` spelling (`Path` on a stock Windows env block) rather than a
- * fixed literal.
+ * The index signature exists for Windows, where the key is the host's own `PATH`
+ * spelling (`Path` on a stock env block) rather than a fixed literal.
  */
 export interface NativeEnv {
     GI_TYPELIB_PATH: string;
@@ -92,14 +81,12 @@ export interface NativeEnv {
 }
 
 /**
- * Map a Node `process.arch` value to the uname-style spelling the Vala/meson
- * bridges used to stage into (`prebuilds/linux-x86_64/`, the output of
- * `uname -m` on the build host).
+ * Node `process.arch` → the uname-style spelling the Vala/meson bridges used to stage
+ * into (`prebuilds/linux-x86_64/`).
  *
- * LEGACY. Every `@gjsify/*` package now declares and stages the node spelling
- * (`linux-x64`); this table exists only so the CLI can still load a prebuild
- * out of a tarball published before the rename. See
- * {@link prebuildDirCandidates}.
+ * LEGACY: every `@gjsify/*` package now stages the node spelling (`linux-x64`), and
+ * this table exists only so the CLI can still load a prebuild out of a tarball
+ * published before the rename. See {@link prebuildDirCandidates}.
  */
 const NODE_ARCH_TO_LEGACY_UNAME: Record<string, string> = {
     x64: 'x86_64',
@@ -109,16 +96,14 @@ const NODE_ARCH_TO_LEGACY_UNAME: Record<string, string> = {
 };
 
 /**
- * Arch spellings that name the same target, folded onto the NODE spelling.
- * Mirrors `ARCH_ALIASES` in `packages/infra/manifest-conformance/lib/platforms.mjs`
- * — the table `scripts/audit-runtimes.mjs` canonicalises
- * `package.json#gjsify.platforms` through for the platform-support matrix and the
- * prebuild rules. The two MUST agree or a package could pass the audit while the
- * CLI fails to find its artifact.
+ * Arch spellings that name the same target, folded onto the NODE spelling. MUST agree
+ * with `ARCH_ALIASES` in `packages/infra/manifest-conformance/lib/platforms.mjs` (what
+ * `scripts/audit-runtimes.mjs` canonicalises `gjsify.platforms` through), or a package
+ * passes the audit while the CLI fails to find its artifact.
  *
- * The direction matters: `${process.platform}-${process.arch}` is what a
- * running process can compute about itself, so folding *onto* it means the
- * host identity never has to be translated in the hot path.
+ * The direction matters: `${process.platform}-${process.arch}` is what a running
+ * process can compute about itself, so folding *onto* it means the host identity is
+ * never translated in the hot path.
  */
 const ARCH_ALIASES: Record<string, string> = {
     x86_64: 'x64',
@@ -134,35 +119,27 @@ const ARCH_ALIASES: Record<string, string> = {
 const MUSL_SUFFIX = '-musl';
 
 /**
- * Split a prebuild target into its three axes.
+ * Split a prebuild target into its three axes. TOKEN GRAMMAR: `<os>-<arch>[-musl]`.
  *
- * TOKEN GRAMMAR: `<os>-<arch>[-musl]`.
+ * An UNSUFFIXED token means "the default build", NOT a synonym for glibc. For an
+ * artifact linking `libc.so.6` the default build IS glibc; for one linking only
+ * GLib/GObject/GIO it is libc-AGNOSTIC and loads against whatever libc the host's GLib
+ * was built for. The directory name cannot express that and does not need to — the
+ * package's own `libc` field answers it at install time, verified against the binaries'
+ * DT_NEEDED list by the `prebuild-libc` conformance rule.
  *
- * An UNSUFFIXED token means "the default build". Note what it does NOT mean: it
- * is not a synonym for glibc. For an artifact that links `libc.so.6` the default
- * build IS glibc; for one that links only GLib/GObject/GIO (plus GnuTLS resp.
- * GStreamer) it is libc-AGNOSTIC and loads against whatever libc the host's GLib
- * was built for. The directory name cannot express that difference and does not
- * need to: the package's own `libc` field answers it at install time, and the
- * `prebuild-libc` conformance rule verifies that field against the binaries
- * (`readElfNeeded` — the DT_NEEDED list is where the answer actually lives).
+ * DELIBERATELY NOT CHOSEN: the symmetric grammar, renaming every `linux-<arch>` to
+ * `linux-<arch>-gnu`. That is ~60 committed directories plus nine e2e fixtures that
+ * COMPOSE the token instead of importing it (open-todos: "Nine fixtures re-implement
+ * the prebuild-target name instead of importing it"), so the sweep would have to be
+ * done by hand in two shapes — the literal path and the computed one — which is
+ * exactly how the last vocabulary change missed `tests/e2e/self-host/run.mjs`. The
+ * asymmetric grammar is equally expressive for zero renames.
  *
- * DELIBERATELY NOT CHOSEN: renaming every existing `linux-<arch>` directory to
- * `linux-<arch>-gnu`, which is what a symmetric grammar would demand. It would
- * rename ~60 COMMITTED directories, and — per `status/open-todos.md`'s
- * "Nine fixtures re-implement the prebuild-target name instead of importing it"
- * — nine e2e fixtures COMPOSE the token themselves instead of importing it, so
- * the rename would have to be swept by hand in two shapes (the literal path and
- * the computed one), which is exactly how the last vocabulary change missed
- * `tests/e2e/self-host/run.mjs`. The asymmetric grammar buys the same
- * expressiveness for zero renames, and the cost — that "unsuffixed" is not
- * self-describing — is paid by a field that is machine-checked anyway.
- *
- * A `-musl` suffix is only meaningful when the OS half is `linux`: musl targets
- * no other kernel, and npm's own `libc` field is documented as Linux-only. A
- * `darwin-arm64-musl` token is therefore not a target with an odd name, it is a
- * malformed one, and this returns `libc: null` for it so callers report the
- * token rather than half-honouring it.
+ * A `-musl` suffix is only meaningful when the OS half is `linux`: musl targets no
+ * other kernel and npm's `libc` field is documented Linux-only. `darwin-arm64-musl` is
+ * therefore malformed rather than oddly named, and this returns `libc: null` for it so
+ * callers report the token instead of half-honouring it.
  */
 export function parsePlatformToken(token: string): { os: string; arch: string; libc: HostLibc | null } {
     const isMusl = token.endsWith(MUSL_SUFFIX);
@@ -174,55 +151,46 @@ export function parsePlatformToken(token: string): { os: string; arch: string; l
 }
 
 /**
- * Canonical `<os>-<arch>[-musl]` form — the node spelling — so `linux-x86_64`
- * and `linux-x64` compare equal. Only the *arch* half is normalised: the OS half
- * is always a `process.platform` token (`linux`/`darwin`/`win32`), which has no
- * competing spelling, and the libc half has exactly one spelling by
- * construction.
+ * Canonical `<os>-<arch>[-musl]` (node spelling) so `linux-x86_64` and `linux-x64`
+ * compare equal. Only the *arch* half is normalised — the OS half is always a
+ * `process.platform` token with no competing spelling, and the libc half has exactly
+ * one spelling by construction.
  *
- * A `-musl` suffix on a non-Linux token is preserved verbatim rather than
- * dropped. Silently canonicalising `darwin-arm64-musl` to `darwin-arm64` would
- * make a malformed declaration compare EQUAL to a valid one, so the audit that
- * rejects it would never see it — the same class of bug as folding the legacy
- * uname spelling on a WRITE path.
+ * A `-musl` suffix on a non-Linux token is preserved rather than dropped: silently
+ * canonicalising `darwin-arm64-musl` to `darwin-arm64` would make a malformed
+ * declaration compare EQUAL to a valid one, so the audit that rejects it would never
+ * see it.
  */
 export function canonicalPlatformToken(token: string): string {
     const { os, arch, libc } = parsePlatformToken(token);
     if (!arch) return token;
     const canonical = `${os}-${ARCH_ALIASES[arch] ?? arch}`;
     if (libc === 'musl') return `${canonical}${MUSL_SUFFIX}`;
-    // Not a Linux musl token, so `-musl` (if present at all) is not a libc
-    // suffix this grammar recognises — keep the token intact.
+    // Not a Linux musl token, so any `-musl` here is not a libc suffix this grammar
+    // recognises — keep the token intact.
     return token.endsWith(MUSL_SUFFIX) ? `${canonical}${MUSL_SUFFIX}` : canonical;
 }
 
 /**
- * The target tokens that describe THIS host, most-specific first — the WRITE-side
- * vocabulary.
+ * The target tokens describing THIS host, most-specific first — the WRITE-side
+ * vocabulary, and the SINGLE definition of the musl preference order. Three callers
+ * share it so it cannot drift: the directory probe ({@link prebuildDirCandidates}), the
+ * companion-package probe ({@link platformPackageName}), and `scripts/stage-prebuild.mjs`,
+ * which must stage a musl build into `linux-x64-musl/` and never into `linux-x64/`.
  *
- * This is the single definition of the musl preference order, and three callers
- * share it so it cannot drift: the directory probe ({@link prebuildDirCandidates}),
- * the per-platform sibling package probe ({@link platformPackageName}), and
- * `scripts/stage-prebuild.mjs`, which must stage a musl build into
- * `linux-x64-musl/` and never into `linux-x64/`.
+ * On a musl host the suffixed token comes FIRST with the unsuffixed one as fallback,
+ * because an unsuffixed directory is the default build and the libc-agnostic bridges
+ * (no `libc.so.6` recorded at all) genuinely do load on musl. On glibc the `-musl`
+ * token is not offered at all — a musl artifact cannot load against glibc, so probing
+ * for it could only produce a false positive.
  *
- * On a musl host the suffixed token comes FIRST and the unsuffixed one stays as a
- * fallback: an unsuffixed directory is the default build, which for the
- * libc-agnostic bridges (they record no `libc.so.6` at all) genuinely does load
- * on musl. On glibc the `-musl` token is not offered at all — a musl artifact
- * cannot load against glibc, so probing for it could only ever produce a
- * false positive.
- *
- * @param platform `process.platform` value.
- * @param arch `process.arch` value.
- * @param libc host C library; `undefined`/`null` behaves as glibc (see
- *   {@link HostTarget.libc} for why that is the safe default).
+ * @param libc `undefined`/`null` behaves as glibc — see {@link HostTarget.libc}.
  */
 export function hostPlatformTokens(platform: string, arch: string, libc?: HostLibc | null): string[] {
     const canonical = `${platform}-${arch}`;
-    // The suffix is Linux-only by construction, so a `libc: 'musl'` handed in
-    // for darwin/win32 is ignored rather than trusted — the caller's host facts
-    // do not get to invent a target the grammar does not have.
+    // The suffix is Linux-only by construction, so a `libc: 'musl'` handed in for
+    // darwin/win32 is ignored rather than trusted: the caller's host facts do not get
+    // to invent a target the grammar does not have.
     if (libc === 'musl' && platform === 'linux') return [`${canonical}${MUSL_SUFFIX}`, canonical];
     return [canonical];
 }
@@ -230,44 +198,34 @@ export function hostPlatformTokens(platform: string, arch: string, libc?: HostLi
 /**
  * The prebuild directory names to probe for a host, most-specific first.
  *
- * The canonical name is `${process.platform}-${process.arch}` — `linux-x64`,
- * `linux-arm64`, `darwin-arm64`, `win32-x64`. Every package in the release
- * train declares it (`gjsify.platforms`), `scripts/stage-prebuild.mjs` is the
- * only thing that creates it, and `scripts/audit-runtimes.mjs --check` rejects
- * any other spelling, so the three can no longer drift.
+ * The canonical name is `${process.platform}-${process.arch}`. Every package in the
+ * release train declares it (`gjsify.platforms`), `scripts/stage-prebuild.mjs` is the
+ * only thing that creates it, and `scripts/audit-runtimes.mjs --check` rejects any
+ * other spelling, so the three cannot drift.
  *
- * Two probes remain BEHIND that canonical name, and both are backward
- * compatibility with tarballs already on npm — not a second convention:
+ * Two probes sit BEHIND it, both backward compatibility with tarballs already on npm
+ * rather than a second convention:
  *
- *   1. **The package's own declared spelling.** A tarball published before the
- *      rename declares (and ships) `linux-x86_64`; probing its declaration
- *      first loads it without the CLI having to guess. This is also what makes
- *      the rename work in the OTHER direction — an older CLI resolving a newer
- *      package — because `canonicalPlatformToken` folds both spellings onto
- *      one form at both ends.
- *   2. **The legacy uname spelling.** Only reachable for a package that ships
- *      a prebuild dir and declares NO `gjsify.platforms` at all — i.e. a
- *      tarball predating the OS-axis audit, or a third-party package using
- *      `gjsify.prebuilds` without the declaration. Inside this repo the audit
- *      makes that state impossible.
+ *   1. **The package's own declared spelling.** A pre-rename tarball declares and
+ *      ships `linux-x86_64`, so probing its declaration first loads it without
+ *      guessing. This is also what makes the rename work in the OTHER direction (an
+ *      older CLI, a newer package), since `canonicalPlatformToken` folds both
+ *      spellings onto one form at both ends.
+ *   2. **The legacy uname spelling.** Only reachable for a package that ships a
+ *      prebuild dir and declares NO `gjsify.platforms` — a tarball predating the
+ *      OS-axis audit, or a third-party package. The audit makes that state impossible
+ *      inside this repo.
  *
- * Both are pure array entries matched against an already-read directory
- * listing — no extra I/O — so tolerance on the READ side costs nothing, while
- * the single spelling is enforced everywhere a name is WRITTEN.
+ * Both are array entries matched against an already-read directory listing, so
+ * tolerance on the READ side costs no I/O while the single spelling stays enforced
+ * everywhere a name is WRITTEN.
  *
- * The LIBC AXIS rides in front of all of that: on a musl host the
- * `<os>-<arch>-musl` token is preferred over `<os>-<arch>`, and on glibc the
- * suffixed token is NEVER offered (a musl artifact cannot load against glibc, so
- * a probe for it can only produce a false positive). The `libc` value is a
- * PARAMETER rather than a `process` read for the same reason `platform` and
- * `arch` are: it is the only way the musl branch gets exercised at all, since CI
- * and every developer machine here run glibc.
+ * The LIBC AXIS rides in front of all of it (see {@link hostPlatformTokens}). `libc` is
+ * a PARAMETER rather than a `process` read for the same reason `platform` and `arch`
+ * are: it is the only way the musl branch is exercised at all, since CI and every
+ * developer machine here run glibc.
  *
- * @param platform `process.platform` value.
- * @param arch `process.arch` value.
  * @param declaredPlatforms `package.json#gjsify.platforms`, when present.
- * @param libc host C library; `undefined`/`null` = behave as before the axis
- *   existed.
  */
 export function prebuildDirCandidates(
     platform: string,
@@ -283,10 +241,8 @@ export function prebuildDirCandidates(
         if (!out.includes(name)) out.push(name);
     };
 
-    // 1. The package's own declared spelling for each host token, most-specific
-    //    token first. Keyed off the SAME host-token list as step 2, so a musl
-    //    host that finds `linux-x64-musl` in `gjsify.platforms` prefers it over
-    //    a declared `linux-x64` — the declaration probe must not be able to
+    // 1. The package's own declared spelling per host token, most-specific first. Keyed
+    //    off the SAME host-token list as step 2, so the declaration probe cannot
     //    reorder the libc preference.
     for (const token of hostTokens) {
         for (const declared of declaredPlatforms ?? []) {

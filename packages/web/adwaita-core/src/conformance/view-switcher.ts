@@ -1,23 +1,14 @@
 // View-switcher conformance vectors — the spec all three implementations are
 // held to.
 //
-// The family splits into two kinds of expectation and the tables follow that
-// split. The PURE derivations (mnemonic stripping, the icon fallback, the
-// button-visibility predicate, the badge label + screen-reader description, the
-// bar-reveal gate, the tooltip) are one input and one output per row. The rest
-// is a STATE MACHINE, so a row is a script: a page list, a sequence of
-// operations, and the exact change notifications those produce.
+// Two kinds of expectation, and the tables follow the split: the PURE derivations
+// (mnemonic stripping, icon fallback, button-visibility predicate, badge label +
+// screen-reader description, bar-reveal gate, tooltip) are one input and one output
+// per row; the rest is a STATE MACHINE, so a row is a script — a page list, a
+// sequence of operations, and the exact change notifications those produce.
 //
-// Every row cites the C function it came from. Rows whose `rule` opens with
-// REGRESSION PIN encode behaviour that BOTH ports shipped wrong, so "fixing" the
-// vector to match a renderer would undo the reason the table exists:
-//   - a page with neither title nor icon must render NO button;
-//   - an EMPTY title is not NULL, so that page keeps its button;
-//   - a missing icon name renders `image-missing`, not nothing;
-//   - a one-page stack keeps the switcher bar collapsed;
-//   - hidden pages produce no inline toggle, so the toggle and page index spaces
-//     diverge and `-1` is a reachable "nothing active";
-//   - an out-of-range or negative index is REFUSED, never clamped into range.
+// A `rule` opening with REGRESSION PIN encodes behaviour BOTH ports shipped wrong,
+// so "fixing" that vector to match a renderer undoes the reason the table exists.
 //
 // Reference: refs/libadwaita/src/adw-view-switcher.c
 // Reference: refs/libadwaita/src/adw-view-switcher-button.c
@@ -64,7 +55,6 @@ export interface MnemonicVector {
     label: string;
     /** What `adw_strip_mnemonic` produces. */
     stripped: string;
-    /** What this row pins down. */
     rule: string;
 }
 
@@ -94,18 +84,16 @@ export interface ViewSwitcherIconVector {
     iconName: string | null | undefined;
     /** The icon the switcher actually renders. */
     resolved: string;
-    /** What this row pins down. */
     rule: string;
 }
 
 /**
  * The `image-missing` substitution (adw-view-switcher-button.c:399-405,
- * adw-inline-view-switcher.c:137-142). Both ports rendered NO icon instead,
- * which is why an icons-mode toggle for a page without an icon was a blank box.
+ * adw-inline-view-switcher.c:137-142). Both ports rendered NO icon instead, so an
+ * icons-mode toggle for a page without an icon was a blank box.
  *
- * Note there is no `-symbolic` stripping here: C passes the name to `GtkImage`
- * unchanged. Turning a name into a CSS class or an SVG document is the
- * renderer's job.
+ * No `-symbolic` stripping here: C passes the name to `GtkImage` unchanged, and
+ * turning a name into a CSS class or an SVG document is the renderer's job.
  */
 export const VIEW_SWITCHER_ICON_VECTORS: ReadonlyArray<ViewSwitcherIconVector> = [
     {
@@ -129,7 +117,6 @@ export interface ViewSwitcherButtonVisibilityVector {
     iconName: string | null;
     /** Whether `AdwViewSwitcher` shows the button. */
     buttonVisible: boolean;
-    /** What this row pins down. */
     rule: string;
 }
 
@@ -137,10 +124,10 @@ export interface ViewSwitcherButtonVisibilityVector {
  * `update_button`'s `gtk_widget_set_visible (button, visible && (title != NULL ||
  * icon_name != NULL))` (adw-view-switcher.c:178).
  *
- * Implemented in NEITHER port: the browser one hid the label and icon spans but
- * always appended a visible `<button>`, the NativeScript one always added the
- * button `StackLayout` with an empty `Label`. Both therefore rendered an empty,
- * clickable, space-consuming tab for a page with no title and no icon.
+ * In NEITHER port: the browser hid the label and icon spans but always appended a
+ * visible `<button>`, NativeScript always added the button `StackLayout` with an
+ * empty `Label`. Both rendered an empty, clickable tab for a page with no title
+ * and no icon.
  */
 export const VIEW_SWITCHER_BUTTON_VISIBILITY_VECTORS: ReadonlyArray<ViewSwitcherButtonVisibilityVector> = [
     { visible: true, title: 'Home', iconName: null, buttonVisible: true, rule: 'a title alone is enough' },
@@ -186,18 +173,16 @@ export interface ViewSwitcherBadgeVector {
     badgeLabel: string;
     /** `update_description`'s text. */
     description: string;
-    /** What this row pins down. */
     rule: string;
 }
 
 /**
  * `get_badge_label` (adw-indicator-bin.c:58-68) and `update_description`
- * (:70-113), which both ports omit entirely — neither renders a badge, a
- * needs-attention dot, or an accessible description.
+ * (:70-113), omitted by both ports — neither renders a badge, a needs-attention
+ * dot, or an accessible description.
  *
- * The composition ORDER is the subtle part: when both clauses apply the format
- * is `"%s %s", badge_description, needs_attention_description` (:96), so the
- * BADGE comes first.
+ * The composition ORDER is the subtle part: with both clauses the format is
+ * `"%s %s", badge_description, needs_attention_description` (:96) — badge first.
  */
 export const VIEW_SWITCHER_BADGE_VECTORS: ReadonlyArray<ViewSwitcherBadgeVector> = [
     { badgeNumber: 0, needsAttention: false, badgeLabel: '', description: '', rule: 'no badge, no attention, no text' },
@@ -254,15 +239,13 @@ export interface ViewSwitcherBarRevealVector {
     pages: readonly { readonly visible: boolean }[];
     /** Whether the action bar is actually revealed. */
     revealed: boolean;
-    /** What this row pins down. */
     rule: string;
 }
 
 /**
  * `update_bar_revealed` (adw-view-switcher-bar.c:104-126) — absent from BOTH
- * ports, which each reduced `revealed` to their own boolean flag and never
- * consulted the page count. A bar bound to a one-page stack therefore showed an
- * empty strip libadwaita keeps collapsed.
+ * ports, which reduced `revealed` to a boolean flag and never consulted the page
+ * count, so a bar on a one-page stack showed a strip libadwaita keeps collapsed.
  */
 export const VIEW_SWITCHER_BAR_REVEAL_VECTORS: ReadonlyArray<ViewSwitcherBarRevealVector> = [
     {
@@ -313,7 +296,6 @@ export interface ViewSwitcherBarSnapshot {
 
 /** One end-to-end switcher-bar expectation. */
 export interface ViewSwitcherBarVector {
-    /** What this row pins down. */
     rule: string;
     /** The C function + lines it is derived from. */
     derivedFrom: string;
@@ -426,14 +408,13 @@ export interface InlineTooltipVector {
     displayMode: AdwInlineViewSwitcherDisplayMode;
     /** The tooltip text, as PLAIN text. */
     tooltip: string;
-    /** What this row pins down. */
     rule: string;
 }
 
 /**
- * `update_tooltip` (adw-inline-view-switcher.c:163-192). The browser port gated
- * on the mode correctly but used the RAW attribute, so `title="_Files"` produced
- * the tooltip `_Files`; the NativeScript port has no tooltip at all.
+ * `update_tooltip` (adw-inline-view-switcher.c:163-192). The browser port gated on
+ * the mode correctly but used the RAW attribute, so `title="_Files"` produced the
+ * tooltip `_Files`; NativeScript has no tooltip at all.
  */
 export const INLINE_TOOLTIP_VECTORS: ReadonlyArray<InlineTooltipVector> = [
     { title: '_Files', useUnderline: true, displayMode: 'labels', tooltip: '', rule: 'labels mode clears the tooltip' },
@@ -489,7 +470,6 @@ export interface ExpectedViewSwitcherButton {
 
 /** One `buildViewSwitcherButtons` expectation. */
 export interface ViewSwitcherButtonVector {
-    /** What this row pins down. */
     rule: string;
     /** The C function + lines it is derived from. */
     derivedFrom: string;
@@ -764,7 +744,6 @@ export interface ExpectedInlineToggle {
 
 /** One `buildInlineToggles` + index-mapping expectation. */
 export interface InlineToggleVector {
-    /** What this row pins down. */
     rule: string;
     /** The C function + lines it is derived from. */
     derivedFrom: string;
@@ -787,8 +766,8 @@ export interface InlineToggleVector {
  * index `i`, which `add_toggle` stashes as `child-index`
  * (adw-inline-view-switcher.c:370-378, :346); `notify_active_cb` reads it back
  * (:114-129) and `selection_changed_cb` walks the other way (:434-453). Neither
- * port filtered hidden pages, so the mapping looked like the identity and the
- * `-1` sentinel had no spelling.
+ * port filtered hidden pages, so the mapping looked like the identity and the `-1`
+ * sentinel had no spelling.
  */
 export const INLINE_TOGGLE_VECTORS: ReadonlyArray<InlineToggleVector> = [
     {
@@ -979,7 +958,6 @@ export type ViewSwitcherVectorOp =
 
 /** One end-to-end switcher-selection expectation. */
 export interface ViewSwitcherSelectionVector {
-    /** What this row pins down. */
     rule: string;
     /** The C function + lines it is derived from. */
     derivedFrom: string;
@@ -1012,10 +990,10 @@ export interface ViewSwitcherSelectionVector {
  * switcher owns no selection property of its own (adw-view-switcher.c:126-147
  * goes straight to `gtk_selection_model_select_item`).
  *
- * The refusal rows are the ones both ports failed differently: the browser
- * switcher CLAMPED an out-of-range or negative index into range (so `active="-1"`
- * jumped to the first page and `active="99"` to the last), and both stacks
- * accepted a fractional index and then matched no page at all.
+ * The refusal rows are where the ports failed differently: the browser switcher
+ * CLAMPED an out-of-range or negative index (`active="-1"` jumped to the first
+ * page, `active="99"` to the last), and both stacks accepted a fractional index
+ * and then matched no page at all.
  */
 export const VIEW_SWITCHER_SELECTION_VECTORS: ReadonlyArray<ViewSwitcherSelectionVector> = [
     {
@@ -1221,7 +1199,6 @@ export const VIEW_SWITCHER_SELECTION_VECTORS: ReadonlyArray<ViewSwitcherSelectio
 
 /** One page-list rebuild expectation. */
 export interface ViewSwitcherRebuildVector {
-    /** What this row pins down. */
     rule: string;
     /** The C function + lines it is derived from. */
     derivedFrom: string;
@@ -1341,7 +1318,6 @@ export type ViewSwitcherDragStep =
 
 /** One drag-hover auto-switch expectation. */
 export interface ViewSwitcherDragVector {
-    /** What this row pins down. */
     rule: string;
     /** The C function + lines it is derived from. */
     derivedFrom: string;
@@ -1360,11 +1336,11 @@ export interface ViewSwitcherDragVector {
 /**
  * `TIMEOUT_EXPAND` — the 500 ms dwell that switches pages mid-drag. Defined
  * identically in both C files (adw-view-switcher-button.c:14, :58-96;
- * adw-inline-view-switcher.c:80, :194-236) and present in NEITHER port, which
- * only ever listened for `click`/`tap`.
+ * adw-inline-view-switcher.c:80, :194-236) and in NEITHER port, which only ever
+ * listened for `click`/`tap`.
  *
- * `interactive: true` on the resulting change: the C timeout activates the
- * toggle, which runs the very same `on_button_toggled` a click does.
+ * `interactive: true` on the resulting change because the C timeout activates the
+ * toggle, running the same `on_button_toggled` a click does.
  */
 export const VIEW_SWITCHER_DRAG_VECTORS: ReadonlyArray<ViewSwitcherDragVector> = [
     {
@@ -1480,21 +1456,12 @@ export interface ViewSwitcherClock extends ViewSwitcherScheduler {
 }
 
 /**
- * A fake clock for the drag vectors.
+ * A fake clock for the drag vectors. It schedules and cancels callbacks and
+ * nothing else, so it cannot transcribe the logic it is used to exercise.
  *
- * Note WHAT it is: a clock, not a stand-in for any behaviour under test. It
- * schedules and cancels callbacks and nothing else, so it cannot transcribe the
- * logic it is used to exercise.
- *
- * WHO DRIVES THOSE VECTORS: the core suite, and only it. This said "the core,
- * browser and NativeScript suites all" — a claim of coverage that was never
- * true, which is worse than silence, because it reads as a reason to stop
- * looking. The browser elements construct
- * `new ViewSwitcherState({ scheduler: domViewSwitcherScheduler })` inline
- * (`elements/adw-view-switcher.ts`, `elements/adw-inline-view-switcher.ts`), so
- * there is no seam to hand this clock through, and the NativeScript port has no
- * drag surface at all. Wiring the browser side means giving the elements a
- * scheduler seam first.
+ * Driven by the core suite and the browser suite, the latter through the
+ * elements' injectable `scheduler` property. The NativeScript port has no drag
+ * surface, so it drives none of these rows.
  */
 export function createViewSwitcherClock(): ViewSwitcherClock {
     let now = 0;

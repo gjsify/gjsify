@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for "which binary does PATH actually pick?".
+// "Which binary does PATH actually pick?"
 //
-// The whole point of this file, and the same argument as `dir-link.spec.ts`: the
-// WINDOWS branch is exercised HERE, on Linux, by injecting the platform. Nothing
-// in CI resolves a bin on a Windows host, so an injected `'win32'` is the ONLY
-// way the PATHEXT branch is ever EXECUTED — and an unexecutable Windows branch is
-// exactly how the `'dir'` bug in `dir-link.ts` shipped.
+// The WINDOWS branch is exercised HERE, on Linux, by injecting the platform:
+// nothing in CI resolves a bin on a Windows host, so an injected `'win32'` is the
+// ONLY way the PATHEXT branch EXECUTES — and an unexecutable Windows branch is how
+// the `'dir'` bug in `dir-link.ts` shipped.
 //
-// The `verifyPathResolution` cases matter for the same reason from the other
-// direction: a developer's own machine only ever produces the HAPPY one, because
-// a working install resolves to its own binDir by definition. The two failing
-// shapes — shadowed, and absent — are the ones #1064 was reported from, and they
-// are unreachable without injection.
+// The `verifyPathResolution` rows are injected for the mirror-image reason: a
+// developer's own machine only ever produces the HAPPY one, since a working
+// install resolves to its own binDir by definition. The two failing shapes —
+// shadowed, and absent — are what #1064 was reported from.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { posix, win32 } from 'node:path';
@@ -22,9 +20,9 @@ import { verifyPathResolution } from '../commands/self-update.js';
 export default async () => {
     await describe('resolveBinOnPath', async () => {
         await it('returns the FIRST hit in PATH order, not merely any hit', async () => {
-            // The bug being guarded: `~/.local/bin` is on PATH but loses to an
-            // npm-global dir earlier in it. "Is our dir on PATH" answers yes here
-            // and is the wrong question.
+            // The bug guarded: `~/.local/bin` is on PATH but loses to an npm-global dir
+            // earlier in it, so "is our dir on PATH" answers yes and is the wrong
+            // question.
             const present = new Set([posix.resolve('/opt/npm/bin/gjsify'), posix.resolve('/home/u/.local/bin/gjsify')]);
             const found = resolveBinOnPath('gjsify', {
                 platform: 'linux',

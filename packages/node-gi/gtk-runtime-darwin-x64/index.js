@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/gtk-runtime-darwin-x64 — path helpers for the relocated GTK runtime
-// bundle. @gjsify/node-gi resolves this package (optional, os/cpu-gated) to find
-// the bundled typelib + dylib dirs when no Homebrew GTK is present. The heavy
-// `gtk/` payload is produced by ../scripts/build-gtk-runtime-darwin.mjs on an
-// Intel macOS runner.
+// @gjsify/gtk-runtime-darwin-x64 — path helpers for the relocated GTK runtime bundle.
+// @gjsify/node-gi resolves this package (optional, os/cpu-gated) to find the bundled typelib +
+// dylib dirs when no Homebrew GTK is present. The heavy `gtk/` payload is produced by
+// ../scripts/build-gtk-runtime-darwin.mjs on an Intel macOS runner.
 //
-// Byte-for-byte the same body as the darwin-arm64 / win32-x64 siblings apart from
-// this header, and deliberately NOT lifted into a shared module: this file IS the
-// package entry (`require.resolve('@gjsify/gtk-runtime-<target>')`), and these
-// tarballs are deliberately dependency-free so a platform-gated install needs no
-// resolution beyond itself. It also carries no arch-dependent logic to drift —
-// every path is relative to this file.
+// Byte-for-byte the same body as the darwin-arm64 sibling apart from this header (win32-x64
+// exports `binDir` instead), deliberately NOT lifted into a shared module: this file IS the
+// package entry (`require.resolve('@gjsify/gtk-runtime-<target>')`) and these tarballs are
+// dependency-free, so a platform-gated install needs no resolution beyond itself. No
+// arch-dependent logic to drift — every path is relative to this file.
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

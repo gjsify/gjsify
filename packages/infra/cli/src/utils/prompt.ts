@@ -1,20 +1,17 @@
 // Interactive prompts for `gjsify login` / `gjsify trust`.
 //
-// On a TTY every prompt runs inside a single RAW-mode session (`runRawSession`)
-// that reads key-by-key with manual echo and a guaranteed cooked-mode restore
-// (try/finally). This deliberately does NOT rely on the terminal's cooked
-// line-discipline nor on the shared `process.stdin` resume/pause cycle:
-//   - The old visible prompt read a cooked line via `process.stdin` 'data'
-//     events. With the line discipline in an unexpected state (e.g. ICRNL off
-//     after a prior raw prompt) Enter arrived as a bare `\r` that never
-//     terminated the cooked line — the prompt hung showing `name^M`. The
-//     resume/pause churn on the shared stdin singleton between two sequential
-//     prompts also intermittently dropped the line or resolved it empty.
-//   - Reading raw + handling `\r`/`\n` ourselves removes both failure modes.
+// On a TTY every prompt runs inside a single RAW-mode session (`runRawSession`) reading
+// key-by-key with manual echo and a guaranteed cooked-mode restore. It deliberately relies on
+// neither the terminal's cooked line-discipline nor the shared `process.stdin` resume/pause
+// cycle: a cooked read with the line discipline in an unexpected state (ICRNL off after a prior
+// raw prompt) saw Enter arrive as a bare `\r` that never terminated the line, hanging the prompt
+// showing `name^M`, and the resume/pause churn on the shared stdin singleton between sequential
+// prompts intermittently dropped the line or resolved it empty. Handling `\r`/`\n` here removes
+// both failure modes.
 //
-// Raw mode (via @gjsify/process → terminal-native) now also clears ISIG, so
-// Ctrl-C is delivered as a `\x03` keystroke we handle (restore + exit) instead
-// of a SIGINT that would kill the process leaving the terminal in raw mode.
+// Raw mode (via @gjsify/process → terminal-native) also clears ISIG, so Ctrl-C arrives as a
+// `\x03` keystroke handled below (restore + exit) rather than a SIGINT that would kill the
+// process leaving the terminal in raw mode.
 //
 // Non-TTY stdin (piped input, CI) keeps a plain line read so
 // `printf 'user\npass\n' | gjsify login` still works.
@@ -49,10 +46,9 @@ export interface KeyOutcome {
 }
 
 /**
- * Pure key handler for the raw-mode line editor — the single source of truth
- * for how a keystroke updates the buffer + echo. Kept pure (no I/O) so it is
- * unit-testable: this is what makes Enter (`\r` OR `\n`) reliably submit, masks
- * passwords, and treats Ctrl-C as an interrupt rather than text.
+ * Pure key handler for the raw-mode line editor — the single source of truth for how a keystroke
+ * updates the buffer + echo. Pure (no I/O) so the rules are unit-testable: Enter is `\r` OR `\n`,
+ * passwords mask, and Ctrl-C is an interrupt rather than text.
  */
 export function applyKey(buf: string, ch: string, mask: boolean): KeyOutcome {
     if (ch === '\r' || ch === '\n') {

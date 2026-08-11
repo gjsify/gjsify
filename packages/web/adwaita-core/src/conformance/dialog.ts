@@ -232,7 +232,6 @@ export interface BottomSheetPresentationVector {
     open: boolean;
     /** `has_been_open` after the last step. */
     hasBeenOpen: boolean;
-    /** Why this row exists. */
     rule: string;
     /** The C function + lines it is derived from. */
     derivedFrom: string;

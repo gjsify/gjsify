@@ -21,7 +21,6 @@ export interface LabelVisibilityVector {
     text: string | null;
     /** Whether the bound label is visible. */
     visible: boolean;
-    /** Why this row exists — the rule or edge case it pins down. */
     rule: string;
 }
 
@@ -77,7 +76,6 @@ export interface ActionRowActivationVector {
     activatable: boolean;
     /** `AdwActionRow:activatable-widget` afterwards, by id. */
     activatableWidget: string | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -210,7 +208,6 @@ export interface SwitchRowNotifyVector {
     active: boolean;
     /** The `active` value carried by each `notify::active`, in emission order. */
     emitted: readonly boolean[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -293,7 +290,6 @@ export interface ButtonRowIconVector {
     startIconVisible: boolean;
     /** Whether the trailing `image.icon.end` shows (adw-button-row.ui:55-59). */
     endIconVisible: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -349,7 +345,6 @@ export interface ButtonRowActivatableVector {
     declared: string | null;
     /** Whether the row activates. Always `true`. */
     activatable: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -395,7 +390,6 @@ export interface WindowTitleVector {
     subtitleVisible: boolean;
     /** Which property each `notify::*` named, in emission order. */
     notified: readonly ('title' | 'subtitle')[];
-    /** Why this row exists. */
     rule: string;
 }
 

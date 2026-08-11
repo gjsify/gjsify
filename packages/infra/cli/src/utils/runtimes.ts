@@ -1,18 +1,16 @@
 // Shared runtime-selector tooling for running gjsify examples/showcases across
 // the FOUR runtimes gjsify targets: gjs, node, bun, deno.
 //
-// This is the single source of truth generalized from the node-gi quad-runtime
-// example's `harness.mjs`. Both the CLI (`gjsify run`/`gjsify showcase
-// --runtime`) and the examples (the node-gi `harness.mjs`) consume it — so the
-// RUNTIMES map, the runtime→build-target mapping and `availableRuntimes()` live
-// in ONE place instead of a per-example copy.
+// Both the CLI (`gjsify run` / `gjsify showcase --runtime`) and the examples (the
+// node-gi `harness.mjs`) consume this, so the RUNTIMES map, the
+// runtime→build-target mapping and `availableRuntimes()` live in ONE place instead
+// of a per-example copy.
 //
-// The module is intentionally PURE (only `node:child_process` and the pure,
-// side-effect-free `@gjsify/rolldown-plugin-gjsify/runtime` host detector, no
-// `gi://` / native imports) so an external example can deep-import it from the
-// installed CLI (`@gjsify/cli/lib/utils/runtimes.js`) without pulling the whole
-// bundler in. Mirrors the existing `@gjsify/cli/lib/utils/run-gjs.js`
-// deep-import precedent used by the dlx e2e suites.
+// Intentionally PURE (only `node:child_process` and the side-effect-free
+// `@gjsify/rolldown-plugin-gjsify/runtime` host detector, no `gi://` or native
+// imports) so an external example can deep-import it from the installed CLI
+// (`@gjsify/cli/lib/utils/runtimes.js`) without pulling in the whole bundler — the
+// same deep-import precedent as `@gjsify/cli/lib/utils/run-gjs.js`.
 
 import { execFileSync } from 'node:child_process';
 import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
@@ -38,10 +36,9 @@ export interface RuntimeSpec {
 }
 
 /**
- * The runtime map — the generalization of the node-gi harness's `RUNTIMES`.
  * `deno` uses `--node-modules-dir=manual`: `auto` would re-resolve the example's
- * heavy build-time dep tree (`@gjsify/cli` + platform binaries) and hang, when
- * the app only needs the already-linked runtime dep `@gjsify/node-gi`.
+ * heavy build-time dep tree (`@gjsify/cli` + platform binaries) and hang, when the
+ * app only needs the already-linked runtime dep `@gjsify/node-gi`.
  */
 export const RUNTIMES: Record<ExampleRuntime, RuntimeSpec> = {
     gjs: { probe: 'gjs', buildApp: 'gjs', launch: (e, a = []) => ['gjs', ['-m', e, ...a]] },
@@ -72,14 +69,11 @@ export function buildAppForRuntime(runtime: ExampleRuntime): 'gjs' | 'node' {
  * `--app gjs` bundle" and "needs a gjs interpreter" are the same fact, and a
  * hand-written second list drifts the first time a runtime is added.
  *
- * The caller must resolve the runtime BEFORE gating on it. `gjsify showcase`
- * called `runMinimalChecks()` — which marks `gjs` `required` — three statements
- * ABOVE the line resolving `args.runtime`, so `--runtime node` aborted with
- * "Missing system dependencies: ✗ GJS" before reaching the `runtime !== 'gjs'`
- * branch that never touches gjs. Every showcase was unreachable on a host
- * without gjs (Windows, plain Node/bun/deno) — including the default path,
- * since `defaultExampleRuntime()` falls back to the host runtime for exactly
- * those hosts.
+ * The caller must resolve the runtime BEFORE gating on it. Calling
+ * `runMinimalChecks()` (which marks `gjs` `required`) above the line that resolves
+ * `args.runtime` made every showcase unreachable on a host without gjs — `--runtime
+ * node` aborted with "Missing system dependencies: ✗ GJS" before reaching the
+ * branch that never touches gjs, the default path included.
  */
 export function requiresGjsSystemDeps(runtime: ExampleRuntime): boolean {
     return buildAppForRuntime(runtime) === 'gjs';
@@ -96,9 +90,8 @@ export function isRuntimeOnPath(probe: string): boolean {
 }
 
 /**
- * Whether a specific runtime is runnable here. The HOST runtime (the one the
- * CLI itself executes in — gjs / node / bun / deno) is always available: we are
- * running on it, so no PATH probe is needed. Every other runtime is probed via
+ * Whether a specific runtime is runnable here. The HOST runtime needs no PATH probe
+ * — the CLI is executing on it; every other runtime is probed via
  * `<binary> --version`.
  */
 export function isRuntimeAvailable(runtime: ExampleRuntime): boolean {
@@ -114,47 +107,40 @@ export function availableRuntimes(): ExampleRuntime[] {
  * The default `--runtime` for running a prebuilt EXAMPLE/SHOWCASE: `gjs`
  * whenever gjs is runnable here, else the host runtime.
  *
- * This is deliberately NOT a plain `hostRuntime()`. A showcase's canonical
- * artifact is its `--app gjs` bundle (`gjsify.main`) — that is what every
- * showcase ships, what the `gjs` path installs via `gjsify dlx`, and what the
- * docs call the default. Following the host instead means `npx @gjsify/cli
- * showcase <name>` (host = node) silently asks for the `--app node` bundle,
- * which most showcases do not ship and which additionally needs
- * `@gjsify/node-gi` in the consumer's project — so the FIRST-RUN experience of
- * the primary documented entry point failed on a missing file.
+ * Deliberately NOT a plain `hostRuntime()`. A showcase's canonical artifact is its
+ * `--app gjs` bundle (`gjsify.main`) — what every showcase ships and what `gjsify
+ * dlx` installs. Following the host instead makes `npx @gjsify/cli showcase <name>`
+ * (host = node) ask for the `--app node` bundle, which most showcases do not ship
+ * and which also needs `@gjsify/node-gi` in the consumer's project, so the
+ * first-run experience of the primary documented entry point failed on a missing
+ * file.
  *
- * Same rule `gjsify run` already applies in its bare-file path, where a
- * `--app gjs` bundle stays on gjs regardless of host (`isLikelyGjsBundle`);
- * here the "is it a gjs artifact" question is answered by the command instead
- * of by sniffing the file. `--runtime` still overrides explicitly, and a host
- * WITHOUT gjs (a plain Node/bun/deno box) keeps following the host so the
+ * Same rule `gjsify run` applies in its bare-file path (`isLikelyGjsBundle`), with
+ * "is it a gjs artifact" answered by the command rather than by sniffing the file.
+ * `--runtime` still overrides, and a host WITHOUT gjs keeps following the host so
  * node-capable showcases stay runnable there.
  */
 export function defaultExampleRuntime(): ExampleRuntime {
     return isRuntimeAvailable('gjs') ? 'gjs' : hostRuntime();
 }
 
-// --- Per-example runtime declaration ---------------------------------------
-//
 // An example/showcase MAY declare which runtimes it supports:
 //
 //   "gjsify": { "example": { "runtimes": ["gjs", "node", "bun", "deno"] } }
 //
-// This is OPTIONAL and back-compat: a package WITHOUT the declaration is treated
-// as unconstrained (runs on any requested runtime). The declaration lets a
-// GTK/Adw showcase say `["gjs"]` so `--runtime node` fails with a clear,
-// actionable error instead of crashing deep in a bundle it can't run (e.g.
-// before node-gi's GTK layer exists).
+// Optional: a package without it is unconstrained and runs on any requested
+// runtime. The declaration lets a GTK/Adw showcase say `["gjs"]` so `--runtime
+// node` fails with an actionable error instead of crashing deep in a bundle it
+// cannot run.
 
 interface ExampleGjsifyField {
     example?: { runtimes?: unknown };
 }
 
 /**
- * Read a package's declared example runtimes. Returns the (validated) list, or
- * `null` when the package declares none — the "unconstrained / permissive" case.
- * Unknown entries in the list are dropped (so a future runtime name doesn't hard
- * error against an older CLI).
+ * A package's declared example runtimes, or `null` when it declares none (the
+ * permissive case). Unknown entries are dropped so a future runtime name does not
+ * hard-error against an older CLI.
  */
 export function readDeclaredRuntimes(pkg: { gjsify?: ExampleGjsifyField } | null | undefined): ExampleRuntime[] | null {
     const list = pkg?.gjsify?.example?.runtimes;
@@ -169,10 +155,9 @@ export interface RuntimeSupportResult {
 }
 
 /**
- * Validate a requested runtime against a package's declaration. A `null`
- * declaration is permissive (always ok). When the runtime is not in the
- * declared set, returns a clear, actionable error message (never throws) so
- * callers can print it and exit cleanly.
+ * Validate a requested runtime against a package's declaration; a `null`
+ * declaration is permissive. Returns a message rather than throwing, so callers
+ * print it and exit cleanly.
  */
 export function checkRuntimeSupported(
     runtime: ExampleRuntime,

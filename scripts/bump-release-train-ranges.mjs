@@ -4,81 +4,62 @@
 // Invoked from `.release-it.json` as:
 //   node scripts/bump-release-train-ranges.mjs ${latestVersion} ${version}
 //
-// WHY IT EXISTS. `@release-it/bumper` globs `showcases/*/*/package.json` and
-// `examples/*/*/package.json`, but it rewrites exactly one thing in each: the
-// `version` field. Dependency RANGES it never touches — and three apps under
-// `showcases/` are `!`-negated out of the root `workspaces` globs
+// WHY IT EXISTS. `@release-it/bumper` globs the app manifests but rewrites
+// exactly one thing in each: the `version` field, never dependency RANGES. Three
+// apps under `showcases/` are `!`-negated out of the root `workspaces` globs
 // (`adwaita-storybook-nativescript`, `adwaita-widgets-nativescript`,
-// `three-geometry-teapot-nativescript`: they carry their own `node_modules` and
-// their own NS toolchain), so their `@gjsify/*` deps are ordinary npm ranges
-// that resolve through the registry. Nothing kept those current, so the instant
-// release-it bumped the workspace to the next version they all named the
-// previous one, and the `release-train` conformance rule failed inside the same
-// `after:bump` hook. That rule was therefore unsatisfiable DURING a cut from the
-// day it landed; the v0.32.0 attempt was the first cut since, and it died there
-// with 11 findings. This script is the half that was missing.
+// `three-geometry-teapot-nativescript` — own `node_modules`, own NS toolchain), so
+// their `@gjsify/*` deps are ordinary npm ranges resolved through the registry.
+// Nothing kept those current, so the instant release-it bumped the workspace they
+// all named the previous version and the `release-train` rule failed inside the
+// same `after:bump` hook — unsatisfiable DURING a cut from the day it landed, and
+// the v0.32.0 attempt died there with 11 findings.
 //
-// WHY NOT `workspace:^` IN THOSE THREE MANIFESTS, which would hand the problem
-// to machinery that already exists (`gjsify pack` substitutes `workspace:`
-// ranges). Because nothing ever packs them — they are apps, not packages. That
-// substitution happens in the TARBALL and leaves the source at `workspace:^`;
-// here the COMMITTED manifest is what `npm install` reads in a user's clone, so
-// it has to carry a concrete version. `findWorkspaceRoot()` is also deliberately
-// strict about members, and these three are non-members on purpose.
+// NOT `workspace:^` in those three manifests, which would reuse `gjsify pack`'s
+// substitution: nothing ever packs them (they are apps), that substitution happens
+// in the TARBALL and leaves the source at `workspace:^`, and here the COMMITTED
+// manifest is what `npm install` reads in a user's clone, so it must carry a
+// concrete version. `findWorkspaceRoot()` is also strict about members, and these
+// three are non-members on purpose.
 //
-// WHY NOT REUSE `rewriteWorkspaceDeps` FROM `commands/pack.ts`. Its contract is
-// adopted here verbatim (see below); its code cannot be. It is module-private
-// (pack.ts exports only `packCommand`/`packWorkspace`/`collectPackedFiles`/
-// `collectTypeDeclarationRefs`); its input domain is the `workspace:` protocol,
-// which is precisely the set `release-train` EXCLUDES, so pointed at these
-// manifests it would return them unchanged; it resolves versions from
-// `discoverWorkspaces()`, i.e. workspace MEMBERS, and these apps are negated out;
-// and it lives in TypeScript compiled to `packages/infra/cli/lib`, a BUILD
-// OUTPUT, whereas every other `after:bump` hook script is pure Node with no
-// dependency beyond builtins. Generalising a private packer function from
-// `workspace:` ranges to arbitrary ones, exporting it, and making a release hook
-// depend on the CLI's build output is a risky refactor of the code path that
-// produces every tarball, in service of a different problem.
+// NOT `rewriteWorkspaceDeps` from `commands/pack.ts`: it is module-private, its
+// input domain is the `workspace:` protocol — precisely the set `release-train`
+// EXCLUDES, so it would return these manifests unchanged — it resolves versions
+// from `discoverWorkspaces()` (workspace MEMBERS, which these are not), and it
+// lives in TypeScript compiled to `packages/infra/cli/lib`, a BUILD OUTPUT, where
+// every other `after:bump` script is pure Node. Exporting and generalising it
+// would refactor the code path that produces every tarball for a different problem.
 //
-// WHAT IS REUSED IS THE RULE. `pack`'s contract — "a `workspace:` range is
-// either substituted correctly or the pack FAILS; it is never silently
-// published" — is the whole point, because the failure this rule exists to
-// prevent is a manifest that LOOKS authoritative and is not. So this script
-// never skips-and-continues. It collects every problem, writes NOTHING, and
-// exits 1 on: a manifest that does not parse, a governed range that is not the
-// version being replaced, a `@gjsify/*` dependency that names no package in this
-// monorepo, or one whose own manifest was not bumped. The write pass runs only
-// once every edge has been proven substitutable, so a failure leaves the tree
-// untouched instead of half-rewritten.
+// WHAT IS REUSED IS ITS CONTRACT: a range is either substituted correctly or the
+// run FAILS, never silently published — because the failure being prevented is a
+// manifest that LOOKS authoritative and is not. So no skip-and-continue: every
+// problem is collected, NOTHING is written, and it exits 1 on a manifest that does
+// not parse, a governed range that is not the version being replaced, a
+// `@gjsify/*` dep naming no package in this monorepo, or one whose own manifest
+// was not bumped. The write pass runs only once every edge is proven
+// substitutable, so a failure leaves the tree untouched rather than half-rewritten.
 //
-// WHY "a governed range that is not `^${latestVersion}`" IS A FAILURE rather
-// than something to repair. `main` is branch-protected and the audit that runs
-// `release-train` is a required check, so on the pre-bump tree EVERY governed
-// range has already been proven to equal `^${latestVersion}` — it is the only
-// value that passes. A different one means the bump ran on a tree that never
-// passed that gate, and quietly rewriting it would publish a release whose
-// provenance nobody checked. `^${nextVersion}` is the one exception: that is a
-// re-run of the hook, and it is a no-op.
+// A GOVERNED RANGE THAT IS NOT `^${latestVersion}` IS A FAILURE, not something to
+// repair: `main` is branch-protected and the audit that runs `release-train` is a
+// required check, so on the pre-bump tree every governed range has already been
+// proven to equal `^${latestVersion}` — the only value that passes. A different
+// one means the bump ran on a tree that never passed that gate. `^${nextVersion}`
+// is the exception, being a hook re-run, and is a no-op.
 //
-// WHY IT TAKES THE VERSION AS AN ARGUMENT, in the shape
-// `bump-docs-version.mjs` already uses. At `after:bump` time the root
-// package.json has been rewritten, so the target version could be read from
-// disk — but a release hook that infers what it is releasing is a hook that
-// breaks the first time the inference is wrong, silently and inside the few
-// seconds the bumped tree exists. release-it knows both numbers; it passes both.
+// IT TAKES BOTH VERSIONS AS ARGUMENTS (the shape `bump-docs-version.mjs` uses)
+// although `after:bump` has already rewritten the root manifest: a release hook
+// that infers what it is releasing breaks the first time the inference is wrong,
+// silently, inside the few seconds the bumped tree exists. release-it knows both.
 //
-// WHY IT SHARES ITS SELECTION WITH THE RULE rather than restating it. The rule
-// deliberately does NOT govern `workspace:`/`file:`/`link:` (already pinned to
-// this checkout) nor `*`/`latest` (loose about the future, never stale about the
-// past — `examples/*` uses that on purpose for dev-only tooling). A rewriter
-// with its own copy of that list would eventually "fix" an edge the rule allows,
-// or skip one it does not, and the disagreement would only ever surface as a
-// failed release. So the set comes from `trainEdges()` in the rule module: ONE
-// definition, two consumers.
+// THE EDGE SELECTION COMES FROM `trainEdges()` in the rule module — one
+// definition, two consumers. The rule deliberately does not govern
+// `workspace:`/`file:`/`link:` (already pinned to this checkout) nor `*`/`latest`
+// (loose about the future, never stale about the past — `examples/*` uses that for
+// dev-only tooling), and a rewriter with its own copy of that list would
+// eventually "fix" an edge the rule allows, surfacing only as a failed release.
 //
-// WHAT IT DOES NOT DO: verify itself. `audit-runtimes --check --strict` runs
-// immediately after in the same hook and is the gate; a second check here would
-// be a guard watching a guard.
+// It does NOT verify itself: `audit-runtimes --check --strict` runs immediately
+// after in the same hook, and a second check here would be a guard watching a guard.
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -101,14 +82,14 @@ const previous = trainRange(latestVersion);
 const PACKAGE_GROUPS = ['packages', 'showcases', 'examples'];
 
 /**
- * `@gjsify/<name>` → the manifest that DEFINES it, so a range can be checked
- * against a package that provably exists here rather than assumed.
+ * `@gjsify/<name>` → the manifest that DEFINES it, so a range is checked against a
+ * package that provably exists here rather than assumed.
  *
- * This is the half `release-train` cannot see: the rule proves a range names the
- * current version, this proves the thing it names is a real member of the train
- * whose own manifest the bumper reached. A name that resolves to nothing would
- * get `^${nextVersion}` written against a package that is never published under
- * it — the ETARGET failure again, arrived at from the other side.
+ * The half `release-train` cannot see: the rule proves a range names the current
+ * version, this proves the thing it names is a real member of the train whose own
+ * manifest the bumper reached. A name resolving to nothing would get
+ * `^${nextVersion}` written against a package never published under it — the
+ * ETARGET failure from the other side.
  *
  * @returns {Map<string, {rel: string, version: unknown}>}
  */
@@ -140,11 +121,10 @@ function indexMonorepoPackages() {
 }
 
 /**
- * The manifest's own indentation, so a rewrite is a value change and not a
- * reformat of the whole file. `@release-it/bumper` writes these files the same
- * way (detected indent, `JSON.stringify`), which is why the round trip is
- * lossless here — measured across all 76 standalone-app manifests under
- * `showcases` and `examples`, none of which re-serialises differently.
+ * The manifest's own indentation, so a rewrite is a value change and not a reformat
+ * of the whole file. `@release-it/bumper` writes these files the same way (detected
+ * indent, `JSON.stringify`), which is why the round trip is lossless — measured
+ * across all 76 standalone-app manifests, none of which re-serialises differently.
  *
  * @param {string} raw
  * @returns {string}

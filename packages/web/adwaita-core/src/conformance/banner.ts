@@ -1,11 +1,9 @@
 // Banner conformance vectors — the spec both renderers are held to.
 //
-// Every row is derived from a line of the libadwaita C source or of the template
-// the widget is built from, and cites it. The two default rows are the reason
-// this table exists: `revealed` and `use-markup` are the properties that decide
-// whether anything is on screen and how the title is read, and the two ports
-// disagreed with libadwaita on BOTH — in opposite directions, so neither could
-// have been caught by comparing them to each other.
+// The two default rows are the reason this table exists: `revealed` and
+// `use-markup` decide whether anything is on screen and how the title is read, and
+// the two ports disagreed with libadwaita on BOTH in opposite directions — so
+// neither could have been caught by comparing them to each other.
 //
 // Reference: refs/libadwaita/src/adw-banner.c
 // Reference: refs/libadwaita/src/adw-banner.ui
@@ -17,18 +15,16 @@ export interface BannerDefaultVector {
     property: 'title' | 'button-label' | 'revealed' | 'use-markup' | 'button-style';
     /** The `GParamSpec` default. */
     value: string | boolean;
-    /** Why this row exists — the rule or edge case it pins down. */
     rule: string;
 }
 
 /**
  * The five `GParamSpec` defaults (adw-banner.c:391-459).
  *
- * `revealed: false` and `useMarkup: true` are the two that were wrong in the
- * ports. `@gjsify/adwaita-nativescript` initialised `_revealed = true` and its
- * constructor never wrote `visibility`, so a banner showed itself on a device
- * and stayed hidden in the browser; both ports made `use-markup` opt-in, and the
- * browser element's comment claimed that WAS the C default.
+ * `revealed: false` and `useMarkup: true` were wrong in both ports:
+ * `@gjsify/adwaita-nativescript` initialised `_revealed = true` and never wrote
+ * `visibility`, so a banner showed itself on a device and stayed hidden in the
+ * browser, and both made `use-markup` opt-in.
  */
 export const BANNER_DEFAULT_VECTORS: ReadonlyArray<BannerDefaultVector> = [
     { property: 'title', value: '', rule: 'empty string, not NULL — the setter rejects NULL (:612)' },
@@ -56,7 +52,6 @@ export interface BannerButtonVisibleVector {
     label: string | null;
     /** Whether `gtk_widget_set_visible` is handed a true value (:663). */
     visible: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -83,18 +78,17 @@ export interface BannerButtonTextVector {
     label: string;
     /** What a renderer without an accelerator layer paints. */
     text: string;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * The banner button's text after mnemonic resolution.
  *
- * The template pins the BUTTON to `use-underline=True` (adw-banner.ui:33) with
- * no property to turn it off, and pins the TITLE label to `use-underline=False`
- * (adw-banner.ui:20). So the same underscore is an accelerator marker in the
- * button and a literal in the title — which is why there is no title
- * counterpart to this table. Neither port stripped anything.
+ * The template pins the BUTTON to `use-underline=True` (adw-banner.ui:33) with no
+ * property to turn it off, and the TITLE label to `use-underline=False`
+ * (adw-banner.ui:20). The same underscore is therefore an accelerator marker in
+ * the button and a literal in the title — hence no title counterpart to this
+ * table. Neither port stripped anything.
  */
 export const BANNER_BUTTON_TEXT_VECTORS: ReadonlyArray<BannerButtonTextVector> = [
     { label: '_Resume', text: 'Resume', rule: 'the marker is removed and marks the R (adw-banner.ui:33)' },
@@ -111,7 +105,6 @@ export interface BannerButtonStyleVector {
     style: 'default' | 'suggested';
     /** The classes on the button node (:764-774). */
     classes: readonly string[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -133,7 +126,6 @@ export interface BannerButtonStyleParseVector {
     input: string | null;
     /** The `AdwBannerButtonStyle` it resolves to. */
     style: 'default' | 'suggested';
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -142,9 +134,8 @@ export interface BannerButtonStyleParseVector {
  *
  * Not a C behaviour and cannot be: `adw_banner_set_button_style` range-guards an
  * `AdwBannerButtonStyle` it has already been handed (:756-757), so an
- * unrepresentable string never reaches it. Falling back to the property default
- * is what `g_object_set` does with an invalid nick, and it is the only answer
- * that keeps the two renderers agreeing on the same markup.
+ * unrepresentable string never reaches it. Falling back to the property default is
+ * what `g_object_set` does with an invalid nick.
  */
 export const BANNER_BUTTON_STYLE_PARSE_VECTORS: ReadonlyArray<BannerButtonStyleParseVector> = [
     { input: 'suggested', style: 'suggested', rule: 'the enum nick, as GObject spells it' },

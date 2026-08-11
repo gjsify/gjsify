@@ -1,47 +1,38 @@
 // SPDX-License-Identifier: MIT
-// Shared by BOTH batteries-included GTK-runtime builders (build-gtk-runtime-darwin.mjs
-// and gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs): decide which typelibs a
-// bundle may ship, then PROVE the shipped set is self-contained.
+// Shared by BOTH batteries-included GTK-runtime builders: decide which typelibs a bundle may
+// ship, then PROVE the shipped set is self-contained.
 //
-// THE DEFECT THIS EXISTS FOR — measured on the PUBLISHED 0.27.1 tarballs, not the
-// repo: @gjsify/gtk-runtime-darwin-x64 ships `Adw-1.typelib` and NO
-// `libadwaita-1.0.dylib`; @gjsify/gtk-runtime-win32-x64 ships `GtkSource-5.typelib`
-// and no gtksourceview DLL. GObject-Introspection resolves a namespace's symbols
-// with `g_module_open(<shared_library leaf>)`, so such a namespace RESOLVES (the
-// typelib is found, the classes are advertised) and then dies in the constructor
-// with "Failed to load shared library '…'" — the type is not a constructible
-// GObject. A typelib without its backer is WORSE than an absent one: absence is a
-// clean "namespace unavailable", presence is a lie that only fails at runtime.
+// GI resolves a namespace's symbols with `g_module_open(<shared_library leaf>)`, so a typelib
+// whose backer is absent RESOLVES — it is found, its classes are advertised — and then dies in the
+// constructor with "Failed to load shared library '…'". That is WORSE than an absent typelib:
+// absence is a clean "namespace unavailable", presence is a lie that only fails at runtime.
+// Measured on the published 0.27.1 tarballs: darwin-x64 shipped `Adw-1.typelib` and no
+// `libadwaita-1.0.dylib`, win32-x64 `GtkSource-5.typelib` and no gtksourceview DLL.
 //
-// THE MAPPING IS READ FROM THE TYPELIB, NEVER FROM A TABLE. Every `.typelib` starts
-// with girepository's fixed `Header` struct, whose `shared_library` field holds the
-// exact string GI will hand to `g_module_open` — comma-separated when a namespace
-// has several backers (`GLib-2.0` names libgobject AND libglib) and ABSENT for the
-// header-only namespaces that have no library at all (xlib, freetype2, Vulkan,
-// DBus, fontconfig, …). A hand-written leaf table would be a second truth that
-// drifts per platform anyway: brew records `libadwaita-1.0.dylib`, gvsbuild records
-// `adwaita-1-0.dll`, Linux records `libadwaita-1.so.0`.
+// THE MAPPING IS READ FROM THE TYPELIB, NEVER FROM A TABLE. Every `.typelib` starts with
+// girepository's fixed `Header` struct, whose `shared_library` field holds the exact string GI
+// will hand to `g_module_open` — comma-separated when a namespace has several backers (`GLib-2.0`
+// names libgobject AND libglib) and ABSENT for the header-only namespaces that have no library at
+// all (xlib, freetype2, Vulkan, DBus, fontconfig, …). A hand-written leaf table would drift per
+// platform anyway: brew records `libadwaita-1.0.dylib`, gvsbuild `adwaita-1-0.dll`, Linux
+// `libadwaita-1.so.0`.
 //
-// AND THE DROP DECISION IS DEPENDENCY-AWARE, because the naive filter REGRESSES the
-// bundle. Measured on the same tarballs: `Pango-1.0` DEPENDS on `HarfBuzz-0.0`, and
-// on darwin HarfBuzz-0.0's backer (`libharfbuzz-gobject.0.dylib`) is not bundled
-// while on win32 it is (the win32 seed `^harfbuzz.*\.dll$` happens to match
-// `harfbuzz-gobject.dll`). `gi_repository_require` loads a typelib's DEPENDENCIES
-// first, so dropping an unbacked typelib that a KEPT typelib names would turn one
-// half-broken namespace into a broken Pango — and with it Gdk, Gsk and Gtk. So an
-// unbacked typelib that something kept depends on is a HARD FAILURE naming the
-// missing library (the repair is a seed pattern, not a drop), never a silent drop.
+// The drop decision is DEPENDENCY-AWARE, because the naive filter REGRESSES the bundle:
+// `gi_repository_require` loads a typelib's DEPENDENCIES first, and `Pango-1.0` depends on
+// `HarfBuzz-0.0`, so dropping an unbacked typelib that a KEPT typelib names turns one half-broken
+// namespace into a broken Pango — and with it Gdk, Gsk and Gtk. An unbacked typelib that something
+// kept depends on is a HARD FAILURE naming the missing library (the repair is a seed pattern),
+// never a silent drop.
 //
-// Everything here is pure + platform-agnostic (no child_process, no otool/dumpbin)
-// so it is unit-tested on Linux against a synthetic header AND the host's own
-// typelib corpus: packages/node-gi/node-gi/test/gtk-runtime-bundle-gates.test.mjs.
+// Pure + platform-agnostic (no child_process, no otool/dumpbin), so it is unit-tested on Linux
+// against a synthetic header AND the host's own typelib corpus:
+// packages/node-gi/node-gi/test/gtk-runtime-bundle-gates.test.mjs.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
-// girepository `Header` (gitypelib-internal.h) — byte offsets of the four fields we
-// read. The fields ahead of them are all fixed-width, so these offsets hold for
-// every typelib major version girepository has shipped; the test asserts them
-// against real typelibs rather than trusting this comment.
+// girepository `Header` (gitypelib-internal.h) — byte offsets of the four fields we read. The
+// fields ahead of them are all fixed-width, so these offsets hold for every typelib major version
+// girepository has shipped; the test asserts them against real typelibs, not against this comment.
 const MAGIC = Buffer.from('GOBJ\nMETADATA\r\n\u001a', 'latin1'); // 16 bytes
 const OFF_MAJOR = 16;
 const OFF_DEPENDENCIES = 36; // u32 string offset — 'Ns-Ver|Ns-Ver|…'
@@ -54,13 +45,11 @@ const NAMESPACE_RE = /^[A-Za-z_][A-Za-z0-9_+-]*$/;
 const VERSION_RE = /^\d+(\.\d+)*$/;
 
 /**
- * The namespaces a bundle EXISTS to provide, so a filter that silently removed
- * everything cannot pass. Not a typelib→library mapping (that is derived) but the
- * bundle's own contract, taken from what the two packages' descriptions promise
- * ("GLib/GObject/Gio/cairo/Pango/Graphene/Gdk") plus the namespaces node-gi's
- * batteries-included probe resolves (scripts/check-batteries.mjs: Gio subclassing +
- * Pango/Graphene/Gdk `get_type`). Versionless on purpose — the GTK major is the
- * builders' business, not this gate's.
+ * The namespaces a bundle EXISTS to provide, so a filter that silently removed everything cannot
+ * pass. Not a typelib→library mapping (that is derived) but the bundle's own contract: what the
+ * two packages' descriptions promise plus what node-gi's batteries-included probe resolves
+ * (scripts/check-batteries.mjs). Versionless on purpose — the GTK major is the builders' business,
+ * not this gate's.
  */
 export const REQUIRED_NAMESPACES = [
     'GLib',
@@ -78,22 +67,17 @@ export const REQUIRED_NAMESPACES = [
 ];
 
 /**
- * What `--windowing` is FOR: libadwaita + GtkSourceView + GStreamer. Asserting the
- * typelibs here (and not only the dylibs, which the workflows grep for) is what
- * makes the superset's promise checkable — with the drop filter in place, a missing
- * libadwaita would otherwise take `Adw-1.typelib` out of the bundle quietly and
- * leave a green build that ships no Adwaita at all.
+ * What `--windowing` is FOR: libadwaita + GtkSourceView + GStreamer. Asserting the TYPELIBS here
+ * (and not only the dylibs, which the workflows grep for) is what makes the superset's promise
+ * checkable — with the drop filter in place, a missing libadwaita would otherwise take
+ * `Adw-1.typelib` out of the bundle quietly and leave a green build shipping no Adwaita at all.
  *
- * `Gst` + `GstApp` are here because `@gjsify/webaudio` imports exactly those two and
- * neither was in ANY bundle. Measured on the published win32 tarball: 40 typelibs
- * present, not one of them GStreamer's. So `new AudioContext()` threw `Failed to
- * require Gst 1.0` on the batteries-included runtime and took the whole application
- * down — fixed as a CRASH by #1089, fixed as MISSING AUDIO here.
- *
- * `GstApp` is not decoration. The decode pipeline is appsrc → decodebin → appsink,
- * and `pipeline.get_by_name('src').push_buffer(…)` resolves only once the GstApp
- * namespace is registered; without it the failure is a perfectly loaded Gst and
- * `push_buffer is not a function` at the first sample.
+ * `Gst` + `GstApp` are here because `@gjsify/webaudio` imports exactly those two and neither was
+ * in ANY bundle (the published win32 tarball had 40 typelibs, not one of them GStreamer's), so
+ * `new AudioContext()` threw `Failed to require Gst 1.0`. `GstApp` is not decoration: the decode
+ * pipeline is appsrc → decodebin → appsink, and `push_buffer(…)` resolves only once the GstApp
+ * namespace is registered — without it Gst loads perfectly and the first sample hits
+ * `push_buffer is not a function`.
  */
 export const WINDOWING_REQUIRED_NAMESPACES = ['Adw', 'GtkSource', 'Gst', 'GstApp'];
 

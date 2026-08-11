@@ -9,7 +9,8 @@ const require = createRequire(import.meta.url);
 
 /** Resolve a package-relative path (works for both files and directories). */
 function resolveAsset(specifier) {
-    // Resolve the package root via package.json, then join the subpath
+    // Assets live under the package's `src/`, so resolve the package root through
+    // its package.json and join the subpath below that.
     const parts = specifier.split('/');
     const scope = parts[0].startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
     const subpath = parts.slice(scope.includes('/') ? 2 : 1).join('/');

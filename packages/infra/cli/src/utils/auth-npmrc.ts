@@ -1,11 +1,6 @@
-// Write/remove npm auth tokens in the user's `.npmrc` — the write side of
-// `load-npmrc.ts` (which only reads). Used by `gjsify login` / `gjsify logout`.
-//
-// npm stores the token under a "nerf-dart" key: the registry URL with the
-// protocol stripped, e.g. `//registry.npmjs.org/:_authToken=<token>`. We upsert
-// exactly that line in the userconfig file (`$NPM_CONFIG_USERCONFIG` or
-// `~/.npmrc`), preserving every other line, and chmod it to 0600 (it holds a
-// credential).
+// The write side of `load-npmrc.ts`: `gjsify login`/`logout` upsert or drop one
+// `_authToken` line in the userconfig `.npmrc` (`$NPM_CONFIG_USERCONFIG` or
+// `~/.npmrc`), preserving every other line and chmod'ing the file to 0600.
 
 import { existsSync, readFileSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -17,8 +12,9 @@ export function userconfigNpmrcPath(): string {
 }
 
 /**
- * The npm "nerf-dart" key for a registry: the URL with the protocol removed,
- * keeping the host + path with a trailing slash — `//registry.npmjs.org/`.
+ * The npm "nerf-dart" key for a registry — the URL with the protocol removed,
+ * host + path, trailing slash: `//registry.npmjs.org/`. npm keys credentials by
+ * this, so the exact shape is what makes the token findable.
  */
 export function nerfDart(registry: string): string {
     const u = new URL(registry);
@@ -47,10 +43,7 @@ function writeUserconfig(path: string, content: string): void {
     }
 }
 
-/**
- * Upsert `<nerf-dart>:_authToken=<token>` in the userconfig `.npmrc`, preserving
- * all other lines. Returns the file path written.
- */
+/** Upsert `<nerf-dart>:_authToken=<token>`; returns the file path written. */
 export function writeAuthToken(registry: string, token: string): string {
     const path = userconfigNpmrcPath();
     const key = authTokenKey(registry);
@@ -59,25 +52,22 @@ export function writeAuthToken(registry: string, token: string): string {
     const lines = existing.length ? existing.split('\n') : [];
     let replaced = false;
     const next = lines.map((l) => {
-        // Match the key at the start of the line (ignore `${...}` placeholder
-        // values too — we always overwrite with the concrete token).
+        // Matches on the KEY only, so a `${VAR}` placeholder value is overwritten
+        // with the concrete token like any other.
         if (l.replace(/\s+/g, '').startsWith(`${key}=`)) {
             replaced = true;
             return line;
         }
         return l;
     });
-    // Strip trailing blank lines so we don't accumulate them across rewrites.
+    // Or they accumulate across rewrites.
     while (next.length && next[next.length - 1].trim() === '') next.pop();
     if (!replaced) next.push(line);
     writeUserconfig(path, next.join('\n') + '\n');
     return path;
 }
 
-/**
- * Remove the `<nerf-dart>:_authToken=` line for a registry from the userconfig
- * `.npmrc`. Returns `{ path, removed }` — `removed` is false if no line matched.
- */
+/** Drop the registry's `_authToken` line; `removed` is false when none matched. */
 export function removeAuthToken(registry: string): { path: string; removed: boolean } {
     const path = userconfigNpmrcPath();
     const key = authTokenKey(registry);

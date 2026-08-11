@@ -1,52 +1,28 @@
 // Resolve the `gjsify` CLI for a `spawn` from a repo script — correctly on Windows.
 //
-// WHY THIS EXISTS
+// On Windows the naive `existsSync(node_modules/.bin/gjsify)` probe is a trap:
+// npm writes the extensionless sh shim alongside `.cmd`/`.ps1`, so the path
+// exists while being the one member of the trio Windows cannot spawn (ENOENT).
+// The `.cmd` member spawns EINVAL directly — Node's CVE-2024-27980 mitigation
+// routes batch files through a command interpreter — so it must go through
+// `%COMSPEC%` with every argument escaped for cmd's parser.
 //
-// Three scripts carried the same four lines:
+// Not cosmetic: `spawnSync` on ENOENT leaves `status` NULL and the call sites
+// test `status !== 0`, so `verify-committed-bundles.mjs` and
+// `bootstrap-native-facades.mjs` each reported "failed (exit null)" for a
+// command that never started.
 //
-//     const local = join(root, 'node_modules', '.bin', 'gjsify');
-//     if (existsSync(local)) return { cmd: local, args: [] };
+// PATH is walked directly, honouring `PATHEXT` the way `CreateProcess` does,
+// rather than probing `sh -c 'command -v gjsify'`: under cmd.exe/PowerShell
+// there is no `sh` and it degrades quietly, while under Git Bash `command -v`
+// answers with an MSYS path (`/c/src/…`) that passes `status === 0` and is then
+// ENOENT to `spawnSync`. A green probe producing an unspawnable path is worse
+// than no probe.
 //
-// and on Windows every one of them is broken in the same way, because
-// `node_modules/.bin/gjsify` DOES exist there — npm writes the extensionless sh
-// shim alongside the `.cmd` and `.ps1` ones — while being the one member of the
-// trio Windows cannot execute. Measured on win32 x64 / Node 24.18.1:
-//
-//     existsSync('…\\node_modules\\.bin\\gjsify')          → true
-//     spawnSync('…\\node_modules\\.bin\\gjsify', ['-v'])   → ENOENT
-//     spawnSync('…\\node_modules\\.bin\\gjsify.cmd', …)    → EINVAL
-//     spawnSync(cmd.exe, ['/d','/s','/c','"…gjsify.cmd" -v']) → 0
-//
-// The EINVAL is Node's CVE-2024-27980 mitigation: a batch file has to go through
-// a command interpreter. So picking the `.cmd` path is not enough — it must be
-// invoked through `%COMSPEC%` with every argument escaped for cmd's parser.
-//
-// The consequence was not cosmetic. `spawnSync` on an ENOENT leaves `status`
-// NULL, and both call sites test `status !== 0`, so each reported a failure of
-// the command it never managed to start:
-//
-//   • `verify-committed-bundles.mjs` — the check `.githooks/pre-commit` names
-//     when it degrades on Windows ("CI remains the exhaustive check") — said
-//     "`gjsify workspace @gjsify/cli build --with-dependencies` failed (exit
-//     null)".
-//   • `bootstrap-native-facades.mjs` — the documented cold-tree recovery, also
-//     reached from `release.yml` — said "`gjsify run build:infra` failed (exit
-//     null)" for a build that never started.
-//
-// WHY NOT `sh -c 'command -v gjsify'`
-//
-// That was the PATH fallback, and it fails in both directions on Windows. From
-// cmd.exe or PowerShell there is no `sh`, so it degrades quietly. From Git Bash
-// — where a Windows contributor is most likely to be standing — `sh` resolves
-// and `command -v` answers with an MSYS path (`/c/src/…`), which `status === 0`
-// then accepts and hands to `spawnSync`, where it is ENOENT. A green-looking
-// probe producing an unspawnable path is worse than no probe. PATH is walked
-// directly here, honouring `PATHEXT`, the way `CreateProcess` does.
-//
-// This is a port of `packages/infra/cli/src/utils/win32-command.ts` (itself
-// adapted from cross-spawn v7.0.6, MIT). It is duplicated rather than imported
-// because `scripts/**` must run with NO `node_modules` at all — that is the
-// whole point of the cold-tree bootstrap these two scripts implement.
+// Port of `packages/infra/cli/src/utils/win32-command.ts` (adapted from
+// cross-spawn v7.0.6, MIT), duplicated rather than imported because
+// `scripts/**` must run with NO `node_modules` at all — the point of the
+// cold-tree bootstrap these scripts implement.
 
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
@@ -115,13 +91,11 @@ function lookupOnPath(name, env, platform) {
 /**
  * The two files the WORKSPACE `.bin/gjsify` shim can hand control to.
  *
- * `buildBinShim` (`packages/infra/cli/src/commands/install.ts`) writes
- * `if command -v gjs && [ -f "<dist/cli.gjs.mjs>" ]; then exec gjs -m …; fi;
- * exec node "<lib/index.js>"` — so the shim is only usable when at least one of
- * these exists. BOTH are build outputs, and since ADR 0002 neither is tracked,
- * so on a fresh clone the shim exists and points at nothing.
- *
- * @param {string} root Repository root.
+ * The shim (written by `buildBinShim` in the CLI's `install` command) execs `gjs
+ * -m <dist/cli.gjs.mjs>` when both are available, else `node <lib/index.js>` —
+ * so it is only usable when at least one target exists. Both are build outputs
+ * and since ADR 0002 neither is tracked: on a fresh clone the shim exists and
+ * points at nothing.
  */
 function workspaceShimTargets(root) {
     return [
@@ -133,55 +107,38 @@ function workspaceShimTargets(root) {
 /**
  * Everything a caller needs to spawn `gjsify <argv…>`, resolved for this host.
  *
- * Resolution order: the workspace-local shim first (it is the version this tree
- * pins), PATH second (a global install), this tree's own built GJS bundle
- * third, and the bootstrap bundle `install.mjs --fetch-only` cached last (a tree
- * with nothing built — the case the cold-tree bootstrap exists for). On win32
- * the local and PATH hits pick the `.cmd` member of npm's trio and route it
- * through `%COMSPEC%`.
+ * Rungs, in order: workspace-local shim (the version this tree pins) → PATH (a
+ * global install) → this tree's built GJS bundle → the cached bootstrap bundle.
  *
- * **The local shim is skipped when neither of its targets exists.** Returning it
- * anyway is worse than skipping: the shim spawns fine and then dies inside `sh`
- * with `Cannot find module …/lib/index.js`, which reads as a broken install
- * rather than as "this tree has not been built yet" — and it shadows the two
- * rungs below that would have worked. Measured on a fresh clone after
- * `gjsify install --immutable`, where both targets are absent by construction.
+ * The local shim is skipped when neither of its targets exists: returning it
+ * anyway spawns fine and then dies inside `sh` with `Cannot find module
+ * …/lib/index.js`, which reads as a broken install rather than "not built yet",
+ * and it shadows the two rungs below that would have worked.
  *
- * **`preferPath` inverts the first two rungs, and it exists for exactly one
- * caller.** `bootstrap-native-facades.mjs` under GJS asks a `gjsify` to BUILD
+ * `preferPath` inverts the first two rungs for its one caller,
+ * `bootstrap-native-facades.mjs`, which asks a `gjsify` to build
  * `@gjsify/rolldown-native`'s facade — the bundler engine itself. The workspace
- * CLI is the one host that structurally cannot do that on a cold tree: whatever
- * `node_modules/.bin/gjsify` points at resolves its engine from THIS tree, where
- * the facade is the artifact still missing. The `gjsify` on PATH is a global
- * install, which carries its own built engine (`installGjsEnginePackages()`), so
- * it can. Measured: with the default order the facade build exited 1 on a cold
- * tree while the same command through the PATH CLI succeeded in ~3 s.
+ * CLI structurally cannot do that on a cold tree: it resolves its engine from
+ * THIS tree, where that facade is the missing artifact. A global install on PATH
+ * carries its own built engine (`installGjsEnginePackages()`), so it can.
  *
- * Everything else keeps the default order — the workspace pin SHOULD win when
- * the question is "which gjsify does this tree use".
+ * Returns `null` when nothing resolves, so the caller owns the error message.
  *
- * Returns `null` when nothing resolves, so the caller owns the error message —
- * the callers word it differently and each is right for its context.
- *
- * @param {string} root Repository root.
  * @param {readonly string[]} argv Arguments for the CLI, unescaped.
  * @param {{platform?: string, env?: NodeJS.ProcessEnv, preferPath?: boolean}} [opts] Injected for tests.
- * @returns {{cmd: string, args: string[], windowsVerbatimArguments?: boolean, via: string} | null}
  */
 export function resolveGjsifySpawn(root, argv, opts = {}) {
     const platform = opts.platform ?? process.platform;
     const env = opts.env ?? process.env;
     const args = [...argv];
 
-    // The local shim. On win32 the `.cmd` member is the executable one; the
-    // extensionless sibling exists but cannot be spawned.
+    // On win32 the `.cmd` member is the executable one; the extensionless
+    // sibling exists but cannot be spawned.
     const localBase = join(root, 'node_modules', '.bin', 'gjsify');
     const local = platform === 'win32' ? `${localBase}.cmd` : localBase;
     const localUsable = existsSync(local) && workspaceShimTargets(root).some((t) => existsSync(t));
     const onPath = lookupOnPath('gjsify', env, platform);
 
-    // See `preferPath` in the docblock — PATH first only for the caller that
-    // needs a CLI which is NOT this tree's.
     if (opts.preferPath && onPath) return { ...invoke(onPath, args, env, platform), via: 'PATH' };
 
     if (localUsable) {
@@ -190,17 +147,15 @@ export function resolveGjsifySpawn(root, argv, opts = {}) {
 
     if (onPath) return { ...invoke(onPath, args, env, platform), via: 'PATH' };
 
-    // This tree's own GJS bundle, when it has been built. Needs a `gjs` to run
-    // it. There is no gjs for Windows, so this branch cannot succeed there — it
-    // is still returned rather than skipped, so the failure names the missing
-    // gjs instead of pretending no CLI exists.
+    // Needs a `gjs`, which Windows has none of — returned rather than skipped
+    // there so the failure names the missing gjs instead of "no CLI exists".
     const bundle = join(root, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
     if (existsSync(bundle)) return { cmd: 'gjs', args: ['-m', bundle, ...args], via: 'built bundle' };
 
-    // Last resort: the PUBLISHED bundle `install.mjs --fetch-only` verified and
-    // cached, handed down by CI in `GJSIFY_BOOTSTRAP`. Since ADR 0002 this is
-    // the only rung left on a tree that has been installed but not yet built —
-    // which is exactly the state `bootstrap-native-facades.mjs` runs in.
+    // The PUBLISHED bundle `install.mjs --fetch-only` verified and cached, handed
+    // down by CI in `GJSIFY_BOOTSTRAP`. Since ADR 0002 the only rung left on a
+    // tree installed but not yet built — the state `bootstrap-native-facades.mjs`
+    // runs in.
     const bootstrap = lookupEnv(env, 'GJSIFY_BOOTSTRAP');
     if (bootstrap && existsSync(bootstrap)) {
         return { cmd: 'gjs', args: ['-m', bootstrap, ...args], via: 'GJSIFY_BOOTSTRAP' };

@@ -26,7 +26,6 @@ export interface ButtonContentDefaultVector {
     property: 'icon-name' | 'label' | 'use-underline' | 'can-shrink';
     /** The `GParamSpec` default. */
     value: string | boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -46,7 +45,6 @@ export interface ButtonContentIconVector {
     resolved: string;
     /** Whether the resolved name is the empty-slot fallback rather than an app value. */
     isFallback: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -98,7 +96,6 @@ export interface ButtonContentLabelVector {
     visible: boolean;
     /** Whether the icon takes the box's free space (:399). */
     iconExpands: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -122,7 +119,6 @@ export interface ButtonContentTextVector {
     useUnderline: boolean;
     /** What a renderer without an accelerator layer paints. */
     text: string;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -149,7 +145,6 @@ export interface ButtonContentEllipsizeVector {
     canShrink: boolean;
     /** The label's `PangoEllipsizeMode` (:489-491). */
     ellipsize: 'none' | 'end';
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -171,7 +166,6 @@ export interface ButtonContentStyleTargetVector {
     ancestors: ReadonlyArray<'button' | 'menu-button' | 'split-button' | 'other'>;
     /** Index into {@link ancestors} that receives `image-text-button`, or `null`. */
     target: number | null;
-    /** Why this row exists. */
     rule: string;
 }
 

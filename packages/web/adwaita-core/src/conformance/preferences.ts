@@ -222,7 +222,6 @@ export interface CaseFoldVector {
     folded: string;
     /** What a bare `toLowerCase()` returns, kept in the table as the trap. */
     naiveLowerCase: string;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -278,7 +277,6 @@ export interface StripMarkupVector {
     markup: string;
     /** The plain text, or `null` when `pango_parse_markup` fails. */
     plain: string | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -332,7 +330,6 @@ export interface StripMnemonicVector {
     text: string;
     /** What `adw_strip_mnemonic` returns. */
     stripped: string;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -370,7 +367,6 @@ export interface MakeComparableVector {
     options: MakeComparableOptions;
     /** What the search compares against. */
     comparable: string;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -455,7 +451,6 @@ export interface RowMatchVector {
     query: string;
     /** Whether `filter_search_results` keeps the row. */
     matches: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -549,7 +544,6 @@ export interface SearchCorpusVector {
     pages: readonly PreferencesSearchPage[];
     /** The row titles the corpus contains, in order. */
     titles: readonly string[];
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -628,7 +622,6 @@ export interface SearchRowSubtitleVector {
     input: SearchRowSubtitleInput;
     /** The second line of the result row, `null` for none. */
     subtitle: string | null;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -766,7 +759,6 @@ export interface PreferencesSearchVector {
     query: string;
     /** The results, in corpus order. */
     results: readonly PreferencesSearchExpectation[];
-    /** Why this row exists. */
     rule: string;
 }
 

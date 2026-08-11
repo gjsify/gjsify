@@ -1,12 +1,9 @@
-// Node.js API coverage — mirrors the table in AGENTS.md and status/status.json.
-//
-// 41 user-facing Node APIs grouped by stdlib category. Status tiers as in
-// the Web Standards file, minus `out-of-scope` (every Node API is in scope).
-//
-// Native Vala bridges (http-soup-bridge, http2-native, sab-native,
-// terminal-native, tls-native) live separately in `bridges.ts` — they aren't
-// Node modules in the usual sense, they expose extra GI typelibs that some
-// Node modules opt into for native-grade performance.
+// Node.js API coverage: 41 user-facing Node APIs grouped by stdlib category,
+// curated against `status/status.json` (keyed by `@gjsify/<pkg>` there). Status
+// tiers as in `web-standards.ts` minus `out-of-scope` — every Node API is in
+// scope. The native Vala bridges (http-soup-bridge, http2-native, sab-native,
+// terminal-native, tls-native) are in `bridges.ts`: not Node modules, but extra
+// GI typelibs that some Node modules opt into for native-grade performance.
 
 export type NodeApiStatus = 'full' | 'partial' | 'stub';
 

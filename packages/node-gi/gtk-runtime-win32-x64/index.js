@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/gtk-runtime-win32-x64 — path helpers for the bundled GTK runtime.
-// @gjsify/node-gi resolves this package (optional, os/cpu-gated) to find the
-// bundled typelib + DLL dirs when no gvsbuild/system GTK is present. Unlike
-// macOS, Windows needs NO relocation: DLLs resolve by SEARCH PATH at LoadLibrary
-// time, so node-gi just prepends `gtk/bin` to PATH before the addon loads. The
-// heavy `gtk/` payload is produced by scripts/build-gtk-runtime.mjs on a Windows
-// runner.
+// @gjsify/gtk-runtime-win32-x64 — path helpers for the bundled GTK runtime. @gjsify/node-gi
+// resolves this package (optional, os/cpu-gated) to find the bundled typelib + DLL dirs when no
+// gvsbuild/system GTK is present. Unlike macOS, Windows needs NO relocation: DLLs resolve by
+// SEARCH PATH at LoadLibrary time, so node-gi just prepends `gtk/bin` to PATH before the addon
+// loads. The heavy `gtk/` payload is produced by scripts/build-gtk-runtime.mjs on a Windows runner.
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

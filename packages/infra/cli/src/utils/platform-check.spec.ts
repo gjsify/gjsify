@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for the os/cpu/libc compatibility port (utils/platform-check.ts).
 //
-// EVERY host value is INJECTED. Nothing here reads process.platform,
-// process.arch or process.report, which is the point: the darwin / win32 /
-// musl / no-report-runtime branches are the ones that decide what a Linux CI
-// box installs for someone else's machine, and a spec that read the running
-// host could only ever cover one of them. Same philosophy as
-// detect-native-packages.spec.ts.
+// EVERY host value is INJECTED — nothing reads process.platform, process.arch or
+// process.report. The darwin / win32 / musl / no-report-runtime branches decide
+// what a Linux CI box installs for someone else's machine, and a spec reading the
+// running host could only ever cover one of them.
 //
-// The checkList cases below are the npm semantics table, quirks included (a
-// one-element `['any']` short-circuit that a two-element list does NOT get; a
-// negation that loses to an exact match; an empty list passing). Reference:
+// The checkList rows are npm's semantics table, quirks included (a one-element
+// `['any']` short-circuit a two-element list does NOT get; a negation that loses
+// to an exact match; an empty list passing). Reference:
 // refs/npm-cli/node_modules/npm-install-checks/lib/index.js.
 
 import { describe, expect, it } from '@gjsify/unit';
@@ -140,10 +137,10 @@ export default async () => {
         });
 
         await it('a DECLARED libc against an UNKNOWN host libc is incompatible', async () => {
-            // Not derivable from checkList: `['!musl']` would otherwise pass on a
-            // host whose libc we could not probe. npm adds this rule explicitly
-            // and it is the conservative direction — a musl binary in a glibc
-            // process fails at dlopen, long after the install claimed success.
+            // Not derivable from checkList: `['!musl']` would otherwise pass on a host
+            // whose libc could not be probed. npm adds this rule explicitly, in the
+            // conservative direction — a musl binary in a glibc process fails at
+            // dlopen, long after the install claimed success.
             const unknown = { os: 'linux', cpu: 'x64' };
             expect(checkPlatform({ libc: ['glibc'] }, unknown).ok).toBe(false);
             expect(checkPlatform({ libc: ['musl'] }, unknown).ok).toBe(false);
@@ -181,9 +178,9 @@ export default async () => {
         });
 
         await it('a readable but unrecognised ldd is FINAL (no report fallback)', async () => {
-            // npm only falls through when ldd is UNREADABLE; a readable file that
-            // names neither implementation yields "unknown". Keeping that means a
-            // host npm calls unknown is unknown here too.
+            // npm only falls through when ldd is UNREADABLE; a readable file naming
+            // neither implementation yields "unknown". Keeping that means a host npm
+            // calls unknown is unknown here too.
             const host = probe({
                 files: { '/usr/bin/ldd': 'some other loader\n' },
                 report: { glibcVersionRuntime: '2.41' },
@@ -202,9 +199,9 @@ export default async () => {
         });
 
         await it('a report that answers neither stays unknown, NOT loader-scanned', async () => {
-            // Deliberate: the same lockfile must resolve to the same tree under
-            // Node and GJS. Improving on Node's answer here would make the
-            // installed set depend on which runtime ran the installer.
+            // The same lockfile must resolve to the same tree under Node and GJS:
+            // improving on Node's answer would make the installed set depend on which
+            // runtime ran the installer.
             const host = probe({ report: { sharedObjects: [] }, dirs: { '/lib': ['ld-musl-x86_64.so.1'] } });
             expect(detectLibc('linux', host)).toBe(undefined);
         });
@@ -222,14 +219,14 @@ export default async () => {
         });
 
         await it('glibc wins when both loaders are present', async () => {
-            // A glibc workstation with a musl cross-toolchain carries both; the
-            // reverse (an Alpine box with ld-linux) is not a real layout.
+            // A glibc workstation with a musl cross-toolchain carries both; the reverse
+            // (an Alpine box with ld-linux) is not a real layout.
             const host = probe({ dirs: { '/lib': ['ld-musl-x86_64.so.1', 'ld-linux-x86-64.so.2'] } });
             expect(libcFromLoaderScan(host)).toBe('glibc');
         });
 
         await it('libc is undefined on every non-linux OS', async () => {
-            // npm's currentEnv.libc(os) does the same. A darwin package cannot be
+            // npm's currentEnv.libc(os) does the same: a darwin package cannot be
             // judged against a value the platform has no concept of.
             const host = probe({ files: { '/usr/bin/ldd': GLIBC_LDD } });
             expect(detectLibc('darwin', host)).toBe(undefined);

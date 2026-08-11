@@ -5,15 +5,13 @@
 //   node scripts/e2e-shard.mjs <index> <total>     # run shard <index> of <total> (1-based)
 //   E2E_SHARD_LIST=1 node scripts/e2e-shard.mjs <index> <total>   # print the selection, run nothing
 //
-// The suite set is parsed from `package.json#scripts.test:e2e` — NOT globbed
-// from tests/e2e/* — so it stays exactly in lockstep with the curated list.
-// (Some suite dirs are intentionally NOT in test:e2e, e.g. terminal-native,
-// which needs its own `gjsify run build` to produce a probe; a glob would wrongly
-// run them.) The script shape is:
+// The suite set is parsed from `package.json#scripts.test:e2e`, NOT globbed from
+// tests/e2e/*: some suite dirs are deliberately absent from it (the ledger is
+// `scripts/e2e-unlisted-suites.mjs`) and a glob would run them anyway. Shape:
 //   node --test --test-concurrency=4 <parallel .mjs...> && node --test <serial> && node --test <serial>
-// The first `&&` segment is the parallel batch (incl. tests/lint-engines.mjs);
-// each later segment is a serial suite that must run ALONE (global machine
-// state: flatpak-sdk-extension drives flatpak-builder, self-host rebuilds the
+// Segment 0 is the parallel batch (incl. tests/lint-engines.mjs); each later
+// segment is a serial suite that must run ALONE because it owns global machine
+// state (flatpak-sdk-extension drives flatpak-builder, self-host rebuilds the
 // workspace). Parallel suites are round-robin sharded by sorted path; serial
 // suites are pinned one-per-shard and run alone after that shard's batch.
 
@@ -45,9 +43,9 @@ const extractPaths = (seg) => seg.match(/tests\/\S+?\.mjs/g) ?? [];
 const allParallel = [...extractPaths(segments[0])].sort();
 const serial = segments.slice(1).flatMap(extractPaths); // order preserved
 
-// lint-engines asserts every example package has built dist → it needs the
-// example-dist artifact, which ONLY shard 1 downloads. So pin it to shard 1
-// instead of letting round-robin scatter it onto a shard without the artifact.
+// lint-engines asserts every example package has built dist, so it needs the
+// example-dist artifact, which ONLY shard 1 downloads — round-robin would scatter
+// it onto a shard without the artifact.
 const PINNED_SHARD1 = ['tests/lint-engines.mjs'];
 const parallel = allParallel.filter((p) => !PINNED_SHARD1.includes(p));
 
@@ -70,8 +68,8 @@ console.log(`[e2e-shard] shard ${index}/${total}: ${myParallel.length} parallel 
 
 let failed = false;
 
-// Parallel-safe batch (process-per-file pool; the 2-core runner's default
-// concurrency is 1, so the explicit flag is what gives any speedup).
+// The 2-core runner's default concurrency is 1, so the explicit flag is what gives
+// any speedup at all.
 if (myParallel.length > 0) {
     const r = spawnSync('node', ['--test', '--test-concurrency=4', ...myParallel.map(abs)], {
         cwd: ROOT,
