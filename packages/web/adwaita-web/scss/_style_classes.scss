@@ -1,0 +1,407 @@
+// _style_classes.scss — libadwaita's documented, WIDGET-INDEPENDENT style classes.
+//
+// THE GAP THIS CLOSES
+//
+// `refs/libadwaita/doc/style-classes.md` is the public contract an app author
+// reads: put `.card` on a box, `.boxed-list` on a list, `.toolbar` on a bar,
+// `.linked` around a button group. Twenty-one of those classes had NO rule in
+// this package (#1049) — and two of them looked ported because their names
+// appear in comments (`.osd`, `.linked`) while the code spells its own
+// `.adw-linked`. A consumer following the upstream documentation got nothing,
+// silently, which is the worst failure mode for a styling contract.
+//
+// Widget-scoped classes are NOT here — they live with the widget whose markup
+// they modify (`.property` in `_action_row.scss`, `.compact` in
+// `_status_page.scss`, `.devel` in `_headerbar.scss`, `.osd`'s button and
+// progress-bar variants in theirs), because that is where their selector needs
+// to see the widget's inner nodes. `scripts/check-adwaita-style-classes.mjs`
+// holds the ledger of which class lives where and fails when one has no rule at
+// all.
+//
+// Reference: refs/libadwaita/doc/style-classes.md (the documented surface)
+// Reference: refs/libadwaita/src/stylesheet/_common.scss:25-28,43-60,90-104
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss:4-7,21-32,197-236
+// Reference: refs/libadwaita/src/stylesheet/widgets/_views.scss:1-18
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss:520-600
+// Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss:91-102
+// Reference: refs/libadwaita/src/stylesheet/widgets/_linked.scss:1-45
+// Reference: refs/libadwaita/src/stylesheet/widgets/_scrolling.scss:150-166
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web — GTK node names (`row`,
+//   `list`, `button`) become the custom-element tags and `.adw-*` structure
+//   classes this package renders, and GTK-only drawing (`image()`,
+//   `-gtk-icon-shadow`, `border-spacing` on a box) becomes its CSS equivalent.
+
+/************
+ * Surfaces *
+ ************/
+
+// _common.scss:25-28 — an opaque window-coloured background on any node.
+.background {
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+}
+
+// _views.scss:1-18 — the content-area surface. `:disabled` and `:selected` are
+// GTK pseudo-classes with no DOM counterpart; `[disabled]`/`[aria-selected]`
+// are how the same states are spelled here, and both are what our own widgets
+// already set.
+.view {
+  background-color: var(--view-bg-color);
+  color: var(--view-fg-color);
+
+  &:disabled,
+  &[disabled] {
+    color: color-mix(in srgb, var(--view-fg-color) var(--disabled-opacity), transparent);
+    background-color: color-mix(in srgb, var(--window-bg-color) 60%, var(--view-bg-color));
+  }
+
+  &[aria-selected='true'] {
+    background-color: color-mix(in srgb, var(--accent-bg-color) 25%, transparent);
+    border-radius: var(--button-radius);
+  }
+}
+
+// _misc.scss:4-7 — the default border. `--border-color` is derived from
+// `currentColor`, so this follows the foreground of whatever it is drawn on.
+.frame {
+  border: 1px solid var(--border-color);
+}
+
+/*********
+ * Cards *
+ *********/
+
+// _misc.scss:197-236. The ONE card recipe: `adw-card` and the preferences
+// group's list box each carried their own copy of these five declarations
+// before this placeholder existed.
+%card {
+  background-color: var(--card-bg-color);
+  color: var(--card-fg-color);
+  border-radius: var(--card-radius);
+  box-shadow:
+    0 0 0 1px rgb(0 0 6 / 3%),
+    0 1px 3px 1px rgb(0 0 6 / 7%),
+    0 2px 6px 2px rgb(0 0 6 / 3%);
+
+  @media (prefers-contrast: more) {
+    box-shadow:
+      0 0 0 1px var(--border-color),
+      0 1px 3px 1px rgb(0 0 6 / 7%),
+      0 2px 6px 2px rgb(0 0 6 / 3%);
+  }
+}
+
+.card {
+  @extend %card;
+
+  // `.card.activatable` gets the hover/active states of an activatable row
+  // (:225-235). GTK's `background-image: image(…)` is a solid-colour layer over
+  // the background; a one-stop gradient is its CSS equivalent, and it composes
+  // with `background-color` the same way — so a re-themed card keeps its colour
+  // and only gains the wash.
+  &.activatable {
+    transition:
+      background-color 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      box-shadow 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+    &:hover {
+      background-image: linear-gradient(
+        color-mix(in srgb, currentColor 3%, transparent),
+        color-mix(in srgb, currentColor 3%, transparent)
+      );
+    }
+
+    &:active {
+      background-image: linear-gradient(
+        color-mix(in srgb, currentColor 8%, transparent),
+        color-mix(in srgb, currentColor 8%, transparent)
+      );
+    }
+  }
+
+  // A card inside (or itself) an OSD surface loses its own elevation and reads
+  // as a translucent inset instead (:212-220).
+  .osd &,
+  &.osd {
+    background-color: color-mix(in srgb, currentColor 10%, transparent);
+    color: rgb(255 255 255 / 90%);
+    box-shadow: none;
+
+    @media (prefers-contrast: more) {
+      box-shadow: 0 0 0 1px var(--border-color);
+    }
+  }
+}
+
+/***************
+ * Boxed lists *
+ ***************/
+
+// _lists.scss:520-556. In GTK the row separators are drawn by the rows
+// themselves and the list only supplies the card box plus the rounding of its
+// two ends — which is exactly how this package's rows behave already
+// (`adw-action-row` and friends draw their own `border-bottom` and drop it on
+// `:last-child`), so the class is the box and the clip.
+.boxed-list {
+  @extend %card;
+
+  display: flex;
+  flex-direction: column;
+  // The rounding of the first and last row is a CLIP here rather than per-row
+  // corner radii: a row is a custom element whose own background paints over
+  // the list's corners, and every row type would otherwise need the same four
+  // radii repeated.
+  overflow: hidden;
+}
+
+// :556-600 — same content, each row its own card. The list drops its box, and
+// the rows carry it, spaced 12px apart.
+.boxed-list-separate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: none;
+  color: var(--card-fg-color);
+
+  > * {
+    @extend %card;
+
+    overflow: hidden;
+    // A row that draws a separator for its neighbours must not draw one when it
+    // IS the card (:585-586: `border: none`).
+    border-bottom: none;
+  }
+}
+
+/************
+ * Toolbars *
+ ************/
+
+// _toolbars.scss:91-102 + doc "Toolbars". GTK's `border-spacing: 6px` on a box
+// is the gap between children; the flex row is what makes that expressible.
+//
+// The automatic flat appearance follows upstream's rule list exactly: icon-only
+// buttons, buttons with an `adw-button-content` (icon + label), menu buttons and
+// split buttons go flat — unless they are `.raised`, `.suggested-action`,
+// `.destructive-action`, `.opaque`, or sit inside a `.linked` group. Text-only
+// buttons keep their frame, which is why this cannot be a blanket
+// `.toolbar adw-button { … }`.
+$_keeps-frame: ':not(.raised):not(.suggested-action):not(.destructive-action):not(.opaque)';
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+
+  adw-button#{$_keeps-frame} .adw-button.icon-only,
+  adw-button#{$_keeps-frame}:has(adw-button-content) .adw-button,
+  adw-menu-button#{$_keeps-frame} .adw-button,
+  adw-split-button#{$_keeps-frame} .adw-button {
+    background-color: transparent;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+  }
+
+  // Inside a linked group the frames come BACK — upstream states this as its own
+  // rule (`_toolbars.scss:20-26`) rather than as an exclusion, because a linked
+  // group only reads as one control if its members are raised.
+  .linked,
+  .adw-linked {
+    adw-button#{$_keeps-frame} .adw-button,
+    adw-menu-button#{$_keeps-frame} .adw-button,
+    adw-split-button#{$_keeps-frame} .adw-button {
+      background-color: var(--button-bg-color);
+
+      &:hover {
+        background-color: var(--button-hover-color);
+      }
+
+      &:active {
+        background-color: var(--button-active-color);
+      }
+    }
+  }
+
+  // Stand-alone OSD toolbars — the floating video-player-controls shape
+  // (:99-102).
+  &.osd {
+    padding: 12px;
+    border-radius: calc(var(--button-radius) + 6px);
+  }
+}
+
+// _misc.scss:21-32 — a separator that reserves whitespace instead of drawing a
+// line, for separating groups inside a toolbar.
+.spacer {
+  background: none;
+  border: none;
+  flex-shrink: 0;
+
+  &,
+  &.horizontal {
+    min-width: 12px;
+  }
+
+  &.vertical {
+    min-height: 12px;
+  }
+}
+
+/*******
+ * OSD *
+ *******/
+
+// _common.scss:43-60. The exclusions are upstream's: a progress bar, button,
+// menu button, split button and inline view switcher each define what `.osd`
+// means for them, and must not get the dark surface treatment on top.
+//
+// This is a token REBIND, not just a colour: everything accent-coloured inside
+// an OSD surface turns white without knowing it is inside one.
+.osd:not(adw-progress-bar):not(adw-button):not(adw-menu-button):not(adw-split-button):not(
+    adw-inline-view-switcher
+  ) {
+  --accent-bg-color: rgb(255 255 255 / 75%);
+  --accent-fg-color: rgb(0 0 0 / 75%);
+  --accent-color: oklab(from var(--accent-bg-color) max(l, 0.85) a b);
+  --destructive-color: oklab(from var(--destructive-bg-color) max(l, 0.85) a b);
+  --success-color: oklab(from var(--success-bg-color) max(l, 0.85) a b);
+  --warning-color: oklab(from var(--warning-bg-color) max(l, 0.85) a b);
+  --error-color: oklab(from var(--error-bg-color) max(l, 0.85) a b);
+
+  color: rgb(255 255 255 / 90%);
+  border: none;
+  background-color: rgb(0 0 0 / 70%);
+  background-clip: padding-box;
+}
+
+/*******************
+ * Linked controls *
+ *******************/
+
+// _linked.scss:1-45 + doc "Linked Controls": the children of a linked box share
+// their touching edges. Upstream squares the inner corners and overlaps the
+// borders by -1px; this package's controls have no border, so the overlap is
+// dropped and only the corner squaring remains.
+//
+// `.adw-linked` is this package's own earlier spelling, kept as an alias — and
+// it USED to add a 2px gap between children, which is a segmented look, not a
+// linked one. The gap is gone; a consumer who wanted it can say `gap`.
+// The styled node is either the child itself (a bare `.adw-button` /
+// `.adw-entry`) or one rendered inside the child host element (`<adw-button>`,
+// `<adw-menu-button>`, `<adw-drop-down>`, …) — so both spellings are matched
+// rather than enumerating host tags the way GTK has to.
+$_linked-nodes: '.adw-button', '.adw-entry';
+
+.linked,
+.adw-linked {
+  display: inline-flex;
+
+  &:not(.vertical) > * {
+    @each $node in $_linked-nodes {
+      &:not(:first-child) #{$node},
+      &:not(:first-child)#{$node} {
+        border-start-start-radius: 0;
+        border-end-start-radius: 0;
+      }
+
+      &:not(:last-child) #{$node},
+      &:not(:last-child)#{$node} {
+        border-start-end-radius: 0;
+        border-end-end-radius: 0;
+      }
+    }
+  }
+
+  &.vertical {
+    flex-direction: column;
+
+    > * {
+      @each $node in $_linked-nodes {
+        &:not(:first-child) #{$node},
+        &:not(:first-child)#{$node} {
+          border-start-start-radius: 0;
+          border-start-end-radius: 0;
+        }
+
+        &:not(:last-child) #{$node},
+        &:not(:last-child)#{$node} {
+          border-end-start-radius: 0;
+          border-end-end-radius: 0;
+        }
+      }
+    }
+  }
+}
+
+/*************
+ * App icons *
+ *************/
+
+// _common.scss:90-104. `-gtk-icon-shadow` has no CSS counterpart; `filter:
+// drop-shadow()` is the equivalent that follows the icon's alpha rather than its
+// box, which is what makes these legible on a light background. Each upstream
+// shadow layer becomes one `drop-shadow()`.
+.lowres-icon {
+  filter: drop-shadow(0 -1px rgb(0 0 6 / 5%)) drop-shadow(1px 0 rgb(0 0 6 / 10%))
+    drop-shadow(0 1px rgb(0 0 6 / 30%)) drop-shadow(-1px 0 rgb(0 0 6 / 10%));
+}
+
+.icon-dropshadow {
+  filter: drop-shadow(0 1px 12px rgb(0 0 6 / 5%)) drop-shadow(0 -1px rgb(0 0 6 / 5%))
+    drop-shadow(1px 0 rgb(0 0 6 / 10%)) drop-shadow(0 1px rgb(0 0 6 / 30%))
+    drop-shadow(-1px 0 rgb(0 0 6 / 10%));
+}
+
+/************************
+ * Undershoot indicators *
+ ************************/
+
+// _scrolling.scss:150-166 — a shadow on the given edge of a scrolling box,
+// telling the reader there is content past it. GTK draws them with an inset
+// background; an inset `box-shadow` on the scroll container is the CSS
+// equivalent and, unlike a `::before`, stays put while the content scrolls.
+//
+// `-start`/`-end` follow text direction, same as `margin-start`/`margin-end`,
+// which `:dir()` expresses directly.
+//
+// `adw-toolbar-view` carries the same two class names for its OWN top/bottom
+// indicators, drawn on its content node against the header shade
+// (`_toolbar_view.scss:67-86`) — so it is excluded here rather than getting both
+// a host shadow and a content gradient.
+$undershoot-color: color-mix(in srgb, currentColor 6%, transparent);
+
+.undershoot-top:not(adw-toolbar-view) {
+  box-shadow: inset 0 6px 6px -6px $undershoot-color;
+}
+
+.undershoot-bottom:not(adw-toolbar-view) {
+  box-shadow: inset 0 -6px 6px -6px $undershoot-color;
+}
+
+.undershoot-start {
+  &:dir(ltr) {
+    box-shadow: inset 6px 0 6px -6px $undershoot-color;
+  }
+
+  &:dir(rtl) {
+    box-shadow: inset -6px 0 6px -6px $undershoot-color;
+  }
+}
+
+.undershoot-end {
+  &:dir(ltr) {
+    box-shadow: inset -6px 0 6px -6px $undershoot-color;
+  }
+
+  &:dir(rtl) {
+    box-shadow: inset 6px 0 6px -6px $undershoot-color;
+  }
+}

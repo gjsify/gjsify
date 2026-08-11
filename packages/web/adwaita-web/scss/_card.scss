@@ -1,20 +1,23 @@
 // _card.scss — adw-card styling.
+//
+// The card SURFACE (colours, radius, elevation) is `%card` in
+// `_style_classes.scss`, shared with the documented `.card` class and with
+// `.boxed-list`; this element adds only what makes it an element: a block box
+// and the padding a bare `.card` deliberately does not have.
+//
 // Reference: refs/adwaita-web/adwaita-web/scss/_card.scss
-// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss:197-236
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
+@use 'style_classes';
+
 adw-card,
 .adw-card {
+  @extend %card;
+
   display: block;
-  background-color: var(--card-bg-color);
-  color: var(--card-fg-color);
-  border-radius: var(--card-radius);
   padding: var(--spacing-l);
-  box-shadow:
-    0 0 0 1px rgb(0 0 6 / 3%),
-    0 1px 3px 1px rgb(0 0 6 / 7%),
-    0 2px 6px 2px rgb(0 0 6 / 3%);
   overflow: hidden;
 }

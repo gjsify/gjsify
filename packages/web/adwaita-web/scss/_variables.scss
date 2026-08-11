@@ -117,6 +117,21 @@
   --font-size-heading: 12pt;
   --dim-opacity: 0.55;
 
+  // Borders and disabled dimming, as libadwaita's own two-step (_colors.scss:263,
+  // 317-329): an OPACITY token the high-contrast query moves, and a colour
+  // DERIVED from it against `currentColor` — so a border follows the text colour
+  // of the surface it is drawn on instead of being a fixed grey.
+  //
+  // `--disabled-opacity` had no home here, and three partials said so in a
+  // comment and reached for `--dim-opacity` instead (`_switch.scss:81-83`,
+  // `_checks.scss:164-166`, `_progress_bar.scss:87-89`). Those are different
+  // numbers upstream — 50% disabled vs 55% dimmed — and under high contrast they
+  // move in OPPOSITE directions (disabled 40%, dimmed 90%), so the stand-in was
+  // most wrong exactly where it mattered most.
+  --border-opacity: 15%;
+  --border-color: color-mix(in srgb, currentColor var(--border-opacity), transparent);
+  --disabled-opacity: 0.5;
+
   // Document + monospace families, behind `.document` / `.monospace`
   // (_labels.scss:75-84). In GTK these four are written into `:root` at RUNTIME
   // by AdwStyleManager from the desktop's font settings
@@ -133,4 +148,14 @@
   --document-font-size: var(--font-size-base);
   --monospace-font-family: 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace;
   --monospace-font-size: var(--font-size-base);
+}
+
+// High contrast moves the three opacity tokens, and only those — every colour
+// that reads them follows without its own query (_colors.scss:325-329).
+@media (prefers-contrast: more) {
+  :root {
+    --border-opacity: 50%;
+    --dim-opacity: 0.9;
+    --disabled-opacity: 0.4;
+  }
 }

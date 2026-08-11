@@ -37,4 +37,24 @@ adw-status-page {
   .adw-status-page-child {
     margin-top: var(--spacing-s);
   }
+
+  // `.compact` — the documented smaller status page, for a sidebar or a popover
+  // (style-classes.md "Compact Status Page"). Upstream drops the outer margins
+  // 36px → 24px, the icon 128px → 96px and the title from `.title-1` to
+  // `.title-2` (`_misc.scss:154-172`); this port's resting icon is already 96px
+  // because it renders at the size the vendored web port used, so `.compact`
+  // steps down from there in the same proportion.
+  &.compact {
+    gap: var(--spacing-s);
+    padding: var(--spacing-m);
+
+    .adw-status-page-icon {
+      width: 72px;
+      height: 72px;
+    }
+
+    .adw-status-page-title {
+      font-size: 14pt;
+    }
+  }
 }

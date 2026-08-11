@@ -76,3 +76,26 @@ adw-header-bar {
     }
   }
 }
+
+// `.devel` on the WINDOW gives every header bar inside it a striped background —
+// the marker for a nightly or unstable build (style-classes.md "Development
+// Window", `_toolbars.scss:345-354`).
+//
+// Upstream cross-fades a 5% recoloured SVG (`assets/devel-stripes.svg`) and
+// masks it so it fades out downwards. The stripe geometry is read off that
+// asset: a 64px tile, 32px of stripe per period, leaning left as it descends.
+//
+// The fade is the top LAYER here rather than a mask: `mask-image` on the bar
+// would fade its title and buttons with the stripes, and a masked pseudo-element
+// would paint over them. Washing the stripes out with the bar's own opaque
+// background colour renders identically and leaves the content alone.
+.devel adw-header-bar,
+adw-window.devel adw-header-bar {
+  background-image:
+    linear-gradient(to bottom, transparent 0%, var(--headerbar-bg-color) 100%),
+    repeating-linear-gradient(
+      116.565deg,
+      color-mix(in srgb, currentColor 5%, transparent) 0 32px,
+      transparent 32px 64px
+    );
+}
