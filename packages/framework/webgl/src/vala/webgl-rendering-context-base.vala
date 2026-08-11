@@ -577,6 +577,17 @@ namespace Gwebgl {
             this.webgl_constants.insert("RGB10_A2",                      GL_RGB10_A2);
             this.webgl_constants.insert("RGBA4",                         GL_RGBA4);
             this.webgl_constants.insert("RGB5_A1",                       GL_RGB5_A1);
+            // The 1- and 2-channel half-float formats are as load-bearing as the
+            // 3- and 4-channel ones: three.js' PMREM generator asks for RG16F
+            // (a 16x16 RG/HALF_FLOAT texture) while building an environment map.
+            // A consumer reads these off the context, so a MISSING one is not a
+            // missing feature — it is `undefined` passed straight to
+            // texStorage2D, which answers GL_INVALID_ENUM, leaves the texture
+            // without storage, and makes every later texSubImage2D/draw against
+            // it GL_INVALID_OPERATION. Nothing throws: the environment map came
+            // out all zeros and an unlit LDraw model rendered pure black.
+            this.webgl_constants.insert("R16F",                          GL_R16F);
+            this.webgl_constants.insert("RG16F",                         GL_RG16F);
             this.webgl_constants.insert("RGB16F",                        GL_RGB16F);
             this.webgl_constants.insert("RGBA16F",                       GL_RGBA16F);
             this.webgl_constants.insert("R32F",                          GL_R32F);
@@ -607,6 +618,11 @@ namespace Gwebgl {
             this.webgl_constants.insert("RGBA32UI",                      GL_RGBA32UI);
             this.webgl_constants.insert("RGB32I",                        GL_RGB32I);
             this.webgl_constants.insert("RGB32UI",                       GL_RGB32UI);
+            this.webgl_constants.insert("RGB10_A2UI",                    GL_RGB10_A2UI);
+            this.webgl_constants.insert("R8_SNORM",                      GL_R8_SNORM);
+            this.webgl_constants.insert("RG8_SNORM",                     GL_RG8_SNORM);
+            this.webgl_constants.insert("RGB8_SNORM",                    GL_RGB8_SNORM);
+            this.webgl_constants.insert("RGBA8_SNORM",                   GL_RGBA8_SNORM);
             this.webgl_constants.insert("R11F_G11F_B10F",                GL_R11F_G11F_B10F);
             this.webgl_constants.insert("RGB9_E5",                       GL_RGB9_E5);
             this.webgl_constants.insert("SRGB8",                         GL_SRGB8);

@@ -87,6 +87,107 @@ export default async () => {
             await it('getError() returns NO_ERROR initially', async () => {
                 expect(gl2.getError()).toBe(gl2.NO_ERROR);
             });
+
+            // The WebGL2 sized internal formats, verbatim from the spec table
+            // (the `internalformat` column of texStorage2D/texStorage3D).
+            // Consumers READ these off the context — three.js' WebGLTextures does
+            // `state.texStorage2D(target, levels, glInternalFormat, …)` where
+            // glInternalFormat came from `_gl.RG16F` — so an unregistered name is
+            // not an absent feature, it is `undefined` handed to the driver:
+            // GL_INVALID_ENUM, a texture left without storage, and every later
+            // texSubImage2D and draw against it failing GL_INVALID_OPERATION. All
+            // of it silent — no throw, no console output. That is how the PMREM
+            // generator produced an all-zero environment map and the LDraw
+            // example rendered a pure black model against a correct background.
+            //
+            // Assert the WHOLE table rather than the one name that was missing:
+            // R16F/RG16F/RGB10_A2UI and the four _SNORM formats were all absent
+            // together, and only RG16F had a consumer loud enough to notice.
+            await it('exposes every WebGL2 sized internal format constant', async () => {
+                const SIZED_INTERNAL_FORMATS = [
+                    'R8',
+                    'R8_SNORM',
+                    'R16F',
+                    'R32F',
+                    'R8UI',
+                    'R8I',
+                    'R16UI',
+                    'R16I',
+                    'R32UI',
+                    'R32I',
+                    'RG8',
+                    'RG8_SNORM',
+                    'RG16F',
+                    'RG32F',
+                    'RG8UI',
+                    'RG8I',
+                    'RG16UI',
+                    'RG16I',
+                    'RG32UI',
+                    'RG32I',
+                    'RGB8',
+                    'SRGB8',
+                    'RGB565',
+                    'RGB8_SNORM',
+                    'R11F_G11F_B10F',
+                    'RGB9_E5',
+                    'RGB16F',
+                    'RGB32F',
+                    'RGB8UI',
+                    'RGB8I',
+                    'RGB16UI',
+                    'RGB16I',
+                    'RGB32UI',
+                    'RGB32I',
+                    'RGBA8',
+                    'SRGB8_ALPHA8',
+                    'RGBA8_SNORM',
+                    'RGB5_A1',
+                    'RGBA4',
+                    'RGB10_A2',
+                    'RGBA16F',
+                    'RGBA32F',
+                    'RGBA8UI',
+                    'RGBA8I',
+                    'RGB10_A2UI',
+                    'RGBA16UI',
+                    'RGBA16I',
+                    'RGBA32I',
+                    'RGBA32UI',
+                    'DEPTH_COMPONENT16',
+                    'DEPTH_COMPONENT24',
+                    'DEPTH_COMPONENT32F',
+                    'DEPTH24_STENCIL8',
+                    'DEPTH32F_STENCIL8',
+                ];
+                const ctx = gl2 as unknown as Record<string, number | undefined>;
+                const missing = SIZED_INTERNAL_FORMATS.filter((name) => typeof ctx[name] !== 'number');
+                expect(missing.join(', ')).toBe('');
+            });
+
+            // The concrete allocation that failed: three.js' PMREM generator
+            // creates a 16x16 RG/HALF_FLOAT texture via texStorage2D, which takes
+            // the SIZED format, not the base one.
+            await it('allocates an RG16F texture with texStorage2D without error', async () => {
+                const tex = gl2.createTexture();
+                gl2.bindTexture(gl2.TEXTURE_2D, tex);
+                gl2.texStorage2D(gl2.TEXTURE_2D, 1, gl2.RG16F, 16, 16);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                gl2.texSubImage2D(
+                    gl2.TEXTURE_2D,
+                    0,
+                    0,
+                    0,
+                    16,
+                    16,
+                    gl2.RG,
+                    gl2.HALF_FLOAT,
+                    new Uint16Array(16 * 16 * 2),
+                );
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                gl2.bindTexture(gl2.TEXTURE_2D, null);
+                gl2.deleteTexture(tex);
+            });
         });
 
         // ── GLSL ES 3.00 compilation ────────────────────────────────────────────
@@ -646,6 +747,100 @@ export default async () => {
 
                 gl2.disableVertexAttribArray(0);
                 gl2.deleteBuffer(buf);
+                gl2.deleteProgram(prog);
+            });
+
+            // The divisor must land in the TRACKED vertex-array state, not only in
+            // the driver. `_checkVertexAttribState` runs before every draw and
+            // sizes an attribute's buffer per-VERTEX unless it knows the attribute
+            // is instanced; an unrecorded divisor therefore makes it demand
+            // `stride * maxIndex` bytes from an instance-sized buffer, raise
+            // INVALID_OPERATION and skip the native draw entirely — the draw is
+            // dropped by US, with a perfectly capable driver underneath and
+            // nothing on stderr. `getVertexAttrib` reads the same field, so the
+            // observable symptom and the internal cause are one assertion apart.
+            await it('records the divisor in the tracked attrib state', async () => {
+                const buf = gl2.createBuffer();
+                gl2.bindBuffer(gl2.ARRAY_BUFFER, buf);
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array(8), gl2.STATIC_DRAW);
+                gl2.enableVertexAttribArray(1);
+                gl2.vertexAttribPointer(1, 4, gl2.FLOAT, false, 16, 0);
+
+                gl2.vertexAttribDivisor(1, 1);
+                expect(gl2.getVertexAttrib(1, gl2.VERTEX_ATTRIB_ARRAY_DIVISOR)).toBe(1);
+
+                gl2.vertexAttribDivisor(1, 0);
+                expect(gl2.getVertexAttrib(1, gl2.VERTEX_ATTRIB_ARRAY_DIVISOR)).toBe(0);
+
+                gl2.disableVertexAttribArray(1);
+                gl2.deleteBuffer(buf);
+            });
+
+            // The end-to-end shape three.js' InstancedMesh produces: a mat4
+            // instance attribute (stride 64) whose buffer holds only
+            // `instanceCount` elements, drawn against a many-vertex geometry.
+            // Sized per-vertex this buffer is far too small, so the pre-draw
+            // check rejected it and nothing reached the driver.
+            await it('draws instanced with an instance-sized mat4 attribute buffer', async () => {
+                const VS = [
+                    '#version 300 es',
+                    'in vec2 position;',
+                    'in vec4 offsetRow;',
+                    // The instance attribute must actually reach gl_Position, or
+                    // the compiler drops it and getAttribLocation returns -1.
+                    'void main() { gl_Position = vec4(position + offsetRow.xy * 0.001, 0.0, 1.0); }',
+                ].join('\n');
+                const FS = [
+                    '#version 300 es',
+                    'precision mediump float;',
+                    'out vec4 c;',
+                    'void main() { c = vec4(0.0,1.0,0.0,1.0); }',
+                ].join('\n');
+
+                const prog = makeProgram(gl2 as unknown as WebGLRenderingContext, VS, FS);
+                gl2.useProgram(prog);
+                const posLoc = gl2.getAttribLocation(prog, 'position');
+                const offLoc = gl2.getAttribLocation(prog, 'offsetRow');
+
+                const fbo = makeTestFBO(gl2 as unknown as WebGLRenderingContext, 4, 4);
+
+                // 3 vertices covering the target.
+                const posBuf = gl2.createBuffer();
+                gl2.bindBuffer(gl2.ARRAY_BUFFER, posBuf);
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array([-2, -2, -2, 4, 4, -2]), gl2.STATIC_DRAW);
+                gl2.enableVertexAttribArray(posLoc);
+                gl2.vertexAttribPointer(posLoc, 2, gl2.FLOAT, false, 0, 0);
+                gl2.vertexAttribDivisor(posLoc, 0);
+
+                // One mat4 row per instance: 6 instances * 16 bytes, stride 64 —
+                // i.e. a buffer that is only large enough because it is instanced.
+                const instBuf = gl2.createBuffer();
+                gl2.bindBuffer(gl2.ARRAY_BUFFER, instBuf);
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array(6 * 16), gl2.STATIC_DRAW);
+                gl2.enableVertexAttribArray(offLoc);
+                gl2.vertexAttribPointer(offLoc, 4, gl2.FLOAT, false, 64, 0);
+                gl2.vertexAttribDivisor(offLoc, 1);
+
+                // Indexed, like InstancedMesh: this is the drawElementsInstanced path.
+                const idxBuf = gl2.createBuffer();
+                gl2.bindBuffer(gl2.ELEMENT_ARRAY_BUFFER, idxBuf);
+                gl2.bufferData(gl2.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2]), gl2.STATIC_DRAW);
+
+                gl2.clearColor(0, 0, 0, 1);
+                gl2.clear(gl2.COLOR_BUFFER_BIT);
+                gl2.drawElementsInstanced(gl2.TRIANGLES, 3, gl2.UNSIGNED_SHORT, 0, 6);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+                const p = readPixel(gl2 as unknown as WebGLRenderingContext, 0, 0);
+                destroyTestFBO(gl2 as unknown as WebGLRenderingContext, fbo);
+                expect(p[1]).toBe(255); // green — the draw actually reached the driver
+
+                gl2.disableVertexAttribArray(posLoc);
+                gl2.disableVertexAttribArray(offLoc);
+                gl2.vertexAttribDivisor(offLoc, 0);
+                gl2.deleteBuffer(posBuf);
+                gl2.deleteBuffer(instBuf);
+                gl2.deleteBuffer(idxBuf);
                 gl2.deleteProgram(prog);
             });
         });
