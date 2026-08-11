@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.37.0](https://github.com/gjsify/gjsify/compare/v0.36.0...v0.37.0) (2026-08-11)
+
+### Features
+
+* **adwaita:** the documented style-class surface, <adw-shortcut-label>, and two gates ([#1123](https://github.com/gjsify/gjsify/issues/1123)) ([2bb650b](https://github.com/gjsify/gjsify/commit/2bb650bfe188203a2e932f431302d6276ddec521)), closes [#1052](https://github.com/gjsify/gjsify/issues/1052) [#1124](https://github.com/gjsify/gjsify/issues/1124)
+
+### Documentation
+
+* cut comment volume, gate it against regrowth ([#1122](https://github.com/gjsify/gjsify/issues/1122)) ([96dfa1d](https://github.com/gjsify/gjsify/commit/96dfa1d23917534a8eb693557fe3971f436db3e0))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([55c9260](https://github.com/gjsify/gjsify/commit/55c92606fe37ae08d2c58b0376d17f6ac4c294e4))
+
 ## [0.36.0](https://github.com/gjsify/gjsify/compare/v0.35.0...v0.36.0) (2026-08-11)
 
 ### Features
