@@ -74,6 +74,8 @@ export function nodeBinary(): string {
 export interface RunNodeBundleOptions {
     /** Exit this process with code 0 once the child succeeds (terminal callers). */
     exitOnSuccess?: boolean;
+    /** Suppress the `$ <env> node …` echo — see `RunGjsBundleOptions.quiet`. */
+    quiet?: boolean;
 }
 
 /**
@@ -176,20 +178,37 @@ export async function runRuntimeBundle(
 
     // Echo on stderr so a child speaking a protocol on stdout stays clean.
     const shown = [cmd, ...launchArgs.map((a) => (a.includes(' ') ? `"${a}"` : a))].join(' ');
-    console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${shown}`);
+    if (!options.quiet) console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${shown}`);
 
     const child = spawn(cmd, launchArgs, { env, stdio: 'inherit' });
 
+    // Re-raise the CHILD's own code rather than a blanket 1 — same reason as
+    // `runGjsBundle`: a script run through `--node-script` reports its status
+    // through this path, and a caller that reads `$?` needs the real one.
+    let failed = false;
+    let childCode = 1;
     await new Promise<void>((resolvePromise, reject) => {
         child.on('close', (code) => {
-            if (code !== 0) reject(new Error(`${runtime} exited with code ${code}`));
-            else resolvePromise();
+            if (code !== 0) {
+                childCode = code ?? 1;
+                reject(new Error(`${runtime} exited with code ${code}`));
+            } else resolvePromise();
         });
         child.on('error', reject);
     }).catch((err) => {
         console.error((err as Error).message);
-        process.exit(1);
+        failed = true;
     });
 
-    if (options.exitOnSuccess) process.exit(0);
+    // `return process.exit(…)`, and the flag rather than an exit inside the
+    // `catch`: under GJS `process.exit()` is deferred and RETURNS, so a bare
+    // call in the catch fell through to the `exitOnSuccess` line below and
+    // scheduled a second exit — the same fall-through `runGjsBundle` and
+    // `commands/run.ts` already carry this shape for.
+    if (failed) {
+        process.exitCode = childCode;
+        return process.exit(childCode);
+    }
+
+    if (options.exitOnSuccess) return process.exit(0);
 }
