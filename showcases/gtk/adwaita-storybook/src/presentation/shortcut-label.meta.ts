@@ -10,6 +10,31 @@
 
 import { ControlType, type StoryMeta } from '@gjsify/stories';
 
+/** One row of the All Levels story. */
+export interface ShortcutLabelLevel {
+    readonly label: string;
+    readonly accelerator: string;
+}
+
+/**
+ * The rows the All Levels story stacks, shared by all three renderers.
+ *
+ * It lives in the meta because the whole value of that story is the COMPARISON:
+ * three targets showing a different set of accelerators could not be compared at
+ * all, which is the same reason the story SET is gated
+ * (scripts/check-storybook-story-parity.mjs).
+ */
+export const SHORTCUT_LABEL_LEVELS: ReadonlyArray<ShortcutLabelLevel> = [
+    { label: 'Single', accelerator: '<Control>C' },
+    { label: 'Modifier order', accelerator: '<Shift><Control>a' },
+    { label: 'Alternatives', accelerator: '<Shift>A Home' },
+    { label: 'Range', accelerator: '<Alt>1...9' },
+    { label: 'In sequence', accelerator: '<Control>C+<Control>X' },
+    { label: 'Together', accelerator: 'Control_L&Control_R' },
+    { label: 'Nested', accelerator: '<Alt>1...9 <Alt>0' },
+    { label: 'Unset', accelerator: '' },
+];
+
 export const shortcutLabelMeta: StoryMeta = {
     title: 'Presentation/Shortcut Label',
     description:
@@ -33,6 +58,28 @@ export const shortcutLabelMeta: StoryMeta = {
             ],
             defaultValue: '<Control>C',
         },
+        {
+            name: 'disabledText',
+            label: 'Placeholder',
+            type: ControlType.TEXT,
+            defaultValue: 'Disabled',
+        },
+    ],
+};
+
+/**
+ * Every grammar level at once.
+ *
+ * The interactive story above shows ONE accelerator per view, and the four
+ * nesting levels are only legible side by side — `Modifier order` renders
+ * `Ctrl Shift A` from `<Shift><Control>a`, and `Range` ends without a modifier,
+ * neither of which reads as a rule until there is a neighbour to compare against.
+ */
+export const shortcutLabelLevelsMeta: StoryMeta = {
+    title: 'Presentation/Shortcut Label (All Levels)',
+    description:
+        "Every Adw.ShortcutLabel grammar level at once: alternatives (space), a range (...), pressed in sequence (+), pressed together (&) — plus GTK's fixed keycap order and the disabled placeholder.",
+    controls: [
         {
             name: 'disabledText',
             label: 'Placeholder',
