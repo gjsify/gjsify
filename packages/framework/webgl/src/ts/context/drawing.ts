@@ -531,6 +531,14 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                 return attrib._divisor;
             }
         }
+        // On WebGL2 instancing is core, so the divisor is queried under the
+        // UNSUFFIXED name — the ANGLE branch above only covers the WebGL1
+        // extension spelling. The constant exists only on a WebGL2 context, and
+        // `pname` is a number there (it defaults to 0), so an undefined property
+        // on WebGL1 can never match.
+        if (pname === (this as { VERTEX_ATTRIB_ARRAY_DIVISOR?: GLenum }).VERTEX_ATTRIB_ARRAY_DIVISOR) {
+            return attrib._divisor;
+        }
 
         switch (pname) {
             case this.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING:

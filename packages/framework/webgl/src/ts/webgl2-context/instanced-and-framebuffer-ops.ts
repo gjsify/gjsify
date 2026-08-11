@@ -202,8 +202,32 @@ const instancedAndFramebufferOpsMethods: InstancedAndFramebufferOpsMethods & Thi
         }
     },
 
+    /**
+     * Sets the instance divisor for a vertex attribute AND records it in the
+     * tracked vertex-array state.
+     *
+     * Recording is not bookkeeping — `_checkVertexAttribState` runs BEFORE every
+     * draw and sizes each enabled attribute's buffer as `stride * maxIndex + …`
+     * unless the attribute is instanced, in which case one element is enough.
+     * Forwarding the divisor to GL without recording it left the driver drawing
+     * instanced while our own validator still believed the attribute was
+     * per-vertex: it computed a per-vertex requirement against an instance-sized
+     * buffer, raised INVALID_OPERATION, and returned WITHOUT ever calling the
+     * native draw. Nothing rendered, and nothing said why.
+     *
+     * Measured with three.js' `InstancedMesh`, whose `instanceMatrix` is a mat4
+     * (stride 64) over 6 instances = a 384-byte buffer, against a 24-vertex box:
+     * the check demanded 64 * 23 + 16 = 1488 bytes. Every instanced draw in the
+     * RoomEnvironment was dropped, the PMREM environment map came out all zeros,
+     * and the LDraw model rendered pure black.
+     *
+     * `getVertexAttrib(i, VERTEX_ATTRIB_ARRAY_DIVISOR)` reads the same field, so
+     * it answered 0 for every instanced attribute before this too.
+     */
     vertexAttribDivisor(this: WebGL2RenderingContext, index: GLuint, divisor: GLuint): void {
+        if (!this._checkVertexIndex(index)) return;
         this._native2.vertexAttribDivisor(index, divisor);
+        this._vertexObjectState._attribs[index]._divisor = divisor;
     },
 
     vertexAttribIPointer(
