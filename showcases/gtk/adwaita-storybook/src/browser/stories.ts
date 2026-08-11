@@ -9,6 +9,7 @@
 import type { WebStoryModule } from '@gjsify/adwaita-storybook';
 import { AvatarWebStories } from './presentation/avatar.web.js';
 import { BannerWebStories } from './presentation/banner.web.js';
+import { ShortcutLabelWebStories } from './presentation/shortcut-label.web.js';
 import { SpinnerWebStories } from './presentation/spinner.web.js';
 import { StatusPageWebStories } from './presentation/status-page.web.js';
 import { WindowTitleWebStories } from './presentation/window-title.web.js';
@@ -46,6 +47,7 @@ import { ToastWebStories } from './feedback/toast.web.js';
 export const stories: WebStoryModule[] = [
     AvatarWebStories,
     BannerWebStories,
+    ShortcutLabelWebStories,
     SpinnerWebStories,
     StatusPageWebStories,
     WindowTitleWebStories,

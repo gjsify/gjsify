@@ -5,10 +5,11 @@
     "private": true,
     "main": "app/app.ts",
     "scripts": {
-        "prepare:android": "nativescript prepare android --no-hmr",
-        "build:android": "nativescript build android --no-hmr",
-        "run:android": "nativescript run android --no-hmr",
-        "debug:android": "nativescript debug android"
+        "sync:theme": "gjsify copy ../../../packages/nativescript-bridge/adwaita/src/theme/adwaita.css app/",
+        "prepare:android": "npm run sync:theme && nativescript prepare android --no-hmr",
+        "build:android": "npm run sync:theme && nativescript build android --no-hmr",
+        "run:android": "npm run sync:theme && nativescript run android --no-hmr",
+        "debug:android": "npm run sync:theme && nativescript debug android"
     },
     "repository": {
         "type": "git",
