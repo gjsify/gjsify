@@ -13,9 +13,6 @@
         "prebuilds"
     ],
     "gjsify": {
-        "platformsUncommitted": {
-            "win32-x64": "prebuilds.yml's win32 pair builds, load-tests and uploads it, and `commit-prebuilds` lands the directory — the first main run after this promotion clears the exemption"
-        },
         "platforms": [
             "win32-x64"
         ],

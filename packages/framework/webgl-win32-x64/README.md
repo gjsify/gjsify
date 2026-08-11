@@ -1,14 +1,5 @@
 # @gjsify/webgl-win32-x64
 
-> **No artifact in this tarball yet.** `win32-x64` is declared by
-> `@gjsify/webgl` and built by CI, but not committed to the repository:
-> prebuilds.yml's win32 pair builds, load-tests and uploads it, and `commit-prebuilds` lands the directory — the first main run after this promotion clears the exemption
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/webgl` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **win32-x64** native artifacts of [`@gjsify/webgl`](https://www.npmjs.com/package/@gjsify/webgl) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
