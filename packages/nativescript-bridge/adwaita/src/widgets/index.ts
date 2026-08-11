@@ -87,6 +87,25 @@ export type {
     ToggleGroupStateChange,
     ToggleGroupStateListener,
 } from './adw-toggle-group.js';
+// AdwShortcutLabel draws an accelerator as keycaps. The grammar, the keycap order
+// and the label lookup are headless (`@gjsify/adwaita-core`, ADR 0004); the NS view
+// TREE is the pure `shortcut-label.ts`, so the spec suite drives the conformance
+// vectors against the shipping structure off-device.
+export { AdwShortcutLabel } from './adw-shortcut-label.js';
+export {
+    SHORTCUT_LABEL_CAP_TEXT_CLASS,
+    SHORTCUT_LABEL_CLASS,
+    SHORTCUT_LABEL_DIMMED_CLASS,
+    SHORTCUT_LABEL_DISABLED_CLASS,
+    SHORTCUT_LABEL_KEYCAP_CLASS,
+    SHORTCUT_LABEL_KEYS_CLASS,
+    SHORTCUT_LABEL_SIDE_CLASS,
+    SHORTCUT_LABEL_SPACED_CLASS,
+    shortcutLabelDirection,
+    shortcutLabelPlatform,
+    shortcutLabelRenderPlan,
+} from './shortcut-label.js';
+export type { ShortcutLabelRenderPlan, ShortcutLabelViewSpec } from './shortcut-label.js';
 
 // --- View switching ---
 export { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
@@ -257,6 +276,7 @@ import { AdwButtonRow } from './adw-button-row.js';
 import { AdwButtonContent } from './adw-button-content.js';
 import { AdwSplitButton } from './adw-split-button.js';
 import { AdwToggleGroup } from './adw-toggle-group.js';
+import { AdwShortcutLabel } from './adw-shortcut-label.js';
 import { AdwViewStack } from './adw-view-stack.js';
 import { AdwViewSwitcher } from './adw-view-switcher.js';
 import { AdwViewSwitcherBar } from './adw-view-switcher-bar.js';
@@ -305,6 +325,7 @@ const ELEMENTS = {
     AdwButtonContent,
     AdwSplitButton,
     AdwToggleGroup,
+    AdwShortcutLabel,
     // View switching
     AdwViewStack,
     AdwViewSwitcher,
