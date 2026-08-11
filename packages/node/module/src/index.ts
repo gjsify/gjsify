@@ -85,6 +85,11 @@ function hasExtension(basename: string): boolean {
     return basename.includes('.');
 }
 
+/** Whether `path` names a directory (symlinks followed, as resolution already did). */
+function isDirectory(path: string): boolean {
+    return Gio.File.new_for_path(path).query_file_type(Gio.FileQueryInfoFlags.NONE, null) === Gio.FileType.DIRECTORY;
+}
+
 /** Resolve package.json main/module entry for a directory. */
 function resolvePackageEntry(dirPath: string): string | null {
     const pkgJsonFile = resolvePath(dirPath, 'package.json');
@@ -332,6 +337,33 @@ function resolveModulePath(id: string, callerDir: string): string {
     if (basename && !hasExtension(basename)) {
         const entry = resolvePackageEntry(resolvedPath);
         if (entry) return entry;
+        // A DIRECTORY with no resolvable entry is NOT a module. Node throws
+        // MODULE_NOT_FOUND here; we returned the directory path, so
+        // `require.resolve()` reported success with something no `import()` can
+        // ever load — a false positive that ENDS a caller's search.
+        //
+        // Measured cost: `@gjsify/rolldown-native` in a gjsify clone. Its
+        // node_modules entry is a symlink to the workspace package, whose
+        // `lib/esm/index.js` is a build output an install does not produce, so
+        // the exports map misses and `resolveInNodeModules` falls through to the
+        // literal path — the package DIRECTORY, which exists. `resolveNpmPackage`
+        // (cli/src/utils/resolve-npm-package.ts) tries anchors in order and stops
+        // at the first that resolves, so this hand-back stopped it at the
+        // UNLOADABLE workspace copy and never reached the anchor that carries a
+        // loadable one (the CLI bundle's own prefix, populated by
+        // `installGjsEnginePackages()`). Result: a globally installed gjsify with
+        // a perfectly good engine reported "no usable bundler engine under GJS"
+        // inside a clone — the exact blocker under the Node-less bootstrap.
+        //
+        // Only DIRECTORIES throw: an extensionless regular file (a `.bin/`
+        // launcher, an extensionless script) legitimately resolves to itself, and
+        // `resolvePackageEntry` returns null for it too.
+        if (isDirectory(resolvedPath)) {
+            throw new Error(
+                `Cannot find module "${id}" - ${resolvedPath} exists but has no resolvable package entry ` +
+                    `(its package.json exports/main point at a file that does not exist)`,
+            );
+        }
     }
 
     return resolvedPath;

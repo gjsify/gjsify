@@ -3,6 +3,10 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { builtinModules, isBuiltin, createRequire } from 'node:module';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export default async () => {
     await describe('module.builtinModules', async () => {
@@ -357,6 +361,54 @@ export default async () => {
             const resolved = req.resolve('@gjsify/rolldown-plugin-gjsify/shims/console-gjs');
             expect(typeof resolved).toBe('string');
             expect(resolved.endsWith('/lib/shims/console-gjs.js')).toBe(true);
+        });
+
+        await it('resolve should THROW for a package whose entry does not exist', async () => {
+            // Node parity: a package directory whose `exports`/`main` name a file
+            // that is not on disk is MODULE_NOT_FOUND, not a resolution to the
+            // directory. We used to hand back the directory path, which made
+            // `require.resolve()` a false positive — see the incident recorded in
+            // `resolveModulePath`: it stopped `resolveNpmPackage`'s anchor walk at
+            // an UNLOADABLE `@gjsify/rolldown-native` inside a gjsify clone, so a
+            // globally installed gjsify carrying a loadable engine still reported
+            // "no usable bundler engine under GJS".
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-module-broken-'));
+            const pkgDir = join(dir, 'node_modules', '@fixture', 'entryless');
+            mkdirSync(pkgDir, { recursive: true });
+            writeFileSync(
+                join(pkgDir, 'package.json'),
+                JSON.stringify({
+                    name: '@fixture/entryless',
+                    main: 'lib/esm/index.js',
+                    exports: { '.': { default: './lib/esm/index.js' } },
+                }),
+            );
+
+            const req = createRequire(pathToFileURL(join(dir, '__anchor__.js')).href);
+            let threw = false;
+            try {
+                req.resolve('@fixture/entryless');
+            } catch {
+                threw = true;
+            }
+            rmSync(dir, { recursive: true, force: true });
+            expect(threw).toBe(true);
+        });
+
+        await it('resolve should still return an extensionless FILE as itself', async () => {
+            // The throw above must not catch a regular file with no extension (a
+            // `.bin/` launcher, an extensionless script): `resolvePackageEntry`
+            // returns null for those too, so the DIRECTORY check is what keeps
+            // them resolving to themselves.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-module-extless-'));
+            const pkgDir = join(dir, 'node_modules', 'extless');
+            mkdirSync(pkgDir, { recursive: true });
+            writeFileSync(join(pkgDir, 'launcher'), '#!/bin/sh\nexit 0\n');
+
+            const req = createRequire(pathToFileURL(join(dir, '__anchor__.js')).href);
+            const resolved = req.resolve('extless/launcher');
+            rmSync(dir, { recursive: true, force: true });
+            expect(resolved.endsWith('launcher')).toBe(true);
         });
 
         await it('resolve should honor pkg.exports root entry (.)', async () => {
