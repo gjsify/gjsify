@@ -185,6 +185,15 @@ jobs:
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
+      # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
+      # (#1052) and no such harness existed. It was not built — three rasterisers cannot
+      # be compared pixel-for-pixel, and the NativeScript leg needs a device CI has not
+      # got — so the claim went, and this holds the part that IS true and checkable:
+      # the three targets render the same story SET. A story on one target and not the
+      # others is the one state where no comparison is possible at all.
+      - name: Check every storybook story exists on all three targets
+        run: node scripts/check-storybook-story-parity.mjs
+
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
       # fields the filter reads. That is how this repo installed every platform's
@@ -418,6 +427,15 @@ jobs:
       # the COMPILED css by the browser suite's style-classes.spec.ts.
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
+
+      # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
+      # (#1052) and no such harness existed. It was not built — three rasterisers cannot
+      # be compared pixel-for-pixel, and the NativeScript leg needs a device CI has not
+      # got — so the claim went, and this holds the part that IS true and checkable:
+      # the three targets render the same story SET. A story on one target and not the
+      # others is the one state where no comparison is possible at all.
+      - name: Check every storybook story exists on all three targets
+        run: node scripts/check-storybook-story-parity.mjs
 
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
