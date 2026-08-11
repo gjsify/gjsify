@@ -5,6 +5,7 @@ import registryTestSuite from './registry.spec.js';
 import controlsTestSuite from './controls.spec.js';
 import controllerTestSuite from './controller.spec.js';
 import discoverTestSuite from './discover.spec.js';
+import settingsTestSuite from './settings.spec.js';
 
 run({
     storyViewBaseTestSuite,
@@ -12,4 +13,5 @@ run({
     controlsTestSuite,
     controllerTestSuite,
     discoverTestSuite,
+    settingsTestSuite,
 });

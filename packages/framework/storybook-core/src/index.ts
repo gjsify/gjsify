@@ -12,6 +12,7 @@ export * from './controls.js';
 export * from './controller.js';
 export * from './discover.js';
 export * from './devtools.js';
+export * from './settings.js';
 
 // Re-export the story-authoring contract so a consumer needs one import.
 export * from '@gjsify/stories';

@@ -43,6 +43,7 @@
         "@girs/gtk-4.0": "^4.1.0",
         "@gjsify/devtools": "workspace:^",
         "@gjsify/stories": "workspace:^",
+        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/storybook-core": "workspace:^"
     },
     "devDependencies": {
