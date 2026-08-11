@@ -140,37 +140,70 @@ export const AdwAvatarTest = async () => {
     });
 
     await describe('<adw-avatar> mode (update_visibility, adw-avatar.c:117)', async () => {
-        // The `hasCustomImage` rows are not reachable through this element: it
-        // passes `hasCustomImage: false` unconditionally, because it has no
-        // custom-image support at all — `Adw.Avatar:custom-image` is unported.
-        // Named below rather than silently filtered.
+        // A 1x1 transparent GIF: a real, decodable image, so `custom-image` is
+        // exercised through the same path a photo would take — and no network.
+        const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
         for (const { hasCustomImage, showInitials, text, mode, rule } of AVATAR_MODE_VECTORS) {
-            if (hasCustomImage) continue;
-            await it(`initials=${showInitials} "${text}" → ${mode} — ${rule}`, () => {
+            await it(`image=${hasCustomImage} initials=${showInitials} "${text}" → ${mode} — ${rule}`, () => {
                 const host = document.createElement('div');
                 document.body.appendChild(host);
                 const avatar = document.createElement('adw-avatar');
                 if (showInitials) avatar.setAttribute('show-initials', '');
                 if (text) avatar.setAttribute('text', text);
+                if (hasCustomImage) avatar.setAttribute('custom-image', PIXEL);
                 host.appendChild(avatar);
 
-                // Exactly ONE of the two reachable modes is drawn — the point of
-                // the table is the precedence, and "both visible at once" is the
+                // Exactly ONE of the three modes is drawn — the point of the
+                // table is the precedence, and "two visible at once" is the
                 // failure it guards against.
                 const initials = (avatar.querySelector('.adw-avatar-text') as HTMLElement).hidden === false;
                 const icon = (avatar.querySelector('.adw-avatar-icon') as HTMLElement).hidden === false;
+                const image = (avatar.querySelector('.adw-avatar-custom-image') as HTMLElement).hidden === false;
                 expect(initials).toBe(mode === 'initials');
                 expect(icon).toBe(mode === 'icon');
+                expect(image).toBe(mode === 'image');
                 host.remove();
             });
         }
 
-        await it('leaves out only the custom-image rows, which this element cannot reach', () => {
-            const unreachable = AVATAR_MODE_VECTORS.filter((vector) => vector.hasCustomImage);
-            expect(unreachable.length).toBeGreaterThan(0);
-            // Every one of them is an `image` outcome, i.e. the whole mode is
-            // missing rather than a corner of it.
-            for (const vector of unreachable) expect(vector.mode).toBe('image');
+        await it('drops the custom image again when the attribute goes away', () => {
+            // The mode is re-derived on every attribute change, so removing the
+            // image has to fall back to whichever mode the remaining state picks
+            // — this is where a port that only ever ADDS the image node fails.
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const avatar = document.createElement('adw-avatar');
+            avatar.setAttribute('show-initials', '');
+            avatar.setAttribute('text', 'Ada Lovelace');
+            avatar.setAttribute('custom-image', PIXEL);
+            host.appendChild(avatar);
+
+            expect((avatar.querySelector('.adw-avatar-custom-image') as HTMLElement).hidden).toBe(false);
+
+            avatar.removeAttribute('custom-image');
+            expect((avatar.querySelector('.adw-avatar-custom-image') as HTMLElement).hidden).toBe(true);
+            expect((avatar.querySelector('.adw-avatar-text') as HTMLElement).hidden).toBe(false);
+
+            host.remove();
+        });
+
+        await it('fills the circle with the image rather than letterboxing it', () => {
+            // `object-fit` is the whole reason the image looks like an avatar and
+            // not like a photo in a round frame — a class-name assertion cannot
+            // see it, and it is one word away from being wrong.
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const avatar = document.createElement('adw-avatar');
+            avatar.setAttribute('custom-image', PIXEL);
+            avatar.setAttribute('size', '64');
+            host.appendChild(avatar);
+
+            const image = avatar.querySelector('.adw-avatar-custom-image') as HTMLElement;
+            expect(getComputedStyle(image).objectFit).toBe('cover');
+            expect(Math.round(image.getBoundingClientRect().width)).toBe(64);
+
+            host.remove();
         });
     });
 };
