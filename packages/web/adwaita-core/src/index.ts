@@ -320,6 +320,10 @@ export {
 } from './spinner.js';
 export type { SpinnerArc } from './spinner.js';
 
+// --- Shortcut labels (Adw.ShortcutLabel — accelerator string → keycaps) ---
+export { parseAccelerator, parseShortcutLabel, shortcutKeycaps } from './shortcut-label.js';
+export type { ShortcutKeycap, ShortcutLabelNode, ShortcutLabelOptions, ShortcutLabelParse } from './shortcut-label.js';
+
 // --- Length units (AdwLengthUnit — split views, wrap box, clamp) ---
 export { ADW_LENGTH_UNITS, DEFAULT_DPI, adwLengthToPx, normalizeLengthUnit } from './length-unit.js';
 export type { AdwLengthUnit } from './length-unit.js';

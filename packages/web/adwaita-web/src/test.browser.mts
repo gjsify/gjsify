@@ -41,9 +41,11 @@ import { AdwChecksTest } from './adw-checks.spec.js';
 import { AdwProgressBarTest } from './adw-progress-bar.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
 import { AdwStyleClassesTest } from './style-classes.spec.js';
+import { AdwShortcutLabelTest } from './adw-shortcut-label.spec.js';
 
 run({
     AdwStyleClassesTest,
+    AdwShortcutLabelTest,
     AdwAboutDialogTest,
     AdwBannerTest,
     AdwButtonContentTest,

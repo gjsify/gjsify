@@ -1,0 +1,80 @@
+// _shortcut_label.scss — <adw-shortcut-label> and its keycaps.
+//
+// TWO SOURCES, AND WHY ONLY ONE IS FOLLOWED. libadwaita styles the widget in
+// `_shortcuts-dialog.scss:33-58`: a 6px `border-spacing` at both levels (between
+// the boxes AND between the keycaps inside one), keycaps filled with 10% of the
+// current colour, an inset bottom shadow that reads as a key's edge, a 6px
+// radius, 6px padding and a 20px minimum width — plus `> .dimmed { padding: 6px
+// 0 }` so a separator lines up with the caps beside it.
+//
+// `refs/adwaita-web/adwaita-web/scss/_shortcut_label.scss` styles ONE outlined
+// tag for the whole shortcut: monospace, a border, small text, and an empty
+// `kbd, .keycap {}` block with a comment saying the real thing has per-keycap
+// styling. It is a placeholder for this widget, not a port of it, so nothing is
+// taken from it — the geometry above is libadwaita's.
+//
+// The keycap fill is `currentColor`-relative, so a shortcut label inside a
+// dimmed or coloured context stays legible without a second token.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_shortcuts-dialog.scss:33-58
+// Reference: refs/adwaita-web/adwaita-web/scss/_shortcut_label.scss (NOT followed — see above)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components; GTK's
+//   `border-spacing` on a box becomes flex `gap`.
+
+adw-shortcut-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+  }
+
+  // One combination — the keycaps of a single accelerator. Its own 6px gap is
+  // the second `border-spacing` in `&, > box { border-spacing: 6px }` (:37-39).
+  .adw-shortcut-label-keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .keycap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 20px;
+    padding: 6px;
+    border-radius: 6px;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+    box-shadow: inset 0 -2px var(--card-shade-color);
+
+    @media (prefers-contrast: more) {
+      box-shadow:
+        inset 0 -2px var(--card-shade-color),
+        0 0 0 1px var(--border-color);
+    }
+  }
+
+  // The `L` / `R` of a sided modifier key — `%s <small><b>%s</b></small>` in the
+  // C (adw-shortcut-label.c:195), i.e. smaller and bold, riding along inside the
+  // same keycap rather than being a cap of its own.
+  .adw-shortcut-label-side {
+    margin-inline-start: 2px;
+    font-size: 82%;
+    font-weight: 700;
+    // `<sub>` lowers the baseline by default; the marker is part of the key's
+    // label, not a subscript of a formula.
+    vertical-align: baseline;
+    bottom: 0;
+  }
+
+  // `> .dimmed { padding: 6px 0 }` (:55-57) — the separators and the
+  // disabled-text placeholder, aligned with the keycaps' text.
+  > .dimmed {
+    padding: 6px 0;
+  }
+}

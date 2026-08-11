@@ -56,6 +56,9 @@ export { AdwCheckbox, AdwRadio } from './elements/adw-checks.js';
 // The determinate progress indicator — <adw-spinner> covers only the
 // indeterminate case.
 export { AdwProgressBar } from './elements/adw-progress-bar.js';
+// A keyboard shortcut, drawn as keycaps. The accelerator GRAMMAR lives in
+// @gjsify/adwaita-core; this element only builds the nodes.
+export { AdwShortcutLabel } from './elements/adw-shortcut-label.js';
 // The ONE popover surface. Exported before its three hosts so the barrel's own
 // definition order matches theirs; each host ALSO imports it directly, which is
 // what actually guarantees `adw-popover` is defined before a server-rendered

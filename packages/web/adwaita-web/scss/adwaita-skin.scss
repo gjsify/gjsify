@@ -60,6 +60,9 @@
 @use 'data_grid';
 @use 'clamp';
 @use 'spinner';
+// <adw-shortcut-label>'s keycaps. After `labels`, because a separator inside it
+// is an ordinary `.dimmed`.
+@use 'shortcut_label';
 @use 'avatar';
 @use 'banner';
 @use 'status_page';
