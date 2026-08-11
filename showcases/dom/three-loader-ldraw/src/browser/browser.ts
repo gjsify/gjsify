@@ -12,7 +12,18 @@ export interface MountOptions {
     assetBase?: string;
 }
 
-export function mount(container: HTMLElement, options?: MountOptions) {
+/**
+ * What the website's `<ShowcaseEmbed>` holds on to: it pauses a demo that
+ * scrolls out of view, so an always-animating scene does not keep a GPU busy
+ * off-screen.
+ */
+export interface ShowcaseHandle {
+    pause(): void;
+    resume(): void;
+    readonly isPaused: boolean;
+}
+
+export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const { assetBase } = options ?? {};
 
     // Build UI
@@ -124,6 +135,14 @@ export function mount(container: HTMLElement, options?: MountOptions) {
         displayLinesRow as AdwRow,
         conditionalLinesRow as AdwRow,
     );
+
+    return {
+        pause: () => demo.pause(),
+        resume: () => demo.resume(),
+        get isPaused() {
+            return demo.isPaused;
+        },
+    };
 }
 
 // Adwaita web components expose custom properties (.selected, .active, .value) not in HTMLElement types.

@@ -33,6 +33,7 @@ interface Props {
   name:
     | 'three-postprocessing-pixel'
     | 'three-geometry-teapot'
+    | 'three-loader-ldraw'
     | 'excalibur-jelly-jumper'
     | 'canvas2d-fireworks'
     | 'minimalist-browser'
@@ -59,6 +60,7 @@ const id = slideId ?? name;
 const ASSET_BASE_BY_NAME: Record<string, string | undefined> = {
   'three-postprocessing-pixel': 'demos/pixel/',
   'three-geometry-teapot': 'demos/teapot/',
+  'three-loader-ldraw': 'demos/ldraw/',
   'excalibur-jelly-jumper': 'demos/jelly-jumper/',
 };
 
@@ -100,6 +102,7 @@ const mountOptsJson = JSON.stringify(resolvedMountOpts);
   type ShowcaseName =
     | 'three-postprocessing-pixel'
     | 'three-geometry-teapot'
+    | 'three-loader-ldraw'
     | 'excalibur-jelly-jumper'
     | 'canvas2d-fireworks'
     | 'minimalist-browser'
@@ -150,6 +153,13 @@ const mountOptsJson = JSON.stringify(resolvedMountOpts);
       case 'three-geometry-teapot': {
         const { mount } = await import(
           '@gjsify/example-dom-three-geometry-teapot/browser'
+        );
+        handle = mount(container, opts as { assetBase?: string });
+        break;
+      }
+      case 'three-loader-ldraw': {
+        const { mount } = await import(
+          '@gjsify/example-dom-three-loader-ldraw/browser'
         );
         handle = mount(container, opts as { assetBase?: string });
         break;

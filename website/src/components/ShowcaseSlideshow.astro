@@ -262,6 +262,34 @@ app.connect('activate', () => {
 });`,
   },
   {
+    id: 'ldraw',
+    name: 'three-loader-ldraw',
+    title: 'ldraw-demo.ts',
+    github: 'showcases/dom/three-loader-ldraw',
+    annotations: [
+      { text: 'A model streamed\nfrom disk over fetch', top: '-90px', right: '8%' },
+    ],
+    code: `import Adw from 'gi://Adw?version=1';
+import { WebGLBridge } from '@gjsify/webgl';
+import * as THREE from 'three';
+import { LDrawLoader } from 'three/addons/loaders/LDrawLoader.js';
+
+const app = new Adw.Application({ application_id: 'gjsify.examples.ldraw' });
+app.connect('activate', () => {
+  const glArea = new WebGLBridge();
+  glArea.onReady((canvas) => {
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45);
+
+    new LDrawLoader().load('models/car.ldr_Packed.mpd', (model) => {
+      model.rotation.x = Math.PI;
+      scene.add(model);
+    });
+  });
+});`,
+  },
+  {
     id: 'jelly-jumper',
     name: 'excalibur-jelly-jumper',
     title: 'jelly-jumper.ts',
