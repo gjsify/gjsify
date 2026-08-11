@@ -66,6 +66,7 @@ import { join, delimiter, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { buildLauncherShims } from './bin-shim.js';
+import { resolveBinOnPath } from './install-global.js';
 import { findWorkspaceRoot } from './workspace-root.js';
 
 let _ensured = false;
@@ -167,4 +168,61 @@ export function ensureGjsifyShimOnPath(): void {
     _selfShimActive = true;
     process.env.GJSIFY_SHIM_DIR = dir;
     process.env.PATH = dir + delimiter + (process.env.PATH ?? '');
+
+    writeNodeShim(dir, gjs, selfEntry);
+}
+
+/**
+ * Also put a `node` on PATH — one that runs the file through
+ * `gjsify run --node-script` — when the host is GJS and there is NO REAL `node`.
+ *
+ * WHY A SHIM AND NOT A MANIFEST REWRITE
+ *
+ * Every `node scripts/*.mjs` left in this repo's build chain imports nothing but
+ * `node:fs` / `node:path` / `node:url`, all of which gjsify polyfills, so the
+ * only thing stopping them on a Node-less host is that GJS's ESM loader cannot
+ * resolve `node:` for a file on disk. `--node-script` solves that — but spelling
+ * it in `package.json` does NOT work, for a structural reason rather than an
+ * aesthetic one: CI bootstraps a cold tree with
+ * `gjs -m "$GJSIFY_BOOTSTRAP" run build:infra`, and `$GJSIFY_BOOTSTRAP` is the
+ * PREVIOUS RELEASE's CLI (`.github/workflows/release-cut.yml` documents the same
+ * trap for its own step). A manifest using a flag the last release does not know
+ * reds every cold-cache CI run until a release ships — and the release runs that
+ * same chain to build itself.
+ *
+ * A shim has neither problem. The manifests keep saying `node scripts/x.mjs`, so
+ * an older CLI behaves exactly as it does today, and a Node-less host gets a
+ * `node` that works. It also covers what a per-script rewrite cannot: COMPOUND
+ * scripts (`gjsify tsc && node scripts/build-assets.mjs`) are executed through
+ * `/bin/sh`, which resolves `node` from PATH — as does anything those scripts
+ * spawn in turn.
+ *
+ * IT CANNOT SHADOW ANYTHING, which is the safety argument: it is written only
+ * when `node` resolves nowhere on PATH. Where a real Node exists, that Node keeps
+ * running the scripts, byte-for-byte as before.
+ */
+function writeNodeShim(dir: string, gjs: boolean, selfEntry: string): void {
+    if (!gjs) return;
+    if (existsSync(join(dir, 'node'))) return; // inherited from a parent gjsify
+    if (resolveBinOnPath('node')) return; // a real Node is present — leave it alone
+
+    const interpreter = process.env.GJS_CONSOLE || 'gjs';
+    // A leading FLAG is refused rather than forwarded. `node --test x.mjs` wants
+    // Node's own test runner and `node -e '…'` an eval; neither is something
+    // `--node-script` can honour, and yargs would silently take `--test` FOR the
+    // script path (`unknown-options-as-args` turns an unknown flag into a
+    // positional). A refusal naming the limit beats a mis-parse naming a file.
+    const shim = join(dir, 'node');
+    writeFileSync(
+        shim,
+        '#!/bin/sh\n' +
+            'case "$1" in\n' +
+            '  -*) echo "gjsify: this host has no node; the gjsify shim runs a SCRIPT FILE only" >&2\n' +
+            '      echo "gjsify: got: node $*" >&2\n' +
+            '      exit 127 ;;\n' +
+            'esac\n' +
+            `exec "${interpreter}" -m "${selfEntry}" run --node-script "$@"\n`,
+        { mode: 0o755 },
+    );
+    chmodSync(shim, 0o755);
 }
