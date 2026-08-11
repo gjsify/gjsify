@@ -480,6 +480,14 @@ export class StorybookWindow extends Adw.ApplicationWindow implements StorybookV
         this._clearControlPanel();
         for (const row of rows) {
             const widget = row.view as Gtk.Widget;
+            // A control's `label` and `description` are plain text from the
+            // `StoryMeta`, but every `AdwPreferencesRow` renders its title and
+            // subtitle with `use-markup` TRUE by default
+            // (adw-preferences-row.c:186) — so one `&`, `<` or `>` makes Pango
+            // reject the string and the row renders with an EMPTY subtitle.
+            // Cleared here, at the one place every control row passes through,
+            // rather than in each builder, so a new control type cannot forget it.
+            if (widget instanceof Adw.PreferencesRow) widget.set_use_markup(false);
             this._control_panel.add(widget);
             this._controlRows.push(widget);
         }

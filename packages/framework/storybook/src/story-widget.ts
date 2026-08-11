@@ -11,6 +11,7 @@
 // the live-refresh signal intact.
 
 import Adw from '@girs/adw-1';
+import GLib from '@girs/glib-2.0';
 import GObject from '@girs/gobject-2.0';
 import Gtk from '@girs/gtk-4.0';
 import { argsFromControls, type StoryArgs, type StoryArgValue, type StoryMeta } from '@gjsify/stories';
@@ -61,8 +62,16 @@ function buildGtkChrome(bin: Adw.Bin): StoryChrome<Gtk.Widget> {
             content.append(child);
         },
         setChromeText(title: string, description: string): void {
-            group.set_title(title);
-            group.set_description(description);
+            // BOTH of these labels are `use-markup="True"`
+            // (adw-preferences-group.ui:20-23, :33-35), and a `StoryMeta`'s title
+            // and description are renderer-agnostic PLAIN TEXT — the browser
+            // target assigns them as `textContent`, the NativeScript one as
+            // `Label.text`. So one unescaped `&`, `<` or `>` in a meta makes Pango
+            // reject the whole string and the chrome renders EMPTY, with only a
+            // `Gtk-WARNING` on stderr to say so. Found by the first meta to
+            // describe an accelerator grammar: "pressed together (&)".
+            group.set_title(GLib.markup_escape_text(title, -1));
+            group.set_description(GLib.markup_escape_text(description, -1));
         },
     };
 }
