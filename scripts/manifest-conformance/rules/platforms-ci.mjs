@@ -252,16 +252,35 @@ export async function parseCiPlatforms(
             // ("declares darwin-arm64, CI produces none" + "CI builds
             // linux-x64, not declared").
             //
-            // Keyed on the ACTION, not on a job-name pattern: `download` is what
-            // makes a job a consumer, and a list of job names is a second copy
-            // of the workflow that drifts from it. No producer downloads — the
-            // build legs compile from a checkout — so this costs no coverage,
-            // which the platform matrix is diffed against to confirm.
-            if (/uses:\s*actions\/download-artifact/.test(job.body)) continue;
+            // Keyed on the ACTIONS, not on a job-name pattern: a list of job
+            // names is a second copy of the workflow that drifts from it.
+            //
+            // "DOWNLOADS" IS NOT THE QUESTION — "produces nothing" is, and the
+            // difference has a counter-example in this very workflow. The
+            // sentence that used to stand here, "no producer downloads — the
+            // build legs compile from a checkout", was true until `@gjsify/webgl`
+            // gained a win32 target: valac cannot run on Windows, so that
+            // artifact is built by a PAIR, and the Windows half downloads the
+            // Linux half's generated C before compiling it. A job-level
+            // `downloads → skip` credited that leg with nothing, which would
+            // have failed the declared-vs-built invariant in the direction that
+            // reads "declares win32-x64 but no CI job produces it" — against a
+            // job that produces exactly it.
+            //
+            // So the test is downloads-AND-uploads-nothing, and the per-step
+            // exclusion below carries the rest. That exclusion is where the
+            // precision actually lives: a download step's `path:` is a
+            // DESTINATION, never something the job built, and crediting it is
+            // what once credited every platform package with `linux-x64`.
+            const bodyText = job.body.join('\n');
+            const downloads = /uses:\s*actions\/download-artifact/.test(bodyText);
+            const uploads = /uses:\s*actions\/upload-artifact/.test(bodyText);
+            if (downloads && !uploads) continue;
             // Attribute per STEP, not per line: a step's package identity and
             // its production verb usually sit on different lines (`- name:
             // Build native addon` + `working-directory: packages/…`).
             for (const step of splitSteps(job.body)) {
+                if (/uses:\s*actions\/download-artifact/.test(step)) continue;
                 if (!/\b(build|collect|stage|prebuild|upload)/i.test(step)) continue;
                 for (const id of identifiers) {
                     if (!step.includes(id.name_re) && !step.includes(id.path_re)) continue;

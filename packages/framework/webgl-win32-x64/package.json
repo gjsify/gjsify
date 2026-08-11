@@ -1,0 +1,40 @@
+{
+    "name": "@gjsify/webgl-win32-x64",
+    "version": "0.35.0",
+    "description": "win32-x64 prebuilt native library + GObject-Introspection typelib for @gjsify/webgl. Installed automatically on win32/x64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
+    "license": "MIT",
+    "os": [
+        "win32"
+    ],
+    "cpu": [
+        "x64"
+    ],
+    "files": [
+        "prebuilds"
+    ],
+    "gjsify": {
+        "platformsUncommitted": {
+            "win32-x64": "prebuilds.yml's win32 pair builds, load-tests and uploads it, and `commit-prebuilds` lands the directory — the first main run after this promotion clears the exemption"
+        },
+        "platforms": [
+            "win32-x64"
+        ],
+        "prebuilds": "prebuilds",
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "echo 'nothing to do'",
+        "build": "echo 'nothing to do'",
+        "test": "echo 'nothing to do'"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/webgl-win32-x64"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl-win32-x64#readme"
+}

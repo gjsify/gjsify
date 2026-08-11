@@ -1345,155 +1345,124 @@ teaching the musl check to verify GStreamer elements — would be an accepted ga
 from day one. Revisit when Alpine's libnice reaches 0.1.23; the right check then
 is a real element probe, which would go green rather than being born red.
 
-### `@gjsify/webgl` on win32-x64 — the exploratory leg exists; the declaration does not
+### `@gjsify/webgl` on win32-x64 — PROMOTED; what it did NOT close
 
-`prebuilds.yml` carries a dispatch-only PAIR — `webgl-vala-c-win32` (Linux, emits
-the Vala C + GIR) and `build-prebuilds-win32-experimental` (windows-latest,
-compiles that C with MSVC against gvsbuild and load-tests through
-`@gjsify/node-gi`) — behind the package's `prebuilt_vala_c` meson option. No
-`win32-x64` token is in `gjsify.platforms`, deliberately: the declared-vs-built
-invariant is symmetric, so the leg proves itself first. Full rationale, the
-researched rejection of valac-on-Windows/MinGW, and the measured MSVC result live
-in that block's header comment — do not duplicate them here.
+`prebuilds.yml` carries the PAIR — `webgl-vala-c-win32` (Linux, emits the Vala C
++ GIR) and `build-prebuilds-win32` (windows-latest, compiles that C with MSVC and
+load-tests it through `@gjsify/node-gi`) — behind the package's
+`prebuilt_vala_c` meson option. Both halves ran `workflow_dispatch`-only for as
+long as it took to answer the questions below; they now run on every event,
+`@gjsify/webgl` declares `win32-x64`, `@gjsify/webgl-win32-x64` holds the
+artifact and `commit-prebuilds` lands it. The declared-vs-built invariant is
+symmetric, which is why those four arrived in ONE change. The researched
+rejection of valac-on-Windows/MinGW and the measured MSVC result live in that
+block's header comment — do not duplicate them here.
 
-**The leg is GREEN** (run 30808747504): all four generated `.c` files compile
-under cl.exe 19.51 with zero language diagnostics, `gwebgl.dll` links, the
-typelib records a `.dll` leaf, and `Gwebgl.WebGLRenderingContext` resolves
-through `@gjsify/node-gi` — so the library is really loaded, not merely found.
+**Two findings from the exploratory phase are kept because the guards they
+produced are the only thing between them and a repeat.**
 
-**"What remains is a DECLARATION decision, not an engineering unknown" — that
-sentence stood here and was WRONG, and the way it was wrong is the entry.** The
-green artifact was a DEBUG build: `meson setup` ran without `--buildtype`, meson
-defaults to `debug`, and MSVC's reading of `debug` is `b_vscrt=mdd`. Measured on
-the win11-gjsify VM against the published artifact of that very run, `gwebgl.dll`
-imports `VCRUNTIME140D.dll` and `ucrtbased.dll` — images that ship only with
-Visual Studio and that Microsoft's terms forbid redistributing. Every other
-import (`epoxy-0`, `gdk_pixbuf-2.0-0`, `glib-2.0-0`, `gobject-2.0-0`) resolved
-from the batteries-included GTK bundle, so the library was two files short of
-working and said so as `Failed to load shared library 'gwebgl.dll'` — naming the
-dependent, never the missing dependency. The load test could not see it because
-`windows-latest` HAS Visual Studio: the one artifact no user could load is
-exactly the one the runner is equipped to load. Fixed by `--buildtype=release`
-plus an import-table assertion that runs BEFORE the load test, because the
-property is about redistribution and is answered by reading the file, not by
-loading it. The general lesson is not "pass --buildtype": it is that a CI host
-provisioned as a DEVELOPER machine silently satisfies developer-only
-dependencies, so any artifact leaving that host needs at least one check that
-inspects rather than executes.
+- **A DEBUG-CRT artifact went green, and "what remains is a DECLARATION
+  decision, not an engineering unknown" was written here while it did.**
+  `meson setup` ran without `--buildtype`, meson defaults to `debug`, and MSVC's
+  reading of `debug` is `b_vscrt=mdd`. Measured on the win11-gjsify VM against
+  the published artifact of the green run, `gwebgl.dll` imported
+  `VCRUNTIME140D.dll` and `ucrtbased.dll` — images that ship only with Visual
+  Studio and that Microsoft's terms forbid redistributing. Every other import
+  (`epoxy-0`, `gdk_pixbuf-2.0-0`, `glib-2.0-0`, `gobject-2.0-0`) resolved from
+  the batteries-included GTK bundle, so the library was two files short of
+  working and said so as `Failed to load shared library 'gwebgl.dll'` — naming
+  the dependent, never the missing dependency. The load test could not see it
+  because `windows-latest` HAS Visual Studio: the one artifact no user could
+  load is exactly the one the runner is equipped to load. Fixed by
+  `--buildtype=release` plus an import-table assertion that runs BEFORE the load
+  test, because the property is about redistribution and is answered by reading
+  the file rather than by loading it. The general lesson is not "pass
+  --buildtype": a CI host provisioned as a DEVELOPER machine silently satisfies
+  developer-only dependencies, so any artifact leaving that host needs at least
+  one check that INSPECTS rather than executes.
+- **The blocker was one layer BELOW webgl, and a display-less runner cannot see
+  that layer at all.** The load test proves `dlopen` + `…_get_type`, never
+  RENDERING — the same gap the darwin note in
+  `build-prebuilds-macos-experimental` records. Measured on the win11-gjsify VM,
+  `Gdk.Display.create_gl_context()` failed with `No GL implementation is
+  available`, so `three-geometry-teapot` opened a fully correct Adwaita window
+  and painted that string where the teapot belongs — a `Gtk.GLArea` failure, not
+  a `gi://Gwebgl` one. Cause (a) was the VM: a QEMU/QXL adapter with no OpenGL
+  ICD registered under `HKLM\...\OpenGLDrivers`, so Windows offered only the GDI
+  generic OpenGL 1.1 that GTK4 rejects. CLOSED by registering Mesa 26.1.6 as a
+  system ICD (`mesa-dist-win`'s `systemwidedeploy.cmd 1`:
+  `HKLM\…\OpenGLDrivers\MSOGL` → `mesadrv.dll`, the inbox `opengl32.dll` kept as
+  the loader — no System32 binary replaced, uninstall is option `10`), which
+  gives that VM **OpenGL 4.6, non-legacy**, and `three-geometry-teapot` RENDERS.
+  **The `4.6 (Compatibility Profile)` this file once predicted for Mesa/win32 is
+  not what apps get**: GDK asks for a CORE profile, so `is_legacy` is false and
+  the `ensureDefaultVertexArray()` / `ARB_ES3_compatibility` reasoning in the
+  WebGL entries applies on win32 exactly as it does on darwin.
 
-What is still OPEN, i.e. what a promotion owes beyond that green dispatch:
+**The prebuild's runtime closure is bigger than its tarball, and that is
+DELIBERATE.** `gwebgl.dll` imports `epoxy-0.dll`; Windows has no system
+libepoxy, so unlike the Linux and macOS artifacts this one is not loadable from
+the host alone. It is not duplicated into the tarball either: the epoxy that
+satisfies it already ships in `@gjsify/gtk-runtime-win32-x64` (GTK4 links it),
+which every win32 consumer of `@gjsify/webgl` already has, because it is how
+`@gjsify/node-gi` gets GObject at all. Two libepoxy images in one address space
+is a worse failure than the one being solved, so the closure is DOCUMENTED (in
+`@gjsify/webgl`'s README) rather than packaged around.
 
-- **`gwebgl.dll` imports `epoxy-0.dll`, and Windows has no system libepoxy.** On
-  Linux and macOS libepoxy is a distro/Homebrew package, so the committed
-  prebuild is a single library plus a typelib. On win32 the loadable unit is
-  bigger than the artifact: it needs node-gi's batteries-included GTK bundle
-  (which carries epoxy because GTK4 does). Which tarball ships what is a
-  packaging decision nobody has taken — and it is the first case in this repo
-  where a prebuild's runtime closure is not satisfiable from the host.
-- **The load test proves `dlopen` + `…_get_type`, never RENDERING.** A
-  display-less runner cannot drive a `Gtk.GLArea`, the same gap the darwin note
-  in `build-prebuilds-macos-experimental` records. Pixels need a real desktop —
-  the win11-gjsify VM is the machine for it. **Now measured there, and the
-  blocker is one layer BELOW webgl: there is no GL implementation at all.**
-  `Gdk.Display.create_gl_context()` fails with `No GL implementation is
-  available`, so `three-geometry-teapot` opens a fully correct Adwaita window
-  and paints that string where the teapot belongs — a `Gtk.GLArea` failure, not
-  a `gi://Gwebgl` one. Two independent causes, and BOTH have to go:
-  (a) the VM's display adapter is QEMU/QXL with no OpenGL ICD registered under
-  `HKLM\...\OpenGLDrivers`, so Windows offers only the GDI generic OpenGL 1.1
-  that GTK4 rejects; (b) **the batteries-included win32 bundle ships no GL
-  implementation either** — its 41 DLLs include `epoxy-0.dll`, which is the GL
-  *dispatch* layer and resolves nothing on its own. The windowing builder
-  already seeds `/^libEGL.*\.dll$/i` + `/^libGLESv2.*\.dll$/i`, and those
-  patterns matched NOTHING: the gvsbuild GTK4 release ZIP carries no ANGLE. So a
-  seed that silently matches nothing is how the bundle came to promise
-  "windowing" while shipping no GL — and both places that named ANGLE as shipped
-  (the licence paragraph below, and `gtk-runtime-win32-x64/README.md`) were
-  describing the seed list rather than the artifact; both are corrected.
-  Consequence for the showcases: on a Windows host WITH a vendor ICD the GL
-  showcases should work once webgl is promoted, but on a GPU-less host (VM, RDP
-  session, CI) all three stay dark.
+STILL OPEN, and NOT this prebuild's to close:
 
-  **(a) is CLOSED, and it closes the user-visible symptom on its own.** Mesa 26.1.6
-  registered as a system OpenGL ICD (`mesa-dist-win`'s `systemwidedeploy.cmd 1`:
-  `HKLM\…\OpenGLDrivers\MSOGL` → `mesadrv.dll`, the inbox `opengl32.dll` kept as the
-  loader — no System32 binary replaced, uninstall is option `10`) gives the
-  win11-gjsify VM **OpenGL 4.6, non-legacy**, and `three-geometry-teapot` RENDERS —
-  the first WebGL content this repo has drawn on Windows. `excalibur-jelly-jumper`
-  paints its Excalibur loader instead of the GL error. **The `4.6 (Compatibility
-  Profile)` this file predicted for Mesa/win32 is not what apps get**: GDK asks for
-  a CORE profile, so `is_legacy` is false and the `ensureDefaultVertexArray()` /
-  `ARB_ES3_compatibility` reasoning in the WebGL entries applies on win32 exactly as
-  it does on darwin, not the compatibility-profile branch.
+- **The batteries-included win32 bundle ships no GL implementation** — its DLLs
+  include `epoxy-0.dll`, which is the GL *dispatch* layer and resolves nothing on
+  its own. So on a Windows host WITHOUT a vendor or Mesa ICD (a GPU-less VM, an
+  RDP session, CI) the GL showcases stay dark, and that is a property of the
+  bundle, not of the webgl prebuild. The windowing builder's ANGLE seeds
+  (`/^libEGL.*\.dll$/i` + `/^libGLESv2.*\.dll$/i`) matched NOTHING — the gvsbuild
+  GTK4 release ZIP carries no ANGLE — which is how a bundle came to promise
+  "windowing" while shipping no GL. **The proposed fix was wrong twice over**:
+  the gvsbuild `epoxy-0.dll` is built with NO EGL support at all (measured on the
+  shipped 0.34.0 bundle: no `epoxy_has_egl`, no `egl*` entry point), so
+  `gdk_win32_display_get_egl_display()` can never engage no matter what
+  `libEGL.dll` is present — that path needs libepoxy rebuilt with
+  `-Degl=enabled`, a gvsbuild-side change. And the desktop-GL family is inert for
+  a second, independent reason: epoxy resolves it with a bare
+  `LoadLibraryA("OPENGL32")`, which Windows answers from the **application
+  directory** then **System32**, never from `PATH` — the only search the loader's
+  bundle wiring controls. Measured three ways on the VM: bundle-local
+  `libEGL`+`libGLESv2`+`libgallium_wgl` → still none; bundle-local `opengl32.dll`
+  preloaded by absolute path via `process.dlopen` → still none (Node *unloads* a
+  DLL that fails to self-register, so the base-name-match trick needs the addon,
+  not JS); the same `opengl32.dll` beside a copied `node.exe` → **GL 4.6, works**,
+  which is what proves the mechanism is placement and nothing else. A bundled ICD
+  therefore requires the ADDON to opt the process into
+  `SetDefaultDllDirectories(…)` + `AddDllDirectory(<bundle>/bin)` — process-wide
+  DLL-resolution surgery that would also stop other native modules resolving
+  their deps from `PATH`, so it is a decision, not a detail. The
+  positive-assertion half is DONE: the windowing builder probes the FINISHED
+  `bin/` for a GL implementation, records it as `manifest.glImplementation` (with
+  `dispatch` listed separately so epoxy's presence can never be misread as GL),
+  and warns naming every pattern that matched nothing. `--require-gl` makes it
+  fatal; it is off by default only because no gvsbuild prefix satisfies it yet,
+  so the promotion that ships a GL implementation flips it in the same change.
+  Tracked as #1097.
 
-  **(b) survives, and the proposed fix for it was wrong.** Shipping ANGLE would NOT
-  have fixed a GPU-less host: the gvsbuild `epoxy-0.dll` is built with **no EGL
-  support at all** — measured on the shipped 0.34.0 bundle, it exports no
-  `epoxy_has_egl` and contains no `egl*` entry point — so
-  `gdk_win32_display_get_egl_display()` can never engage no matter what `libEGL.dll`
-  is present. That path needs libepoxy rebuilt with `-Degl=enabled` FIRST, which is
-  a gvsbuild-side change. And the other family is inert for a second, independent
-  reason: epoxy resolves desktop GL with a bare `LoadLibraryA("OPENGL32")`, which
-  Windows answers from the **application directory** then **System32** — never from
-  `PATH`, which is the only search the loader's bundle wiring controls (`opengl32`
-  is NOT in `KnownDLLs`, so the app-directory slot is genuinely open). An
-  `opengl32.dll` placed in the bundle's `bin/` is therefore never consulted.
-  Measured three ways on the VM: bundle-local `libEGL`+`libGLESv2`+`libgallium_wgl`
-  → still `No GL implementation is available`; bundle-local `opengl32.dll` preloaded
-  by absolute path via `process.dlopen` → still none (Node *unloads* a DLL that
-  fails to self-register, so the base-name-match trick needs the addon, not JS);
-  the same `opengl32.dll` beside a copied `node.exe` → **GL 4.6, works**, which is
-  what proves the mechanism is placement and nothing else. So a bundled ICD requires
-  the ADDON to opt the process into `SetDefaultDllDirectories(…)` +
-  `AddDllDirectory(<bundle>/bin)` — process-wide DLL-resolution surgery that would
-  also stop other native modules resolving their deps from `PATH`, so it is a
-  decision, not a detail.
-
-  The positive-assertion rule the typelib backers already follow
-  (`REQUIRED_NAMESPACES`) is the shape the fix wants, and **that half is now DONE**:
-  the windowing builder probes the FINISHED `bin/` for a GL implementation, records
-  the answer as `manifest.glImplementation` (with `dispatch` listed separately so
-  epoxy's presence can never be misread as GL), and warns naming every pattern that
-  matched nothing. `--require-gl` makes it fatal; it is off by default only because
-  no gvsbuild prefix satisfies it yet, so turning it on today would fail every win32
-  bundle build for a gap the bundle cannot currently close — the promotion that
-  ships a GL implementation flips it in the same change. Tracked as #1097.
-- **Promotion is ONE change**: the `win32-x64` token in `gjsify.platforms`, a
-  generated `@gjsify/webgl-win32-x64` package (`generate-platform-packages.mjs
-  --write`) whose npm name is bootstrapped via `gjsify onboard` BEFORE the
-  release that ships it, both `if: github.event_name == 'workflow_dispatch'`
-  gates dropped, and the matching download + `git add` in `commit-prebuilds`.
-- **It would close the concrete failure the `needsWebgl` entry above records** —
-  `gjsify showcase three-geometry-teapot` dying at `gi://Gwebgl` on win32 — so
-  the two are worth reading together, and a win32 prebuild changes which of that
-  entry's two resolutions is the honest one.
-
-The split itself generalises past webgl: every other Vala bridge in this
+The two-job split generalises past webgl: every other Vala bridge in this
 repository has the same "valac does not run on Windows" problem, and
 `prebuilt_vala_c` is a per-package option today rather than a shared mechanism.
 Lifting it is premature until a second bridge wants it — but the second one is
 where the helper gets lifted, not the third.
 
-The win32 leg hand-copies its artifacts instead of going through
-`scripts/stage-prebuild.mjs`, and that is now the ONLY thing keeping a second
-copy of staging logic alive. The reason it started that way: since ADR 0017
-`resolveStageDir()` requires a sibling per-target package for any bridge that
-declares no `gjsify.prebuilds`, and creating `@gjsify/webgl-win32-x64` IS the
-declaration this leg exists to earn first — so there was no destination to stage
-into. `build-prebuilds-musl` hit the identical wall (`sab-native-linux-x64-musl/
-does not exist … Generate the platform packages first`), which is what made this
-an ordering problem rather than anything about win32 or musl.
+### `gjsify onboard` for `@gjsify/webgl-win32-x64` — required before the release that ships it
 
-That question is ANSWERED, not open: the stager grew a NAMED scratch destination
-(`--dest <dir>`, only valid together with `--allow-undeclared` — a relaxed
-default would have been the wrong shape, since a destination outside the package
-tree is only meaningful for a target the package does not promise), and
-`musl-build.sh` uses it. **The remaining work is to delete this leg's `cp` and
-call the stager the same way**, so the extension-matching and loader-path checks
-cover the leg that most needs them: an exploratory port is exactly where a
-renamed library or a missing sibling is most likely, and a hand-written `cp` is
-the one path that cannot notice either. Left undone here only because it would
-have made this PR depend on that one landing first.
+Same mechanism as the `gtk-runtime-darwin-x64` entry above. The name is new as of
+the win32 promotion, is not `private`, and does not exist on npm; Trusted
+Publishing (OIDC) cannot CREATE a package, so an unbootstrapped name 404s the
+exchange and stalls every alphabetically-later package (the v0.4.20 incident left
+60+ at 0.4.19, and `webgl-win32-x64` sits ahead of `webkit-*`, `websocket`,
+`webstorage` and `xmlhttprequest`). One `gjsify onboard` run covers it. Until it
+is bootstrapped the target is honestly declared and honestly unshipped: the
+package carries a `gjsify.platformsUncommitted` exemption that
+`clear-committed-platform-exemptions.mjs` drops the moment `commit-prebuilds`
+lands the directory.
 
 ### The GTK bundles declare `license: MIT` while shipping an LGPL closure
 

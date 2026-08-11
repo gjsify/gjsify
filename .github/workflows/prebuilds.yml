@@ -16,9 +16,13 @@ name: Build Native Prebuilds
 #                  reachable from a PR. Guarded twice over; see the job.
 #
 # WHICH legs run on a PR: every Linux glibc one — native x64 + arm64 and the
-# three QEMU legs. Only `build-prebuilds-macos` is held back (10x billing, a
-# scarce shared concurrency pool, and the slowest leg here), with main.yml's
-# `ci:macos` label as the opt-in. The two EXPLORATORY legs
+# three QEMU legs — plus the win32 pair. Only `build-prebuilds-macos` is held
+# back (10x billing, a scarce shared concurrency pool, and the slowest leg
+# here), with main.yml's `ci:macos` label as the opt-in. The win32 pair is NOT
+# held back with it: `windows-latest` bills at 2x where macOS bills at 10x, and
+# on a public repo both are free — so the cost that justifies the macOS opt-in
+# does not exist here, and a target with no PR coverage is a target whose breaks
+# are found on main. The two EXPLORATORY legs
 # (`build-prebuilds-macos-experimental`, `build-prebuilds-musl`) are
 # workflow_dispatch-only and nothing depends on them: each builds a target that
 # is not yet declared in any `gjsify.platforms`, and this repo's
@@ -1697,18 +1701,24 @@ jobs:
           EOF
 
   # ════════════════════════════════════════════════════════════════════════════
-  # win32-x64 exploratory — @gjsify/webgl, SPLIT ACROSS TWO JOBS
+  # win32-x64 — @gjsify/webgl, SPLIT ACROSS TWO JOBS
   #
-  # MANUAL DISPATCH ONLY (both halves), absent from `commit-prebuilds`, and NO
-  # `win32-x64` token is added to any `gjsify.platforms` — the same posture the
-  # macOS and musl exploratory legs take, for the same reason: the
-  # declared-vs-built invariant is SYMMETRIC, so the leg proves itself first and
-  # the declaration follows. `parseCiPlatforms()` EXCLUDES jobs gated on
-  # `github.event_name == 'workflow_dispatch'`, so while these are unproven they
-  # contribute nothing to the audit in either direction. Both `if:` lines below
-  # are what that parser matches CHARACTER FOR CHARACTER — an equivalent
-  # rewriting would credit `@gjsify/webgl` with a `win32-x64` it does not
-  # declare and fail the audit for a package nobody touched.
+  # PROMOTED. This pair was `workflow_dispatch`-only for as long as it took to
+  # answer the questions below; the answers are all in, so it now runs on every
+  # event like any other leg, `@gjsify/webgl` declares `win32-x64`,
+  # `@gjsify/webgl-win32-x64` holds the artifact and `commit-prebuilds` lands it.
+  # The declared-vs-built invariant is SYMMETRIC, which is why those four
+  # arrived in one change rather than one at a time.
+  #
+  # THE PROMOTION FIXED A PARSER ASSUMPTION, and it is worth knowing which:
+  # `parseCiPlatforms()` used to treat any job containing an
+  # `actions/download-artifact` step as a pure CONSUMER and credit it with
+  # nothing, on the stated ground that "no producer downloads". This pair is the
+  # counter-example — the Windows half downloads the Linux half's generated C
+  # and then builds the artifact — so the exclusion moved from the JOB to the
+  # STEP. Without that, `@gjsify/webgl` would declare a target the audit could
+  # not see any job produce, and this promotion would fail the very invariant it
+  # satisfies.
   #
   # ── WHY IT IS TWO JOBS: valac MUST NOT RUN ON WINDOWS ─────────────────────
   #
@@ -1800,27 +1810,41 @@ jobs:
   # Selecting a C STANDARD or supplying a missing include DIRECTORY answers a
   # real question about the platform; `/w` answers none.
   #
-  # ── WHAT PROMOTION WOULD STILL OWE, beyond a green run ────────────────────
+  # ── WHAT THE PROMOTION ANSWERED, and what it deliberately did not ─────────
   #
-  # Recorded because "it built and loaded" is NOT the whole bill:
-  #   • `gwebgl.dll` imports `epoxy-0.dll`. On Linux libepoxy is a distro
-  #     package; Windows has no system libepoxy, so a shipped win32 prebuild is
-  #     NOT self-contained the way the Linux ones are — it needs node-gi's
-  #     batteries-included GTK bundle (which carries epoxy because GTK4 does).
-  #     Whose tarball ships what is a promotion decision, not a build detail.
-  #   • The load test proves `dlopen` + `…_get_type`, never RENDERING. A
+  # "It built and loaded" was never the whole bill. The three open items and
+  # where each landed:
+  #   • `gwebgl.dll` imports `epoxy-0.dll` and Windows has no system libepoxy,
+  #     so this is the ONE prebuild in the repo whose runtime closure is not
+  #     satisfiable from the host. RESOLVED BY NOT MOVING ANY BYTES: the epoxy
+  #     that satisfies it already ships, in `@gjsify/gtk-runtime-win32-x64`
+  #     (GTK4 links it), and every win32 consumer of `@gjsify/webgl` has that
+  #     package because it is how node-gi gets GObject at all. Duplicating epoxy
+  #     into this tarball would ship a second copy of a DLL already on the
+  #     process's search path — two libepoxy images in one address space is a
+  #     worse failure than the one being solved. So the tarball's contract is
+  #     identical to every sibling's (a `.dll` + its typelib) and the closure is
+  #     documented in `@gjsify/webgl`'s README instead of packaged around.
+  #   • The load test proves `dlopen` + `…_get_type`, never RENDERING — a
   #     display-less runner cannot drive a `Gtk.GLArea`, exactly as the macOS
-  #     note above says. Pixels need a real desktop.
-  #   • Promotion is one change: the `win32-x64` token in `gjsify.platforms`, a
-  #     generated `@gjsify/webgl-win32-x64` package (`generate-platform-packages
-  #     .mjs --write`) with its npm name bootstrapped via `gjsify onboard`, both
-  #     `if:` gates dropped, and the matching download + `git add` in
-  #     `commit-prebuilds`.
+  #     note above says. STILL TRUE, and it is why the promotion waited on a
+  #     measurement no runner can make: `three-geometry-teapot` rendering on a
+  #     real Windows desktop (win11-gjsify VM, Mesa 26.1.6 as the system ICD,
+  #     GL 4.6 core). CI proves the artifact loads; a desktop proved it draws.
+  #   • The CRT question is answered by the `Assert the prebuild links the
+  #     REDISTRIBUTABLE CRT` step below, which reads the import table rather
+  #     than loading anything — see its own comment for the incident.
+  #
+  # WHAT IS STILL OPEN, and is NOT this pair's to close: on a Windows host with
+  # no vendor OpenGL ICD (a GPU-less VM, an RDP session, CI) the GL showcases
+  # stay dark, because the batteries-included bundle ships no GL implementation
+  # of its own — `epoxy-0.dll` is the dispatch layer and resolves nothing alone.
+  # That is tracked as #1097 against the bundle, not against this prebuild.
   # ════════════════════════════════════════════════════════════════════════════
   webgl-vala-c-win32:
-    name: Emit Vala C + GIR for the win32 experiment (fedora)
+    name: Emit Vala C + GIR for the win32 build (fedora)
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    needs: [changes]
     timeout-minutes: 20
     container:
       # THE BAKED IMAGE, not a bare `fedora:43` — required, and machine-checked
@@ -1844,16 +1868,19 @@ jobs:
       # distribution decision.
       image: ghcr.io/gjsify/ci-fedora:43
     steps:
-      # No `changes` gate anywhere in either job, deliberately. A dispatch has no
-      # previous state to diff against, so the `changes` job classifies
-      # everything as built and `skip` is always `[]` — an
-      # `!contains(needs.changes.outputs.skip, '"webgl"')` here would be a
-      # condition that cannot be false, reading as a decision while being dead
-      # weight.
+      # Gated STEP BY STEP, never as a whole job — `commit-prebuilds` lists this
+      # pair in `needs`, and a job skipped in its entirety would skip THAT one
+      # too, silently suppressing the commit of everything the other legs
+      # produced. So a run where webgl did not change walks both jobs and does
+      # nothing in either, which costs seconds. (While the pair was
+      # dispatch-only the gate was deliberately absent, because a dispatch
+      # diffs against nothing and `skip` was always `[]` — that reasoning
+      # retired with the promotion.)
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Verify the baked toolchain + record the generator's provenance
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         # TWO jobs, one step, because they print the same three facts. Verifying
         # is the convention every job on this image follows — assert the tools
         # are there rather than assume the pull was the image you meant, so a
@@ -1873,6 +1900,7 @@ jobs:
       # just the codegen rule) also proves on the cheapest possible host that the
       # C compiles at all, so a Windows failure is unambiguously about MSVC.
       - name: Build @gjsify/webgl Vala library (generates the C + GIR)
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
         run: |
           meson setup build .
@@ -1889,6 +1917,7 @@ jobs:
       # exist. That also catches a `src/vala/*.vala` the package's `meson.build`
       # does not list — a file the Linux build silently ignores today.
       - name: Export the generated C + GIR
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
         run: |
           set -euo pipefail
@@ -1921,6 +1950,7 @@ jobs:
           exit $rc
 
       - name: Upload the Vala C + GIR
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/upload-artifact@v7
         with:
           name: webgl-vala-c-win32
@@ -1931,11 +1961,10 @@ jobs:
           # be the committed-generated-C failure wearing a different hat.
           retention-days: 1
 
-  build-prebuilds-win32-experimental:
-    name: Build prebuilds (win32-x64) [experimental — webgl via MSVC]
-    needs: [webgl-vala-c-win32]
+  build-prebuilds-win32:
+    name: Build prebuilds (win32-x64) [webgl via MSVC]
+    needs: [changes, webgl-vala-c-win32]
     runs-on: windows-latest
-    if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 60
     env:
       PREBUILD: win32-x64
@@ -1952,12 +1981,20 @@ jobs:
 
       # Node 24 builds `@gjsify/node-gi` (node-gyp) and runs the load test — the
       # same version node-gi.yml's Windows jobs pin.
+      #
+      # From here down every step carries the `changes` gate, the SETUP ones
+      # included: acquiring a 400 MB GTK stack for a package this run did not
+      # change is the whole cost the gate exists to avoid, and gating only the
+      # build steps would pay it anyway. See the vala-c job for why the gate is
+      # per-step and never on the job.
       - name: Use Node.js 24
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/setup-node@v4
         with:
           node-version: '24'
 
       - name: Cache gvsbuild GTK4 bundle
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         id: cache-gtk
         uses: actions/cache@v4
         with:
@@ -1965,7 +2002,9 @@ jobs:
           key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
 
       - name: Download + extract gvsbuild GTK4 (MSVC-ABI, girepository-2.0)
-        if: steps.cache-gtk.outputs.cache-hit != 'true'
+        # A SKIPPED cache step leaves `cache-hit` empty, so `!= 'true'` is true
+        # and this would run on a skipped-package run without the second half.
+        if: ${{ steps.cache-gtk.outputs.cache-hit != 'true' && !contains(needs.changes.outputs.skip, '"webgl"') }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -1977,6 +2016,7 @@ jobs:
           Remove-Item gtk4.zip
 
       - name: Put GTK on PATH + set GI/PKG env
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         shell: pwsh
         run: |
           "$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
@@ -1987,6 +2027,7 @@ jobs:
           "GSETTINGS_SCHEMA_DIR=$env:GTK_PREFIX\share\glib-2.0\schemas" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install meson + ninja
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         run: python -m pip install --disable-pip-version-check meson ninja
 
       # THE EVIDENCE THIS JOB EXISTS TO PRODUCE, printed before anything can
@@ -2005,6 +2046,7 @@ jobs:
       #     IS missing, teaching meson.build to accept either name is the fix —
       #     and it touches Linux and macOS too, so make it deliberately.
       - name: Report what the Windows toolchain actually resolved
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         shell: pwsh
         run: |
           Write-Host "pkg-config: $((Get-Command pkg-config -ErrorAction SilentlyContinue).Source)"
@@ -2034,6 +2076,7 @@ jobs:
           }
 
       - name: Download the Vala C + GIR
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
         with:
           name: webgl-vala-c-win32
@@ -2045,6 +2088,7 @@ jobs:
           path: packages/framework/webgl/vala-c-export
 
       - name: Show what arrived
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         shell: pwsh
         run: Get-ChildItem packages/framework/webgl/vala-c-export -Recurse -File | ForEach-Object { $_.FullName }
 
@@ -2063,6 +2107,7 @@ jobs:
       # (`gwebgl.dll` under MSVC, `libgwebgl.dll` under MinGW; no
       # `host_machine.system()` branch can be right for both).
       - name: Build @gjsify/webgl with MSVC from the imported C
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
         shell: cmd
         run: |
@@ -2114,6 +2159,7 @@ jobs:
           meson compile -C build || exit /b 1
 
       - name: Collect @gjsify/webgl prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -2125,10 +2171,11 @@ jobs:
           # `checkPrebuildDir()` at the end) instead of by a second hand-written list.
           Copy-Item packages/framework/webgl/vala-c-export/Gwebgl-0.1.gir `
             -Destination packages/framework/webgl/build/
-          # `--allow-undeclared`: `win32-x64` is deliberately in no `gjsify.platforms`
-          # while this leg is exploratory (see this block's header), so the stager warns
-          # that the result must not be committed — which is exactly the intent.
-          node scripts/stage-prebuild.mjs packages/framework/webgl --scratch --allow-undeclared
+          # `--scratch`, and no `--allow-undeclared` any more: this leg commits
+          # nothing (`commit-prebuilds` downloads the artifact into
+          # `@gjsify/webgl-win32-x64`), and `win32-x64` IS declared now, so the
+          # stager holds the target to the declaration like every other leg.
+          node scripts/stage-prebuild.mjs packages/framework/webgl --scratch
           Get-ChildItem "packages/framework/webgl/prebuilds/$env:PREBUILD" | Select-Object Name, Length
 
       # A typelib whose recorded leaf is wrong is FOUND via GI_TYPELIB_PATH and
@@ -2136,6 +2183,7 @@ jobs:
       # chain to prevent. Assert it before the load test so a mismatch is named
       # here rather than diagnosed from a GI error.
       - name: Verify the typelib records a .dll leaf
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         shell: pwsh
         run: |
           $gir = "packages/framework/webgl/prebuilds/$env:PREBUILD/Gwebgl-0.1.gir"
@@ -2170,6 +2218,7 @@ jobs:
       # MSVCP140D are the debug images, and Microsoft's terms forbid shipping
       # them at all — so this is a licence gate as much as a portability one.
       - name: Assert the prebuild links the REDISTRIBUTABLE CRT
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -2214,6 +2263,7 @@ jobs:
       # installed from npm, so the test cannot silently pass against a published
       # binary that has nothing to do with this run.
       - name: Supply libffi headers (gvsbuild omits ffi.h)
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         # Verbatim from node-gi.yml's `windows` job, which explains why: gvsbuild
         # installs ffi.lib but not ffi.h/ffitarget.h, while GLib's girffi.h
         # (which it DOES install) includes ffi.h — so the addon will not compile
@@ -2226,6 +2276,7 @@ jobs:
           Copy-Item "$inc\ffi.h","$inc\ffitarget.h" -Destination "$env:GTK_PREFIX\include" -Force
 
       - name: Build @gjsify/node-gi (node-gyp / MSVC)
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/node-gi/node-gi
         run: npm install --no-audit --no-fund --foreground-scripts
 
@@ -2241,6 +2292,7 @@ jobs:
       # — a PowerShell here-string has to start at column 0, which terminates the
       # YAML block scalar the step is written in.
       - name: Load-test the win32-x64 prebuild through node-gi
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -2263,15 +2315,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload @gjsify/webgl win32-x64 prebuilds artifact
-        # Uploaded so a dispatch can be inspected and diffed. NOT downloaded by
-        # `commit-prebuilds` — committing it is the promotion step, together with
-        # the declaration and the per-target package (see this block's header).
-        if: always()
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/upload-artifact@v7
         with:
           name: webgl-prebuilds-win32-x64
           path: packages/framework/webgl/prebuilds/win32-x64/
-          if-no-files-found: warn
+          # `error`, not `warn`: `commit-prebuilds` downloads this by name and
+          # `actions/download-artifact` FAILS on a name that does not exist, so
+          # an empty upload turns into a red job two jobs later, naming the
+          # download instead of the build that produced nothing.
+          if-no-files-found: error
           retention-days: 30
 
   # ----------------------------------------------------------------
@@ -2677,6 +2730,11 @@ jobs:
     # rule fails on. It gets wired in here in the same change that adds the
     # declaration, not before.
     #
+    # `build-prebuilds-win32` IS here, and it is what that sentence looks like
+    # once it has been paid: the leg lost its dispatch gate, `@gjsify/webgl`
+    # gained the `win32-x64` token and `@gjsify/webgl-win32-x64` exists to hold
+    # the directory — one change, in the order the musl note prescribes.
+    #
     # `changes` is here because every download step below is gated on ITS
     # decision — the same decision the build legs used. Deciding once and
     # reading it in both places is what makes "a package was not built" and "no
@@ -2687,7 +2745,7 @@ jobs:
     # (there is no `always()` here — deliberately; see gate 3 in the comment
     # above), so a leg that skipped itself because it had nothing to build
     # would silently suppress committing everything the OTHER legs produced.
-    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos]
+    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos, build-prebuilds-win32]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
@@ -2764,6 +2822,20 @@ jobs:
         with:
           name: webgl-prebuilds-linux-riscv64
           path: packages/framework/webgl-linux-riscv64/prebuilds/linux-riscv64/
+
+      # The one target whose loadable unit is bigger than its artifact:
+      # `gwebgl.dll` imports `epoxy-0.dll`, which Windows has no system copy of,
+      # so this prebuild is only usable next to `@gjsify/gtk-runtime-win32-x64`'s
+      # batteries-included GTK bundle. That is a RUNTIME closure fact, not a
+      # packaging one — the tarball's own contract (a `.dll` + its typelib) is
+      # identical to every sibling's, and `@gjsify/webgl`'s README states the
+      # dependency. See the win32 block's header.
+      - name: Download webgl win32-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webgl-prebuilds-win32-x64
+          path: packages/framework/webgl-win32-x64/prebuilds/win32-x64/
 
       # -------- @gjsify/webrtc-native --------
       - name: Download webrtc-native x64 prebuilds
@@ -3511,7 +3583,7 @@ jobs:
       - build-prebuilds-macos
       - build-prebuilds-macos-experimental
       - webgl-vala-c-win32
-      - build-prebuilds-win32-experimental
+      - build-prebuilds-win32
       - build-prebuilds-musl
       - commit-prebuilds
     if: always()
@@ -3576,11 +3648,10 @@ jobs:
               echo 'skipped leg that matters is `build-prebuilds-macos` — every Linux target in'
               echo '`package.json#gjsify.platforms` is built, neither `darwin-arm64` nor'
               echo '`darwin-x64` is (both are legs of that one matrixed job). Label the PR'
-              echo '`ci:macos` to add them. (`build-prebuilds-macos-experimental`,'
-              echo '`build-prebuilds-musl` and the win32 pair `webgl-vala-c-win32` +'
-              echo '`build-prebuilds-win32-experimental` are dispatch-only by design — each builds'
-              echo 'targets no package declares yet, so they prove themselves before the'
-              echo 'declaration exists — and `commit-prebuilds` is main-only by design.)'
+              echo '`ci:macos` to add them. (`build-prebuilds-macos-experimental` and'
+              echo '`build-prebuilds-musl` are dispatch-only by design — each builds targets no'
+              echo 'package declares yet, so they prove themselves before the declaration'
+              echo 'exists — and `commit-prebuilds` is main-only by design.)'
             else
               echo '**Every prebuild leg in this workflow ran.**'
             fi

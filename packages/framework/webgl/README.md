@@ -66,19 +66,38 @@ The `'webgl'` / `'webgl2'` contexts themselves need no register: this package's
 ## Running GJS apps that use this package
 
 This package ships prebuilt native libraries for the platforms listed under
-[Platform coverage](#platform-coverage) — today that is Linux only:
+[Platform coverage](#platform-coverage) — Linux, macOS and Windows. Since
+[ADR 0017](https://github.com/gjsify/gjsify/blob/main/docs/adr/0017-native-package-distribution.md)
+each target lives in its own `optionalDependencies` package, so your package
+manager installs the one that fits and silently skips the rest:
 
 ```
-prebuilds/
-  linux-x64/   libgwebgl.so + Gwebgl-0.1.typelib
-  linux-arm64/  libgwebgl.so + Gwebgl-0.1.typelib
-  linux-ppc64/    libgwebgl.so + Gwebgl-0.1.typelib
-  linux-s390x/    libgwebgl.so + Gwebgl-0.1.typelib
-  linux-riscv64/  libgwebgl.so + Gwebgl-0.1.typelib
+@gjsify/webgl-linux-x64/prebuilds/linux-x64/         libgwebgl.so    + Gwebgl-0.1.typelib
+@gjsify/webgl-linux-arm64/…                          libgwebgl.so    + Gwebgl-0.1.typelib
+@gjsify/webgl-linux-{ppc64,s390x,riscv64}/…          libgwebgl.so    + Gwebgl-0.1.typelib
+@gjsify/webgl-darwin-{arm64,x64}/…                   libgwebgl.dylib + Gwebgl-0.1.typelib
+@gjsify/webgl-win32-x64/prebuilds/win32-x64/         gwebgl.dll      + Gwebgl-0.1.typelib
 ```
 
-There is **no macOS or Windows prebuild**; on those platforms `getContext('webgl')`
-has no native backend.
+**Windows needs two more things than the other platforms**, and neither is
+optional:
+
+- **`@gjsify/gtk-runtime-win32-x64`.** `gwebgl.dll` imports `epoxy-0.dll`, and
+  Windows has no system libepoxy — so unlike the `.so`/`.dylib` artifacts this
+  one is not loadable from the host alone. The epoxy it needs is already in that
+  bundle (GTK4 links it), which every Windows consumer has anyway because it is
+  how [`@gjsify/node-gi`](../../node-gi/node-gi) resolves `gi://` at all. It is
+  deliberately not duplicated here: two libepoxy images in one address space is
+  a worse failure than the one it would solve.
+- **A real OpenGL ICD.** GTK4 rejects the GDI generic OpenGL 1.1 that Windows
+  falls back to, and the GTK bundle ships no GL implementation of its own
+  (`epoxy-0.dll` is the *dispatch* layer — it resolves nothing by itself). On a
+  machine with vendor graphics drivers this is already true; on a GPU-less host
+  (VM, RDP session, CI) install [Mesa for Windows](https://github.com/pal1000/mesa-dist-win)
+  and register it system-wide (`systemwidedeploy.cmd 1`). Without one,
+  `Gdk.Display.create_gl_context()` fails with *"No GL implementation is
+  available"* and the window paints that string instead of your scene — a
+  `Gtk.GLArea` failure, not a `gi://Gwebgl` one.
 
 Use the gjsify CLI to run your app — it automatically sets `LD_LIBRARY_PATH` and
 `GI_TYPELIB_PATH` so GJS can find the native library:
@@ -133,7 +152,7 @@ consumer installs only the artifact that fits its platform.
 | `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
 | `darwin-arm64` / `darwin-x64` | ✅ `libgwebgl.dylib` + `Gwebgl-0.1.typelib` | native runner — **WebGL2 via a shader-dialect rewrite, see below** |
-| Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
+| `win32-x64` | ✅ `gwebgl.dll` + `Gwebgl-0.1.typelib` | **two jobs** — valac does not run on Windows, so a Linux runner emits the C + GIR and a `windows-latest` runner compiles them with MSVC against gvsbuild's GTK4. Needs a GL ICD and the GTK bundle at run time, [see above](#running-gjs-apps-that-use-this-package) |
 
 **macOS renders, WebGL1 and WebGL2.** Measured on macOS 15.7.8 / x86_64 with gtk 4.22 and
 libepoxy 1.5.10: `Gtk.GLArea` realizes a `GdkMacosGLContext`, and this bridge draws real
@@ -163,8 +182,14 @@ platform, not from the bridge:
   eleven separately probed edge constructs all compile on GLSL 4.10 with just that
   substitution. Measured end to end on macOS 15.7.9 / GL 4.1 core: compiles, links, draws,
   and `readPixels` returns the shader's colour. `#version 100` is left byte-for-byte alone,
-  and a context that already speaks GLSL ES 3.00 — Mesa's `4.6 (Compatibility Profile)` on
-  win32, GLES anywhere — is not rewritten at all.
+  and a context that already speaks GLSL ES 3.00 — GLES anywhere, or any desktop context
+  with `ARB_ES3_compatibility` — is not rewritten at all.
+
+  **The same rewrite applies on Windows, which is not what this file used to predict.** Mesa
+  on win32 advertises `4.6 (Compatibility Profile)`, so the guess was that win32 would take
+  the untouched path; measured on the win11-gjsify VM it does not, because GDK asks for a
+  CORE profile. `is_legacy` is false there, and the dialect decision goes exactly as it does
+  on macOS.
 
   Of the 219 GL entry points the library references, exactly two are absent from Apple's
   `OpenGL.framework` (`glInvalidateFramebuffer`, `glInvalidateSubFramebuffer`, both GL 4.3);

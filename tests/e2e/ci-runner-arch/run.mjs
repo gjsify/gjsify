@@ -22,7 +22,8 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +38,7 @@ const {
     auditReleaseCoverage,
     creditPlatformArtifacts,
     osFromRunner,
+    parseCiPlatforms,
     parseMatrixIncludes,
     platformRows,
     releaseOnlyTargets,
@@ -451,9 +453,18 @@ describe('platform matrix glyphs — the real tree', () => {
     });
 
     it('pins the two bridges this repository commits nothing for', async () => {
-        const { matrixRows } = await platformRows(createContext({ root: MONOREPO_ROOT, discoveryRoots: ['packages'] }));
+        const ctx = createContext({ root: MONOREPO_ROOT, discoveryRoots: ['packages'] });
+        const { matrixRows } = await platformRows(ctx);
         const table = parseMarkdownMatrix(renderPlatformMatrix(matrixRows, { markdown: true }));
         const rowFor = (name) => matrixRows.find((r) => r.name === name);
+        /**
+         * The per-target package's OWN `gjsify.platformsUncommitted` reason for
+         * `<bridge, target>`, read from its manifest rather than from the rows
+         * under test — a pin that derived its expectation from the same map the
+         * renderer reads would be tautological and could not fail.
+         */
+        const deferral = (bridge, target) =>
+            ctx.get(platformPackageName(bridge, target))?.manifest?.gjsify?.platformsUncommitted?.[target];
         // Asserted over each bridge's OWN declared list rather than a target count,
         // so adding a target does not red-line this test — the claim is about the
         // package's contract, not about today's matrix width.
@@ -468,12 +479,135 @@ describe('platform matrix glyphs — the real tree', () => {
                 );
             }
         }
+        // The mirror claim: these two commit an artifact for every target they
+        // declare — EXCEPT one a per-target package explicitly defers. That
+        // carve-out is not a softening, it is the only honest reading of a
+        // newly-declared target: `@gjsify/webgl-win32-x64` exists and says in its
+        // own manifest why it holds no bytes yet, and `commit-prebuilds` lands
+        // the directory and deletes that reason in ONE commit
+        // (`clear-committed-platform-exemptions.mjs`). So this expectation flips
+        // back to `✓` on its own the moment the artifact arrives, while a target
+        // that is `○` with NOTHING saying why still fails here.
         for (const name of ['@gjsify/tls-native', '@gjsify/webgl']) {
             const row = rowFor(name);
             assert.ok(row, `${name} is not in the matrix any more`);
             for (const target of row.declared) {
-                assert.equal(table[name][canonicalPlatform(target)], '✓', `${name} ${target}`);
+                const why = deferral(name, target);
+                assert.equal(
+                    table[name][canonicalPlatform(target)],
+                    why ? '○' : '✓',
+                    why
+                        ? `${name} ${target}: ${platformPackageName(name, target)} defers its artifact (${why}), so the honest glyph is \`○\`.`
+                        : `${name} ${target}: nothing defers this target, so a committed artifact is the promise — a glyph other than \`✓\` means the directory is gone or the deferral was deleted without one arriving.`,
+                );
             }
         }
+    });
+});
+
+// Which jobs COUNT as producing a target, which is the input every declared-vs-built
+// failure is computed from. Fixtures rather than the real workflow, because the claim
+// is about job SHAPES: the repository has one job of each shape today and would grow
+// a silent hole the day it has two.
+//
+// The distinction used to be "does this job download an artifact" — a job that did was
+// read as a pure consumer and credited with nothing. That held only while no producer
+// downloaded, and `@gjsify/webgl`'s win32 target ended it: valac does not run on
+// Windows, so the artifact is built by a PAIR and the Windows half downloads the Linux
+// half's generated C before compiling. Under the old test that leg produced nothing,
+// and `win32-x64` could not be declared without failing the invariant against the very
+// job that builds it.
+describe('CI coverage — a producer may also be a consumer', () => {
+    const nativePkgs = [
+        { name: '@gjsify/webgl', path: 'packages/framework/webgl' },
+        { name: '@gjsify/tls-native', path: 'packages/node/tls-native' },
+    ];
+
+    /** Run the parser over ONE synthetic workflow and return its `name → targets` map. */
+    const coverage = async (yaml) => {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-ci-coverage-'));
+        try {
+            mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+            writeFileSync(join(root, '.github', 'workflows', 'prebuilds.yml'), yaml);
+            const map = await parseCiPlatforms(root, nativePkgs, ['prebuilds.yml']);
+            return Object.fromEntries([...map].map(([name, targets]) => [name, [...targets].sort()]));
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    };
+
+    it('credits a job that downloads an intermediate and then builds + uploads', async () => {
+        const got = await coverage(`
+name: fixture
+jobs:
+  build-prebuilds-win32:
+    runs-on: windows-latest
+    steps:
+      - name: Download the Vala C + GIR
+        uses: actions/download-artifact@v8
+        with:
+          name: webgl-vala-c-win32
+          path: packages/framework/webgl/vala-c-export
+      - name: Build @gjsify/webgl with MSVC from the imported C
+        working-directory: packages/framework/webgl
+        run: meson compile -C build
+      - name: Upload @gjsify/webgl win32-x64 prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: packages/framework/webgl/prebuilds/win32-x64/
+`);
+        assert.deepEqual(
+            got,
+            { '@gjsify/webgl': ['win32-x64'] },
+            'the split-build shape: this job DOES produce win32-x64, and reading its download step as proof of the opposite is what made the target undeclarable.',
+        );
+    });
+
+    it('credits nothing to a job that only downloads', async () => {
+        const got = await coverage(`
+name: fixture
+jobs:
+  commit-prebuilds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download webgl x64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          path: packages/framework/webgl-linux-x64/prebuilds/linux-x64/
+      - name: Download tls-native arm64 prebuilds
+        uses: actions/download-artifact@v8
+        with:
+          path: packages/node/tls-native-linux-arm64/prebuilds/linux-arm64/
+`);
+        assert.deepEqual(
+            got,
+            {},
+            'a consuming job runs on ubuntu-latest and mentions every platform package by path, so crediting it hands each of them `linux-x64` — which fails the invariant in BOTH directions at once.',
+        );
+    });
+
+    it('never credits a DOWNLOAD step inside a job that also produces', async () => {
+        const got = await coverage(`
+name: fixture
+jobs:
+  build-prebuilds-win32:
+    runs-on: windows-latest
+    steps:
+      - name: Download tls-native prebuilds to compare against
+        uses: actions/download-artifact@v8
+        with:
+          path: packages/node/tls-native/prebuilds/linux-x64/
+      - name: Collect @gjsify/webgl prebuilds
+        run: node scripts/stage-prebuild.mjs packages/framework/webgl --scratch
+      - name: Upload @gjsify/webgl win32-x64 prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: packages/framework/webgl/prebuilds/win32-x64/
+`);
+        assert.deepEqual(
+            got,
+            { '@gjsify/webgl': ['win32-x64'] },
+            'the job-level test cannot separate these two steps, so the per-step one has to: a download step’s `path:` is a DESTINATION, and `@gjsify/tls-native` is not built on Windows by anything.',
+        );
     });
 });
